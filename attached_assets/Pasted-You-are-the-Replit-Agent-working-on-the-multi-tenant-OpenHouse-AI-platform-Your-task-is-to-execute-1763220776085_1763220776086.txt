@@ -1,0 +1,107 @@
+You are the Replit Agent working on the multi-tenant OpenHouse AI platform.
+
+Your task is to execute **PHASE 13 — TENANT THEME CONFIGURATION & BRAND ENGINE**.
+
+This phase introduces full white-label theming for each developer account and applies themes across the tenant portal.
+
+Work ONLY within existing architecture, folder structure, and design conventions.
+
+────────────────────────────────────────────────────────
+PHASE 13 OBJECTIVES
+────────────────────────────────────────────────────────
+
+1. Create theme_config table (Supabase)
+   Add a new table if not already present:
+
+   theme_config
+   - tenant_id (FK)
+   - primary_color
+   - secondary_color
+   - accent_color
+   - logo_url
+   - dark_mode (boolean)
+   - updated_at
+
+   Enforce RLS:
+   tenant_id = auth.jwt()->>'tenant_id'
+   Super-admin bypass with role check.
+
+2. Add API route for theme fetch
+   Create:
+   /api/theme/get
+
+   Requirements:
+   - Accept homeowner JWT or developer session
+   - Resolve tenant_id
+   - Return theme_config for that tenant
+   - Fallback to default theme if undefined
+
+3. Add theme provider on tenant-portal
+   Create a new wrapper component:
+   /apps/tenant-portal/components/providers/ThemeProvider.tsx
+
+   The provider must:
+   - Fetch theme on app load
+   - Hydrate CSS variables:
+       --primary
+       --secondary
+       --accent
+       --bg
+       --text
+   - Make theme available via context
+
+4. Apply theming across UI
+   Update all tenant-portal components to use theme variables:
+
+   - Onboarding screens
+   - Header (logo + house meta)
+   - Navigation dock
+   - Chat bubbles
+   - Noticeboard category chips
+   - Map category filters
+   - Document icons
+   - Buttons, banners, alerts
+
+   DO NOT redesign the interface.
+   Replace static colors with CSS variables.
+
+5. Developer Portal Theme Editor
+   In apps/developer-portal:
+   - Add a new page: /tenants/[tenantId]/theme
+   - Inputs:
+       • primary_color
+       • secondary_color
+       • accent_color
+       • upload logo
+       • dark mode toggle
+   - Save to theme_config table
+   - Add preview box showing theme in real time
+
+6. Live Preview Mode
+   Add optional query param:
+   /chat?previewTheme=1
+
+   Enables developers to instantly see theme changes without QR onboarding.
+
+7. Edge-case handling
+   - Missing theme → fallback to default
+   - Invalid color → ignore and log
+   - Invalid logo URL → hide image
+   - Dark mode → switch CSS variable set
+
+────────────────────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────────────────────
+
+• theme_config table + SQL migration  
+• API route /api/theme/get  
+• Tenant-portal ThemeProvider  
+• Global CSS variables injected at root  
+• Updated UI components using theme vars  
+• Developer Portal Theme Editor page  
+• Live-preview mode for developers  
+• docs/PHASE_13_SUMMARY.md
+
+────────────────────────────────────────────────────────
+
+Proceed with PHASE 13 now.

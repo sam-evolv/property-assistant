@@ -1,0 +1,205 @@
+You are working inside the OpenHouse / Longview project in Replit.
+
+Business requirement
+For the purchaser demo portal (Longview Park), when a purchaser logs in as a specific house (for example No.3 Longview Park which is house type BD01), the system must:
+
+1) Know exactly which unit and house type they own (e.g. unit_uid / unit_code = BD01 for No.3).  
+2) Only show documents that are relevant to that house type (BD01 floor plans, elevations, etc) in the purchaser “Documents” tab.  
+3) When the purchaser asks questions like “What size is my living room?”, the assistant must answer using the correct data for that specific unit / house type (e.g. the BD01 schedule of areas), not generic or wrong data.  
+4) This must work for all units in Longview Park – e.g. BD01, BD02, BD03 – so that each purchaser only sees their own plans and gets answers based on their own unit.
+
+Recently, all documents were removed and re-uploaded to make them downloadable again. In that process, the Excel / data mapping that linked units → house types → floor area data appears to have been removed or is no longer being used. As a result:
+
+- The purchaser portal now says “no documentation” or “I don’t see this in your documents” when asked “what size is my living room” for No.3 Longview Park (BD01), even though the floor plan documents are present.  
+- The purchaser “Documents” tab no longer scopes documents to the user’s house type – everything is just global per development.
+
+Your task is to restore and harden the original logic.
+
+----------------------------------------------------
+PHASE 1 – Diagnose current state
+----------------------------------------------------
+
+1. Identify the main data model for:
+   - developments
+   - house types (e.g. BD01, BD02)
+   - units / houses
+   - documents (including any house_type or unit links)
+   - any table that previously held Excel-style data (bedrooms, bathrooms, GIA, room sizes, etc).
+
+2. Search the repo for:
+   - “BD01”
+   - “Longview Park”
+   - “unit_uid”
+   - “house_types”
+   - “schedule of areas”
+   - `.xlsx` / `.csv` seed or import files that look like they contained:
+     - unit id, unit code, address, house type, bedrooms, bathrooms, sqm, etc.
+
+3. Confirm the following for the demo purchaser account (No.3 Longview Park):
+   - What is the internal unit id / code used for that login?
+   - What house_type / typology is associated with that unit (should be BD01)?
+   - Which documents exist in the documents table for:
+     - development = Longview Park
+     - house_type_code = BD01 (if such a field exists)
+   - Whether there is any structured data for room sizes for BD01.
+
+Document what is missing. The likely gaps are:
+- The link between unit → house_type.
+- The link between documents → house_type.
+- The structured area data per house type / unit.
+
+----------------------------------------------------
+PHASE 2 – Reinstate the base mapping dataset
+----------------------------------------------------
+
+Goal: restore a reliable mapping from each unit to its house type and core attributes (beds, baths, floor areas), ideally from the original Excel / CSV.
+
+1. If a previous Excel/CSV seed file exists in the repo or git history (for example in a /data or /scripts folder):
+   - Restore or reuse it.
+   - Implement (or restore) an import script that:
+     - Reads each row.
+     - Upserts into the appropriate tables:
+       - house_types (BD01, BD02, etc) with their descriptive data.
+       - units (unit_uid, address, house_type_id, bedrooms, bathrooms, total_area, etc).
+
+2. If no seed file is available but the schema already includes these fields on units / house_types:
+   - Check the database to see if the data is still present.
+   - If not present at all, create a simple seed script to re-populate at least Longview Park using any hard-coded data that was previously present (check older commits).
+
+3. Ensure:
+   - Every unit in Longview Park has a `house_type_id` or `house_type_code` pointing to BD01, BD02, BD03, etc.
+   - The BD01 entry contains the necessary floor area data at a minimum:
+     - `living_room_area`
+     - or a generic `room_areas` JSON field where “living room” is a key.
+
+----------------------------------------------------
+PHASE 3 – Re-link documents to house types
+----------------------------------------------------
+
+Goal: each floor-plan / elevation document is associated with the correct house type so that only relevant documents are shown for each purchaser.
+
+1. Inspect the documents schema:
+   - Look for fields such as:
+     - `house_type_id` or `house_type_code`
+     - `doc_scope` (e.g. “house_type”, “development”, “all”)
+     - `unit_id` (if docs can be per unit).
+
+2. If a `house_type` link already exists:
+   - For all Longview Park documents that are floor plans or elevations:
+     - Set the `house_type_id`/`house_type_code` to the correct type (BD01, BD02, etc).
+   - You can derive this from:
+     - File name patterns (e.g. “BD01_FloorPlan.pdf”).
+     - Or from a manual mapping script.
+
+3. If a `house_type` link does NOT exist:
+   - Add a `house_type_id` FK or `house_type_code` column to `documents` via migration.
+   - Update the document upload code and the Developer UI so that:
+     - When uploading house-specific documents, the developer selects the house type (BD01, BD02, etc).
+   - For existing Longview Park docs, backfill the house_type relationship based on file naming or manual mapping as above.
+
+----------------------------------------------------
+PHASE 4 – Restore purchaser “Documents” scoping logic
+----------------------------------------------------
+
+Goal: when a purchaser is logged in as a specific unit, their Documents tab only shows:
+
+- Documents that match their `house_type` (e.g. BD01), plus  
+- Any global development-level documents (e.g. estate rules, management documents).
+
+1. Locate the API endpoint that powers the purchaser Documents view (e.g. `/api/purchaser/documents` or similar).
+
+2. Change the query logic so that for a given purchaser:
+
+   - Resolve:
+     - `current_unit_id`
+     - `current_house_type_id` (or code)
+     - `current_development_id`
+
+   - Select documents where:
+     - `development_id = current_development_id`
+     - AND (
+         `house_type_id IS NULL` OR
+         `house_type_id = current_house_type_id`
+       )
+     - AND (any existing filters such as `is_visible_to_homeowner = true`).
+
+3. Confirm for No.3 Longview Park (BD01):
+   - Only BD01 floor plans / elevations appear, plus shared development-level docs.
+   - No BD02 / BD03 plans appear.
+
+----------------------------------------------------
+PHASE 5 – Make Q&A use the correct unit’s data again
+----------------------------------------------------
+
+Goal: when the purchaser asks “What size is my living room?”, the assistant responds with the BD01 (or relevant) living room area, not “I don’t have documentation”.
+
+Implement this order of precedence:
+
+1) Try structured data first.  
+2) Fall back to RAG over documents.  
+3) Only if nothing is found, return the safe fallback.
+
+1. Structured data route:
+
+   - If units / house_types tables contain `living_room_area` (or similar):
+     - In the chat / RAG controller, before doing vector search:
+       - Inspect the parsed user question.
+       - If it matches a pattern like “what size is my living room” or “how big is my living room”:
+         - Fetch the `living_room_area` for the current unit’s house_type from the database.
+         - If found:
+           - Answer directly:
+             “For your BD01 home at 3 Longview Park, the living room is approximately X m².”
+
+2. RAG fallback:
+
+   - Ensure RAG retrieval for the current unit includes:
+     - house_type-specific documents (BD01) and relevant schedules/specs.
+   - The retrieval filter should use:
+     - unit_id and/or house_type_id first,
+     - then widen to development-wide docs.
+   - This ensures that if the area is only written in a PDF floorplan / schedule of areas, the assistant can still read it.
+
+3. Make sure that, when answering, the assistant knows:
+   - unit address (e.g. 3 Longview Park)
+   - house type (BD01)
+   - development (Longview Park)
+   so it can phrase the answer clearly.
+
+----------------------------------------------------
+PHASE 6 – Test scenarios
+----------------------------------------------------
+
+Create explicit tests and run them manually or as automated tests:
+
+1. For No.3 Longview Park (BD01):
+   - Open purchaser portal.
+   - Go to Documents:
+     - Confirm only BD01 house plans and elevations appear (plus global docs).
+   - Ask in chat:
+     - “What size is my living room?”
+     - Expect:
+       - A numeric answer based on BD01 data (structured or from docs).
+       - No “I don’t see documentation” message.
+
+2. For another house in Longview Park (e.g. No.2 with BD02):
+   - Confirm their Documents tab shows BD02 docs, not BD01.
+   - Ask “What size is my living room?”
+   - Expect BD02-specific answer.
+
+3. Regression:
+   - Ensure that for houses without detailed room-by-room data:
+     - The assistant falls back to appropriate messaging (“The exact living room area is not listed, but your total house area is …”) rather than crashing.
+
+----------------------------------------------------
+DELIVERABLES
+----------------------------------------------------
+
+When finished, provide in the Replit task summary:
+
+- Which tables and columns were used (or added) to link units → house_types → documents.  
+- Whether and how the original Excel/CSV mapping was restored or replaced.  
+- The final query logic for purchaser Documents scoping.  
+- The logic used in the chat controller to answer “What size is my living room?” for a unit (structured data vs RAG).  
+- Evidence that the test case for No.3 Longview Park (BD01) now works end-to-end as described.
+
+Execute these steps now and restore the original per-unit/per-house-type behaviour so the demo works correctly again.

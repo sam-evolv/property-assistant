@@ -1,0 +1,187 @@
+You are debugging a Next.js 14 monorepo app in Replit.
+The /super route crashes in the browser with:
+
+Unhandled Runtime Error
+TypeError: Cannot read properties of undefined (reading 'call')
+at .next/static/chunks/webpack.js
+
+I have already run a previous “fix” prompt. The error is STILL present.
+You must now locate the real root cause and fix it properly.
+
+Hard rules
+
+Do NOT modify dependency versions in package.json (no upgrades/downgrades of next, react, react-dom, webpack, etc.).
+
+Do NOT delete pages, layouts, or routes.
+
+Make minimal, targeted edits.
+
+You must prove /super returns a valid HTML page from the server before you claim success.
+
+STEP 1 – Clean build and capture any build-time errors
+
+From the project root:
+
+rm -rf .next .turbo
+
+npm install
+
+# Run lint and build. If either fails, stop and use the error output.
+npm run lint || echo "LINT_FAILED"
+npm run build
+
+
+If npm run lint or npm run build fails:
+
+Paste the FULL error output into your reasoning.
+
+Open the file(s) mentioned in the error, fix the issue(s).
+
+Re-run npm run build until it completes successfully.
+
+Do NOT skip this. The build must be clean.
+
+STEP 2 – Run dev with full stack trace and hit /super from the shell
+
+Start dev with extra tracing (in a new shell tab if needed):
+
+export NODE_ENV=development
+export NEXT_TELEMETRY_DISABLED=1
+npm run dev -- --port 3000
+
+
+Once the dev server is running, in ANOTHER shell tab run:
+
+curl -sS -D- http://127.0.0.1:3000/super | head -n 40
+
+
+If this command prints an error or non-HTML output, scroll up in the dev-server console and look for the full stack trace there. That stack trace will reference REAL source files, unlike the browser overlay.
+
+Identify the first stack frame inside our app (NOT in .next/static/...). It will look something like:
+
+apps/unified-portal/app/super/page.tsx
+
+apps/unified-portal/app/super/layout.tsx
+
+apps/unified-portal/components/...
+
+Open that file. That is where the bug is.
+
+STEP 3 – Fix the actual bug
+
+Common causes for this specific undefined.call from Webpack:
+
+A page.tsx or layout.tsx that has no valid default React component export.
+
+For app router pages, you MUST export a component as default:
+
+export default function Page() {
+  return <div>...</div>;
+}
+
+
+A dynamic import that references a non-existent export, for example:
+
+const Widget = dynamic(() =>
+  import("../Widget").then(m => m.NonExistingExport)
+);
+
+
+Fix this so it imports an existing export.
+
+A component or helper that is undefined but is called as a function:
+
+const something = undefined;
+something(); // crash
+
+
+A broken custom webpack configuration in next.config.* which misconfigures runtime chunks or plugins.
+
+3A – Inspect /super route files
+
+Inspect:
+
+app/super/page.tsx
+
+app/super/layout.tsx
+
+any components they import
+
+Validate:
+
+Each page/layout has a proper default export.
+
+There are no dynamic imports pointing to files/exports that do not exist.
+
+No undefined value is being invoked as a function.
+
+Fix whatever is clearly wrong, then re-run:
+
+npm run build
+npm run dev -- --port 3000
+curl -sS -D- http://127.0.0.1:3000/super | head -n 40
+
+
+If /super now returns valid HTML in the curl output (starting with HTTP/1.1 200 and a < HTML tag), the server-side error is resolved.
+
+3B – Inspect next.config.* ONLY if needed
+
+If the bug is not in the /super files, inspect next.config.js or next.config.mjs.
+
+If there is a webpack override:
+
+const nextConfig = {
+  webpack: (config, { isServer, dev }) => {
+    // custom changes...
+    return config; // MUST return config
+  },
+};
+
+
+Ensure:
+
+The function always returns config.
+
+It does NOT push undefined plugins or loaders.
+
+It does NOT overwrite config.entry, config.optimization, etc. with invalid values.
+
+If you strongly suspect this block is causing the runtime error and cannot see an obvious fix:
+
+Temporarily comment out the entire webpack function, leaving a comment explaining this.
+
+Clean and rebuild:
+
+rm -rf .next .turbo
+npm run build
+npm run dev -- --port 3000
+curl -sS -D- http://127.0.0.1:3000/super | head -n 40
+
+
+If /super now works, re-introduce only the minimal needed subset of that webpack config, verifying after each change that /super still works.
+
+STEP 4 – Final regression checks
+
+Do NOT say the issue is fixed until ALL of the following are true:
+
+npm run build completes successfully.
+
+npm run dev -- --port 3000 runs without throwing errors on startup.
+
+curl -sS -D- http://127.0.0.1:3000/super | head -n 10 returns an HTTP/1.1 200 (or 304) response and HTML content.
+
+Opening /super in the Replit preview AND in an “Open in new tab” browser window shows the page with no red error overlay.
+
+Final message requirements
+
+In your final message, you MUST clearly state:
+
+The root cause (file and line range).
+
+The exact code change you made to fix it.
+
+Any code you commented out or removed, with justification.
+
+Confirmation that npm run build succeeded and /super works in the browser.
+
+Do not claim success unless all verification steps passed.

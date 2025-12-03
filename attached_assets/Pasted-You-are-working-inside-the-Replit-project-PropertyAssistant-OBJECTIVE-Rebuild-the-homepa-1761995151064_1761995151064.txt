@@ -1,0 +1,133 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Rebuild the homepage layout to achieve a premium, minimalist user interface inspired by **ChatGPT** and **Apple’s design language**.
+The new layout should feel *intentional, clean, intuitive, and expensive* — minimal elements, perfect symmetry, and smooth spatial rhythm.
+The goal is to make the experience feel like a next-generation resident assistant app, not a WordPress site.
+
+---
+
+## DESIGN PHILOSOPHY
+- **Simplicity = Luxury.** Every element must have purpose and spacing that feels designed, not accidental.
+- **Visual balance.** Everything should sit comfortably on screen — no crowding, no arbitrary margins.
+- **Focus hierarchy.** The central focus should be the assistant prompt box and “Ask anything” heading.
+- **Intuitive navigation.** Bottom navigation (Chat, Map, Noticeboard, Documents) should mimic ChatGPT’s or Apple’s dock — minimal icons, balanced distribution, small text labels.
+- **Typography.** Use modern sans-serif with consistent weights — smooth, legible, slightly upscale.
+- **Whitespace.** Maintain generous padding and consistent rhythm between sections.
+- **Motion.** Use gentle fade/slide-in on load, not flashy animation.
+
+---
+
+## TASKS
+
+1. ✅ **Restructure Overall Layout**
+   - Main container: `min-h-screen flex flex-col justify-between items-center bg-white text-center font-sans`
+   - Top section: logo + headline centered vertically in viewport.
+   - Bottom section: evenly spaced nav bar (Chat / Map / Noticeboard / Documents).
+   - Remove the existing top nav buttons (they’re redundant now).
+
+---
+
+2. ✅ **Logo + Headline**
+   - Move logo **slightly higher** on screen for balance.
+   - Place `Ask anything about your home or community` **centered vertically** below logo.
+   - Subtext `Quick answers for daily life at Seaview: floor plans, amenities, local services, and more.` below it in lighter gray.
+   - Font sizes:
+     - Logo text: `text-sm text-gray-500 tracking-wider`
+     - Headline: `text-3xl md:text-4xl font-semibold text-gray-900`
+     - Subtext: `text-gray-500 text-base max-w-xl mx-auto`
+
+---
+
+3. ✅ **Topic Buttons (Public Transport, Waste, etc.)**
+   - Keep their current design but make width aligned to the main content.
+   - Add consistent horizontal boundaries:
+     - Left edge = start of “Public Transport”
+     - Right edge = end of “Local area”
+   - Evenly spaced, consistent padding `px-4 py-1.5`, rounded-full, subtle hover.
+
+---
+
+4. ✅ **Assistant Input Bar**
+   - Place it **slightly lower** (above the bottom navigation).
+   - Make it **slightly wider** — around `max-w-xl`.
+   - Style it like ChatGPT’s input bar or iMessage field:
+     - Light-gray background (`bg-gray-50`)
+     - Border: `border border-gray-200 rounded-full`
+     - Shadow on hover: `hover:shadow-md transition-all duration-200`
+     - Inside: microphone icon on left, text input centered, “Ask” button on right.
+   - Placeholder: “Ask about your home or community…”
+
+---
+
+5. ✅ **Bottom Navigation (Dock)**
+   - Move **Chat, Map, Noticeboard, Documents** buttons to the bottom of the viewport.
+   - Distribute **evenly across full width** (like iOS dock or ChatGPT app footer).
+   - Replace current square “cards” with **simple icon + label stacks**:
+     - Use outline icons (SVGs or Heroicons for now).
+     - Each button:
+       ```
+       flex flex-col items-center justify-center text-gray-500 hover:text-blue-600 transition
+       ```
+     - Icon size: `h-5 w-5`
+     - Label: `text-xs font-medium mt-1`
+   - Example:
+     ```tsx
+     <footer className="fixed bottom-6 inset-x-0 flex justify-center gap-10">
+       {[
+         { name: "Chat", icon: <ChatBubbleLeftEllipsisIcon /> },
+         { name: "Map", icon: <MapIcon /> },
+         { name: "Noticeboard", icon: <MegaphoneIcon /> },
+         { name: "Documents", icon: <DocumentTextIcon /> },
+       ].map((item) => (
+         <button
+           key={item.name}
+           className="flex flex-col items-center text-gray-500 hover:text-blue-600 transition"
+         >
+           <span className="h-5 w-5 mb-1">{item.icon}</span>
+           <span className="text-xs font-medium">{item.name}</span>
+         </button>
+       ))}
+     </footer>
+     ```
+   - Keep it **floating above a small white blur bar** (`backdrop-blur-lg bg-white/70`).
+
+---
+
+6. ✅ **Clean Up Unnecessary Elements**
+   - Remove redundant top nav links (Chat, Map, Documents, Notices).
+   - Remove extra margins and inconsistent vertical gaps.
+   - Simplify shadows and borders throughout.
+
+---
+
+7. ✅ **Responsive Behavior**
+   - On mobile: dock remains sticky at bottom.
+   - On desktop: dock sits centered above padding `pb-10`.
+   - Everything scales fluidly — no element should ever touch the viewport edges.
+
+---
+
+8. ✅ **Commit Message**
+feat(ui): rebuild homepage for premium ChatGPT-inspired minimal design with bottom dock navigation
+
+yaml
+Copy code
+
+---
+
+## ACCEPTANCE CRITERIA
+- The interface visually balances top (logo + text), middle (input + topics), bottom (nav dock).
+- The four bottom icons are evenly spaced, minimal, and look like Apple dock buttons.
+- The search bar feels familiar and intentional (ChatGPT/iMessage-inspired).
+- All typography and spacing shout “designed,” not “assembled.”
+- The page feels modern, light, trustworthy, and unmistakably premium.
+
+---
+
+## OPTIONAL (if time allows)
+- Add smooth fade-in animation on load.
+- Add subtle blue highlight under active nav icon.
+- Implement dark mode toggle (optional, if trivial).

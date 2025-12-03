@@ -1,0 +1,234 @@
+You are the Replit Agent working inside the PropertyAssistant monorepo (OpenHouse Ai).
+
+Your task in this pass is to implement a fully unified OpenHouse Ai design system, navigation framework, and UX layer across BOTH the Developer Portal and the Tenant Portal.  
+The goal is to transform the application from a functional MVP into a visually coherent, professional, premium-grade SaaS product.
+
+You MUST perform real code changes, update components, introduce a design layer, and show diffs for every modification.
+
+────────────────────────────────────────
+🎨 0. BRAND FOUNDATIONS (GLOBAL)
+────────────────────────────────────────
+
+Implement a global design system with the following constraints:
+
+Colors:
+- Primary Gold: #D4AF37 (or updated hex matched to branding)
+- Primary Black: #0B0B0B
+- True White: #FFFFFF
+- Neutral Grey Palette: #F6F6F6, #EDEDED, #D5D5D5 for dividers, cards, structure
+
+Typography:
+- Modern sans serif, consistent everywhere
+- Hierarchy:  
+  h1: 24–28px  
+  h2: 20–22px  
+  body: 15–16px  
+  captions: 12–13px
+
+Spacing:
+- Vertical rhythm: 20–28px sections
+- Component padding: 12–20px
+
+Borders & Surfaces:
+- Rounded corners consistently: 8–10px
+- Subtle drop shadows for cards and modals
+- Light gold accent lines for headers or left borders
+
+Motion:
+- Fast, subtle transitions for hover, focus, open/close
+- Zero jank in navigation
+
+You must implement:
+- `@/components/ui/Button`
+- `@/components/ui/Card`
+- `@/components/ui/SectionHeader`
+- `@/components/ui/Input`
+- `@/components/ui/TextArea`
+- Any primitives needed for consistent design
+
+Add a shared layout wrapper for each app:
+- Developer Portal: `apps/developer-portal/src/app/layout.tsx`
+- Tenant Portal: `apps/tenant-portal/src/app/layout.tsx`
+
+Each layout MUST include:
+- Uniform header (black bar, gold underline)
+- Consistent spacing rules
+- Consistent font + color tokens
+
+Show diffs when introducing these global styles.
+
+────────────────────────────────────────
+🧭 1. NAVIGATION SYSTEM CLEANUP (DEVELOPER PORTAL)
+────────────────────────────────────────
+
+Fix and standardise the Developer Portal’s navigation so that every page is logically accessible and visually consistent.
+
+Implement:
+- Left sidebar navigation with icons + gold hover state
+- Sections:
+  - Dashboard
+  - Developments
+  - Documents
+  - Training Jobs
+  - Settings (superadmin only)
+
+Every route must:
+- Highlight the current tab
+- Have consistent padding
+- Render a title/header component with gold underline
+- Never show “Development Not Found” unless data is truly missing
+
+Ensure that:
+- `/developments`
+- `/developments/[id]`
+- `/developments/[id]/documents`
+- `/developments/[id]/training`
+all work with consistent UX and styling.
+
+────────────────────────────────────────
+🏡 2. NAVIGATION SYSTEM CLEANUP (TENANT PORTAL)
+────────────────────────────────────────
+
+Implement a clean, mobile-first navigation experience for residents.
+
+Requirements:
+- A top header that always shows the current development name  
+- A bottom navigation bar with 3–4 tabs:
+
+  Tabs:
+  - Home
+  - Chat
+  - Documents
+  - More (map, notices, settings)
+
+Each tab:
+- Uses a consistent icon set
+- Has gold highlight on active
+
+Ensure all pages:
+- Fit the screen
+- Have proper spacing and padding
+- Use the design tokens from the new global theme
+
+────────────────────────────────────────
+📄 3. DOCUMENT VIEW EXPERIENCE (TENANT + DEVELOPER PORTALS)
+────────────────────────────────────────
+
+Improve the docs experience so it feels professional:
+
+Developer Portal:
+- Document upload cards use new Card component
+- Clear status tags: “Training”, “Ready”, “Error”
+- Gold accent on selected doc
+
+Tenant Portal:
+- Document list uses icons (PDF, Image, etc.)
+- Clicking a doc:
+  - opens inline view OR
+  - downloads via signed URL
+- Display metadata (category, uploaded date)
+
+Add skeleton placeholders for loading state.
+
+────────────────────────────────────────
+💬 4. CHAT EXPERIENCE POLISH (TENANT + DEVELOPER)
+────────────────────────────────────────
+
+Apply high-quality UX patterns:
+
+Message bubbles:
+- Resident bubble: white, right aligned, subtle border
+- Assistant bubble: black with gold border or gold accent line
+- Subtle fade-in animations for new messages
+- Timestamp (optional)
+- Always scroll to bottom
+
+Input area:
+- Floating or fixed to bottom
+- Rounded full-width input with gold accent ring
+- Send button: gold -> black hover
+
+Ensure:
+- No layout shifting on message load
+- Errors show non-intrusive toast
+
+────────────────────────────────────────
+📱 5. MOBILE OPTIMIZATION PASS
+────────────────────────────────────────
+
+This is critical.
+
+Implement:
+- Responsive font scale
+- Fluid layouts (flex or grid)
+- No overflow on any page
+- Bottom nav safe-area padding (iOS)
+- Larger tap targets on mobile
+- Optimized chat input for small screens
+- Cards stack gracefully
+
+Test all screens at widths:
+- 390px
+- 768px
+- 1024px+
+
+────────────────────────────────────────
+🔒 6. ACCESS CONTROL & SECURITY UX
+────────────────────────────────────────
+
+Improve the experience around protected pages:
+
+Developer Portal:
+- Ensure login is clean and branded
+- Smooth logout flow
+- Superadmin-only pages are hidden when not relevant
+- Proper 403 page with “Insufficient Permissions”
+
+Tenant Portal:
+- No login required for residents
+- All routes locked to developmentId in the URL
+- If developmentId missing or invalid → custom error page:
+  “We couldn’t find this estate.”
+
+────────────────────────────────────────
+🧪 7. VALIDATE EVERYTHING END-TO-END
+────────────────────────────────────────
+
+Once styling + UX changes are applied, run through a full test:
+
+Developer Portal:
+- Create new development
+- Upload multiple docs
+- Check training jobs
+- Test Preview Chat
+
+Tenant Portal:
+- Open development URL
+- Ask questions
+- View documents
+- Navigate via bottom bar
+- Test mobile mode
+
+Fix any issues encountered in this test.
+
+────────────────────────────────────────
+📦 8. DELIVERABLES FOR THIS PASS
+────────────────────────────────────────
+
+At the end of this prompt you must output:
+
+- A complete set of diffs across:
+  - Global theme files
+  - UI components
+  - Layout files
+  - Navigation files
+  - Chat screens
+  - Document screens
+- Confirmation that the design system is fully integrated
+- Proof that Developer Portal + Tenant Portal now share a coherent brand
+- No pages crash
+- All navigation works
+- Mobile view is clean
+- UI matches OpenHouse Ai’s white/black/gold aesthetic
+
+Apply ALL code changes now and show the diffs.

@@ -1,0 +1,251 @@
+MISSION
+
+Transform the Resident Tenant App into a premium, intuitive, elegantly designed flagship interface that feels luxurious, fast, and human-centric.
+This phase focuses exclusively on the front-end experience of the homeowner-facing app, not the developer portal.
+
+The outcome should be:
+
+Beautiful
+
+Seamless
+
+Predictable
+
+Cohesive
+
+Insanely intuitive
+
+Visually consistent with the new gold/black/white OpenHouseAI identity.
+
+The app should feel like it was built by Apple x Airbnb x Revolut.
+
+OBJECTIVES
+1. Establish a Consistent Premium Theme (Global Theming Overhaul)
+
+Transform the resident app into a fully unified design system:
+
+Remove all legacy colours
+
+Apply a consistent palette:
+
+White background (primary content layer)
+
+Off-white cards (secondary surfaces)
+
+Soft shadows, very subtle
+
+Gold as primary accent
+
+Black/charcoal for typography
+
+Light grey dividers
+
+Eliminate the cheap or “default React” look in every component.
+
+Replace all chat bubbles:
+
+Homeowner messages → white bubble with thin gold outline
+
+Assistant messages → slate grey bubble with thin gold outline
+
+Add tasteful radius, 12–16px
+
+Ensure bubbles adapt to text length
+
+Smooth animations on appearance (fade + slide).
+
+2. Typography Upgrade
+
+Implement the premium typography system:
+
+“Inter” or “SF Pro Display” (if available)
+
+Headings: weight 600 or 700
+
+Body text: weight 400
+
+Reduce excessive bolds
+
+Ensure spacing is consistent everywhere
+
+Global type scale: 12 / 14 / 16 / 20 / 24 / 32px
+
+3. Navigation & Bottom Bar Polish
+
+Rebuild the bottom navigation bar into a premium component:
+
+Gold active icon
+
+Black inactive icons with 70 percent opacity
+
+Soft hover states
+
+Smooth transition animations
+
+Better spacing and visual separation
+
+Remove pixel-jumps or layout shifts
+
+4. Chat Experience Excellence
+
+Fix and enhance:
+
+Smooth scroll anchoring
+
+Auto-scroll to latest message
+
+Reduce message jitter
+
+Add message timestamp hover
+
+Add micro-transitions
+
+Improve send button aesthetics (gold accent, tasteful outline)
+
+Add a short fade-in animation to each message arrival
+
+5. Document Download UX Upgrade
+
+Implement document download presentation:
+
+Whenever assistant responds with a linked document (floor plan, elevation, BER, site plan etc), show:
+
+A premium gold-outlined card
+
+Document icon
+
+File size
+
+“Download” button (rounded, gold outline)
+
+Ensure storage URLs are correct
+
+Add loading states and error handling
+
+6. Map Polish
+
+Refine the map UI:
+
+Softer map UI components
+
+More elegant POI marker styling
+
+Improve category filter chips
+
+Consistent spacing, radius, colours
+
+Add polished empty states
+
+Add subtle animations when switching POI categories
+
+7. Page-Level Polish (Chat / Map / Noticeboard / Documents)
+
+Audit and polish each page:
+
+Chat page
+
+Improve spacing
+
+Smooth transitions
+
+Refine input area
+
+Stable height
+
+Noticeboard
+
+Add premium card styling
+
+Improve layout hierarchy
+
+Add gold accents
+
+Documents
+
+Add premium document cards
+
+Show type, size, and last updated
+
+Gold accent icons
+
+Map
+
+Centering logic
+
+Distance display
+
+Category chips
+
+8. Micro-Interactions
+
+Implement subtle effects:
+
+Fade transitions
+
+Soft hover states
+
+Button press animation
+
+Card elevation on hover
+
+Smooth page transitions with framer-motion
+
+9. Performance Optimisation
+
+Reduce unnecessary re-renders
+
+Debounce chat input
+
+Lazy-load heavy assets
+
+Ensure maps load smoothly
+
+Test across mobile devices
+
+Ensure animations do not affect responsiveness
+
+DELIVERABLES
+
+Your Replit Agent must:
+
+Apply a unified theme across the entire tenant app.
+
+Refactor chat UI with premium bubble styles.
+
+Upgrade all navigation visuals.
+
+Polish every page to a premium look and feel.
+
+Add micro-interactions using Framer Motion.
+
+Add layout consistency and type scale alignment.
+
+Enhance map presentation and POI UX.
+
+Improve document download UI.
+
+Ensure everything compiles and passes lint checks.
+
+Maintain full compatibility with existing routes and APIs.
+
+EXECUTION RULES
+
+Work in small, isolated commits.
+
+After each change:
+
+Run the app
+
+Verify no regressions
+
+Don’t touch backend routes
+
+Don’t rename folders
+
+Don’t break imports
+
+Follow the established “luxury design” rules
+
+Maintain mobile-first responsiveness
+
+Maintain accessibility (labels, alt, contrast)

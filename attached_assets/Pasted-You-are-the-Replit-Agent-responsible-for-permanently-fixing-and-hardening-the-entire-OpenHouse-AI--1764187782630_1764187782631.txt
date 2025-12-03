@@ -1,0 +1,202 @@
+You are the Replit Agent responsible for permanently fixing and hardening the entire 
+OpenHouse AI – PropertyAssistant document ingestion, OCR pipeline, RAG retrieval 
+system, embedding logic, and unit-specific answer reasoning.
+
+You MUST complete the following scope end-to-end, with no partial implementations.
+
+===========================================================
+PHASE 0 — GLOBAL REQUIREMENTS
+===========================================================
+
+• No breaking changes
+• No regressions for existing units or features
+• The system MUST work for THOUSANDS of houses, across HUNDREDS of developments
+• Every document uploaded (PDF, DOCX, TXT, CSV, JSON, Images) MUST be processed
+• Every document MUST produce text chunks + embeddings unless truly impossible
+• All failures must be logged and visible to developer (no silent errors)
+• RAG answers MUST combine all available sources intelligently:
+    1. unit-specific documents
+    2. general development documents
+    3. important documents (priority weighting)
+    4. cross-unit fallback using similarity search if unit has gaps
+• Chat analytics MUST increment correctly for each purchaser message
+• Purchaser portal MUST always know the correct unit and development
+• Purchasers MUST ONLY see documents for their own house type
+• Developers MUST be able to reprocess ALL documents at any time, error-free
+• OCR must be robust, fast, and cached
+
+===========================================================
+PHASE 1 — DOCUMENT INGESTION + OCR PIPELINE
+===========================================================
+
+1. Fix the entire document processing flow so that:
+   - Upload → extract text → OCR if needed → chunk → embed → store → searchable
+   - Works for PDFs, DOCX, TXT, CSV, JSON, images, scanned PDFs, blurry scans.
+   - If regular extraction returns empty or too short (< 50 chars), trigger OCR.
+   - OCR MUST use OpenAI Vision or Tesseract fallback, whichever is available.
+   - OCR output must be normalised (remove x/y coordinate noise, combine lines).
+
+2. Add a secondary OCR-merge step:
+   - Use both text-layer and OCR-layer if both exist.
+   - Deduplicate lines.
+   - Sort by reading order.
+
+3. If OCR fails completely:
+   - Save a “document_failed_ocr” log entry
+   - Still store the file for download even if unsearchable
+   - System MUST NOT crash
+
+4. Guarantee ALL documents are visible in purchaser portal regardless of OCR status.
+
+===========================================================
+PHASE 2 — RAG PIPELINE REPAIR + IMPROVEMENT
+===========================================================
+
+Fix the broken behaviour where RAG returns:
+• “I don't see that information”
+• fallback answers about other house types
+
+Implement:
+
+1. STRICT UNIT-FIRST RETRIEVAL:
+   - Query 1: Search ALL chunks tagged with user.unit_uid
+   - Query 2: Search ALL chunks tagged with user.house_type
+   - Query 3: Search development-level docs
+   - Query 4: Search global fallback docs (cross-unit similarity)
+   Combine with weights:
+      unit_uid: 1.0
+      house_type: 0.9
+      important_docs: 0.8
+      development: 0.7
+      global fallback: 0.4
+
+2. If house-type docs exist, they MUST override all others.
+
+3. Fix the embedding dimension mismatch permanently:
+   - embeddings MUST be generated at 1536 dimensions
+   - database schema MUST match
+   - reprocessing MUST NOT break when dimensions mismatch
+
+4. Add ANSWER CONFIDENCE logic:
+   - If > 0.85 similarity → give exact answer
+   - If 0.6–0.85 → give best possible answer AND state uncertainty
+   - If < 0.6 → use fallback synthesis from related house types
+
+5. If dimensions (room sizes etc.) are found as text or OCR text, extract them.
+
+6. Ensure chunk overlap and chunk length remain optimal:
+   - size: 900 chars
+   - overlap: 200 chars
+
+===========================================================
+PHASE 3 — ROOM DIMENSIONS, SKETCH-OCR & HOUSE PLAN LOGIC
+===========================================================
+
+1. Add enhanced OCR to read text from architectural drawings:
+   - Recognise patterns like: “4.2m x 3.1m”
+   - Recognise shorthand: “4200 x 3100”
+   - Recognise labels: “Living Room”, “Bedroom 1”, “Kitchen / Dining”
+
+2. Add a specialised parser:
+   - Search for “m”, “mm”, “x”, “dimensions”, “room size”, “area”
+   - Auto-convert mm → m² where needed
+   - Normalise “4200 x 3100” → “4.2m x 3.1m”
+
+3. Store parsed room dimensions into structured metadata:
+   - linked to house_type + document_id
+   - so future Q&A answers are INSTANT with no RAG
+
+4. If plan has NO extractable dimensions:
+   - system gracefully falls back to “developer documents do not contain exact numeric sizes”
+
+===========================================================
+PHASE 4 — PURCHASER UNIT CONTEXT FIX
+===========================================================
+
+Fix the bug where the purchaser portal “forgets” which house the user owns.
+
+Implement:
+
+1. ALWAYS resolve:
+   - purchaser_uid
+   - unit_uid
+   - house_type
+   - development_id
+
+2. Keep context in:
+   - session
+   - DB copy
+   - JWT token
+
+3. Add verification:
+   - If purchaser visits “BD01” but is registered for “BD02”, block access
+
+4. Add developer-side admin view showing which user is mapped to which unit.
+
+===========================================================
+PHASE 5 — DOCUMENT REPROCESSING BUTTON (STABILITY FIX)
+===========================================================
+
+Fix the “Unexpected token <” JSON crash.
+
+1. Ensure the /documents/reprocess route:
+   - streams JSON line-by-line
+   - NEVER returns HTML on error
+   - NEVER returns partial strings
+   - ALWAYS returns valid JSON array:
+       [{document_id, success, error_message}]
+
+2. Add robust batching:
+   - Process documents in batches of 10 simultaneously
+   - Retry failed documents once with OCR forced
+
+3. Add developer toast summary:
+   - “98 processed, 96 successful, 2 failed (image-only PDFs)”
+
+===========================================================
+PHASE 6 — ANALYTICS FIX
+===========================================================
+
+1. Fix chat analytics not incrementing:
+   - Ensure every purchaser message triggers:
+        POST /api/analytics/chat_event
+   - Ensure event is stored in Supabase
+   - Fix developer dashboard counters to use live values
+
+===========================================================
+PHASE 7 — GLOBAL HARDENING & TESTS
+===========================================================
+
+1. Add logging for:
+   - OCR failures
+   - RAG errors
+   - embedding errors
+   - chunk extraction failures
+
+2. Add a test mode:
+   - run ingestion on sample documents
+   - verify chunks > 0
+   - verify embeddings > 0
+   - verify RAG returns correct answer for known question
+
+3. Add monitoring:
+   - console logs for each document lifecycle step
+
+===========================================================
+FINAL DELIVERABLES
+===========================================================
+
+1. Fully repaired OCR → Chunk → Embed → Search → Answer system
+2. 100 percent stable document reprocessing
+3. Purchaser portal always knows correct home
+4. Chat analytics fully functional
+5. RAG that ALWAYS returns correct house-specific answers first
+6. OCR that can read architectural drawings when possible
+7. System capable of scaling to thousands of houses, hundreds of developments
+
+Execute all file edits, fixes, schema updates, and code repairs required. 
+Commit after each major stage. 
+Do NOT leave TODOs. 
+Do NOT produce partial implementations.
+
+When finished, summarise the changes and confirm the system is production-ready.

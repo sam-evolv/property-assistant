@@ -1,0 +1,100 @@
+You are to rebuild the Enterprise Analytics API so the admin dashboard loads real development data (Longview Park, units, documents, chat volume, etc.) without using any stub or placeholder logic. Follow these instructions exactly:
+
+1. CLEAN ROUTES
+- Delete all analytics-related routes under apps/unified-portal/app/api/admin/
+- Delete all analytics-related routes under apps/unified-portal/app/api/super/
+- Remove references to deleted folders: /packages/analytics-engine, /packages/analytics, /analytics-engine, /analytics
+
+2. CREATE NEW ENTERPRISE ANALYTICS ROUTES
+Under:
+apps/unified-portal/app/api/super/analytics/
+create these endpoints:
+
+- GET /overview
+- GET /chat
+- GET /rag
+- GET /developers
+- GET /developments
+- GET /units
+- GET /documents
+- GET /homeowners
+
+Make each route connect directly to the Supabase database using the existing db client:
+import { db } from "../../../../packages/db/client";
+
+3. ENSURE THESE QUERIES WORK:
+overview:
+- total developers
+- total developments
+- total units
+- total homeowners
+- total messages
+- total documents
+- active homeowners in last 7 days
+- top 5 developments by message count
+
+chat:
+- message volume last 14 and 30 days
+- avg response time
+- token usage per day
+- estimated costs
+- top questions (group by question signature)
+
+rag:
+- total documents
+- total processed chunks
+- faulty chunks
+- embedding count per development
+- avg query latency
+
+developers:
+- list of tenants with summary stats
+
+developments:
+- every development with:
+  - number of units
+  - number of homeowners
+  - number of messages
+  - document count
+  - rag chunk count
+
+units:
+- list & stats per house_id
+
+documents:
+- document count per development
+- most viewed documents
+- missing documents alerts
+
+homeowners:
+- engagement metrics
+- active users
+- inactive users
+- onboarding progress
+
+4. FIX ALL FRONTEND IMPORTS
+In apps/unified-portal/app/(admin)/super/analytics/*:
+- Update every fetch() call to point to /api/super/analytics/*
+- Remove all references to the deleted analytics-engine helpers
+- Use the new API response shapes
+
+5. FIX THE ROUTER
+In apps/unified-portal/app/(admin)/super/layout.tsx:
+- Ensure the sidebar links point to:
+  /super/analytics/overview
+  /super/analytics/chat
+  /super/analytics/rag
+  /super/analytics/developers
+  /super/analytics/developments
+  /super/analytics/units
+  /super/analytics/documents
+  /super/analytics/homeowners
+
+6. CLEAR BUILD ERRORS
+- Fix all fs import errors by removing all leftover pg-connection-string logic
+- Check all LSP diagnostics and fix type errors
+
+7. TEST
+- Visit /super
+- Visit /super/analytics/overview
+Everything must load REAL data from Longview Park, NOT zeros.

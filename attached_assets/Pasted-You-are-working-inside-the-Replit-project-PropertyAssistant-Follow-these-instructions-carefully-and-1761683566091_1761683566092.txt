@@ -1,0 +1,183 @@
+You are working inside the Replit project PropertyAssistant.
+Follow these instructions carefully and verify each step completes successfully.
+
+🧱 1. Create the Resident Assistant Interface
+
+📁 Create file: app/[development]/page.tsx
+
+Requirements:
+
+Dynamically detect the estate slug (params.development)
+
+Fetch estate data (logo, name, colour theme, description) from /api/tenants?slug=...
+
+Render a beautiful, mobile-friendly interface with:
+
+Estate logo + name in the header
+
+Short welcome message or description
+
+Resident Chat component connected to /api/chat
+
+Quick-access buttons (Download Floorplan, Report a Snag, Local Suppliers, etc.)
+
+Section for uploaded documents (PDFs with links from Supabase or S3)
+
+Consistent colour palette per estate (theme stored in DB)
+
+Match the design quality of Apple.com or ChatGPT — clean, premium, minimalistic.
+
+🧠 2. Create Reusable Resident Chat Component
+
+📁 components/ResidentChat.tsx
+
+Implementation:
+
+Display conversation with chat bubbles for User / Assistant.
+
+Input box at the bottom for user questions.
+
+On submit → POST to /api/chat with tenantSlug = development param.
+
+Show typing indicator and stream responses.
+
+Include placeholder text: “Ask about your home, your development, or local area…”
+
+🗂️ 3. Add Document Library Component
+
+📁 components/DocumentLibrary.tsx
+
+Fetch document list for the given estate from /api/documents?tenantSlug=...
+
+Display PDF names as clickable links (open in new tab).
+
+If file_url exists, use that; otherwise show “Not yet available.”
+
+Display in collapsible section below chat interface.
+
+🧩 4. Extend tenants Table with Branding Fields
+
+Run migration:
+
+alter table tenants
+  add column logo_url text,
+  add column description text,
+  add column theme_color text default '#ffffff';
+
+
+Seed demo tenant with sample data:
+
+update tenants
+set logo_url = 'https://openhouse.ai/assets/seaview_logo.png',
+    description = 'Your personal AI assistant for Seaview Homes — helping you manage your home, understand your documents, and explore your local community.',
+    theme_color = '#f5f5f5'
+where slug = 'seaview';
+
+⚙️ 5. Connect to Chat API
+
+In ResidentChat.tsx, ensure:
+
+await fetch("/api/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ query: input, tenantSlug: developmentSlug }),
+});
+
+
+Backend already handles routing to GPT-3.5/GPT-4 with context retrieval.
+
+🔒 6. Secure Admin Area
+
+Add middleware.ts to restrict /admin routes.
+
+import { NextResponse } from "next/server";
+
+export function middleware(req: Request) {
+  const url = new URL(req.url);
+  if (url.pathname.startsWith("/admin") && req.headers.get("x-api-key") !== process.env.ADMIN_API_KEY) {
+    return NextResponse.redirect("/");
+  }
+}
+
+
+Ensure ADMIN_API_KEY is set in Replit Secrets.
+
+🧾 7. Create /app/admin/analytics/page.tsx
+
+Show:
+
+Total queries per estate
+
+Average response time
+
+Model usage split (GPT-3.5 vs GPT-4)
+
+Daily query volume chart
+
+Table of last 20 queries with timestamp, user question, and model used
+
+Data source: logs table.
+
+🧩 8. QR & NFC Onboarding Flow
+
+📁 /scripts/generateQR.js
+Use qrcode npm package:
+
+npm install qrcode
+
+
+Script generates a QR code for each unit in a development that links to:
+
+https://openhouse.ai/[slug]?unit=XX
+
+
+Output to /public/qr/[slug]-unitXX.png
+
+🧪 9. Verify End-to-End Flow
+
+Run npm run dev
+
+Open /admin → Create new estate
+
+Upload PDFs → Documents embedded
+
+Visit /[slug] → Chat UI loads
+
+Ask: “What’s included in my kitchen?” or “Who manages landscaping?”
+
+Ensure assistant references real data
+
+Check /admin/analytics for logs and costs
+
+🌐 10. Prepare for Deployment
+
+Create a Vercel project linked to your GitHub repo.
+
+Add environment variables:
+
+OPENAI_API_KEY=
+DATABASE_URL=
+ADMIN_API_KEY=
+
+
+Deploy https://openhouse.ai or https://evolvai.ie/assistant.
+
+✅ 11. Final Deliverables
+
+/[slug] = resident-facing AI Assistant (beautifully branded)
+
+/admin = developer management dashboard
+
+/admin/analytics = monitoring
+
+/api/chat = fully functional GPT backend
+
+GDPR endpoints active
+
+Pilot version ready for rollout to first development by December 2025
+
+🚀 12. Commit Checkpoint
+
+Create a checkpoint titled:
+
+✅ Resident Assistant Interface + Analytics + QR Onboarding Ready (Phase 4)

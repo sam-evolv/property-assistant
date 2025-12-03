@@ -1,0 +1,91 @@
+You must now execute Option A: fully replace the LEGACY dashboard with the NEW analytics suite.
+
+### OBJECTIVE
+Make the new analytics system located at:
+  /apps/unified-portal/app/analytics/
+the **ONLY** dashboard experience for developers and enterprise users.
+
+### PART 1 — REMOVE LEGACY DASHBOARD ROUTES
+Delete or disable routing for:
+  /developer
+  /dashboard
+  /dashboard-client.tsx
+  /developer/dashboard-client.tsx
+  /developer/page.tsx
+  /dashboard/page.tsx
+
+Remove all legacy components in:
+  apps/unified-portal/components/admin-enterprise/charts/*
+  apps/unified-portal/components/admin-enterprise/cards/*
+(but DO NOT touch the new analytics components)
+
+### PART 2 — PROMOTE ANALYTICS AS THE PRIMARY DASHBOARD
+Create a new route:
+  /developer  → should LOAD /analytics
+  /dashboard  → should LOAD /analytics
+
+Implement via Next.js App Router redirect:
+- In app/developer/page.tsx → redirect to /analytics
+- In app/dashboard/page.tsx → redirect to /analytics
+
+Developer login landing page:
+  / → should redirect authenticated developer to /analytics
+
+Enterprise admin login landing page:
+  /admin → redirect to /analytics
+
+### PART 3 — UPDATE NAVIGATION
+In the unified portal navigation components:
+  components/layouts/dev-sidebar.tsx
+  components/layouts/navbar.tsx
+  components/layouts/sidebar.tsx
+
+Do the following:
+1. Remove “Dashboard”
+2. Remove “Analytics” (duplicate)
+3. Add **ONE** button:
+     “Dashboard”
+     href: /analytics
+4. Ensure consistent styling theme (black / gold / white)
+
+### PART 4 — REMOVE LEGACY API ROUTES
+Delete or disable:
+  /api/analytics/dashboard/route.ts
+  /api/analytics/summary/route.ts
+(any route that powers the old dashboard)
+
+Ensure the new analytics API routes remain:
+  /api/analytics/message-volume
+  /api/analytics/documents
+  /api/analytics/top-questions
+  /api/analytics/rag-performance
+  /api/analytics/knowledge-gaps
+  (all others created in Phase 5.7)
+
+### PART 5 — ADD QUALITY POLISH
+- Add loading skeletons to the analytics page
+- Add consistent page header: “Developer Analytics Dashboard”
+- Ensure all tabs remain working
+- Ensure all tabs use premium black/gold theme
+
+### PART 6 — SMOKE TEST
+Run the following tests:
+
+1. Visit /developer → should show new analytics
+2. Visit /dashboard → should show new analytics
+3. Login as developer → land on analytics
+4. Check navigation — only one “Dashboard” item
+5. Ensure NO legacy charts render anywhere
+
+### PART 7 — LOG EVERYTHING
+Write completion summary to:
+  logs/PHASE_5.8_ANALYTICS_MIGRATION_COMPLETE.md
+
+Include:
+- Files removed
+- Files updated
+- Redirects implemented
+- Navigation changes
+- Confirmed smoke test results
+
+Proceed now. 

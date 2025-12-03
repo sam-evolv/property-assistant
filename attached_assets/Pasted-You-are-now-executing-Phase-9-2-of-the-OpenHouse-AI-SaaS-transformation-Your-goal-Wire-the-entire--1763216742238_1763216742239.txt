@@ -1,0 +1,200 @@
+You are now executing Phase 9.2 of the OpenHouse AI SaaS transformation.
+Your goal:
+Wire the entire front-end UI of both portals (Developer Portal + Tenant Portal) to the new server-side session-based authentication + RBAC logic completed in Phase 9.1.
+
+You must complete every item below without altering unrelated components.
+
+🔧 GOALS OF PHASE 9.2
+1. Replace all remaining client-side data fetching
+
+Eliminate all useEffect / fetch / client-side Supabase queries in both portals.
+
+Replace them with:
+
+Server components
+
+Server actions
+
+Supabase server client
+
+validateSession()
+
+getAdminContextFromSession()
+
+getDeveloperContextFromSession()
+
+getTenantContextFromSession()
+
+Every page must fetch data server-side before rendering.
+
+2. Wire all CRUD pages to server actions (Developer Portal)
+
+You must implement or finish wiring:
+
+Create Developer
+
+Edit Developer
+
+Create Development
+
+Edit Development
+
+Create Homeowner
+
+Edit Homeowner
+
+Server actions must:
+
+Validate correct role
+
+Route errors to UI
+
+Redirect after success
+
+Revalidate relevant paths
+
+3. Wire the Tenant Portal UI to new QR onboarding logic
+
+Finish the Tenant Portal flows so that:
+
+Homeowner arrives via QR link
+
+/onboarding/[token] fetches onboarding record server-side
+
+Validates that token belongs to a real homeowner / unit
+
+Stores session + role = tenant
+
+Redirects to /home
+
+Tenant portal home dashboard
+
+Shows:
+
+House type
+
+Address
+
+Developer name
+
+Development name
+
+All documents
+
+Chat
+
+Map
+
+Noticeboard
+
+All data must now come from server-side Supabase queries using the new session.
+
+4. Fix all remaining UI dead-ends
+
+You must locate and fix:
+
+Pages that render with no data
+
+Forms that do not submit
+
+Missing redirect() or notFound()
+
+Incorrect role access rendering
+
+Old props like authEmail passed into components
+
+Any remaining headers or client-side calls
+
+5. Implement role-aware navigation UI
+
+Developer Portal:
+
+SuperAdmin sees admin menu + full dashboard
+
+Developer sees ONLY their developments + their homeowners
+
+Tenant sees ONLY the Tenant Portal menu
+
+Ensure all navigation is role-correct and secure.
+
+6. Fix all TypeScript errors caused by the Phase 9.1 refactor
+
+If any missing props, undefined fields, or mismatched types appear, repair them globally.
+
+📁 SCOPE OF FILES YOU ARE ALLOWED TO CHANGE
+
+You MUST limit edits to:
+
+apps/developer-portal/app/**
+apps/developer-portal/components/**
+apps/tenant-portal/app/**
+apps/tenant-portal/components/**
+packages/api/**
+packages/db/**
+
+
+DO NOT touch:
+
+monorepo config
+
+build scripts
+
+Supabase schema
+
+seed scripts
+
+theme or styling files unless necessary for UI functionality
+
+🧪 VALIDATION AFTER COMPLETION
+
+When finished, ensure:
+
+Developer Portal
+
+All CRUD works
+
+All lists render from server-side
+
+RBAC enforced visually + functionally
+
+No invalid access allowed
+
+Tenant Portal
+
+QR onboarding fully functional
+
+Tenant home dashboard loads correct data
+
+All tabs work (Chat, Map, Noticeboard, Documents)
+
+Tenant cannot access any other tenant’s data
+
+Global
+
+Zero client-side data fetching
+
+Zero references to x-admin-email
+
+Zero use of old auth-server or rbac.ts
+
+No TypeScript or compilation errors
+
+Both portals boot cleanly
+
+🏁 OUTPUT FORMAT
+
+When the work is complete, output:
+
+List of all modified files
+
+Summary of changes
+
+Any required follow-up steps
+
+Confirmation that App compiles
+
+Instructions for Phase 10
+
+🚀 BEGIN NOW: Execute Phase 9.2 — Full UI Wiring
+
+Perform all changes. Ensure ALL UI flows use the new RBAC + session system.

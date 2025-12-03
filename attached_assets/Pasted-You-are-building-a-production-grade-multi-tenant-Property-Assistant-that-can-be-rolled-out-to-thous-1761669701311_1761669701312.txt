@@ -1,0 +1,478 @@
+You are building a production-grade, multi-tenant Property Assistant that can be rolled out to thousands of homes with a 30-minute per-scheme setup. Start from the attached prototype archive seaviewassistant-main.zip. Where code or assets are missing or incompatible, reconstruct faithfully per the spec below. Ship a working app end-to-end with seed data and a demo tenant. Prioritise correctness, maintainability, and tenant isolation.
+
+1) Tech stack and core packages
+
+Next.js 14 App Router, TypeScript, React Server Components.
+
+Supabase (EU region) for Postgres, Auth (email magic links), Storage, and pgvector.
+
+OpenAI for chat and embeddings. Use text-embedding-3-large for RAG. Responses API for streaming chat.
+
+Tailwind CSS for styling, Radix UI or Headless UI for a11y.
+
+MapLibre GL JS for POI map with clustering. No paid map keys.
+
+Zod for schema validation. TanStack Query for client state where needed.
+
+Sentry for FE and BE. Better Stack or simple HTTP ping for uptime probes.
+
+Sharp, pdf-parse, and @google-cloud/textract alternative is not allowed here, so use pdf-parse for text extraction only.
+
+QR generation with qrcode.
+
+Rate limiting with a Postgres sliding window table. No external vendor.
+
+Create a monorepo-style structure even if it is a single app to keep things organized.
+
+2) Project structure
+/app
+  /(public)
+    /page.tsx                      // Tenant landing with chat CTA and links
+    /chat/page.tsx                 // Resident chat UI with streamed answers + CTAs
+    /docs/[id]/page.tsx            // Document viewer with source download
+    /map/page.tsx                  // POI map with clustering + filters
+    /notices/page.tsx              // Resident notice board
+    /onboard/page.tsx              // QR deep link handler. Accepts tenant + unit.
+  /(admin)
+    /admin/page.tsx                // Dashboard cards
+    /admin/tenants/*               // CRUD + wizard
+    /admin/phases/*                // CRUD
+    /admin/units/*                 // CRUD + CSV import
+    /admin/faqs/*                  // CRUD
+    /admin/docs/*                  // Upload, extract, chunk, embed
+    /admin/pois/*                  // CRUD + CSV import
+    /admin/notices/*               // CRUD
+    /admin/import-tenant-pack/page.tsx
+  /api
+    /chat/route.ts                 // Edge streaming. RAG + fallbacks. CTAs.
+    /tenant-pack/route.ts          // ZIP import endpoint
+    /health/route.ts               // 200 OK with version
+    /version/route.ts              // returns git SHA and build time
+/lib
+  /supabase/client.ts
+  /supabase/server.ts
+  /tenancy/resolveTenant.ts
+  /tenancy/hostMap.ts
+  /rag/embed.ts
+  /rag/chunk.ts
+  /auth/requireAdmin.ts
+  /analytics/usage.ts
+  /rate-limit/guard.ts
+/components
+  /chat/*
+  /admin/*
+  /ui/*
+/db
+  /schemas.sql
+  /policies.sql
+  /seed.ts
+  /migrations/*
+/public
+  /brand/*                         // Default demo assets
+/scripts
+  /import-prototype.ts             // Pull UI assets from Lovable ZIP
+  /make-qr-batch.ts                // Generate QR PNGs + CSV for units
+.env.example
+Dockerfile
+vercel.json
+netlify.toml
+sentry.client.config.ts
+sentry.server.config.ts
+
+3) Multi-tenant model and schema
+
+Create these tables and enable pgvector. Use UUID primary keys. Everything is tenant keyed. Add created_at defaults.
+
+create extension if not exists vector;
+
+create table tenants (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique not null,
+  name text not null,
+  brand jsonb not null default '{}'::jsonb,
+  contact jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now()
+);
+
+create table phases (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  code text not null,
+  name text not null,
+  created_at timestamptz default now(),
+  unique (tenant_id, code)
+);
+
+create table units (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  phase_id uuid references phases(id) on delete set null,
+  lot_number text not null,
+  house_type text,
+  address text,
+  meta jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  unique (tenant_id, lot_number)
+);
+
+create table faqs (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  question text not null,
+  answer text not null,
+  tags text[],
+  created_at timestamptz default now()
+);
+
+create table docs (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  title text not null,
+  file_path text not null,   -- Supabase Storage key
+  meta jsonb default '{}'::jsonb,
+  created_at timestamptz default now()
+);
+
+-- chunks use embedding size 3072 for text-embedding-3-large
+create table doc_chunks (
+  id bigserial primary key,
+  tenant_id uuid references tenants(id) on delete cascade,
+  doc_id uuid references docs(id) on delete cascade,
+  chunk_index int not null,
+  content text not null,
+  embedding vector(3072) not null
+);
+
+create table pois (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  name text not null,
+  category text not null,
+  lat double precision not null,
+  lng double precision not null,
+  meta jsonb default '{}'::jsonb,
+  created_at timestamptz default now()
+);
+
+create table notices (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  title text not null,
+  body text not null,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  created_by uuid,
+  created_at timestamptz default now()
+);
+
+-- rate limit table
+create table rate_events (
+  id bigserial primary key,
+  tenant_id uuid not null,
+  key text not null,            -- ip or user
+  route text not null,
+  ts timestamptz not null default now()
+);
+
+Row Level Security
+
+Enable RLS on all tenant tables. Use a per-request Postgres setting app.tenant_id to scope every query.
+
+alter table tenants enable row level security;
+alter table phases enable row level security;
+alter table units enable row level security;
+alter table faqs enable row level security;
+alter table docs enable row level security;
+alter table doc_chunks enable row level security;
+alter table pois enable row level security;
+alter table notices enable row level security;
+
+create policy tenants_self on tenants
+  using (id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_phases on phases
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_units on units
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_faqs on faqs
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_docs on docs
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_doc_chunks on doc_chunks
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_pois on pois
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+create policy tenant_isolation_notices on notices
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid);
+
+4) Tenancy resolution
+
+Resolve tenant by Host header. Map seaview.example.ie to slug seaview. Provide a fallback x-tenant header for Admin.
+
+On each server action and API route, set app.tenant_id for the Supabase session connection. Implement a helper withTenant(req, fn) that sets the setting with select set_config('app.tenant_id', $1, true).
+
+5) Import the Lovable prototype
+
+Create /scripts/import-prototype.ts:
+
+Unzip seaviewassistant-main.zip into /tmp/prototype.
+
+Copy over styling tokens, color variables, logo, hero, and any page section markup.
+
+Port components into /components/ui and pages into the Next.js routes above, refactoring to TSX and Next standards.
+
+Normalise class names to Tailwind. Keep visual parity with the prototype.
+
+If the ZIP is not present at runtime, log a warning and continue with default theme.
+
+6) Admin Console
+
+Features:
+
+Auth wall with Supabase magic link. Roles: owner, admin, editor, viewer via a simple user_roles table keyed by tenant.
+
+Tenant wizard: create tenant with brand colors, logo URL, contact details.
+
+Tenant Pack import page: accept a ZIP with this structure:
+
+tenant.config.json      // slug, name, brand, contact
+faqs.csv                // question,answer,tags
+pois.csv                // name,category,lat,lng,meta(json)
+phases.csv              // code,name
+units.csv               // phase_code,lot_number,house_type,address
+floorplans/*            // any PDFs or images
+docs/*                  // additional PDFs
+branding/*              // logo, hero images
+
+
+On upload, store assets in Supabase Storage under tenants/<slug>/*, insert rows, extract text from PDFs, chunk to ~800 tokens with 100 overlap, embed with text-embedding-3-large, and insert into doc_chunks.
+
+Bulk CSV import for POIs and Units.
+
+Notices CRUD with date windows.
+
+POI map preview.
+
+A brand settings page that updates tenants.brand.
+
+7) Resident features
+
+Chat page:
+
+System prompt includes tenant profile, phase, optional unit metadata, and a short style guide for friendly, actionable answers.
+
+Retrieval pipeline: semantic search over doc_chunks by tenant with cosine similarity, MMR for diversity, topK 6.
+
+Each answer must render 2 smart CTAs based on content, for example:
+
+Download floor plan (link to latest relevant doc).
+
+Find local suppliers (deep link to /map with prefilter).
+
+Show inline citations with the doc titles used.
+
+If OpenAI errors or times out, fall back to FAQ similarity search and render a banner that the system is in fallback mode.
+
+Docs page:
+
+Render document metadata, download link, and related documents by tags.
+
+Map page:
+
+MapLibre with cluster layer, category filter chips, and a detail drawer.
+
+Notices page:
+
+Active notices by date window. Tenant branding applies.
+
+Onboard page:
+
+Accept t for tenant slug, u for unit id or lot number.
+
+If anonymous mode, store a signed cookie that binds the user to a unit for personalized answers without PII.
+
+8) AI routes
+
+/app/api/chat/route.ts runs on Edge.
+
+Steps:
+
+Resolve tenant and set app.tenant_id.
+
+Optional unit context if present in cookie or query.
+
+Retrieve relevant chunks from doc_chunks. Build a compact context window.
+
+Construct system messages that constrain scope to tenant data, explicitly avoid legal or medical advice, and require two CTAs.
+
+Stream response to client.
+
+Embed helper /lib/rag/embed.ts with functions:
+
+chunkText(text: string): string[]
+
+embedChunks(chunks: string[]): number[][]
+
+9) Rate limiting
+
+Implement a sliding window limit per IP per tenant for /api/chat:
+
+15 requests per 5 minutes per IP per tenant.
+
+Store events in rate_events.
+
+Reject with 429 when exceeded.
+
+10) GDPR and privacy controls
+
+Minimal resident data by default. No sensitive categories.
+
+Add /privacy and /terms static pages. Explain AI processing and RAG sources.
+
+Provide two admin endpoints:
+
+DSAR export: returns all PII and audit events for an email.
+
+Deletion: hard delete resident record by email if present.
+
+Set cookie banner for analytics only.
+
+11) Observability and reliability
+
+Sentry setup for both client and server with DSN from env.
+
+/api/health returns 200 with current time.
+
+/api/version returns short git SHA and build timestamp.
+
+Basic logger for admin mutations.
+
+12) Environment and config
+
+Create .env.example:
+
+NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENAI_API_KEY=
+SENTRY_DSN=
+DEFAULT_TENANT_SLUG=seaview
+
+
+Use SUPABASE_SERVICE_ROLE_KEY only in server routes that need embeddings or writes during import. Never expose to client.
+
+13) Seeds and demo tenant
+
+Create /db/seed.ts to:
+
+Create tenant seaview with brand colors and contact.
+
+Create phase P1 and 5 demo units.
+
+Seed 12 FAQs and 12 POIs with Cork placeholders.
+
+Import 2 sample PDFs into Storage and generate embeddings.
+
+Create 2 active notices.
+
+14) UI requirements tied to the prototype
+
+Match the Lovable visual language for:
+
+Header, hero, rounded search bar, clean spacing, modern typography.
+
+Dark header on scroll, logo swap logic if present.
+
+Chat answer layout:
+
+Answer text, citations list, then two CTA buttons under the answer.
+
+Language toggle with Irish in the footer or header. Persist selection in localStorage and apply to UI strings.
+
+Mobile first. Ensure hero video or hero image scales on mobile without distortion. Use object-fit: cover.
+
+Run /scripts/import-prototype.ts automatically on npm run dev if the project sees seaviewassistant-main.zip at the repo root. If not present, skip with a console message.
+
+15) Build tooling and scripts
+
+Add npm scripts:
+
+dev: next dev
+build: next build
+start: next start
+db:push: node ./db/migrations/run.js   // optional if you scaffold migrations
+db:seed: ts-node ./db/seed.ts
+test: vitest run
+format: prettier --write .
+typecheck: tsc --noEmit
+
+16) Tests
+
+Unit tests for resolveTenant and RAG chunking.
+
+API integration test for /api/chat that stubs embeddings and OpenAI call.
+
+Smoke test that Tenant Pack import creates docs and chunks.
+
+17) Deployment controls
+
+Include vercel.json and Dockerfile so we can deploy to Vercel or Replit without code changes.
+
+Add netlify.toml for Netlify as an alternative. Static caching on /map, /docs/*, /notices for 5 minutes.
+
+18) Definition of Done
+
+App starts cleanly with npm run dev.
+
+Admin wizard creates a new tenant and imports a Tenant Pack ZIP end-to-end, including embeddings.
+
+Resident chat returns streamed answers with citations and two CTAs per message.
+
+Map renders POIs with clustering and filters.
+
+Notices list respects date windows.
+
+Language toggle works. Irish strings present for all UI labels.
+
+Rate limiter blocks after threshold and recovers.
+
+RLS is enforced. Attempting to read another tenant’s data fails.
+
+Sentry receives an error from a forced test route /api/throw.
+
+19) Post-setup output
+
+When complete, print:
+
+The local Admin URL and default admin magic link instructions.
+
+The SQL to enable RLS and policies if not already applied.
+
+A short operator runbook: how to import a Tenant Pack, how to generate QR batch, and how to add a new domain mapping.
+
+Proceed now:
+
+Scaffold the project structure and files.
+
+Generate /db/schemas.sql and /db/policies.sql with the SQL above.
+
+Create the Admin CRUD pages with forms using Zod.
+
+Implement the Tenant Pack ZIP import flow and PDF text extraction and embeddings.
+
+Implement the chat RAG endpoint with streaming, citations, and CTAs.
+
+Build the resident pages and replicate the Lovable visual design.
+
+Write seeds and run them.
+
+Print final instructions and checks.
+
+If any library is unavailable in this environment, replace with the closest stable alternative and document the change in the console output. Do not leave stubs. Ship a working product.

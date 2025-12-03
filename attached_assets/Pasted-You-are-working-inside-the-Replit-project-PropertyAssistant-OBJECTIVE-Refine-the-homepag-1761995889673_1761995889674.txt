@@ -1,0 +1,74 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Refine the homepage layout to remove the redundant top toolbar and reposition the chat input bar so it sits just above the bottom dock navigation — similar to ChatGPT’s UI.
+
+---
+
+## TASKS
+
+1. ✅ **Remove Top Toolbar**
+   - Ensure the navigation header (Chat / Map / Documents / Notices) is **hidden only on the homepage**.
+   - Keep it visible on all other pages (`/chat`, `/map`, `/noticeboard`, `/documents`).
+   - In `app/(public)/layout.tsx`, wrap the header in a conditional:
+     ```tsx
+     const pathname = usePathname();
+     const hideHeader = pathname === "/";
+     {!hideHeader && <Header />}
+     ```
+   - Verify that the header no longer renders on `/`.
+
+---
+
+2. ✅ **Reposition Chat Input Bar**
+   - Move the chat input section **downward** so it sits directly above the bottom dock (`Dock` component).
+   - Add margin spacing:  
+     `mb-24` (or slightly more, depending on screen height) to visually separate it from the dock but keep it in the same vertical region.
+   - Example:
+     ```tsx
+     <div className="w-full max-w-xl flex items-center bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-full shadow-sm hover:shadow-md transition-all duration-200 px-4 py-3 mb-24">
+       <button className="text-blue-600 dark:text-blue-400 text-lg px-2">
+         <i className="fa-solid fa-microphone"></i>
+       </button>
+       <input
+         type="text"
+         placeholder="Ask about your home or community..."
+         className="flex-grow bg-transparent border-none outline-none px-3 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm md:text-base"
+       />
+       <button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200">
+         Ask
+       </button>
+     </div>
+     ```
+
+---
+
+3. ✅ **Adjust Page Vertical Spacing**
+   - Ensure the main container uses:
+     ```tsx
+     <main className="min-h-screen flex flex-col justify-between items-center bg-white dark:bg-neutral-950 text-center font-sans px-6 pt-10 pb-0">
+     ```
+   - This provides enough breathing room for the logo + heading above and places the input naturally near the dock.
+
+---
+
+4. ✅ **Verify Responsiveness**
+   - On mobile: the chat input should remain fully visible above the dock.
+   - On desktop: maintain `max-w-xl` constraint and central alignment.
+
+---
+
+5. ✅ **Commit Message**
+fix(ui): hide top toolbar on homepage and reposition chat input above bottom dock for cleaner ChatGPT-style layout
+
+yaml
+Copy code
+
+---
+
+## ACCEPTANCE CRITERIA
+- The homepage has **no top navigation bar**.
+- The chat input bar is positioned just above the bottom dock, visually cohesive with it.
+- The layout feels balanced and premium on both desktop and mobile.

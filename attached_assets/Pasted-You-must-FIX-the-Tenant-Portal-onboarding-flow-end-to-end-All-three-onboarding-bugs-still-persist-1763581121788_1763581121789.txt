@@ -1,0 +1,135 @@
+You must FIX the Tenant Portal onboarding flow end-to-end.  
+All three onboarding bugs still persist, meaning your previous edits were either incorrect or never applied to the correct files.  
+You are now required to run a full forensic trace and implement permanent fixes.  
+Do NOT assume previous work is correct.
+
+====================================================
+OBJECTIVE
+====================================================
+Fix ALL THREE broken behaviours:
+
+1. **Welcome Animation**
+   - Must show full purchaser name (first + last).
+   - Must show correct salutation (Mr/Ms etc) only if in the CSV.
+   - Must show for a minimum of **6 seconds** before redirect.
+   - Must not skip instantly.
+
+2. **Chat Context Not Loading**
+   - After onboarding, the app must NEVER show:
+     “Please select a development first to start chatting.”
+   - Chat must auto-load the correct development_id, unit_id, house_type_code, and homeowner full_name from:
+       JWT → onboarding page → welcome animation → localStorage → Chat Provider → Chat API
+
+3. **JWT + localStorage mismatch**
+   - The JWT must contain: tenant_id, development_id, unit_id, full_name, house_type_code.
+   - localStorage keys must store the SAME VALUES the chat API expects.
+   - Chat must use these values to build the request.
+
+====================================================
+MANDATORY DIAGNOSTICS (DO THESE FIRST)
+====================================================
+
+1. SEARCH THE ENTIRE MONOREPO FOR THESE STRINGS:
+
+   - "welcome"
+   - "full_name"
+   - "homeowner"
+   - "development_id"
+   - "unit_id"
+   - "house_id"
+   - "selectedDevelopment"
+   - "localStorage"
+
+   Provide a FILE LIST showing EVERY location where these appear.
+
+2. PRINT OUT the FULL content of these files:
+
+   - apps/tenant-portal/app/onboarding/[token]/page.tsx
+   - apps/tenant-portal/app/onboarding/[token]/welcome.tsx
+   - apps/tenant-portal/app/api/chat/route.ts
+   - apps/tenant-portal/app/(public)/chat/page.tsx
+   - apps/tenant-portal/app/providers/ChatProvider.tsx (or equivalent)
+   - packages/api/src/chat/prompt.ts
+   - packages/api/src/chat/rag.ts OR any prompt builder
+
+3. PRINT OUT the **actual decoded JWT payload** when onboarding:
+   Decode the token manually using your internal JS tools.
+   Show EXACT fields inside the JWT.
+
+You MUST NOT proceed to fixes until you have completed the diagnostics and printed the results.
+
+====================================================
+THE FIXES YOU MUST IMPLEMENT
+====================================================
+
+A. JWT FIXES  
+Ensure the QR token includes EXACTLY these fields:
+{
+  tenant_id,
+  development_id,
+  unit_id,
+  house_type_code,
+  full_name
+}
+No other naming variants are allowed.
+NO homeowner_full_name, NO house_id = homeowner.id.
+
+B. WELCOME ANIMATION FIX  
+Inside welcome.tsx:
+- Ensure full_name is passed directly from props, not derived.
+- Set animation/redirect delay to **6000ms** (6 sec).
+- Ensure no early navigation is triggered by useEffect before the animation finishes.
+- Replace ALL conditional redirects that might fire instantly.
+
+C. localStorage FIX  
+Set ONLY these keys:
+
+localStorage.setItem("development_id", development_id)
+localStorage.setItem("unit_id", unit_id)
+localStorage.setItem("house_type_code", house_type_code)
+localStorage.setItem("homeowner_full_name", full_name)
+
+Remove ANY other keys such as "house_id", "selectedDevelopment", or anything old.
+
+D. CHAT CONTEXT FIX  
+Chat API should read the SAME four keys:
+- development_id
+- unit_id
+- house_type_code
+- homeowner_full_name
+
+Update chat/page.tsx and ChatProvider to always load these on mount.
+
+E. RAG FIX  
+Add the four context items to the request body for chat.
+
+====================================================
+MANDATORY VERIFICATION AFTER FIXES
+====================================================
+
+You MUST demonstrate success by printing:
+
+1. Decoded JWT payload AFTER fix  
+2. localStorage values AFTER onboarding  
+3. ChatProvider context values AFTER load  
+4. The first API request body sent when asking a question  
+5. A screenshot or HTML dump showing:
+   - Welcome screen with full name  
+   - Animation lasting the full 6 seconds  
+   - Chat immediately answering WITHOUT “select a development”  
+
+====================================================
+RESTRICTIONS
+====================================================
+
+- NO partial fixes.  
+- NO optimistic language.  
+- DO NOT say “should be fixed”.  
+- Verify by evidence only.  
+- If a file is not being imported or used, identify that.  
+- If code is unreachable, identify that.  
+- If caching is interfering, clear Next.js cache.
+
+====================================================
+BEGIN NOW
+====================================================

@@ -1,0 +1,68 @@
+You are upgrading the existing Property Assistant project at Replit to match the premium UI standard shown in the attached screenshot (PropertyAssistant - Replit.png). 
+
+Follow these directives carefully:
+
+1. **Objective**
+   - Rebuild the front-end of the Property Assistant using the attached screenshot as the visual reference.
+   - The chat interface must look identical to the screenshot and align with the design systems of OpenAI’s ChatGPT, Apple, and Google.
+   - Prioritise clarity, depth, subtle animation, and professional-grade polish.
+
+2. **Project Context**
+   - Stack: Next.js 14 + Tailwind + TypeScript.
+   - Design system and tokens are already in `design/tokens.css`, `design/theme.ts`, and `design/motion.ts`.
+   - Components live in `/components/ui` and `/components/chat`.
+   - Do **not** remove existing logic or APIs (RAG, Supabase, model routing, etc.). Only upgrade visual structure and interactions.
+
+3. **Visual Implementation Requirements**
+   - Match layout and hierarchy exactly as shown in the screenshot:
+     - Modern header with logo, light/dark toggle, and language selector.
+     - Hero section with estate logo and name (e.g. Seaview) centered elegantly.
+     - Chat conversation panel with rounded message bubbles, balanced whitespace, subtle elevation.
+     - Bottom composer with rounded input, mic icon on the left, and glowing “Send” button on the right.
+   - Match Apple-like micro-motion and ChatGPT-style flow:
+     - Smooth fade-in and slide transitions between message states.
+     - Pulsing streaming indicator (three dots) for live responses.
+     - Subtle hover and focus states on all interactives.
+     - Adaptive layout on mobile with bottom-anchored composer.
+   - Typography:
+     - Use Inter and Source Serif 4 per token config.
+     - Weight, spacing, and contrast must mirror ChatGPT’s rhythm.
+   - Colors:
+     - Respect brand tokens derived in theme.ts (tenant-aware).
+     - Neutral dark background, slightly desaturated surfaces, soft shadow depth.
+
+4. **Accessibility & UX**
+   - Keyboard navigation fully functional (tab, enter, escape).
+   - `prefers-reduced-motion` respected.
+   - High-contrast mode compliant.
+   - Input auto-expands for multiline, remains sticky at viewport bottom.
+
+5. **Files to Modify**
+   - `/app/chat/page.tsx`
+   - `/components/chat/Message.tsx`
+   - `/components/chat/Composer.tsx`
+   - `/components/layout/Header.tsx`
+   - `/design/tokens.css` (update only if visual alignment requires)
+   - `/app/globals.css` (apply scrollbar, focus, and selection polish)
+
+6. **Deliverables**
+   - Fully rendered chat interface visually identical to the screenshot.
+   - Pixel-perfect spacing, modern rounded surfaces, responsive breakpoints (360, 768, 1440).
+   - Smooth dark/light mode transition.
+   - Ready for production deployment on Replit (no broken imports or missing assets).
+
+7. **Validation**
+   - After rebuild, run `npm run dev` and open the webview.
+   - Confirm the following:
+       - Header renders cleanly with correct logo and toggles.
+       - Chat bubbles display alternating alignment with subtle elevation.
+       - Input bar glows on focus and animates the send button.
+       - Dark/light theme toggle works instantly.
+   - Capture and display a screenshot confirmation in console output.
+
+8. **Additional Notes**
+   - Retain current internationalisation (EN/GA) and theme provider.
+   - Do not modify API endpoints, Supabase calls, or router logic.
+   - Commit changes once the premium chat interface is visually verified.
+
+Proceed now. Use Tailwind and Framer Motion to reconstruct all UI elements to the standard shown in the attached screenshot, ensuring professional-grade visual parity and responsiveness.

@@ -1,0 +1,154 @@
+GOAL:
+
+Stabilise all client-side and server-side tenant/developer/purchaser hydration processes so the entire unified-portal loads consistently, safely, and correctly with multi-tenant data.
+
+No more:
+
+Undefined contexts
+
+Undefined tenant/developer objects
+
+call() of undefined
+
+Hydration mismatches
+
+Server/client race conditions
+
+Missing JWT refresh
+
+SSR → Client bridging errors
+
+📌 STEP 4 MASTER PROMPT — COPY INTO REPLIT AGENT
+SYSTEM INSTRUCTION — FOUNDATION RESET : STEP 4 — MULTI-TENANT HYDRATION FIX
+
+You must now complete STEP 4 of the Foundation Reset.  
+Do NOT build features.  
+Do NOT modify analytics or UI.  
+Do NOT create new endpoints unless required for hydration safety.  
+You are fixing the platform’s **tenant/developer/purchaser identity layer**.
+
+Your responsibilities in this step:
+
+------------------------------------------------------------
+1. HARDEN ALL CONTEXT PROVIDERS (MANDATORY)
+------------------------------------------------------------
+Audit and repair every React provider involved in identity or tenant state:
+- TenantContext
+- DeveloperContext
+- AuthContext
+- PurchaserContext (if exists)
+- HydrationContext (create if missing)
+- AnalyticsProvider (wrap with safe guards)
+
+Fix:
+- Missing initial values
+- Optional chaining errors
+- Over-eager rendering
+- Undefined on first hydration
+- Cross-provider dependency order issues
+
+Outcome:
+All providers MUST load in a deterministic order with full default fallbacks.
+
+
+------------------------------------------------------------
+2. IMPLEMENT JWT REFRESH LOOPS
+------------------------------------------------------------
+Create a universal safeAuthClient() that:
+- Detects expired JWTs
+- Refreshes silently
+- Retries original request safely
+- Never throws undefined session errors
+- Prevents “cannot read properties of undefined (reading 'call')”
+
+Apply this wrapper to:
+- Supabase client creation
+- API calls in unified portal
+- RSC → Client transitions
+
+
+------------------------------------------------------------
+3. CREATE safeClient() WRAPPERS FOR ALL BACKEND CALLS
+------------------------------------------------------------
+Implement a new module:
+`packages/core/safe-client.ts`
+
+It must:
+- Wrap all fetcher calls
+- Provide safe defaults on failure
+- Log failures to console + worker logger
+- Prevent SSR mismatch errors
+- Prevent undefined function calls
+
+Export wrappers:
+- safeFetchTenant()
+- safeFetchDeveloper()
+- safeFetchDevelopment()
+- safeFetchHouses()
+- safeFetchDocuments()
+- safeFetchAnalytics()
+
+All of these must ALWAYS return a valid object, even on DB failure.
+
+
+------------------------------------------------------------
+4. BUILD SERVER-TO-CLIENT DATA BRIDGES
+------------------------------------------------------------
+For all pages that require tenant or developer identity:
+- developer dashboard
+- super admin views
+- purchaser onboarding flows
+
+Implement a consistent RSC loader pattern:
+1. Server loads tenant/developer metadata
+2. Injects into a single `<HydrationBridge value={...}>`
+3. Client reads from context with 0 risk of undefined
+
+Outcome:
+No more conditional flashes, undefined properties, or late-loading identity.
+
+
+------------------------------------------------------------
+5. CREATE A DIAGNOSTIC LOGGING LAYER
+------------------------------------------------------------
+Add non-intrusive logs:
+- When a provider hydrates
+- When JWT refresh triggers
+- When safeClient fallback is used
+- When server → client bridge runs
+
+Write logs to:
+- logs/HYDRATION_REPORT.md
+
+
+------------------------------------------------------------
+6. VALIDATE FIX BY BOOTING ALL THREE PORTALS
+------------------------------------------------------------
+You MUST start and confirm clean boot for:
+- unified-portal (developers)
+- super-admin portal
+- purchaser frontend
+
+Verify:
+- No red errors
+- No undefined values
+- No hydration mismatches
+- No call() undefined errors
+
+
+------------------------------------------------------------
+7. OUTPUT REPORT
+------------------------------------------------------------
+After implementation, generate:
+logs/FOUNDATION_RESET_STEP_4_REPORT.md
+
+Include:
+- Provider list + fixes
+- Safe client wrappers created
+- JWT refresh logic created
+- Bridges implemented
+- Validation results across portals
+
+------------------------------------------------------------
+
+Begin executing STEP 4 now.

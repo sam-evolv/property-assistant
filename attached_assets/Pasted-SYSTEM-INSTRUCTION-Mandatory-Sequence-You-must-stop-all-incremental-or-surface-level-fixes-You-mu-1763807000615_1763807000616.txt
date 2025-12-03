@@ -1,0 +1,208 @@
+SYSTEM INSTRUCTION — Mandatory Sequence
+You must stop all incremental or surface-level fixes.
+You must execute the complete foundation rebuild exactly in the order below.
+Do not skip any step.
+Do not jump ahead.
+Do not optimise.
+Follow the steps line-by-line.
+
+STEP 1 — GLOBAL BREAKPOINT RESET
+
+Identify all analytics components in:
+
+apps/unified-portal
+
+apps/developer-portal
+
+apps/tenant-portal
+
+Mark each component with a // @needs-refactor annotation.
+
+Create a log file: /logs/analytics_refactor_map.md
+
+Write a full dependency map:
+
+inputs → transforms → outputs
+
+server vs client
+
+data sources
+
+caching strategy
+
+styling inconsistencies
+
+STEP 2 — ANALYTICS ARCHITECTURE REBUILD
+
+You must rebuild analytics from scratch using a structured analytics engine:
+
+Create /packages/analytics-engine/ with:
+
+events.ts — event definitions
+
+queries.ts — reusable SQL queries
+
+insights.ts — insight generation logic
+
+stats.ts — period aggregation
+
+cache.ts — 1h cached analytics via Supabase KV
+
+charts.ts — reusable chart configuration
+
+models.ts — Zod schemas
+
+Required analytics features to implement:
+
+Top 10 questions
+
+Top topics (RAG insights)
+
+Knowledge gaps
+
+Document usage statistics
+
+Units by status heatmap
+
+Purchaser engagement funnel
+
+Chat load by day/hour
+
+Estimated cost per home
+
+Model usage trends
+
+Missing documents report
+
+Developer performance overview
+
+AI answer accuracy (based on thumbs up/down)
+
+STEP 3 — PREMIUM UI/UX REBUILD
+
+You must rebuild the entire dashboard UI layer.
+
+Replace with:
+
+Fully consistent spacing system (4/8/12/16/24)
+
+Premium gold/charcoal theme
+
+Glassy cards
+
+Micro-shadow tokens
+
+Smooth hover interactions
+
+Apple-grade motion transitions
+
+Skeleton loaders
+
+Fully responsive grid engine
+
+Perfect card alignment
+
+Zero div soup
+
+Strict use of shadcn components
+
+STEP 4 — MULTI-TENANT HYDRATION FIX
+
+You must fix all hydration and context issues.
+Implement:
+
+TenantContext
+
+DeveloperContext
+
+EnterpriseContext
+
+AuthContext
+
+JWT refresh loop
+
+safeClient() wrappers
+
+Proper server-to-client data bridges
+
+STEP 5 — GLOBAL THEME NORMALISATION
+
+Implement:
+
+/packages/ui/theme.ts
+
+/packages/ui/tokens.ts
+
+Consistent primary palette
+
+Harmonised typography scale
+
+Perfect light/dark mode parity
+
+Updated button, card, chart, modal components
+
+STEP 6 — INTEGRATE EVERYTHING
+
+Replace all existing dashboards with:
+
+New pages:
+
+/enterprise/analytics
+
+/developer/analytics
+
+/tenant/insights
+
+And implement a single shared analytics renderer:
+
+<AnalyticsGrid />
+
+<InsightCard />
+
+<TrendChart />
+
+<MetricBlock />
+
+STEP 7 — END-TO-END TESTING
+
+You must run:
+
+Multi-tenant switching
+
+JWT refresh
+
+Chart hydration
+
+Zero console errors
+
+Server logs clean
+
+Supabase logs clean
+
+No undefined reads
+
+No fallback errors
+
+Then mark the platform as Stable.
+
+STEP 8 — ONLY AFTER STABILITY: POLISH
+
+Finally apply:
+
+Gradient borders
+
+High-quality iconography
+
+Smooth transitions
+
+Perfect spacing
+
+Premium finishing touches
+
+Motion polish
+
+Custom gold chart theme
+
+Developer-grade data exploration tools
+
+This is the next step. Run this prompt NOW.

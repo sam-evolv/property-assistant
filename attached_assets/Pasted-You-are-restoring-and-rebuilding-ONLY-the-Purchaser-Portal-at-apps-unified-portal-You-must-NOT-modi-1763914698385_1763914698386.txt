@@ -1,0 +1,290 @@
+You are restoring and rebuilding ONLY the Purchaser Portal at apps/unified-portal.
+You must NOT modify the Developer Dashboard or SuperAdmin Dashboard.
+All work must be limited strictly to the purchaser user frontend.
+
+🎨 1. VISUAL + UX TARGET (Non-Negotiable Requirements)
+
+The Purchaser Portal must match — and improve upon — the visual layouts shown in these screenshots:
+
+Uploaded references:
+
+/mnt/data/IMG_2414.PNG
+
+/mnt/data/IMG_2413.PNG
+
+/mnt/data/IMG_2412.PNG
+
+/mnt/data/IMG_2411.PNG
+
+/mnt/data/Screenshot 2025-11-23 at 16.10.31.png
+
+/mnt/data/Screenshot 2025-11-23 at 16.10.42.png
+
+/mnt/data/Screenshot 2025-11-23 at 16.10.50.png
+
+/mnt/data/Screenshot 2025-11-23 at 16.10.57.png
+
+Use them ONLY for layout and UX references — not colour scheme.
+You must apply our actual theme: white background, navy text, subtle greys, gold accents, radius-heavy, soft shadow, modern, premium, clean.
+
+The UI should feel like:
+
+ChatGPT mobile
+
+Gemini mobile
+
+Apple Wallet-level polish
+Nothing clunky. No mismatched colours. No old components.
+
+🎬 2. HOME / CHAT SCREEN — MUST BE RESTORED + UPGRADED
+
+The Chat tab must open to this exact structure:
+
+(A) Centered Logo
+
+Circular logo in the middle
+
+Clean, premium, lightweight
+
+(B) Welcome Message
+
+Large bold header:
+“Welcome to Longview Park”
+or dynamic development name
+
+Subtext below:
+“Ask us anything about your home or community.”
+
+(C) Four Pill-Style Quick Action Buttons
+
+Small rounded pills just like in screenshots.
+Examples (dynamic):
+
+“When is my bin day?”
+
+“What heating system do I have?”
+
+“Show me my documents”
+
+“Find nearby shops”
+
+(D) Chat Interface Layout
+
+Messages with correct bubble styling (gold for user, dark navy for assistant)
+
+Proper timestamps
+
+Correct loading animation
+
+Text input + microphone icon at the bottom
+
+Absolutely must allow typing (current broken)
+
+(E) Chat Brain
+
+Questions must:
+
+Pull correct house type
+
+Pull documents
+
+Never ask “what’s your address?”
+
+Never error unless truly necessary
+
+Pull heat pump type, boiler model, meter info, etc., from unit + docs
+
+Use RAG properly
+
+Answer every question reliably
+
+🗺️ 3. MAPS TAB — MUST BE RESTORED + FULLY FUNCTIONAL
+
+Current implementation is incorrect (it reverted to OSM + broken markers).
+You must restore the MVP structure.
+
+Requirements
+
+Use Google Maps API (not OSM)
+
+Automatically center on actual unit address
+
+Display a filter bar with these categories:
+
+Filters Required:
+
+Banking
+
+Bars
+
+Cafés
+
+DIY
+
+Dog Park
+
+Schools
+
+EV Charging
+
+Fuel
+
+Shopping
+
+Parks
+
+Medical
+
+Behaviour
+
+Tapping a filter queries Google Places
+
+Shows pins on the map
+
+Map interaction must be fluid
+
+DO NOT USE YELLOW ANYWHERE.
+
+Must use our white/navy/gold premium theme.
+
+📄 4. DOCUMENTS TAB — MUST BE FULLY FUNCTIONAL
+
+The agent incorrectly believes this is “done”.
+It is not done.
+
+Correct Required Behaviour
+
+When a unit loads:
+
+Fetch all documents belonging to the development
+
+Display all global documents (documents without a house type tag)
+
+Also display only the drawings for that unit’s house type
+
+Examples:
+
+Unit is BDO1
+→ show only drawings named like BDO1 - Floor Plan.pdf
+
+Do not show BDO2/BSO2 drawings for that unit
+
+All non-unit-specific docs appear for everyone
+
+Layout
+
+Grid layout (like screenshot), not an accordion
+
+Clean PDF cards with:
+
+Icon
+
+File name
+
+Tap to open
+
+Currently: Nothing loads. Must be fixed.
+
+📢 5. NOTICEBOARD TAB
+
+Keep the Noticeboard simple
+
+Floating blue outline “+” button
+
+Simple card layout
+
+Editable notices
+
+Matches screenshots provided
+
+🌍 6. LANGUAGE SWITCHING
+
+Must provide a functional EN dropdown
+
+With flag icon
+
+Ability to switch to EN/ES/PL at minimum
+
+Full UI must update
+
+Chat messages remain in chosen language unless reset
+
+Current dropdown is non-functional — must be fixed.
+
+🎨 7. UNIVERSAL VISUAL REQUIREMENTS
+
+Absolutely remove all yellows from random UI elements
+
+Only use our gold accent intentionally
+
+Radius-heavy card layouts
+
+Soft shadows
+
+Clean spacing
+
+Consistent typography
+
+Bottom navigation bar must remain
+
+Icons must match the original design (outline, clean, modern)
+
+Nothing should look hacky, rushed, or mismatched.
+
+❗ 8. DO NOT MODIFY
+
+Developer dashboard (apps/developer-portal)
+
+SuperAdmin dashboard (apps/admin-dashboard)
+
+QR code onboarding (works fine)
+
+Authentication flows
+
+Only purchaser portal UI/UX + functionality.
+
+🧠 9. RAG BEHAVIOUR
+
+The assistant must:
+
+Answer every question correctly
+
+Use documents + metadata
+
+Use house type
+
+Never ask for address
+
+Never fail to load RAG context
+
+Must read PDF content
+
+Must use metadata (house type, unit number, purchaser name)
+
+🧹 10. QUALITY BAR
+
+Everything must meet:
+
+ChatGPT-level smooth UI
+
+Apple-level spacing
+
+Gemini-level cleanliness
+
+No regressions
+
+No weird margins
+
+No broken buttons
+
+No styling mismatches
+
+No placeholder text left in production
+
+No console errors
+
+This should be better than the screenshots, not worse.
+
+🏁 Goal
+
+Fully restore the Purchaser Portal to the premium experience shown in the screenshots — then upgrade it to a production-quality, modern, elegant, high-performance interface that matches EvolvAI standards.

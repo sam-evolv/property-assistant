@@ -1,0 +1,153 @@
+“SYSTEM FIX PROMPT — DO NOT SKIP ANY STEP
+You must perform all tasks below in sequence.
+Do not add features. Do not continue Phase 16+.
+Stop all development features until hydration + data contract is stable.
+
+Step 1 — Fix Hydration Errors in Unified Portal
+
+Scan all components under:
+
+apps/unified-portal/app/super/
+apps/unified-portal/app/developers/
+apps/unified-portal/app/developments/
+apps/unified-portal/components/
+
+
+Identify any components that:
+
+Use useEffect incorrectly
+
+Use client-only logic inside a server component
+
+Import client components without "use client" at the top
+
+Render data that depends on optional undefined values
+
+Pull data client-side AND server-side inconsistently
+
+Apply this rule:
+
+Every page.tsx must be a Server Component.
+Every interactive component must be a Client Component.
+
+Convert all analytics visualisation files to client components:
+
+"use client";
+
+
+Ensure server components pass serializable props only.
+
+Step 2 — Fix Analytics API + Client Contract Mismatch
+
+The hydration error is coming from mismatched JSON shapes.
+
+Perform:
+
+Open:
+
+packages/api/src/analytics/computePlatformMetrics.ts
+apps/unified-portal/app/api/admin/analytics/overview/route.ts
+apps/unified-portal/app/super/analytics/analytics-client.tsx
+
+
+Generate a strict Zod schema for:
+
+PlatformMetrics
+TenantMetrics
+DevelopmentAnalytics
+TimelineAnalytics
+
+
+Validate all outgoing API responses using these schemas.
+
+Ensure the client imports the same type and expects exactly the same field names.
+
+Step 3 — Fix Chart Props
+
+Search for wrong props:
+
+<LineChart …>  
+<BarChart …> 
+<PieChart …> 
+
+
+Standardise chart props:
+
+data: Array<{ name: string; value: number }>
+xKey: string
+yKey: string
+
+
+Refactor all analytics charts to use the same structure.
+
+Fix all null/undefined fields being passed to charts.
+
+Step 4 — Fix Timeline Tab Rendering
+
+Your timeline tab is using undefined data at first render.
+
+Fix:
+
+Add loading states
+
+Add defensive guards:
+
+if (!data) return <LoadingComponent />
+
+
+Ensure dates are serialized consistently:
+
+toISOString()
+
+Step 5 — Remove Legacy Analytics Code
+
+Delete unused or legacy files:
+
+apps/admin-portal
+apps/developer-dashboard
+apps/resident-app
+apps/assistant-tenant
+
+
+Remove imports pointing to removed modules.
+
+Step 6 — Rebuild Unified Portal Cleanly
+
+Run:
+
+npm install
+npm run build
+npm run dev
+
+
+Fix any TypeScript errors or module resolution issues until clean.
+
+Step 7 — Validate Fix
+
+Load /super/analytics
+
+Load /super/developments/[id]/analytics
+
+Load developer portal /developer
+
+Load purchaser app via QR token
+
+Goal
+
+After these steps:
+
+No hydration errors
+
+No undefined client props
+
+Analytics charts load correctly
+
+Timeline + insights tabs render without crashing
+
+All super-admin analytics routes return correct JSON
+
+Dashboard structure is stable to continue upgrades
+
+Do not continue Phase 17+.
+Do not add new features.
+Fix the foundation first.

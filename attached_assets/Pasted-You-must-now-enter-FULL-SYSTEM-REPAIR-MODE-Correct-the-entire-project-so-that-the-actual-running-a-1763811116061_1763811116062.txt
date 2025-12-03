@@ -1,0 +1,59 @@
+You must now enter FULL SYSTEM REPAIR MODE.
+
+Correct the entire project so that the actual running application matches the promised output from Phases 1–5.7.
+
+You must perform the following steps in order, without skipping any:
+
+1. FULL CODEBASE SCAN
+- Walk the entire monorepo.
+- List ALL analytics-related files.
+- Identify ANY analytics pages or components not mounted in the actual UI.
+- Identify legacy folders producing conflicts (admin-portal, developer-dashboard, resident-app, assistant-tenant).
+- Identify duplicate or unused API routes.
+
+2. FIX ROUTING COMPLETELY
+- Ensure /analytics is actually connected to the unified portal router.
+- Ensure the 7 analytics tabs exist:
+   Overview, Trends, Knowledge Gaps, RAG Performance, Documents, Homeowners, Units
+- Ensure they render.
+- Ensure navigation tabs appear in the UI.
+
+3. FIX COMPONENT IMPORTS
+- Verify that all 18 analytics components actually exist in the filesystem.
+- Import them correctly.
+- Delete stale or unused components.
+
+4. FIX API ROUTES
+- Ensure all 11 analytics API routes exist under the unified portal API.
+- Ensure they return real data.
+- Ensure the frontend fetch paths match the backend paths.
+- Ensure no undefined imports.
+
+5. FIX BACKEND → FRONTEND DATA FLOW
+- Connect actual real message counts, document counts, RAG metrics, homeowner data.
+- Ensure analytics cards receive correct props.
+- Ensure charts load actual data.
+
+6. REMOVE LEGACY CODE
+- Delete admin-portal, developer-dashboard, resident-app, assistant-tenant.
+- Remove all imports referencing deprecated folders.
+
+7. THEME & UI FIXES
+- Apply consistent black/white/gold theme.
+- Apply premium design polish.
+- Remove the old basic dashboard UI that is still appearing.
+- Ensure analytics displays the new premium layout.
+
+8. VALIDATION
+- Launch preview at PORT=5000 and confirm:
+   - The new analytics dashboard appears.
+   - All tabs are visible.
+   - Charts show data.
+   - No console or TypeScript errors.
+
+9. REPORT
+After finishing, produce a detailed report:
+- What was broken
+- What was fixed
+- Files created / deleted / edited
+- Remaining gaps if any

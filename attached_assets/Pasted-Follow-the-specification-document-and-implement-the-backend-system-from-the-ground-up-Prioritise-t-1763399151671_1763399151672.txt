@@ -1,0 +1,81 @@
+Follow the specification document and implement the backend system from the ground up.
+
+Prioritise the work in this order:
+
+Database Schema Setup
+
+Implement the full Drizzle schema exactly as specified: developments, houseTypes, units, documents, ragChunks.
+
+Add all indexes, unique constraints, and relations.
+
+Generate and run migrations so the database is ready to use.
+
+Backend API Implementation (Public APIs)
+Build the following endpoints first, fully wired to the DB:
+
+GET /api/public/unit-context
+
+Inputs: dev (development_code), u (unit_number) via query params.
+
+Output: unit context payload with purchaser name, address, house_type_code, development info.
+
+GET /api/public/documents
+
+Inputs: dev, optional houseTypeCode, optional type.
+
+Output: list of documents with title, documentType, fileName, relativePath, storageUrl.
+
+POST /api/public/chat
+
+Inputs: developmentCode, houseTypeCode, messages[].
+
+Use the RAG layer to retrieve context and call OpenAI.
+Make sure these routes are clean, validated with Zod, and use a shared service layer (e.g. unitsService, documentsService, ragService).
+
+Document Ingestion System
+
+Implement the CLI script src/scripts/ingestDocuments.ts that:
+
+Walks the assets/<development_code>/... directory.
+
+Infers developmentCode, house_type_code, document_type from folder + filename.
+
+Ensures corresponding houseTypes rows exist.
+
+Populates the documents table, idempotently.
+
+Implement classificationService using OpenAI as a fallback where inference is uncertain.
+
+Implement embedDocuments.ts to generate embeddings for ingested docs and populate ragChunks.
+
+RAG Service
+
+Implement ragService with:
+
+embedText(text) -> number[]
+
+retrieveContext(developmentCode, houseTypeCode, queryEmbedding)
+
+Wire it into POST /api/public/chat.
+
+Static File Serving
+
+Serve the assets/ directory via Express under /assets.
+
+Ensure relativePath from documents maps correctly.
+
+Unit Import Helper (optional after the above)
+
+Implement importUnitsFromCsv.ts to import from the Longview master sheet export into developments, houseTypes, and units.
+
+Key non-functional requirements:
+
+Use TypeScript with strict typing.
+
+Centralise environment config with Zod (env.ts).
+
+Implement proper error handling middleware and async error wrappers.
+
+Keep the architecture simple, readable, and easy to extend.
+
+Start from step 1 and work through in this order.

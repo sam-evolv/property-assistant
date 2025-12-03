@@ -1,0 +1,343 @@
+You are the Lead Platform Engineer for OpenHouse AI.
+
+Phase 12 begins only after the system is launched, stable, monitored, and production-ready (Phase 11 complete).
+
+Your objective in this phase is to industrialise the OpenHouse AI business, enabling it to scale across multiple developers, multiple developments, thousands of units, compliant operations, revenue tracking, sales enablement materials, automated onboarding, CRM pipeline tooling, and commercial dashboards.
+
+This is the first phase where engineering intersects deeply with operations, sales, pricing, cost-tracking, provisioning, uptime, and long-term scalability.
+
+PHASE 12 — SCOPE OVERVIEW
+
+You will implement:
+
+Billing Infrastructure
+
+Developer CRM Integration
+
+Automated Developer Onboarding Pipeline
+
+Tenant Provisioning Automation
+
+Usage-Based Cost Tracking (OpenAI + Maps)
+
+Revenue Dashboard (per developer, per development, per unit)
+
+Sales Enablement Tools
+
+Device Analytics & Behaviour Insights
+
+Incident Management Workflow
+
+Operational KPIs & Executive Dashboards
+
+Self-Healing Scripts & Admin Utilities
+
+Compliance & Data Residency (Foundational Level)
+
+This is a large phase. The Replit Agent must complete it incrementally, one module at a time, verifying each change compiles, does not break portals, and is fully integrated.
+
+PHASE 12 — DETAILED TASK LIST
+12.1 — Billing Infrastructure
+
+Implement a non-intrusive billing system with:
+
+Core Tables
+
+billing_accounts
+
+billing_plans
+
+billing_events
+
+billing_invoices
+
+billing_usage_daily
+
+Core Concepts
+
+Per-unit pricing
+
+Per-development subscription
+
+API cost tracking (OpenAI, Maps, geocoding)
+
+Estimated vs. actual cost variance
+
+Monthly invoice generation
+
+Homeowner usage penalties (heavy usage flagging)
+
+Developer Portal Additions
+
+Billing tab
+
+Historical invoices
+
+Plan type
+
+Projected month-end cost
+
+12.2 — CRM Integration (HubSpot recommended)
+
+Build /api/integrations/hubspot with:
+
+OAuth token storage
+
+“New development created → create HubSpot Deal & Company”
+
+“Homeowner onboarding → create HubSpot Contact”
+
+“Chat volume spikes → push to HubSpot activity timeline”
+
+Add developer settings UI for HubSpot.
+
+12.3 — Automated Developer Onboarding Pipeline
+
+Create a single pipeline:
+
+Create developer
+
+Upload logo and theme
+
+Provision tenant row
+
+Create first development
+
+Upload CSV
+
+Generate QR codes
+
+Prepare launch kit
+
+Send developer welcome pack
+
+Create HubSpot deal
+
+This pipeline must be callable via a single API:
+
+POST /api/admin/provision/developer
+
+12.4 — Tenant Provisioning Automation
+
+Scripted provisioning:
+
+DB row creation
+
+Default analytics caching windows
+
+Default rate limits
+
+Default document categories
+
+Default community board categories
+
+Default mapping settings
+
+12.5 — Real Usage-Based Cost Tracking
+
+Track:
+
+Daily OpenAI token spend
+
+Daily Maps API calls
+
+Geocoding cost
+
+Bandwidth
+
+Document storage
+
+Embeddings generation
+
+RAG indexing cost
+
+Create:
+
+/analytics/costs/daily
+
+/analytics/costs/monthly
+
+/analytics/costs/by-development
+
+12.6 — Revenue Dashboard
+
+A complete revenue analysis engine:
+
+Metrics
+
+Total ARR
+
+Total MRR
+
+Revenue per developer
+
+Revenue per development
+
+Predicted renewals
+
+Upsell opportunities
+
+Cost vs margin per development
+
+Developer profitability score
+
+Dashboards
+
+Admin Enterprise → Revenue
+
+Developer → Billing & Revenue Summary
+
+12.7 — Sales Enablement System
+
+Automatic generation of:
+
+PDF proposal generator
+
+Sales one-pager
+
+Analytics sample report
+
+Custom demo environment provisioning
+
+Pricing calculators (per-unit, development-size, multipliers)
+
+Create /api/admin/sales/ endpoints.
+
+12.8 — Device Behaviour Analytics
+
+Track:
+
+Sessions
+
+Mobile vs desktop
+
+First QR scan timestamp
+
+Return usage frequency
+
+Time spent on chat
+
+Maps usage
+
+Document downloads
+
+Add:
+
+Heatmap of usage by hour
+
+Daily Active Homeowners
+
+Developer retention score
+
+12.9 — Incident Management Workflow
+
+Add:
+
+/api/admin/incidents/create
+
+/api/admin/incidents/resolve
+
+/api/admin/incidents/list
+
+Auto-detect:
+
+Geocoding failures
+
+OpenAI rate-limit spikes
+
+500 errors
+
+Latency spikes
+
+Failed document ingestion
+
+Send alerts to:
+
+Email
+
+Slack webhook
+
+SMS (optional)
+
+12.10 — Executive Dashboards
+
+Create C-suite-level views:
+
+ARR/MRR vs target
+
+Usage vs cost trends
+
+Engagement vs satisfaction
+
+Developer health index
+
+Operational risk score
+
+This is separate from engineering dashboards.
+
+12.11 — Self-Healing & Utilities
+
+Create admin-only tools:
+
+Rebuild embeddings for development
+
+Re-ingest failed documents
+
+Fix orphaned chunks
+
+Regenerate QR packs
+
+Reload mapping cache
+
+Recalculate analytics
+
+Clear caching inconsistencies
+
+12.12 — Compliance Foundations
+
+Add:
+
+Data residency metadata
+
+Per-tenant deletion API
+
+Data export API
+
+Enhanced audit logs (HubSpot actions, billing events, impersonations)
+
+PHASE 12 — AGENT EXECUTION RULES
+
+The Replit Agent must:
+
+Work module-by-module
+
+Never break existing portals
+
+Test each subsystem before moving on
+
+Run schemas safely without data loss
+
+Keep all multi-tenant isolation intact
+
+Maintain security and GDPR constraints
+
+Produce clean, typed API endpoints
+
+Update UI for all new features
+
+Produce migration scripts, not destructive schema pushes
+
+Restart portals after back-end changes
+
+PHASE 12 — COMPLETION CRITERIA
+
+You must mark Phase 12 complete only once:
+
+✓ Billing is fully functional
+✓ CRM integration works end-to-end
+✓ Provisioning pipeline fully automated
+✓ Costs & revenue dashboards operational
+✓ Executive dashboards built
+✓ Incident workflow functional
+✓ Compliance tools operational
+✓ All endpoints documented

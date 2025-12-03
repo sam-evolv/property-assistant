@@ -1,0 +1,232 @@
+You are the Senior Frontend Systems Architect responsible for Phase 16 of the OpenHouse AI build.
+Execute Phase 16: Enterprise & Developer Portal Visual Overhaul.
+
+Your mandate is to completely refresh the Developer Portal and Super Admin Enterprise Portal with a unified, premium, modern visual identity aligned with Phase 15’s Resident App polish. Apply a consistent theme, typography system, spacing scale, component library standards, and micro-interaction rules across every screen.
+
+Maintain full multi-tenant isolation and never break backend logic.
+
+OBJECTIVES
+
+Deliver a top-to-bottom UI/UX refresh for:
+
+A) Developer Portal
+
+Developments Overview
+
+Development Deep-Dive
+
+Units Explorer
+
+Homeowners Directory
+
+Documents Library
+
+RAG Insights
+
+Chat Analytics
+
+Maps Analytics
+
+Moderation
+
+Tools
+
+Settings
+
+B) Super Admin Enterprise Portal
+
+Global Overview
+
+Cross-Tenant Comparison
+
+Tenant Health Scores
+
+Developer Management
+
+Development Deep-Dives
+
+RAG Search Logs
+
+System Logs
+
+Anomaly Detection
+
+Role & Permission Management
+
+Cost & Usage Insights
+
+REQUIREMENTS
+1. THEME UNIFICATION
+
+Apply the premium OpenHouse AI design system:
+
+Base colour: white/charcoal/gold
+
+Accents: soft gold glow, charcoal panels, white surfaces with depth
+
+Remove all leftover blue/iMessage colours
+
+Replace all plain borders with soft 1px gold or subtle shadows
+
+Replace all old cards with InsightCard
+
+Replace all raw tables with the new DataTable
+
+Replace all old buttons with unified Button variants
+
+2. TYPOGRAPHY & SPACING SYSTEM
+
+Introduce a consistent system-wide:
+
+Type scale for headings (H1–H6)
+
+Body text (regular, medium)
+
+Caption and metric text
+
+Spacing scale (4/8/12/20/32/48 px)
+
+Line heights
+
+Section padding rules
+
+Apply globally.
+
+3. DASHBOARD & LAYOUT REBUILD
+
+Every dashboard should follow a uniform structure:
+
+Top row: Insight Cards
+
+Second row: Charts/Grid visualisation
+
+Third row: DataTables, logs, lists
+
+Persistent sidebar nav with active-state indicators
+
+Section headers with breadcrumb
+
+4. COMPONENT POLISH
+
+Upgrade all components to premium quality:
+
+Replace every div-based card with InsightCard
+
+Replace every table with DataTable
+
+Add pagination + filtering to all tables
+
+Add skeleton loaders for all charts & tables
+
+Add subtle micro-interactions on hover, click, tab change
+
+Add shimmer loading states on analytic panels
+
+5. NAVIGATION OVERHAUL
+
+Fix both portals:
+
+Add active route highlighting
+
+Add icons per nav item
+
+Add larger tap targets
+
+Add section grouping
+
+Add consistent safe-area padding
+
+Improve top-level breadcrumbs
+
+6. CHARTS & DATA VISUALISATION POLISH
+
+All charts must use the new premium theme
+
+Replace harsh colours with soft gold, charcoal, grey
+
+Add tooltips with metric formatting
+
+Add subtle animation on load
+
+Add legends and axis labels
+
+Add empty states
+
+7. FULL RESPONSIVE REBUILD
+
+Both portals must look perfect on:
+
+Desktop
+
+Laptop
+
+Tablet
+
+iPad Pro
+
+Mobile (management on the go)
+
+Ensure no horizontal scrolling at any viewport.
+
+8. CLEAN-UP & CONSISTENCY
+
+Remove leftover unused components
+
+Delete old layout fragments
+
+Remove old stylesheets and blue themes
+
+Replace legacy markup with new components
+
+Unify all margins/padding
+
+DELIVERABLES
+A. Global Theme Provider
+
+One central theme file powering ALL portals.
+
+B. Refactored Layout Components
+
+/admin-enterprise/layout.tsx
+
+/developer/layout.tsx
+
+C. Complete rewrite of all dashboard screens
+
+Every screen must be visually premium and consistent.
+
+D. Full regression test
+
+Confirm all analytics pages, charts, tables, maps, and settings pages compile and function after the visual overhaul.
+
+CONSTRAINTS
+
+Do NOT modify backend logic or RAG behaviour.
+
+Do NOT remove or break analytics endpoints.
+
+All changes must be incremental and compile at each step.
+
+Never break tenant isolation.
+
+Keep the Resident App untouched (that was Phase 15).
+
+WORKFLOW
+
+Analyse current UI
+
+Build global theme
+
+Replace layout components
+
+Refactor pages section-by-section
+
+Replace visual components
+
+Apply typography & spacing system
+
+Re-test every portal section
+
+Commit
+
+Architect review

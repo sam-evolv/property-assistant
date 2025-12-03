@@ -1,0 +1,138 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant SaaS platform.  
+Your task is to execute **PHASE 11 — SECURITY HARDENING & QR BOOTSTRAP PIPELINE**.
+
+Do not modify any unrelated parts of the application.  
+Work strictly inside the existing architecture, conventions, folder structure, and RBAC policies already used in the repo.
+
+---
+
+## PHASE 11 OBJECTIVES
+
+### 1. QR / NFC Onboarding Security
+Implement a **secure, tamper-proof QR pipeline** so a homeowner’s QR UID reliably resolves:
+
+- tenant_id
+- development_id
+- house_id
+- house_type metadata
+
+Steps:
+1. Create a new API route:  
+   `/api/qr/resolve?uid=XXXX`
+2. The route must:
+   - Validate the UID
+   - Perform **server-side, service-role** query to Supabase:
+       *Resolve house → development → tenant with full row-level security*
+   - Reject invalid or expired UIDs
+   - Return a **signed onboarding JWT** with:
+     - `tenant_id`
+     - `development_id`
+     - `house_id`
+     - `role: "homeowner"`
+     - `exp: 24h`
+3. Ensure:
+   - No PII inside the QR code
+   - QR only stores the UUID, not metadata
+   - Only service-role key can resolve the QR
+
+---
+
+### 2. Service-Role Session Architecture
+We must prevent client-side Supabase from ever exposing service-role keys.
+
+Tasks:
+1. Create a secure server-side module:
+   `/server/supabase-service.ts`
+2. Move **all** service-role queries there:
+   - QR resolution
+   - initial document fetch
+   - RAG chunk retrieval
+   - development/house metadata
+3. Enforce:
+   - Never import service-role client into client components
+   - All client-facing endpoints use signed JWTs
+
+---
+
+### 3. Scoped JWTs for Homeowners
+We need a lightweight method to authenticate a purchaser without creating a Supabase Auth user.
+
+Steps:
+1. Create a JWT signer utility:
+   `/server/jwt.ts`
+2. JWT payload must include:
+   - `tenant_id`
+   - `development_id`
+   - `house_id`
+   - `house_type`
+   - role = "homeowner"
+3. Set expiration to 24h
+4. Add a corresponding JWT verifier
+5. Create middleware:
+   `/server/middleware/validate-homeowner.ts`
+   - Validate JWT
+   - Attach resolved context to request
+   - Enforce that all purchaser-facing routes:
+     - `/api/chat`
+     - `/api/documents`
+     - `/api/house`
+     - `/api/area`
+   require a valid token
+
+---
+
+### 4. RLS (Row Level Security) Hardening
+Add missing RLS checks to prevent cross-tenant access.
+
+For each table:
+- developments
+- houses
+- documents
+- doc_chunks
+- messages
+
+Enforce Supabase policies:
+
+tenant_id = auth.jwt()->>'tenant_id'
+
+bash
+Copy code
+
+AND, where needed:
+
+development_id IN (SELECT development_id FROM houses WHERE house_id = auth.jwt()->>'house_id')
+
+yaml
+Copy code
+
+Make sure:
+- Developers see only their tenant_id
+- Homeowners see only their house/development
+- Super-admin bypasses via `role = 'super_admin'`
+
+---
+
+### 5. Purchaser Portal Bootstrap
+Update Tenant Portal onboarding flow:
+1. `/onboarding?token=XXX`
+2. Decode token
+3. Load:
+   - house metadata
+   - house type
+   - development info
+4. Persist context in secure cookie
+5. Redirect to `/chat`
+
+---
+
+### 6. Deliverables
+When finished:
+- Provide a written summary of changes
+- Show diffs only for security-sensitive files
+- Confirm RLS policies compile
+- Confirm no routes expose service-role keys
+- Confirm tenant isolation and house isolation work
+
+---
+
+Proceed with PHASE 11 now.

@@ -1,0 +1,98 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant platform.
+
+Your task is to execute **PHASE 20 — DEVELOPER PORTAL UX POLISH & ADMIN PRODUCT HARDENING**.
+
+This phase prepares the platform for real developer onboarding by refining the developer portal UX, improving document management, enhancing noticeboard controls, and tightening overall product quality.
+
+Work within the existing architecture.
+
+────────────────────────────────────────
+PHASE 20 OBJECTIVES
+────────────────────────────────────────
+
+1. Developer Dashboard Improvements
+   • Redesign landing dashboard at /dashboard
+   • Display:
+       – tenant name + logo
+       – number of developments
+       – number of houses
+       – top-level analytics (chat volume, doc views)
+   • Add quick actions:
+       – Create Development
+       – Upload Documents
+       – Manage Houses
+       – Edit Theme
+
+2. Development Overview UX
+   • Improve development detail page:
+       – list house types
+       – list houses
+       – list associated documents
+       – map preview
+       – show analytics (last 30 days)
+   • Add “Download All QR Codes” button (zip)
+
+3. Document Management Upgrade
+   • Add drag-and-drop upload UI
+   • Add file-type icons
+   • Add versioning:
+       – display version number
+       – “upload new version” button
+   • Add search & filter:
+       – Manuals
+       – Warranties
+       – Specs
+       – Other
+
+4. Noticeboard Admin Polish
+   • Redesign noticeboard admin page for clarity
+   • Add categories (Announcement, Reminder, Update)
+   • Add publish/unpublish toggle
+   • Add scheduled posts (optional)
+   • Show history of posts
+
+5. Theme Editor Enhancements
+   • Live preview side-by-side
+   • Add more controls:
+       – Background color
+       – Button radius
+       – Heading font weight
+       – Optional dark mode preview
+   • Save preview state without affecting production
+
+6. QR Export Improvements
+   • Add “Export All QR Codes” as:
+       – PDF sheet (A4 grid)
+       – Individual PNGs
+       – ZIP download
+   • Add development logo on QR export sheet
+
+7. Developer Portal Polish
+   • Improve spacing, typography, and loading states
+   • Add skeleton loaders
+   • Add consistent empty-state screens
+   • Add success/error toasts across workflows
+
+8. Documentation
+   • Add docs/PHASE_20_DEVELOPER_PORTAL_POLISH.md:
+       – all UX improvements
+       – new components
+       – new flows
+       – instructions for using new features
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• Improved developer dashboard  
+• Improved development view  
+• Refined document upload/management flow  
+• Improved noticeboard admin  
+• Enhanced theme editor  
+• QR export tools  
+• Skeleton loaders & UI polish  
+• Full documentation  
+
+────────────────────────────────────────
+
+Proceed with PHASE 20 now.

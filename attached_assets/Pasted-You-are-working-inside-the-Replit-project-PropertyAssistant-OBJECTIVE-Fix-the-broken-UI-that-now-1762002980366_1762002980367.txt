@@ -1,0 +1,117 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+OBJECTIVE
+Fix the broken UI that now appears visually corrupted and structurally inconsistent.
+This includes:
+- Restoring the layout (no oversized icons, missing alignment, or broken distribution).
+- Reapplying Tailwind CSS utilities correctly.
+- Verifying global layout wrappers and index file structure.
+- Ensuring TopBar, main content, and Dock render correctly again.
+
+---
+
+TASKS
+
+1️⃣ CLEAR COMPILE AND STYLE CACHE
+- Stop the dev server.
+- Run:
+  npx tailwindcss -o ./app/globals.css --minify
+  rm -rf .next
+  rm -rf node_modules/.cache
+  npm run dev
+(This ensures Tailwind rebuilds from scratch.)
+
+2️⃣ VERIFY GLOBAL CSS IMPORTS
+- Open app/layout.tsx and confirm:
+  ```tsx
+  import "./globals.css";
+  import type { Metadata } from "next";
+  import { Inter } from "next/font/google";
+
+  const inter = Inter({ subsets: ["latin"] });
+
+  export const metadata: Metadata = {
+    title: "Property Assistant",
+    description: "OpenHouse AI – Resident Support Platform",
+  };
+
+  export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${inter.className} antialiased bg-white dark:bg-neutral-950 transition-colors duration-300`}>
+          {children}
+        </body>
+      </html>
+    );
+  }
+Remove any accidental duplicate <html> or <body> wrappers in nested layouts (they’ll break hydration and cascade).
+
+3️⃣ RESET MAIN PAGE STRUCTURE
+
+In app/page.tsx ensure:
+
+tsx
+Copy code
+export default function Home() {
+  return (
+    <main className="h-screen flex flex-col justify-between items-center overflow-hidden">
+      <TopBar />
+      <section className="flex-1 w-full max-w-3xl mx-auto flex flex-col items-center justify-center text-center px-4">
+        <img src="/logo.png" alt="Logo" className="w-32 h-auto mb-6" />
+        <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          Ask anything about your home or community
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-2 mb-6">
+          Quick answers for daily life at Seaview: floor plans, amenities, local services, and more.
+        </p>
+        <div className="flex gap-2 flex-wrap justify-center mb-8">
+          {["Public Transport", "Waste Collection", "Parking Rules", "Local Area"].map((tag) => (
+            <button
+              key={tag}
+              className="px-4 py-2 text-sm bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-gray-100 rounded-full hover:bg-gray-200 dark:hover:bg-neutral-700 transition"
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+
+        {/* Search box */}
+        <div className="w-full max-w-2xl flex items-center bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-full shadow-sm px-4 py-3 mb-10">
+          <input
+            className="flex-1 bg-transparent outline-none text-sm md:text-base text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            placeholder="Ask about your home or community..."
+          />
+          <button className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 text-sm">
+            Ask
+          </button>
+        </div>
+      </section>
+      <Dock />
+    </main>
+  );
+}
+4️⃣ RESTORE COMPONENT ALIGNMENT
+
+Ensure TopBar.tsx and Dock.tsx use consistent fixed heights and are not wrapped in containers that cause flex distortions.
+
+tsx
+Copy code
+// TopBar
+<header className="h-[56px] w-full fixed top-0 bg-white dark:bg-neutral-950 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between px-6 z-50">
+tsx
+Copy code
+// Dock
+<footer className="h-[64px] w-full fixed bottom-0 bg-white dark:bg-neutral-950 border-t border-gray-200 dark:border-neutral-800 flex items-center justify-evenly z-50">
+5️⃣ VALIDATE DARK MODE AGAIN
+
+Check <html> toggles class="dark" correctly.
+
+Ensure bg-white dark:bg-neutral-950 applies globally — no partial overlays or translucent layers.
+
+6️⃣ VISUAL QA CHECK
+
+Run npm run dev.
+
+Confirm: no massive zoomed-in icon, no gray background overlay, no missing layout.
+
+Validate page displays fully centered, non-scrollable, balanced between TopBar and Dock.

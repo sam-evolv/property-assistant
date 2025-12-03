@@ -1,0 +1,348 @@
+You are the Replit Agent working on the OpenHouse AI monorepo.
+
+Your mandate is to take the current project from a fragile MVP to a **stable, predictable, production-grade platform** where:
+
+- Both portals (Tenant / Homeowner and Developer / Super Admin) work end-to-end
+- All key features are fully functional (auth, tenants, developments, houses, docs, chat)
+- Document upload, parsing, embeddings, and RAG are reliable
+- API routing and context handling are consistent across the codebase
+- The behaviour is simple, intuitive, and testable for real estates like Longview Park
+
+You are not doing cosmetic design work here. Your focus is **architecture, correctness, stability, and DX/UX flow**.
+
+────────────────────────────────────────
+0. ORIENTATION – PROJECT REALITY
+────────────────────────────────────────
+
+First, quickly re-orient yourself:
+
+1. Inspect the monorepo structure:
+   - Root apps:
+     - apps/tenant-portal          (homeowner / QR portal)
+     - apps/developer-portal       (developer + super admin)
+   - Shared packages:
+     - packages/api                (shared API / route handlers)
+     - packages/db / scripts       (Supabase / Postgres / Drizzle schema + seeds)
+     - workers / background jobs   (PDF parsing, embedding, etc.)
+
+2. Confirm current running processes:
+   - Tenant portal dev server is running.
+   - Developer portal dev server should run on port 3001.
+   - Shared API is correctly wired via Next.js route handlers (no separate Express).
+
+If any backend server is not running or misconfigured, fix that as part of the steps below.
+
+────────────────────────────────────────
+1. API ROUTING – SINGLE SOURCE OF TRUTH
+────────────────────────────────────────
+
+Goal: **All frontends call the backend in one consistent way.** No hard-coding, no localhost assumptions, no preview URL hacks.
+
+1.1. Search the repo for all API base references:
+   - "API_BASE_URL"
+   - "apiBaseUrl"
+   - "BASE_URL"
+   - "http://localhost"
+   - "replit.dev"
+   - "window.location.origin"
+   - "/api/train"
+   - "/api/developments"
+   - "/api/chat"
+   - "/api/documents"
+
+1.2. Replace all environment-dependent base URLs with **relative paths**:
+
+   - From:
+       - "http://localhost:3001/api/…"
+       - "https://…replit.dev:3001/api/…"
+       - `${window.location.origin}/api/…`
+     To:
+       - `/api/…` (same-origin relative URL)
+
+   This applies to:
+   - apps/tenant-portal (all fetch/axios calls)
+   - apps/developer-portal (all fetch/axios, React hooks, hooks for upload, preview chat, lists)
+   - packages/api-client or any custom client utilities
+
+1.3. Ensure that **no API call** in the entire repo depends on:
+   - hardcoded hostnames
+   - ports
+   - window.location.origin
+
+All calls must be same-origin `/api/...`. This is critical for cookies, SSR, and future Vercel/Cloudflare deployment.
+
+────────────────────────────────────────
+2. AUTH & TENANT CONTEXT – CONSISTENT AND PREDICTABLE
+────────────────────────────────────────
+
+Goal: **Super admin and developer tenants resolve correctly everywhere**, and nothing breaks because tenantId or session is undefined.
+
+2.1. Locate all auth/session/tenant context logic:
+   - apps/developer-portal/src/context/*
+   - apps/developer-portal/app/api/session/route.ts or similar
+   - packages/api/auth / middleware
+   - any file mentioning `tenantId`, `admin`, `super_admin`, `role`, `session`
+
+2.2. Implement a single, clear contract for “who am I” and “what tenant am I”:
+
+   - Super admin (sam@evolvai.ie):
+     - Has role = "super_admin".
+     - Can see ALL tenants and ALL developments.
+   - Developer admin:
+     - Associated with a single tenant_id.
+     - Sees only their tenant and developments.
+
+2.3. Fix TenantContext / AdminContext:
+
+   - They must never throw or crash when:
+     - session is temporarily undefined
+     - tenantId is missing
+   - Provide safe defaults and early loading states.
+   - For developer portal, ensure downstream hooks can always read:
+     - `currentAdmin`
+     - `currentTenant` (or null in super_admin multi-tenant views)
+   - Centralise tenant resolution (from session / JWT / DB) and reuse it consistently.
+
+2.4. Verify auth flows:
+
+   - Developer portal:
+     - Sign-in → expected redirect to dashboard.
+     - Dashboard should list developments for the correct tenant.
+   - Tenant/homeowner portal:
+     - QR and direct links resolve to the correct development + house context.
+     - If no auth is required for homeowners, ensure they still have a `developmentId` and `houseId` context.
+
+────────────────────────────────────────
+3. DATA MODELS & DATABASE – ALIGNMENT WITH REALITY
+────────────────────────────────────────
+
+Goal: **All critical tables exist, are consistent, and used correctly.**
+
+Focus tables:
+
+- tenants
+- developments
+- houses
+- documents
+- doc_chunks
+- messages (chat history)
+- admins / users (whatever represents developer + super admin)
+
+3.1. Verify schema alignment:
+
+   - Cross-check Drizzle schema (schema.ts) with actual DB tables.
+   - Ensure columns used in code (tenant_id, development_id, house_id, role, email) actually exist.
+   - Fix any mismatches between DB schema and TypeScript types.
+
+3.2. Seed data and Longview Park:
+
+   - Confirm Longview Park is present in the DB with:
+     - correct development_id
+     - linked tenant_id
+   - Confirm admin record for `sam@evolvai.ie` exists and is:
+     - role = "super_admin"
+     - tenant_id either null or a known value
+
+3.3. Ensure all DB interactions in the backend (packages/api, route handlers) use the correct client:
+
+   - Use the **service-role** client where needed for server-side operations that must bypass RLS.
+   - Use anon client appropriately for public homeowner routes if required.
+
+If RLS policies exist, ensure they are not silently blocking super_admin or developer.
+
+────────────────────────────────────────
+4. DOCUMENT UPLOAD → PDF PARSING → EMBEDDINGS → STORAGE
+────────────────────────────────────────
+
+Goal: **Upload a PDF, parse it, embed it, store it, and have it visible in the UI and available to chat. No flakiness.**
+
+4.1. Identify the upload API route(s):
+
+   - Likely `/api/train`, `/api/documents/upload`, or similar.
+   - Located in packages/api/routes or app/api/... folders.
+
+4.2. Standardise the upload contract:
+
+   - Frontend sends:
+     - `file`: the PDF as `multipart/form-data`
+     - `developmentId`
+     - `tenantId` (if required)
+   - Backend:
+     - Validates presence of file and IDs.
+     - Uses a single clear handler for uploads.
+     - Returns a structured JSON response:
+       - success boolean
+       - documentId
+       - chunkCount or similar
+
+4.3. Fix file handling:
+
+   - Use a supported approach (formidable, busboy, or Next.js’s recommended `formData()`).
+   - Ensure `file` is received reliably in the handler.
+   - Ensure no assumptions about Node streams break on Replit / Next.js.
+
+4.4. Fix PDF parsing:
+
+   - Locate pdf-parse (or equivalent) usage.
+   - Ensure the import pattern is correct:
+     - `import pdfParse from "pdf-parse";` OR
+     - `const pdfParse = require("pdf-parse").default || require("pdf-parse");`
+   - Confirm `typeof pdfParse === "function"` before calling.
+   - Wrap parsing in robust try/catch with meaningful error logs.
+
+4.5. Embeddings + storage:
+
+   - Call OpenAI embeddings using the configured model (e.g. text-embedding-3-large).
+   - Chunk content sensibly (by paragraphs or token length).
+   - Insert rows into:
+     - `documents` (one row per document)
+     - `doc_chunks` (one row per chunk, with embedding vector and source document reference)
+   - Ensure `development_id` and `tenant_id` are set correctly on every row.
+
+4.6. Validation for this step:
+
+   - After uploading a PDF from the Developer Portal for Longview Park:
+     - Network tab: successful POST to `/api/train` (status 200/201).
+     - Server logs:
+       - "POST /api/train"
+       - "Parsing PDF..."
+       - "Generated N chunks"
+       - "Inserted doc + chunks"
+     - DB: new rows in `documents` and `doc_chunks` with correct IDs.
+     - Developer Portal UI: Documents count increments and list shows the uploaded file.
+
+────────────────────────────────────────
+5. RAG CHAT – WIRED TO THE RIGHT CONTEXT
+────────────────────────────────────────
+
+Goal: **Preview Chat and homeowner chat read from the correct embeddings with the correct scoping (tenant + development + house).**
+
+5.1. Locate chat API route(s):
+
+   - e.g. `/api/chat`
+   - Check how it accepts:
+     - `developmentId`
+     - `houseId`
+     - user message
+
+5.2. Ensure the RAG pipeline:
+
+   - Fetches chunks from `doc_chunks` scoped by:
+     - tenant_id
+     - development_id
+     - optionally house_type or house_id
+   - Uses OpenAI with:
+     - system prompt including dev/house context
+     - top-K most relevant chunks
+   - Returns an answer plus (optionally) citations.
+
+5.3. Fix any mismatch between frontend and backend parameters:
+   - Frontend must pass the IDs the backend expects.
+   - Backend must not assume missing IDs.
+
+5.4. Validate:
+
+   - In the Developer Portal "Preview Chat" for Longview Park:
+     - Ask a question you know is answered in the uploaded PDF.
+     - Confirm the response references the content.
+   - In the homeowner portal:
+     - Simulate a QR context (development/house) and ask a similar question.
+     - Confirm scoping is correct and it does not leak across developments.
+
+────────────────────────────────────────
+6. UX FLOWS – EVERYTHING CLICKABLE AND INTUITIVE
+────────────────────────────────────────
+
+Goal: **No dead ends, no “Not Found” where data exists, and no confusing flows.**
+
+Focus on **Developer Portal** first:
+
+6.1. Flows to validate and fix:
+
+   - Login → Dashboard
+   - Dashboard → Developments list
+   - Developments list → Development detail (Longview Park)
+   - Development detail:
+     - Overview tab loads
+     - Houses tab loads
+     - Documents tab loads and upload works
+     - AI Instructions tab loads and can be saved
+     - Preview Chat tab works
+
+6.2. Ensure that:
+
+   - No page renders "Development Not Found" when the development exists.
+   - Any genuine error is surfaced with a clear message (“Failed to load development data. See console for details.”).
+   - Navigation uses Next.js routing correctly (no broken links or wrong URLs).
+   - There are no infinite redirects or auth loops.
+
+Then validate **Tenant/Homeowner Portal**:
+
+   - Landing screen loads.
+   - Selecting development or scanning QR loads the correct context.
+   - Bottom navigation (Chat, Map, Noticeboard, Documents) is functional.
+   - Documents screen shows development documents once trained.
+
+────────────────────────────────────────
+7. LOGGING, ERROR HANDLING & DX
+────────────────────────────────────────
+
+Goal: **When something breaks, we know exactly where and why.**
+
+7.1. For key backend routes (`/api/train`, `/api/developments/*`, `/api/chat`):
+
+   - Add structured logging at:
+     - entry (with route + key params)
+     - before/after critical operations (parse, embed, DB writes)
+     - on errors (with stack trace and useful message)
+
+7.2. For frontend:
+
+   - Ensure uploads / actions show:
+     - clear success toast
+     - clear error toast with short description
+   - Console errors should log the HTTP status and error payload, not just “something went wrong”.
+
+7.3. Ensure that all errors thrown in async React components are caught by:
+   - Next.js error boundaries
+   - custom error states (not blank white screens)
+
+────────────────────────────────────────
+8. FINAL VALIDATION SCRIPT
+────────────────────────────────────────
+
+When you believe everything is fixed:
+
+Execute this **end-to-end test script** yourself:
+
+1. Start both portals:
+   - `cd apps/tenant-portal && npm run dev`
+   - `cd apps/developer-portal && npm run dev -- --port 3001`
+
+2. In Developer Portal:
+   - Log in as `sam@evolvai.ie`.
+   - Open Developments → select Longview Park.
+   - Verify: no errors, overview loads.
+   - Go to Documents tab, upload a Longview Park PDF.
+   - Confirm:
+     - Success message in UI.
+     - Server logs show full PDF → embedding → DB pipeline.
+     - `documents` and `doc_chunks` contain new rows for that dev.
+   - Switch to Preview Chat, ask a question about the PDF.
+   - Confirm answer uses that content.
+
+3. In Tenant/Homeowner Portal:
+   - Simulate a homeowner for Longview Park (use existing dev/house config).
+   - Open Documents: see the uploaded docs.
+   - Open Chat: ask a similar question, confirm it reads from the right context.
+
+4. Confirm there are:
+   - No 404/500 spam in the browser console.
+   - No crashes or “undefined” errors.
+   - No “Development Not Found” for real data.
+
+Only when these pass should you consider the system stable.
+
+────────────────────────────────────────
+
+Execute all of the above changes now. Work across all relevant files and packages until the system meets these requirements.

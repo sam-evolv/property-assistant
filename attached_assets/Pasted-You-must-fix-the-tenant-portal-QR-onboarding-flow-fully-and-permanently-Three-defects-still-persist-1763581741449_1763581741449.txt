@@ -1,0 +1,168 @@
+You must fix the tenant-portal QR onboarding flow fully and permanently.
+Three defects still persist and must now be resolved end-to-end:
+
+1. FIX WELCOME SCREEN NAME + ANIMATION SPEED
+Required Behaviour:
+
+Show full purchaser name exactly as stored in the JWT (full_name)
+
+Show it for a minimum of 2.5 seconds per slide
+Total: 7.5–8 seconds
+
+No abbreviating “Mr.” or “Ms.” — use full name only
+
+No skipping or auto-jumping between slides
+
+Changes Required:
+
+Open: apps/tenant-portal/app/onboarding/[token]/welcome.tsx
+
+Replace ANY reference to homeowner.name or homeowner.fullName with jwt.full_name
+
+Update ALL animation setTimeout durations:
+2500, 2500, 2500
+
+Remove salutation logic entirely
+
+Add a console log after each animation step so we can verify timing
+
+2. FIX THE CHAT CONTEXT HYDRATION FAILURE
+
+Safari is throwing hydration mismatch because DevelopmentContext loads after the initial render.
+
+Required Behaviour:
+
+Chat page must ALWAYS load with the context from /api/auth/context
+
+Chat should NEVER show “Please select a development first”
+
+No hydration mismatch errors on Safari or Chrome
+
+Changes Required:
+
+Edit:
+apps/tenant-portal/providers/DevelopmentContext.tsx
+
+Implement the following:
+
+Add SSR guard:
+
+const isClient = typeof window !== "undefined";
+if (!isClient) return null;
+
+
+Only render children after context has been fully fetched:
+
+if (loading) {
+  return <div className="h-screen flex items-center justify-center">Loading...</div>;
+}
+
+
+Ensure that the fetch call to /api/auth/context is wrapped in:
+
+useEffect(() => {
+  if (!initialized) {
+    loadContext();
+  }
+}, [initialized]);
+
+
+Absolutely guarantee that developmentId, unitId, full_name, house_type_code are populated before Chat mounts.
+
+3. FIX THE ONBOARDING REDIRECT RACE CONDITION
+
+The redirect is happening BEFORE the JWT cookie is ready → Chat sometimes loads with empty context.
+
+Required Behaviour:
+
+Only redirect after setCookie() promise resolves fully
+
+Add a 150ms delay after cookie write (Next.js requirement)
+
+Changes Required:
+
+Edit:
+apps/tenant-portal/app/onboarding/[token]/actions.ts
+
+Replace redirect logic with:
+
+await setJwtCookie(jwtToken);
+
+// small delay ensures Safari/Next.js commit the cookie
+await new Promise(r => setTimeout(r, 150));
+
+redirect("/chat");
+
+4. FIX CHAT API ERROR HANDLING
+
+When context fails, Chat API currently throws a generic 500.
+
+Required change in:
+packages/api/src/chat/route.ts
+
+Before processing the request:
+
+if (!jwt || !jwt.development_id) {
+  return NextResponse.json(
+    { error: "Missing development context" },
+    { status: 400 }
+  );
+}
+
+
+Console log JWT on every request:
+
+console.log("[CHAT] Using context:", jwt);
+
+5. VERIFY END-TO-END FLOW
+
+Add console logs:
+
+In welcome.tsx
+
+Print final jwt.full_name
+
+Print animation timing checkpoints
+
+In DevelopmentContext
+
+Print when JWT loads successfully
+
+Print final context object
+
+In Chat page
+
+Print context before sending any message
+
+DELIVERABLES
+
+You MUST apply all code changes above.
+You MUST confirm all file edits.
+You MUST run both tenant-portal & developer-portal dev servers after changes.
+You MUST print the console output for:
+
+Onboarding welcome screen
+
+DevelopmentContext initialisation
+
+Chat prompt send event
+
+Only stop after the following acceptance criteria pass:
+
+ACCEPTANCE CRITERIA (MANDATORY)
+
+Welcome animation shows correct full name for 7–8 seconds
+
+Welcome animation does NOT skip slides
+
+After onboarding → /chat loads WITHOUT hydration errors
+
+Chat loads with purchaser’s development, unit, house type, name
+
+Chat never shows “Please select a development first”
+
+Asking “What heat pump do I have?” returns correct answer
+
+No Safari-specific errors
+
+PROMPT END

@@ -1,0 +1,104 @@
+I need you to add a fully functional retrieval-augmented chat endpoint to the existing backend. 
+This should integrate cleanly with the current codebase, use our existing Supabase tables, 
+and work with the tenant isolation system already implemented.
+
+Create a new file at:
+   packages/api/src/app/api/chat/route.ts
+
+Implement the following behaviour:
+
+1. Accept POST requests only.
+   Input JSON:
+   {
+     "tenantId": "<uuid>",
+     "message": "<user question>"
+   }
+
+2. Validate:
+   - tenantId is required
+   - message is required
+   If missing, return 400 with error.json.
+
+3. Compute an embedding for the user query using:
+     model: "text-embedding-3-large"
+
+4. Use Supabase to perform vector similarity search against our doc_chunks table.
+   This is critical:
+   - Use the embeddings we stored during training.
+   - Filter by tenant_id so each development is isolated.
+   - Limit to 8 best matches (match_count = 8).
+   - Use a threshold around 0.80.
+
+If match_chunks RPC exists, use it. If not, CREATE it:
+   SQL:
+   create or replace function match_chunks(
+     query_embedding vector(3072),
+     match_threshold float,
+     match_count int,
+     tenant_id uuid
+   )
+   returns table(
+     id uuid,
+     content text,
+     similarity float
+   )
+   language plpgsql
+   as $$
+   begin
+     return query
+     select
+       doc_chunks.id,
+       doc_chunks.content,
+       1 - (doc_chunks.embedding <=> query_embedding) as similarity
+     from doc_chunks
+     where doc_chunks.tenant_id = match_chunks.tenant_id
+     and (1 - (doc_chunks.embedding <=> query_embedding)) > match_threshold
+     order by doc_chunks.embedding <=> query_embedding
+     limit match_count;
+   end;
+   $$;
+
+If the RPC already exists, DO NOT recreate it—just use it.
+
+5. Build the context string by joining all returned chunk contents with "\n\n".
+
+6. Construct a grounded completion request:
+   - Model: "gpt-4.1-mini"
+   - System prompt:
+       "You are the OpenHouse Resident Assistant. 
+        Always answer ONLY using the provided knowledge context.
+        Never invent details that are not present in the retrieved chunks.
+        If the answer is not in the context, say:
+        'I don’t have that information yet.'"
+   - Messages array should include:
+       { role: "system", content: systemPrompt }
+       { role: "user", content: "CONTEXT:\n" + context }
+       { role: "user", content: message }
+
+7. Return JSON:
+   {
+     "success": true,
+     "answer": "<assistant response>",
+     "chunksUsed": <count>,
+     "matched": [ list of chunk IDs or short previews ]
+   }
+
+8. If no relevant chunks are found:
+   Return a grounded fallback:
+   {
+     "success": true,
+     "answer": "I don’t have that information yet.",
+     "chunksUsed": 0
+   }
+
+9. Ensure this endpoint uses:
+   - SUPABASE_SERVICE_ROLE_KEY (server-side)
+   - Correct Supabase client (server client only)
+   - Correct tenant isolation (filter all queries by tenantId)
+
+10. After implementing, run a test:
+   - Query something clearly present in the Architectural Pack or Planning Report
+   - Return the answer in Logs so I can verify.
+
+Make the implementation clean, typed, and aligned with the structure of the other API routes.
+Do not modify the training pipeline—only add the chat endpoint.

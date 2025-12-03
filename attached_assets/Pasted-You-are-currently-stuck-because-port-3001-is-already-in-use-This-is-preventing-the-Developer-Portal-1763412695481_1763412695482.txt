@@ -1,0 +1,154 @@
+You are currently stuck because port 3001 is already in use.
+This is preventing the Developer Portal’s API routes from running, which breaks:
+
+/api/train (document upload)
+
+/api/chat (RAG chat)
+
+All backend logs
+
+All embeddings and PDF parsing
+
+Fix this completely and permanently. Do the following steps in exact order:
+
+1. Kill Any Existing Processes Running on Port 3001
+
+Search for and kill all Node/Next.js processes still running:
+
+Find the process holding port 3001
+
+Kill it safely
+
+Verify the port is free
+
+Ensure no “zombie” Next.js processes remain
+
+(Use lsof -i :3001, ps aux, pkill node, etc. You choose the method.)
+
+2. Restart the Developer Portal Server Cleanly
+
+Run:
+
+cd apps/developer-portal
+npm run dev -- --port 3001
+
+
+Verify:
+
+The server starts
+
+No EADDRINUSE
+
+No missing imports
+
+No crash stacktrace
+
+Route handlers mount correctly
+
+3. Confirm Routes Are Live
+
+Check:
+
+/api/train loads in browser (should show a 405 or 404, but NOT crash)
+
+/api/chat loads (should show 405 or 404)
+
+4. Add Full Logging to Train & Chat Endpoints
+
+Instrument:
+
+apps/developer-portal/app/api/train/route.ts
+
+and
+
+apps/developer-portal/app/api/chat/route.ts
+
+Add:
+
+console.log(“TRAIN REQUEST RECEIVED”, formData)
+
+console.log(“EMBEDDING DONE”, chunkCount)
+
+console.log(“TRAINING JOB STORED”, jobId)
+
+console.log(“CHAT REQUEST”, question, developmentId, tenantId)
+
+console.log(“CHAT RESPONSE OK”)
+
+5. Test Upload + Chat End-to-End
+
+Once port 3001 is freed and the real backend is running:
+
+Upload a PDF
+
+The Shell MUST print:
+
+"TRAIN REQUEST RECEIVED"
+
+"PDF PARSE START"
+
+"CHUNKS CREATED"
+
+"EMBEDDINGS GENERATED"
+
+"JOB COMPLETED"
+
+Then:
+
+Go to Preview Chat
+
+Ask a simple question
+
+Shell MUST print chat logs
+
+6. Fix Any Remaining Errors Found in Logs Immediately
+
+If any errors appear:
+
+Missing env
+
+Supabase insert failure
+
+Type issue
+
+Unexpected token
+
+PDF-parse crash
+
+Auth/token missing
+
+Tenant context undefined
+
+Fix them immediately until the logs run clean.
+
+Goal State (Tonight)
+
+By the end of this fix:
+
+Sam must be able to:
+
+Developer Portal
+
+Upload PDFs
+
+Upload the Longview Park spreadsheet
+
+Generate QR codes
+
+See houses list populate
+
+Resident View
+
+Scan QR → see personalised portal
+
+See their name
+
+Ask “What house type is mine?”
+
+Ask “How many bedrooms do I have?”
+
+Ask FAQ questions and get answers from the docs
+
+Everything operational.
+Everything stable.
+Everything logged.

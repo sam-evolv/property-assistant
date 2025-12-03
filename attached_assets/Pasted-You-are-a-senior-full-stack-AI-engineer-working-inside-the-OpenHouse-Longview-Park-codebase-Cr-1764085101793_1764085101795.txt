@@ -1,0 +1,206 @@
+You are a senior full-stack + AI engineer working inside the OpenHouse / Longview Park codebase.
+
+Critical bug
+- In the Developer “Documents” screen, uploading a Word version of “Kitchen & Wardrobe Narrative – Updated.docx” works and appears in the list.
+- Uploading the PDF version of the same document shows a toast “Successfully uploaded 1 document(s)” but:
+  - No new row appears in the Documents table.
+  - No server-side processing logs are printed.
+  - The PDF never reaches the RAG index.
+This must be fixed. The portal must ingest PDF and DOCX identically.
+
+In addition, the assistant is still failing to answer questions like “who supplied my kitchen” despite the kitchen narrative being present. You must now:
+1) Fix PDF ingestion end-to-end.  
+2) Harden ingestion for *all* docs.  
+3) Upgrade retrieval + answer policy so the assistant reliably pulls factual answers from any uploaded document.
+
+==================================================
+PHASE 1 – PDF upload debug and fix
+==================================================
+
+1. Frontend – Developer Documents upload
+   - Locate the React component responsible for the “Upload Training Documents / Management” screen and its upload handler.
+   - Inspect:
+     - Accepted file types (accept attribute, file filters).
+     - The request sent to the API for uploads (endpoint, payload, headers).
+     - The logic that shows the success toast.
+   - Requirements:
+     - The success toast must only show when the API returns a true success (HTTP 2xx and a valid document record in the response).
+     - The upload request must not filter out `application/pdf` or `.pdf` extensions.
+     - After a successful upload, the UI must:
+       - Append the returned document to the local list, or
+       - Trigger a refetch that causes the new document (including PDFs) to appear.
+
+2. Backend – Upload endpoint and processing
+   - Find the upload endpoint (for example `/api/documents/upload` or equivalent) and the handler it calls (`saveDocument`, `processUpload`, etc.).
+   - Verify the following for PDFs:
+     - Any middleware (multer / file upload) includes PDFs in its MIME checks.
+     - There is no early return or guard that only allows `doc`/`docx`.
+     - A `documents` row is created for PDFs with correct:
+       - id
+       - development_id
+       - file_name
+       - mime_type
+     - The document is then passed into the same processing pipeline used for DOCX:
+       - extract text
+       - split into chunks
+       - generate embeddings
+       - insert into `doc_chunks`.
+
+   - Fixes:
+     - If PDFs are being rejected silently:
+       - Loosen the MIME / extension allow-list to include PDFs.
+     - If PDFs are saved but not processed:
+       - Ensure the processing pipeline is called for *all* file types you claim to support.
+     - Add structured logging:
+       - On upload start: log document id, file name, mime type.
+       - On successful processing: log extracted characters, chunk count.
+       - On error: log the exception and mark document as failed.
+
+3. UI visibility for PDFs
+   - Inspect the API and UI code that feeds the Documents table.
+   - Remove any filters that hide PDFs (for example filtering by type or extension).
+   - Ensure the list shows both DOCX and PDF kitchen narrative entries once uploaded.
+
+4. Regression check
+   - After fixing frontend + backend:
+     - Upload the kitchen PDF again.
+     - Confirm:
+       - A new `documents` row exists for that PDF.
+       - There are > 0 `doc_chunks` rows for its document id.
+       - The PDF appears in the developer Documents list with a non-zero size and a “completed”/similar status.
+       - Logs show extraction and chunking happening.
+
+==================================================
+PHASE 2 – Harden document ingestion for ALL docs
+==================================================
+
+Goal: every visible document is either fully ingested or clearly marked as failed – never silently ignored.
+
+5. Add ingestion assertions to the processing pipeline:
+   - After text extraction:
+     - If character count == 0 → mark as failed, log error.
+   - After chunking:
+     - If chunk_count == 0 → mark as failed, log error.
+   - After embedding generation:
+     - On any OpenAI error → mark as failed and log.
+
+6. Extend the `documents` schema (if not already present) with a status field:
+   - Values: `processing`, `completed`, `failed`.
+   - Ensure the developer Documents list shows this status.
+
+7. One-off reprocessing job:
+   - For all documents in the database:
+     - If they have 0 associated chunks:
+       - Re-run the extraction + chunk + embedding pipeline.
+   - Log any that still fail; they should show as `failed` in the UI.
+
+8. Internal “Document inspector” tool:
+   - Implement a dev-only endpoint or page:
+     - Input: development_id, optional unit_id, keyword.
+     - Output: list of documents and chunks containing that keyword (snippet + doc metadata).
+   - Use this to confirm the kitchen narrative contains “kitchen” and the supplier name.
+
+==================================================
+PHASE 3 – Smarter retrieval (unit + development, hybrid scoring)
+==================================================
+
+9. Locate the retrieval logic used by the chat endpoint (for example `/api/chat`).
+10. Replace any single-pass vector search with a two-stage, hybrid approach:
+
+A. Scope resolution
+   - Resolve `current_unit_id` and `current_development_id` for the requesting purchaser.
+
+B. Stage 1 – unit scoped search
+   - Search top N chunks (N ≈ 40–60) where:
+     - unit_id = current_unit_id OR
+     - unit_id IS NULL AND development_id = current_development_id.
+   - Return similarity score + metadata.
+
+C. Stage 2 – development-wide fallback
+   - If Stage 1 yields no usable candidates:
+     - Run the same vector search over all chunks with development_id = current_development_id.
+
+D. Hybrid scoring
+   - From the user query:
+     - Lowercase, remove stopwords to get keyword tokens.
+   - Maintain a small domain keyword set for supplier questions:
+     - supplier, installed, contractor, provider, manufacturer, kitchen, wardrobe, boiler, windows, doors, flooring.
+   - For each candidate chunk:
+     - Compute a keyword overlap score using tokens + domain terms.
+   - Combine into a final score:
+     - final_score = 0.7 * vector_similarity + 0.3 * keyword_score (keep configurable).
+   - Sort by final_score and select top M chunks (e.g. 8–16) to send to the LLM.
+
+==================================================
+PHASE 4 – Answer policy: best-effort, honest answers
+==================================================
+
+11. Remove any hard “no answer threshold” that returns the canned “I don’t see details” message when similarity is below T.
+
+12. New answer policy:
+   - If there are *no* candidate chunks at all:
+     - Keep the existing safe fallback (“I don’t see details, should I check with your developer?”).
+   - If there are candidates and at least one mentions core nouns from the query (e.g. “kitchen” plus “supplied by”, a company name, or similar):
+     - Always ask the model to give a best-effort answer using those chunks.
+   - Only use the fallback when nothing in the context is relevant.
+
+13. System prompt update for the LLM:
+   - In the system message, instruct the model:
+     - Use provided document snippets as primary evidence.
+     - When there is any plausible evidence, attempt an answer.
+     - If evidence is indirect or incomplete, explain that and mark the answer as approximate.
+     - Only say information is missing when there is truly no relevant evidence.
+
+14. Prompt construction:
+   - Include with each chunk:
+     - Short source metadata: document title, type, and optionally “Kitchen & Wardrobe Narrative” etc.
+   - This allows answers like:
+     - “According to the Kitchen & Wardrobe Narrative for your development, your kitchen was supplied by …”
+
+15. Add a lightweight intent layer for supplier lookup:
+   - If the query matches patterns like:
+     - “who supplied my X”, “who installed the X”, “who fitted my X”
+   - Then inject supplier-related keywords into the retrieval keyword list to bias toward supplier paragraphs.
+
+==================================================
+PHASE 5 – Golden test set and regression harness
+==================================================
+
+16. For one test development (e.g. Longview Park), define ~15 “gold” questions, including:
+   - Who supplied my kitchen?
+   - Who supplied my wardrobes?
+   - What boiler make/model do I have?
+   - What windows do I have?
+   - Who manages waste collection?
+   - What are the parking rules?
+   - Who is the management company?
+   - What is my BER rating?
+   - etc.
+
+17. Implement a simple internal test runner:
+   - Runs each question against the chat endpoint for a known test unit.
+   - Checks that expected key entities (e.g. supplier names, model numbers) appear in the answer.
+   - Outputs a pass/fail list for manual review.
+
+18. Confirm specifically that:
+   - After the kitchen DOCX and PDF are uploaded and processed:
+     - The Document inspector finds “kitchen” and the supplier in the narrative.
+     - The purchaser question “who supplied my kitchen?” returns the correct supplier name and cites the narrative as source.
+
+==================================================
+DELIVERABLES
+==================================================
+
+When you complete this work, summarise in the Replit task log:
+
+- The root cause of the PDF upload issue and how you fixed it.
+- Which frontend components and backend modules were changed.
+- How ingestion is now validated and surfaced in the UI.
+- The new retrieval pipeline (unit + development, hybrid scoring).
+- The new answer policy.
+- Results of the golden test set, including confirmation that the kitchen supplier question now works.
+
+Execute these steps now to ensure:
+- PDFs upload and ingest correctly,
+- every visible document is in the RAG index or clearly marked as failed, and
+- the assistant is able to intelligently answer questions like “who supplied my kitchen” from any valid uploaded document.

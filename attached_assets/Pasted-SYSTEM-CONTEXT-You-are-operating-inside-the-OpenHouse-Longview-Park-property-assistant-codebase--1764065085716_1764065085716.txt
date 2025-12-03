@@ -1,0 +1,246 @@
+SYSTEM CONTEXT
+You are operating inside the OpenHouse / Longview Park property assistant codebase. 
+This system includes:
+- A purchaser-facing app (chat, maps, docs, onboarding via QR).
+- A developer portal (documents upload, house management, analytics).
+- A backend with a vector-based RAG engine.
+- A Postgres database with documents, rag_chunks, developments, units, etc.
+
+You must work to the highest engineering standard.  
+Do not break ANY existing feature, UX flow, or API.  
+All changes must be backward compatible.
+
+Your job is to implement a COMPLETE “Important Documents” system across database, backend, developer portal, purchaser app, and RAG retrieval.  
+The logic must be flawless, secure, and consistent across the entire OpenHouse ecosystem.
+
+The developer uploading the documents should NOT need to understand AI pipelines.  
+All documents—including normal and important ones—must train the assistant.
+
+Your implementation must:
+1) Be defensive and robust.  
+2) Respect the project’s design philosophy (premium, modern, minimal, gold accents).  
+3) Be mobile-first for purchaser UI.  
+4) Reflect production-grade coding and architecture.
+
+====================================================================
+OBJECTIVE — WHAT THIS FEATURE MUST DO
+====================================================================
+
+A. Developers upload all documents normally.  
+B. Developers can mark certain documents as “Important / Must Read”.  
+C. All documents train the AI — but important ones receive weighting priority.  
+D. These important documents appear in a segregated, highlighted section in the purchaser Documents tab.  
+E. Purchasers MUST agree to read these important documents before using the assistant for the first time (or after the developer updates the important list).  
+F. Developer portal shows for every home/unit:  
+   - Whether the purchaser agreed  
+   - When  
+   - Version of important docs set they agreed to  
+
+This must work across:
+- Document ingestion  
+- RAG chunk tagging  
+- RAG retrieval weighting  
+- Purchaser onboarding flow  
+- Developer UI  
+- Purchaser Documents UI  
+- DB migrations  
+
+====================================================================
+TECH STACK ASSUMPTIONS (follow these conventions)
+====================================================================
+- Backend: Node / Express / Drizzle ORM / Postgres
+- Frontend: React + Tailwind (purchaser + developer portals)
+- RAG: pgvector + embeddings (1536 dims)  
+- Auth: existing auth middleware; do not modify  
+- API routing: follow existing conventions (REST endpoints)
+
+====================================================================
+DO NOT:
+====================================================================
+- Do NOT remove or downgrade any current feature  
+- Do NOT change how normal documents train the AI  
+- Do NOT change how developers upload documents  
+- Do NOT introduce breaking API changes  
+- Do NOT alter current data loading logic unless required to support the new feature  
+- Do NOT modify styling outside of the specific components mentioned  
+
+====================================================================
+PHASE 1 — DATABASE MIGRATIONS (CREATE ALL MIGRATIONS)
+====================================================================
+
+Modify the following tables:
+
+1) documents  
+   - Add: is_important boolean NOT NULL DEFAULT false  
+   - Add: important_rank integer NULL  
+
+2) rag_chunks  
+   - Add: is_important boolean NOT NULL DEFAULT false  
+
+3) developments  
+   - Add: important_docs_version integer NOT NULL DEFAULT 1  
+
+4) units  
+   - Add: important_docs_agreed_version integer NOT NULL DEFAULT 0  
+   - Add: important_docs_agreed_at timestamptz NULL  
+
+5) Create table: important_docs_agreements  
+   Columns:  
+   - id SERIAL PRIMARY KEY  
+   - unit_id (fk)  
+   - purchaser_id (fk)  
+   - development_id (fk)  
+   - important_docs_version integer  
+   - agreed_at timestamptz  
+   - ip_address text NULL  
+   - user_agent text NULL  
+
+====================================================================
+PHASE 2 — BACKEND LOGIC
+====================================================================
+
+A. Document upload  
+- Keep EXACT current behaviour.  
+- All documents are still fed into RAG ingestion.  
+- After ingestion, propagate document.is_important → rag_chunks.is_important  
+  (either via re-chunking or an update script).
+
+B. Developer portal — important toggle  
+- For each document row: add Important toggle (star/switch).  
+- When toggled on:
+  - Enforce a max of 10 important documents per development.  
+  - Assign important_rank if null.  
+- When developer clicks “Publish Important Documents”:
+  - Persist changes  
+  - Increment developments.important_docs_version  
+  - Sync rag_chunks.is_important  
+  - Return success  
+
+C. RAG retrieval weighting  
+For every retrieved chunk:
+
+if chunk.is_important:
+score = score * 1.2
+
+markdown
+Copy code
+
+Make the multiplier configurable in a constants file.
+
+====================================================================
+PHASE 3 — PURCHASER IMPORTANT DOCS CONSENT GATE
+====================================================================
+
+A. New endpoint:  
+GET /api/purchaser/important-docs-status  
+Returns:
+- mustAgree: boolean  
+- docs: array of important docs (id, title, important_rank)  
+- version: development.important_docs_version  
+
+Logic:
+mustAgree = (important docs exist) AND 
+            (unit.important_docs_agreed_version < development.important_docs_version)
+
+B. New endpoint:
+POST /api/purchaser/important-docs-agree  
+- Sets unit.important_docs_agreed_version = development.important_docs_version  
+- Sets unit.important_docs_agreed_at = now  
+- Logs row into important_docs_agreements  
+
+C. Purchaser app behaviour:
+- After QR onboarding + login, before showing chat/maps/docs:
+  - Call status endpoint  
+  - If mustAgree = true:
+    - Show full-screen blocking modal  
+    - Modal must match premium gold/white UI theme  
+    - Content:
+      - Gold home icon  
+      - Heading: “Before you get started”  
+      - Body: “Your builder has marked a small number of documents as important for understanding and maintaining your home. Please agree to read these documents in the Documents tab.”  
+      - List of important docs  
+      - Primary button: “I agree to read these documents”  
+    - Pressing button → POST agree endpoint → close modal  
+
+D. Block navigation until agreement  
+- Chat, Maps, Docs etc must be unusable until agreement is complete  
+
+====================================================================
+PHASE 4 — PURCHASER DOCUMENTS TAB UI
+====================================================================
+
+Modify purchaser Documents tab:
+
+A. Add filter chips:
+- [ All documents ]  
+- [ Important ]  
+
+B. Important docs section:
+- If any important docs exist:
+  - At the top, show a pinned section:
+    - Title: “Important documents to read”  
+    - List sorted by important_rank  
+    - Gold “Important” badge  
+    - Slightly different background (subtle gold tint)  
+
+C. Below that list, show all other documents.  
+D. In “Important” filter mode, show only the pinned section.
+
+====================================================================
+PHASE 5 — DEVELOPER PORTAL UI
+====================================================================
+
+Extend the developer Documents tab:
+
+A. Document list:
+- Keep upload exactly the same  
+- For each document row:
+  - Show an Important toggle  
+  - Show important_rank controls (up/down or drag)  
+
+B. Add an action button:
+“Publish Important Documents”
+
+C. Developer Units list:
+- Add column: Important docs agreement
+- Show:
+  - “Agreed – {date} (vX)” (green)  
+  - or “Not agreed” (red/neutral)  
+
+D. Developer Unit detail page:
+- Section: “Important documents agreement”
+- Show:
+  - Status  
+  - agreed_at  
+  - agreed_version vs development_version  
+  - Button: “View important documents” → opens Documents tab filtered to Important  
+
+E. Optional audit panel listing important_docs_agreements.
+
+====================================================================
+QUALITY REQUIREMENTS
+====================================================================
+
+You must:
+- Follow existing coding patterns EXACTLY.  
+- Ensure ALL new code is strongly typed and defensive.  
+- Ensure no regressions in:
+  - QR onboarding  
+  - Chat interface  
+  - Maps  
+  - Document upload  
+  - Developer dashboard  
+- Test flows end-to-end after implementing:
+  - New purchaser  
+  - Existing purchaser  
+  - Developer modifies important doc list → purchaser reconsent  
+
+====================================================================
+WHEN YOU FINISH, RESPOND WITH:
+====================================================================
+
+1. The migrations you created  
+2. The backend files you changed or added  
+3. The frontend files you changed (developer portal + purchaser app)  
+4. Confirmation that all existing functionality remains intact  
+5. Confirmation that the entire Important Docs system is fully operational  

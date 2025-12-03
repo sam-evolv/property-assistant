@@ -1,0 +1,248 @@
+Stop Repeating the User’s Name in Every Chat Response (Critical UX Fix)
+
+Current behaviour is overly formal and breaks conversational flow.
+
+Required Change
+
+Modify the system prompt AND the middleware that injects context into OpenAI calls:
+
+Rule to enforce in system instructions:
+
+Use the purchaser’s name only in the first welcome message per session.
+
+For all subsequent messages, never reference their name again unless user explicitly asks.
+
+Implementation
+
+Inside the chat handler (apps/unified-portal/api/chat or the server route invoking OpenAI):
+
+Add a flag to session context:
+
+if (!session.hasGreeted) {
+   // include names
+} else {
+   // remove names entirely
+}
+
+
+This eliminates the repetitive greeting.
+
+2. The Assistant Already KNOWS the House Type — Stop Asking the User (Critical Logic Fix)
+
+You are correct. The system already has BD01, BD02 etc. stored against each unit in Supabase.
+
+This is simply a missing link between:
+
+unitUid from the purchaser login
+
+unit.house_type in Supabase
+
+chat context payload
+
+Required Change
+
+Update the OpenAI RAG prompt builder to automatically inject:
+
+"unit_type": "<the house type e.g. BD01>",
+"unit_metadata": { floor_areas, living_room_size, etc. }
+
+Behaviour Change
+
+When user asks:
+
+"What size is my living room?"
+→ Assistant immediately answers using BD01 living room size without asking anything.
+
+Implementation
+
+Modify:
+
+apps/unified-portal/lib/chat/buildContext.ts
+
+
+(or the equivalent file for context payloads)
+
+Inject this before sending to OpenAI:
+
+const unit = await db.query.units.findFirst({ where: eq(units.uid, unitUid) });
+
+context.houseType = unit.house_type;
+context.floorAreas = unit.floor_areas_json;
+
+**3. Documents Tab Still Showing “No Documents Yet”
+
+(Backend Sync Issue)**
+
+This tells me documents aren't being pulled correctly from:
+
+documents table
+
+development_id reference
+
+house_type filtering logic
+
+Required Fix
+
+Run a query that retrieves:
+
+Global documents
+
+House-specific documents
+
+Type-specific documents
+
+But currently the lookup likely uses units.house_type but the filenames/metadata may be mismatched.
+
+You must enforce a strict rule:
+
+SELECT * FROM documents
+WHERE development_id = $devId
+AND (
+    metadata->>'is_global' = 'true'
+ OR metadata->>'house_types' ? unit.house_type
+ OR (filename ILIKE '%' || unit.house_type || '%')
+)
+
+
+And map them correctly.
+
+Once this is done, documents WILL appear.
+
+4. Map Pin Location Is Wrong — Update the Estate Coordinates (Medium Priority)
+Correct Coordinates (entrance)
+
+51°55'35.4"N 8°27'11.5"W
+
+Convert to decimal:
+
+Latitude: 51.926500
+
+Longitude: -8.453200
+
+Fix
+
+Update default map center:
+
+File:
+apps/unified-portal/components/purchaser/PurchaserMapsTab.tsx
+
+Replace:
+
+center: { lat: 51.90..., lng: -8.40... }
+
+
+with:
+
+center: { lat: 51.926500, lng: -8.453200 }
+
+
+This anchors the development correctly.
+
+5. Map Pins Need Real Data (Google Places Details)
+
+Right now you only use the PlaceSearch basic fields.
+
+Required Upgrade
+
+Call:
+
+Place Details API
+
+
+To fetch:
+
+opening hours
+
+rating
+
+address
+
+website
+
+phone number
+
+reviews
+
+photos
+
+AND add a “Navigate” button that opens:
+
+https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>
+
+6. Developer Logo Upload Functionality (Task 14)
+
+Here is the implementation plan — bulletproof and simple.
+
+A. Supabase Storage
+
+Create bucket:
+
+developer-logos
+
+B. Developer Portal UI
+
+In:
+
+apps/developer-portal/components/SettingsBranding.tsx
+
+
+Add:
+
+Upload button
+
+Preview
+
+Replace button
+
+C. Backend API
+
+Create:
+
+POST /api/developers/logo
+
+
+Process:
+
+Validate developer auth
+
+Upload file to Supabase Storage
+
+Save public URL in developments.logo_url
+
+D. Purchaser Portal
+
+Top-left logo component checks:
+
+if (development.logo_url) {
+   render logo_url
+} else {
+   render default icon
+}
+
+
+This delivers full white-label capability.
+
+7. Summary — What Must Be Done Next
+Critical
+
+Stop repeating buyer name
+
+Stop asking for house type
+
+Link BD01 → layout details automatically
+
+Fix documents not appearing
+
+High Priority
+
+Update entrance coordinates
+
+Improve Google Maps integration
+
+Add directions and place details
+
+Feature
+
+Implement developer logo upload module
+
+If you want, I can generate three things next:

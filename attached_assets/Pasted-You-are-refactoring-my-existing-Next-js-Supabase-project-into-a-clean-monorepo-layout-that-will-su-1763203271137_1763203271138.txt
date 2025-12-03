@@ -1,0 +1,56 @@
+You are refactoring my existing Next.js + Supabase project into a clean monorepo layout that will support a SaaS product called OpenHouse AI.
+Do not break any existing routes or behaviours. Work incrementally and explain what you are doing in your logs.
+
+Current state (from what you can see in this Replit):
+
+There is a monorepo-style project with folders like apps/tenant-portal, packages/db, etc.
+
+The admin console is currently available under routes like /admin/developments within apps/tenant-portal.
+
+Supabase + Drizzle are configured under packages/db.
+
+Target architecture for Phase 1 (structure only, no new features):
+
+Keep using a single Next.js app for now, but introduce a clear folder naming scheme that matches our SaaS architecture:
+
+apps/admin-portal – my global OpenHouse admin console (currently the existing admin console).
+
+apps/developer-portal – developer-facing dashboard (for now it can share components/routes with admin-portal or be a thin wrapper).
+
+apps/resident-app – resident-facing chat interface (can be a small placeholder for now if not yet implemented).
+
+Keep packages/db as the single source of truth for Drizzle + Supabase.
+
+Add a placeholder apps/marketing folder that will later host the openhouse.ai marketing site (simple Next.js app with a single landing page is enough for now).
+
+Concrete tasks:
+
+Inspect the current project structure and summarise it in your log so I can see what exists (apps, packages, config files, etc.).
+
+If everything currently lives under apps/tenant-portal, refactor as follows:
+
+Duplicate or move the relevant admin-specific routes and layout into apps/admin-portal.
+
+Ensure /admin/* routes are still working and are now owned by apps/admin-portal (if you need to use Next.js rewrites or a multi-app pattern, configure that in next.config.js without breaking existing paths).
+
+Leave tenant-facing or resident-facing routes in apps/tenant-portal for now, but comment in the code where these will later migrate to apps/developer-portal and apps/resident-app.
+
+Create apps/developer-portal and apps/resident-app as minimal Next.js app-directory apps with:
+
+A shared layout that matches the current styling.
+
+A simple placeholder page (e.g. “Developer Portal coming soon”, “Resident App coming soon”), so we know routing and structure are working.
+
+Create a minimal apps/marketing app with a single landing page that says “OpenHouse AI Platform – Marketing Shell” so we know it is wired.
+
+Update package.json scripts so I can run each app explicitly in development mode if required, and/or ensure a single npm run dev still starts the main app correctly.
+
+Do not change any database schemas, Supabase URLs, training code, or chat logic in this phase. This refactor is only about structure and routing.
+
+Success criteria:
+
+I can still open /admin/developments/new in the Preview and create a development successfully.
+
+There are clearly separated folders for: apps/admin-portal, apps/developer-portal, apps/resident-app, apps/marketing.
+
+The Agent prints a short final summary of what changed and which dev commands to use to run the app(s).

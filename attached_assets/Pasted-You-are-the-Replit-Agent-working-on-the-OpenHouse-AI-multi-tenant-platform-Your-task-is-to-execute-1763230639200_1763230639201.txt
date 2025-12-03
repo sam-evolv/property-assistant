@@ -1,0 +1,87 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant platform.
+
+Your task is to execute **PHASE 20.1 — DATABASE CONNECTION POOLING AND STABILITY HARDENING**.
+
+This is a production-critical fix.  
+The current database client uses a *single* Supabase/Postgres connection, causing:
+• “Client closed” errors  
+• Connection termination under moderate load  
+• Random failures across portals  
+
+Your job is to replace all direct single-client connections with a **proper pooled client** that supports concurrency and recovers gracefully.
+
+Work strictly within the existing monorepo architecture.
+
+────────────────────────────────────
+PHASE 20.1 OBJECTIVES
+────────────────────────────────────
+
+1. Replace Single Client With Pool
+   • Update packages/db/client.ts so that:
+     – It exports a pooled Postgres client (pg.Pool or equivalent wrapper).
+     – Max connections = 10–20
+     – Idle timeout safe
+     – SSL enabled if required
+   • Ensure compatibility with Supabase SQL queries and RLS.
+
+2. Update All API Routes to Use Pooled Client
+   • tenant-portal API
+   • developer-portal API
+   • shared server modules (e.g., noticeboard, documents, analytics)
+   • remove any per-request new Client() instantiations
+
+3. Ensure No Client is Left Unreleased
+   • Use pool.query directly where possible
+   • If using pool.connect():
+       – Always use try/finally
+       – Always release() in finally block
+
+4. Fix RLS Validation Layer
+   • Ensure pooled connections still pass:
+       – tenant_id
+       – development_id
+       – house_id
+     via existing JWT middleware
+
+5. Update Error Tracking to Log Pool Failures
+   • Enhance error-tracker to detect:
+       – timeout
+       – idle connection errors
+       – pool exhaustion
+   • Include route name + metadata
+
+6. Re-run Load Tests
+   • loadtest-chat.ts
+   • loadtest-onboarding.ts
+   • loadtest-rag.ts
+   All must run **with homeowner JWTs** and show **no connection errors**.
+
+7. Optimize Pool for Production Deployment
+   • Set poolSize via env vars:
+       DB_POOL_MIN=2  
+       DB_POOL_MAX=10  
+   • Ensure Vercel/Cloudflare deployments use stable pools
+   • Confirm no “too many connections” errors under peak load
+
+8. Documentation Update
+   • Add docs/PHASE_20.1_DB_POOLING.md with:
+       – new pool architecture
+       – environment variables required
+       – example usage
+       – connection lifecycle summary
+       – known safe limits for production
+
+────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────
+
+• Pooled DB client implemented  
+• All API routes upgraded  
+• Connection leak risks eliminated  
+• Load tests re-run with 0 pool errors  
+• Error tracking enhanced  
+• Documentation written  
+
+────────────────────────────────────
+
+Proceed with PHASE 20.1 now.

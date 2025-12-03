@@ -1,0 +1,87 @@
+You are the Replit Agent working on the OpenHouse AI platform.
+
+Your task is to execute **PHASE 17.2 — AUTHENTICATED LOAD TESTING**.
+
+The architect has identified a critical gap:  
+the load-testing scripts do NOT simulate real flows because they bypass authentication.
+
+This phase fixes that.
+
+────────────────────────────────────────
+PHASE 17.2 OBJECTIVES
+────────────────────────────────────────
+
+1. Implement Homeowner JWT Generator for Testing
+   • Create utility: scripts/utils/generateTestJWT.ts
+   • Use existing server-side JWT signer
+   • Payload must include:
+       – tenant_id
+       – development_id
+       – house_id
+       – role = "homeowner"
+   • Expiration = 24h
+
+2. Integrate JWT into All Load Tests
+   Update each script:
+   • loadtest-chat.ts
+   • loadtest-onboarding.ts
+   • loadtest-rag.ts (if applicable)
+
+   Requirements:
+   • Add Authorization: Bearer <jwt>
+   • Pass correct tenant/development/house IDs from the Longview Park seed data
+   • Ensure routing matches production:
+       /api/chat
+       /api/chat/history
+       /api/documents
+       /api/qr/resolve (only for onboarding test)
+
+3. Simulate Full Onboarding Flow
+   loadtest-onboarding.ts must:
+   • Hit /onboarding?uid=...
+   • Trigger backend JWT issuing
+   • Follow redirects
+   • Validate cookie set
+   • Log failures with error-tracker
+
+4. Chat Load Test Must Become Realistic
+   • Use homeowner JWT
+   • Use actual chat request structure:
+       {
+         "message": "Where is my fuse box?",
+         "context": { development_id, house_id }
+       }
+   • Validate 200 OK responses
+   • Store timing data (p50, p95, p99)
+
+5. Improve Error Tracker Concurrency
+   • Make JSONL writes atomic using temp-file + rename strategy
+   • Ensure rotation occurs safely under parallel writes
+
+6. Add Load Test Summary Output
+   At the end of each script:
+   • Print number of successful requests
+   • Print number of failures
+   • Print p50 / p95 / p99 latency
+   • Print memory usage (optional)
+
+7. Update Documentation
+   • Update docs/PHASE_17_LOAD_TEST.md
+   • Document JWT test generation
+   • Document how to run full authenticated tests
+   • Document concurrency limits for production
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• generateTestJWT.ts utility  
+• Updated authenticated load-test scripts  
+• Atomic-safe error tracker  
+• Latency reporting  
+• Updated documentation  
+• Architect-ready output  
+
+────────────────────────────────────────
+
+Proceed with PHASE 17.2 now.

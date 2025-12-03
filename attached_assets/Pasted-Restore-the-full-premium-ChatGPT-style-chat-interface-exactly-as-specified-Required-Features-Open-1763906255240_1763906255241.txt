@@ -1,0 +1,239 @@
+Restore the full premium ChatGPT-style chat interface exactly as specified:
+
+Required Features
+
+Opening animation remains untouched – do NOT remove or modify it.
+
+After the animation, the Chat tab must load the ChatGPT-style home screen:
+
+Logo centered
+
+“Welcome to Longview Park” (or dynamic development name)
+
+Subtitle: “Ask anything about your home.”
+
+Four preloaded quick questions in pill-buttons (same styling used originally):
+
+“Where is my heat pump?”
+
+“How does my ventilation system work?”
+
+“What documents are available?”
+
+“What do I do if something goes wrong?”
+
+The chat bubbles, input bar, spacing, colours, fonts must follow the black / white / gold premium theme.
+
+Microphone dictation must work using the Web Speech API.
+
+DO NOT request the user’s address.
+Use the already-known unitUid and the units row from Supabase.
+
+The chat must generate correct answers using:
+
+Property documents for that house
+
+House type (BD02 etc.)
+
+Global documents
+
+Purchase info
+
+The chat must greet the purchaser with:
+
+“Good evening Lucy Crowley, welcome to Longview Park. How can I help with your home at 33 Longview Park, Ballyhooly Road, Ballyvolane, Cork City?”
+
+Fixes Required
+
+Remove the blue/white theme entirely.
+
+Remove the blank chat screen shown in the screenshot.
+
+Reinstate the intended ChatGPT layout exactly as previously implemented.
+
+PHASE 7.2 — Maps Tab (Google Maps ONLY, Auto-Location, Correct Address)
+
+Replace the current OpenStreetMap implementation and restore what was originally designed:
+
+Required Behaviour
+
+Use Google Maps JavaScript API (key already present).
+
+Automatically centre the map on the homeowner’s exact coordinates:
+
+Use units.latitude and units.longitude
+
+If coordinates are missing, geocode the full_address.
+
+UI must match the original design:
+
+White card background
+
+Gold “Open in Google Maps” button
+
+White “Open in Apple Maps” button
+
+Clean iconography
+
+No placeholder pins, no incorrect addresses.
+
+Remove the lazy / generic text. Replace with:
+
+“Find Your Property”
+
+“Get directions and view nearby amenities.”
+
+PHASE 7.3 — Documents Tab (Correct Filtering Logic)
+
+Restore the correct logic so each user sees documents for their own house + global development documents.
+
+Document Rules
+
+Show:
+
+House-type-specific documents
+
+E.g., if the purchaser lives in BD02:
+show BD02 drawings, manuals, specs.
+
+Global development documents
+
+Fire Safety
+
+BER
+
+Mechanical/Electrical
+
+Handover Pack
+
+etc.
+
+Do NOT show other house types’ files.
+
+Fixes Required
+
+The current system is not pulling documents correctly.
+
+Rebuild the filtering using:
+
+documents.house_type_uid
+
+documents.is_global
+
+units.house_type_uid
+
+UI must return to premium design (gold headers, clean spacing).
+
+PHASE 7.4 — Notices Tab (Plus Button + Correct UI)
+
+Restore the Notices screen to its proper functionality.
+
+Required Features
+
+A gold floating + button for purchasers to submit notices.
+
+Correct list styling (cards, spacing, timestamps, icons).
+
+Ability to view notices from the developer (read-only).
+
+Multi-language support.
+
+No regressions in layout.
+
+PHASE 7.5 — Language Switching (Dropdown + Runtime Translations)
+
+Fix the language selector completely.
+
+Required Behaviour
+
+Add a language dropdown (not a dead icon).
+
+Runtime translations for all string-based UI elements:
+
+Chat tab
+
+Maps tab
+
+Notices
+
+Documents
+
+Navbar
+
+Buttons
+
+Persist the selected language in localStorage.
+
+Dropdown placed in top-right of the Chat tab (as originally designed).
+
+Default: English.
+
+GLOBAL RULES FOR THIS PHASE
+
+These rules apply across all tabs:
+
+1. Theme Enforcement
+
+Everything must follow:
+
+Black
+
+White
+
+Gold
+
+Premium spacing
+
+Rounded corners
+
+Apple/ChatGPT visual principles
+
+2. Do Not Modify
+
+Opening animation
+
+QR setup logic
+
+Backend structure
+
+3. Fix All Navigation
+
+Chat
+
+Maps
+
+Notices
+
+Documents
+
+Home button
+
+Language dropdown
+
+4. Fix All Regressions Introduced
+
+Wrong addresses
+
+Missing documents
+
+Wrong map provider
+
+Removed home screen
+
+Missing quick prompts
+
+Broken mic input
+
+FINAL OUTPUT EXPECTATION
+
+When complete, the agent must deliver:
+
+Full restored premium UI across all tabs.
+
+Correct logic for chat, documents, maps, notices.
+
+Working runtime translations with dropdown.
+
+A fully functional Google Maps implementation.
+
+A purchaser experience consistent with the EvolvAI brand and your original pixel-perfect design.

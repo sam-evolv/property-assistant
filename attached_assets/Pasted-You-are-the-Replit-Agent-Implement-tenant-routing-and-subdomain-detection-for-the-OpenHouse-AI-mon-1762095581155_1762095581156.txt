@@ -1,0 +1,52 @@
+You are the Replit Agent. 
+Implement tenant routing and subdomain detection for the OpenHouse AI monorepo.
+
+1️⃣ Detect Tenant
+• Create `/packages/auth/tenant.ts` with:
+  getTenantIdFromSubdomain(hostname:string)
+  getTenantConfig(tenantId:string)
+  getTenantContext(req)
+• On localhost, use `x-tenant` header or `?tenant=slug` query fallback.
+
+2️⃣ Server Middleware
+• In `/apps/assistant-tenant/middleware.ts`:
+  - Extract tenant slug from hostname.
+  - Set `req.tenant_id` and `req.tenant_slug`.
+  - Attach to Next.js request context and cookies for RLS.
+
+3️⃣ Tenant Config Store
+• Create `/packages/db/tenants.ts` exporting:
+  getTenantBySlug(slug) → returns tenant record (name, logo_url, theme, etc.).
+• Cache in memory for 60 seconds for speed.
+
+4️⃣ App Init Wrapper
+• In `/apps/assistant-tenant/app/layout.tsx`, wrap RootLayout with `TenantProvider` from `@openhouse/auth`.
+• `TenantProvider` reads tenant context and provides it via React Context.
+
+5️⃣ Tenant Scoped Queries
+• Update all Supabase queries to filter `tenant_id = context.tenant_id`.
+• Ensure RLS matches auth JWT claim `tenant_id`.
+
+6️⃣ Master Admin Dashboard
+• Add “Create New Tenant” form (`/apps/master-admin/app/tenants/new`):
+  Fields: name, slug, logo_url, theme_colour.
+  On submit: insert into `tenants` and generate QR pack link:
+    `https://{slug}.assistant.openhouse.ai/?unit={unit_no}`.
+
+7️⃣ Testing
+• Seed 2 extra demo tenants: “Harbour Heights” and “Oakfield View”.
+• Run the dev server and visit:
+  `http://localhost:5000?tenant=seaview`
+  `http://localhost:5000?tenant=harbour`
+  `http://localhost:5000?tenant=oakfield`
+  Each should display different tenant data and branding.
+
+8️⃣ Output on completion
+• ✅ “Tenant Routing Complete — multi-development support enabled”
+• Print instructions for how to add new tenants via the Master Admin UI.
+
+Constraints:
+- Non-destructive changes only.
+- Keep existing assistant UI and Supabase logic intact.
+- Do not hardcode tenant IDs; always resolve dynamically.
+Begin now.

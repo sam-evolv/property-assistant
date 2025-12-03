@@ -1,0 +1,223 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+OBJECTIVE
+- Make dark/light mode fully functional across ALL UI using class-based theming with persistence and system fallback.
+- Remove page scroll on /chat and /map completely. Only internal regions may scroll when absolutely necessary (and only if we explicitly allow it).
+- Reserve exact vertical space for TopBar and Dock so nothing overlaps and no extra scroll is introduced.
+
+TASKS
+
+0) Tailwind: enforce class-based dark mode
+- Open tailwind.config.ts and set:
+  module.exports = {
+    darkMode: "class",
+    ...existing
+  }
+
+1) Add a ThemeProvider that controls the <html> class and persists preference
+- Create components/providers/ThemeProvider.tsx:
+
+  "use client";
+  import { useEffect, useState } from "react";
+
+  type Theme = "light" | "dark" | "system";
+
+  export default function ThemeProvider({ children }: { children: React.ReactNode }) {
+    const [theme, setTheme] = useState<Theme>(() => {
+      if (typeof window === "undefined") return "system";
+      return (localStorage.getItem("theme") as Theme) || "system";
+    });
+
+    useEffect(() => {
+      const root = document.documentElement;
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      const apply = (t: Theme) => {
+        const effective = t === "system" ? (systemDark ? "dark" : "light") : t;
+        root.classList.toggle("dark", effective === "dark");
+        localStorage.setItem("theme", t);
+      };
+
+      apply(theme);
+
+      // update on OS change when in system mode
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const handler = () => theme === "system" && apply("system");
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }, [theme]);
+
+    // expose setter globally (optional)
+    if (typeof window !== "undefined") {
+      (window as any).__setTheme = setTheme;
+    }
+
+    return <>{children}</>;
+  }
+
+- In components/ui/ThemeToggle.tsx (or your existing toggle), call:
+  (window as any).__setTheme?.("light" | "dark" | "system")
+
+2) Wrap the entire app with ThemeProvider
+- In app/layout.tsx (or app/(public)/layout.tsx):
+
+  import ThemeProvider from "@/components/providers/ThemeProvider";
+  export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className="antialiased">
+          <ThemeProvider>
+            {/* TopBar */}
+            {/* main + Dock are below */}
+            {children}
+          </ThemeProvider>
+        </body>
+      </html>
+    );
+  }
+
+3) Global CSS: kill page scroll + iOS rubber-banding; define layout heights
+- Open app/globals.css and append:
+
+  :root {
+    --topbar: 56px;
+    --dock: 60px;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;            /* absolutely no page scroll */
+    overscroll-behavior: none;   /* no rubber-banding */
+    touch-action: manipulation;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  /* utility to hide scrollbars if any internal areas need scroll */
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+4) Unify layout so main content always fits exactly between TopBar and Dock
+- In app/layout.tsx where you render <TopBar />, <main />, and <Dock />, enforce fixed heights:
+
+  <TopBar />  {/* height ~ var(--topbar) */}
+  <main
+    className="
+      relative mx-auto w-full
+      bg-white dark:bg-neutral-950
+      transition-colors duration-300
+    "
+    style={{ height: "calc(100vh - var(--topbar) - var(--dock))" }}
+  >
+    {children}
+  </main>
+  <Dock />    {/* height ~ var(--dock) */}
+
+- Ensure TopBar root element has exact height: className="h-[var(--topbar)] ..."
+- Ensure Dock root element has exact height: className="h-[var(--dock)] ... fixed bottom-0 inset-x-0"
+
+5) Chat page: one static screen, no page scroll, chat input fixed above dock
+- In app/chat/page.tsx:
+
+  export default function ChatPage() {
+    return (
+      <section
+        className="
+          h-full w-full
+          flex flex-col
+          bg-white dark:bg-neutral-950
+        "
+      >
+        {/* messages area: ONLY this may scroll internally if needed */}
+        <div
+          className="
+            flex-1
+            overflow-hidden
+            relative
+          "
+        >
+          <div
+            className="
+              absolute inset-0
+              overflow-y-auto scrollbar-hide
+              px-4 md:px-6
+              pt-4 pb-28  /* reserve space so input never overlaps */
+            "
+          >
+            {/* messages go here */}
+          </div>
+        </div>
+
+        {/* composer fixed to bottom of main (not page) */}
+        <div
+          className="
+            absolute left-1/2 -translate-x-1/2
+            bottom-4
+            w-full max-w-2xl
+            px-4
+          "
+        >
+          <div className="
+            flex items-center
+            bg-gray-50 dark:bg-neutral-900
+            border border-gray-200 dark:border-neutral-800
+            rounded-full shadow-sm
+            px-3 py-2
+          ">
+            {/* mic, input, send */}
+            <button className="text-blue-600 dark:text-blue-400 px-2">🎤</button>
+            <input
+              className="flex-1 bg-transparent outline-none text-sm md:text-base text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 px-2"
+              placeholder="Ask about your home or community..."
+            />
+            <button className="bg-blue-600 dark:bg-blue-500 hover:opacity-90 text-white rounded-full px-4 py-1.5 text-sm">
+              Ask
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+- Critical: the outer <main> already has a fixed height. We DO NOT allow body scroll. Only the messages container may scroll internally if there are many messages. On an empty chat, no scrollbars are visible.
+
+6) Map page: fixed viewport, no page scroll; map fits exactly
+- In app/map/page.tsx:
+
+  export default function MapPage() {
+    return (
+      <section className="h-full w-full relative">
+        {/* filters row at top of the section */}
+        <div className="absolute top-3 left-0 right-0 flex justify-center gap-2 px-4 z-40 overflow-x-auto scrollbar-hide">
+          {/* buttons ... ensure compact size */}
+        </div>
+
+        {/* the map occupies the rest, rounded and shadowed */}
+        <div
+          id="map"
+          className="absolute left-1/2 -translate-x-1/2 top-12"
+          style={{ width: "92%", height: "calc(100% - 16px - 12px - 12px)" }}
+        >
+          {/* your map mount */}
+        </div>
+      </section>
+    );
+  }
+
+- The section is exactly the height of <main>. No vertical page scroll is possible. The map container is sized with calc() to fit under the filters and above the dock.
+
+7) Ensure TopBar and Dock have fixed heights and correct layering
+- TopBar.tsx root: className="h-[var(--topbar)] w-full flex items-center justify-between px-6 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-xl border-b border-gray-100 dark:border-neutral-800 z-50 sticky top-0"
+- Dock.tsx root: className="h-[var(--dock)] fixed bottom-0 inset-x-0 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-xl border-t border-gray-100 dark:border-neutral-800 z-50 flex items-center justify-evenly"
+
+8) Remove any leftover page-level overflow or height styles that re-enable scroll
+- Search repo for: "overflow-auto", "min-h-screen", "h-screen" on pages. On /chat and /map, only the outer <main> should control height with calc, and the body/html must remain overflow-hidden.
+- Delete any global "overflow-y-auto" on body, html, or main wrappers.
+
+9) QA checklist
+- Toggle light/dark from ThemeToggle: verify <html> class changes and persists after reload.
+- /chat: no page scroll; input bar never sits under the dock; messages scroll internally only when needed.
+- /map: no page scroll; map fully contained; filters visible; no rubber-banding on iOS.
+- /noticeboard and /documents keep the same <main> height pattern to avoid accidental page scroll.
+
+COMMIT MESSAGE
+feat(ui): enforce class-based dark mode + zero-scroll lock for Chat/Map with fixed heights and iOS overscroll prevention

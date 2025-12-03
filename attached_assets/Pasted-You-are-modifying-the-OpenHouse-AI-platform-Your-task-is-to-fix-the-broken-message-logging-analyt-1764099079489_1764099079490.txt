@@ -1,0 +1,118 @@
+You are modifying the OpenHouse AI platform. Your task is to fix the broken message-logging + analytics system so that:
+1. Every purchaser question is recorded.
+2. Every assistant answer is recorded.
+3. The developer dashboard message counters and analytics update correctly.
+
+Follow these steps EXACTLY:
+
+-----------------------------------------------------
+STEP 1 — Locate message logging backend
+-----------------------------------------------------
+Search the API codebase for:
+- “messages”
+- “log-message”
+- “chat activity”
+- “analytics”
+- Any database table named messages, chat_messages, or activity_log.
+
+If a logging controller exists:
+- Open it.
+- Confirm it INSERTS a new row into the messages table.
+- Ensure required fields include: id, unit_id, development_code, user_message, assistant_response, created_at, token_count.
+
+If logging controller does NOT exist:
+- Create a new controller: packages/api/src/messages/log-message.ts
+- Create a POST route at: /api/messages/log
+
+-----------------------------------------------------
+STEP 2 — Hook message logging into chat flow
+-----------------------------------------------------
+Open purchaser-facing chat component:
+packages/web/src/pages/purchaser/chat.tsx (or similar)
+
+Modify sendMessage() so the flow is:
+
+1. Immediately call:
+   POST /api/messages/log
+   with:
+   {
+     unit_id,
+     development_code,
+     user_message,
+     timestamp
+   }
+
+2. THEN call:
+   POST /api/chat/rag
+
+3. After receiving assistant reply:
+   PATCH /api/messages/log/{message_id}
+   to attach:
+   {
+     assistant_reply,
+     token_count
+   }
+
+This guarantees both halves of the conversation are logged.
+
+-----------------------------------------------------
+STEP 3 — Implement server-side fallback logging
+-----------------------------------------------------
+Inside the RAG controller (packages/api/src/chat/rag.ts):
+
+Before sending the response back:
+- Write a try/catch wrapper that logs the conversation to the messages table server-side.
+- This ensures analytics ALWAYS update even if frontend fails.
+
+-----------------------------------------------------
+STEP 4 — Fix analytics queries
+-----------------------------------------------------
+Open analytics endpoints:
+packages/api/src/analytics/*.ts
+
+Ensure they SELECT from the messages table, not chat_jobs or other tables.
+
+Test:
+- Total Messages
+- 30-day chart
+- Per-development and per-unit breakdown
+
+-----------------------------------------------------
+STEP 5 — Test
+-----------------------------------------------------
+Perform the following tests:
+
+1. Ask a question as a homeowner:
+   Expect: new row in messages table.
+
+2. Refresh developer dashboard:
+   Total Messages should increase by 1.
+
+3. Check Analytics → Chat Activity:
+   Chart should show the new point.
+
+4. Ask 5 more questions:
+   All should appear.
+
+-----------------------------------------------------
+STEP 6 — Fix duplicated uploads
+-----------------------------------------------------
+Investigate why uploading Kitchen & Wardrobe Narrative.pdf does not show in UI.
+
+Fix logic:
+- Ensure PDF MIME types are processed by extract-text.ts.
+- Ensure new records appear in documents table.
+- Ensure UI refreshes after successful upload.
+
+-----------------------------------------------------
+STEP 7 — Confirm vectorization
+-----------------------------------------------------
+After the upload fix:
+- Verify doc_chunks had N > 0 rows.
+- Verify embeddings were saved.
+- Verify RAG query now retrieves the correct chunks.
+
+-----------------------------------------------------
+
+When all steps are complete:
+Return a summary of each fix with file paths and a confirmation that analytics and message logging are fully operational.

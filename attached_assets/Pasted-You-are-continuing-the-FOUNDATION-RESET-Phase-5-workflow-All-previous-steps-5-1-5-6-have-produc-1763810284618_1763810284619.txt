@@ -1,0 +1,222 @@
+You are continuing the FOUNDATION RESET → Phase 5 workflow.
+All previous steps (5.1–5.6) have produced charts, insight cards, tables, and routes.
+Now assemble them into a premium, unified analytics dashboard.
+
+PRIMARY GOALS
+
+Implement a production-ready analytics page that includes:
+
+1. FULL UI ASSEMBLY
+
+Integrate all chart components created earlier:
+
+MessageVolumeChart
+
+ChatCostChart
+
+HouseTypeDistributionChart
+
+TopQuestionsChart
+
+DocumentLatencyChart
+
+AILoadDistributionChart
+
+EmbeddingVolumeChart
+
+KnowledgeGapHeatmap
+
+Integrate all Insight Cards:
+
+ActiveUsersCard
+
+ResponseTimeCard
+
+MostAccessedDocsCard
+
+RAGCoverageCard
+
+EngagementScoreCard
+
+PeakUsageTimeCard
+
+HighSupportLoadCard
+
+ConversationLengthCard
+
+DocumentGrowthCard
+
+TopCategoryCard
+
+Integrate PremiumDataTable for analytics tables:
+
+Add filtering + search
+
+Connect to appropriate data endpoints
+
+2. PAGE LAYOUT
+
+Create a best-in-class analytics experience with:
+
+Hero Title: “Analytics & Insights”
+
+Subtext: “Performance, engagement, coverage, and operational intelligence across all developments.”
+
+Clean 2-column or 3-column responsive layout
+
+Section dividers
+
+Scroll location memory
+
+Sticky top bar for switching between:
+
+Overview
+
+Trends
+
+Knowledge Gaps
+
+RAG Performance
+
+Documents
+
+Homeowners
+
+Units
+
+3. DATA PIPELINE BINDING
+
+Connect UI → API routes from Phase 5.2–5.4:
+
+/api/analytics/messages
+
+/api/analytics/cost
+
+/api/analytics/house-types
+
+/api/analytics/top-questions
+
+/api/analytics/rag/coverage
+
+/api/analytics/rag/knowledge-gaps
+
+/api/analytics/documents
+
+/api/analytics/units
+
+/api/analytics/homeowners
+
+/api/analytics/system-load
+
+Ensure:
+
+Tenant isolation enforced on every call
+
+Development scope applied if provided
+
+Hydration contexts are respected (useSafeAuth, useSafeDevelopment)
+
+Loading skeletons for every component
+
+Error states never break layout
+
+4. PREMIUM VISUAL DESIGN
+
+Apply the global theme (black/white/gold) consistently:
+
+Card surfaces
+
+Borders
+
+Typography hierarchy
+
+Chart legends
+
+Tooltip design
+
+Axis & grid styling
+
+Iconography (Lucide)
+
+Enhance with:
+
+Micro-animations
+
+Smooth fade-in for charts
+
+Hover states on all insight cards
+
+Subtle shadows (never cheap-looking)
+
+Polished spacing scale (8/12/16/24/32)
+
+5. PERFORMANCE
+
+Lazy-load all chart components
+
+Use React.Suspense with fallbacks
+
+Cache responses via SWR or internal caching client
+
+Avoid blocking hydration
+
+Defer non-critical analytics
+
+6. INTEGRATION REQUIREMENTS
+
+Add unified top-level page:
+apps/unified-portal/app/(dashboard)/analytics/page.tsx
+
+Reuse DashboardShell if available
+
+Ensure consistency with developer and enterprise portals
+
+No console errors allowed
+
+Strict TypeScript across all components
+
+7. DOCUMENTATION
+
+Update:
+
+replit.md
+
+MONOREPO_STRUCTURE.md
+
+Add a new file:
+logs/PHASE_5.7_COMPLETION_REPORT.md
+including:
+
+Component map
+
+Data route bindings
+
+Performance notes
+
+Remaining opportunities for polish
+
+EXECUTION INSTRUCTIONS
+
+Perform the following steps in order:
+
+Create/modify the unified analytics page.
+
+Assemble all charts and insight cards into a premium layout.
+
+Connect all components to their API routes.
+
+Implement loading skeletons and fallback boundaries.
+
+Normalize theme + spacing across analytics UI.
+
+Add interactions + hover states + animations.
+
+Run a full UI audit and ensure everything renders cleanly.
+
+Update documentation.
+
+Generate the completion report.
+
+When finished, output:
+
+“PHASE 5.7 COMPLETE — READY FOR ARCHITECT REVIEW”

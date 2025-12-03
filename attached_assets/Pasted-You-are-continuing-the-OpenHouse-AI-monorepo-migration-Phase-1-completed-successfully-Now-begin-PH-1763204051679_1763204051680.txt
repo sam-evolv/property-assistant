@@ -1,0 +1,233 @@
+You are continuing the OpenHouse AI monorepo migration.
+Phase 1 completed successfully.
+Now begin PHASE 2: Migrate all developer-facing pages and logic out of apps/tenant-portal into apps/developer-portal without breaking existing production behaviour.
+
+Follow these instructions EXACTLY and IN ORDER:
+
+📌 PHASE 2 OBJECTIVE
+
+Move all developer-related routes, components, API endpoints, and contexts from:
+
+apps/tenant-portal/app/developer/*
+
+
+into:
+
+apps/developer-portal/app/*
+
+
+and ensure they run fully isolated on port 3001 using:
+
+npm run dev:developer
+
+
+while keeping the tenant-portal version operational temporarily until Phase 3.
+
+🔍 STEP-BY-STEP INSTRUCTIONS
+STEP 1 — Identify all developer routes
+
+Search inside apps/tenant-portal/app for:
+
+/developer/*
+
+/developer-dashboard/*
+
+/developer/**
+
+Any folder named:
+
+developer
+
+developers
+
+dev
+
+dashboard
+
+analytics tied to developers
+
+Any route that displays:
+
+Developer dashboard
+
+Developer analytics
+
+Developer-specific CRUD pages
+
+Developer invites
+
+Developer access management
+
+Developer settings
+
+Output a complete list of all affected files in the terminal before continuing.
+
+STEP 2 — Create correct Next.js folder structure in apps/developer-portal
+
+Inside apps/developer-portal/app/, create:
+
+app/
+  ├── layout.tsx
+  ├── page.tsx
+  ├── developer/
+  │     ├── layout.tsx
+  │     ├── page.tsx
+  │     ├── analytics/
+  │     ├── developments/
+  │     ├── settings/
+  │     ├── users/
+
+
+Follow the SAME folder names as the tenant-portal source to avoid breaking imports.
+
+Copy over:
+
+Head components
+
+Layout wrappers
+
+Navigation menus
+
+Sidebars
+
+Developer-specific context providers
+
+STEP 3 — Move all developer components
+
+Search for all shared developer components in:
+
+apps/tenant-portal/components
+packages/ui
+packages/api
+
+
+Copy ONLY components that are developer-specific into the developer-portal under:
+
+apps/developer-portal/components
+
+
+Fix all import paths.
+
+STEP 4 — Move all developer API endpoints
+
+Developer backend routes currently live in:
+
+apps/tenant-portal/app/api/developer/*
+
+
+Move them into:
+
+apps/developer-portal/app/api/*
+
+
+This includes endpoints for:
+
+Developer analytics
+
+Developer updates
+
+Developer configurations
+
+Developer users / invites
+
+Developer profile management
+
+Update paths accordingly but keep the same internal logic.
+
+STEP 5 — Update all imports
+
+Run a global update so that any code referencing old tenant-portal developer paths now points to developer-portal.
+
+Fix:
+
+Absolute imports
+
+Relative imports
+
+Shared hooks from packages/api
+
+Component references
+
+All developer code must now be fully isolated inside developer-portal.
+
+STEP 6 — Add correct environment config
+
+Ensure the following files exist in developer-portal:
+
+.env.local.example
+
+next.config.js
+
+tsconfig.json
+
+tailwind.config.js
+
+postcss.config.js
+
+Copy them from tenant-portal but REMOVE any admin or resident logic.
+
+Ensure next.config.js correctly handles:
+
+experimental.appDir = true
+
+External packages via transpilePackages
+
+Absolute import aliases
+
+STEP 7 — Wire developer-portal to shared Supabase + Drizzle
+
+Developer portal must import database utilities from:
+
+packages/db
+packages/api
+packages/auth
+
+
+Verify the following work:
+
+Supabase client loading
+
+Reading tenant list
+
+Reading developments
+
+Reading analytics
+
+Developer-portal should NOT create its own DB client.
+
+STEP 8 — Smoke test developer-portal
+
+Run:
+
+npm run dev:developer
+
+
+Check:
+
+/ loads
+
+/developer loads
+
+/developer/developments loads
+
+/developer/analytics loads
+
+/developer/settings loads
+
+Fix any missing imports, components, or config issues.
+
+STEP 9 — Keep tenant-portal developer pages operational
+
+Do NOT delete the old pages yet.
+
+Keep them for reference until Phase 3.
+
+STEP 10 — Print final confirmation
+
+After successful migration, print exactly:
+
+PHASE 2 COMPLETE — Developer Portal Migrated Successfully.
+Ready for Phase 3.
+
+
+END PROMPT

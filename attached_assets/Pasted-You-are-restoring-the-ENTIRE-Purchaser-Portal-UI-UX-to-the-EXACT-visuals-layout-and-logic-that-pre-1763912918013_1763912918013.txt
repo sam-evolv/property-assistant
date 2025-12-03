@@ -1,0 +1,130 @@
+You are restoring the ENTIRE Purchaser Portal UI/UX to the EXACT visuals, layout, and logic that previously existed and matched the design in Sam’s screenshots.
+
+DO NOT modify, remove, or “improve” anything outside the purchaser portal.  
+DO NOT touch developer dashboard, superadmin dashboard, system backend, analytics, documents pipeline, RAG backend, or any other part of the monorepo.
+
+Your ONLY job is to *restore* the purchaser portal to the previous working design.
+
+====================================================
+RESTORE TARGET (the design to revert to):
+====================================================
+
+1. **Opening Animation**
+   – Keep the new animation exactly as-is. No changes required.
+
+2. **Home Screen (ChatGPT-style hub screen)**
+   MUST look exactly like the original released version:
+   – Large centred property logo icon
+   – Text: “Welcome to Longview Park” (or dynamically: Welcome to {development})
+   – Subtext in smaller grey: “Ask anything about your home or community.”
+   – Four pill-style preloaded suggestions underneath, in two rows:
+       • What heating system do I have?
+       • How do I use my heat pump?
+       • Where is my fuse board?
+       • Show me my warranty information
+   – Pills must use the gold gradient theme  
+   – Background white, spacing exactly like the original  
+   – No blue, no OpenStreetMap styling, no new layout elements
+
+3. **Chat Interface (after user begins typing)**
+   – Restore the EXACT bubble style you originally built:
+       • Purchaser bubbles = gold gradient, rounded, left-aligned
+       • Assistant bubbles = black or dark grey with white text
+       • Standard chat vertical spacing
+   – Restore full chat input bar:
+       • White rounded input box
+       • Microphone icon that activates speech-to-text
+       • Gold “Send / Ask” button
+   – Restore dynamic home icon top-left + language dropdown top-right
+   – RAG answers must appear normally (no “error please try again” unless genuine backend error)
+
+4. **Language Selector**
+   – Restore original dropdown component  
+   – Must switch languages instantly for:
+       • Pills
+       • Headers
+       • Chat placeholder text
+       • Navigation bar labels
+
+5. **Navigation Bar (bottom)**
+   MUST be restored to original layout exactly:
+   – Chat
+   – Map
+   – Noticeboard
+   – Documents
+   Styling: white bar, blue-highlight icons, original spacing.
+
+6. **Map Tab (Restore original Google Maps version)**
+   – REMOVE OpenStreetMap completely
+   – Restore the Google Map embed EXACTLY as before
+   – Map must centre on the correct home location (lat/lng from purchaser model)
+   – Restore the filter/refinements bar BELOW the map for:
+       • Shopping
+       • Parks
+       • Schools
+       • Groceries
+       • Transport
+       • Cafés
+   – Apple Maps / Google Maps buttons should remain at the top (if previously implemented)
+
+7. **Documents Tab**
+   – Keep the NEW filtering logic (corrected version)  
+   – BUT restore the OLD UI layout:
+       • Grid of document cards  
+       • Clean white background  
+       • Simple heading “Your Documents”  
+       • Each document has its filename + icon + open button  
+   – House-specific drawings first  
+   – General development docs second  
+   – Simple section divider text, NOT accordion UI  
+     (your original UI DID NOT use accordions — restore the old look)
+
+8. **Noticeboard**
+   – Restore the original Noticeboard design:
+       • List of notices with card layout  
+       • Blue-outline “+” floating action button for adding notices  
+       • Newest-first ordering
+       • Restore original font sizes, spacing, card shadow
+
+9. **General UI / UX Theme**
+   – Restore the colour theme exactly:
+       • White primary background
+       • Gold gradient accents
+       • Black text and icons
+       • Blue tab icons (bottom navbar)
+   – DO NOT introduce ANY new colours, layouts, animations, icons, or design language
+
+====================================================
+IMPORTANT TECHNICAL NOTES
+====================================================
+– DO NOT rebuild the backend  
+– DO NOT modify RAG  
+– DO NOT change auth logic  
+– DO NOT change document filtering  
+– DO NOT change DB tables or API routes  
+– DO NOT touch admin or developer portals  
+
+Your job is 100% **UI/UX restoration** – nothing more.
+
+====================================================
+OUTPUT EXPECTATION
+====================================================
+
+You will:
+1. Identify all Purchaser Portal files that were modified in recent runs  
+2. Revert them to match the previous working UI/UX  
+3. Rewrite components only where needed to restore the exact look  
+4. Ensure maps, chat, documents, noticeboard work fully again  
+5. Ensure language dropdown works  
+6. Ensure chat input box is restored  
+7. Ensure Google Maps is reinstated  
+8. Ensure pills and logo home screen restored  
+9. Ensure nothing outside purchaser portal is touched
+
+====================================================
+
+When you begin, state:
+“Restoring Purchaser Portal UI/UX to original design now.”
+
+Then produce each file change in sequence.
+

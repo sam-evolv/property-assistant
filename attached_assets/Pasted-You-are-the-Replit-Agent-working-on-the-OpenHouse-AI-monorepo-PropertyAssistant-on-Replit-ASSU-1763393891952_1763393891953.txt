@@ -1,0 +1,339 @@
+You are the Replit Agent working on the OpenHouse AI monorepo (PropertyAssistant on Replit).
+
+ASSUMED STATE AFTER PREVIOUS PASS:
+- Developer Portal works.
+- I can log in as super admin.
+- I can see Longview Park in the Developments list.
+- I can open Longview Park.
+- I can upload at least one Longview Park PDF.
+- `/api/train` stores the document + chunks.
+- `/api/chat` can answer questions about Longview Park via Preview Chat.
+
+YOUR OBJECTIVE IN THIS PASS ONLY:
+
+Build a **clean, reliable, mobile-first Tenant Portal vertical slice** for Longview Park so that:
+
+- A “resident” can open a URL (simulating QR scan) for Longview Park.
+- The app clearly shows they are in Longview Park.
+- They can ask questions about their home/estate and get correct answers via RAG.
+- They can view the core documents for their estate.
+- The experience feels simple, intuitive, and visually coherent (baseline white/black/gold styling).
+- It works well on mobile.
+
+Do NOT just plan or summarise.  
+You must modify code, implement UI and logic, and show diffs.
+
+────────────────────────────────────────
+0. ORIENTATION & ROUTING CONSTRAINTS
+────────────────────────────────────────
+
+1. This pass focuses exclusively on **apps/tenant-portal** (homeowner-facing).
+2. The minimum viable routing we need:
+
+   - A route that represents a **development-level entry**, for example:
+     - `/[developmentId]`
+     - or `/developments/[developmentId]`
+   - A dedicated Chat screen for the development.
+   - A Documents screen for the development.
+   - Optional: Map / Noticeboard placeholders if they already exist (but they are secondary).
+
+3. For the pilot, you can treat:
+
+   - Longview Park as a single development context (no house-specific logic required yet).
+   - We must pass at least `developmentId` through the URL and into the Tenant Portal.
+
+If routing differs (e.g. `/app/[slug]`), adapt accordingly, but keep one clear development-level entry point.
+
+────────────────────────────────────────
+1. DEFINE TENANT PORTAL ENTRY ROUTE
+────────────────────────────────────────
+
+Goal: A single, clean URL that loads the Tenant Portal for a given development.
+
+1. Inspect the current routing under:
+   - `apps/tenant-portal/src/app`
+
+2. If there is NOT already a dynamic development route (e.g. `[developmentId]/page.tsx`), create one:
+
+   Example structure (adjust to match actual Next.js App Router organisation):
+
+   - `apps/tenant-portal/src/app/[developmentId]/layout.tsx`
+   - `apps/tenant-portal/src/app/[developmentId]/page.tsx`
+
+3. In `layout.tsx` for `[developmentId]`:
+   - Extract `params.developmentId`.
+   - Fetch development metadata from `/api/developments/{developmentId}` (via a shared API client or direct fetch(`/api/developments/${developmentId}`)).
+   - Provide a simple context or props so child pages know:
+     - `developmentId`
+     - `developmentName`
+     - `location` (if available)
+
+   - Render a shell layout with:
+     - A top header bar (white/black/gold) showing the estate name.
+     - A main content area that is mobile-first.
+     - If you already have a bottom navigation, wire it into this layout.
+
+4. In `page.tsx` for `[developmentId]`:
+   - Use the development metadata (from the layout or fresh fetch).
+   - Show:
+     - A friendly welcome title: “Welcome to Longview Park” (or the actual development name).
+     - A short description line: “Your digital home assistant for this estate.”
+     - 2–3 primary action cards/buttons:
+       - “Ask a Question” → navigates to /[developmentId]/chat
+       - “View Documents” → navigates to /[developmentId]/documents
+       - Optional: “Explore Area Map” (if map/POI is wired) or leave as placeholder.
+
+   - Keep the design:
+     - White background.
+     - Black typography.
+     - Gold accent on buttons/cards.
+
+Show diffs for all new/updated layout + entry page files.
+
+────────────────────────────────────────
+2. BUILD TENANT CHAT SCREEN (RAG-POWERED)
+────────────────────────────────────────
+
+Goal: Resident can ask questions and get correct answers based on the uploaded Longview Park documents.
+
+1. Create or update a Chat route, for example:
+   - `apps/tenant-portal/src/app/[developmentId]/chat/page.tsx`
+
+2. Requirements for this Chat screen:
+   - It must:
+     - Read `developmentId` from params.
+     - Display the development name at the top (e.g. as a header title).
+     - Render a vertical list of message bubbles:
+       - Resident messages on the right, minimal, white bubble.
+       - Assistant messages on the left, black or white background with gold accent (border or label).
+     - Show a text input + send button fixed at the bottom.
+     - Handle mobile viewport gracefully (no overflow issues).
+
+3. Wiring to `/api/chat`:
+   - On submit:
+     - POST to `/api/chat` with JSON body:
+
+       ```json
+       {
+         "message": "...",
+         "developmentId": "<developmentId-from-params>"
+       }
+       ```
+
+   - While waiting:
+     - Show a “typing…” indicator (three gold dots or similar) in the assistant area.
+   - On success:
+     - Append assistant response to the chat transcript.
+   - On error:
+     - Show a simple error banner or toast: “Something went wrong, please try again.”
+
+4. Reuse the same RAG backend logic as Developer Portal Preview Chat:
+   - The only difference is the UI and the fact that the user is a resident, not a developer.
+   - Ensure the response remains grounded in the `developmentId` context.
+
+5. Add a **friendly system message** on initial load:
+   - Example:
+     - “Hi, I’m your Longview Park assistant. Ask me anything about your home, your estate, or your documents.”
+
+Show diffs for the chat page and any shared components you adjust.
+
+────────────────────────────────────────
+3. BUILD TENANT DOCUMENTS SCREEN
+────────────────────────────────────────
+
+Goal: Resident can view the key documents for their estate.
+
+1. Create or update a Documents route, for example:
+   - `apps/tenant-portal/src/app/[developmentId]/documents/page.tsx`
+
+2. Behaviour:
+   - Read `developmentId` from params.
+   - Fetch documents for this development from a single endpoint such as:
+     - `GET /api/documents?developmentId=<id>`
+     - or `GET /api/developments/{id}/documents` if that already exists.
+
+3. UI:
+   - Display a simple, mobile-first list or card view of documents:
+     - Document title / filename.
+     - Upload date.
+     - Optional: category tag if available (e.g. “Handover Pack”, “Manuals”, “Planning”).
+   - Each document row/card should have:
+     - A “View” or “Open” button that:
+       - Either links directly to the Supabase file URL (if exposed via a signed URL API).
+       - Or calls a backend route to get a secure download URL.
+
+4. Error & Empty States:
+   - If no documents:
+     - Show a gentle message:
+       - “Your documents are not available yet. Please check back soon.”
+   - If error fetching documents:
+     - Show a short error message and a “Try again” button.
+
+Show diffs for this page and any API client helpers updated/created.
+
+────────────────────────────────────────
+4. OPTIONAL: BASIC MAP / NOTICEBOARD WIREFRAME (ONLY IF ALREADY PRESENT)
+────────────────────────────────────────
+
+This is **optional in this pass**, but if the repo already has partial implementations, you can stabilise them lightly.
+
+Goals:
+- Map page should load without errors.
+- Noticeboard, if present, should at least render a static list or “coming soon” message.
+
+1. Map:
+   - Route example: `/[developmentId]/map`
+   - Ensure:
+     - Google Maps key is used **only client-side where appropriate**.
+     - React component is dynamic imported to avoid SSR map issues.
+     - Markers, if any, use gold/black styling.
+
+2. Noticeboard:
+   - Route example: `/[developmentId]/noticeboard`
+   - Render either:
+     - A simple list of posts if an API exists, or
+     - “Community updates will appear here soon” placeholder.
+
+Stabilise only; do not over-engineer in this pass.
+
+────────────────────────────────────────
+5. BASELINE WHITE / BLACK / GOLD THEMING FOR TENANT PORTAL
+────────────────────────────────────────
+
+Goal: The Tenant Portal should already feel like a cohesive OpenHouse AI product, not a raw scaffold.
+
+1. Tailwind / theme:
+   - If Tailwind is used, ensure the theme includes:
+     - `oh-gold`: e.g. `#D4AF37` (or the gold you used elsewhere)
+     - `oh-black`: `#000000` or `#0B0B0B`
+     - `oh-white`: `#FFFFFF`
+   - Use these in:
+     - Header
+     - Buttons
+     - Key accents
+
+2. Layout:
+   - All Tenant Portal pages should:
+     - Have consistent padding (e.g. `px-4 py-4` on mobile).
+     - Use a consistent font size scale (clear hierarchy).
+     - Avoid cramped layouts or excessive whitespace that looks accidental.
+
+3. Components:
+   - Buttons:
+     - Primary = gold background, black text.
+     - Secondary = black outline or minimal grey.
+   - Cards:
+     - White background, subtle shadow, gold accent (border or top line).
+
+4. Mobile:
+   - Test on a narrow viewport:
+     - Chat input must be usable.
+     - No horizontal scroll.
+     - Buttons reachable with thumb.
+     - Text readable.
+
+You do NOT need a full design-system build here, but the Tenant Portal must feel intentional and visually consistent.
+
+────────────────────────────────────────
+6. ERROR HANDLING & RESILIENCE
+────────────────────────────────────────
+
+Goal: The Tenant Portal must **never hard-crash** for a resident.
+
+1. For all key Tenant pages (`[developmentId]/page.tsx`, `/chat`, `/documents`):
+   - Add:
+     - Loading states while data is fetched.
+     - Clear, simple error messages if fetching fails.
+     - Fallback UI if `developmentId` is invalid:
+       - “We couldn’t find this estate. Please contact your developer.”
+
+2. All fetch calls should:
+   - `try/catch` errors.
+   - Log to console (or unify logging if already implemented).
+   - Update UI state accordingly rather than leaving spinners forever.
+
+Show diffs demonstrating error handling improvements.
+
+────────────────────────────────────────
+7. FULL END-TO-END TEST FOR LONGVIEW PARK TENANT FLOW
+────────────────────────────────────────
+
+After all code changes:
+
+1. Start Tenant Portal dev server, if separate from Developer Portal:
+   ```bash
+   cd apps/tenant-portal
+   npm run dev
+Or confirm existing monorepo command if shared.
+
+In the browser:
+
+Navigate to the Tenant Portal route for Longview Park, e.g.:
+
+http://localhost:3000/longview-park or
+
+http://localhost:3000/<actual-development-id-or-slug>
+
+Confirm:
+
+The estate title appears.
+
+The welcome screen looks clean and intentional.
+
+“Ask a Question” navigates to Chat.
+
+“View Documents” navigates to Documents.
+
+Chat test:
+
+Ask a few questions about Longview Park that rely on your uploaded PDF.
+
+Confirm the answers are clearly grounded in your documents (not hallucinated).
+
+Confirm no browser errors.
+
+Documents test:
+
+Confirm the list of documents is visible.
+
+Open one and ensure the file serves correctly.
+
+Mobile view:
+
+Use DevTools responsive mode.
+
+Confirm everything still works and feels usable.
+
+Fix any issues you find within this pass before ending.
+
+────────────────────────────────────────
+8. DELIVERABLES FOR THIS PASS
+────────────────────────────────────────
+
+At the end of this Tenant Portal pass:
+
+There is a working development-level Tenant entry route (e.g. /[developmentId]).
+
+The Tenant Home screen:
+
+Shows development name.
+
+Offers clear primary actions.
+
+Tenant Chat:
+
+Works end-to-end with /api/chat.
+
+Returns correct Longview Park answers.
+
+Tenant Documents:
+
+Lists documents for Longview Park.
+
+Allows viewing/downloading.
+
+Basic white/black/gold styling is applied.
+
+The experience is mobile-first and does not crash.
+
+Apply all required code changes now and show the diffs for each modified file.

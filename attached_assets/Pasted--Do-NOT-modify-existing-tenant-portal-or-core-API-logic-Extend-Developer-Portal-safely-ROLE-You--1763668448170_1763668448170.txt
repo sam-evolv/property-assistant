@@ -1,0 +1,266 @@
+“Do NOT modify existing tenant-portal or core API logic. Extend Developer Portal safely.”
+ROLE
+
+You are the Lead Platform Engineer for OpenHouse AI.
+Your job is to extend the existing Developer Portal (apps/developer-portal) into the Enterprise Developer Portal without disturbing any current functionality.
+
+This must be built inside the existing monorepo, fully compatible with:
+
+Supabase auth (already implemented)
+
+Drizzle ORM schema (already implemented)
+
+Existing /api backend package (MUST NOT be restructured)
+
+Existing Developer workflow
+
+Existing tables, RAG pipeline, QR flows
+
+Existing tenant-portal app
+
+All enhancements must work with currently deployed flows.
+
+PHASE 2 OBJECTIVES
+
+Phase 2 lays the structural foundation for the Enterprise Dashboard.
+
+You are NOT adding visual analytics or UI polish yet.
+You are building the pages, routes, navigation, folder structure, and top-level components needed to support the huge analytics build-out in later phases.
+
+Think of this phase as building the scaffolding for the skyscraper.
+
+DELIVERABLES FOR PHASE 2
+1. Create the Enterprise Portal Route Namespace
+
+Create a new route group inside apps/developer-portal/app:
+
+/admin-enterprise
+
+
+This becomes the home of all enterprise-grade capabilities.
+
+Inside it, scaffold the following directories:
+
+/admin-enterprise
+    /dashboard
+    /developers
+    /developments
+    /developments/[id]
+    /documents
+    /analytics
+    /analytics/chat
+    /analytics/search
+    /homeowners
+    /units
+
+
+Do NOT implement real logic yet.
+Each page must simply:
+
+validate Supabase session
+
+check role = super_admin
+
+return a placeholder card with the route name
+
+2. Extend Supabase Auth Role Enforcement
+
+Inside the existing auth layer in apps/developer-portal/lib/auth.ts:
+
+Add:
+
+Permissions for:
+
+super_admin
+
+admin
+
+developer
+
+A new helper function must be added:
+
+assertSuperAdmin();
+
+
+This will:
+
+validate user session
+
+validate user.role === 'super_admin'
+
+otherwise redirect to /unauthorized
+
+DO NOT break existing developer-level flows.
+
+3. Add Sidebar Navigation for Enterprise Mode
+
+Inside apps/developer-portal/components/layout:
+
+Add a new sidebar variant rendered ONLY when:
+
+user.role === 'super_admin'
+
+
+Menu items:
+
+Dashboard
+Developers
+Developments
+Documents
+Analytics
+   - Overview
+   - Chat
+   - Search
+Homeowners
+Units
+
+
+Use the existing component system.
+Do NOT replace the current developer-side navigation.
+Add a conditional enterprise sidebar.
+
+4. Scaffold API Endpoints
+
+Inside packages/api/src/admin create new endpoints (empty handlers for now):
+
+/analytics/overview.ts
+/analytics/chat.ts
+/analytics/search.ts
+/developers/list.ts
+/developments/list.ts
+/developments/[id]/details.ts
+/homeowners/list.ts
+/units/list.ts
+/documents/list.ts
+
+
+Each endpoint should:
+
+validate Supabase admin session
+
+verify role = super_admin
+
+return a placeholder JSON payload, e.g.:
+
+{ status: "ok", endpoint: "admin/analytics/overview" }
+
+
+DO NOT hook into the database yet.
+That happens in Phase 3+.
+
+5. Add Boilerplate Components
+
+Inside apps/developer-portal/components/enterprise/ create:
+
+EnterpriseCard.tsx
+EnterpriseGrid.tsx
+PageHeader.tsx
+StatBlock.tsx
+DeveloperTable.tsx
+DevelopmentTable.tsx
+DocumentTable.tsx
+ChatAnalyticsChart.tsx
+SearchAnalyticsTable.tsx
+UnitsTable.tsx
+HomeownersTable.tsx
+
+
+These should be empty shells returning simple <div> placeholders.
+
+The purpose is to provide the scaffolding for the upcoming analytics engine.
+
+6. Routing + Layout Integration
+
+Inside /admin-enterprise/layout.tsx:
+
+import enterprise sidebar
+
+set up a consistent layout
+
+include page title injection
+
+include breadcrumb support
+
+include loading skeletons for all enterprise pages
+
+Do NOT break existing developer layout.
+
+7. Safe Compatibility Layer
+
+Implement a new helper:
+
+isEnterpriseUser(user)
+
+
+Returned true when:
+
+role = 'super_admin'
+
+
+Used to protect routes and components.
+
+This ensures your existing developers (non-admin) continue using the current portal without disruption.
+
+8. Add Placeholder Enterprise Dashboard
+
+Inside /admin-enterprise/dashboard/page.tsx return:
+
+Enterprise Dashboard (Phase 2 Scaffolding)
+- Total Developers: placeholder
+- Total Developments: placeholder
+- Total Units: placeholder
+- Total Homeowners: placeholder
+- Total Messages: placeholder
+
+
+No DB calls yet.
+
+This exists so Phase 3 can plug in real analytics.
+
+RULES FOR THIS PHASE
+
+Do NOT modify the tenant portal (apps/tenant-portal).
+
+Do NOT modify any core RAG or training code.
+
+Do NOT change the QR onboarding system.
+
+Do NOT change any existing API endpoints.
+
+Additive only. No breaking changes.
+
+No business logic — placeholders only.
+
+Everything must coexist with your current application.
+
+AGENT TASK
+
+Implement EVERYTHING above:
+
+Scaffold routes
+
+Scaffold empty pages
+
+Create enterprise layout
+
+Add role guards
+
+Extend Supabase auth
+
+Create placeholder API endpoints
+
+Add component shells
+
+Add enterprise sidebar & routing
+
+Once complete:
+Run the dev server and return confirmation that:
+
+/admin-enterprise
+/admin-enterprise/dashboard
+/admin-enterprise/developers
+/admin-enterprise/analytics
+etc...
+
+
+all load successfully with placeholders and correct authorization.

@@ -1,0 +1,26 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "send": "Send",
+    "loading": "Loading",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "signOut": "Sign Out"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "developments": "Developments",
+    "documents": "Documents",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  },
+  "language": {
+    "select": "Select Language",
+    "english": "English",
+    "polish": "Polski"
+  }
+}

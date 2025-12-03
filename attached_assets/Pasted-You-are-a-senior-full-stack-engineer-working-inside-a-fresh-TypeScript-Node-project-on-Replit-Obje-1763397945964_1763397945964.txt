@@ -1,0 +1,673 @@
+You are a senior full stack engineer working inside a fresh TypeScript Node project on Replit.
+
+Objective: implement a small but production grade backend that powers OpenHouse’s QR based “Property Assistant” for housing schemes.
+
+The system must:
+
+Identify a unit when a buyer scans a QR code, based on two URL parameters (dev and u).
+
+Greet the buyer by name and address on first load.
+
+Store all units, house types, and documents in a relational database in a way that is easy to extend to multiple developments.
+
+Provide a simple ingestion pipeline where I can drop folders of PDFs and other documents and the system auto assigns them to the correct development, house type, and document type using file naming conventions plus AI classification where needed.
+
+Provide a basic RAG layer that can retrieve relevant documents per development and house type for the Assistant.
+
+Use a clean, simple architecture that is easy to run, read, and extend.
+
+1. Tech stack and project structure
+
+Use the following stack:
+
+Node 22
+
+TypeScript
+
+Express
+
+Drizzle ORM with PostgreSQL
+
+Simple migrations via Drizzle
+
+OpenAI API for embeddings and classification
+
+Zod for input validation and environment validation
+
+Create a structure similar to:
+
+src/
+
+server/
+
+index.ts
+
+routes/
+
+public.ts
+
+admin.ts
+
+middleware/
+
+errorHandler.ts
+
+db/
+
+schema.ts
+
+client.ts
+
+migrations/ (Drizzle migrations)
+
+config/
+
+env.ts
+
+services/
+
+unitsService.ts
+
+documentsService.ts
+
+ragService.ts
+
+ingestionService.ts
+
+classificationService.ts
+
+scripts/
+
+ingestDocuments.ts
+
+embedDocuments.ts
+
+assets/ (local filesystem for sample documents)
+
+LV-PARK/BD01/...
+
+LV-PARK/BS01/...
+
+README.md
+
+drizzle.config.ts
+
+package.json
+
+.env.example
+
+Implement everything in TypeScript and ensure npm run dev starts the server.
+
+2. Environment and config
+
+Create src/config/env.ts that:
+
+Uses Zod to validate required environment variables.
+
+Exports a typed env object.
+
+Required env vars:
+
+DATABASE_URL (Postgres)
+
+OPENAI_API_KEY
+
+RAG_MAX_CHUNKS (default 20)
+
+SERVER_PORT (default 3000)
+
+Example .env.example with placeholders.
+
+3. Database schema
+
+Use Drizzle to define the following tables in src/db/schema.ts:
+
+developments
+
+id (uuid, primary key, default gen_random_uuid)
+
+code (text, unique, not null)
+Examples: LV-PARK, LV-AVENUE
+
+name (text, not null)
+Example: Longview Park
+
+slug (text, unique, nullable)
+
+is_active (boolean, default true)
+
+created_at (timestamptz, default now)
+
+houseTypes
+
+id (uuid, pk)
+
+development_id (uuid, fk to developments.id)
+
+house_type_code (text, not null)
+Example: BD01, BS01, BT01
+
+name (text, nullable)
+Example: 4 Bed Detached Type BD01
+
+description (text, nullable)
+
+created_at (timestamptz, default now)
+
+Unique index on (development_id, house_type_code)
+
+units
+
+id (uuid, pk)
+
+development_id (uuid, fk to developments.id)
+
+development_code (text, not null, for quick lookups)
+
+unit_number (text, not null)
+Example: 001, 002, etc
+
+unit_uid (text, unique, not null)
+Human readable internal identifier, pattern: <development_code>-<unit_number>
+Example: LV-PARK-001
+
+address_line_1 (text, not null)
+Example: 1 Longview Park
+
+eircode (text, nullable)
+
+property_designation (text, nullable)
+Example: D, SD, T
+
+property_type (text, nullable)
+Example: HO, AP
+
+house_type_code (text, not null, references houseTypes.house_type_code within same development)
+
+bedrooms (integer, nullable)
+
+floor_area_m2 (numeric, nullable)
+
+Purchaser fields (nullable):
+
+purchaser_name (text)
+
+purchaser_email (text)
+
+purchaser_phone (text)
+
+created_at (timestamptz, default now)
+
+Index on (development_code, unit_number)
+
+Index on (development_code, house_type_code)
+
+documents
+
+id (uuid, pk)
+
+development_id (uuid, fk)
+
+house_type_id (uuid, fk to houseTypes.id, nullable for dev wide docs)
+
+house_type_code (text, nullable, but usually set)
+
+document_type (text, not null)
+Use a controlled vocab, for example: floorplan, elevation, kitchen_layout, electrical_layout, brochure, general_manual, planning, other
+
+title (text, not null)
+
+file_name (text, not null)
+
+relative_path (text, not null)
+Example: LV-PARK/BD01/BD01_floorplan.pdf
+
+storage_url (text, nullable)
+For future use if we move to cloud storage
+
+ai_tags (jsonb, nullable)
+Example: { "bedrooms": 4, "storeys": 2 }
+
+created_at (timestamptz, default now)
+
+Index on (development_id, house_type_code, document_type)
+
+ragChunks
+
+id (uuid, pk)
+
+development_id (uuid, fk)
+
+house_type_code (text, nullable)
+
+document_id (uuid, fk to documents.id)
+
+chunk_index (integer, not null)
+
+content (text, not null)
+
+embedding (jsonb, not null)
+Store as float array: number[]
+
+created_at (timestamptz, default now)
+
+Index on (development_id, house_type_code)
+
+Generate and commit initial Drizzle migrations. Add a simple src/db/client.ts that exports a Drizzle client instance and a helper function for running queries.
+
+4. Unit resolution via QR code
+
+We are using the following URL pattern for QR codes:
+
+https://app.openhouseai.ie/welcome?dev=<development_code>&u=<unit_number>
+
+Example:
+
+https://app.openhouseai.ie/welcome?dev=LV-PARK&u=001
+
+Implement a public endpoint in src/server/routes/public.ts:
+
+GET /api/public/unit-context
+
+Query parameters:
+
+dev (string, required)
+
+u (string, required)
+
+Validation with Zod.
+
+Logic:
+
+Look up the development by code = dev.
+
+Look up the unit where development_code = dev and unit_number = u.
+
+If not found, return 404 with an error JSON.
+
+If found, join to houseTypes to get the house_type_code and house type name.
+
+Return a JSON payload with only the fields that the wizard needs, for example:
+
+{
+  "unitUid": "LV-PARK-001",
+  "developmentCode": "LV-PARK",
+  "developmentName": "Longview Park",
+  "unitNumber": "001",
+  "addressLine1": "1 Longview Park",
+  "eircode": "T12 XXXX",
+  "houseTypeCode": "BD01",
+  "houseTypeName": "4 Bed Detached Type BD01",
+  "purchaserName": "Sarah Murphy"
+}
+
+
+Do not expose internal IDs or sensitive data beyond what is needed for greeting and basic context.
+
+Wire this route into src/server/index.ts, mount under /api/public.
+
+5. Document lookup API for the wizard
+
+Implement:
+
+GET /api/public/documents
+
+Query params:
+
+dev (string, required)
+
+houseTypeCode (string, optional)
+
+type (string, optional document_type)
+
+Validation with Zod.
+
+Logic:
+
+Resolve development by code = dev.
+
+Base query: documents where development_id = resolved id.
+
+If houseTypeCode is provided, filter by house_type_code.
+
+If type is provided, filter by document_type.
+
+Return a list of:
+
+[
+  {
+    "id": "<uuid>",
+    "title": "BD01 Floorplan",
+    "documentType": "floorplan",
+    "fileName": "BD01_floorplan.pdf",
+    "relativePath": "LV-PARK/BD01/BD01_floorplan.pdf",
+    "storageUrl": null
+  }
+]
+
+
+The wizard can use relativePath to construct file URLs based on how we serve static files.
+
+Expose assets as a static route, for example:
+
+Serve /assets from the assets/ folder in the project root using Express static.
+
+Then a relativePath like LV-PARK/BD01/BD01_floorplan.pdf maps to /assets/LV-PARK/BD01/BD01_floorplan.pdf.
+
+6. RAG query API
+
+Implement a simple RAG endpoint in public.ts:
+
+POST /api/public/chat
+
+Request body:
+
+{
+  "developmentCode": "LV-PARK",
+  "houseTypeCode": "BD01",
+  "messages": [
+    { "role": "system", "content": "You are the OpenHouse assistant." },
+    { "role": "user", "content": "Show me the floor plan for my house." }
+  ]
+}
+
+
+Steps:
+
+Validate input with Zod.
+
+Use ragService to:
+
+Compute the embedding for the latest user message using OpenAI embeddings.
+
+Query ragChunks where:
+
+development_id matches the development
+
+If houseTypeCode is provided, filter by house_type_code
+
+Compute cosine similarity in Node between the query embedding and stored embeddings (since they are jsonb arrays).
+A naive algorithm is fine here (filter, map, sort, slice up to RAG_MAX_CHUNKS).
+
+Build a context string from the top N chunks and prepend to messages as extra system or context messages.
+
+Call OpenAI chat completion with the enriched messages.
+
+Return the assistant reply and maybe the document ids used for context.
+
+Implement ragService with reusable functions:
+
+embedText(text: string): Promise<number[]>
+
+retrieveContext(developmentCode: string, houseTypeCode: string | null, queryEmbedding: number[]): Promise<RagChunk[]>
+
+7. Ingestion pipeline for documents
+
+We want a simple way to drop documents into assets/ and ingest them automatically with minimal manual mapping.
+
+Use the following directory convention under assets/:
+
+assets/<development_code>/<house_type_code>/file.pdf
+
+Examples:
+
+assets/LV-PARK/BD01/BD01_floorplan.pdf
+
+assets/LV-PARK/BD01/BD01_elevation_revA.pdf
+
+assets/LV-PARK/BS01/BS01_floorplan.pdf
+
+assets/LV-PARK/GENERAL/Longview_Manual.pdf (for scheme wide docs, where house_type_code can be null)
+
+Implement an ingestion script:
+
+File: src/scripts/ingestDocuments.ts
+
+CLI usage:
+
+npm run ingest-docs -- LV-PARK ./assets/LV-PARK
+
+Responsibilities:
+
+Parse CLI args: developmentCode and rootPath.
+
+Resolve or create the developments row for that developmentCode.
+
+Recursively walk the directory tree starting at rootPath.
+
+For each file:
+
+Derive:
+
+house_type_code: the immediate folder name under developmentCode.
+If folder is GENERAL or COMMON, treat house_type_code as null.
+
+file_name: file name only.
+
+relative_path: path relative to assets root.
+
+Try to infer document_type using simple filename rules:
+
+If file name contains floor or plan -> floorplan
+
+If file name contains elev -> elevation
+
+If file name contains kitchen -> kitchen_layout
+
+If file name contains electrical -> electrical_layout
+
+If file name contains manual -> general_manual
+
+Else -> other
+
+Ensure there is a houseTypes entry for each house_type_code (except null) within that development:
+
+If not found, create a new row with:
+
+house_type_code
+
+name defaulting to <house_type_code> House Type
+
+Insert a row into documents for each file with inferred values.
+
+Make sure the script is idempotent, for example:
+
+If a documents row already exists for development_id + house_type_code + file_name, skip or update instead of inserting duplicates.
+
+Add the following npm script:
+
+"scripts": {
+  "ingest-docs": "ts-node src/scripts/ingestDocuments.ts"
+}
+
+8. AI classification for messy filenames
+
+Augment the ingestion script with an optional AI classification step, but implement the logic cleanly in classificationService.ts so it is easy to maintain.
+
+In src/services/classificationService.ts implement a function:
+
+type ClassificationInput = {
+  fileName: string;
+  sampleText?: string;
+  knownHouseTypes: { house_type_code: string; name?: string }[];
+  knownDocumentTypes: string[];
+};
+
+type ClassificationResult = {
+  houseTypeCode: string | null;
+  documentType: string;
+  aiTags?: Record<string, any>;
+};
+
+async function classifyDocument(input: ClassificationInput): Promise<ClassificationResult>
+
+
+The function should:
+
+Construct a prompt that gives:
+
+The filename.
+
+A short snippet of extracted text if available (you can stub this for now or implement a basic PDF text extraction later).
+
+The list of known house types for that development, including codes and names.
+
+The list of allowed document types.
+
+Ask the model to output a strict JSON object with:
+
+{
+  "houseTypeCode": "BD01",
+  "documentType": "floorplan",
+  "aiTags": { "bedrooms": 4 }
+}
+
+
+Parse the JSON robustly and default to simple fallbacks if parsing fails.
+
+In the ingestion script:
+
+Use deterministic rules first for document_type.
+
+If house_type_code or document_type are ambiguous (for example: filename does not contain a house type code and document type was resolved as other), call classificationService.classifyDocument to refine.
+
+If the classifier returns a valid houseTypeCode that exists, override the default inference.
+
+Persist aiTags into the documents.ai_tags column if provided.
+
+The initial implementation can skip full PDF text extraction and focus only on filenames, but structure the code so that we can easily plug in text extraction later.
+
+9. Embedding pipeline for documents
+
+Implement src/scripts/embedDocuments.ts with CLI usage:
+
+npm run embed-docs -- LV-PARK
+
+Responsibilities:
+
+Take developmentCode as input.
+
+Query all documents for that development.
+
+For each document:
+
+Either:
+
+Extract text from the PDF (stub for now), or
+
+Use the file name plus some metadata as a proxy.
+For now, use a simple placeholder such as "Content for " + title and clearly mark in comments where real extraction should go.
+
+Chunk the text into reasonable sizes, for example ~500 tokens per chunk.
+
+For each chunk:
+
+Generate an embedding with OpenAI.
+
+Insert into ragChunks with references to the document and development, house type code, chunk index, and the embedding as float array.
+
+Make the script resumable by skipping chunks that already exist for a given document and chunk index.
+
+Add npm script:
+
+"scripts": {
+  "embed-docs": "ts-node src/scripts/embedDocuments.ts"
+}
+
+10. Unit import helper
+
+Create a simple import helper script, src/scripts/importUnitsFromCsv.ts, that can read a CSV or XLSX export of the “Master Spreadsheet” and populate the developments, houseTypes, and units tables.
+
+Assumptions:
+
+Input is a CSV with columns:
+
+Development code column (you can hardcode for now)
+
+Address of dwelling
+
+House type code
+
+Designation, property type, bedrooms, floor area
+
+Purchaser name, email, phone (if available)
+
+Responsibilities:
+
+Take as args:
+
+developmentCode
+
+inputFilePath
+
+Resolve or create the development row.
+
+For each row:
+
+Create or get the houseTypes entry for that house type code.
+
+Derive unit_number as a sequence for that development if not present in the spreadsheet.
+For now, if the sheet already contains a clear ordering, assign unit numbers in order (001, 002, 003, etc).
+
+Build unit_uid as <developmentCode>-<unit_number>.
+
+Insert units with all available metadata.
+
+Ensure idempotency by checking for existing unit_uid and updating instead of duplicating.
+
+Add npm script:
+
+"scripts": {
+  "import-units": "ts-node src/scripts/importUnitsFromCsv.ts"
+}
+
+
+You can stub the CSV parsing with csv-parse or papaparse.
+
+11. Error handling and logging
+
+Implement a global error handler middleware for Express in src/server/middleware/errorHandler.ts:
+
+Catch errors, log them to console with stack traces.
+
+Return a structured JSON error response with status, message, and optional details for non production environments.
+
+Ensure all routes use asyncHandler style wrappers to avoid unhandled promise rejections.
+
+12. README
+
+Create a clear README.md that explains:
+
+What the project does.
+
+How to set up environment variables.
+
+How to run the migrations.
+
+How to start the server.
+
+How to import units from the master spreadsheet.
+
+How to ingest documents for a development.
+
+How to run the embedding pipeline.
+
+Example QR URL pattern and a sample curl for /api/public/unit-context.
+
+13. Implementation expectations
+
+Implement all of the above now:
+
+Set up dependencies, scripts, and TypeScript config.
+
+Implement database schema and migrations.
+
+Implement the Express server with public routes wired in.
+
+Implement the ingestion and embedding scripts.
+
+Implement the classification service using OpenAI chat completions.
+
+Make sure the code compiles and the basic flows are testable from the command line.
+
+Prioritise clarity, composability, and low cognitive overhead. Keep function and file names self explanatory. Add concise comments where behavior is non obvious.

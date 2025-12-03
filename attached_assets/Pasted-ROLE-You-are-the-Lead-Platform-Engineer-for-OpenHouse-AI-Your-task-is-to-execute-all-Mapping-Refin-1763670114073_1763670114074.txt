@@ -1,0 +1,252 @@
+ROLE:
+You are the Lead Platform Engineer for OpenHouse AI.
+Your task is to execute all Mapping Refinement tasks listed below, incrementally, safely, and fully aligned with our existing structure.
+
+PRINCIPLES:
+
+Do NOT modify existing functionality unless instructed.
+
+Extend mapping capabilities without affecting the chat pipeline or core multi-tenancy logic.
+
+Maintain compatibility with all current APIs and frontend interfaces.
+
+Every change must compile before proceeding.
+
+All new APIs must include role validation + tenant isolation.
+
+All new mapping logic must run through the caching layer (api_cache).
+
+All new Google API interactions must be routed through packages/api/maps/*.
+
+PHASE 8 — TASK GROUPS
+8.1 — Address Accuracy & Geocoding Reliability
+
+Improve all geocoding flows so the system has high-confidence coordinates for each unit and development.
+
+Tasks
+
+Add a retry mechanism for Google Geocoding (max 3 attempts).
+
+Add “geocoding_status” + “geocoding_attempts” fields to units and developments (if not already present).
+
+Add API endpoint:
+
+POST /api/maps/retry-geocode
+
+Add automatic fallback rules:
+
+If full address fails → try without Eircode
+
+If that fails → try city only
+
+If that fails → fallback to development coordinates
+
+Add enterprise admin view “Geocoding Issues” (table of failures).
+
+8.2 — POI (Points of Interest) Stability & Expansion
+
+Places API must become more stable, cached, and configurable.
+
+Tasks
+
+Add poi_cache entries into api_cache using the 15-minute TTL.
+
+Add missing POI categories:
+
+Gyms
+
+Pharmacies
+
+Hardware stores
+
+Coffee shops
+
+Bus stops
+
+Taxi ranks
+
+Add update interval per tenant (override in theme_config).
+
+Add automatic POI refresh job:
+
+Runs via cleanup-worker.ts every 12 hours
+
+Build developer portal UI:
+
+POI table with filters
+
+“Refresh POIs” button
+
+Category toggle switches
+
+8.3 — Map Performance Enhancements
+
+Ensure the tenant portal map loads in under 1 second.
+
+Tasks
+
+Add map_context_cache (api_cache keys: map:context:${unit_id}).
+
+Include:
+
+development coords
+
+nearby POIs
+
+unit-level coordinates
+
+Add expiry: 24 hours
+
+Ensure tenant portal /api/map/context routes through cache first.
+
+8.4 — Developer Portal Mapping Enhancements
+
+Add deeper mapping insights inside the developer portal.
+
+Tasks
+
+Add to /dashboard/developments/[id]:
+
+New Map Widgets
+
+“Unit Map View” (all units plotted)
+
+“Missing Coordinates” visual overlay
+
+“POI Density Heatmap”
+
+New API Endpoints
+
+GET /api/maps/development/[id]/units
+
+GET /api/maps/development/[id]/poi-density
+
+8.5 — Enterprise Admin Mapping Analytics
+
+Add mapping analytics to /admin-enterprise.
+
+Tasks
+
+Add a new section: /admin-enterprise/maps-analytics
+
+Include:
+
+Total map loads per tenant
+
+POI lookups per tenant
+
+Heatmap of geocoding failures
+
+Top 10 developments by map usage
+
+Bottom 10 developments (low engagement)
+
+Add APIs:
+
+/api/admin/maps/stats
+
+/api/admin/maps/errors
+
+8.6 — Map Error Handling & Logging
+
+Improve observability.
+
+Tasks
+
+Extend system-logs to include:
+
+Google API errors
+
+Zero-POI results
+
+Reverse geocoding failures
+
+Cache misses for map context
+
+Add table fields in system_logs:
+
+subsystem = 'maps'
+
+severity = 'info' | 'warning' | 'error'
+
+8.7 — Map UX/UI Polish
+
+Tenant Portal:
+
+Add skeleton loaders for map components
+
+Add graceful fallback when POIs unavailable
+
+Add “Last updated X hours ago” for POI data
+
+Developer Portal:
+
+Add hover effects over unit pins
+
+Add filter dropdown (occupied / sold / empty)
+
+Add “Highlight missing data” mode
+
+Admin Enterprise:
+
+Add professional collapsible sections
+
+Add chart.js visualisations for POI usage over time
+
+8.8 — Geo-Fencing & Distance Calculations
+
+Enhance location intelligence.
+
+Tasks
+
+Add utility in packages/api/maps/geo.ts:
+
+calculateDistance(lat1, lng1, lat2, lng2)
+
+isWithinRadius(lat, lng, centerLat, centerLng, radiusMeters)
+
+Add distance field to POI results:
+
+Sorted ascending
+
+Add “Nearby Essentials” section to tenant portal:
+
+Closest grocery shop
+
+Closest pharmacy
+
+Closest petrol station
+
+8.9 — Data Model Alignment
+
+Ensure mapping structures are consistent.
+
+Tasks
+
+Add missing FK units.development_id → developments.id validation
+
+Add index on units.latitude, units.longitude
+
+Add index on pois.category
+
+Clean up:
+
+Remove any legacy POI tables (if present).
+
+PHASE 8 — COMPLETION CRITERIA
+
+This phase is finished when:
+
+Map context loads in < 1 second for homeowner portal.
+
+POIs are cached, refreshed, and multi-category.
+
+Developers can view full development maps.
+
+Enterprise admins get aggregated map analytics.
+
+All mapping errors are logged and visible.
+
+Full geocoding reliability is achieved.
+
+No existing chat or document functionality is impacted.

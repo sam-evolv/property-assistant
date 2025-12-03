@@ -1,0 +1,156 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Make tab switching (Chat ↔ Map ↔ Noticeboard ↔ Documents) near-instant by enabling true client-side navigation, route prefetching, and layout caching.  
+Current delay: 2–3 seconds  
+Target: ≤200ms visual switch latency.
+
+---
+
+## TASKS
+
+### 1️⃣ Optimize Routing for Instant Tab Switching
+
+- Convert the bottom navigation tabs (in `components/Dock.tsx`) from hard `<Link href="/page">` navigation (which triggers full page reloads) to **client-side router transitions** using Next.js `useRouter()`.
+
+  ```tsx
+  "use client";
+  import { useRouter, usePathname } from "next/navigation";
+
+  export default function Dock() {
+    const router = useRouter();
+    const pathname = usePathname();
+
+    const tabs = [
+      { name: "Chat", path: "/chat", icon: "💬" },
+      { name: "Map", path: "/map", icon: "🗺️" },
+      { name: "Noticeboard", path: "/notices", icon: "📢" },
+      { name: "Documents", path: "/docs", icon: "📄" },
+    ];
+
+    return (
+      <nav className="fixed bottom-0 inset-x-0 h-[var(--dock)] flex items-center justify-around border-t border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-50">
+        {tabs.map((tab) => (
+          <button
+            key={tab.path}
+            onClick={() => router.push(tab.path)}
+            className={`
+              flex flex-col items-center justify-center gap-1 text-sm font-medium transition-all duration-150
+              ${
+                pathname === tab.path
+                  ? "text-blue-600 dark:text-blue-400 scale-105"
+                  : "text-gray-500 dark:text-gray-400 hover:text-blue-500"
+              }
+            `}
+          >
+            <span className="text-lg">{tab.icon}</span>
+            {tab.name}
+          </button>
+        ))}
+      </nav>
+    );
+  }
+✅ This prevents a full page re-render and allows Next.js to reuse cached layouts and components.
+
+2️⃣ Enable Route Prefetching
+In next.config.js, enable link prefetching and incremental static optimization:
+
+js
+Copy code
+const nextConfig = {
+  experimental: {
+    appDir: true,
+    optimizePackageImports: ["react", "next", "lucide-react"],
+  },
+  reactStrictMode: true,
+};
+
+module.exports = nextConfig;
+In _app.tsx or layout.tsx, enable automatic route prefetch:
+
+tsx
+Copy code
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  useEffect(() => {
+    // Prefetch common tabs
+    router.prefetch("/chat");
+    router.prefetch("/map");
+    router.prefetch("/notices");
+    router.prefetch("/docs");
+  }, [router]);
+  return <>{children}</>;
+}
+✅ This ensures when the user hovers or touches a tab, the next page is already loaded in memory.
+
+3️⃣ Cache Shared Layout & Styles
+Ensure all pages share the same root layout (app/layout.tsx) so navigation doesn’t unmount/reload the DOM each time.
+
+Move global components like TopBar and Dock into the layout, not into each page.
+
+Keep the <main> content as the only changing region.
+
+✅ Result: only the middle content re-renders, not the entire page structure.
+
+4️⃣ Optimize Loading States
+Replace “page-level loading” with skeletons or fade transitions for a smoother feel:
+
+In app/loading.tsx:
+
+tsx
+Copy code
+export default function Loading() {
+  return (
+    <div className="animate-pulse h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+      Loading...
+    </div>
+  );
+}
+✅ Even if data takes 200–300ms, it feels instant because the UI stays responsive.
+
+5️⃣ Tune Next.js Rendering Performance
+Disable heavy revalidation unless needed:
+
+tsx
+Copy code
+export const revalidate = 0; // no SSR refetch on tab switch
+Use "use client" components selectively (only for interactive elements like Dock or Chat).
+
+Preload large data like map POIs or noticeboard posts via a background fetch once on first load.
+
+6️⃣ Optional: Add Micro-Transition Animation
+Add a soft fade between tabs to hide any micro delay:
+
+css
+Copy code
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 0.25s ease;
+}
+✅ Smooth, native-app-like feel.
+
+✅ SUCCESS CRITERIA
+Tab switch time ≤200ms
+
+No “white flash” or page reload flicker
+
+Shared layout remains static (top bar & dock never re-render)
+
+Route prefetch active (confirmed via network tab)
+
+UX feels native and fluid across desktop & mobile
+
+💬 COMMIT MESSAGE
+scss
+Copy code
+perf(ui): enable instant client-side tab switching with prefetch and layout caching

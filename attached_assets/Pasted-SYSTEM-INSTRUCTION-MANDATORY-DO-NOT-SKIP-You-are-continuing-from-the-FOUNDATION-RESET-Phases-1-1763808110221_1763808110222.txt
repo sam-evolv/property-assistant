@@ -1,0 +1,248 @@
+SYSTEM INSTRUCTION (MANDATORY — DO NOT SKIP):
+You are continuing from the FOUNDATION RESET (Phases 1–4).
+Phase 5 builds the first fully functional analytics layer across:
+
+Purchaser portal
+
+Developer portal
+
+Super-admin portal
+
+Multi-tenant scope
+
+Development-level scope
+
+House-level scope
+
+This phase must not introduce any feature outside analytics UI/UX and insights generation.
+All hydration, context safety, routing stability and schema changes from Phases 1–4 are considered complete.
+
+OBJECTIVE FOR PHASE 5
+
+Deliver a premium, unified, enterprise-grade analytics experience across all dashboards:
+
+Beautiful UI
+
+Consistent gold/black/white theme
+
+Zero undefined data states
+
+Zero hydration warnings
+
+Rich insights (not just counts and charts)
+
+UX that feels high-end, Apple/Stripe/Linear-level polish
+
+This phase is purely about analytics, layout, polish, insights, information density, and visual refinement.
+
+PHASE 5 WORKSTREAMS (ALL MUST BE IMPLEMENTED)
+A) Phase 5.1 — Charts Implementation
+
+Implement fully functional analytics charts using @tanstack/react-charts or recharts, driven by real queries, not stubs:
+
+Required Charts
+
+Message Volume (30 days)
+
+Chat Cost Estimator
+
+House Type Distribution
+
+Document Usage Frequency
+
+Top 10 Questions Asked
+
+Knowledge Gap Heatmap
+(questions that required GPT inference vs RAG)
+
+AI Load Distribution Per House
+
+Document Retrieval Latency Chart
+
+Embeddings Volume by Development
+
+Each chart must:
+
+Responsively scale
+
+Respect the global theme
+
+Never break if data is missing
+
+Include tooltips, legends, and smooth transitions
+
+B) Phase 5.2 — Table Polish
+
+Clean and enhance all data tables across all portals.
+
+Table improvements:
+
+Sticky headers
+
+Hover interactions
+
+Zebra striping
+
+Column sorting
+
+Inline filters
+
+Pagination
+
+Empty states with illustrations
+
+Loading skeletons
+
+Quick-action right-aligned button clusters
+
+Tables that require polish/refactor:
+
+Houses table
+
+Documents table
+
+Message logs table
+
+Activity logs
+
+Purchaser activity table
+
+Developer staff table
+
+Super-admin global clients table
+
+C) Phase 5.3 — Navigation & Layout Polish
+
+Make the dashboards feel premium, modern, and consistent.
+
+Required improvements:
+
+Unified layout grid across all dashboards
+
+Fixed top navigation with developer logo + tenant switcher
+
+Left sidebar with icons + labels
+
+Breadcrumbs on every page
+
+Consistent spacing system (8/16/24px scale)
+
+Smooth transitions between routes
+
+“Glass” background cards where appropriate
+
+True Apple/Stripe-like feel
+
+All UI must respect:
+
+Gold accents
+
+White/light backgrounds for cards
+
+Black/dark backgrounds when relevant
+
+Zero hard shadows — only soft ambient shadows
+
+D) Phase 5.4 — Enterprise Insights Cards
+
+Introduce high-value insights that developers will pay for.
+
+Required Insights Cards:
+
+Top 10 Questions Asked This Week
+
+Most Accessed Documents
+
+Documents Never Accessed (developer action required)
+
+Houses With High Support Load
+
+Knowledge Gaps Detected (model confusion)
+
+AI Cost Efficiency Score
+
+Resident Engagement Score
+
+Document Inconsistency Risk Indicator
+
+Chat Response Quality Metrics
+
+Projected Support Load (30 days)
+
+These insights must be displayed as beautiful cards:
+
+Icon
+
+Title
+
+Metric
+
+Mini-chart (sparkline)
+
+CTA for deeper view
+
+TECHNICAL REQUIREMENTS FOR PHASE 5
+
+The Agent must implement:
+
+analytics-service.ts (server)
+
+analytics-client.ts (browser safe client)
+
+analytics-context.tsx (hydration-safe)
+
+Unified analytics query layer (Supabase RPC or SQL)
+
+Consistent typings across portals
+
+SSR-safe conditional fetches
+
+Fallback safety for empty/missing data
+
+Minimal network load (aggregation queries)
+
+SUCCESS CRITERIA
+
+Phase 5 is complete when:
+
+All dashboards show a rich, premium analytics experience
+
+Charts are real-time, responsive, and bug-free
+
+Navigation + layout is unified and polished
+
+Tables are enterprise-grade
+
+Insights cards appear and contain accurate data
+
+No ‘undefined’, hydration, or context errors occur
+
+Theme is consistent across all surfaces
+
+Purchaser, developer, and super-admin analytics are all connected
+
+EXECUTION INSTRUCTION FOR AGENT
+
+Execute Phase 5 end-to-end:
+
+Implement backend queries
+
+Implement analytics service layer
+
+Implement UI components
+
+Replace old analytics
+
+Polish layout
+
+Polish tables
+
+Build all new charts
+
+Build all insights cards
+
+Ensure full theme consistency
+
+Fix any hydration issues encountered
+
+If any dependency or missing file is detected, automatically generate and apply it.

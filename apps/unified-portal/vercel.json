@@ -1,0 +1,58 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "openhouse-developer-portal",
+  "regions": ["dub1"],
+  "buildCommand": "cd ../.. && npm run build:developer",
+  "installCommand": "cd ../.. && npm run install:all",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/**/*": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "regions": ["dub1"]
+    },
+    "app/api/train/**/*": {
+      "maxDuration": 300,
+      "memory": 3008,
+      "regions": ["dub1"]
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
+    }
+  ]
+}

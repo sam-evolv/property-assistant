@@ -1,0 +1,257 @@
+Master Agent Prompt (Copy/Paste into Replit Agent)
+
+You are the Lead Platform Engineer for OpenHouse AI.
+Phase 13 expands the Developer Portal and Super-Admin Portal to provide advanced, enterprise-grade productivity tools for developers and support teams.
+
+Assume Phases 1–12 are functioning and stable:
+
+Multi-tenant backend
+
+Full analytics engine
+
+UI/UX polish
+
+RBAC & security hardening
+
+Mapping refinements
+
+Developer portal feature expansion
+
+Production hardening
+
+Phase 12: Real-world usage data loop
+
+Phase 13 builds tooling that materially increases the value of the platform for developers, support teams, and property administrators.
+
+PHASE 13 — ENTERPRISE DEVELOPER TOOLS EXPANSION
+Complete all tasks safely, incrementally, and with full backwards compatibility. Do not break current portals.
+13.1 — Bulk Operations Engine (Developments, Houses, Docs)
+
+Build a new subsystem allowing developers to perform safe batch operations:
+
+A) Bulk House Import
+
+CSV upload (house list, metadata, purchaser names, QR UIDs)
+
+Pre-validation step
+
+Dry-run preview
+
+Error reporting
+
+Safe migration tool for large estates (100–500 units)
+
+B) Bulk Document Assignment
+
+Multi-select PDF assignment to multiple house types
+
+Auto-retagging
+
+Batch embedding jobs
+
+Background worker pipeline integration (reuse Phase 5 async engine)
+
+C) Bulk Purchaser Updates
+
+Sale status
+
+New owners
+
+Phase turnover
+
+Keys-handover logging
+
+Automatic analytics updates
+
+13.2 — Embedded Release Notes & System Changelog
+
+Inside each developer’s portal:
+
+Add “Release Notes” panel
+
+Populate from releasenotes table
+
+Developer sees platform updates, new features, bug fixes
+
+Per-tenant visibility rules
+
+Markdown support
+
+Super-admin UI to create entries
+
+13.3 — Developer Support Ticketing (Internal Light Version)
+
+Introduce internal support tooling:
+
+Table: support_tickets
+
+Fields: development_id, tenant_id, category, severity, message, attachments (PDF/image), status, timestamps
+
+Simple UI: list, filter, reply
+
+Automatic linking to the developer’s authenticated user
+
+Notifications (app-level only, no email yet)
+
+Analytics widget: open tickets, age, status distribution
+
+This is NOT a full ticket system. Keep it lightweight, internal, and scoped.
+
+13.4 — PDF Quality Checker + Missing Documentation Detector
+
+Enhance developer operations:
+
+Detector runs:
+
+Missing required PDFs per house type
+
+Duplicated documents
+
+Oversized PDFs
+
+OCR-required documents
+
+Expired warranties or certificates (via metadata rules)
+
+UI component:
+
+Red/amber/green status panel
+
+Per-development dashboard summary
+
+Exportable “missing docs” list
+
+Integrates with analytics layer
+
+13.5 — Interactive Data Explorer (Admin-Only)
+
+Add an internal admin-only interface for real-time inspection:
+
+Query viewer (read-only): houses, developments, tenants, docs, messages
+
+Warning banners reminding of read-only mode
+
+Pagination + filters
+
+No write operations
+
+This is essential for debugging production issues without DB access.
+
+13.6 — Embedding Management Console
+
+For the AI layer:
+
+Show list of embedded documents
+
+Sizes, chunk count
+
+Last embed timestamp
+
+“Re-embed document” button
+
+“Purge embeddings” (admin-only)
+
+Background worker integration
+
+Real-time status indicator
+
+Error reporting console
+
+13.7 — Developer Experience (DX) Enhancements
+
+Polish the entire developer portal experience:
+
+Navigation & Layout
+
+Add left-sidebar collapse
+
+Improve section grouping categories
+
+Breadcrumbs in all pages
+
+Better loading skeletons
+
+Empty states for all tables
+
+Performance
+
+Cache frequently-used metadata
+
+Speed up document library
+
+Optimize house type retrieval queries
+
+Accessibility
+
+Keyboard navigation
+
+ARIA labels
+
+High contrast mode toggle
+
+13.8 — Super-Admin Power Tools
+
+Build a new “Power Tools” panel for you:
+
+Tenant impersonation mode (safe, logged, read-only)
+
+Rapid development creation wizard
+
+QR regeneration at scale
+
+Orphaned entry detector (house types without docs, developments without houses)
+
+Background job monitor (Phase 5 worker status page)
+
+Live system metrics
+
+“Slow query detector” integration
+
+13.9 — Integrate All Phase 13 Tools Cleanly
+
+All new features must be:
+
+Fully RBAC safe
+
+Fully multi-tenant safe
+
+Non-breaking
+
+Using existing UI pattern (shadcn, Tailwind, RSC)
+
+Routed under correct portal paths
+
+Documented in README_DEV.md
+
+Added to analytics (usage metrics)
+
+Phase 13 — Execution Instructions for the Agent
+
+Follow this exact sequence:
+
+Inspect current code
+
+Create all new tables
+
+Add migrations
+
+Build backend APIs
+
+Build frontend pages
+
+Integrate with analytics
+
+Add caching where needed
+
+Add safety checks & RBAC
+
+Run architect review
+
+Restart workflows
+
+Verify no regressions in all portals
+
+Mark tasks as complete
+
+All changes must be atomic and reversible.
+Do NOT break any existing estate or portal.

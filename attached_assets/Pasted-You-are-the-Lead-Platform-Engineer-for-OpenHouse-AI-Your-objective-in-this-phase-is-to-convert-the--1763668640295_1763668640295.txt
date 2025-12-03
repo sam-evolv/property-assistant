@@ -1,0 +1,332 @@
+You are the Lead Platform Engineer for OpenHouse AI.
+Your objective in this phase is to convert the Enterprise Developer Portal scaffold (Phase 2 output) into a fully-wired, data-backed analytics system connected to the existing production backend.
+
+YOU MUST FOLLOW THESE RULES
+
+Do NOT delete or rewrite existing working features.
+
+Work in-place inside apps/developer-portal and packages/api.
+
+Do NOT modify tenant portal code unless explicitly required.
+
+Maintain full backward compatibility with current RAG, chat, documents and onboarding flows.
+
+All new analytics must use the existing database schema — if a field is missing, add minimal migrations only where required.
+
+Strict RBAC — super_admin sees all tenants; admin sees own tenant; developer sees own developments only.
+
+PHASE 3 OBJECTIVES
+1. Wire In Real Data Sources for All Enterprise Dashboards
+
+Implement the following API endpoints if missing, otherwise enhance them to return real data:
+
+/api/admin/analytics/overview
+
+Return:
+
+total_developers
+
+total_developments
+
+total_units
+
+total_homeowners
+
+total_messages
+
+total_documents
+
+active_homeowners_7d
+
+top_5_developments_by_activity
+
+Source tables:
+
+tenants
+
+developments
+
+units
+
+homeowners
+
+messages
+
+documents
+
+/api/admin/analytics/chat
+
+Return:
+
+message_count_by_day (30 days)
+
+avg_response_latency_ms
+
+tokens_used (daily aggregate)
+
+cost_usd (daily aggregate)
+
+top_questions_global
+
+Uses:
+
+messages table
+
+(latency_ms, token_count, cost_usd columns if missing — ADD them)
+
+/api/admin/analytics/rag
+
+Return:
+
+chunks_per_development
+
+avg_chunk_length
+
+house_type_distribution
+
+orphan_chunks (chunks with no document match)
+
+embeddings_generated_last_7d
+
+vector_index_health (HNSW nodes count)
+
+Uses:
+
+doc_chunks
+
+documents
+
+/api/admin/analytics/system-load
+
+Return:
+
+total_requests (from audit log)
+
+error_rate
+
+top_error_types
+
+cache_hit_ratio (from api_cache hits vs writes)
+
+Uses:
+
+audit_log
+
+api_cache
+
+rate_limits
+
+2. Wire Developer Portal Analytics
+
+Under apps/developer-portal/app/admin-enterprise/developments/[id]/ implement tabs:
+
+Tab: Overview
+
+unit count
+
+homeowner count
+
+message_count_30d
+
+document_count
+
+pdf_open_rate
+
+top_issues (heat-map of topics)
+
+RAG chunk coverage
+
+Tab: Chat Analytics
+
+chat volume by day
+
+top questions
+
+unanswered %
+
+satisfaction score
+
+peak chat times
+
+Tab: Document Analytics
+
+views per doc
+
+downloads per doc
+
+opening_rate (viewed_by / total_homeowners)
+
+per-house-type doc availability matrix
+
+Tab: Units
+
+full searchable unit table
+
+filter by house_type_code, homeowner onboarded, missing email, etc.
+
+Tab: Homeowners
+
+list all homeowners
+
+last_active
+
+chat_count
+
+documents_viewed
+
+onboarding completion status
+
+3. Implement Missing DB Fields (Minimal Migrations)
+
+Create a migration inside packages/db/migrations/:
+
+ALTER TABLE messages
+  ADD COLUMN IF NOT EXISTS token_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS cost_usd DECIMAL(10,6) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS latency_ms INTEGER,
+  ADD COLUMN IF NOT EXISTS cited_document_ids TEXT[];
+
+ALTER TABLE documents
+  ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS download_count INTEGER DEFAULT 0;
+
+ALTER TABLE homeowners
+  ADD COLUMN IF NOT EXISTS last_active TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS total_chats INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_downloads INTEGER DEFAULT 0;
+
+ALTER TABLE units
+  ADD COLUMN IF NOT EXISTS last_chat_at TIMESTAMP;
+
+ALTER TABLE api_cache
+  ADD COLUMN IF NOT EXISTS hits INTEGER DEFAULT 0;
+
+
+Run migrations via the existing pipeline.
+
+4. Create Central Analytics Service (packages/api/src/analytics/)
+
+Create new directory:
+
+packages/api/src/analytics/
+
+
+Add:
+
+computeChatMetrics.ts
+computeDocumentMetrics.ts
+computeDevelopmentMetrics.ts
+computePlatformMetrics.ts
+computeRAGMetrics.ts
+computeSystemMetrics.ts
+
+These functions are imported by all enterprise API routes.
+
+Must:
+
+enforce tenant scoping
+
+use low-latency SQL (add indexes if required)
+
+cache results with api_cache for 15 minutes
+
+Example function:
+
+export async function computeChatMetrics(tenantId?: string, developmentId?: string) {
+  // use where conditions dynamically based on presence of tenant/development
+  // aggregate messages table
+}
+
+5. Add Caching Layer for Analytics
+
+Inside packages/api/src/cache.ts add helper:
+
+export async function getOrSetJSON(key, ttlMs, computeFn) {
+  const cached = await get(key);
+  if (cached) {
+    await incrementCacheHit(key);
+    return cached;
+  }
+  const fresh = await computeFn();
+  await set(key, fresh, ttlMs);
+  return fresh;
+}
+
+
+Analytics endpoints must now use:
+
+return getOrSetJSON(cacheKey, 15 * 60 * 1000, () => computeFn(...args));
+
+6. Frontend Components
+
+In apps/developer-portal/app/admin-enterprise/ implement:
+
+components/charts/
+
+LineChart.tsx
+
+BarChart.tsx
+
+StackedBarChart.tsx
+
+components/cards/
+
+MetricCard.tsx
+
+TrendCard.tsx
+
+ActivitySparkline.tsx
+
+components/tables/
+
+DocumentEngagementTable.tsx
+
+UnitTable.tsx
+
+HomeownerTable.tsx
+
+All charts must use Recharts (already installed).
+
+7. Full RBAC Enforcement
+
+All enterprise endpoints must:
+
+const admin = await getAdminContextFromSession();
+if (!admin) return unauthorized;
+if (routeRequiresTenantScope) enforceTenantScope(admin, params);
+if (routeRequiresSuperAdmin) enforceSuperAdmin(admin);
+
+
+Add helper functions inside apps/developer-portal/lib/api-auth.ts:
+
+export function enforceTenantScope(admin, tenantId) { ... }
+export function enforceDeveloperScope(admin, developmentId) { ... }
+export function enforceSuperAdmin(admin) { ... }
+
+8. Maintain Full Backward Compatibility
+
+DO NOT modify the tenant portal’s chat, docs, or RAG flows.
+
+DO NOT change onboarding.
+
+DO NOT rename tables or columns already used.
+
+DO NOT move folders.
+
+All changes must be additive and safe.
+
+OUTPUT REQUIREMENT
+
+When executing this prompt, the Agent must:
+
+Generate all missing files
+
+Patch existing endpoints without breaking anything
+
+Add migrations safely
+
+Add analytics service layer
+
+Wire frontend dashboards
+
+Leave the system in a running state with no regression

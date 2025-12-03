@@ -1,0 +1,251 @@
+Your task is to fully implement tenant-scoped document uploading, processing, storage, and vector embedding for the OpenHouse multi-tenant SaaS.
+
+You must complete the following steps cleanly, safely, and without breaking Phase 4-5 foundations.
+
+PART 1 — BACKEND IMPLEMENTATION (packages/api)
+1. Create unified document ingestion pipeline
+
+Inside packages/api/src/documents/ create:
+
+extract-text.ts
+
+vectorize.ts
+
+save-document.ts
+
+parse-metadata.ts
+
+Requirements:
+
+Supported file types:
+
+.pdf
+
+.docx
+
+.txt
+
+.csv
+
+.jpeg/.jpg/.png (OCR required)
+
+Text extraction rules:
+
+For PDF → use pdf-parse
+
+For docx → use docx parser
+
+For images → use OpenAI Vision API
+
+Convert ALL extracted text into clean paragraphs
+
+Chunking rules:
+
+Chunk size: 1,000 characters
+
+Overlap: 200 characters
+
+Save each chunk as separate vector entry
+
+Vectorization:
+
+Use the OpenAI embeddings model already used in chat
+
+Save to vectors table in Drizzle
+
+Ensure each vector row includes:
+
+tenantId
+
+developmentId
+
+documentId
+
+chunkIndex
+
+embedding
+
+text
+
+PART 2 — DATABASE UPDATES
+In packages/api/db/schema.ts add:
+
+documents table
+
+id (uuid, pk)
+tenantId (uuid, fk)
+developmentId (uuid, fk)
+title (text)
+originalFileName (text)
+mimeType (text)
+sizeKB (int)
+uploadedBy (uuid, fk)
+createdAt (timestamp)
+
+
+document_chunks / vectors table
+
+If already exists, alter fields to include:
+
+tenantId
+developmentId
+documentId
+chunkIndex
+text
+embedding (vector)
+createdAt
+
+After DB changes:
+
+Run:
+
+npm run db:push
+
+PART 3 — DOCUMENT UPLOAD API ENDPOINT
+
+Inside packages/api/src/ create:
+
+upload-document.ts
+
+Endpoint responsibilities:
+
+Accept multipart form upload
+
+Validate tenant auth
+
+Store raw file in Supabase Storage → bucket documents/{tenantId}/{documentId}/
+
+Insert record into documents table
+
+Extract text
+
+Chunk text
+
+Vectorize chunks
+
+Store vector chunks
+
+Return:
+
+{
+  success: true,
+  documentId,
+  chunksStored
+}
+
+PART 4 — TENANT PORTAL UI IMPLEMENTATION
+
+In apps/tenant-portal/app/development/[id]/documents/ create:
+
+Pages & Components
+
+/documents/page.tsx → List all uploaded documents
+
+/documents/upload/page.tsx → Upload UI
+
+DocumentList.tsx
+
+DocumentUploader.tsx
+
+Requirements:
+
+Upload UI
+
+Drag & drop zone
+
+Shows progress
+
+Accept multiple files
+
+On success → “Document indexed successfully”
+
+Document List
+
+Displays title, file type, size, upload date
+
+Shows number of vector chunks
+
+Link to “re-index”
+
+Link to “delete document”
+
+API integration
+
+Use the new /api/documents/upload endpoint
+
+All calls must include tenantSlug
+
+Use environment-safe paths:
+/api/chat/{tenantSlug}
+/api/documents/{tenantSlug}
+
+PART 5 — DEVELOPER PORTAL IMPLEMENTATION
+
+In apps/developer-portal add:
+
+View into all documents per development
+
+Ability to delete or re-index documents
+
+Analytics panel:
+
+Total documents
+
+Total vector chunks
+
+Recent uploads
+
+File types breakdown
+
+PART 6 — FINAL TEST STEPS
+
+Once implemented:
+
+Seed two tenants
+
+Upload multiple PDF & image files
+
+Ask questions in chat about the uploaded files
+
+Verify responses differ between tenants
+
+Confirm vectors are isolated by tenant
+
+Confirm embeddings match correct development context
+
+CONSTRAINTS
+
+Do NOT break existing chat endpoints
+
+Do NOT modify established folder architecture
+
+Use ONLY @openhouse/api imports
+
+Ensure all types are exported cleanly
+
+Ensure ZERO compile errors across the monorepo
+
+Ensure both portals run after completion
+
+DELIVERABLES EXPECTED
+
+At the end of Phase 6:
+
+Tenant can upload documents
+
+Developer can view and manage documents
+
+All content vectorized automatically
+
+Chat RAG searches the vector DB correctly
+
+Document knowledge is isolated per tenant
+
+UI is functional in both portals
+
+No TypeScript / build errors
+
+BEGIN NOW.
+Implement everything in order.
+Restart workflows after each major file change.
+Stop only when Phase 6 is fully complete.

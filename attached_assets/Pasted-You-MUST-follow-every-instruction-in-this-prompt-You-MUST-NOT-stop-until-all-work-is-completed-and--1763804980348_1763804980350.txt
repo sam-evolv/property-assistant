@@ -1,0 +1,265 @@
+You MUST follow every instruction in this prompt.
+You MUST NOT stop until all work is completed and visually verified.
+You MUST NOT summarise.
+You MUST NOT declare completion until all dashboards match the full spec.
+You MUST request screenshots of output to verify correctness.
+
+Your task is to fully build and implement all analytics, dashboards, charts, insights, intelligence, UI polish, and enterprise UX defined across Phases 1–16 of the OpenHouse AI project.
+Nothing is optional.
+Nothing can be skipped.
+Everything listed here is mandatory.
+
+SECTION A — ENTERPRISE DASHBOARD (SUPER ADMIN)
+
+Implement ALL of the following:
+
+1. Tenant-Level Analytics
+
+Total tenants
+
+Active vs dormant tenants
+
+Tenant growth over time
+
+Tenant engagement rankings
+
+Tenant health score
+
+Tenant usage funnel
+
+Cross-tenant comparison view
+
+Cross-tenant RAG quality score
+
+Cross-tenant document ingestion performance
+
+2. Deep-Dive Development Analytics
+
+Create 8 full analytics tabs, each with charts, tables, insights:
+
+TAB 1 — Timeline
+
+Message volume chart (30, 60, 90, 180 days)
+
+Document upload timeline
+
+Homeowner onboarding timeline
+
+Milestones timeline
+
+TAB 2 — Units
+
+Unit list with engagement
+
+Missing docs warnings
+
+Geocoding status
+
+Last chat timestamp
+
+TAB 3 — Homeowners
+
+Homeowner engagement table
+
+Total chats
+
+Total downloads
+
+Inactive homeowners list
+
+Zero-engagement homeowners
+
+TAB 4 — Documents
+
+Document list
+
+View count
+
+Download count
+
+Failed ingestion
+
+Orphaned docs
+
+Duplicate docs
+
+Re-classification tools
+
+TAB 5 — RAG Index
+
+Chunk coverage score
+
+Zero-result queries
+
+Low-similarity queries
+
+Duplicate chunk detection
+
+RAG quality over time
+
+TAB 6 — Chat Analytics
+
+Top 20 questions
+
+Zero-answer questions
+
+Rephrasing attempts
+
+Cost per user
+
+Cost per development
+
+Average response time
+
+Token usage charts
+
+TAB 7 — Maps Analytics
+
+POI usage
+
+Map load count
+
+Geocoding errors
+
+Category distribution
+
+TAB 8 — Errors & System Health
+
+API error logs
+
+Rate limit warnings
+
+Failed jobs
+
+Long-running jobs
+
+Fraud/anomaly detection
+
+SECTION B — DEVELOPER PORTAL ANALYTICS
+
+Implement developer-level views mirroring the super admin dashboard, but scoped only to their developments.
+
+Required:
+
+Developer overview
+
+Development list
+
+Per-development analytics
+
+Top questions
+
+Unit-level engagement
+
+Document intelligence
+
+Funnel analytics
+
+Usage heatmaps
+
+SECTION C — PURCHASER APP ANALYTICS PIPELINE
+
+Build background pipelines to generate:
+
+daily_rollups
+
+chat_analytics_daily
+
+document_views
+
+RAG search logs
+
+engagement heatmaps
+
+SECTION D — VISUAL & UX OVERHAUL
+
+Apply the following design rules globally:
+
+Black/white/gold premium theme
+
+Glassmorphism panels
+
+Smooth animations
+
+Feather icons
+
+Subtle gradients
+
+Staggered motion effects
+
+Universal card aesthetic
+
+Consistent typography system
+
+Consistent spacing & layout grid
+
+Pixel-perfect alignment
+
+All dashboards must feel like:
+
+Apple
+
+Stripe
+
+Linear
+
+Notion
+
+and a luxury real estate brand combined.
+
+SECTION E — EXECUTION RULES
+
+You MUST:
+
+Work page-by-page
+
+Work endpoint-by-endpoint
+
+Work tab-by-tab
+
+Verify each change visually before proceeding
+
+Fix all errors before continuing
+
+Show code diffs when necessary
+
+Use placeholder data if real data is insufficient
+
+Not assume success — verify success
+
+SECTION F — COMPLETION CRITERIA
+
+You cannot declare Phase 1–16 analytics complete until the following are visible, functional, and visually verified:
+
+40+ enterprise-level charts
+
+20+ tables
+
+8-tab development analytics
+
+Tenant-level analytics
+
+Developer-level analytics
+
+Purchaser-level engagement metrics
+
+Anomaly detection
+
+Maps analytics
+
+RAG quality analytics
+
+Document intelligence
+
+System performance analytics
+
+Error analytics
+
+Full UI polish across all portals
+
+FINAL INSTRUCTION
+
+Proceed now and begin implementing all components described in this prompt.
+Do not summarise.
+Do not stop until everything is finished and visually confirmed.
+Ask for screenshots whenever needed to verify UI output.

@@ -1,0 +1,136 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Tighten and rebalance the homepage layout.  
+The current interface looks slightly bottom-heavy; navigation buttons remain too large and occupy too much space.  
+Reduce their size by another 20–25%, adjust margins/padding across the page, and ensure the entire hero section (logo, title, paragraph, tags, search bar, nav buttons) distributes vertically with equal breathing room.
+
+---
+
+## TASKS
+
+1. ✅ **Update `app/page.tsx` layout structure**
+   - Reduce top and bottom padding on the main container.
+   - Use flex + gap utilities for natural spacing rather than manual margins.
+
+   ```tsx
+   export default function Home() {
+     return (
+       <main className="min-h-screen flex flex-col items-center justify-center bg-white text-center px-6 font-sans fade-in py-10 md:py-16">
+         {/* Logo */}
+         <div className="mb-6">
+           <img
+             src="/seaview-logo.svg"
+             alt="Seaview Property Assistant"
+             className="h-20 md:h-24 mx-auto drop-shadow-sm"
+           />
+           <p className="text-xs text-gray-500 tracking-widest mt-2 uppercase">
+             Property Development — Cork, Ireland
+           </p>
+         </div>
+
+         {/* Headline */}
+         <h1 className="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mb-3">
+           Ask anything about your home or community
+         </h1>
+         <p className="text-gray-500 max-w-2xl text-sm md:text-base mb-8">
+           Quick answers for daily life at Seaview — floor plans, amenities, local services, and more.
+         </p>
+
+         {/* Topic Buttons */}
+         <div className="flex flex-wrap justify-center gap-2 md:gap-3 mb-8">
+           {["Public Transport", "Waste collection", "Parking rules", "Local area"].map((item) => (
+             <button
+               key={item}
+               className="px-4 py-1.5 bg-gray-100 hover:bg-blue-100 text-gray-700 rounded-full text-xs md:text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+             >
+               {item}
+             </button>
+           ))}
+         </div>
+
+         {/* Search Bar */}
+         <div className="w-full max-w-md flex items-center bg-gray-50 border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-all duration-200 px-4 py-2.5 mb-6">
+           <button className="text-blue-600 text-lg px-1">
+             <i className="fa-solid fa-microphone"></i>
+           </button>
+           <input
+             type="text"
+             placeholder="Ask about your home or community..."
+             className="flex-grow bg-transparent border-none outline-none px-2 text-gray-700 placeholder-gray-400 text-sm md:text-base"
+           />
+           <button className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 text-xs md:text-sm font-semibold transition-all duration-200">
+             Ask
+           </button>
+         </div>
+
+         {/* Navigation Buttons */}
+         <div className="flex flex-wrap justify-center gap-4 w-full max-w-sm md:max-w-md">
+           {[
+             { name: "Chat", icon: "💬", href: "/chat" },
+             { name: "Map", icon: "🗺️", href: "/map" },
+             { name: "Noticeboard", icon: "📢", href: "/noticeboard" },
+             { name: "Documents", icon: "📄", href: "/documents" },
+           ].map((item) => (
+             <a
+               key={item.name}
+               href={item.href}
+               aria-label={`Open ${item.name}`}
+               className="flex flex-col items-center justify-center w-16 h-16 md:w-18 md:h-18 bg-white border border-gray-200 rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:border-blue-300 hover:shadow-[0_2px_6px_rgba(0,0,0,0.08)] transition-all duration-200 group"
+             >
+               <span className="text-lg mb-0.5 group-hover:scale-110 transition-transform">{item.icon}</span>
+               <span className="text-[11px] font-medium text-gray-600 group-hover:text-blue-600">
+                 {item.name}
+               </span>
+             </a>
+           ))}
+         </div>
+       </main>
+     );
+   }
+✅ Spacing & Responsiveness
+
+Adjust vertical rhythm:
+
+Reduce gaps between headline, paragraph, and topic tags.
+
+Equalize top and bottom breathing space using py-10 md:py-16.
+
+Ensure that on smaller screens, all sections remain centered and proportionate.
+
+✅ Tailwind Theme Adjustments
+
+No new colors required.
+
+Ensure text scale feels balanced with smaller buttons by slightly reducing headline size (text-2xl md:text-4xl).
+
+✅ Commit Message
+
+arduino
+Copy code
+feat: rebalance homepage layout and reduce navigation button size for cleaner proportional design
+ACCEPTANCE CRITERIA
+Navigation buttons are ~25% smaller (more compact, elegant).
+
+Vertical spacing distributed evenly from top to bottom (logo → headline → tags → search → buttons).
+
+Layout feels balanced and premium across all screen sizes.
+
+Search bar remains the primary focal point with supporting elements harmoniously spaced.
+
+OPTIONAL
+Add a responsive scale animation on load:
+
+css
+Copy code
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.nav-fade { animation: fadeInUp 0.5s ease forwards; }
+Then apply className="nav-fade" to each button container for a subtle entrance effect.
+
+Result:
+The homepage now looks lighter, better proportioned, and visually balanced — refined buttons, cleaner hierarchy, and a perfect center of gravity.

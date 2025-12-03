@@ -1,0 +1,238 @@
+Role: Lead Platform Engineer, OpenHouse AI
+Target: Strengthen all security layers before enterprise onboarding.
+Scope: Developer Portal, Admin Enterprise, Tenant Portal, Shared API, DB, RLS, session flows, error boundaries, rate limits, impersonation controls, and data-access isolation.
+
+PHASE 7 SUPER-PROMPT (PASTE THIS INTO REPLIT AGENT)
+
+You are the Lead Platform Engineer for OpenHouse AI.
+Execute Phase 7 — Security Hardening across the entire monorepo using the specifications below.
+
+You must:
+
+Make changes incrementally, validating compilation after each file modification.
+
+DO NOT break any existing flows in Tenant Portal or Developer Portal.
+
+DO NOT modify Tenant Portal onboarding, chat APIs, or RAG pipeline logic.
+
+Only reinforce security around them.
+
+When uncertain, prefer non-breaking additions rather than invasive refactors.
+
+Maintain full multi-tenant isolation at all times.
+
+Preserve all existing UI layouts.
+
+PHASE 7 OBJECTIVES
+7.1 Rate Limiting (Global + Scoped)
+
+Implement database-backed rate limits (using rate_limits table) via packages/api/src/rate-limiter.ts:
+
+Admin Enterprise APIs
+
+100 requests/min per admin
+
+Block floods to analytics APIs, lists, etc.
+
+Developer Portal APIs
+
+150 requests/min per developer
+
+Prevent document upload spamming
+
+Add burst ceiling 20 req / 5 seconds
+
+Tenant Portal APIs (Chat)
+
+10 messages per 30 seconds per homeowner
+
+IP-based fallback limit for unauthenticated calls
+
+Return friendly throttling messages
+
+Log all rate-limit triggers to audit_log
+
+All rate limiter code must be centralized in rate-limiter.ts.
+
+7.2 Audit Logging Expansion
+
+Upgrade audit_log table and all audit emitters:
+
+Add:
+
+actor_id
+
+actor_role
+
+ip_address
+
+request_path
+
+request_payload (JSONB subset, never embed PII)
+
+tenant_id (ensure always populated)
+
+Log the following categories:
+
+Admin logins
+
+Failed logins
+
+Homeowner impersonation
+
+Document uploads
+
+Document deletions
+
+Bulk re-ingestions
+
+Developer role updates
+
+Tenant/theme changes
+
+Rate limit fires
+
+Anomalies triggered
+
+Attempts to access unauthorized tenant data
+
+Add middleware:
+
+All /api/admin/* and /api/developers/* routes must automatically log audit events.
+
+7.3 Reinforce Role-Level Access (RBAC)
+
+Use packages/api/src/rbac.ts to standardize enforcement:
+
+Rules:
+
+super_admin — unrestricted
+
+admin — tenant-scoped only
+
+developer — development-scoped only
+
+homeowner — JWT-scoped only
+
+Required updates:
+
+Replace all ad-hoc role checks with central RBAC helpers.
+
+Prevent developer from accessing developments they don't own.
+
+Prevent admin from accessing other tenants’ analytics.
+
+Add explicit deny logs on violations.
+
+7.4 Strengthen RLS/Data Access Integrity
+Fix missing FKs:
+
+homeowners.unit_id → units.id
+
+doc_chunks.house_type_code must validate against house_types table
+
+Enforce:
+
+No API route should ever use development_id without also validating tenant_id.
+
+No API route should accept tenant_id from the client. Always infer from session.
+
+Add tenant_id + development_id composite checks everywhere.
+
+7.5 Session Hardening
+Supabase Admin Sessions
+
+Enforce short-lived admin sessions (maxAge 8h)
+
+Regenerate session on every sensitive action
+
+Enforce 2FA toggle support (placeholder only for now)
+
+Homeowner JWT
+
+Reduce JWT expiry to 14 days
+
+Add jti + session_version
+
+Add replay-attack detection
+
+Log all impersonation-based JWTs
+
+Add impersonated_by tracking
+
+7.6 Enterprise API Abuse Detection
+
+Implement /api/admin/anomalies/* endpoints:
+
+Multiple QR scans from same IP
+
+Abnormal chat volume per unit
+
+Duplicate homeowner emails across developments
+
+Failed login attempts
+
+Suspicious geocode patterns
+
+Rate limit breach patterns
+
+RAG anomaly: unusually high zero-results queries
+
+All anomalies must be backed by new SQL queries and cached.
+
+7.7 Developer Portal Lockdown
+
+Tighten all /dashboard, /developments, /documents, /homeowners routes
+
+Strip client-provided IDs from all mutations; infer everything from session
+
+Add server-side ownership checks before returning any development or document
+
+Enforce safe error fallbacks instead of exposing stack traces
+
+7.8 Error Boundaries + Safe Fallback UI
+
+In admin-enterprise/* and dashboard/*:
+
+Wrap all pages in <ErrorBoundary>
+
+Provide clear fallback messages
+
+Log frontend errors to new /api/log/client endpoint
+
+Never expose raw database or API error messages to UI
+
+7.9 Production Security Sweep
+API Hardening
+
+Remove all unused APIs
+
+Remove legacy apps (admin-portal, developer-dashboard, etc.)
+
+Ensure all CORS rules match exact origins (no *)
+
+Validate MIME types for uploads (no non-PDF when PDF expected)
+
+Database Hardening
+
+Ensure no table contains owner emails without tenant_id
+
+Add indexes to protect against slow scans
+
+Enforce NOT NULL where needed (unit_id in homeowners)
+
+WHAT THE AGENT MUST OUTPUT
+
+After running this prompt, the agent should output:
+
+Every change made
+
+Every file modified
+
+Confirmation that the app compiles
+
+Confirmation that migrations succeed
+
+Confirmation that portals still load
+
+Final checklist of all Phase 7 items

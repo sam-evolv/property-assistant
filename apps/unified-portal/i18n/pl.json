@@ -1,0 +1,26 @@
+{
+  "common": {
+    "welcome": "Witamy",
+    "send": "Wyślij",
+    "loading": "Ładowanie",
+    "error": "Błąd",
+    "success": "Sukces",
+    "cancel": "Anuluj",
+    "confirm": "Potwierdź",
+    "save": "Zapisz",
+    "delete": "Usuń",
+    "signOut": "Wyloguj się"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "developments": "Osiedla",
+    "documents": "Dokumenty",
+    "analytics": "Analityka",
+    "settings": "Ustawienia"
+  },
+  "language": {
+    "select": "Wybierz język",
+    "english": "English",
+    "polish": "Polski"
+  }
+}

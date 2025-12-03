@@ -1,0 +1,59 @@
+Setup the PropertyAssistant project for full-scale testing and training readiness.
+
+1. 🧱 Confirm folder structure
+   - Ensure /apps/tenant-portal and /apps/developer-dashboard exist
+   - Ensure /packages/db contains schema.ts and drizzle.config.ts
+   - Ensure /packages/api exists for backend routes
+   - Ensure /packages/ui contains shared components
+
+2. 🔧 Verify dependencies
+   Install or confirm these packages:
+   drizzle-orm drizzle-kit pg supabase-js dotenv
+   next react react-dom typescript tailwindcss autoprefixer postcss lucide-react
+   @radix-ui/react-dialog @radix-ui/react-tabs
+   Ensure all are listed in package.json
+
+3. ⚙️ Configure environment
+   Use Replit secrets for:
+   - SUPABASE_DB_URL
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   - OPENAI_API_KEY
+   - GOOGLE_MAPS_API_KEY
+   - SESSION_SECRET
+
+4. 🗄️ Database connection
+   - Use Replit’s internal Neon Postgres for dev (DATABASE_URL already configured)
+   - Ensure drizzle.config.ts points to process.env.DATABASE_URL
+   - Create a `.env` file that mirrors Replit secrets for local portability
+
+5. 🧩 Schema verification
+   - Check that schema.ts defines these base tables:
+     tenants, admins, documents, document_versions, noticeboard_posts, pois
+   - Run:
+       npx drizzle-kit generate --config=packages/db/drizzle.config.ts
+       npx drizzle-kit push --config=packages/db/drizzle.config.ts
+   - Verify migrations run successfully inside Replit Neon DB
+
+6. 🧠 AI integration prep
+   - Create /packages/api/train/index.ts
+   - This endpoint will accept uploaded CSVs or JSON property data and feed embeddings to OpenAI.
+   - Scaffold it but do not train yet.
+   - The endpoint should log “Training pipeline ready for data ingestion.”
+
+7. 🧪 Testing setup
+   - Launch both apps with:
+       npm run dev:tenant
+       npm run dev:dashboard
+   - Verify tenant portal loads correctly and can read from the database.
+
+8. 📦 Export & documentation
+   - Generate DEPLOY_TO_SUPABASE.md (already exists — update if needed)
+   - Create README_DEV.md explaining how to seed, test, and later train the model
+
+After completion, print:
+✅ PropertyAssistant environment fully configured
+✅ Database ready
+✅ AI training pipeline scaffolded
+✅ Ready to ingest Seaview development data next week

@@ -1,0 +1,7 @@
+{
+  "name": "@openhouse/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "client.ts",
+  "types": "client.ts"
+}

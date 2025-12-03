@@ -1,0 +1,202 @@
+You are restoring the Purchaser Portal of OpenHouse AI to the premium, original, ChatGPT-style UI/UX design.
+The current UI is incorrect, broken, and inconsistent with the global design system.
+Perform a complete architectural and visual reset.
+Implement all instructions below exactly and in full.
+
+SECTION 1 — Global Reset to Original Premium UI
+1.1 Remove ALL temporary/minimal styles
+
+– Remove blue/white temporary theme
+– Remove OpenStreetMap implementation
+– Remove minimal chat bubbles
+– Remove stripped-back headers, footers, tab-bars
+– Remove placeholder behaviour (wrong addresses, missing data, wrong flows)
+
+1.2 Reinstate original premium design language across Purchaser Portal
+
+Theme:
+– Black, white, gold accents
+– Consistent typography
+– Clean spacing, rounded corners, premium layout
+– Smooth transitions, not abrupt UI switching
+
+Navigation:
+– Restore original bottom navigation bar
+– Correct icons, correct sizes
+– Active tab highlighted in gold
+– Inactive tabs in premium grayscale
+
+Header:
+– White header with gold icon
+– Correct development name
+– No gradients unless originally designed
+
+SECTION 2 — Restore ChatGPT-Style Chat Home Screen
+
+You must rebuild the Purchaser Chat tab to match the original design:
+
+2.1 Chat Home Screen Requirements
+
+When user opens Chat tab, display:
+
+Top logo (OpenHouse AI round icon)
+Centered, premium sizing.
+
+Primary welcome message:
+“Welcome to Longview Park”
+or
+“Welcome to your Smart Home Assistant”
+
+Sub-text:
+“Ask anything about your home and we’ll assist instantly.”
+
+Four quick-action prompt buttons:
+– “What documents do I have?”
+– “What is included in my home?”
+– “How do I operate my heating system?”
+– “Show me information about my appliances.”
+
+These MUST be clickable and must send correct prompts to the AI.
+
+2.2 Chat Features to restore
+
+– Microphone dictation button
+– Language selector (actual dropdown, functioning)
+– Proper input field styling
+– White AI responses with soft shadow
+– Gold user messages
+– Smooth auto-scroll
+– No duplicate messages
+– No “message is required” errors
+– Full RAG dataset access
+
+2.3 AI Behaviour Fixes
+
+AI must:
+
+– Never ask “What is your address?” (you already know the unit)
+– Always load the correct unit name, type, docs, and details
+– Respond with full context: house type, drawings, manuals, local data
+– Use correct system instructions for the development
+
+SECTION 3 — Full Google Maps Integration (restore original)
+
+Replace OpenStreetMap entirely.
+
+3.1 Use Google Maps JS SDK
+
+– Use dynamic import to avoid SSR issues
+– Load map automatically
+– Center map on the exact unit latitude/longitude
+– Place premium gold pin
+– Popup showing:
+– Address
+– Unit type
+– Quick links (Open in Google Maps, Street View)
+
+3.2 Fix coordinate sourcing
+
+– Use unit.latitude / unit.longitude from DB
+– If missing, use development-level lat/lng
+– No hardcoded Cork coordinates ever
+
+SECTION 4 — Notices Tab (Fix + Restore)
+4.1 Restore full functionality
+
+– List all notices for development
+– Show date, title, content
+– Style in premium card format
+– Add + button to create new notices
+
+4.2 Add Notice Form
+
+– Title
+– Body
+– Optional file attachment
+– CreatedBy default to “Developer”
+
+SECTION 5 — Documents Tab (Correct Logic)
+5.1 Only show documents relevant to that user’s unit
+
+Document filtering rules:
+
+House Type–Specific Docs
+If user has BD02 → only show BD02-specific:
+– BD02 drawings
+– BD02 layout
+– BD02 elevations
+
+Universal Development Docs
+Show docs marked “global”:
+– Appliance manuals
+– Warranty docs
+– Fire safety
+– BER
+– Handover pack
+– O&M documents
+– Certificates
+
+5.2 Fix document rendering
+
+– PDF viewer inside the app
+– Download button
+– Document grouping by category
+– Correct icons
+
+SECTION 6 — Language Selector (Fix)
+6.1 Restore dropdown with all languages
+
+– English
+– Polish
+– Spanish
+– Russian
+– Brazilian Portuguese
+– Latvian
+– Lithuanian
+– Romanian
+– Others
+
+6.2 Apply runtime language switching
+
+– Translations for UI labels
+– Translations for quick prompts
+– Translations for system responses
+– Persist language in localStorage
+
+SECTION 7 — Home Button Fix
+7.1 Home button behaviour
+
+Pressing “Home” must:
+
+– Go back to the ChatGPT-style home screen
+– Not show the last message
+– Not reload the whole app
+– Not break navigation
+
+SECTION 8 — Overall Functionality Testing
+Must verify:
+
+– Onboarding animation works
+– User flows not broken
+– Correct unit loaded from QR token
+– All surveys/data loaded correctly
+– Chat fully functional
+– Maps correct
+– Notices correct
+– Docs correct
+– Language switching correct
+– No console errors
+– No 404s
+– No latent OpenStreetMap code
+
+SECTION 9 — Deliverables
+
+Agent must deliver:
+
+A fully rebuilt Purchaser Portal matching the designed premium UX, with full Google Maps, full chat functionality, unit-specific documents, correct language switching, working notices, working home behaviour, and all styling restored to the professional EvolvAI standard.
+
+No partial fixes.
+No minimal UI.
+No downgrades.
+No missing features.
+Complete restoration.

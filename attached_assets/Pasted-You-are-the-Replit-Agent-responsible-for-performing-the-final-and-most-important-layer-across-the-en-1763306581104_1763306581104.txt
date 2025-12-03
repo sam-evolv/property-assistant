@@ -1,0 +1,249 @@
+You are the Replit Agent responsible for performing the final and most important layer across the entire OpenHouse AI platform.
+
+Your purpose in this prompt is to unify, simplify, beautify, and polish the entire experience — technically, visually, and emotionally — so OpenHouse AI becomes a product that feels premium, obvious, calming, intuitive, and delightful for every user: super admin, developer, homeowner.
+
+This prompt resolves all remaining loose ends across UX, UI, flow, clarity, accessibility, consistency, animations, content, onboarding narrative, branding, and interaction quality.
+
+────────────────────────────────────────
+0. CORE PRINCIPLES — WHAT THIS PASS MUST ACHIEVE
+────────────────────────────────────────
+
+Every part of the platform must become:
+
+1. **Instantly understandable**  
+2. **Effortlessly intuitive**  
+3. **Aesthetically cohesive**  
+4. **Brand-perfect (white/black/gold)**  
+5. **Emotionally reassuring**  
+6. **Clean, quiet, and uncluttered**  
+7. **Fast and fluid**  
+8. **Consistent everywhere**  
+9. **Friendly but professional**  
+10. **Pleasing to use even for non-tech people**
+
+You are making the product feel like Apple built a property handover system.
+
+────────────────────────────────────────
+1. UNIFY VISUAL & UX PATTERNS ACROSS BOTH PORTALS
+────────────────────────────────────────
+
+Apply consistent patterns across all screens in both portals:
+
+- Page headers  
+- Title/subtitle typography  
+- Section spacing  
+- Cards (shape, shadow, gold accent)  
+- Buttons (black, gold, white variants)  
+- Navigation (sidebar, bottom nav)  
+- Tabs (gold underline animation)  
+- Dialogs/modals  
+- List items (documents, posts, houses)  
+- Input fields & forms  
+
+Audit every screen and align them to a single unified design language.
+
+────────────────────────────────────────
+2. ELIMINATE ALL VISUAL NOISE & REDUNDANCY
+────────────────────────────────────────
+
+Remove:
+
+- Duplicate labels  
+- Unnecessary borders  
+- Busy icons  
+- Extraneous text  
+- Overly wordy instructions  
+- Technical wording in consumer UI  
+- Components that fight for attention  
+
+Replace with:
+
+- Clear headings  
+- Smooth spacing  
+- Minimal elements  
+- One clear call-to-action per screen  
+
+Simplify flows until every user instantly understands what to do.
+
+────────────────────────────────────────
+3. CREATE A BEAUTIFUL, TRUST-BUILDING ONBOARDING FLOW
+────────────────────────────────────────
+
+Homeowner onboarding must feel:
+
+- welcoming  
+- modern  
+- premium  
+- calming  
+- easy  
+
+Implement:
+
+- Short, friendly copy  
+- Three-step “Welcome to Your New Home” flow  
+- Gold accent illustrations/icons  
+- Smooth transitions  
+- Clear next steps  
+
+Developer onboarding must feel:
+
+- powerful  
+- clean  
+- enterprise-ready  
+- straightforward  
+
+Implement:
+
+- “Add Development” wizard  
+- Previews before creation  
+- Clear mapping between tenant → development → houses  
+
+────────────────────────────────────────
+4. ADD MICRO-ANIMATIONS & INTERACTION DELIGHT
+────────────────────────────────────────
+
+Introduce subtle but delightful microinteractions:
+
+- gold shimmer on key buttons  
+- fade/slide transitions between tabs  
+- smooth chat bubble appearance  
+- document upload drop-zone animation  
+- elegant loading skeletons  
+- hover elevation on cards  
+- subtle gold glow during active states  
+
+These must be tasteful, minimal, premium — no gimmicks.
+
+────────────────────────────────────────
+5. REWRITE ALL EMPTY STATES WITH BEAUTY & CLARITY
+────────────────────────────────────────
+
+For every list (documents, houses, chat, noticeboard), create elegant empty states:
+
+- Clean illustrations  
+- Simple copy  
+- Gold accent  
+- Clear next action button  
+
+Example for documents:
+“Nothing here yet — upload your first document and we’ll take care of the rest.”
+
+────────────────────────────────────────
+6. REWORK INFORMATION HIERARCHY & FLOW
+────────────────────────────────────────
+
+Reorganise content so users always see:
+
+1. **What is this screen?**  
+2. **What can I do here?**  
+3. **What is the next action?**  
+
+Ensure:
+
+- Primary actions appear top-right or bottom-right  
+- Secondary actions styled minimally  
+- Page titles are strong and confident  
+- Sections are grouped logically  
+
+Developer Portal must feel structured like a premium dashboard.  
+Tenant Portal must feel smooth like a native app.
+
+────────────────────────────────────────
+7. REMOVE ALL ROUGH EDGES & FRICTION
+────────────────────────────────────────
+
+Fix or improve:
+
+- inconsistent padding  
+- misaligned elements  
+- broken breakpoints  
+- mobile layout issues  
+- text that wraps poorly  
+- buttons that jump  
+- icons that aren't in brand colors  
+- jittery tab transitions  
+- confusing labels (“Documents” vs “Training”)  
+
+Nothing should feel sloppy or half-finished.
+
+────────────────────────────────────────
+8. BEAUTIFY THE AI ELEMENTS
+────────────────────────────────────────
+
+Chat must feel:
+
+- intelligent  
+- premium  
+- friendly  
+- structured  
+- responsive  
+
+Implement:
+
+- clean dual-bubble design  
+- gold highlight on AI name  
+- typing indicator with gold dots  
+- smooth scrolling  
+- message grouping  
+- readable message width  
+
+Add friendly system messages:
+“Ask me anything about your home or your estate.”
+
+────────────────────────────────────────
+9. UNIFY COPYWRITING, TONE & MESSAGING
+────────────────────────────────────────
+
+Rewrite all copy across the platform so it is:
+
+- friendly  
+- professional  
+- concise  
+- helpful  
+- non-technical (consumer side)  
+- confident (developer side)  
+
+Remove engineering jargon.  
+Remove fluff.  
+Every line of text should feel intentional.
+
+────────────────────────────────────────
+10. PERFORM THE “GRAND TOUR”
+────────────────────────────────────────
+
+Travel through every screen in both portals and fix:
+
+- spacing  
+- alignment  
+- colours  
+- icons  
+- animations  
+- UX flows  
+- typography  
+- responsiveness  
+- error states  
+- empty states  
+- loading states  
+
+Do not leave a single element untouched.
+
+This is an aesthetic and functional consistency sweep.
+
+────────────────────────────────────────
+11. FINAL UNIFICATION VALIDATION
+────────────────────────────────────────
+
+Before completing, confirm:
+
+✔ Every screen feels like part of one premium product  
+✔ Every element respects the white/black/gold theme  
+✔ All flows are intuitive without explanation  
+✔ All interactions feel polished, premium, and calm  
+✔ No page looks like a developer tool, everything looks intentional  
+✔ The homeowner experience feels world-class  
+✔ The developer experience feels enterprise-grade  
+✔ The entire product is something you’d be proud to put in front of a major property developer  
+
+Deliver a platform that feels **beautiful, simple, premium, calming, and trustworthy**.
+
+Begin the unification pass now.

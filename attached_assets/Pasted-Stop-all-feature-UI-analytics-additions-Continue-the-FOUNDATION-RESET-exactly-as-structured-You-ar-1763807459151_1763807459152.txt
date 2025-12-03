@@ -1,0 +1,136 @@
+Stop all feature/UI/analytics additions.
+Continue the FOUNDATION RESET exactly as structured.
+You are now executing STEP 3 — ANALYTICS FRONTEND RECONNECTION & SAFETY LAYER IMPLEMENTATION.
+
+Your objectives:
+
+1. FIND & REMOVE ALL BROKEN ANALYTICS IMPORTS
+
+Search for:
+
+useAnalytics
+AnalyticsCard
+fetchAnalytics
+getAnalytics
+analytics/
+@analytics-engine
+
+
+For every file that references the old analytics logic:
+
+Comment out the old import
+
+Replace with a temporary stub module from packages/analytics-engine
+
+Prevent all “undefined.call”, “undefined.map”, and similar runtime errors
+
+Use this safe stub:
+
+import { getEmptyAnalytics } from "analytics-engine";
+
+const analytics = getEmptyAnalytics();
+
+
+This temporary stub prevents runtime errors.
+
+2. REPLACE ALL BROKEN CHART / CARD QUERIES WITH STUB DATA
+
+Any component calling analytics APIs must temporarily:
+
+Import the stub
+
+Render a placeholder value (0, [], "—")
+
+This is required to get the entire platform to boot.
+
+3. RE-WIRE THE FRONTEND TO THE NEW ANALYTICS ENGINE FOLDER
+
+All analytics should now reference:
+
+packages/analytics-engine/src/*.ts
+
+
+Add a tsconfig.paths alias:
+
+"paths": {
+  "analytics-engine": ["packages/analytics-engine/src/index.ts"]
+}
+
+
+Then make all analytics imports start using this alias.
+
+4. FIX ALL HYDRATION ERRORS RELATED TO ANALYTICS
+
+Search project-wide for:
+
+useEffect(() => fetchAnalytics…
+
+
+Replace with:
+
+Server actions or
+
+A safe client-side wrapper:
+
+const safe = typeof window !== "undefined";
+if (!safe) return null;
+
+
+Hydration errors must be eliminated completely.
+
+5. REBUILD THE ANALYTICS PROVIDER (TEMP VERSION)
+
+Create:
+
+packages/analytics-engine/src/provider.tsx
+
+
+Implement a lightweight placeholder provider that:
+
+never throws
+
+returns stable default values
+
+logs calls without failing UI
+
+Append to provider:
+
+console.log("[analytics placeholder] called:", args);
+
+6. ENSURE THE PLATFORM CAN BOOT CLEANLY
+
+Once stubs are wired in:
+
+Boot unified-portal (port 5000)
+
+Boot purchaser app (port 3000)
+
+Boot developer portal
+
+Boot superadmin dashboard
+
+Stop only when every surface loads without:
+
+red screens
+
+undefined errors
+
+hydration mismatches
+
+missing providers
+
+7. REPORT BACK
+
+After applying all fixes, generate:
+
+logs/FOUNDATION_RESET_STEP_3_REPORT.md
+
+Containing:
+
+all files touched
+
+all analytics dependencies rewired
+
+all hydration issues eliminated
+
+all components successfully booting

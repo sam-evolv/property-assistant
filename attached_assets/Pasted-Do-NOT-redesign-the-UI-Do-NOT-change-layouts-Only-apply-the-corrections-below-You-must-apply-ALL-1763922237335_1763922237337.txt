@@ -1,0 +1,210 @@
+Do NOT redesign the UI. Do NOT change layouts. Only apply the corrections below.
+
+You must apply ALL of the following upgrades without altering the structure, style, or layout of the existing purchaser portal.
+The final UI must look identical to the screenshots provided, except for the improvements below.
+
+1. CHAT — FINAL UX CORRECTIONS (CRITICAL)
+A. Stop repeating greetings
+
+The assistant is still repeating:
+
+“Good evening…”
+
+purchaser names
+
+the full address
+
+“Welcome to Longview Park…”
+
+This greeting must appear only once, the first time the chat loads.
+After the first message, the assistant must speak normally — no repeated greetings, no repeated names, no repeated address.
+
+Implement:
+
+A session_greeting_sent boolean tracked per user session.
+
+If false → send greeting once.
+
+If true → never send greeting again.
+
+B. House type auto-detection still not fully enforced
+
+When asked “what size is my living room?” the assistant still asks the user to provide their house type.
+
+This is incorrect.
+
+Implement:
+
+Auto-inject the house_type_code and house metadata into every chat request.
+
+Assistant must always know the purchaser’s house type.
+
+Assistant must never ask the user for their house type again.
+
+The system must pull house type from the Units table via QR token -> purchaser -> unit -> house_type_code.
+
+2. DOCUMENTS TAB — MUST BE FULLY POPULATED
+
+Currently still showing No documents yet.
+You must implement the correct document mapping logic:
+
+A. Include documents as follows:
+
+Global documents
+Any document with metadata:
+
+is_global=true, OR
+
+no house type assigned, OR
+
+category applies to all houses
+must appear for all purchasers.
+
+House-specific documents
+For this unit (BDO01), include any document that matches:
+
+metadata.house_types contains "BDO01" (case-insensitive)
+
+metadata.unit_type matches "BDO01"
+
+filename or slug contains "bdo01"
+
+OR database house_type_code = "BDO01"
+
+Everything else that is relevant
+Any PDF not tied to another specific house type should appear under global.
+
+B. There are ~170+ documents already stored in Longview Park
+
+All valid documents must display in the purchaser UI with categories (Handover, Snagging, Warranties, Fire Safety, Appliances, Floorplans, etc.).
+
+C. No accordion
+
+Use the simple grid layout you used before.
+
+3. MAPS TAB — FINAL UPGRADE
+A. Replace dots with actual map PIN markers
+
+Use the official Google Maps pin shape.
+Colour = the same gold used in the UI.
+
+B. Continue using Places Details API
+
+But upgrade the info panel to show:
+
+Name
+
+Rating
+
+Reviews count
+
+Category
+
+Opening hours
+
+Website
+
+Phone number
+
+Photos (if available)
+
+Directions button → opens Google Maps / Apple Maps
+
+C. Center map EXACTLY at:
+
+Latitude: 51.926500
+Longitude: -8.453200
+
+4. CHAT INPUT BOX — VISUAL FIX
+
+Change the bottom input bar from rectangle to:
+
+Fully pill-shaped
+
+Light grey background (same style as before)
+
+Keep microphone + send icons
+
+Same shape as modern ChatGPT / Gemini.
+
+5. DEVELOPER LOGO UPLOAD FEATURE
+
+Implement the following:
+
+In the Developer Portal, add a new section under Development Settings → “Branding”
+
+Allow upload of developer logo
+
+Store in Supabase storage
+
+Save the file URL into the developments.logo_url field
+
+In the purchaser portal header → show developer’s logo instead of generic icon
+
+Must support PNG, JPG, SVG.
+
+6. END-TO-END TESTING TASK
+
+After implementing all fixes, run a full E2E validation:
+
+Test 1 — Chat
+
+No greeting repeated
+
+House type auto-detected
+
+Uses house metadata correctly
+
+Answers correctly
+
+Local reasoning pulls from correct documents and metadata
+
+Test 2 — Documents
+
+All global docs visible
+
+All BDO01-specific docs visible
+
+No documents from other house types
+
+Categories working
+
+Search working
+
+Test 3 — Maps
+
+Pins not dots
+
+Gold colour
+
+Correct coordinates
+
+Place details populated
+
+Navigation button works
+
+Test 4 — UI
+
+Input bar pill-shaped
+
+UI identical to screenshots
+
+No regressions
+
+No unexpected redesign
+
+7. ABSOLUTE RULES
+
+Do NOT change the overall UI layout.
+
+Do NOT delete or simplify any tabs.
+
+Do NOT re-theme the design.
+
+Do NOT remove icons or styling elements already working.
+
+Only implement the items above.
+
+If any unclear internal behaviours appear during implementation, the Agent must pause and request clarification instead of making assumptions.
+
+END OF PROMPT

@@ -1,0 +1,242 @@
+You are restoring the ENTIRE Purchaser Portal UI/UX and logic so it EXACTLY matches the premium, polished, ChatGPT-style interface originally designed by Sam Donworth for OpenHouse AI.
+
+The current implementation has drifted significantly. You must restore:
+
+– The premium black / white / gold theme
+– The ChatGPT-style home screen
+– The ChatGPT-style chat interface
+– The Google Maps tab with real-time correct geolocation
+– The correct Documents filtering logic per house type
+– The correct Notices board
+– The correct multilingual system with dropdown
+– The correct bottom toolbar
+– The correct introduction animation and dynamic purchaser greeting
+– The correct RAG behaviour for answering questions using documents
+
+This prompt overrides all previous prompts.
+Follow EVERYTHING below as the source of truth.
+
+SECTION 1 — RESTORE CHAT TAB (Phase 7.1)
+THE CHAT TAB MUST LOOK EXACTLY LIKE:
+
+1. Opening animation:
+– Already restored, do not modify.
+
+2. Home screen must match ChatGPT layout:
+– White background
+– Logo centered
+– “Welcome to Longview Park” (or dynamic name)
+– Subheading: “Ask anything about your home and we’ll help instantly.”
+– Four quick-action prompts in rounded boxes:
+– “What heating system do I have?”
+– “How do I use my heat pump?”
+– “Where is my fuse board?”
+– “Show me my warranty information”
+– These must produce messages immediately when tapped (no modal).
+
+3. After user sends a message:
+– Switch to standard chat UI
+– White chat bubbles for user
+– Gold/grey chat bubbles for assistant
+– Rounded edges
+– Smooth, modern transitions
+
+4. Microphone must work for dictation:
+– Re-enable Web Speech API
+– Fall back to text-only if unsupported
+
+5. Language dropdown:
+– Actual dropdown with 20 languages
+– When switched, UI strings must update immediately
+– Chat history must NOT reset
+
+6. Correct greeting:
+“Good afternoon <Name>, welcome to <Development>.
+How can I help with your home at <Address>?”
+
+This must be triggered once per session.
+
+SECTION 2 — RESTORE MAPS TAB (Phase 7.2)
+MANDATORY REQUIREMENT: GOOGLE MAPS ONLY
+
+Remove Leaflet and ALL references to OpenStreetMap.
+
+Replace with:
+
+import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+
+The Maps tab must:
+
+Automatically load Google Maps centered on the purchaser’s exact house location.
+
+Use the real address stored in units.address.
+
+Display a gold Google Maps marker.
+
+Include buttons:
+– “Open in Google Maps”
+– “Open in Apple Maps”
+
+Maintain black/white/gold theme.
+
+SECTION 3 — DOCUMENTS LOGIC (Phase 7.3)
+
+You MUST implement CORRECT document filtering.
+
+Document categories:
+
+House-type specific drawings
+
+General documents applicable to ALL units
+
+RULES:
+
+House-type drawings
+Include ONLY documents whose filename contains the exact unit type match.
+Examples:
+If the user’s house type = BD01
+Include ONLY PDFs whose name contains:
+– BD01
+– BD01_FloorPlans
+– BD01_Dimensions
+etc.
+
+General documents
+Include ALL documents with:
+– No unit type in filename
+– Or explicitly tagged as “General”
+
+Dynamic mapping:
+
+The system must auto-detect unit type codes such as:
+BD01, BD02, BS01, BS02, BT01, BT02, ALD01, ALD02 etc.
+
+Documents Tab UI:
+
+– Premium gold/black styling
+– Segmented layout:
+– “Your House Drawings”
+– “General Development Documents”
+– Each with collapsible accordions
+
+MUST FIX:
+
+All documents uploaded in the developer portal must correctly appear in purchaser portal based on rules above.
+
+SECTION 4 — NOTICES TAB (Phase 7.4)
+Requirements:
+
+– Black/white/gold UI
+– Floating gold “+” button in bottom right
+– Clicking opens modal:
+– Title
+– Description
+– Date
+– Notices must display newest first
+– Notices must be linked to development ID
+
+SECTION 5 — LANGUAGE SWITCHING (Phase 7.5)
+Requirements:
+
+– Dropdown (not inline buttons)
+– Real runtime translations
+– DOES NOT reload page
+– DOES NOT reset chat
+– Applies to all UI elements:
+– Home screen text
+– Quick prompts
+– Placeholder text
+– Navigation bar
+– Notices titles
+– Documents tab headings
+– Error messages
+
+Translation system must use the existing JSON files and must be extendable.
+
+SECTION 6 — RAG LOGIC FIXES (GLOBAL)
+MANDATORY BEHAVIOUR:
+
+When the user asks ANY question, the assistant MUST:
+
+Use the RAG system
+
+Pull relevant chunks from documents
+
+Answer based on actual property documentation
+
+Stop asking users for address
+
+Stop responding generically
+
+Reference exact material from documents
+
+Fix required:
+
+The assistant must ALWAYS supply the correct answer if information exists in documents.
+
+Add soft fallback:
+
+If documentation exists → answer with details
+If documentation does NOT exist →
+“Based on the documents available for your home, I don’t see details for this item. Would you like me to check with your developer?”
+
+SECTION 7 — GLOBAL UI/UX CONSISTENCY
+Main theme across all screens:
+
+– Background: #ffffff
+– Text: #000000
+– Gold buttons: #D4A017 → #F2C94C gradient
+– Headers: Black text, medium weight
+– Icons: Material Icons, gold/black
+– Bottom tab bar: same as current (good)
+
+Fix spacing, padding, margins to original specification.
+SECTION 8 — SYSTEM-WIDE CORRECTIONS
+Ensure:
+
+– No login screen is ever shown for QR-scan users
+– The introduction animation ALWAYS plays
+– The correct address is always loaded
+– The correct development name always loads
+– User context must persist across tabs
+– Typing indicator must function
+– Voice input must work
+– Network errors must gracefully retry
+
+SECTION 9 — EXECUTION ORDER
+
+Agent must perform tasks in this exact order:
+
+Restore chat UI (7.1)
+
+Restore maps to Google Maps (7.2)
+
+Fix document filtering logic (7.3)
+
+Fix notices board (7.4)
+
+Fix language system (7.5)
+
+Fix RAG logic
+
+Fix global UI/UX theme
+
+Fix animations + user detection
+
+Run full test suite
+
+Show you a deploy-ready version
+
+SECTION 10 — DELIVERABLES
+
+At the end the agent must output:
+
+A summary of all files changed
+
+A screenshot or rendered preview
+
+A verification checklist comparing behaviour to this prompt
+
+Confirmation that QR onboarding works
+
+Confirmation that RAG answers correctly

@@ -1,0 +1,340 @@
+You must upgrade the tenant-portal map feature so that:
+
+The map is centred on the current purchaser’s own unit address (e.g. “1 Longview Park, Ballyvolane, Cork City”).
+
+All map data is scoped to the active development (taken from JWT / DevelopmentContext).
+
+The Points of Interest (POIs) use real Google Maps / Places data around the development, grouped into sensible, user-friendly categories.
+
+The UX is clean and intuitive – owners should naturally want to explore their area from this screen.
+
+Use the existing secrets:
+
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+any server-side Google key already configured (if a separate server-side key exists, prefer that for Places/Geocode).
+
+Do not break existing chat or documents behaviour.
+
+STEP 0 – DISCOVERY
+
+Search the repo for the current map implementation:
+
+Likely in apps/tenant-portal/app/(public)/map/page.tsx or similar.
+
+Also check for components like MapView, GoogleMap, MapTab, etc.
+
+Identify:
+
+How the current map centre is chosen (probably hardcoded or default coordinates).
+
+How, if at all, POIs are being loaded (static JSON or not implemented).
+
+Where DevelopmentContext / JWT is read in the tenant portal.
+
+Confirm DB schema for:
+
+developments table – does it already have latitude, longitude, or centre_point columns?
+
+units or houses table – does it contain full address, and does it already have lat/lng?
+
+Files to inspect: packages/api/src/db/schema.ts, tenants.ts, seed.ts, etc.
+
+STEP 1 – STORE GEOLOCATION FOR UNITS (AND OPTIONALLY DEVELOPMENTS)
+
+Goal: every purchaser’s unit has a precise lat/lng so we can centre the map on their own front door.
+
+If units table does not have lat/lng fields, add them:
+
+export const units = pgTable("units", {
+  // existing fields...
+  latitude: numeric("latitude", { precision: 9, scale: 6 }).nullable(),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }).nullable(),
+});
+
+
+Add a migration:
+
+ALTER TABLE units
+ADD COLUMN IF NOT EXISTS latitude numeric(9, 6),
+ADD COLUMN IF NOT EXISTS longitude numeric(9, 6);
+
+
+If developments does not have lat/lng yet, also add:
+
+export const developments = pgTable("developments", {
+  // existing...
+  latitude: numeric("latitude", { precision: 9, scale: 6 }).nullable(),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }).nullable(),
+});
+
+
+With analogous migration.
+
+Geocoding strategy
+
+Implement a backend utility in packages/api/src/maps/geocode.ts that calls the Google Geocoding API for a given address string, returning { lat, lng }.
+
+Build the full address string from existing fields on units or from a combined address column (e.g. "1 Longview Park, Ballyhooly Road, Ballyvolane, Cork City").
+
+Example (pseudo-code, not necessarily exact fetch syntax):
+
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.status !== "OK" || !data.results?.length) return null;
+  const loc = data.results[0].geometry.location;
+  return { lat: loc.lat, lng: loc.lng };
+}
+
+
+Backfill / on-demand geocoding
+
+Implement a safe, rate-limited mechanism so we do not exceed Google quotas:
+
+Option A (preferred): create an internal script (e.g. scripts/backfill-unit-geo.ts) that geocodes all units once and stores lat/lng.
+
+Option B: when a purchaser hits the map endpoint and the unit has no lat/lng, geocode once and store the result.
+
+Implement Option B in the API (see Step 2) with a guard:
+
+if (!unit.latitude || !unit.longitude) {
+  const fullAddress = buildFullAddress(unit, development);
+  const geo = await geocodeAddress(fullAddress);
+  if (geo) {
+    await db.update(units)
+      .set({ latitude: geo.lat, longitude: geo.lng })
+      .where(eq(units.id, unit.id));
+  }
+}
+
+STEP 2 – MAP CONTEXT API: RETURN USER’S HOME COORDS + POIs
+
+Create a dedicated API route that powers the tenant-portal map.
+
+Add route in the API layer, something like:
+
+apps/tenant-portal/app/api/map/context/route.ts
+
+or centralised under packages/api/src/maps/route.ts and re-exported.
+
+This route must:
+
+Read JWT / DevelopmentContext via existing helper (same as chat):
+
+development_id
+
+unit_id
+
+house_type_code (not essential for maps but keep in context).
+
+Load the unit from DB (using unit_id) and join to development.
+
+Ensure we have lat/lng for the unit (run on-demand geocode if missing, as above).
+
+Decide the map centre as the unit coordinates; if for any reason missing, fall back to the development centre.
+
+Define POI categories (forward-looking, user-friendly):
+
+Use Google Places “Nearby Search” around the centre point with radius ~2–3km.
+
+Suggested categories and Places types:
+
+Groceries & Essentials: supermarket, grocery_or_supermarket, convenience_store
+
+Schools & Education: primary_school, secondary_school, school
+
+Parks & Green Areas: park, tourist_attraction (filtered)
+
+Cafés & Restaurants: cafe, restaurant, bakery
+
+Gyms & Fitness: gym
+
+Health & Pharmacy: pharmacy, doctor, hospital
+
+Public Transport: bus_station, train_station, light_rail_station, transit_station
+
+Childcare (if available): child_care
+
+Implement a utility:
+
+const CATEGORY_CONFIG = {
+  groceries: { label: "Groceries", types: ["supermarket", "grocery_or_supermarket", "convenience_store"] },
+  schools: { label: "Schools", types: ["primary_school", "secondary_school", "school"] },
+  parks: { label: "Parks & Green Areas", types: ["park"] },
+  cafes: { label: "Cafés & Restaurants", types: ["cafe", "restaurant", "bakery"] },
+  fitness: { label: "Gyms & Fitness", types: ["gym"] },
+  health: { label: "Health & Pharmacy", types: ["pharmacy", "doctor", "hospital"] },
+  transport: { label: "Public Transport", types: ["bus_station", "train_station", "transit_station"] },
+} as const;
+
+
+For each category, query the Google Places Nearby Search API once:
+
+async function fetchNearbyPlaces(lat: number, lng: number, types: string[]): Promise<PlaceSummary[]> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const typeParam = types[0]; // pick primary type (Places only accepts one `type`)
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2500&type=${typeParam}&key=${apiKey}`;
+  // fetch, parse and normalise fields: id, name, location, vicinity, rating, user_ratings_total, opening_hours.open_now, etc.
+}
+
+
+Optimise:
+
+Only fetch a handful of top places per category (e.g. 10).
+
+De-duplicate if the same place appears under multiple types.
+
+API response structure:
+
+return NextResponse.json({
+  centre: {
+    lat: unit.latitude,
+    lng: unit.longitude,
+    address: fullAddress,
+    unit_number: unit.unit_number,
+    development_name: development.name,
+  },
+  pois: {
+    groceries: PlaceSummary[],
+    schools: PlaceSummary[],
+    parks: PlaceSummary[],
+    cafes: PlaceSummary[],
+    fitness: PlaceSummary[],
+    health: PlaceSummary[],
+    transport: PlaceSummary[],
+  },
+});
+
+
+Log key events for debugging (but avoid logging full JWT / secrets).
+
+STEP 3 – UPGRADE TENANT-PORTAL MAP UI
+
+Goal: a delightful but simple map screen.
+
+Locate the tenant map page/component, e.g.:
+
+apps/tenant-portal/app/(public)/map/page.tsx
+
+or MapTab.tsx within a tabbed layout.
+
+Replace any static centre with a fetch to the new API:
+
+useEffect(() => {
+  async function loadMapContext() {
+    setLoading(true);
+    const res = await fetch("/api/map/context", { credentials: "include" });
+    if (!res.ok) {
+      setError("Could not load map");
+      setLoading(false);
+      return;
+    }
+    const data = await res.json();
+    setCentre(data.centre);
+    setPois(data.pois);
+    setLoading(false);
+  }
+  loadMapContext();
+}, []);
+
+
+Implement the map using the Google Maps JavaScript API (or an existing React wrapper already in the project). Requirements:
+
+Initial centre at centre.lat/lng.
+
+A clear marker or pin for “Your Home”.
+
+Zoom level appropriate for neighbourhood view (e.g. 14–15).
+
+Responsive on mobile.
+
+Implement category filters as top chips / buttons:
+
+Each category (Groceries, Schools, Parks, Cafés, Fitness, Health, Transport).
+
+Default: show all categories enabled.
+
+Tapping a chip toggles visibility of that category’s POIs on the map.
+
+Marker behaviour:
+
+Distinguish “Home” marker visually.
+
+Use different marker colours or icons per category.
+
+On tap/click, show an info window with:
+
+Place name
+
+Category text (e.g. “Supermarket”)
+
+Distance from home (calculate from coordinates using haversine formula on client)
+
+Rating and “open now” status if available
+
+A “View in Maps” link to open Google Maps directions (use standard https://www.google.com/maps/search/?api=1&query=lat,lng).
+
+Above the map, show a simple context header:
+
+“Exploring around 1 Longview Park” (use centre.unit_number + development_name).
+
+One-line explainer: “Tap a category to explore local amenities around your home.”
+
+Handle loading and empty states cleanly:
+
+While loading: skeleton or spinner with message “Loading your neighbourhood…”.
+
+If API error: message “We couldn’t load the map right now. Please try again later.”
+
+If a category has no POIs: do not error, just show no markers for that category.
+
+STEP 4 – LONGVIEW PARK VALIDATION
+
+Use the Longview Park dataset you already have:
+
+Units for 1–75 Longview Park.
+
+Development address: “Longview Park, Ballyhooly Road, Ballyvolane, Cork City”.
+
+For a sample purchaser (e.g. 1 Longview Park):
+
+Scan their QR.
+
+Open the Map tab.
+
+Confirm:
+
+Home pin is located on their actual house (within reasonable geocode accuracy).
+
+Category chips show.
+
+POIs clearly reflect Cork local area around Ballyvolane (groceries, schools, etc.).
+
+Tapping POIs shows the expected details and opens Google Maps correctly.
+
+Repeat with at least one other unit to confirm that map centre changes per unit, not hardcoded to the development only.
+
+Check logs for:
+
+map/context API being called with correct unit_id and development_id.
+
+Minimal geocoding calls once lat/lng has been stored.
+
+STEP 5 – PERFORMANCE, QUOTAS, AND SAFETY
+
+Implement basic caching server-side for POIs:
+
+Cache results per development (or per centre lat/lng rounded to 4 decimal places) for at least 12 hours to reduce Google Places calls.
+
+Use an in-memory cache or existing caching utility if available.
+
+Guardrails:
+
+If Places API quota is exceeded or fails, still return centre with an empty pois object and an error flag. The map should still show “Home” even if POIs are temporarily unavailable.
+
+Ensure no secrets are exposed to the client beyond NEXT_PUBLIC_GOOGLE_MAPS_API_KEY that is already intended for client use.
+
+Deliver this in a clean, incremental PR-level change set, with clear comments in new mapping utilities and a short note in README_DEV.md explaining how the map system works and where to configure Google keys.

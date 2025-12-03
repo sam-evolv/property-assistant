@@ -1,0 +1,82 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant platform.
+
+Your task is to execute **PHASE 14 — CHAT HISTORY PERSISTENCE + CITATIONS PANEL + MESSAGE STORAGE**.
+
+This phase makes the chat experience production-ready by adding long-term storage, context retrieval, and proper UI for citations returned by the RAG pipeline.
+
+Work strictly within existing architecture and conventions.
+
+────────────────────────────────────────────────────────
+PHASE 14 OBJECTIVES
+────────────────────────────────────────────────────────
+
+1. Chat Message Persistence (Backend)
+   • Update the /api/chat route to:
+       – Write each user message and assistant message into the `messages` table
+       – Include tenant_id, development_id, house_id
+       – Store citations array if available
+   • Each message row must contain:
+       – id
+       – tenant_id
+       – development_id
+       – house_id (nullable)
+       – sender (“user” or “assistant”)
+       – content
+       – citations (jsonb)
+       – created_at
+
+2. Load Chat History on Page Load
+   • Tenant Portal /chat page must:
+       – Decode JWT for house_id / tenant / development
+       – Call new /api/chat/history route
+       – Load last N messages (default 50)
+       – Auto-scroll to bottom
+
+3. Build /api/chat/history
+   • Accept homeowner JWT
+   • Enforce RLS
+   • Return chronological messages for this specific house_id
+   • Include citations array for assistant messages
+
+4. Citations Panel UI (Tenant Portal)
+   Implement a modern, collapsible citations section:
+
+   • Under each assistant message, show:
+       – “Sources”
+       – Click to expand panel revealing:
+           * Document title
+           * Snippet
+           * “Open Document” button
+   • Make it aligned with your existing theme variables
+   • Mobile friendly
+   • Smooth animation for expand / collapse
+
+5. Improve Chat Bubble UX
+   • Slight rounding and spacing improvements
+   • Different bubble background for developer theme
+   • Add timestamp under each message (local timezone)
+   • Ensure timestamps do NOT break on mobile
+
+6. RAG Pipeline Enhancement
+   • Include citations array in assistant response payload:
+       – doc_id
+       – chunk_text
+       – file_name
+   • Pass citations to message persistence layer
+
+7. Edge Cases
+   • No history → show friendly onboarding message
+   • Corrupt JWT → redirect to onboarding
+   • Large history → paginate or limit to last 50 messages
+
+8. Deliverables
+   • Updated /api/chat route (save messages + citations)
+   • New /api/chat/history route
+   • Tenant Portal: history loading + safe scroll
+   • Tenant Portal: citations UI added to assistant messages
+   • Full mobile polish
+   • docs/PHASE_14_SUMMARY.md created
+
+────────────────────────────────────────────────────────
+
+Proceed with PHASE 14 now.

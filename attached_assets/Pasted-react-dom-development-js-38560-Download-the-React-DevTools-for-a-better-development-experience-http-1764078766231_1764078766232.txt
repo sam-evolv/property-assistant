@@ -1,0 +1,33 @@
+react-dom.development.js:38560 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+DevelopmentContext.tsx:44 [DevelopmentContext] Hydrating Object
+AuthContext.tsx:47 [AuthContext] Hydrating Object
+DevelopmentContext.tsx:44 [DevelopmentContext] Hydrating Object
+AuthContext.tsx:47 [AuthContext] Hydrating Object
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:74 [Fast Refresh] done in 1460ms
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:74 [Fast Refresh] done in 1618ms
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:74 [Fast Refresh] done in 1831ms
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:74 [Fast Refresh] done in 1686ms
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:74 [Fast Refresh] done in 634ms
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+hot-reloader-client.tsx:297 [Fast Refresh] rebuilding
+/api/documents/b92bb9a9-5f51-4b1a-9083-55336e920a5b/important:1   Failed to load resource: the server responded with a status of 405 (Method Not Allowed)
+app-index.tsx:25  Failed to toggle importance: SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at toggleImportance (page.tsx:204:33)
+window.console.error @ app-index.tsx:25
+/api/documents/b92bb9a9-5f51-4b1a-9083-55336e920a5b/important:1   Failed to load resource: the server responded with a status of 405 (Method Not Allowed)
+app-index.tsx:25  Failed to toggle importance: SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at toggleImportance (page.tsx:204:33)
+window.console.error @ app-index.tsx:25
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again

@@ -1,0 +1,103 @@
+You must now identify which documents failed during reprocessing, determine the root cause, and correct the issue.
+
+Required outcome:
+0 failed documents. The pipeline must process every file in Longview Park.
+
+---------------------------------------
+PHASE 1 — Identify failing documents
+---------------------------------------
+1. Query the logs and database to list:
+   - document_id
+   - document_name
+   - development_id
+   - file_path
+   - error message thrown during parse
+
+2. Print the full error output for each failed document.
+
+---------------------------------------
+PHASE 2 — Categorise the failure
+---------------------------------------
+For each failed document, determine if it is due to:
+- Corrupted file
+- Zero-byte file
+- Unsupported file type
+- File saved as DOCX but actually containing non-DOCX binary content
+- Invalid PDF structure (common with exported PDFs)
+- Pages with images only (needs vision pipeline)
+- Password-protected PDF
+- Missing file extension
+- Encoding issue
+
+---------------------------------------
+PHASE 3 — Fix per category
+---------------------------------------
+
+A) If corrupted or invalid binary:
+   - Mark as corrupted.
+   - Provide instructions for re-upload.
+
+B) If PDF contains only images:
+   - Force the pipeline to route images-only PDFs through the Vision OCR path:
+       parseFile() → detect images → run vision OCR → then chunk + embed.
+
+C) If DOCX files are incorrectly encoded:
+   - Use mammoth safely:
+       const result = await mammoth.extractRawText({ buffer });
+       Handle undefined or empty result.value.
+
+D) If file paths are incorrect:
+   - Fix the storage mapping in save-document.
+
+E) If PDF is malformed but fixable:
+   - Rebuild using pdf-lib or pdfjs-based recovery.
+
+---------------------------------------
+PHASE 4 — Re-run reprocessing on ONLY the previously failed documents
+---------------------------------------
+Implement a new endpoint:
+   POST /api/documents/reprocess_failed
+
+This endpoint should:
+- Look up all documents with `last_status = 'failed'`
+- Run full reprocessing on only those files
+- Stop polluting the logs
+- Provide a clean success/fail table
+
+---------------------------------------
+PHASE 5 — Add stability improvements
+---------------------------------------
+
+1. Wrap parseFile() in a structured error handler that ALWAYS returns JSON:
+   { ok: false, error: "...", stack: "..." }
+
+2. Add file-type detection before parsing:
+   - Detect PDF header `%PDF`
+   - Detect DOCX by ZIP signature
+   - Reject unknown formats cleanly
+
+3. Add a document health check endpoint before reprocessing:
+   GET /api/documents/health/:id
+   Returns:
+   {
+     exists: true,
+     size: ...,
+     type: "pdf"|"docx"|...,
+     readable: true|false
+   }
+
+4. Add database status flags:
+   - last_processed_at
+   - last_status
+   - last_error
+
+---------------------------------------
+PHASE 6 — Final deliverable
+---------------------------------------
+When done, provide:
+- List of failed files and why
+- Fixes applied
+- Confirmation reprocess now shows:
+   4 processed, 0 failed
+- The patch diff for the reprocess route
+- Confirmation that RAG queries now retrieve content from all documents

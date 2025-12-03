@@ -1,0 +1,61 @@
+You are to perform a complete reconstruction of the Analytics API so that the SuperAdmin analytics dashboard in apps/unified-portal/app/analytics/page.tsx loads real data from the database and analytics-engine.
+
+PRIMARY OBJECTIVES
+1. Rebuild all analytics API endpoints:
+   - /api/analytics/summary
+   - /api/analytics/development/[devId]/overview
+   - /api/analytics/development/[devId]/documents
+   - /api/analytics/development/[devId]/interactions
+   - /api/analytics/development/[devId]/usage
+   - (Any others referenced in the dashboard)
+
+2. Ensure these endpoints:
+   - Import from packages/db correctly
+   - Import from packages/analytics-engine correctly
+   - Use the updated Drizzle schema
+   - Are server components using Next.js 14 conventions
+   - Return the exact data shape expected by the dashboard UI
+
+3. Remove all legacy or invalid paths:
+   - Delete all references to the old "analytics" folder
+   - Delete all broken imports referencing removed code
+   - Ensure no API routes call non-existent modules
+
+4. Rebuild analytics-engine exports:
+   - createAnalyticsSummary()
+   - developmentAnalytics()
+   - documentAnalytics()
+   - interactionAnalytics()
+   - usageAnalytics()
+
+5. Guarantee the following dashboard metrics load and match real data:
+   - Total platform interactions
+   - Document downloads
+   - Documents viewed
+   - Total units onboarded
+   - GPT chat messages
+   - Per-development metrics (Longview Park must appear)
+   - 24h / 7d / 30d activity windows
+
+6. Update all fetch() calls in page.tsx and components/analytics/*.tsx to use the corrected endpoints.
+
+7. Deploy and verify:
+   - SuperAdmin dashboard loads with NO spinner
+   - Real values from the DB populate the graphs and cards
+   - No more “Failed to fetch platform metrics”
+   - No more 500 errors
+   - No more blank screen
+
+CONSTRAINTS
+- Do NOT touch authentication logic unless necessary
+- Do NOT alter UI components except for adjusting their expected API response shapes
+- Maintain existing TypeScript types where possible
+- Add new types only if required for analytics returns
+
+AFTER CODE COMPLETION
+- Run the dev server
+- Open the analytics page
+- Confirm all charts and cards render with real data
+- Confirm Longview Park appears and metrics are correct
+
+BEGIN NOW.

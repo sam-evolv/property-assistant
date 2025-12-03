@@ -1,0 +1,192 @@
+You are working inside the OpenHouse / Longview Assistant codebase.
+
+Goal
+Add a simple commenting feature to notices on the Notice Board so that:
+- Every notice can have a flat list of short comments.
+- Comments are visible to all homeowners and developers in the same development.
+- Homeowners and developers can post comments.
+- Developers / admins can delete comments (moderation).
+- The feature appears in both the purchaser Notice tab and the developer Knowledge Base / Noticeboard.
+
+Do NOT break existing notice behaviour (creation, visibility, super admin tools, etc).
+
+----------------------------------------------------
+PHASE 1 – Data model
+----------------------------------------------------
+
+1. Create a new table `notice_comments` using the existing migration system (e.g. Drizzle):
+
+Columns:
+- id (primary key, uuid or serial)
+- notice_id (fk → notices, NOT NULL)
+- development_id (fk → developments, NOT NULL)
+- unit_id or homeowner_id (whichever is the current identity model for purchasers; reuse existing FK)
+- author_name text NOT NULL
+- body text NOT NULL
+- created_at timestamptz NOT NULL default now()
+- updated_at timestamptz NULL
+- is_deleted boolean NOT NULL default false
+
+Indexes:
+- index on notice_id
+- composite index on (notice_id, created_at)
+
+2. Ensure foreign keys match existing schema names (notices, developments, homeowners/units).
+
+----------------------------------------------------
+PHASE 2 – Backend APIs
+----------------------------------------------------
+
+Add the following REST endpoints in the API (packages/api/src/...):
+
+A) GET /api/notices/:noticeId/comments
+
+- Auth: purchaser or developer.
+- Logic:
+  - Resolve the current user’s development_id from auth context.
+  - Load the notice by :noticeId and ensure it belongs to that development.
+  - Query `notice_comments` where:
+    - notice_id = :noticeId
+    - is_deleted = false
+  - Order by created_at ASC (oldest first).
+  - Support simple pagination with query params `limit` and `offset` (sensible defaults, e.g. limit 20).
+- Response: array of comments:
+  - { id, authorName, body, createdAt }
+
+B) POST /api/notices/:noticeId/comments
+
+- Auth: purchaser or developer.
+- Body: `{ body: string }`
+- Logic:
+  - Validate that body is non-empty and under a max length (e.g. 400 characters).
+  - Resolve user identity:
+    - development_id
+    - unit_id or homeowner_id
+    - display name (author_name) – use the same name shown elsewhere in the app.
+  - Confirm that the notice belongs to this development.
+  - Insert a new `notice_comments` row.
+  - Return the created comment in the same shape as GET.
+
+- Security:
+  - Strip or escape any HTML/script from `body`.
+  - Reject excessively long content.
+
+C) DELETE /api/notices/:noticeId/comments/:commentId
+
+- Auth: developer, super admin, or the comment’s owner (depending on existing roles).
+- Logic:
+  - Confirm the comment belongs to a notice in the same development as the requesting user.
+  - If authorised:
+    - Soft delete: set `is_deleted = true` and `updated_at = now()`.
+  - Return 204 or a simple success JSON.
+
+Use existing auth middleware and error handling patterns.
+
+----------------------------------------------------
+PHASE 3 – Purchaser Notice UI
+----------------------------------------------------
+
+Locate the purchaser Notice tab / Noticeboard view (e.g. packages/web/src/pages/purchaser/Notice.tsx or similar).
+
+Enhance it as follows:
+
+1. Under each notice card, add a new section:
+
+- A touchable row showing:
+  - “Comments (N)” where N is the count of non-deleted comments.
+- When tapped:
+  - Expand a comments panel under the notice.
+
+2. Comments panel:
+
+- On first open, call GET /api/notices/:id/comments and show:
+  - Each comment: author_name, relative time (e.g. “2 hours ago”), body.
+- Maintain local state for `comments` and `isLoadingComments`.
+- Handle no comments:
+  - Show a subtle message: “No comments yet – be the first to comment.”
+
+3. Comment input:
+
+- If user is authenticated as a purchaser:
+  - Show a compact input row:
+    - Text input with placeholder: “Add a comment…”
+    - Send button.
+  - On submit:
+    - Disable the input while posting.
+    - Call POST /api/notices/:id/comments.
+    - On success, append the returned comment to the local list and clear the input.
+    - Optionally optimistic-update before the response returns.
+
+- Enforce same max length client-side.
+
+Ensure the styles match the existing design language:
+- Rounded corners, light gray background, subtle borders, no loud colours.
+- Mobile-first layout (collapse/expand is important).
+
+----------------------------------------------------
+PHASE 4 – Developer Noticeboard UI
+----------------------------------------------------
+
+Locate the developer Knowledge Base / Noticeboard page.
+
+1. In the notices list:
+
+- Add a small comment count indicator:
+  - e.g. an icon + number showing how many comments are attached to each notice.
+- This can be provided by:
+  - Adding a comment_count field in the notice query using a join or a separate API call.
+
+2. On the notice detail view (if it exists) OR create a simple drawer/modal:
+
+- Show the same comment thread as the purchaser view (reuse the same GET endpoint).
+- Allow developers to delete comments:
+  - Add a small “…” menu or “Delete” icon on each comment.
+  - On click, call DELETE /api/notices/:noticeId/comments/:commentId.
+  - On success, remove from list or mark as “deleted”.
+
+Use existing UI components and patterns for admin actions.
+
+----------------------------------------------------
+PHASE 5 – Permissions & Safety
+----------------------------------------------------
+
+- Ensure all comment endpoints check:
+  - The user is authenticated.
+  - The user’s development_id matches the notice’s development_id.
+- Prevent access to notices or comments from other developments.
+- Ensure deleted comments are:
+  - Not returned by GET for normal users.
+  - Still present in the database for audit.
+
+----------------------------------------------------
+PHASE 6 – Testing
+----------------------------------------------------
+
+1. As a developer:
+   - Create a notice for Longview Park.
+   - Confirm it appears in the purchaser Noticeboard.
+
+2. As a purchaser in Longview Park:
+   - Open Noticeboard, click “Comments (0)”.
+   - Add a comment.
+   - Confirm:
+     - The comment appears immediately.
+     - Reload page: comment is still there (persisted).
+   - Add another comment from a second purchaser account:
+     - Confirm both are visible.
+
+3. As a developer:
+   - Open the same notice in developer Noticeboard.
+   - Confirm comment count is correct.
+   - Open comments view.
+   - Delete one comment.
+   - Refresh purchaser view and confirm that comment no longer appears.
+
+4. Cross-development safety:
+   - Confirm that a purchaser from a different development cannot access or comment on the Longview notice.
+
+Finally, summarise:
+- Migrations added (file names).
+- Backend endpoints created/modified.
+- Frontend components updated (purchaser + developer).
+- Manual test steps performed and their results.

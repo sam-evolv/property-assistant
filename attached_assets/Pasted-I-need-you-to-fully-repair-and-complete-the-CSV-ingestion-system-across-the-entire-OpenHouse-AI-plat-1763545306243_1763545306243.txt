@@ -1,0 +1,279 @@
+I need you to fully repair and complete the CSV ingestion system across the entire OpenHouse AI platform.
+
+The system must ingest CSV or XLSX files containing house data for ANY development (e.g., Longview Park, Rathard, future developments). This ingestion process must be universal, bulletproof, and fully validated with zero silent failures.
+
+Fix everything end-to-end:
+
+1. FIX CSV/XLSX INGEST LOGIC
+
+Locate all ingestion code (Developer Portal UI and backend API route) and implement the following:
+
+Must accept:
+
+CSV files
+
+XLSX files (via sheetjs or similar library)
+
+Must extract and validate required fields:
+
+Required columns include:
+
+house_number
+
+address
+
+unique_id (if not provided, system must generate)
+
+house_type_code (e.g. BD01, BS01, BT01)
+
+bedrooms (optional)
+
+bathrooms (optional)
+
+sq_meters (optional)
+
+notes (optional)
+
+Required behaviour:
+
+Case-insensitive column matching (e.g. House Number, house_no, house number)
+
+Automatic trimming of whitespace
+
+Reject rows with missing required fields — but log the exact problem
+
+Never silently skip a row
+
+Produce a completed list of imported rows, skipped rows, and error reasons
+
+2. UNIVERSAL SCHEMA MAPPING
+
+Make a universal mapping layer so ANY developer’s CSV works.
+
+Example mapping:
+
+"House No", "House_Number", "No", "Number" → house_number  
+"Type", "House Type", "Type Code" → house_type_code  
+"ID", "Unique ID", "UID" → unique_id  
+
+
+This mapping must be:
+
+extensible
+
+defined in a single file
+
+used consistently across the platform
+
+3. CREATE HOUSES CORRECTLY IN DATABASE
+
+For each valid row:
+
+Insert into houses with:
+
+tenant_id  
+development_id  
+house_number  
+address  
+unique_id  
+house_type_code  
+metadata (full row JSON)
+
+
+Also ensure:
+
+unique combination constraint: (tenant_id, development_id, house_number)
+
+unique unique_id per house globally
+
+If a house already exists for that development, update it (do NOT insert duplicate).
+
+4. AUTOMATIC UNIQUE IDENTIFIER GENERATION
+
+If the CSV does not provide a unique_id, generate one.
+
+Rules:
+
+Use nanoid or ULID
+
+Must be globally unique
+
+Must be stable (same house keeps same ID on re-import)
+
+If a house already exists, re-use its existing ID.
+
+5. LINK HOUSE TYPE TO DRAWINGS / DOCUMENTS
+
+For each house row, map house_type_code to development house type records.
+
+Ensure house_type_code is valid
+
+If not valid, error the row
+
+Link house.housing_type_id to correct house_types record
+
+6. FULL ERROR VISIBILITY
+
+The Developer Portal must display:
+
+Total rows processed
+
+Rows inserted
+
+Rows updated
+
+Rows skipped
+
+Rows with errors
+
+Exact error messages per row
+
+Do not hide ANY failure.
+
+If 75 rows are sent and 75 fail, the Developer Portal must show all 75 error reasons.
+
+7. MAKE IT DEVELOPMENT-SCOPED
+
+All inserts MUST use:
+
+tenant_id from session
+
+development_id from API path /developments/:id/import-houses
+
+The same CSV file uploaded to another development must create houses for that development only.
+
+This ensures scalability for multiple projects.
+
+8. ENABLE QR-BASED HOUSE ONBOARDING
+
+You must ensure:
+
+Each unique_id corresponds 1:1 to a house
+
+The Tenant Portal login with ?house=<unique_id> resolves the exact house
+
+Chat assistant context loads only that house’s data
+
+Document and chunk filters respect tenant_id + development_id + house_id
+
+Ensure the pipeline:
+
+scan QR → unique_id → API → resolve house → load metadata → load documents → load chat context
+
+works reliably.
+
+9. ADD ABSOLUTELY CLEAR LOGGING
+
+Shell logs must show:
+
+📥 CSV RECEIVED
+Detected X rows
+
+📘 ROW VALIDATION
+Row 1: OK
+Row 2: FAILED: Missing house_number
+Row 3: FAILED: Invalid house_type_code "BD99"
+
+🏗️ HOUSE UPSERT
+House #1: inserted
+House #2: updated
+House #3: skipped (no changes)
+
+🏁 IMPORT COMPLETED
+Total: 75 rows
+Inserted: 75
+Updated: 0
+Errors: 0
+
+
+This logging is mandatory.
+
+10. ENSURE THE DEVELOPER PORTAL UI SHOWS RESULTS
+
+After upload, the Developer Portal must show:
+
+Houses count updated
+
+Table of houses
+
+House types resolved
+
+Import status (success or partial failure)
+
+CSV results summary
+
+11. ENSURE BACKEND API ROUTE IS CORRECT
+
+Fix or rebuild the API route:
+
+POST /api/developments/:id/import-houses
+
+
+It must:
+
+Read the uploaded CSV
+
+Parse it
+
+Validate rows
+
+Upsert houses
+
+Return full import summary
+
+Use try/catch blocks so no errors disappear.
+
+12. ENSURE THE ENTIRE SYSTEM WORKS FOR ANY DEVELOPMENT
+
+After fixing:
+
+Import Longview Park (75 houses)
+
+Import Rathard Park (future)
+
+Import any new development
+
+The ingestion code must not make assumptions about Longview Park.
+
+13. DO NOT BREAK ANY EXISTING FEATURES
+
+Ensure no regressions in:
+
+Documents ingestion
+
+Chat functionality
+
+RAG pipeline
+
+API routing
+
+Authentication
+
+Tenant scoping
+
+14. DELIVER A FULL FIX READY FOR TESTING
+
+Once complete:
+
+Restart Developer Portal and Tenant Portal
+
+Ensure no TypeScript errors
+
+Test CSV upload with provided Longview Park file
+
+Confirm houses appear
+
+Confirm QR identification works
+
+Confirm chat knows about a scanned house
+
+Then report back with:
+
+All changes
+
+Files modified
+
+Testing instructions
+
+Begin immediately.
+Fix CSV ingestion completely and make house import + QR identification robust, universal, and production-ready.

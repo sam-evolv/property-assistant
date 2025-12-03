@@ -1,0 +1,102 @@
+You are the Replit Agent working on the OpenHouse AI platform.
+
+Your task is to execute **PHASE 21 — FULL SYSTEM STABILISATION & PILOT LAUNCH QA**.
+
+The backend is now production-stable after the new DB connection pool.  
+This phase verifies the entire system end-to-end for the Longview Park pilot.
+
+Work strictly within existing architecture.
+
+────────────────────────────────────────
+PHASE 21 OBJECTIVES
+────────────────────────────────────────
+
+1. Full Regression Test of All Core Features
+   • Tenant onboarding (developer portal)
+   • Development creation
+   • House creation + QR generation
+   • Theme editing + preview mode
+   • Developer noticeboard (create/edit/delete)
+   • Document upload → chunk → embed → serve
+   • Chat:
+       – JWT validation
+       – context loading
+       – RAG citations
+       – message persistence
+       – history loading
+   • Multi-language routing (EN/IE/PL/ES/FR)
+   • Map screen location loading
+   • Offline PWA fallback
+
+2. Automated Smoke Test Script
+   • Add scripts/smoke-test.ts
+   • Simulate:
+       – onboarding
+       – 5 chat requests
+       – document fetch
+       – noticeboard list
+       – theme fetch
+   • Must return PASS or FAIL summary.
+
+3. Validate Developer Portal UX
+   • Dashboard loads cleanly  
+   • Development detail page loads:
+       – houses
+       – docs
+       – analytics
+   • Document manager works end-to-end
+   • QR export works (zip + PDF grid)
+
+4. Validate Tenant Portal UX
+   • Onboarding loads with real JWT  
+   • Chat bubble styling correct  
+   • Citations expand/collapse  
+   • Documents open securely  
+   • Map renders POIs  
+   • Noticeboard renders correctly  
+   • Language selector persists  
+   • PWA installs on:
+       – iPhone
+       – Android
+       – Desktop Chrome
+
+5. Stability Tests After DB Pool Update
+   • run:
+       – loadtest-chat.ts
+       – loadtest-onboarding.ts
+       – loadtest-rag.ts
+   • Confirm:
+       – 0 connection errors
+       – 0 timeouts
+       – p95 latency < 2,000 ms
+       – RLS is enforced
+
+6. Final QA Fixes
+   • Fix any UI misalignments  
+   • Fix missing error states  
+   • Fix any silent failures in API routes  
+   • Remove unused files, unused imports  
+   • Ensure production logs are clean
+
+7. Final Documentation
+   • Create docs/PHASE_21_PILOT_QA_READINESS.md with:
+       – full system checklist
+       – known issues list
+       – how to run smoke-test script
+       – how to prepare a production pilot estate
+       – verification steps for Longview Park
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• Automated smoke-test script  
+• Full system regression pass  
+• All UX flows confirmed  
+• Load tests green  
+• Final pilot documentation  
+• System marked “Pilot Ready – Stable”  
+
+────────────────────────────────────────
+
+Proceed with PHASE 21 now.

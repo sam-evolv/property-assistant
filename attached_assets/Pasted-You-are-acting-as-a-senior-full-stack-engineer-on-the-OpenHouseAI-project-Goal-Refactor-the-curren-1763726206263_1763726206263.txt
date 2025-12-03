@@ -1,0 +1,42 @@
+You are acting as a senior full stack engineer on the OpenHouseAI project.
+Goal: Refactor the current multi-port setup into a single unified portal and staging environment that mirrors the final SaaS structure, with role-based dashboards and a dedicated test harness.
+
+Requirements:
+
+Create a single front-end app serving the following routes from one dev server on localhost:3000:
+
+/login – shared login page.
+
+/developer – developer dashboard surface using the existing developer UI components.
+
+/super – superadmin dashboard surface using the existing admin/superadmin components.
+
+/homes/:unitUid – resident QR experience using the existing homeowner UI.
+
+Configure the front-end dev server to proxy API calls to the existing backend (currently on port 5000), so that no API calls refer to localhost:5000 directly from the browser.
+
+Implement role-based login:
+
+Extend the auth model and JWT/session to include a role field (SUPERADMIN or DEVELOPER) and developer_id where applicable.
+
+On successful login, redirect SUPERADMIN users to /super and DEVELOPER users to /developer.
+
+Implement a /test-hub route (available only in non-production builds) that:
+
+Lists a small set of hardcoded test accounts (e.g. Superadmin, Developer A, Developer B) and provides one-click login into those accounts.
+
+Provides quick links to open key views: sample development pages, sample unit QR pages, analytics view, etc.
+
+Ensure navigation between these routes is stable and intuitive, so the product owner can quickly move between superadmin, developer, and resident experiences without changing ports or URLs.
+
+Do not change existing business logic or database schemas unless strictly necessary for the role implementation. If any schema change is required, generate and apply the appropriate migration with clear documentation.
+
+After the refactor, provide a short README section describing:
+
+How to run the unified portal locally.
+
+Default test users and how to log in as them.
+
+The route structure (/login, /developer, /super, /homes/:unitUid, /test-hub).
+
+Work step by step, inspecting existing code first, then designing the route structure, then wiring components, then implementing auth and finally the test hub. Keep all existing functionality working while consolidating the UI surfaces.

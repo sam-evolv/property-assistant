@@ -1,0 +1,270 @@
+FINALISATION, QA, HARDENING, DEPLOYMENT READINESS**
+
+You are the Lead Platform Engineer for OpenHouse AI.
+Execute Phase 10 in full.
+Do NOT modify any existing core RAG logic or tenant portal logic.
+Only refine, stabilise, QA, optimise, document, and prepare for production deployment.
+
+You must complete all tasks below in this exact order, making micro-commits, verifying compilation after every step, and ensuring zero regressions to the admin enterprise portal, developer portal, or tenant portal.
+
+PHASE 10 — TASK LIST
+10.1 — Consolidated QA Sweep
+
+Perform a full-system QA pass across:
+
+A. Admin Enterprise Portal
+
+Verify every page compiles & loads
+
+Verify every table loads data
+
+Verify all charts load from real APIs
+
+Verify pagination works everywhere
+
+Verify filters work
+
+Verify cross-tenant dashboards load
+
+Verify deep-dive 8-tab view works
+
+Verify missing-data fallbacks render
+
+Verify loading states & empty states
+
+B. Developer Portal
+
+Verify development creation flow
+
+Verify document upload & ingestion
+
+Verify training jobs status
+
+Verify unit import
+
+Verify QR generation
+
+Verify analytics pages
+
+C. Tenant Portal
+
+Verify onboarding
+
+Verify JWT flow
+
+Verify chat
+
+Verify download cards
+
+Verify map context
+
+Fix all errors immediately.
+
+10.2 — Lighthouse & Performance Pass
+
+Run a simulated performance pass and implement fixes:
+
+Backend
+
+Identify slowest API endpoints
+
+Apply caching where missing
+
+Add missing indexes
+
+Reduce SELECT * usage to minimal data sets
+
+Ensure pagination on all heavy queries
+
+Frontend
+
+Remove unused imports
+
+Lazy-load heavy components
+
+Implement React Suspense where applicable
+
+Add <ErrorBoundary> wrappers
+
+10.3 — Codebase Cleanup & Dead-Zone Removal
+
+Remove or archive:
+
+apps/admin-portal
+
+apps/developer-dashboard
+
+apps/resident-app
+
+apps/assistant-tenant
+
+Any unused components in packages/ui
+
+Any unused helpers in packages/api
+
+Any deprecated tables (ragChunks, analytics_daily if unused)
+
+Ensure zero references remain anywhere.
+
+10.4 — Role & Security Review
+
+Perform a strict access-control audit to ensure:
+
+Every admin route uses getAdminContextFromSession()
+
+Every developer route checks tenant ownership
+
+Every homeowner route uses JWT
+
+Re-check all RBAC logic for accidental privilege leakage
+
+Ensure impersonation tool is super_admin only
+
+Add audit logs for all destructive actions
+
+10.5 — Error Boundaries, Fallbacks & Empty States
+
+Add gold-standard UI polish:
+
+Elegant global error boundary
+
+Graceful fallback screens for missing data
+
+Consistent skeleton loaders
+
+Toast notifications on all mutating actions
+
+Validation errors surfaced correctly
+
+10.6 — Final Analytics Validation
+
+Run a complete validation of:
+
+document_views
+
+chat_analytics_daily
+
+development_stats
+
+rag_search_log
+
+Ensure all tables populate correctly.
+Ensure Enterprise dashboards correctly reflect these values.
+
+10.7 — CDN Enforcement & File Delivery Optimisation
+
+Implement Cloudflare CDN optimisation for:
+
+All Supabase Storage files
+
+Public QR download links
+
+Document downloads
+
+PDF streaming
+
+Ensure caching headers are applied effectively.
+
+10.8 — Async Pipeline Verification
+
+Verify background jobs:
+
+PDF ingestion
+
+Embedding generation
+
+Geocoding
+
+Document classification
+
+Chunking
+
+Training job status updates
+
+Confirm none run synchronously or block the UI.
+
+10.9 — Final Tenancy Validation
+
+Execute a multi-tenant simulation:
+
+Tenant A with 2 developments
+
+Tenant B with 1 development
+
+Tenant C with 5 developments
+
+Super admin impersonation
+
+Developer role checks
+
+Homeowner JWT context isolation
+
+Ensure:
+
+No cross-tenant leakage
+
+No cross-development leakage
+
+Access control is airtight
+
+10.10 — Release Checklist Creation
+
+Generate the final release checklist including:
+
+Code freeze
+
+Schema lock
+
+Migration rollback plan
+
+API contract documentation
+
+Developer documentation
+
+Admin operations manual
+
+Tenant onboarding guide
+
+Incident response guide
+
+Logging & monitoring setup
+
+Rate-limit verification
+
+Deliver this as a markdown file inside the repo.
+
+PHASE 10 — EXECUTION INSTRUCTIONS
+
+When executed within Replit Agent, follow this workflow:
+
+1. Run QA pass section-by-section.
+2. Fix any runtime errors first.
+3. Fix any UI issues second.
+4. Fix any API issues third.
+5. Fix any schema/index issues last.
+6. Do not change working RAG or tenant portal logic.
+7. After each fix, recompile and reload.
+8. Maintain zero regressions.
+9. Commit logically in micro-steps.
+
+PHASE 10 — COMPLETION CRITERIA
+
+Phase 10 is complete when:
+
+All portals load flawlessly
+
+All APIs return valid data
+
+All charts and tables are populated
+
+No console errors
+
+No TypeScript errors
+
+No broken links
+
+All security checks pass
+
+All analytics dashboards are accurate
+
+The system is ready for production deployment

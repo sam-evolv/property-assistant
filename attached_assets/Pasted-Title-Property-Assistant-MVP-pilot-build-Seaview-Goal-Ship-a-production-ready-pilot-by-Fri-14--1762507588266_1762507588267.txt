@@ -1,0 +1,89 @@
+Title: Property Assistant – MVP pilot build (Seaview)
+Goal: Ship a production-ready pilot by Fri 14 Nov with chat→FAQ→ticket flow, notices, lite dev dashboard, CSV import, and clean UI.
+Stack: Vite/React + TypeScript, server (Node/Express), Supabase (Postgres + Storage), Drizzle ORM, Netlify deploy.
+
+Do the following:
+
+Schema & Migrations
+
+Create tables: units, faqs, notices, contacts, issue_types, tickets, messages, feedback, audit_log as per the field list above.
+
+If pgvector available, add faqs.embedding vector. Provide Drizzle migrations.
+
+Seed & Import
+
+Add a scripts/seed.ts that loads CSVs from /data if present.
+
+Create /data folder and support importing seaview_units.csv, seaview_faqs.csv, seaview_contacts.csv, seaview_notices.csv, seaview_issue_types.csv.
+
+Show CLI: npm run seed.
+
+API
+
+POST /api/chat → resolver pipeline:
+a) exact FAQ match,
+b) semantic FAQ (cosine over embeddings),
+c) fallback → return ticket prompt with structured fields + suggested issue_code.
+Log to messages and audit_log.
+
+POST /api/tickets create; GET /api/tickets list; PATCH /api/tickets/:id update status.
+
+GET /api/notices (active window only).
+
+POST /api/feedback.
+
+Email
+
+Create lib/email.ts. If RESEND_API_KEY is set, send via Resend. Else send via simple SMTP or fallback to a Netlify Form post.
+
+On ticket creation and status changes, email MAIL_TO.
+
+Frontend
+
+Resident app: minimal chat UI with message bubbles, quick actions, photo upload, “Report an issue”, Notices tab, FAQ search, and consent gate on first run.
+
+Dev Dashboard:
+
+Cards: Active residents (7d), AI deflection %, Unresolved tickets, Top 10 intents, Avg first response time.
+
+Tables: tickets with filters; recent messages; add/expire Notice form.
+
+CSV importer UI (drop zone → calls POST /api/import or reuses seed endpoint in dev).
+
+Embeddings (optional but preferred)
+
+Add npm run embed:faqs that generates embeddings for all FAQs and stores them in faqs.embedding.
+
+Resolver uses exact → semantic with configurable thresholds.
+
+Auth & Consent
+
+Simple admin login using password in env for the pilot.
+
+Resident entry uses a per-unit code; store consent_at on first run.
+
+Observability
+
+Console log errors server-side, write to audit_log.
+
+Add a /healthz endpoint.
+
+Build/Deploy
+
+Provide netlify.toml with redirects for SPA and proxy /api/* to server.
+
+Ensure environment variables are read correctly in Netlify and Replit.
+
+Polish
+
+Responsive layout, clear empty states, error handling for uploads, and loading spinners.
+
+No breaking UI changes beyond this scope.
+
+Deliverables:
+
+Working app locally with npm run dev.
+
+README.md with setup, seeding, embedding, and deploy steps.
+
+Zip bundle for Netlify deploy.

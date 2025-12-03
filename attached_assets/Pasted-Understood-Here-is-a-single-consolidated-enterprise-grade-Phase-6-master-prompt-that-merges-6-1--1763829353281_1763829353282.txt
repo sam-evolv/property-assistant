@@ -1,0 +1,224 @@
+Understood. Here is a single, consolidated, enterprise-grade Phase 6 master prompt that merges 6.1 → 6.5 into one unified directive.
+This is the prompt you paste directly into the Replit Agent to execute.
+
+⸻
+
+PHASE 6 — Unified Master Prompt (6.1 → 6.5 Combined)
+
+Full Analytics System Rebuild, API Repair, Dashboard Sync, and Real Data Population
+
+You are to execute a complete reconstruction of the OpenHouse AI Enterprise Analytics System.
+Your job is to produce a fully working, production-grade analytics pipeline that correctly displays Longview Park and all future developments inside the SuperAdmin dashboard.
+
+This must fix all current issues:
+	•	Pages not loading
+	•	Endless loading spinners
+	•	“Failed to fetch platform metrics”
+	•	404s on analytics routes
+	•	Missing development analytics
+	•	Broken imports
+	•	Missing database queries
+	•	Stubs returning zeros
+
+This prompt is your master specification.
+Follow it exactly.
+
+⸻
+
+SCOPE OF WORK
+
+6.1 — Rebuild the Entire Analytics API Layer
+
+You must:
+	1.	Delete or replace every stub endpoint created earlier.
+	2.	Reconstruct the full analytics API under:
+
+apps/api/routes/analytics/*
+
+	3.	Create the following real API endpoints:
+
+Platform-Level
+
+GET /api/analytics/platform/overview
+GET /api/analytics/platform/message-volume
+GET /api/analytics/platform/top-developments
+GET /api/analytics/platform/usage
+GET /api/analytics/platform/top-questions
+
+Development-Level
+
+GET /api/analytics/developments/:developmentId/overview
+GET /api/analytics/developments/:developmentId/message-volume
+GET /api/analytics/developments/:developmentId/usage
+GET /api/analytics/developments/:developmentId/top-questions
+
+Each endpoint must:
+	•	Authenticate SuperAdmin using the existing session middleware.
+	•	Query real data from Supabase/Postgres.
+	•	Return clean JSON matching the dashboard’s expected format.
+	•	Include error handling & consistent return types.
+	•	Contain no references to deleted folders or legacy analytics code.
+
+⸻
+
+6.2 — Build a Unified Analytics Engine
+
+Inside packages/analytics-engine/ create a modern analytics engine that provides reusable functions:
+
+Core functions:
+
+getPlatformOverview()
+getPlatformMessageVolume(days)
+getPlatformTopDevelopments()
+getPlatformUsage(days)
+getPlatformTopQuestions(days)
+
+getDevelopmentOverview(developmentId)
+getDevelopmentMessageVolume(developmentId, days)
+getDevelopmentUsage(developmentId, days)
+getDevelopmentTopQuestions(developmentId, days)
+
+These must:
+	•	Pull from units, homeowners, messages, rag_chunks, documents, training_jobs, developers, developments, etc.
+	•	Compute derived metrics (activity rates, message volume, etc.)
+	•	Return predictable structured objects.
+
+All SQL must use the existing DB client:
+
+packages/db/client.ts
+
+No direct “pg” imports allowed in frontend apps.
+
+⸻
+
+6.3 — Repair All Dashboard Pages & Data Fetching
+
+Fix the following directories:
+
+apps/unified-portal/app/(enterprise)/analytics/*
+apps/unified-portal/components/analytics/*
+
+You must ensure:
+	•	Every dashboard card fetches data from the new API you built.
+	•	All fetch calls use /api/analytics/...
+	•	Remove old import paths such as:
+	•	@/packages/analytics/... (legacy)
+	•	deleted analytics-engine-old
+	•	Replace with the new packages/analytics-engine and new API responses.
+
+The following dashboard sections must work 100%:
+
+Platform Administrator
+	•	Overview dashboard
+	•	Message volume chart
+	•	Top 5 developments
+	•	AI usage & costs
+	•	Top questions
+	•	RAG Index
+
+Per-Development Analytics
+
+When clicking a development:
+	•	Development overview
+	•	Message volume
+	•	Homeowner activity
+	•	AI usage
+	•	Top questions
+
+All charts must load real values.
+
+⸻
+
+6.4 — Ensure Real Data Appears (Longview Park Required)
+
+Your work is not complete until the dashboard displays Longview Park with real metrics:
+
+You must verify and fetch these fields:
+	•	Development count
+	•	Units count
+	•	Homeowner count
+	•	Total messages
+	•	Message volume over 14 days
+	•	Active homeowners %
+	•	Top questions asked
+	•	AI usage (tokens/messages)
+	•	RAG chunk count
+
+If the DB is missing test data, create a short script under:
+
+scripts/insert_analytics_test_data.mjs
+
+Populate a minimal dataset that allows charts to show non-zero values.
+
+⸻
+
+6.5 — Fix All Remaining 404s, Routing Issues, and Module Resolution Errors
+
+You must:
+	•	Fix all imports referencing fs, pg, or server-only modules in client components.
+	•	Remove leftover references to deleted folders.
+	•	Ensure no page under /analytics/* throws 404.
+	•	Ensure navigating between:
+	•	Enterprise dashboard
+	•	Developers
+	•	Developments
+	•	Units
+	•	Homeowners
+loads without error.
+
+Also fix:
+	•	“Failed to load dashboard”
+	•	Infinite spinners
+	•	Missing Next.js route handlers
+	•	Any module not found errors
+
+⸻
+
+DELIVERABLES
+	1.	Fully rebuilt Analytics API returning correct data
+	2.	Fully rebuilt Analytics Engine
+	3.	100% working SuperAdmin analytics dashboard
+	4.	Longview Park analytics showing REAL numbers
+	5.	No 404s, no stubs, no broken imports
+	6.	Real database queries powering all charts
+	7.	Zero console errors in both server and browser
+	8.	Clean, safe, error-handled endpoints
+	9.	Confirmed successful end-to-end data flow
+
+⸻
+
+EXECUTION INSTRUCTIONS (for the Agent)
+
+Follow this sequence:
+
+1. Identify and delete all stub analytics endpoints
+2. Rebuild API endpoints exactly as specified
+3. Implement the new analytics engine
+4. Update all dashboard components to use the new endpoints
+5. Fix all routing, imports, and module resolution errors
+6. Test end-to-end loading of:
+   - Platform Overview
+   - Development Overview
+   - Message Volume charts
+7. Inject test analytics data if needed
+8. Verify Longview Park analytics display correctly
+9. Remove deprecated code & cleanup
+10. Confirm no errors remain
+
+
+⸻
+
+FINAL REQUIREMENT
+
+The SuperAdmin dashboard must fully display Longview Park analytics using real database data.
+No placeholders. No zeros. No stubs.
+Everything must load instantly — no spinners.
+
+⸻
+
+If you want, I can also generate:
+	•	Phase 6.6 (Data Quality Validation)
+	•	Phase 6.7 (Performance Optimisation)
+	•	Phase 6.8 (Error telemetry instrumentation)
+
+Just ask.

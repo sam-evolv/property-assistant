@@ -1,0 +1,114 @@
+You are the Replit Agent working on the OpenHouse AI monorepo.
+
+Your task is to execute the **API Base URL & Auth Redirect Fix**.  
+The Developer Portal login currently fails because all frontend API calls are incorrectly pointing to the root domain instead of port 3001.
+
+──────────────────────────────────────────
+ROOT ISSUE
+──────────────────────────────────────────
+• Developer Portal runs on port 3001  
+• API route handlers ALSO run on port 3001  
+• Frontend API client is currently calling:
+    https://<replit>.dev/api
+  instead of:
+    https://<replit>.dev:3001/api
+
+This causes:
+• Login redirect loops  
+• TenantContext failing to load  
+• “Developments not found”  
+• 404 errors on every API call
+
+You must update the API base URL everywhere it is used.
+
+──────────────────────────────────────────
+TASKS
+──────────────────────────────────────────
+
+1. FIND ALL HARDCODED API BASE URLS
+Search the entire repository for patterns:
+• "/api"
+• process.env.NEXT_PUBLIC_API_URL
+• absolute URLs without :3001
+• createApiClient(), useApi(), api.ts, config.ts
+
+Inspect these locations:
+• apps/developer-portal/lib
+• apps/developer-portal/config
+• apps/developer-portal/utils
+• apps/developer-portal/hooks
+• apps/developer-portal/api
+• middleware.ts
+• tenant-provider code
+• supabase-client wrappers
+
+2. UPDATE THE API BASE URL FOR DEVELOPER PORTAL
+Set:
+NEXT_PUBLIC_API_URL = window.location.origin + "/api"
+
+OR hardcode during Replit dev:
+NEXT_PUBLIC_API_URL = "https://REPLIT-URL:3001/api"
+
+Make the change in:
+• apps/developer-portal/.env
+• apps/developer-portal/.env.local
+• any config.ts that constructs endpoints
+
+Ensure the final resolved path ALWAYS includes port 3001.
+
+3. FIX MIDDLEWARE REDIRECT LOGIC
+Middleware currently causes infinite redirects.
+Update middleware to use:
+
+const isAuthenticated = Boolean(session?.user);
+const isLoginPage = pathname.startsWith("/login");
+const isPublicRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
+
+If user is authenticated AND visiting /login → redirect to /dashboard.
+If user is unauthenticated AND visiting protected routes → redirect to /login.
+
+Do NOT redirect on:
+• /api routes
+• static files
+• _next assets
+
+Add matcher:
+export const config = {
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+};
+
+4. FIX TENANT CONTEXT FETCHING
+TenantContext currently fetches:
+GET /api/tenants
+but fails due to wrong base URL.
+
+Update ALL fetches:
+fetch(`${process.env.NEXT_PUBLIC_API_URL}/tenants?...`)
+
+5. RESTART DEVELOPER PORTAL
+Run:
+cd apps/developer-portal && npm run dev -- --port 3001
+
+6. VALIDATE FIX
+After updating:
+• Login completes successfully
+• Dashboard loads
+• No 404 API errors
+• No redirect loops
+• No TenantContext crashing
+• Click “Create Development” → form loads correctly
+• Development creation works
+
+──────────────────────────────────────────
+DELIVERABLES
+──────────────────────────────────────────
+• Updated API base URL everywhere
+• Middleware redirect loop fixed
+• TenantContext functional
+• Developer Portal login working properly
+• All 404 errors resolved
+• Full regression of sign-in → dashboard → developments workflow
+
+──────────────────────────────────────────
+
+Proceed with the full fix now.

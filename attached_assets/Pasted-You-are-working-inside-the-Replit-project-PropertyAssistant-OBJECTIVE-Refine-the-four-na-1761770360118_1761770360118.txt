@@ -1,0 +1,147 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Refine the four navigation buttons (Chat, Map, Noticeboard, Documents) that appear below the search bar on the homepage.  
+The current buttons look too large and basic — we need to make them smaller, sleeker, and premium in appearance.  
+They should feel elegant, balanced, and aligned with the Lovable-style Seaview homepage (Apple-like clarity and restraint).
+
+---
+
+## TASKS
+
+1. ✅ **Update navigation buttons section in `app/page.tsx`**
+   - Replace the existing block of four large navigation cards with this cleaner, smaller version:
+
+   ```tsx
+   {/* Refined Navigation Buttons */}
+   <div className="flex flex-wrap justify-center gap-6 w-full max-w-md mt-4">
+     {[
+       { name: "Chat", icon: "💬", href: "/chat" },
+       { name: "Map", icon: "🗺️", href: "/map" },
+       { name: "Noticeboard", icon: "📢", href: "/noticeboard" },
+       { name: "Documents", icon: "📄", href: "/documents" },
+     ].map((item) => (
+       <a
+         key={item.name}
+         href={item.href}
+         className="flex flex-col items-center justify-center w-20 h-20 bg-white border border-gray-200 rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:border-blue-300 hover:shadow-[0_3px_8px_rgba(0,0,0,0.08)] transition-all duration-200 group"
+       >
+         <span className="text-xl mb-1 group-hover:scale-110 transition-transform">{item.icon}</span>
+         <span className="text-xs font-medium text-gray-600 group-hover:text-blue-600">
+           {item.name}
+         </span>
+       </a>
+     ))}
+   </div>
+✨ This layout is tighter, more balanced, and has a subtle hover lift effect.
+
+✅ Optional — Upgrade icons to premium SVGs
+
+Install Heroicons:
+
+bash
+Copy code
+npm install @heroicons/react
+Replace emoji icons with outline-style SVGs for a cleaner, professional look:
+
+tsx
+Copy code
+import {
+  ChatBubbleLeftEllipsisIcon,
+  MapIcon,
+  MegaphoneIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
+
+const navItems = [
+  { name: "Chat", icon: <ChatBubbleLeftEllipsisIcon className="h-5 w-5" />, href: "/chat" },
+  { name: "Map", icon: <MapIcon className="h-5 w-5" />, href: "/map" },
+  { name: "Noticeboard", icon: <MegaphoneIcon className="h-5 w-5" />, href: "/noticeboard" },
+  { name: "Documents", icon: <DocumentTextIcon className="h-5 w-5" />, href: "/documents" },
+];
+And then map through navItems the same way.
+
+✅ Refine spacing & responsiveness
+
+Keep the navigation centered directly below the search bar.
+
+Maintain consistent spacing:
+
+24px gap from search bar
+
+20px between buttons
+
+On mobile (max-width: 640px), wrap to two rows of two buttons each.
+
+Add this utility rule for mobile:
+
+css
+Copy code
+@media (max-width: 640px) {
+  .nav-card {
+    width: 42%;
+    height: 80px;
+  }
+}
+Add nav-card to each <a> if using this rule.
+
+✅ Refine shadows and hover tone
+
+Use very light, translucent shadows:
+
+Default: 0 1px 4px rgba(0,0,0,0.06)
+
+Hover: 0 3px 8px rgba(0,0,0,0.08)
+
+Hover border color: #93C5FD (Tailwind blue-300).
+
+This ensures a subtle, high-quality hover response — not a “clicky” glow.
+
+✅ Maintain overall hierarchy
+
+The search bar remains the primary focal point.
+
+The navigation icons support it visually — smaller, quiet, but clearly interactive.
+
+Ensure the buttons line up evenly on all screen sizes and remain accessible (keyboard-focusable).
+
+✅ Accessibility
+
+Each link must include a proper href and descriptive aria-label. Example:
+
+tsx
+Copy code
+<a
+  aria-label="Open Chat"
+  href="/chat"
+  ...
+>
+✅ Commit changes
+
+makefile
+Copy code
+feat: refine homepage navigation buttons for smaller, high-quality premium design
+ACCEPTANCE CRITERIA
+Buttons are 30–40% smaller than before.
+
+Layout feels elegant, with balanced spacing and subtle hover motion.
+
+Matches the high-end aesthetic of the rest of the Lovable-style homepage.
+
+Works responsively on mobile and desktop.
+
+Fully accessible and visually cohesive with the page.
+
+OPTIONAL (for an extra premium feel)
+Add a soft fade-in motion when the nav buttons appear:
+
+css
+Copy code
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nav-fade {
+  animation: fadeInUp 0.6s ease forwards;

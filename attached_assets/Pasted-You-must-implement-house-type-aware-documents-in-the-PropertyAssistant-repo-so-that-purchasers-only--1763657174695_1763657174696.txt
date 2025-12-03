@@ -1,0 +1,227 @@
+You must implement house-type-aware documents in the PropertyAssistant repo so that purchasers only see documents that are relevant to their own unit.
+
+BUSINESS RULES
+
+For any logged-in purchaser in the tenant portal:
+
+They should see all general documents for their development (brochures, manuals, management packs, etc.) that have no specific house type attached.
+
+They should see only house-type-specific documents (floor plans, elevations, M&E layouts, etc.) that match their own house type code.
+
+Example:
+
+Purchaser of 1 Longview Park has house type BD01.
+
+In the Documents tab they should see:
+
+All general docs (no house type)
+
+Floor plans / elevations tagged BD01
+
+They must not see docs labelled BD02, BS01, BT03, etc.
+
+House type codes are things like: BD01, BD02, BS01, BT03 (pattern: BD|BS|BT + two digits) and may appear in the file name or title.
+
+You need to wire this end-to-end:
+
+DB schema
+
+document ingestion / training
+
+API
+
+tenant-portal Documents UI
+
+The developer portal must continue to see all documents for a development (no filtering).
+
+STEP 1 – CONFIRM / EXTEND DOCUMENTS SCHEMA
+
+Open the Drizzle schema for documents:
+packages/api/src/db/schema.ts (or wherever documents table is defined).
+
+Confirm if there is already a column like house_type_code or similar.
+
+If no such column exists, add a nullable house_type_code column:
+
+export const documents = pgTable("documents", {
+  // existing fields...
+  house_type_code: varchar("house_type_code", { length: 16 }).nullable(),
+});
+
+
+Create a migration to add the column:
+
+Add a migration in packages/api/src/db/migrations (or existing migrations folder) that runs:
+
+ALTER TABLE documents
+ADD COLUMN IF NOT EXISTS house_type_code varchar(16);
+
+
+Run the migration via the existing migration script (do not invent a new workflow – use whatever the repo already uses to run Drizzle migrations).
+
+STEP 2 – AUTO-TAG HOUSE TYPE ON DOCUMENT INGEST
+
+We need to automatically infer house_type_code from the uploaded file where possible.
+
+Open the document ingest / training pipeline:
+packages/api/src/train/ingest.ts (or equivalent file used when /api/train inserts into documents).
+
+When inserting a document record, add logic to detect a house type code from the file name or title:
+
+function extractHouseTypeCode(fileNameOrTitle: string | null | undefined): string | null {
+  if (!fileNameOrTitle) return null;
+
+  // Match codes like BD01, BD12, BS03, BT10 (case insensitive)
+  const match = fileNameOrTitle.toUpperCase().match(/\b(BD|BS|BT)\d{2}\b/);
+  return match ? match[0] : null;
+}
+
+
+Before db.insert(documents).values(...), compute:
+
+const houseTypeCode =
+  extractHouseTypeCode(fileName) ||
+  extractHouseTypeCode(title);
+
+
+Include it in the insert:
+
+await db.insert(documents).values({
+  // existing fields...
+  house_type_code: houseTypeCode,
+});
+
+
+Important:
+
+Do not reject documents that have no house type; they are “general” development docs.
+
+Leave house_type_code as null for those – they must still be visible to all purchasers in that development.
+
+Add logging for visibility:
+
+console.log("[INGEST] Insert document:", fileName, "house_type_code:", houseTypeCode);
+
+
+This logic must apply to all future uploads via the Developer Portal.
+
+STEP 3 – ADD FILTERED DOCUMENTS API FOR TENANT PORTAL
+
+We need an API that returns only:
+
+docs with house_type_code IS NULL
+
+plus docs with house_type_code = purchaserHouseTypeCode
+
+Locate the current API used by the tenant portal Documents tab.
+It will be something like:
+
+apps/tenant-portal/app/api/documents/route.ts
+or
+
+a shared route in packages/api/src/documents/route.ts
+
+If there is already a “list documents” handler for tenant portal, extend it. Otherwise, create one dedicated to tenant portal (do not break Developer Portal).
+
+The handler must:
+
+Read the purchaser context from JWT (development_id, unit_id, house_type_code) via the existing auth helper (the same one used by chat).
+
+Optionally accept an override houseTypeCode query param, but default to the value from JWT.
+
+Query should look like (Drizzle pseudo-code):
+
+const jwt = await getTenantJwt(request); // existing helper
+
+if (!jwt?.development_id) {
+  return NextResponse.json({ error: "Missing development context" }, { status: 400 });
+}
+
+const houseType = jwt.house_type_code ?? null;
+
+const docs = await db
+  .select()
+  .from(documents)
+  .where(
+    and(
+      eq(documents.development_id, jwt.development_id),
+      or(
+        isNull(documents.house_type_code),           // general docs
+        eq(documents.house_type_code, houseType)     // only this purchaser's type
+      )
+    )
+  )
+  .orderBy(documents.created_at);
+
+
+Return only the fields needed by the tenant portal UI: id, title, document_type, file_url, house_type_code, created_at, etc.
+
+Developer Portal routes that list documents for a development must not be filtered by house_type_code. They should continue to show all docs so admins see the full library.
+
+STEP 4 – WIRE TENANT PORTAL DOCUMENTS TAB TO NEW API
+
+Find the tenant portal Documents UI component, likely something like:
+
+apps/tenant-portal/app/(public)/documents/page.tsx
+or a DocumentsTab.tsx used inside the main layout.
+
+Confirm how it currently fetches documents. Replace the fetch with a call to the new filtered documents API you created in Step 3, for example:
+
+const response = await fetch("/api/documents", {
+  method: "GET",
+  credentials: "include",
+});
+
+
+Do not pass developmentId or houseType in the query if the backend is already using JWT – the server should derive these from the cookie.
+
+Ensure the component does not attempt to client-side filter by house type.
+All filtering must be done in the API query (Step 3).
+The UI should simply render whatever the API returns.
+
+Add minimal logging in the browser console so we can verify:
+
+console.log("[Docs] Loaded", docs.length, "documents");
+console.log("[Docs] House types present:", Array.from(new Set(docs.map(d => d.house_type_code || "GENERAL"))));
+
+STEP 5 – TEST MATRIX
+
+After code and API changes, run both portals and verify:
+
+Developer Portal
+
+Open Longview Park → Documents.
+
+Confirm you still see all 30+ documents (general + all house types).
+
+Tenant Portal – purchaser with BD01
+
+Scan QR for a unit whose house type is BD01.
+
+Open Documents tab.
+
+Verify:
+
+You see all general docs (no house_type_code).
+
+You see floor plans / elevations tagged BD01.
+
+You do not see any documents tagged BD02, BS01, BTxx, etc.
+
+Tenant Portal – different house type (if sample data exists)
+
+Use a unit with BS01.
+
+Confirm you get BS01-specific plans but not BD01.
+
+Add console logs (server + client) to prove:
+
+Ingest logs show house_type_code correctly inferred from filenames like House Type BD01 - Ground Floor.pdf.
+
+API logs show the query executed with the correct development_id and house_type_code.
+
+Client logs confirm the returned set does not contain other house_type_codes.
+
+Only stop once all of the above pass.
+
+End of Agent Prompt

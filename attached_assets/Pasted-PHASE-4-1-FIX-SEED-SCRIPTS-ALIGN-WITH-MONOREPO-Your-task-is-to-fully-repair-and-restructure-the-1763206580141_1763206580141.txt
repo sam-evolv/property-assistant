@@ -1,0 +1,116 @@
+PHASE 4.1 — FIX SEED SCRIPTS + ALIGN WITH MONOREPO
+
+Your task is to fully repair and restructure the seeding system in the OpenHouse AI monorepo so that:
+
+All seed files run successfully using tsx
+
+All imports resolve correctly from packages/api/
+
+The tenant creation flow works without module errors
+
+The database seed pipeline becomes future-proof for multi-tenant scaling
+
+Fix Requirements:
+1. Audit all seed files
+
+Search these files:
+
+packages/api/seed.ts
+
+packages/api/seed-tenants.ts
+
+packages/api/tenants.ts
+
+any other seed or bootstrap file inside packages/api
+
+Identify issues such as:
+
+Invalid relative paths (eg: ../../db instead of @openhouse/api/db)
+
+Imports pointing to non-existing lib folders
+
+Missing exports from schema.ts
+
+Wrong Drizzle client paths
+
+Missing import { db } from './db/client' etc.
+
+2. Fix module resolution
+
+All seed scripts must import from these paths ONLY:
+
+import { db } from '@openhouse/api/db'
+import { tenants } from '@openhouse/api/schema'
+import { seedTenants } from '@openhouse/api/seed-tenants'
+
+
+No relative imports allowed.
+
+3. Fix missing esm module resolution
+
+Adjust tsconfig + package.json fields in packages/api:
+
+Ensure "type": "module"
+
+Ensure "moduleResolution": "bundler"
+
+Ensure "tsx" runs with ESM imports
+
+Make any required changes.
+
+4. Fix seed-tenants.ts specifically
+
+The current error:
+
+ERR_MODULE_NOT_FOUND: Cannot find module 'tenants.ts'
+
+
+Fix by ensuring:
+
+tenants.ts exports a valid seedTenants() function
+
+seed-tenants.ts correctly imports it:
+
+import { seedTenants } from '@openhouse/api/tenants'
+
+5. Implement consistent seed runner
+
+Create a single entrypoint:
+
+packages/api/scripts/seed-all.ts
+
+
+Which must:
+
+seed tenants first
+
+seed any other tables after
+
+log clean output
+
+6. Verify everything works
+
+Run:
+
+npx tsx packages/api/seed-tenants.ts
+npx tsx packages/api/scripts/seed-all.ts
+
+
+Both must complete with ZERO errors.
+
+7. Produce final structured report
+
+When complete, print:
+
+=== SEED SYSTEM REPORT ===
+✓ All seed files validated
+✓ All module paths corrected
+✓ All imports fixed
+✓ seed-tenants.ts runs successfully
+✓ seed-all.ts runs successfully
+✓ Database now supports multi-tenant seeding
+READY FOR PHASE 4.2
+
+
+Begin now.
+Search, fix, refactor, test, and verify EVERYTHING in the seed pipeline.
