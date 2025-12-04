@@ -1,44 +1,34 @@
-const PUBLIC_UPLOAD_BASE_URL =
-  process.env.PUBLIC_UPLOAD_BASE_URL ||
-  process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ||
-  "";
+const BASE = process.env.PUBLIC_UPLOAD_BASE_URL ?? '';
 
-if (!PUBLIC_UPLOAD_BASE_URL) {
+if (!BASE) {
   console.warn(
     "[resolve-upload-url] PUBLIC_UPLOAD_BASE_URL is not set. " +
       "Relative /uploads/... URLs will fail."
   );
 }
 
-function normaliseBase(base: string) {
-  return base.replace(/\/+$/, "");
-}
-
-function normalisePath(path: string) {
-  let normalised = path.replace(/^\/+/, "");
-  if (normalised.startsWith("uploads/")) {
-    normalised = normalised.substring("uploads/".length);
-  }
-  return normalised;
-}
-
-export function resolveUploadUrl(rawPath: string): string {
-  if (!rawPath) {
-    throw new Error("resolveUploadUrl: rawPath is empty");
+export function resolveUploadUrl(path: string): string {
+  if (!path) {
+    throw new Error('No path provided to resolveUploadUrl');
   }
 
-  if (/^https?:\/\//i.test(rawPath)) {
-    return rawPath;
+  if (/^https?:\/\//i.test(path)) {
+    return path;
   }
 
-  if (!PUBLIC_UPLOAD_BASE_URL) {
+  if (!BASE) {
     throw new Error(
-      `resolveUploadUrl: PUBLIC_UPLOAD_BASE_URL is not configured; got relative path "${rawPath}"`
+      `resolveUploadUrl: PUBLIC_UPLOAD_BASE_URL is not configured; got relative path "${path}"`
     );
   }
 
-  const base = normaliseBase(PUBLIC_UPLOAD_BASE_URL);
-  const path = normalisePath(rawPath);
+  const base = BASE.replace(/\/$/, '');
 
-  return `${base}/${path}`;
+  let normalised = path.startsWith('/') ? path : `/${path}`;
+
+  if (!normalised.startsWith('/uploads/')) {
+    normalised = `/uploads${normalised}`;
+  }
+
+  return `${base}${normalised}`;
 }

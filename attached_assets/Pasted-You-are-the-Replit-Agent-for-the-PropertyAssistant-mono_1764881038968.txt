@@ -1,0 +1,84 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+
+Goal right now:
+Fix document download URLs so that the reprocess-all-docs pipeline can actually fetch PDFs. The current bug is: resolved URLs are missing the `/uploads/` segment, leading to `Failed to download: Not Found`.
+
+Evidence from logs (user just ran reprocess script):
+
+* Stored path: /uploads/kiiCVGmHyan8yUmTxTWR--Cottage-Red-Roof-Tile---N1.pdf
+* Resolved URL: [https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/kiiCVGmHyan8yUmTxTWR--Cottage-Red-Roof-Tile---N1.pdf](https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/kiiCVGmHyan8yUmTxTWR--Cottage-Red-Roof-Tile---N1.pdf)
+* ERROR: Failed to download: Not Found
+
+We want:
+
+* PUBLIC_UPLOAD_BASE_URL is the root external URL: [https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev](https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev)
+* Final URL should be: [https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/uploads/kiiCVGmHyan8yUmTxTWR--Cottage-Red-Roof-Tile---N1.pdf](https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/uploads/kiiCVGmHyan8yUmTxTWR--Cottage-Red-Roof-Tile---N1.pdf)
+
+Tasks:
+
+1. Open `packages/api/src/resolve-upload-url.ts` and replace the resolver logic with a robust version that:
+
+   * If the input path is already absolute (`http://` or `https://`), returns it unchanged.
+   * Normalises the path to start with a leading `/`.
+   * Ensures the path *includes* a single `/uploads/` prefix:
+
+     * If it already starts with `/uploads/`, keep as-is.
+     * Otherwise, prepend `/uploads` (so `"/foo.pdf"` → `"/uploads/foo.pdf"`).
+   * Joins it with `process.env.PUBLIC_UPLOAD_BASE_URL` where the base URL has any trailing `/` stripped.
+   * Does **not** strip `/uploads` based on the base URL any more. The base URL will be the root.
+
+   For example, the implementation should effectively behave like:
+
+   ```ts
+   const BASE = process.env.PUBLIC_UPLOAD_BASE_URL ?? '';
+
+   export function resolveUploadUrl(path: string): string {
+     if (!path) throw new Error('No path provided to resolveUploadUrl');
+
+     // Already absolute – just return it
+     if (/^https?:\/\//.test(path)) return path;
+
+     const base = BASE.replace(/\/$/, '');
+
+     // Ensure leading slash
+     let normalised = path.startsWith('/') ? path : `/${path}`;
+
+     // Ensure exactly one /uploads/ prefix
+     if (!normalised.startsWith('/uploads/')) {
+       normalised = `/uploads${normalised}`;
+     }
+
+     return `${base}${normalised}`;
+   }
+   ```
+
+   Adjust imports/types as needed, but keep the behaviour exactly as above.
+
+2. Confirm that `PUBLIC_UPLOAD_BASE_URL` is set correctly in Replit Secrets (Shared env):
+
+   * Key: `PUBLIC_UPLOAD_BASE_URL`
+   * Value: `https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev`
+
+   Do **not** include `/uploads` in this value; it should be the root.
+
+3. After updating the resolver, run a quick test in the shell:
+
+   * `npx tsx scripts/reprocess-all-docs.ts --force --limit 3`
+
+   We expect:
+
+   * Resolved URL lines to look like:
+     `Resolved URL: /uploads/xxx.pdf -> https://8414...replit.dev/uploads/xxx.pdf`
+   * Downloads to succeed (no `Failed to download: Not Found`).
+   * At least some documents to appear in the summary as `✅ Successful`.
+
+4. If the limit-3 test passes, run the full batch:
+
+   * `npx tsx scripts/reprocess-all-docs.ts --force`
+
+Explain in your final message:
+
+* What code changes you made in `resolve-upload-url.ts`.
+* The exact value of `PUBLIC_UPLOAD_BASE_URL` you found/used.
+* The output of the `--limit 3` test (success vs errors).
+* Whether it is safe to run the full reprocess command.
