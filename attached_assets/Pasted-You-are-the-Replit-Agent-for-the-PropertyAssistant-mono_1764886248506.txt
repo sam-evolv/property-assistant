@@ -1,0 +1,67 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+
+Goal:
+Migrate all application data from the legacy Neon Postgres (LEGACY_DATABASE_URL) into Supabase (DATABASE_URL), so that Supabase becomes the single source of truth for the entire SaaS, at scale.
+
+Constraints:
+- DO NOT change the schema again. `drizzle-kit push` has already aligned Supabase with `packages/db/schema.ts`.
+- Supabase (DATABASE_URL) is the **target** database.
+- Neon (LEGACY_DATABASE_URL) is the **source** database.
+- The migration must be idempotent and safe to re-run.
+- Preserve all primary keys and foreign key relationships.
+- Log progress clearly table-by-table with row counts.
+
+Tasks:
+
+1. Create a new script at `scripts/migrate-from-legacy.ts` that:
+   - Uses `pg` and/or Drizzle to open TWO connections:
+     - `sourcePool` using `process.env.LEGACY_DATABASE_URL`
+     - `targetPool` using `process.env.DATABASE_URL`
+   - Uses the existing Drizzle schema in `packages/db/schema.ts` for the **target** only.
+   - Implements a helper `copyTable({ tableName, keyColumns })` that:
+     - Reads all rows from the source table using simple `SELECT * FROM tableName`.
+     - For each row, performs an UPSERT into the target table:
+       - Uses `INSERT ... ON CONFLICT (keyColumns...) DO UPDATE` semantics.
+       - Keeps the original `id` / `tenant_id` / `development_id` values.
+     - Logs `tableName: copied X rows` to stdout.
+
+2. Implement migration in dependency order, e.g.:
+   - tenants
+   - developments
+   - house_types
+   - units
+   - homeowners
+   - documents
+   - doc_chunks / rag_chunks / embedding_cache
+   - noticeboard_posts / notice_comments
+   - tickets / issue_types / feedback
+   - analytics_events / analytics_platform_stats
+   - any other tables defined in `schema.ts` that have data in Neon
+   Use the correct key columns for ON CONFLICT (usually `id`, sometimes composite).
+
+3. For large or “derived” tables:
+   - If any tables are pure derivatives (e.g. precomputed analytics) and can be safely recomputed, wrap them in a config section so we can choose:
+     - `mode = 'full'` → migrate everything
+     - `mode = 'core'` → only core domain tables, skip recomputable analytics.
+   - Default mode should be `'core'`.
+
+4. Add safety and ergonomics:
+   - At the top of the script, print both connection hosts (parse from URLs) so it’s obvious which DB is source vs target.
+   - Require an explicit CLI flag to run, e.g.:
+     - `node -r esbuild-register scripts/migrate-from-legacy.ts --confirm`
+   - If `--confirm` is missing, just print what would be migrated and exit.
+
+5. Update `README_DEV.md` or add a short `docs/migration.md` section describing:
+   - How to run the migration:
+     - `LEGACY_DATABASE_URL=<neon-uri>` (already in Replit secrets)
+     - `DATABASE_URL=<supabase-uri>` (already in Replit secrets)
+     - `cd packages/db && npx drizzle-kit push` (already done)
+     - `npx tsx scripts/migrate-from-legacy.ts --confirm`
+   - What to check afterwards (see below).
+
+6. Do NOT delete `LEGACY_DATABASE_URL` usage anywhere; we want this script to keep working as a rollback/migration tool.
+
+When you’re done:
+- Show me the full contents of `scripts/migrate-from-legacy.ts`.
+- Show the docs section you added.
+- Do NOT run the script automatically; I will run it manually from the shell.
