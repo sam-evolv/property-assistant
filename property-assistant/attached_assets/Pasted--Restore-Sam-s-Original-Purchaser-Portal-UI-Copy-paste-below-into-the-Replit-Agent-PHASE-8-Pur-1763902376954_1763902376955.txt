@@ -1,0 +1,198 @@
+“Restore Sam’s Original Purchaser Portal UI”
+
+Copy/paste below into the Replit Agent:
+
+PHASE 8 — Purchaser Portal UI Restoration Master Prompt
+
+Goal:
+Restore the original, premium purchaser experience exactly as it existed before the security rebuild, while keeping all new security upgrades fully intact.
+
+Instructions:
+Perform the following steps carefully, in order:
+
+8.1 — Restore Original Component Architecture
+
+Search the entire monorepo for the original purchaser portal components using these patterns:
+
+rg -i "purchaser" apps
+rg -i "homeowner" apps
+rg -i "chat" apps
+rg -i "notice" apps
+rg -i "document" apps
+rg -i "map" apps
+
+
+Find the pre-migration folder that contained:
+
+Chat UI (hero bubble, message list, input bar)
+
+Bottom navigation bar with icons
+
+Full-screen page structure
+
+Auto-load Google Map embed (NOT button links)
+
+Noticeboard card layout
+
+Document list with icons + preview modal
+
+Identify the ENTIRE old purchaser portal folder and map each file to the new security architecture.
+
+8.2 — Merge UI Back Into the New Security System
+
+Replace ONLY the visual/UI layer:
+
+Do not alter token validation
+
+Do not alter sessionStorage retrieval
+
+Do not alter API endpoints
+
+Do not alter middleware token gating
+
+Bind the restored UI to:
+
+const unit = await fetch("/api/purchaser/unit", { headers: { "x-auth-token": token }})
+
+
+All props should come from the new secure endpoints.
+
+8.3 — Restore the Original Chat UI
+
+Bring back:
+
+The bubble layout
+
+Welcome message card with large heading
+
+White rounded panel with shadow
+
+Larger font sizes
+
+Typing indicator
+
+Proper spacing
+
+Correct gold accents
+
+Input bar with rounded corners + shadow
+
+DO NOT USE the simplified new chat design.
+
+8.4 — Restore the Original Maps UI
+
+Replace the lazy button-links with your original:
+
+Auto-loaded embedded Google Maps iframe
+
+Development address + distance cards
+
+Amenity locator
+
+Clean visual layout
+
+If embed API key is needed:
+
+Use the existing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+Place it server-side if possible
+
+8.5 — Restore the Original Noticeboard UI
+
+Bring back:
+
+Card-based layout
+
+Icons
+
+Timestamps
+
+Soft shadows
+
+Gold titles
+
+Fully responsive design
+
+Bind to new purchaser endpoint:
+
+/api/purchaser/noticeboard
+
+8.6 — Restore the Original Documents UI
+
+Bring back:
+
+Document card grid
+
+Filetype icons
+
+Preview modal
+
+Download button with gold accent
+
+Bind to:
+
+/api/purchaser/documents
+
+8.7 — Reinstate Intro Animation
+
+The intro animation must:
+
+Run only on FIRST visit
+
+Identify the purchaser by name
+
+Match the original motion and opacity timing
+
+Fade into the restored UI
+
+Never show login screens
+
+Verify functionality by scanning a live QR code.
+
+8.8 — Full Visual Polish Pass
+
+Apply:
+
+Original font sizes
+
+Original spacing
+
+Original icon sets
+
+Original transition timing
+
+Original shadows
+
+Original gold/white/black colour palette
+
+Original toolbar icon sizes & spacing
+
+Remove generic placeholders
+
+8.9 — Architect Review After Completion
+
+After restoring the UI:
+
+Run the Architect tool
+
+Request a full audit
+
+Resolve any mismatched imports, wrong props, or routing inconsistencies
+
+Expected Output:
+
+A fully restored purchaser portal that:
+
+Looks exactly like Sam’s original design
+
+Includes Chat, Maps, Notices, Documents
+
+Auto-loads Maps instead of showing buttons
+
+Runs Intro Animation on first visit
+
+Uses the new secure token system
+
+Has no login screen
+
+Preserves all analytics + backend improveme

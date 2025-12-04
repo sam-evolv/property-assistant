@@ -1,0 +1,59 @@
+You must fix the API backend so that document uploads and chat work.  
+Right now the backend server is NOT running because packages/api/package.json does not contain a "dev" script.  
+When I run “cd packages/api && npm run dev” the shell shows “npm ERR! missing script: dev”.  
+This causes 500 errors for /api/train and 401 errors for /api/chat, because the server is not running.
+
+I need you to perform the following actions exactly:
+
+1. OPEN FILE:
+   packages/api/package.json
+
+2. INSPECT the "scripts" section.  
+   If a "dev" script does not exist, ADD this script exactly:
+
+   "dev": "ts-node-esm src/index.ts",
+
+   Do NOT remove other scripts.  
+   If a "scripts" block already exists, insert this inside it.
+
+3. VERIFY that the entrypoint src/index.ts exists.  
+   If it does not, locate the correct startup file and update the dev script accordingly.
+
+4. ENSURE the backend actually runs on port 3001 by doing one of the following:
+   - Confirm src/index.ts listens on 3001, OR
+   - Update the server to listen on process.env.PORT || 3001.
+
+5. AFTER fixing the script, RUN this command in the Shell:
+   cd packages/api && npm run dev
+
+6. CONFIRM via Shell logs:
+   - API server starts
+   - No “missing script” error
+   - Database connected
+   - Routes mounted: /api/train, /api/chat
+   - Server listening on port 3001
+
+7. FIX any TypeScript errors or missing imports that prevent startup.
+   The API must successfully compile and run.
+
+8. TEST the endpoints internally:
+   - Call POST /api/train with a small test payload
+   - Call POST /api/chat with a test message
+   - Confirm both return 200 responses
+
+9. THEN FIX the developer portal so that it targets the now-running backend.  
+   Ensure all API calls use relative paths:
+   fetch("/api/train")
+   fetch("/api/chat")
+   and NOT localhost or absolute URLs.
+
+10. CONFIRM end-to-end by guiding me to upload a PDF in the Developer Portal and receive a valid training job response.
+
+Deliverables:
+- Updated package.json (show the modified scripts block)
+- Summary of changes
+- Shell log screenshot (or inline output) showing the API server running
+- Confirmation that /api/train and /api/chat now respond successfully
+- Confirmation that upload + chat works from the Developer Portal
+
+Execute all steps now and restart anything needed.

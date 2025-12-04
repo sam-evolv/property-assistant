@@ -1,0 +1,160 @@
+You must fix the document reprocessing system in the OpenHouse AI / PropertyAssistant project. 
+The requirement is simple:
+
+THE DOCUMENT REPROCESSING PIPELINE MUST WORK EXACTLY AS IT DID YESTERDAY. 
+No regressions. No dual pipelines. No switching libraries. No HTML errors. 
+One single proven pipeline. PDF, DOCX, CSV, TXT, XLSX. 100% functional.
+
+----------------------------------------------
+PHASE 0 — DELETE ALL BROKEN CODE PATHS
+----------------------------------------------
+Search the entire repo for:
+- pdf-parse
+- pdfParse
+- pdfjs
+- parsePDF
+- experimental pipelines
+- any reprocess route that does NOT use unpdf
+
+REMOVE ALL OF THEM.
+
+The ONLY document parser allowed is:
+
+   unpdf
+
+which was working perfectly yesterday.
+
+Keep the stable training code:
+packages/api/src/train/parse.ts
+
+This is the SINGLE SOURCE OF TRUTH.
+
+----------------------------------------------
+PHASE 1 — REWRITE /api/documents/reprocess USING parse.ts
+----------------------------------------------
+Open:
+packages/api/src/routes/documents/reprocess.ts
+(or whichever file actually handles the reprocess endpoint)
+
+Replace its entire logic with:
+
+1. Load ALL document records for the selected development.
+2. For each document:
+   - Read file from disk
+   - Call the SAME function used in training:
+       import { extractText } from "../../train/parse"
+   - Chunk using the SAME chunker as training:
+       import { chunkText } from "../../train/chunk"
+   - Generate embeddings using the SAME embedding function:
+       import { embed } from "../../train/embed"
+   - Save chunks EXACTLY like training:
+       import { saveChunks } from "../../train/save"
+
+3. Ensure the endpoint returns ONLY:
+   { success: true }
+
+NO HTML, NO TEXT ERRORS, NO <DOCTYPE>, NO STACK TRACES.
+
+----------------------------------------------
+PHASE 2 — HARDEN THE ENDPOINT AGAINST HTML ERRORS
+----------------------------------------------
+At the TOP of the reprocess endpoint, add:
+
+res.setHeader("Content-Type", "application/json");
+
+Wrap the entire route in:
+try { ... } catch(e) { return res.status(500).json({ error: e.message }); }
+
+If ANYTHING throws, return JSON ONLY.
+Never return HTML.
+
+----------------------------------------------
+PHASE 3 — ENSURE NODE USES THE SAME MODULE MODE AS parse.ts
+----------------------------------------------
+Search the reprocess route for:
+- require()
+- import mismatch
+- top-level await mismatch
+
+Align module system:
+- If parse.ts uses ES modules, reprocess must also use ES modules.
+- If parse.ts uses CommonJS, reprocess must match.
+
+Fix any module type mismatch.
+
+----------------------------------------------
+PHASE 4 — UNIT TEST THE PIPELINE
+----------------------------------------------
+Create a quick test script:
+
+scripts/test_reprocess_single.mjs
+
+This script should:
+- Load ONE known PDF (Kitchen Narrative)
+- Run it through extractText()
+- Chunk it
+- Embed it
+- Output the number of chunks
+
+Run this before enabling the button.
+
+----------------------------------------------
+PHASE 5 — WIRE THE BUTTON TO THE WORKING ENDPOINT
+----------------------------------------------
+Open:
+apps/unified-portal/components/documents/ReprocessButton.tsx
+(or equivalent)
+
+Make sure it calls exactly:
+POST /api/documents/reprocess
+
+NO FORM SUBMISSION.
+NO MULTIPART.
+NO FETCH WITHOUT HEADERS.
+
+Use:
+fetch("/api/documents/reprocess", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ developmentId })
+})
+
+Ensure UI shows success/failure reliably.
+
+----------------------------------------------
+PHASE 6 — CLEAN ALL OLD DATA
+----------------------------------------------
+Delete all existing:
+- doc_chunks
+- documents where versioning failed
+- training_job history with 0 chunks
+
+Clean slate.
+
+----------------------------------------------
+PHASE 7 — REPROCESS ALL DOCUMENTS
+----------------------------------------------
+After the fix is done, run the reprocess button once.
+
+Expected:
+- All documents process successfully
+- No HTML errors
+- No “Unexpected token < …”
+- Chunks in DB increase
+- RAG pipeline works for kitchens, etc.
+
+----------------------------------------------
+PHASE 8 — FINAL CONFIRMATION
+----------------------------------------------
+When completing the task, you MUST report:
+
+- File paths updated  
+- Libraries removed  
+- Libraries added  
+- Confirmation that unpdf is the only parser  
+- Confirmation that reprocess endpoint returns valid JSON  
+- Confirmation that reprocess pipeline equals training pipeline  
+- Confirmation that all docs successfully chunked  
+- Confirmation that demo portal ("What size is my living room?") works again  
+
+This MUST be a full and permanent fix.

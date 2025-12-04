@@ -1,0 +1,133 @@
+PHASE 1 — SYSTEM DISCOVERY (DO NOT MODIFY ANY FILES YET)
+You are the senior platform engineer responsible for upgrading the OpenHouse AI Developer Portal into an enterprise-grade analytics and control hub. Before executing any changes, perform a complete system discovery pass.
+
+Your objectives in Phase 1:
+
+1. Build a complete architectural understanding of the monorepo
+
+Identify and summarise:
+
+All apps (tenant-portal, developer-portal, admin, API routes)
+
+All shared packages (db, auth, utils, UI components, etc.)
+
+All server APIs and their ownership boundaries
+
+All Supabase tables, relationships, and RLS rules
+
+All existing analytics data sources
+
+All user roles and permissions (admin, developer, purchaser)
+
+2. Map every file and directory relevant to:
+
+Developer Portal UI
+
+Developer Portal APIs
+
+System-wide admin logic
+
+Supabase integration
+
+Authentication and JWT logic
+
+Chat message logging
+
+Document storage and metadata
+
+House/unit relationships
+
+Upload pipelines
+
+Floor plan & document linking logic
+
+Map & points-of-interest logic
+
+3. Produce a precise dependency graph
+
+Document:
+
+What calls what
+
+What relies on Supabase
+
+What relies on client-side props
+
+What relies on server components
+
+What renders on the server vs. client
+
+4. Identify all blockers or inconsistencies that will impact future phases
+
+Including, but not limited to:
+
+Missing fields in homeowners/units
+
+Incorrect JWT payload
+
+Inconsistent development selection logic
+
+Missing indexes
+
+Missing foreign keys
+
+Broken data joins
+
+Places where caching is required
+
+Any hydration mismatches in Next.js
+
+5. Output a structured report
+
+Deliver the following in your final Phase 1 output:
+
+A. High-level architecture summary
+
+Concise but complete.
+
+B. File-by-file audit
+
+Only files relevant to Developer Portal, Admin Portal, Analytics, Chat, Documents, Units, Developments.
+
+C. Database schema extraction
+
+Name, purpose, relationships, weaknesses.
+
+D. Gap analysis
+
+Identify everything blocking:
+
+analytics dashboards
+
+developer aggregated insights
+
+per-scheme insight pages
+
+per-purchaser insight pages
+
+chat analytics
+
+document analytics
+
+map analytics
+
+unit metadata quality
+
+floor plan & elevation mapping
+
+future billing integration
+
+E. Phase 2 Implementation Plan
+
+List all tasks that must be done next, in order, with technical depth.
+This will become the Phase 2 agent prompt.
+
+Rules:
+
+DO NOT change or create files in Phase 1.
+
+Only analyse, map, summarise.
+
+Be exhaustive.
+
+Output must prepare us for the enterprise analytics system.

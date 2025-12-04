@@ -1,0 +1,260 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  
+  --shadow-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.03);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.12);
+  --shadow-3: 0 16px 48px rgba(0,0,0,.16);
+  
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 350ms;
+  --duration-premium: 300ms;
+  
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  
+  --color-gold: #D4AF37;
+  --color-gold-rgb: 212, 175, 55;
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  --color-accent: #C9A961;
+  --color-accent-rgb: 201, 169, 97;
+  
+  --gold-50: #FEFCE8;
+  --gold-100: #FEF9C3;
+  --gold-200: #FEF08A;
+  --gold-300: #FDE047;
+  --gold-400: #FACC15;
+  --gold-500: #D4AF37;
+  --gold-600: #C9A961;
+  --gold-700: #B8934C;
+  --gold-800: #A67C3A;
+  --gold-900: #8B6428;
+  --gold-950: #6B4E1C;
+  
+  --brand-50: var(--gold-50);
+  --brand-100: var(--gold-100);
+  --brand-200: var(--gold-200);
+  --brand-300: var(--gold-300);
+  --brand-400: var(--gold-400);
+  --brand-500: var(--gold-500);
+  --brand-600: var(--gold-600);
+  --brand-700: var(--gold-700);
+  --brand-800: var(--gold-800);
+  --brand-900: var(--gold-900);
+  --brand-950: var(--gold-950);
+  --brand-contrast: var(--color-black);
+  
+  --accent: var(--color-accent);
+  --ring: 0 0 0 2px color-mix(in oklab, var(--brand-600) 40%, white 0%);
+  
+  --bg: #ffffff;
+  --surface-1: #f9fafb;
+  --surface-2: #f3f4f6;
+  --surface-3: #e5e7eb;
+  --text-1: #111827;
+  --text-2: #6b7280;
+  --text-3: #9ca3af;
+  --muted: #d1d5db;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --hover-bg: #f9fafb;
+  --hover-bg-strong: #f3f4f6;
+}
+
+[data-theme="dark"] {
+  --bg: #0b0c0f;
+  --surface-1: #0f1115;
+  --surface-2: #12151b;
+  --surface-3: #161a22;
+  --text-1: #eef2f8;
+  --text-2: #9ca8bc;
+  --text-3: #778199;
+  --muted: #4b5563;
+  --border: #1e2531;
+  --border-strong: #374151;
+  --hover-bg: #12151b;
+  --hover-bg-strong: #161a22;
+  --ring: 0 0 0 2px color-mix(in oklab, var(--brand-500) 40%, transparent 0%);
+  --shadow-1: 0 1px 2px rgba(0,0,0,.24), 0 1px 1px rgba(0,0,0,.12);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.36);
+  --shadow-3: 0 16px 48px rgba(0,0,0,.48);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #0b0c0f;
+    --surface-1: #0f1115;
+    --surface-2: #12151b;
+    --surface-3: #161a22;
+    --text-1: #eef2f8;
+    --text-2: #9ca8bc;
+    --text-3: #778199;
+    --muted: #4b5563;
+    --border: #1e2531;
+    --border-strong: #374151;
+    --hover-bg: #12151b;
+    --hover-bg-strong: #161a22;
+    --ring: 0 0 0 2px color-mix(in oklab, var(--brand-500) 40%, transparent 0%);
+    --shadow-1: 0 1px 2px rgba(0,0,0,.24), 0 1px 1px rgba(0,0,0,.12);
+    --shadow-2: 0 8px 24px rgba(0,0,0,.36);
+    --shadow-3: 0 16px 48px rgba(0,0,0,.48);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-bg text-text-1;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--color-gold-rgb), 0.15) 50%,
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .gold-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from {
+      box-shadow: 0 0 10px rgba(var(--color-gold-rgb), 0.2);
+    }
+    to {
+      box-shadow: 0 0 20px rgba(var(--color-gold-rgb), 0.4), 0 0 30px rgba(var(--color-gold-rgb), 0.2);
+    }
+  }
+
+  .hover-lift {
+    transition: transform var(--duration-premium) var(--ease-premium), box-shadow var(--duration-premium) var(--ease-premium);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gold-shimmer,
+    .gold-glow,
+    .hover-lift,
+    *[class*="animate-"] {
+      animation: none !important;
+      transition: none !important;
+    }
+    
+    .hover-lift:hover {
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@media (max-width: 768px) {
+  .gold-shimmer,
+  .gold-glow,
+  *[class*="animate-"]:not(.animate-fadeIn):not(.animate-spin):not(.animate-pulse) {
+    animation: none !important;
+  }
+  
+  .hover-lift {
+    transform: none !important;
+  }
+  
+  .hover-lift:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  
+  .premium-transition {
+    transition-duration: 0.1s !important;
+  }
+  
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  body {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  img, video {
+    content-visibility: auto;
+  }
+}

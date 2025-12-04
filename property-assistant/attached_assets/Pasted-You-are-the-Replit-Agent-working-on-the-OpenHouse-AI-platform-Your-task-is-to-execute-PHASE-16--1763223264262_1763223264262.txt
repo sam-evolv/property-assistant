@@ -1,0 +1,88 @@
+You are the Replit Agent working on the OpenHouse AI platform.
+
+Your task is to execute **PHASE 16 — PILOT DEPLOYMENT FOR LONGVIEW PARK**:
+Seed real production data, generate QR codes for every house, validate the full onboarding flow, and prepare the platform for its first real-world test.
+
+Work strictly inside existing architecture and conventions.
+
+────────────────────────────────────────
+PHASE 16 OBJECTIVES
+────────────────────────────────────────
+
+1. Create Pilot Estate: Longview Park
+   • Insert a new tenant: “Longview Estates”
+   • Insert a new development: “Longview Park”
+     – Include location (lat/lng)
+     – Development metadata
+   • Insert house types (A, B, C, etc.) based on the seed templates
+   • Insert N houses (use a realistic sample set):
+     – house_id
+     – MRPN / lot numbers
+     – purchaser_name = null (not required)
+     – house_type
+     – QR_uid (uuid4)
+
+2. Generate QR Codes for Each House
+   • Create a script: scripts/generate-qrs.ts
+   • For each house:
+       – Read QR_uid
+       – Generate URL: https://app.openhouseai.ie/onboarding?uid=XXXX
+       – Render QR as PNG
+       – Save under /attached_assets/qrs/house_<id>.png
+   • Produce a summary JSON with:
+       – house_id
+       – QR_uid
+       – onboarding_url
+       – file_path
+
+3. Seed Documents for Longview Park
+   • Upload 5–10 sample PDFs to Supabase storage:
+       – House manual
+       – Warranty pack
+       – BER certificate
+       – Appliance manuals
+   • Auto-chunk and embed them using existing embedding pipeline
+   • Link documents to the Longview Park development
+
+4. Validate Full Homeowner Flow (Production Simulation)
+   • Using production build:
+       – Scan (open) onboarding URL
+       – Verify JWT issued correctly
+       – Verify onboarding UI loads with Longview Park branding
+       – Verify chat works
+       – Verify RAG citations load
+       – Verify documents open securely
+       – Verify map loads with correct coordinates
+       – Verify noticeboard is empty but functional
+
+5. Create Developer Staff Accounts
+   • Add 2–3 developer staff users for Longview Estates
+   • Ensure they can:
+       – Log in to Developer Portal
+       – Upload new documents
+       – Moderate noticeboard
+       – Preview theme changes
+
+6. Documentation for Pilot Delivery
+   • Create file: docs/PILOT_LONGVIEW_PARK.md
+   • Include:
+       – List of houses + QR codes
+       – Onboarding instructions for homeowners
+       – Developer instructions for uploading updates
+       – Known limitations
+       – Debug checklist
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• New tenant + development + houses seeded  
+• QR codes generated and stored in /attached_assets/qrs  
+• Documents uploaded + chunked + embedded  
+• Pilot test (end-to-end smoke test) validated  
+• Developer staff accounts created  
+• docs/PILOT_LONGVIEW_PARK.md written  
+
+────────────────────────────────────────
+
+Proceed with PHASE 16 now.

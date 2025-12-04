@@ -1,0 +1,117 @@
+You are working inside the Replit project PropertyAssistant.
+Perform the following actions step-by-step and verify each stage completes successfully.
+
+1. Kill any existing Node processes and reset port usage
+
+Terminate any Node or Next.js processes still using port 5000.
+
+Ensure only a single instance of the dev server runs at once.
+
+2. Update port configuration for Replit compatibility
+
+Open or create the file .replit at the project root.
+
+Replace its contents with:
+
+run = "next dev --port 5050"
+
+
+This forces Next.js to use port 5050, avoiding EADDRINUSE issues.
+
+3. Verify OpenAI API key access
+
+Ensure the key is stored in Replit Secrets as OPENAI_API_KEY.
+
+Create a test script at scripts/testOpenAI.js if it doesn’t already exist:
+
+import OpenAI from "openai";
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+(async () => {
+  try {
+    const models = await client.models.list();
+    console.log("✅ Connected successfully! Available models:");
+    console.log(models.data.slice(0, 10).map(m => m.id));
+  } catch (err) {
+    console.error("❌ Connection failed:", err.message);
+  }
+})();
+
+
+Run this script once with:
+
+node scripts/testOpenAI.js
+
+
+Confirm it prints at least one model (e.g. gpt-4.1, gpt-4o-mini, etc.).
+
+4. Fix the AI model router logic
+
+In /lib/ai/modelRouter.ts, update the model routing to use compatible model names:
+
+const model = useReasoning ? "gpt-4-turbo" : "gpt-3.5-turbo";
+
+
+(You can switch back to gpt-4.1 and gpt-4o-mini once verified.)
+
+5. Add full backend error handling
+
+Open /app/api/chat/route.ts and wrap all OpenAI calls in a try/catch block:
+
+try {
+  const answer = await generateAnswer({
+    query,
+    retrievedDocs,
+    retrievalScore: score,
+    tenantName: tenantSlug,
+  });
+
+  return new Response(JSON.stringify({ answer }), { status: 200 });
+} catch (err: any) {
+  console.error("Chat route error:", err);
+  return new Response(
+    JSON.stringify({ error: err.message || "Server error" }),
+    { status: 500 }
+  );
+}
+
+
+This ensures errors are logged and surfaced properly in the console.
+
+6. Restart and verify
+
+Stop any running instance, then execute:
+
+npm run dev
+
+
+Confirm the console shows:
+
+Local: http://localhost:5050
+✓ Ready
+
+
+Open the /chat route in preview:
+
+https://<your-repl>.replit.dev:5050/chat
+
+
+Ask a test question (e.g. “What time are the bins collected?”).
+Confirm the backend responds correctly and logs the selected model in the console.
+
+7. Verify API connection at runtime
+
+After confirming chat works, open the Replit console and ensure logs show something like:
+
+[Router] Using gpt-3.5-turbo → simple contextual answer
+
+
+or
+
+[Router] Using gpt-4-turbo → complex reasoning or low retrieval confidence
+
+8. Commit a checkpoint
+
+Once verified, create a checkpoint named:
+
+✅ Stable OpenAI Integration & Port Fix - Oct 2025

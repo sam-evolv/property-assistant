@@ -49,6 +49,69 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Enhanced Document Ingestion Pipeline (December 2025) - COMPLETED ✅
+
+**National-scale document processing with multi-pass extraction, Vision floorplan support, and tiered RAG retrieval:**
+
+**Phase A: Standard Document Ingestion** ✅
+- Doc_kind switching: floorplans → Vision extraction, standard → text/OCR pipeline
+- Processing status tracking: 'processing' | 'complete' | 'error'
+- OCR fallback for scanned PDFs (auto-detects when text extraction fails)
+- Embedding cache with SHA-256 hashing (eliminates duplicate API calls)
+- House-type-aware chunk storage for retrieval filtering
+
+**Phase B: Floorplan Vision Processing** ✅
+- `floorplan_vision` table for structured room extraction results
+- GPT-4o-mini Vision integration for floor plan dimension extraction
+- Multi-page PDF support (all floors captured)
+- Automatic floorplan_summary chunks for RAG context
+- Confidence scoring (0.9 for Vision, 0.85 for PDF dimensions)
+
+**Phase C: Enhanced RAG Retrieval** ✅
+- **Tiered scope relaxation**: house_type → development → tenant (progressively widens search)
+- **Doc_kind boosting**: floorplan_summary (1.5x) for spatial, warranty (1.5x) for warranty queries
+- **Spatial question detection**: keywords like "size", "dimension", "area", "square meters"
+- **Floorplan vision data injection**: structured dimensions added to context for spatial queries
+- **No-hallucination system prompt**: strict grounding with safe fallback message
+
+**Phase D: Batch Reprocessing Tools** ✅
+- `scripts/reprocess-all-docs.ts` - Configurable batch reprocessor
+- Filters: --force, --tenant, --development, --kind, --limit, --dry-run
+- Automatic chunk/vision data cleanup before reprocessing
+- Progress tracking with summary report
+
+**Key Files:**
+- `packages/api/src/document-processor.ts` - Main processing orchestrator
+- `packages/api/src/enhanced-rag-retrieval.ts` - Tiered RAG with doc_kind boosting
+- `packages/api/src/train/floorplan-vision.ts` - Vision extraction module
+- `scripts/reprocess-all-docs.ts` - Batch reprocessing utility
+- `scripts/test-vision-extraction.ts` - Vision pipeline tests
+
+**Usage:**
+```bash
+# Reprocess all pending documents
+npx tsx scripts/reprocess-all-docs.ts
+
+# Force reprocess all documents
+npx tsx scripts/reprocess-all-docs.ts --force
+
+# Reprocess only floorplans
+npx tsx scripts/reprocess-all-docs.ts --kind floorplan
+
+# Dry run to see what would be processed
+npx tsx scripts/reprocess-all-docs.ts --dry-run
+
+# Test Vision extraction
+npx tsx scripts/test-vision-extraction.ts
+```
+
+**Design Choices:**
+- **Conservative scope relaxation**: Starts with house_type filter, relaxes only when insufficient results
+- **Doc_kind boosting weights**: Spatial gets floorplan boost, warranty gets warranty boost
+- **Minimum results threshold**: 3 chunks required before relaxing scope
+- **Vision gating**: Only runs on documents with floorplan classification + valid house_type_id
+- **No-hallucination fallback**: Returns "I don't have that specific information" instead of fabricating
+
 ### Automatic Document Classification & House-Type Mapping (November 27, 2025 - Latest) - COMPLETED ✅
 
 **Intelligent bulk document upload with zero-touch classification and house-type mapping:**

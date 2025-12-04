@@ -1,0 +1,207 @@
+Goal
+The Preview Chat in the Developer Portal is currently answering room-size questions with a single dimension only (for example:
+“The living room size in house type BD01 is 6.3 meters.”)
+I need you to upgrade the chat behaviour so that when a user asks about the size of a room (for example “What size is the living room in house type BD01?”), the assistant:
+
+
+Returns both dimensions (length and width) where available
+
+
+Computes and returns the approximate floor area in square metres
+
+
+Clearly states that it is using the dimensions from the uploaded drawings / documents
+
+
+Example of the desired answer style for the BD01 living room:
+“The living room in house type BD01 is approximately 3.8 m by 6.3 m, which gives a floor area of about 24.0 m².”
+The documents already contain both dimensions (for example 3.8 m and 6.3 m on the BD01 plan), but the current system only quotes one of them. Do not change the upload or training pipeline. This is a chat-layer behaviour change.
+
+
+1. Locate the chat endpoint and RAG code
+
+
+Find the API route used by the Developer Portal “Preview Chat” tab, which is currently called via /api/chat.
+
+
+It will be something like:
+
+
+
+
+
+
+
+apps/developer-portal/app/api/chat/route.ts
+
+
+or a shared handler in packages/api/src/chat.ts (or similar).
+
+
+
+
+
+Confirm that this route:
+
+
+Accepts messages and a developmentId / tenantId
+
+
+Performs an embeddings search against the documents
+
+
+Calls OpenAI (or the configured LLM) with a system prompt plus the retrieved context.
+
+
+
+
+Do not modify any upload, training, or embedding code. Only work in the chat path.
+
+2. Upgrade the system prompt for room-size questions
+
+
+In the chat route, find the system prompt string passed to the LLM (for example in messages: [{ role: 'system', content: '...' }, …]).
+
+
+Replace or extend that system prompt so that it includes explicit instructions for room dimensions. Include wording along these lines (adapt to existing style, but keep the rules strict and explicit):
+
+
+
+“When the user asks about room sizes, dimensions, or area for a particular house type or room:
+
+
+First, read the retrieved context carefully.
+
+
+Look for all linear measurements in metres associated with that room (for example 3.8 m and 6.3 m).
+
+
+Where two dimensions are present and clearly belong to the same room, treat them as width and length.
+
+
+Always answer with:
+
+
+Both dimensions (for example ‘3.8 m by 6.3 m’)
+
+
+The calculated area in square metres, rounded sensibly (for example to 0.1 m²)
+
+
+
+
+Make it clear that you are using values from the uploaded plans or documents.
+
+
+If you can only see one dimension, say so explicitly and avoid pretending you know the second dimension or the area.
+
+
+If several dimensions are present, choose the ones clearly labelled for that specific room and level (for example 'Living Room' in house type BD01 – ground floor).
+
+
+Never answer with a single bare number like ‘6.3 m’ as the ‘size’ of a room; that is incomplete. Always give dimensions + area, or clearly explain the limitation.”
+
+
+
+
+
+Ensure the rest of the system prompt (safety, tone, estate-specific knowledge etc) remains intact. You are only strengthening the behaviour around measurements, not changing product scope.
+
+
+
+3. (Optional but recommended) Add a small “dimensions helper” in the chat pipeline
+If the system prompt change alone is not sufficient, add a very small helper function in the chat route to pre-extract dimensions from the retrieved context and include them explicitly in the prompt.
+
+
+In the chat handler file, create a helper such as:
+
+
+function extractRoomDimensions(context: string): string | null {
+  // Very lightweight regex for measurements like "3.8 m" or "6.3m"
+  const matches = context.match(/(\d+(\.\d+)?)\s*m/g);
+  if (!matches || matches.length < 2) return null;
+
+  // Take the first two as width/length (good enough for our plans)
+  const [d1Raw, d2Raw] = matches;
+  const d1 = parseFloat(d1Raw);
+  const d2 = parseFloat(d2Raw);
+  if (isNaN(d1) || isNaN(d2)) return null;
+
+  const area = d1 * d2;
+  return `Detected dimensions (approx): ${d1.toFixed(1)} m by ${d2.toFixed(1)} m. Estimated area: ${area.toFixed(1)} m².`;
+}
+
+
+
+After you build the RAG context string but before the LLM call, do:
+
+
+const dimensionHint = extractRoomDimensions(contextText);
+const extraSystemHint = dimensionHint
+  ? `\n\nMeasurement helper: ${dimensionHint}\nUse these as the width and length when the user asks about room size.`
+  : '';
+
+
+
+Append extraSystemHint to the system message content that you send to the LLM.
+
+
+This keeps all business logic server-side and gives the model a very explicit, structured hint with both dimensions and area.
+
+4. Keep behaviour safe and precise
+
+
+Do not change how the development or tenant is resolved.
+
+
+Do not touch file upload or embeddings.
+
+
+Keep answers grounded strictly in retrieved context. If the context does not contain dimensions, respond honestly that the plans are missing or unclear.
+
+
+Make sure units stay in metres and m² only.
+
+
+
+5. Validation checklist
+After you implement the changes:
+
+
+Run the Developer Portal on port 3001.
+
+
+Go to Longview Park → Preview Chat.
+
+
+Ask:
+
+
+“What size is the living room in house type BD01?”
+
+
+“Give me the dimensions and floor area of the BD01 living room.”
+
+
+
+
+Expected answer pattern (values will come from the documents you already uploaded):
+
+
+
+“The living room in house type BD01 is approximately 3.8 m by 6.3 m, which gives a floor area of about 24.0 m². These values are taken from the BD01 ground floor plan.”
+
+
+
+Confirm that:
+
+
+No runtime errors occur in the chat endpoint.
+
+
+Other, non-measurement questions still behave as before.
+
+
+
+
+When this is done, the assistant will stop giving one-number “sizes” and will always return full dimensions plus area whenever that information exists in the uploaded plans.

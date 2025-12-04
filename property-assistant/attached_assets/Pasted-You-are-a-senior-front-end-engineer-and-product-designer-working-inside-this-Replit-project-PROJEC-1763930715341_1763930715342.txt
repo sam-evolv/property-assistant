@@ -1,0 +1,88 @@
+You are a senior front-end engineer and product designer working inside this Replit project.
+
+PROJECT
+This is the Longview Park “property assistant” web app. The current screen already works functionally. The goal is NOT to change logic, routes, state management or component structure. The only task is to visually upgrade the existing UI so it feels like a world-class product designed by a 500k+ design studio.
+
+OBJECTIVE
+Elevate the UI of the main Longview Park chat screen to Apple / ChatGPT / Google quality while keeping:
+- The same layout
+- The same text
+- The same buttons and features
+
+You are only allowed to change styling, visual structure, and small UI details. Treat this as a high-end design polish pass.
+
+TARGET SCREEN
+The screen shown in the design currently has:
+- Top bar with Longview Park logo, development name, language selector, and theme toggle
+- Main hero text: “Ask anything about your home or community” plus sub-copy
+- Four quick-action buttons: “Public Transport”, “Waste collection”, “Parking rules”, “Local area”
+- Bottom chat input with mic and send button
+
+Do not add or remove sections. Just upgrade how they look.
+
+GLOBAL DESIGN PRINCIPLES
+Apply these principles consistently:
+
+1. Layout & Background
+- Use a soft, premium background instead of flat white.
+- Implement a subtle gradient for the page background (very light grey to white).
+- Place all main content in a centered max-width container (mobile-first, around max-w-md).
+- Wrap hero + pills + input in a rounded, elevated card with glassy feel:
+  - rounded-3xl
+  - bg-white/90
+  - border border-slate-100
+  - shadow-[0_18px_45px_rgba(15,23,42,0.12)]
+
+2. Top Bar
+Make the header feel like a system-level bar:
+
+- Make it sticky with blur:
+  - class: `sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur-xl`
+- Logo container:
+  - Slightly larger, rounded icon background with gradient and strong shadow. Example:
+    - `flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.55)]`
+- Development name text:
+  - `text-[15px] font-semibold tracking-tight text-slate-900`
+- Language selector:
+  - Pill button with border and subtle shadow:
+    - `flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition`
+- Theme toggle:
+  - Icon-only circular button:
+    - `flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 transition`
+
+3. Hero Text
+Upgrade typography while keeping the text identical:
+
+- Main heading:
+  - `text-center text-[22px] font-semibold leading-snug tracking-tight text-slate-900`
+- Allow “or community” to sit on its own line with a span if easy:
+  - `<span className="block text-slate-900/90">or community</span>`
+- Sub-copy:
+  - `mt-2 text-center text-[13px] leading-relaxed text-slate-500`
+
+4. Quick-Action Buttons (Pills)
+These must feel premium and tappable. DO NOT change the labels or number of buttons. Convert to pill cards:
+
+- Layout:
+  - Single column stack for mobile:
+    - `mt-6 grid grid-cols-1 gap-3`
+- Each pill should:
+  - Be full-width, rounded-full, light elevation
+  - Contain a small circular icon on the left (you can use emoji or existing icons)
+  - Show the label text
+  - Show a subtle chevron/arrow on the right
+
+Target class structure for each pill:
+
+```jsx
+<button
+  className="flex w-full items-center justify-between gap-3 rounded-full border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm font-medium text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-[0_14px_35px_rgba(15,23,42,0.16)] active:translate-y-0 active:shadow-[0_6px_18px_rgba(15,23,42,0.14)]"
+>
+  <span className="flex items-center gap-2">
+    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-[13px] text-amber-700">
+      {/* small icon for topic e.g. 🚍, 🗑️, 🅿️, 📍 */}
+    </span>
+    <span>{label}</span>
+  </span>
+  <span className="text-slate-300 text-[15px]">›</span>
+</button>

@@ -1,0 +1,213 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+
+Context:
+- A Vision-based floorplan extraction system and 3-tier dimension guardrail
+  have already been implemented.
+- The test script `scripts/test-dimension-priority.ts` passes.
+- In production, for house type BD01, the purchaser chat still replies:
+    "I don't have a precise numeric size for the living room..."
+  when asked "what size is my living room".
+
+This means:
+- The guardrail is working (no hallucinated numbers), but
+- No matching room dimension is being found for the purchaser context.
+
+Goal:
+Fix this end-to-end so that:
+- For real BD01 plans, room sizes (e.g. Living Room, Kitchen/Dinning, Toilet)
+  are extracted, stored in `unit_room_dimensions`, and
+- Purchaser questions like "what size is my living room / kitchen / toilet"
+  return the correct numeric values FROM STRUCTURED DATA for BD01 and any
+  similar house types.
+
+Do NOT relax the guardrail. Dimension answers must still ONLY come from
+structured sources (unit_room_dimensions → intelligence_profile → house_types)
+and NEVER from LLM guesses.
+
+======================================================================
+PHASE 1 – Inspect BD01 Data (diagnostics only)
+======================================================================
+
+1) Create a small diagnostic script:
+
+   `scripts/inspect-room-dimensions.ts`
+
+   Behaviour:
+   - Connect to the existing database.
+   - Resolve the real tenant_id, development_id, and house_type_id for:
+       - The Longview development (current demo).
+       - House type code "BD01".
+     Use existing tables (tenants, developments, house_types) – make no
+     assumptions about ids; look them up by slug/code.
+   - Query `unit_room_dimensions` for that combination:
+       tenant_id, development_id, house_type_id, unit_type_code = 'BD01'
+   - Print a summarised table to stdout:
+       level | room_name | area_m2 | length_m | width_m | source | confidence
+   - If ZERO rows are found, print a clear message:
+       "No unit_room_dimensions rows found for BD01 in Longview."
+
+   Make the script runnable via:
+     `npx tsx scripts/inspect-room-dimensions.ts`
+
+======================================================================
+PHASE 2 – Ensure BD01 floorplans are actually processed
+======================================================================
+
+2) Open the Vision pipeline files:
+
+   - `packages/api/src/train/floorplan-vision.ts`
+   - `packages/api/src/train/ingest.ts`
+   - `packages/api/src/train/index.ts`
+   - `apps/unified-portal/app/api/documents/reprocess/route.ts` (or
+     whichever route triggers reprocessing on the developer portal).
+
+3) Verify and, if necessary, FIX the gating logic that decides
+   whether a document is a floorplan that should be sent to Vision.
+
+   Requirements:
+   - A document MUST be processed by Vision if ANY of the following holds:
+     - Its document category/type is "Floorplans" (or equivalent field already used).
+     - OR its file name contains case-insensitive patterns like:
+       'floor', 'plan', 'floorplan', 'Ground and First Floor'.
+   - Include BD01 style filenames explicitly, for example:
+       "281-MHL-BD01-ZZ-DR-A-0270_ House Type BD01 - Ground and First Floor Plans Rev.C05.pdf"
+
+   Implementation:
+   - Extract this into a reusable helper like `isFloorplanDocument(doc)`.
+   - Add verbose logging to the Vision path:
+       console.log('[Vision Debug] Processing floorplan', { documentId, fileName, houseTypeCode });
+   - Ensure the reprocess route calls the Vision extraction AFTER normal text
+     processing AND that failures are logged via `document_processing_logs`
+     but do not throw the entire request.
+
+======================================================================
+PHASE 3 – Harden Vision extraction for BD01-style plans
+======================================================================
+
+4) In `floorplan-vision.ts`:
+
+   - Review the prompt and JSON parsing logic.
+   - BD01 floorplans encode areas as strings like:
+       "14.0 m² Kitchen/Dinning"
+       "2.4 m² Toilet"
+       "24.0 m² Living Room"
+   - Ensure the Vision prompt explicitly instructs:
+
+     > "Read the exact area values in m² printed in the drawing,
+     > for example '14.0 m² Kitchen/Dinning', '2.4 m² Toilet'.
+     > Do NOT infer or approximate any values. Only use the numbers as printed."
+
+   - Ensure the JSON schema used in the Vision call is STRICT:
+
+     {
+       "house_type_code": "BD01",
+       "levels": [
+         {
+           "level_name": "Ground Floor",
+           "rooms": [
+             { "room_name": "Living Room", "area_m2": 24.0 },
+             { "room_name": "Kitchen/Dinning", "area_m2": 14.0 },
+             { "room_name": "Toilet", "area_m2": 2.4 }
+           ]
+         },
+         ...
+       ]
+     }
+
+   - Make sure we are processing ALL pages of the floorplan PDF, not just page 1.
+     This should already be implemented; verify for BD01.
+
+5) Post-processing / normalisation:
+
+   - When inserting/upserting into `unit_room_dimensions`, normalise room names
+     into a canonical slug AND store the original label.
+
+   - Add columns if not present:
+       - canonical_room_name TEXT NOT NULL    -- e.g. 'living_room'
+       - original_room_name  TEXT NOT NULL    -- e.g. 'Living Room'
+
+   - Compute canonical_room_name with a small helper:
+       - lower-case
+       - strip punctuation
+       - collapse spaces / slashes
+       - map common variants:
+           'living room', 'sitting room' → 'living_room'
+           'kitchen/dining', 'kitchen & dining', 'kitchen / dining' → 'kitchen_dining'
+           'wc', 'toilet', 'downstairs wc' → 'toilet'
+           etc.
+
+   - Upsert key should use:
+       tenant_id, development_id, house_type_id, unit_type_code,
+       canonical_room_name, level
+
+======================================================================
+PHASE 4 – Tighten chat lookup → canonical names
+======================================================================
+
+6) Open the dimension guardrail and chat code:
+
+   - `packages/api/src/dimension-guardrail.ts`
+   - `packages/api/src/chat.ts` (or equivalent main chat handler)
+
+7) In the guardrail, ensure:
+
+   - For a dimension question like "what size is my living room?":
+       - The question is normalised to a canonical_room_name using the SAME
+         mapping helper as in the Vision post-processing.
+       - The DB lookup first queries `unit_room_dimensions` WHERE
+           tenant_id, development_id, house_type_id, unit_type_code
+           AND canonical_room_name = 'living_room'
+       - If multiple levels exist, pick the most relevant one based on hints
+         ("downstairs", "upstairs", "ground floor" etc.), otherwise default.
+
+   - If a match is found, return that dimension to chat and bypass the LLM.
+
+   - If NO match is found:
+       - fall back to profiles / house_types as you already do, OR
+       - return the safe "no precise numeric size" message.
+       - DO NOT let the LLM invent numbers.
+
+8) Add debug logging in the guardrail for now:
+
+   - When a dimension question is detected, log:
+       console.log('[Dimension Debug] Question canonicalised', {
+         original: question,
+         canonical_room_name,
+         context: { tenantId, developmentId, houseTypeId, unitTypeCode }
+       });
+   - When a record is found, log the exact area and source table.
+
+======================================================================
+PHASE 5 – Verify with real BD01 + regression tests
+======================================================================
+
+9) Run the diagnostic script:
+
+   - `npx tsx scripts/inspect-room-dimensions.ts`
+   - Confirm that, after reprocessing the BD01 floorplans, there are rows for:
+       canonical_room_name = 'living_room', 'kitchen_dining', 'toilet'
+     with correct `area_m2` values and `source = 'vision_floorplan'`.
+
+10) Manually test via the purchaser portal for a BD01 unit:
+
+   - "what size is my living room?"
+   - "what size is my kitchen / dining?"
+   - "what size is the downstairs toilet?"
+
+   Expected:
+     - Answers use the exact values from `unit_room_dimensions`.
+     - Answers reference "according to your BD01 house type plans" or similar.
+     - No hallucinated or approximate numbers.
+
+11) Re-run automated tests:
+
+   - Existing: `npx tsx scripts/test-dimension-priority.ts`
+   - Add a new small test (if not present) that:
+       - Seeds real-looking BD01 room dimensions into `unit_room_dimensions`.
+       - Asserts that asking for "living room" resolves to canonical 'living_room'
+         and returns the stored area.
+
+All TypeScript, Drizzle, and Next code must compile cleanly. Do not weaken the
+guardrail; only improve extraction, normalisation, and lookup so that for BD01
+(and future similar plans) we consistently hit the structured dimensions instead
+of the fallback message.

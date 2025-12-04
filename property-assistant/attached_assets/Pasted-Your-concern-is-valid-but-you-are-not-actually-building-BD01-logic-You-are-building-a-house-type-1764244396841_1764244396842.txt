@@ -1,0 +1,111 @@
+Your concern is valid, but you are not actually building “BD01 logic”. You are building a house-type level dimension engine and BD01 is just the first live specimen.
+
+From here you need to do three things:
+
+1. Make sure nothing in core code is hard-coded to BD01
+
+Do a quick audit and ensure:
+
+floorplan-vision.ts, dimension-guardrail.ts, chat.ts never reference "BD01" directly.
+Everything must key off house_type_id and unit_type_code from context.
+
+Any BD01 specific scripts are clearly utilities only, for example:
+
+reprocess-bd01-floorplan.ts is fine as a one off, but the pipeline itself must not care about BD01.
+
+If you find any BD01 literals outside test or utility scripts, remove them and parameterise by house_type_code.
+
+2. Generalise the pipeline to “any house type that has a floorplan”
+
+You already have the pieces. Now you scale them out:
+
+Canonical vocabulary is global, not BD01 specific
+
+Treat the canonical room mapping as a generic map:
+
+living_room, kitchen_dining, bedroom_1, ensuite, wc, utility, store, etc.
+
+Store it in code or a small configuration file so it applies to every house type.
+
+Allow adding new synonyms over time without touching the core pipeline.
+
+Floorplan detection is generic
+
+The gating logic that decides “this document is a floorplan” should work for any:
+
+Category = Floorplans, or
+
+Filename contains “Floor”, “Plan”, “Floor Plan”, “Ground and First Floor”.
+
+Once a doc is tagged as floorplan and tied to a house_type_id, Vision runs and populates unit_room_dimensions for that house type, not just BD01.
+
+Generic reprocess job
+
+Create a script like scripts/reprocess-all-floorplans.ts that:
+
+Iterates all house types for a tenant or development.
+
+Finds attached floorplan documents.
+
+Calls the existing Vision extraction for each doc.
+
+Logs per house type which rooms were added.
+
+That gives you a way to backfill hundreds of house types when a new scheme comes on board.
+
+3. Put an onboarding process around it so it scales to “every house in the country”
+
+You need a repeatable flow for any developer, any estate:
+
+Per development
+
+Create house types (BD01, BD02, BS01, etc).
+
+Upload floorplan PDFs and classify them as Floorplans.
+
+Hit “Reprocess floorplans” at development level (using the generic script or a button that triggers it).
+
+Optionally, upload room schedule spreadsheets if they exist as a secondary source.
+
+Verification
+
+Run inspect-room-dimensions.ts with filters for that development and house types.
+
+Spot check a few room sizes against drawings.
+
+If there is a weird naming convention, extend the canonical mapping with new aliases.
+
+Monitoring
+
+Add a simple admin view:
+
+House type, count of rooms with dimensions, count of dimension questions answered.
+
+Flag house types with zero entries in unit_room_dimensions so you know which ones still need floorplans or reprocessing.
+
+If you want the Agent to generalise everything now
+
+You can drop this short follow up prompt into the Replit Agent:
+
+Make the dimension system fully generic across all house types, not just BD01.
+
+Requirements:
+- Remove any BD01 specific literals from core modules:
+  floorplan-vision.ts, dimension-guardrail.ts, chat.ts.
+- Ensure Vision extraction and unit_room_dimensions writes are keyed only by
+  tenant_id, development_id, house_type_id, unit_type_code.
+- Implement a global canonical room name mapping that is reused for all house types.
+- Add a script scripts/reprocess-all-floorplans.ts that:
+  - Iterates all house_types in the database for a given tenant or development.
+  - Finds associated floorplan documents.
+  - Runs the existing Vision extraction for each and logs results.
+- Extend inspect-room-dimensions.ts so it accepts filters:
+  --houseTypeCode, --developmentSlug, and works for any house type.
+
+Confirm by:
+- Running the new reprocess-all-floorplans script for Longview.
+- Running inspect-room-dimensions for at least two different house types.
+- Verifying that dimension questions in chat resolve correctly for multiple house types, not just BD01.
+
+
+If you do those three things (no BD01 in core logic, generic floorplan gating, and a repeatable onboarding flow), the same machinery will scale from one house type to hundreds without you touching the code again.

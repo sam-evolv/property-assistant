@@ -1,0 +1,158 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool, PoolClient, PoolConfig } from 'pg';
+import * as schema from './schema';
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL or POSTGRES_URL is not defined in environment variables');
+}
+
+// Pool configuration with production-ready settings
+const poolConfig: PoolConfig = {
+  connectionString,
+  max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+  min: parseInt(process.env.DB_POOL_MIN || '2', 10),
+  idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_MS || '30000', 10),
+  connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONN_TIMEOUT_MS || '5000', 10),
+  // Enable SSL for Supabase/production connections
+  ssl: process.env.DATABASE_SSL === 'true' || connectionString.includes('supabase.co') 
+    ? { rejectUnauthorized: false } 
+    : false,
+};
+
+// Use global cache to survive Next.js HMR (Hot Module Reloading)
+const globalForDb = globalThis as unknown as {
+  dbPool: Pool | undefined;
+};
+
+// Create connection pool
+let pool: Pool | null = globalForDb.dbPool ?? null;
+
+function getPool(): Pool {
+  if (!pool) {
+    pool = new Pool(poolConfig);
+    globalForDb.dbPool = pool;
+    
+    // Pool error handlers
+    pool.on('error', (err, client) => {
+      console.error('[DB Pool] Unexpected error on idle client:', err);
+    });
+
+    pool.on('connect', (client) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[DB Pool] New client connected');
+      }
+    });
+
+    pool.on('remove', (client) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[DB Pool] Client removed from pool');
+      }
+    });
+
+    // Graceful shutdown handler - ONLY on actual process termination
+    // NOT on beforeExit (which fires during Next.js HMR)
+    const shutdown = async () => {
+      if (pool) {
+        console.log('[DB Pool] Shutting down connection pool...');
+        await pool.end();
+        pool = null;
+        globalForDb.dbPool = undefined;
+        console.log('[DB Pool] Connection pool closed');
+      }
+    };
+
+    // Register shutdown hooks - ONLY for real termination signals
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+    // REMOVED: process.on('beforeExit', shutdown) - this was killing connections during HMR
+  }
+  
+  return pool;
+}
+
+// Initialize pool and create Drizzle instance
+const poolInstance = getPool();
+export const db = drizzle(poolInstance, { schema });
+
+/**
+ * Execute a database operation with a dedicated client from the pool.
+ * Ensures proper connection acquisition and release.
+ * 
+ * @example
+ * ```typescript
+ * const result = await withClient(async (client) => {
+ *   return await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+ * });
+ * ```
+ */
+export async function withClient<T>(
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const pool = getPool();
+  const client = await pool.connect();
+  
+  try {
+    return await callback(client);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get pool statistics for monitoring and debugging
+ */
+export function getPoolStats() {
+  const pool = getPool();
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  };
+}
+
+/**
+ * Health check for database connection pool
+ */
+export async function healthCheck(): Promise<{
+  healthy: boolean;
+  latencyMs?: number;
+  error?: string;
+  poolStats?: ReturnType<typeof getPoolStats>;
+}> {
+  try {
+    const start = Date.now();
+    const pool = getPool();
+    
+    // Simple query to test connection
+    await pool.query('SELECT 1');
+    
+    const latencyMs = Date.now() - start;
+    
+    return {
+      healthy: true,
+      latencyMs,
+      poolStats: getPoolStats(),
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Gracefully close the connection pool
+ */
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
+}
+
+// Re-export schema and Drizzle types
+export * from './schema';
+export type { PoolClient } from 'pg';

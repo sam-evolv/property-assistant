@@ -1,0 +1,124 @@
+Your task is to fix the Tenant Portal so that once a homeowner enters via QR code:
+
+Their identity
+
+Their development ID
+
+Their unit ID
+
+Their house type ID
+are all loaded automatically and passed to every chat API call.
+
+Symptoms to Fix
+
+Chat says: “Please select a development first to start chatting.”
+
+Chat does not know the user’s house or house type.
+
+No context is attached to the JWT.
+
+Implementation Steps
+1. Update JWT Creation (Critical)
+
+Open:
+
+apps/tenant-portal/app/onboarding/[token]/actions.ts
+
+
+Update the JWT payload:
+
+const token = await signJwt({
+   homeowner_id: homeowner.id,
+   development_id: development.id,
+   unit_id: unit.id,
+   house_type: unit.house_type,
+   email: homeowner.email,
+   first_name: homeowner.first_name,
+   last_name: homeowner.last_name
+});
+
+
+Then write the JWT cookie:
+
+cookies().set("oh_auth", token, {
+  httpOnly: true,
+  sameSite: "lax",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30
+});
+
+2. Fix Chat Context Loader
+
+Open:
+
+apps/tenant-portal/app/chat/page.tsx
+
+
+Replace dependency on “selected development” with:
+
+const token = await verifyJwt(cookies().get("oh_auth")?.value);
+
+const developmentId = token.development_id;
+const unitId = token.unit_id;
+const homeownerId = token.homeowner_id;
+
+
+And pass all values into the Chat component.
+
+3. Update Chat API Route
+
+Open:
+
+apps/tenant-portal/app/api/chat/route.ts
+
+
+Replace existing identity resolution with:
+
+const token = await verifyJwt(cookies().get("oh_auth")?.value);
+
+if (!token) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+const { development_id, unit_id, homeowner_id } = token;
+
+use these instead of request.body.developmentId
+
+4. Update RAG Query
+
+Open:
+
+packages/api/src/chat/answer.ts
+
+
+Ensure embeddings search filters by:
+
+development_id: devId,
+document_type: "training"
+
+
+And optionally (future enhancement):
+
+AND house_type = token.house_type
+
+Success Criteria
+
+After scanning the QR code:
+
+Chat immediately loads without asking to select a development.
+
+Asking “What size is my living room?” returns:
+
+correct BD01 dimensions
+
+length AND width AND area
+
+Chat uses correct:
+
+homeowner.name
+
+development
+
+unit
+
+house type
+
+No more “select development first”.

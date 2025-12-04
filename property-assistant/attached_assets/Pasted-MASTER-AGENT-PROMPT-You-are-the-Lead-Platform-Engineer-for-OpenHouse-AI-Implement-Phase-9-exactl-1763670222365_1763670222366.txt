@@ -1,0 +1,318 @@
+MASTER AGENT PROMPT**
+
+You are the Lead Platform Engineer for OpenHouse AI.
+Implement Phase 9 exactly as outlined below.
+You MUST NOT modify Tenant Portal or core RAG logic.
+All work MUST integrate cleanly with existing multi-tenant architecture and previously implemented Phases 1–8.
+
+Proceed incrementally, verifying each change compiles and does not break existing portals.
+
+OBJECTIVES FOR PHASE 9
+Your mission in Phase 9 is to complete the “Developer Portal 1.0” feature set. This includes:
+
+Full developer-facing workflows for units, documents, homeowners, QR codes
+
+Bulk tools (bulk import, bulk update, bulk regenerate, bulk re-ingest)
+
+Renter mode (BTR) toggle for developments
+
+Notifications scheduling + system alerts
+
+Staff management per developer tenant
+
+Document versioning + diff view
+
+Estate renewal workflow (annual re-training & doc updates)
+
+Snagging Assistant foundation layer (without UI yet)
+
+Operational maturity tooling: export CSV, logs, failed jobs, queues
+
+Everything must be wired into:
+
+/admin-enterprise/* (super admin)
+
+/developer/* (tenant + developer roles)
+
+Existing database schema with new columns and tables added in Phase 4–8.
+
+DELIVERABLES
+A) Developer Portal – Unit Management Enhancements
+Build the following features:
+
+Inline Unit Editing
+
+bedrooms
+
+bathrooms
+
+square footage
+
+purchaser name
+
+purchaser email
+
+house_type_code
+
+metadata fields
+
+Unit Status Flags
+Add fields + UI:
+
+is_occupied
+
+has_missing_docs (auto-computed)
+
+geocoding_status
+
+last_chat_at (already added in DB; surface it)
+
+Unit Filter Bar
+Filters:
+
+By house type
+
+By missing docs
+
+By homeowner engagement (active/inactive)
+
+By QR-issued / unissued
+
+By geocode success/fail
+
+CSV Export
+
+Unit export
+
+Homeowner export
+
+Missing document export
+
+APIs required:
+
+GET /api/developer/units/export
+GET /api/developer/homeowners/export
+
+B) Document Management – Full Versioning System
+Build:
+
+Upload New Version button
+
+Automatic versioning table writes
+
+Document diff view (text-only comparison)
+
+Version rollback
+
+Mark as deprecated
+
+Version notes
+
+New APIs:
+
+POST /api/developer/documents/[id]/new-version
+POST /api/developer/documents/[id]/rollback
+GET  /api/developer/documents/[id]/versions
+
+C) Bulk Workflow Engines
+
+Build bulk tools under a new section: /developer/bulk-tools
+
+Bulk Document Upload
+
+Bulk House-Type Remapping
+
+Bulk QR Regeneration
+
+Bulk RAG Re-ingestion
+
+Bulk Geocoding Repair
+
+Each generates a background job entry.
+
+APIs:
+
+POST /api/developer/bulk/rag-reingest
+POST /api/developer/bulk/qr-regenerate
+POST /api/developer/bulk/remap-house-types
+
+D) Rental / BTR Mode (Toggle)
+
+Add a field to developments:
+
+is_rental boolean default false
+
+
+When enabled:
+
+Hide purchaser tools
+
+Replace “Homeowner” language with “Resident”
+
+Enable maintenance ticketing (placeholder)
+
+Enable renter-style onboarding flow
+
+Enable landlord contact directory
+
+APIs:
+
+PUT /api/developer/developments/[id]/rental-mode
+
+E) Notifications & Scheduled Alerts
+
+Build a full notifications engine for developers:
+
+Scheduled broadcast messaging
+
+“Water shutoff tomorrow 9am”
+
+“Community meeting Monday”
+
+Per-Unit Alerts
+
+“Your BER certificate expires soon”
+
+“Boiler service reminder”
+
+Notification Types
+
+push
+
+email
+
+in-app
+
+Notification Log Table
+(extend existing audit tables or create a new one)
+
+APIs:
+
+POST /api/developer/notifications/schedule
+GET  /api/developer/notifications/history
+
+F) QR Code Lifecycle 2.0
+
+Enhance:
+
+Download counts
+
+Issue logs
+
+QR regeneration history
+
+IP logging
+
+QR deactivation
+
+QR replacement flow
+
+Add new fields in qr_tokens:
+
+issued_at
+issued_by
+deactivated_at
+replaced_by
+scan_count
+scan_ips jsonb
+
+
+APIs:
+
+POST /api/developer/qr/[id]/deactivate
+POST /api/developer/qr/[id]/regenerate
+GET  /api/developer/qr/[id]/history
+
+G) Staff Management for Developers
+
+Add UI for:
+
+Invite staff
+
+Assign roles
+
+Remove staff
+
+Role types: developer_admin, developer_support
+
+APIs:
+
+POST /api/developer/staff/invite
+PUT /api/developer/staff/[id]/role
+DELETE /api/developer/staff/[id]
+
+H) Estate Renewal Workflow
+
+A new page in Developer Portal:
+
+Estate Renewal Manager
+
+Features:
+
+Show last year’s document versions
+
+Show new versions uploaded
+
+Prompt missing uploads
+
+RAG coverage diff
+
+Generate “Renewal Report”
+
+Auto-trigger re-ingestion per doc
+
+Shows cost estimate
+
+APIs:
+
+GET /api/developer/renewal/[development_id]/status
+POST /api/developer/renewal/[development_id]/regenerate
+
+I) Snagging Assistant Foundation Layer
+
+Do NOT build full UI yet.
+Implement:
+
+Table: snags
+
+Table: snag_updates
+
+API:
+
+POST /api/developer/snags/create
+POST /api/developer/snags/[id]/update
+GET  /api/developer/snags/[id]
+
+
+Snag fields:
+
+photo_url
+category
+priority
+description
+unit_id
+status
+assigned_to
+created_at
+updated_at
+
+
+This prepares the groundwork for Snagging Phase 11.
+
+EXECUTION RULES
+
+Do NOT modify Tenant Portal UI.
+
+Do NOT alter chat logic or RAG ranking.
+
+Maintain full multi-tenant isolation.
+
+All new features must respect RBAC.
+
+Every new screen must have skeleton loaders.
+
+Every new server action must use getAdminContextFromSession().
+
+All background jobs must write to training_jobs or bulk_jobs tables.
+
+BEGIN EXECUTION NOW

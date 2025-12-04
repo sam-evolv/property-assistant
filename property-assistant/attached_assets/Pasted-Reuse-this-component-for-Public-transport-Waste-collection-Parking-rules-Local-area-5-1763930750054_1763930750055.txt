@@ -1,0 +1,62 @@
+Reuse this component for:
+	•	Public transport
+	•	Waste collection
+	•	Parking rules
+	•	Local area
+
+	5.	Chat Input Bar
+Transform the existing text input + mic + send into a floating, high-end pill:
+
+	•	Container:
+	•	mt-7
+	•	Input wrapper:
+	•	flex items-center rounded-full border border-slate-200 bg-slate-50/80 px-3 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] focus-within:border-amber-400 focus-within:bg-white focus-within:shadow-[0_12px_30px_rgba(15,23,42,0.16)] transition-all
+	•	Input field:
+	•	flex-1 border-none bg-transparent px-2 py-2 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none
+	•	Mic button:
+	•	mr-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm hover:bg-slate-100 transition
+	•	Send button:
+	•	flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-[0_8px_20px_rgba(245,158,11,0.7)] hover:brightness-110 active:translate-y-0.5 active:shadow-[0_4px_12px_rgba(245,158,11,0.7)] transition-all
+
+Under the pill, add a very small caption (if not present already) using:
+	•	mt-2 text-center text-[11px] text-slate-400
+
+	6.	Motion & Micro-Interactions
+Across all interactive elements:
+
+	•	Add transitions:
+	•	transition-all duration-200 ease-out
+	•	Use subtle scale/translate on hover for buttons:
+	•	Example: hover:-translate-y-0.5
+	•	Shadows:
+	•	Lighter shadow at rest, stronger shadow + slight lift on hover.
+	•	Maintain consistent border radius:
+	•	rounded-3xl for main card containers.
+	•	rounded-full for pills and circular buttons.
+
+	7.	Implementation GUIDELINES
+
+	•	Do NOT alter any API calls, hooks, data fetching, or component logic.
+	•	Do NOT rename components, props, or exports.
+	•	Do NOT remove any existing content or change copy.
+	•	You MAY:
+	•	Refactor JSX markup slightly to wrap elements in new containers where necessary for layout.
+	•	Introduce small presentational components for reusability (e.g. TopicPill) as long as props stay simple and local to the UI.
+	•	Keep everything mobile-first. The design should look excellent on the viewport shown in the screenshot. If there are desktop styles, make sure they scale gracefully, but mobile is the primary reference.
+
+TASKS
+	1.	Identify the React component(s) that render:
+	•	The header bar, hero text, topic buttons, and bottom input.
+	2.	Upgrade their JSX and classNames according to the spec above.
+	3.	Preserve all behaviour and text verbatim.
+	4.	Run the app and visually verify on the default route that:
+	•	The background gradient, central card, and header blur are applied.
+	•	The four topic buttons are pill-shaped, elevated, and animated.
+	•	The chat input pill is visually prominent and interactive.
+	5.	Clean up any unused styles or conflicting classes to avoid visual glitches.
+
+OUTPUT
+Implement the changes directly in the project files. When you are finished, summarise:
+	•	Which files you updated
+	•	What components you changed
+	•	Any minor deviations you had to make from the spec to fit the existing codebase

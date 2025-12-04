@@ -1,0 +1,81 @@
+You are now executing PHASE 10 of the OpenHouse AI SaaS Transformation.
+
+PRIMARY GOAL:
+Complete ALL remaining developer-facing functionality in the Developer Portal so the product behaves like a real SaaS system. This includes fully stable CRUD, UI flows, form submissions, error states, routing, and RBAC-visible elements.
+
+DO NOT touch the Tenant Portal QR onboarding security implementation yet — that will be Phase 11.
+
+----------------------------------------------------------------------
+PHASE 10 OBJECTIVES:
+
+1. Finalise Developer CRUD UI and Server Actions
+   - Developers (admin users)
+   - Developments
+   - Homeowners
+   Ensure ALL create, update, delete flows:
+     • Submit successfully
+     • Redirect properly
+     • Show success and error states
+     • Validate input
+     • Enforce RBAC checks
+     • Are wired to server actions only (NO client-side Supabase calls)
+
+2. Replace ALL remaining client-side data fetching with server components.
+   Every dashboard or list page should be:
+      - A server component
+      - Fetching using the session + supabase server client
+      - Passing props into small client components
+
+3. Build Missing Form Components
+   Verify and/or create:
+      apps/developer-portal/app/admin/developers/[id]/form.tsx
+      apps/developer-portal/app/admin/developments/[id]/form.tsx
+      apps/developer-portal/app/admin/homeowners/[id]/form.tsx
+   Ensure consistent props:
+      { mode: "create" | "edit", initialData?: any }
+
+4. Build Navigation Shell + Roles
+   - Finalise the sidebar/topbar layout
+   - Hide or show menu items based on role
+   - Ensure logout works
+   - Ensure breadcrumbs and titles are correct
+
+5. Error Boundaries + Validation
+   - Add try/catch around all server actions
+   - Add meaningful error messages
+   - Add form-level validation
+
+6. Routing Finalisation
+   Test and fix:
+      /admin
+      /admin/developers
+      /admin/developers/new
+      /admin/developers/[id]/edit
+      /admin/developments
+      /admin/developments/new
+      /admin/developments/[id]/edit
+      /admin/homeowners
+      /admin/homeowners/new
+      /admin/homeowners/[id]/edit
+
+7. Clean Imports and Types
+   - Remove unused imports
+   - Resolve TypeScript edge errors
+   - Ensure correct paths for schema and server actions
+
+----------------------------------------------------------------------
+RULES:
+- Do NOT modify QR onboarding files.
+- Do NOT introduce new libraries.
+- Keep all code aligned with our monorepo structure.
+- All data access must be via server-side supabase client only.
+- Produce a clean, production-ready Developer Portal.
+
+----------------------------------------------------------------------
+After you complete all tasks:
+- Restart both portals
+- Confirm successful compilation
+- Summarise exactly what was modified
+- Provide a list of any follow-up items needed before Phase 11
+
+Begin now.

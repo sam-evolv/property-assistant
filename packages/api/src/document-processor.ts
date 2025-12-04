@@ -4,17 +4,25 @@ import { documents, doc_chunks, embedding_cache } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { createHash } from 'crypto';
 import { logger } from './logger';
+import { extractTextWithOCR, cleanOCRText } from './train/ocr';
+import { extractRoomDimensionsFromFloorplan, FloorplanVisionInput } from './train/floorplan-vision';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
+
+export type ProcessingStatus = 'pending' | 'processing' | 'complete' | 'error';
+export type DocKind = 'floorplan' | 'specification' | 'warranty' | 'brochure' | 'legal' | 'other' | 'floorplan_summary';
 
 interface ProcessingResult {
   success: boolean;
   documentId: string;
   chunksCreated: number;
   cacheHits: number;
+  processingStatus: ProcessingStatus;
   error?: string;
+  docKind?: DocKind;
+  visionExtracted?: boolean;
 }
 
 interface ChunkWithEmbedding {
@@ -22,7 +30,21 @@ interface ChunkWithEmbedding {
   index: number;
   embedding: number[];
   metadata: Record<string, any>;
+  pageNumber?: number;
 }
+
+interface DocumentInfo {
+  id: string;
+  tenant_id: string;
+  development_id: string | null;
+  house_type_id: string | null;
+  house_type_code: string | null;
+  doc_kind: DocKind | null;
+  file_name: string;
+  mime_type: string | null;
+}
+
+const MIN_TEXT_FOR_OCR_SKIP = 200;
 
 export class DocumentProcessor {
   private static readonly CHUNK_SIZE = 1000;
@@ -37,75 +59,327 @@ export class DocumentProcessor {
     buffer: Buffer,
     mimeType: string,
     tenantId: string,
-    developmentId: string | null
+    developmentId: string | null,
+    options: {
+      houseTypeId?: string | null;
+      houseTypeCode?: string | null;
+      docKind?: DocKind | null;
+      fileName?: string;
+    } = {}
   ): Promise<ProcessingResult> {
     const startTime = Date.now();
-    
+    const { houseTypeId, houseTypeCode, docKind, fileName } = options;
+
     try {
-      logger.info(`[DocumentProcessor] Starting processing for document ${documentId}`);
-
-      // Step 1: Extract text
-      const extractedText = await this.extractText(buffer, mimeType);
-      if (!extractedText || extractedText.length === 0) {
-        throw new Error('No text extracted from document');
-      }
-      logger.info(`[DocumentProcessor] Extracted ${extractedText.length} characters`);
-
-      // Step 2: Create smart chunks with metadata
-      const chunks = this.createSmartChunks(extractedText);
-      logger.info(`[DocumentProcessor] Created ${chunks.length} chunks`);
-
-      // Step 3: Generate embeddings with caching
-      const { chunksWithEmbeddings, cacheHits } = await this.generateEmbeddings(chunks, tenantId);
-      logger.info(`[DocumentProcessor] Generated embeddings (${cacheHits}/${chunks.length} cache hits)`);
-
-      // Step 4: Store chunks in database
-      await this.storeChunks(chunksWithEmbeddings, documentId, tenantId, developmentId);
-      logger.info(`[DocumentProcessor] Stored ${chunksWithEmbeddings.length} chunks`);
-
-      // Step 5: Update document status
-      await db
-        .update(documents)
-        .set({
-          processing_status: 'completed',
-          chunks_count: chunksWithEmbeddings.length,
-          updated_at: new Date(),
-        })
-        .where(eq(documents.id, documentId));
-
-      const duration = Date.now() - startTime;
-      logger.info(`[DocumentProcessor] Completed in ${duration}ms`, {
-        documentId,
-        chunksCreated: chunksWithEmbeddings.length,
-        cacheHits,
-        duration,
+      await this.updateProcessingStatus(documentId, 'processing');
+      logger.info(`[DocumentProcessor] Starting processing for document ${documentId}`, {
+        docKind,
+        mimeType,
+        fileName,
       });
 
-      return {
-        success: true,
-        documentId,
-        chunksCreated: chunksWithEmbeddings.length,
-        cacheHits,
-      };
+      if (docKind === 'floorplan') {
+        return await this.processFloorplanDocument({
+          documentId,
+          buffer,
+          mimeType,
+          tenantId,
+          developmentId,
+          houseTypeId: houseTypeId || null,
+          houseTypeCode: houseTypeCode || null,
+          fileName: fileName || 'unknown.pdf',
+        });
+      } else {
+        return await this.processStandardDocument({
+          documentId,
+          buffer,
+          mimeType,
+          tenantId,
+          developmentId,
+          houseTypeId: houseTypeId || null,
+          houseTypeCode: houseTypeCode || null,
+          docKind: docKind || 'other',
+          fileName: fileName || 'document',
+        });
+      }
     } catch (error: any) {
+      const duration = Date.now() - startTime;
       logger.error(`[DocumentProcessor] Failed to process document ${documentId}:`, error);
 
-      await db
-        .update(documents)
-        .set({
-          processing_status: 'failed',
-          updated_at: new Date(),
-        })
-        .where(eq(documents.id, documentId));
+      await this.updateProcessingStatus(documentId, 'error', error.message);
 
       return {
         success: false,
         documentId,
         chunksCreated: 0,
         cacheHits: 0,
+        processingStatus: 'error',
         error: error.message,
+        docKind: docKind || undefined,
       };
     }
+  }
+
+  private static async processFloorplanDocument(params: {
+    documentId: string;
+    buffer: Buffer;
+    mimeType: string;
+    tenantId: string;
+    developmentId: string | null;
+    houseTypeId: string | null;
+    houseTypeCode: string | null;
+    fileName: string;
+  }): Promise<ProcessingResult> {
+    const { documentId, buffer, mimeType, tenantId, developmentId, houseTypeId, houseTypeCode, fileName } = params;
+    const startTime = Date.now();
+
+    logger.info(`[DocumentProcessor] Processing floorplan document: ${fileName}`);
+
+    let visionExtracted = false;
+    let roomsExtracted = 0;
+
+    if (developmentId && houseTypeId && houseTypeCode) {
+      try {
+        const visionInput: FloorplanVisionInput = {
+          tenant_id: tenantId,
+          development_id: developmentId,
+          house_type_id: houseTypeId,
+          unit_type_code: houseTypeCode,
+          document_id: documentId,
+          buffer,
+          fileName,
+        };
+
+        const visionResult = await extractRoomDimensionsFromFloorplan(visionInput);
+
+        if (visionResult.success) {
+          visionExtracted = true;
+          roomsExtracted = visionResult.roomsExtracted;
+          logger.info(`[DocumentProcessor] Vision extraction successful: ${roomsExtracted} rooms`);
+
+          const summaryChunks = await this.generateFloorplanSummaries(
+            visionResult.rawPayload,
+            houseTypeCode,
+            fileName
+          );
+
+          const { chunksWithEmbeddings, cacheHits } = await this.generateEmbeddings(summaryChunks, tenantId);
+
+          await this.deleteExistingChunks(documentId);
+
+          await this.storeChunks(chunksWithEmbeddings, documentId, tenantId, developmentId, {
+            houseTypeId,
+            houseTypeCode,
+            docKind: 'floorplan_summary',
+          });
+
+          await this.updateProcessingStatus(documentId, 'complete');
+
+          const duration = Date.now() - startTime;
+          logger.info(`[DocumentProcessor] Floorplan processing complete in ${duration}ms`, {
+            documentId,
+            chunksCreated: chunksWithEmbeddings.length,
+            roomsExtracted,
+          });
+
+          return {
+            success: true,
+            documentId,
+            chunksCreated: chunksWithEmbeddings.length,
+            cacheHits,
+            processingStatus: 'complete',
+            docKind: 'floorplan',
+            visionExtracted: true,
+          };
+        } else {
+          logger.warn(`[DocumentProcessor] Vision extraction failed, falling back to standard processing: ${visionResult.error}`);
+        }
+      } catch (visionError: any) {
+        logger.error(`[DocumentProcessor] Vision extraction error, falling back to standard processing:`, visionError);
+      }
+    } else {
+      logger.warn(`[DocumentProcessor] Missing house type info for floorplan, using standard processing`);
+    }
+
+    return await this.processStandardDocument({
+      documentId,
+      buffer,
+      mimeType,
+      tenantId,
+      developmentId,
+      houseTypeId,
+      houseTypeCode,
+      docKind: 'floorplan',
+      fileName,
+    });
+  }
+
+  private static async generateFloorplanSummaries(
+    visionPayload: any,
+    houseTypeCode: string,
+    fileName: string
+  ): Promise<Array<{ text: string; index: number; metadata: Record<string, any> }>> {
+    const chunks: Array<{ text: string; index: number; metadata: Record<string, any> }> = [];
+
+    if (!visionPayload?.levels) {
+      return chunks;
+    }
+
+    let totalArea = 0;
+    const allRooms: string[] = [];
+
+    for (const level of visionPayload.levels) {
+      const levelRooms: string[] = [];
+
+      for (const room of level.rooms || []) {
+        const roomDesc = room.length_m && room.width_m
+          ? `${room.room_name} (${room.length_m}m × ${room.width_m}m = ${room.area_m2}m²)`
+          : `${room.room_name} (${room.area_m2}m²)`;
+
+        levelRooms.push(roomDesc);
+        allRooms.push(`${level.level_name}: ${roomDesc}`);
+        totalArea += room.area_m2 || 0;
+      }
+
+      if (levelRooms.length > 0) {
+        const levelSummary = `${level.level_name} of house type ${houseTypeCode} contains: ${levelRooms.join(', ')}.`;
+        chunks.push({
+          text: levelSummary,
+          index: chunks.length,
+          metadata: {
+            type: 'floorplan_summary',
+            level: level.level_name,
+            houseTypeCode,
+            roomCount: levelRooms.length,
+            fileName,
+          },
+        });
+      }
+    }
+
+    if (allRooms.length > 0) {
+      const houseSummary = `House type ${houseTypeCode} has a total floor area of approximately ${totalArea.toFixed(1)}m². ` +
+        `The property includes: ${allRooms.join('; ')}.`;
+
+      chunks.push({
+        text: houseSummary,
+        index: chunks.length,
+        metadata: {
+          type: 'floorplan_house_summary',
+          houseTypeCode,
+          totalArea,
+          roomCount: allRooms.length,
+          fileName,
+        },
+      });
+    }
+
+    return chunks;
+  }
+
+  private static async processStandardDocument(params: {
+    documentId: string;
+    buffer: Buffer;
+    mimeType: string;
+    tenantId: string;
+    developmentId: string | null;
+    houseTypeId: string | null;
+    houseTypeCode: string | null;
+    docKind: DocKind;
+    fileName: string;
+  }): Promise<ProcessingResult> {
+    const { documentId, buffer, mimeType, tenantId, developmentId, houseTypeId, houseTypeCode, docKind, fileName } = params;
+    const startTime = Date.now();
+
+    logger.info(`[DocumentProcessor] Processing standard document: ${fileName} (${docKind})`);
+
+    let extractedText = await this.extractText(buffer, mimeType);
+    let usedOCR = false;
+
+    if ((!extractedText || extractedText.length < MIN_TEXT_FOR_OCR_SKIP) && this.isImageOrPDF(mimeType)) {
+      logger.info(`[DocumentProcessor] Text too short (${extractedText?.length || 0} chars), attempting OCR`);
+      try {
+        const ocrResult = await extractTextWithOCR(buffer, fileName);
+        if (ocrResult.text && ocrResult.text.length > (extractedText?.length || 0)) {
+          extractedText = cleanOCRText(ocrResult.text);
+          usedOCR = true;
+          logger.info(`[DocumentProcessor] OCR extracted ${extractedText.length} characters (confidence: ${ocrResult.confidence}%)`);
+        }
+      } catch (ocrError: any) {
+        logger.warn(`[DocumentProcessor] OCR failed, using original text:`, { error: ocrError.message });
+      }
+    }
+
+    if (!extractedText || extractedText.length === 0) {
+      throw new Error('No text could be extracted from document');
+    }
+
+    logger.info(`[DocumentProcessor] Extracted ${extractedText.length} characters (OCR: ${usedOCR})`);
+
+    const chunks = this.createSmartChunks(extractedText);
+    logger.info(`[DocumentProcessor] Created ${chunks.length} chunks`);
+
+    const { chunksWithEmbeddings, cacheHits } = await this.generateEmbeddings(chunks, tenantId);
+    logger.info(`[DocumentProcessor] Generated embeddings (${cacheHits}/${chunks.length} cache hits)`);
+
+    await this.deleteExistingChunks(documentId);
+
+    await this.storeChunks(chunksWithEmbeddings, documentId, tenantId, developmentId, {
+      houseTypeId,
+      houseTypeCode,
+      docKind,
+    });
+
+    await this.updateProcessingStatus(documentId, 'complete');
+
+    const duration = Date.now() - startTime;
+    logger.info(`[DocumentProcessor] Completed in ${duration}ms`, {
+      documentId,
+      chunksCreated: chunksWithEmbeddings.length,
+      cacheHits,
+      usedOCR,
+    });
+
+    return {
+      success: true,
+      documentId,
+      chunksCreated: chunksWithEmbeddings.length,
+      cacheHits,
+      processingStatus: 'complete',
+      docKind,
+    };
+  }
+
+  private static async updateProcessingStatus(
+    documentId: string,
+    status: ProcessingStatus,
+    error?: string
+  ): Promise<void> {
+    try {
+      await db
+        .update(documents)
+        .set({
+          processing_status: status,
+          processing_error: error || null,
+          updated_at: new Date(),
+        })
+        .where(eq(documents.id, documentId));
+    } catch (dbError: any) {
+      logger.error(`[DocumentProcessor] Failed to update processing status:`, { error: dbError?.message });
+    }
+  }
+
+  private static async deleteExistingChunks(documentId: string): Promise<void> {
+    try {
+      await db.execute(sql`DELETE FROM doc_chunks WHERE document_id = ${documentId}::uuid`);
+    } catch (error: any) {
+      logger.warn(`[DocumentProcessor] Failed to delete existing chunks:`, { error: error?.message });
+    }
+  }
+
+  private static isImageOrPDF(mimeType: string): boolean {
+    return mimeType === 'application/pdf' ||
+           mimeType.startsWith('image/');
   }
 
   private static async extractText(buffer: Buffer, mimeType: string): Promise<string> {
@@ -125,6 +399,8 @@ export class DocumentProcessor {
         return buffer.toString('utf-8').trim();
       } else if (mimeType === 'application/json') {
         return await this.extractJsonText(buffer);
+      } else if (mimeType.startsWith('image/')) {
+        return '';
       } else {
         throw new Error(`Unsupported MIME type: ${mimeType}`);
       }
@@ -225,8 +501,6 @@ export class DocumentProcessor {
         chunkIndex++;
       }
 
-      // FIX: Prevent infinite loop by ensuring position always advances
-      // Use the max of (chunk length - overlap) or 1 to guarantee forward progress
       const advancement = Math.max(chunkText.length - this.CHUNK_OVERLAP, 1);
       position += advancement;
       
@@ -248,28 +522,34 @@ export class DocumentProcessor {
       const textHash = createHash('sha256').update(chunk.text).digest('hex');
 
       const cached = await db.query.embedding_cache.findFirst({
-        where: eq(embedding_cache.text_hash, textHash),
+        where: eq(embedding_cache.hash, textHash),
       });
 
       let embedding: number[];
 
-      if (cached) {
+      if (cached && cached.embedding) {
         embedding = cached.embedding as number[];
         cacheHits++;
         logger.info(`[DocumentProcessor] Cache hit for chunk ${i + 1}/${chunks.length}`);
+
+        try {
+          await db.execute(sql`
+            UPDATE embedding_cache 
+            SET last_accessed = NOW(), access_count = access_count + 1 
+            WHERE hash = ${textHash}
+          `);
+        } catch {}
       } else {
         embedding = await this.generateEmbeddingWithRetry(chunk.text, i, chunks.length);
 
         try {
           await db.insert(embedding_cache).values({
-            tenant_id: tenantId,
-            text_hash: textHash,
+            hash: textHash,
             embedding: embedding,
             model: this.EMBEDDING_MODEL,
-            dimensions: this.EMBEDDING_DIMENSIONS,
           }).onConflictDoNothing();
         } catch (cacheError: any) {
-          logger.warn(`[DocumentProcessor] Failed to cache embedding:`, cacheError);
+          logger.warn(`[DocumentProcessor] Failed to cache embedding:`, cacheError.message);
         }
       }
 
@@ -323,16 +603,28 @@ export class DocumentProcessor {
     chunks: ChunkWithEmbedding[],
     documentId: string,
     tenantId: string,
-    developmentId: string | null
+    developmentId: string | null,
+    options: {
+      houseTypeId?: string | null;
+      houseTypeCode?: string | null;
+      docKind?: DocKind | null;
+    } = {}
   ): Promise<void> {
+    const { houseTypeCode, docKind } = options;
+
     for (const chunk of chunks) {
       try {
         const embeddingVector = `[${chunk.embedding.join(',')}]`;
+        const metadata = {
+          ...chunk.metadata,
+          docKind: docKind || 'other',
+        };
+
         await db.execute(
           sql`
             INSERT INTO doc_chunks (
               tenant_id, development_id, document_id, chunk_index, 
-              content, embedding, source_type, source_id, metadata
+              content, embedding, source_type, source_id, house_type_code, doc_kind, metadata
             ) VALUES (
               ${tenantId}::uuid,
               ${developmentId || null}::uuid,
@@ -340,16 +632,60 @@ export class DocumentProcessor {
               ${chunk.index},
               ${chunk.text},
               ${embeddingVector}::vector,
-              'document',
+              ${docKind || 'document'},
               ${documentId}::uuid,
-              ${JSON.stringify(chunk.metadata)}::jsonb
+              ${houseTypeCode || null},
+              ${docKind || null},
+              ${JSON.stringify(metadata)}::jsonb
             )
           `
         );
-      } catch (error) {
-        logger.error(`[DocumentProcessor] Failed to store chunk ${chunk.index}:`, error);
+      } catch (error: any) {
+        logger.error(`[DocumentProcessor] Failed to store chunk ${chunk.index}:`, { error: error?.message });
         throw error;
       }
     }
   }
+
+  static async reprocessDocument(documentId: string): Promise<ProcessingResult> {
+    logger.info(`[DocumentProcessor] Reprocessing document ${documentId}`);
+
+    const doc = await db.query.documents.findFirst({
+      where: eq(documents.id, documentId),
+    });
+
+    if (!doc) {
+      throw new Error(`Document not found: ${documentId}`);
+    }
+
+    if (!doc.file_url && !doc.storage_url) {
+      throw new Error(`Document has no file URL: ${documentId}`);
+    }
+
+    const fileUrl = doc.file_url || doc.storage_url;
+    const response = await fetch(fileUrl!);
+    if (!response.ok) {
+      throw new Error(`Failed to download document: ${response.statusText}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    return this.processDocument(
+      documentId,
+      buffer,
+      doc.mime_type || 'application/octet-stream',
+      doc.tenant_id,
+      doc.development_id || null,
+      {
+        houseTypeId: doc.house_type_id || null,
+        houseTypeCode: doc.house_type_code || null,
+        docKind: (doc.doc_kind as DocKind) || null,
+        fileName: doc.file_name || doc.original_file_name || 'document',
+      }
+    );
+  }
+}
+
+export async function processDocumentById(documentId: string): Promise<ProcessingResult> {
+  return DocumentProcessor.reprocessDocument(documentId);
 }

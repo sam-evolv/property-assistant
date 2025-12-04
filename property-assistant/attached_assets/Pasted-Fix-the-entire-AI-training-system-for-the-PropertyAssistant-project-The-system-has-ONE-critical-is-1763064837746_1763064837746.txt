@@ -1,0 +1,135 @@
+Fix the entire AI training system for the PropertyAssistant project.
+
+The system has ONE critical issue left:
+Training jobs always fail with “No valid files to process”.
+Console errors show:
+
+POST /api/train receives FormData but the backend sees no files
+
+GET /api/train/jobs and /api/train/stats formerly returned 404 (now partially resolved)
+
+The frontend is sending the files correctly but the backend cannot read them
+
+The training job API must be fully operational
+
+Your tasks:
+
+1. Verify the correct API routes exist in the correct app
+
+The training dashboard is served by:
+
+apps/tenant-portal/app/dev/knowledge/page.tsx
+
+
+The API routes must exist under:
+
+apps/tenant-portal/app/api/train/route.ts
+apps/tenant-portal/app/api/train/jobs/route.ts
+apps/tenant-portal/app/api/train/stats/route.ts
+
+
+If any route is missing, mis-named, or incorrectly nested, fix it.
+
+2. Fix the POST /api/train route so it correctly receives PDF files
+
+Inside:
+
+packages/api/src/train/index.ts
+
+
+Fix everything so that:
+
+The handler uses await req.formData()
+
+It retrieves uploaded PDFs using:
+
+const files = formData.getAll("files") as File[]
+
+
+Reject zero files correctly
+
+PDF buffers must be read using:
+
+const arrayBuffer = await file.arrayBuffer()
+const buffer = Buffer.from(arrayBuffer)
+
+
+Validate file type:
+
+file.type === "application/pdf"
+
+
+Pass validated buffers into the chunking pipeline
+
+Add full logging:
+
+console.log("FILES RECEIVED:", files.length)
+console.log("FILE DETAILS:", files)
+
+3. Fix the frontend uploader so FormData is appended correctly
+
+In:
+
+apps/tenant-portal/app/dev/knowledge/page.tsx
+
+
+Ensure:
+
+const formData = new FormData()
+selectedFiles.forEach(f => formData.append("files", f))
+formData.append("tenantId", tenantId)
+
+
+Ensure no manual headers override multipart encoding (remove "Content-Type": "application/json" if present).
+
+4. Fix tenant resolution fallback everywhere
+
+Ensure all training routes use the fallback dev UUID:
+
+fa1dc94e-6ab9-40b7-b301-38dc35d865b8
+
+
+Instead of string 'dev-seaview'.
+
+5. Fix GET /api/train/jobs and /api/train/stats
+
+Make sure:
+
+They resolve the tenant
+
+They query the correct Supabase table entries
+
+They do not return 404 unless the route genuinely does not exist
+
+Add logging for debugging:
+
+console.log("Resolved tenant:", tenantId)
+
+6. Fix the training pipeline output
+
+Ensure the POST /api/train steps:
+
+Chunk PDFs
+
+Store chunks in DB
+
+Create a training job entry
+
+Trigger OpenAI batch job (mock OK)
+
+Return:
+
+{ success: true }
+
+7. Add robust error tracing
+
+All training routes should log:
+
+console.error("TRAIN ERROR", error)
+
+
+This must eliminate the current 400/500 loop and the “No valid files to process” message.
+
+8. After completing all fixes
+
+Restart server and run a test training job using two PDFs.

@@ -1,0 +1,219 @@
+✔️ How the SaaS Should Actually Work
+🔵 Tier 1 – Developer Dashboard (Client Admin Portal)
+Each developer logs into:
+YOURDOMAIN.com/developer
+They see:
+
+
+Their developments
+
+
+Their units
+
+
+Their notices
+
+
+A “Knowledge Base” upload panel
+
+
+A “Documents” upload panel
+
+
+A “Train the AI” button
+
+
+Upload panel must support:
+
+
+CSVs
+
+
+PDFs (handover docs)
+
+
+Word docs
+
+
+Images (plans, fire certs)
+
+
+FAQs
+
+
+Snag lists
+
+
+Maintenance procedures
+
+
+O&M manuals
+
+
+Local POIs
+
+
+Waste rules
+
+
+Rent/buy contract info
+…all per development.
+
+
+All of this is multi-tenant.
+Next week, you don’t hardcode Seaview — you upload Seaview like a client.
+
+✔️ Tier 2 – Backend Training Pipeline (Multi-tenant)
+When a developer uploads files, the backend should:
+
+
+Detect file type
+🟦 CSV
+🟩 PDF
+🟧 DOCX
+🟨 Image (OCR)
+
+
+Extract text
+
+
+Chunk text
+~400–700 tokens
+
+
+Embed with OpenAI
+Write vector to:
+
+
+doc_chunks
+  - id
+  - tenantId
+  - content
+  - embedding
+  - sourceType
+  - sourceId
+  - createdAt
+
+
+
+Store structured data
+For units, POIs, contacts, notices.
+
+
+Exactly what ChatGPT RAG expects.
+
+✔️ Tier 3 – Resident Chat
+When a resident asks:
+
+“What date is bin collection?”
+
+The system:
+
+
+Looks up tenantId
+
+
+Runs vector search on that tenant’s content
+
+
+Retrieves only Seaview’s—or Glenveagh’s, or Cairn’s—context
+
+
+Sends context to GPT
+
+
+GPT answers with:
+
+
+Accuracy
+
+
+References
+
+
+Professional tone
+
+
+
+
+No cross-contamination between schemes.
+
+✔️ Designing this as a true SaaS (the right future-proof way)
+Your instinct is correct:
+
+Training should not be inside Replit.
+
+Replit builds the engine.
+Clients (developers) use the portal to feed it data.
+This sets you up to onboard dozens of developers:
+
+
+Cairn Homes
+
+
+Glenveagh
+
+
+Longview Estates
+
+
+Durkan
+
+
+OMCs
+
+
+Small landlords
+
+
+Management companies
+
+
+Each one uploads their own documents → AI assistant becomes trained per development.
+
+🚀 What you need next (and I will generate):
+A. A multi-tenant training UI inside Developer Dashboard
+
+
+“Upload files” panel
+
+
+“Add FAQs” panel
+
+
+“Add notices” panel
+
+
+“Train AI” button (progress indicator)
+
+
+B. Backend API endpoints
+
+
+POST /api/train/upload
+
+
+POST /api/train/embed
+
+
+POST /api/train/pipeline
+
+
+GET /api/train/status
+
+
+C. Automatic ingestion pipeline
+Already started — now we expand it for multi-scheme support.
+D. A Replit Agent prompt that builds all of this
+
+👉 Before I generate the massive Agent prompt:
+I need ONE clarifying answer:
+Do you want this training system to support:
+Option 1: File uploads only
+(CSV, PDF, DOCX, images)
+Option 2: Full CMS-style input
+(Developers can manually add/edit FAQs, POIs, notices, etc.)
+Option 3: Both (recommended for enterprise SaaS)
+Upload files + manually edit content
+
+Reply with 1, 2, or 3. I’ll then produce the full production-grade Replit Agent setup.

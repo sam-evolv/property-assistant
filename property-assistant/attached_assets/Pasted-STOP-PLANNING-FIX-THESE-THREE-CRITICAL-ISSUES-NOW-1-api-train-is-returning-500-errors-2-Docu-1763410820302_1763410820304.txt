@@ -1,0 +1,89 @@
+STOP PLANNING. FIX THESE THREE CRITICAL ISSUES NOW:
+
+1. /api/train is returning 500 errors  
+2. Document uploads always result in { validFiles: 0, successfulFiles: 0 }  
+3. /api/chat returns 401 Unauthorized
+
+You must repair all three issues by making real code changes and showing diffs.
+
+────────────────────────────────────────
+FIX #1 — THE UPLOAD FORM & ROUTE MISMATCH
+────────────────────────────────────────
+
+Open:
+apps/developer-portal/src/app/(dashboard)/developments/[id]/documents/page.tsx
+
+Ensure the upload handler does this EXACTLY:
+
+const formData = new FormData();
+formData.append("file", selectedFile);
+formData.append("developmentId", developmentId);
+
+fetch("/api/train", {
+  method: "POST",
+  body: formData,
+});
+
+No JSON, no headers, no transforms.  
+Just raw FormData.
+
+Next, fix the train route.
+
+────────────────────────────────────────
+FIX #2 — /api/train BACKEND ROUTE
+────────────────────────────────────────
+
+Open:
+packages/api/src/train.ts
+
+Make sure the handler does all of the following:
+
+- Accepts multipart/form-data using the correct Next.js formData() call  
+- Reads "file" and "developmentId" from the FormData  
+- Saves the file to Supabase storage  
+- Parses the PDF using a safe dynamic import of pdf-parse  
+- Extracts text  
+- Chunks text (size ~800–1200 chars)  
+- Generates embeddings with OpenAI text-embedding-3-large  
+- Inserts rows into document_chunks table  
+- Returns { success: true }
+
+Add verbose console.log statements for:
+- file size
+- developmentId
+- extracted text length
+- number of chunks
+- embedding success
+
+────────────────────────────────────────
+FIX #3 — /api/chat UNAUTHORIZED (401)
+────────────────────────────────────────
+
+Open:
+apps/tenant-portal/src/app/api/chat/route.ts
+
+AND
+apps/developer-portal/src/app/api/chat/route.ts
+
+Ensure:
+- The route uses Supabase service-role client for server-side operations  
+- It does NOT require a browser session for super_admin  
+- It accepts developmentId and (optional) houseId  
+- It returns 200 even for super_admin
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+At the end of this task you must output:
+
+1. Every file modified  
+2. Full diffs  
+3. Confirmation that:
+   - /api/train no longer returns 500  
+   - Uploading a PDF shows "success: true"  
+   - Rows appear in the documents table  
+   - document_chunks fills with embeddings  
+   - /api/chat returns valid answers instead of 401
+
+Apply these fixes NOW and show the diffs.

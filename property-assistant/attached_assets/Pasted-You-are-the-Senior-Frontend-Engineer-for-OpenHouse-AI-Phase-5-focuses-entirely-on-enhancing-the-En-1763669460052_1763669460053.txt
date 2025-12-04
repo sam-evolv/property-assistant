@@ -1,0 +1,185 @@
+You are the Senior Frontend Engineer for OpenHouse AI. 
+Phase 5 focuses entirely on enhancing the Enterprise Developer Portal UI/UX, charts, tables, layout, insights, and visual polish — WITHOUT modifying backend logic, routes, business logic, or the tenant portal.
+
+Apply all changes ONLY inside:
+apps/developer-portal/
+
+Core principles:
+- DO NOT modify tenant portal or core APIs.
+- DO NOT break existing functionality.
+- DO NOT alter onboarding, RAG, chat, or QR flows.
+- Expand and polish the existing enterprise portal structure created in Phases 1–4.
+
+===========================================
+PHASE 5 OBJECTIVES (All Sub-Phases Included)
+===========================================
+
+Implement the following four sub-phases in a single coordinated set of upgrades:
+
+==================================================
+A) PHASE 5.1 — CHARTS IMPLEMENTATION (REQ CHARTS)
+==================================================
+
+Add high-quality charts to all analytics pages using a consistent charting library 
+(Recharts preferred as already used in other modules).
+
+Implement the following charts:
+
+1. Global Platform Overview (/admin-enterprise)
+   - Bar chart: Chat volume last 30 days
+   - Line chart: Daily active homeowners
+   - Pie chart: Document distribution by type
+   - Bar chart: Top 10 developments by chat volume
+
+2. Development Deep Dive (/admin-enterprise/developments/[id])
+   - Line: Daily message volume
+   - Bar: Document uploads per week
+   - Pie: Document types for this development
+   - Line: AI cost estimate trend
+   - Heatmap-style table: homeowner engagement by day
+
+3. RAG Analytics (/admin-enterprise/rag)
+   - Histogram: chunk similarity distribution
+   - Bar: chunks per development
+   - Line: zero-result queries over time
+
+4. Chat Analytics (/admin-enterprise/chat-analytics)
+   - Bar: top questions
+   - Line: message volume
+   - Pie: question categories (grouped)
+   - Stacked bar: developer vs homeowner messages
+
+Rules:
+- Use skeleton loaders for all charts.
+- All charts must resize responsively.
+- Inject charts into existing pages without breaking layout.
+- Use existing shadcn/ui card components for consistent styling.
+
+==================================================
+B) PHASE 5.2 — TABLE POLISH (All Tables)
+==================================================
+
+Upgrade all existing enterprise tables with:
+
+Required Enhancements:
+- Column sorting (ascending/descending)
+- Column filters (text + select)
+- Pagination (server-side)
+- Sticky header row
+- Hover highlighting
+- Subtle zebra striping
+- Compact density mode
+- Optional column visibility toggle
+- Export CSV button (uses existing API data, no new endpoints)
+
+Apply to:
+- Units table
+- Homeowners table
+- Documents table
+- Training jobs table
+- System logs table
+- RAG search logs table
+- Chat analytics tables
+- Developer list table
+
+==================================================
+C) PHASE 5.3 — NAVIGATION & LAYOUT POLISH
+==================================================
+
+Enhance the enterprise portal layout with:
+
+1. Sidebar Polish
+   - Add icons to all sidebar items
+   - Indicate active route state cleanly
+   - Add collapsible sub-sections:
+       • Analytics
+       • Developments
+       • System
+
+2. Top Navigation Polish
+   - Add account dropdown (profile, logout)
+   - Add breadcrumb navigation to every page
+   - Ensure mobile responsiveness
+
+3. Layout Improvements
+   - Unify spacing scale across all pages
+   - Add consistent header (title + description)
+   - Standardise card width, padding, font sizes
+   - Improve empty state visuals using existing UI components
+
+4. Performance Optimised Loading
+   - Add skeletons for:
+       • Tables
+       • Charts
+       • Insight cards
+       • Page headers
+
+==================================================
+D) PHASE 5.4 — ENTERPRISE INSIGHTS CARDS
+==================================================
+
+Create premium insight cards at the top of each major analytics page.
+
+Card Style:
+- Use existing premium-card.tsx component
+- Gold-accent border
+- Minimalistic, data-first
+- Animated count-up numbers
+
+Implement cards for:
+
+1. Enterprise Overview
+   - Total developers
+   - Total developments
+   - Total homeowners
+   - Total documents
+   - Total messages last 30 days
+   - AI cost estimate last 30 days
+
+2. Development Deep Dive
+   - Units onboarded
+   - Active homeowners
+   - Documents uploaded
+   - Missing document warnings
+   - Total chats
+   - Zero-result RAG queries
+
+3. RAG Analytics
+   - Total chunks
+   - Orphaned chunks
+   - Duplicate similarity warnings
+   - Chunks without embeddings
+
+4. Chat Analytics
+   - Total messages
+   - AI vs human ratio
+   - Top category
+   - Avg response tokens
+   - Estimated AI cost
+
+===================================
+IMPLEMENTATION RULES
+===================================
+
+1. Only touch frontend code.
+2. No backend modifications.
+3. Reuse existing enterprise-client.tsx files.
+4. All charts and tables must use data already provided by the analytics endpoints.
+5. Do not create new routes.
+6. Place all new components under:
+   apps/developer-portal/components/enterprise/
+7. Maintain full compatibility with Phase 6 multi-tenant logic.
+
+===================================
+FINAL CHECKLIST
+===================================
+
+Before finishing Phase 5, ensure:
+- Every analytics page now contains charts.
+- Every table supports sorting, filtering, pagination, export.
+- Navigation is visually consistent and responsive.
+- All pages contain insight cards.
+- No backend changes were made.
+- No existing logic was broken.
+
+Begin implementing Phase 5 now.

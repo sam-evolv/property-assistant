@@ -1,0 +1,26 @@
+{
+  "common": {
+    "welcome": "Fáilte",
+    "send": "Seol",
+    "loading": "Á Lódáil",
+    "error": "Earráid",
+    "success": "Rath",
+    "cancel": "Cealaigh",
+    "confirm": "Deimhnigh",
+    "save": "Sábháil",
+    "delete": "Scrios",
+    "signOut": "Amach a Logáil"
+  },
+  "nav": {
+    "dashboard": "Deis-bhord",
+    "developments": "Forbairtí",
+    "documents": "Cáipéisí",
+    "analytics": "Anailís",
+    "settings": "Socruithe"
+  },
+  "language": {
+    "select": "Roghnaigh Teanga",
+    "english": "Béarla",
+    "polish": "Polainnis"
+  }
+}

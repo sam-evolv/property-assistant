@@ -1,0 +1,212 @@
+PHASE 4.2 – FIX ALL REMAINING IMPORTS, CLEAN BUILD, ENSURE ZERO ERRORS
+
+Your task:
+
+Search entire monorepo for any incorrect local imports such as:
+
+'@/lib/utils'
+
+'../lib/utils'
+
+'./lib/utils'
+
+'lib/utils'
+
+'@/utils'
+
+Replace every one of these with the unified utils import:
+
+import { cn } from '@openhouse/api/utils';
+
+
+Ensure:
+
+tenant-portal has zero local utils
+
+developer-portal has zero local utils
+
+Only the shared utility module @openhouse/api/utils exists
+
+Remove old utils files if any exist:
+
+apps/tenant-portal/lib/utils.ts
+
+apps/developer-portal/lib/utils.ts
+
+apps/**/utils.ts or similar
+
+Run a full rebuild of both portals:
+
+cd apps/tenant-portal && npm run build
+cd apps/developer-portal && npm run build
+
+
+Fix any TypeScript errors or module resolution issues until both compile cleanly.
+
+Restart both portals:
+
+cd apps/tenant-portal && npm run dev
+cd apps/developer-portal && npm run dev
+
+
+Confirm runtime loads with zero errors.
+
+Phase 4.2 Success Criteria
+
+Output this text exactly when done:
+
+All utility imports corrected. Both portals compile and run cleanly. Phase 4.2 complete.
+
+✅ PHASE 5 – IMPLEMENT CORE MULTI-TENANT FEATURES
+
+Once Phase 4.2 is complete, continue automatically into Phase 5.
+
+PHASE 5 OBJECTIVES:
+
+You will implement the required foundation for the SaaS product:
+
+PHASE 5.1 — Developer Dashboard: Multi-Tenant Listing Page
+
+Create inside apps/developer-portal:
+
+Route:
+/tenants
+
+Page should display:
+
+Table of all tenants from DB
+
+Columns:
+
+Tenant Name
+
+Slug
+
+Number of Houses
+
+Created At
+
+“Open Tenant Dashboard” button (links to /tenant/[slug])
+
+API:
+
+Use:
+
+import { db, tenants } from '@openhouse/db';
+
+PHASE 5.2 — Developer Dashboard: Tenant Detail Page
+
+Create route:
+
+/tenant/[slug]
+
+Page includes:
+
+Tenant summary box
+
+Admin users list
+
+Documents list
+
+POI count
+
+Noticeboard post count
+
+Button: “Open Chat Demo” → /demo/[slug]
+
+PHASE 5.3 — Tenant Admin Portal Enhancements
+
+Inside apps/tenant-portal, implement:
+
+Features:
+
+Document manager
+
+Upload PDF / PNG / JPG / DOCX
+
+Store in Supabase storage bucket /documents/{tenantSlug}/...
+
+Noticeboard management
+
+Create / Delete posts
+
+Edit posts
+
+Live realtime feed
+
+POI manager
+
+Add POI (name, category, lat/lng)
+
+Delete POI
+
+Auto-sync with chat system
+
+PHASE 5.4 — Unified Chat Retrieval Endpoint
+
+Inside packages/api:
+
+Create:
+
+/api/chat/[tenantSlug]
+
+Responsibilities:
+
+Accept messages from chat UI
+
+Load tenant-specific context
+
+Query DB for:
+
+Documents
+
+POIs
+
+FAQ entries
+
+House-type data
+
+Call OpenAI API using tenant context
+
+Return tenant-specific response
+
+Must support RAG-style retrieval, even if minimal stub for now.
+
+PHASE 5.5 — Connect Chat UI to Tenant Context
+
+In apps/tenant-portal:
+
+The chat UI should hit:
+
+/api/chat/[tenantSlug]
+
+
+Tenant slug should come from router
+
+Loader page should appear while loading context
+
+Display messages with correct branding
+
+PHASE 5 SUCCESS CRITERIA
+
+When Phase 5 is complete, output:
+
+Phase 5 complete.
+Developer dashboard, tenant detail pages, admin management tools, and chat endpoint implemented successfully.
+Ready for Phase 6.
+
+IMPORTANT RULES
+
+Maintain monorepo architecture integrity
+
+Use only imports from: @openhouse/db and @openhouse/api
+
+No relative DB imports
+
+Fix paths as needed
+
+Always restart the affected portal after changes
+
+If a route fails, fix and retry automatically
+
+END OF PROMPT

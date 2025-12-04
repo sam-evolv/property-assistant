@@ -1,0 +1,162 @@
+You must stop feature development.
+Fix the platform foundation end-to-end.
+
+1. Fix All Hydration & React Runtime Errors
+
+Find all components incorrectly mixing server/client boundaries
+
+Add "use client" to charts, dashboards, analytics UI
+
+Ensure all API calls originate from client components
+
+Fix any {call} or undefined errors
+
+Remove server-side rendered dynamic chart code
+
+Wrap components with error boundaries
+
+2. Standardise Multi-Tenant Context Flow
+
+Fix the core issue causing:
+
+“Please select a development first”
+
+Missing purchaser context
+
+Broken JWT decoding
+
+Wrong development loaded
+
+You must:
+
+Rewrite the context provider so tenant_id, development_id, unit_id, house_type_code and purchaser name are guaranteed on load
+
+Validate token shape
+
+Add fallback refresh if missing
+
+3. Repair All Data Models
+
+Apply missing:
+
+foreign keys
+
+indexes
+
+analytics columns
+
+aggregation tables
+
+RAG search logs
+
+view/download tracking
+
+4. Clean the Monorepo
+
+Delete or merge:
+
+/admin-portal
+
+/developer-dashboard
+
+/assistant-tenant
+
+/resident-app
+
+Migrate all needed code into:
+
+apps/unified-portal
+
+apps/tenant-app
+
+5. Repair Document Pipeline
+
+Fix:
+
+ingestion
+
+chunking
+
+embeddings
+
+classification
+
+house-type filtering
+
+download URL generation
+
+6. Create a Stable Developer Dashboard Baseline
+
+Ensure the following pages load without error:
+
+Tenant overview
+
+Development overview
+
+Houses
+
+Documents
+
+Homeowners
+
+Chat logs
+
+Map
+
+Settings
+
+7. Create a Stable Super-Admin Baseline
+
+Ensure:
+
+Global analytics (even if empty)
+
+Developer list
+
+Development list
+
+Impersonation workflow
+
+Billing placeholders
+
+Error logs
+
+8. Unify the Theme Across All Platforms
+
+Use a single theme provider
+
+Ensure gold/black/white UI is consistent
+
+Remove all leftover blue/iMessage default styles
+
+Replace charts, cards, tables with consistent styling
+
+9. Add Caching to All Analytics APIs
+
+Add 15-minute TTL caching to:
+
+message volume
+
+cost estimates
+
+top questions
+
+usage stats
+
+document analytics
+
+10. Confirm All Flows Work From Start to Finish
+
+You must test:
+
+QR → onboarding → intro animation → personalised session
+
+Asking house-specific questions
+
+Document filtering by house type
+
+Developer uploading docs
+
+Admin viewing analytics
+
+Super-admin impersonation

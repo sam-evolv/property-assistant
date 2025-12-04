@@ -1,0 +1,273 @@
+You are the Lead Platform Architect responsible for rebuilding the OpenHouse AI Developer Portal into an enterprise-grade control center.
+Before making any code changes, you must fully map the system using the authoritative blueprint below.
+
+Your task in Phase 1 is discovery only.
+Do not modify files.
+Do not create new files.
+You are building the master systems map that all future phases depend on.
+
+SYSTEM BLUEPRINT (REFERENCE FOR ANALYSIS)
+
+Use this exact architecture as your source of truth:
+
+Tenant Portal (Port 5000)
+
+QR onboarding with cryptographic QR token verification
+
+Homeowner JWT identity (unit_id, tenant_id, development_id, house_type_code, homeowner_id)
+
+Chat engine with full RAG pipeline
+
+Document filtering layer (house-type-aware)
+
+Google Maps geodata and POI system
+
+Theming engine (tenant-level branding)
+
+Multi-language static UI
+
+DownloadCards for floor plans, elevations, and site plans
+
+Developer Portal (Port 3001)
+
+Supabase Auth with role hierarchy
+
+Unit CSV ingestion + QR token generation
+
+Document ingestion: classification, chunking, embeddings, vector storage
+
+House-type document routing logic
+
+Training job queue
+
+Development analytics
+
+Activity logs
+
+Enterprise Admin Portal (New)
+
+Developer management (super_admin, admin, developer)
+
+Cross-tenant dashboards
+
+Full development insights
+
+Global document analytics
+
+RAG search logs
+
+Unit-level and homeowner-level analytics
+
+Fraud/anomaly detection
+
+Impersonation tooling
+
+Backend Services
+
+Supabase DB with pgvector
+
+Drizzle ORM
+
+Supabase Storage
+
+Embedding engine (1536D)
+
+Document chunking pipeline
+
+QR token resolver
+
+Geocoding + Places API
+
+Document Routing Matrix
+
+Architectural floor plans: house-type specific
+
+Elevations: house-type specific
+
+Site plans: global
+
+Manuals/specs/warranty: global
+
+Developer brochures: global, no RAG ingestion
+
+Chat download cards are conditional on house type and document kind
+
+RAG ingestion rules strictly defined
+
+Identity Resolution
+
+QR → Verification → Homeowner → JWT
+
+JWT defines everything (development, unit, house type, permissions)
+
+No UI in the system should ever ask for "select development"
+
+PHASE 1: WHAT YOU MUST PRODUCE
+
+The output must be a single comprehensive System Discovery Report consisting of:
+
+1. Directory-Level System Map
+
+Inventory every file in the repository and classify them by responsibility:
+
+UI components
+
+API routes
+
+Hooks
+
+Context providers
+
+Utility functions
+
+Database modules
+
+Training pipeline modules
+
+RAG modules
+
+Theme modules
+
+Map/geodata modules
+
+Auth modules
+
+State what each folder does and how it interacts with other subsystems.
+
+2. Cross-Cutting Architecture Map
+
+Map relationships between:
+
+Tenant Portal
+
+Developer Portal
+
+Enterprise Admin Portal
+
+Shared packages
+
+API backend
+
+Supabase resources
+
+Storage buckets
+
+Build scripts
+
+3. Data Model Extraction
+
+List every table with:
+
+Fields
+
+Foreign keys
+
+Indexes
+
+Usage patterns
+
+Which portal uses it
+
+Must reflect the unified blueprint exactly.
+
+4. Permission & Role Map
+
+Define:
+
+Which routes require which roles
+
+Which portals each role can access
+
+Which actions each role can perform
+
+5. API Inventory
+
+List:
+
+All backend routes
+
+Input/output schemas
+
+Validation types
+
+Query patterns
+
+Filters (tenant, development, house type)
+
+6. RAG Pipeline Trace
+
+Map the entire RAG stack:
+
+Chunking
+
+Embeddings
+
+Storage
+
+Retrieval
+
+Ranking
+
+Prompt construction
+
+7. Document Visibility Matrix
+
+For each doc type, state:
+
+Who can see it
+
+When it appears in chat
+
+Whether it is a RAG source
+
+Filters used in queries
+
+Must align with the authoritative routing matrix.
+
+8. Enterprise Admin Requirements
+
+List every enterprise-level view or API that needs to be built next:
+
+Developer management
+
+Cross-tenant dashboards
+
+Document analytics
+
+Search logs
+
+RAG failure analytics
+
+Homeowner journeys
+
+Fraud detection
+
+9. Gaps, risks, and inconsistencies
+
+Identify:
+
+Missing endpoints
+
+Missing indexes
+
+Faulty assumptions
+
+Tech-debt clusters
+
+Inefficient data flows
+
+Anything required for scale that does not yet exist
+
+This should be brutally direct and operational.
+
+INSTRUCTIONS TO THE AGENT
+
+Do NOT modify code.
+
+Analyze the entire repository.
+
+Use the unified blueprint as the single source of truth.
+
+Produce a structured, exhaustive Phase 1 Discovery Report.
+
+Stop once analysis is complete.

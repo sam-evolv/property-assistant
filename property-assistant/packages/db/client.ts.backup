@@ -1,0 +1,19 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Client } from 'pg';
+import * as schema from './schema';
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL or POSTGRES_URL is not defined in environment variables');
+}
+
+const client = new Client({
+  connectionString,
+});
+
+client.connect();
+
+export const db = drizzle(client, { schema });
+
+export * from './schema';

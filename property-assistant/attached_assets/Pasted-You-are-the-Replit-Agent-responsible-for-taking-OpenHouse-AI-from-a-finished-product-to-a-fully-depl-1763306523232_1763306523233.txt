@@ -1,0 +1,273 @@
+You are the Replit Agent responsible for taking OpenHouse AI from a finished product to a fully deployed, secure, monitored, documented, production-ready SaaS platform with a stable operational workflow.
+
+Your responsibilities in this prompt are:
+
+1. Prepare the platform for secure production deployment  
+2. Set up production configuration (Vercel + Supabase OR Cloudflare + Supabase)  
+3. Add logging and monitoring  
+4. Add onboarding and documentation flows  
+5. Harden security across all layers  
+6. QA-test every route, endpoint, page, and API  
+7. Set up developer workflows, CI, versioning, and release process  
+8. Validate the platform is ready to onboard an actual developer (e.g. Longview Park) in days  
+9. Ensure reliability for consumer use inside homes  
+10. Deliver a platform that can operate 24/7 with zero manual babysitting  
+
+Perform every step in this document carefully and completely.
+
+────────────────────────────────────────
+0. PRODUCTION TARGET ARCHITECTURE
+────────────────────────────────────────
+
+Choose the recommended stack for production:
+
+**Frontend & API runtime:**  
+→ Cloudflare Pages + Cloudflare Workers **(preferred for speed & cost)**  
+OR  
+→ Vercel Edge Functions + Vercel Hosting
+
+**Database:**  
+→ Supabase Postgres + pgvector
+
+**Storage:**  
+→ Supabase storage buckets
+
+**AI:**  
+→ OpenAI GPT-4.1 / GPT-4.1-mini + text-embedding-3-large  
+→ Include key rotation support
+
+**Maps:**  
+→ Google Maps API (secure key handling)
+
+Implement whichever target the repo is already aligned to, but optimise all configs for production.
+
+────────────────────────────────────────
+1. ENVIRONMENT CONFIGURATION
+────────────────────────────────────────
+
+Validate and enforce correct environment variables for production:
+
+**Required variables:**
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_JWT_SECRET
+- SUPABASE_DB_URL
+- OPENAI_API_KEY
+- GOOGLE_MAPS_API_KEY
+- SESSION_SECRET
+- NEXT_PUBLIC_APP_URL (production domain)
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+Remove unused env vars from all packages.
+
+Add environment validation:
+
+- Use a single config.ts in packages/api that validates all required keys  
+- Crash loudly if any required key is missing
+
+────────────────────────────────────────
+2. SECURITY HARDENING
+────────────────────────────────────────
+
+Implement the following security measures:
+
+2.1. **RLS / DB Security**
+- Add row-level security where appropriate  
+- Ensure super_admin bypass works  
+- Ensure tenants cannot access each other’s data  
+- Validate all DB queries reference tenant_id and development_id
+
+2.2. **API Security**
+- Add rate limits to chat + training endpoints  
+- Add request size limits to prevent abuse  
+- Validate MIME types for uploads  
+- Sanitize all user inputs  
+- Prevent dangerous file types
+
+2.3. **Auth Security**
+- Protect all developer portal routes behind auth  
+- Protect all admin-only routes  
+- Ensure homeowner portal does NOT expose private developer data  
+- Ensure JWTs are signed and validated correctly
+
+2.4. **Frontend Security**
+- Disable dangerous inline scripts  
+- Add CSP headers  
+- Remove console logs in production  
+- Prevent leakage of internal IDs in client bundle  
+- Ensure no internal API routes leak service-role keys
+
+────────────────────────────────────────
+3. PRODUCTION BUILD OPTIMISATION
+────────────────────────────────────────
+
+Perform a complete production build optimisation:
+
+- Minify all JS bundles  
+- Remove unused code, dead imports  
+- Reduce image assets and compress icons  
+- Move heavy libraries to dynamic imports  
+- Reduce chat bundle weight  
+- Deduplicate shared dependencies  
+- Ensure edge runtime compatibility
+
+Verify:
+
+- Tenant Portal loads in < 1s on mobile  
+- Developer Portal loads in < 1.5s  
+
+────────────────────────────────────────
+4. DEPLOYMENT PIPELINE CREATION (CI/CD)
+────────────────────────────────────────
+
+Set up a simple and robust deployment workflow:
+
+4.1. **GitHub Integration**
+- Ensure monorepo is clean and structured  
+- Ensure main branch is protected  
+- Add PR templates  
+- Add lint + type check + test scripts  
+- Ensure deployment happens only on CI success  
+
+4.2. **Vercel / Cloudflare Deployment**
+- Create production project  
+- Add all env vars  
+- Setup preview deployments  
+- Setup custom domain (openhouse.ai or client domains)  
+- Enable image optimisation  
+- Enable edge caching  
+
+4.3. **Automatic Migrations**
+- Ensure Drizzle migrations run automatically before boot  
+- Add check for schema drift
+
+────────────────────────────────────────
+5. LOGGING, MONITORING & ALERTING
+────────────────────────────────────────
+
+Implement full observability:
+
+5.1. **API Logs**
+- Structured JSON logs for:
+  route, method, status, time, tenant, dev, user, error
+
+5.2. **Error Tracking**
+- Add Sentry or Linear Analytics for:
+  - client errors  
+  - server errors  
+  - unhandled exceptions  
+  - chat failures  
+  - upload failures  
+
+5.3. **Performance Monitoring**
+- Track slow queries  
+- Track embedding latency  
+- Track rejection rates from OpenAI  
+- Track document upload failures  
+- Add dashboard for dev insights
+
+5.4. **Alerts**
+- Email or webhook alerts for:
+  - 500 spikes  
+  - training job failures  
+  - database drift  
+  - API downtime  
+  - excessive OpenAI cost  
+
+────────────────────────────────────────
+6. QA & AUTOMATED TESTS
+────────────────────────────────────────
+
+Add comprehensive test coverage:
+
+6.1. **Unit Tests**
+- All helper utilities  
+- Chunking functions  
+- Vector search logic  
+- AI instruction merging  
+
+6.2. **Integration Tests**
+- Document upload → parse → embed → store  
+- Chat endpoint using a sample development  
+- DB queries with mock tenant context  
+
+6.3. **E2E Tests**
+- Developer login  
+- Create development  
+- Upload documents  
+- Ask preview chat questions  
+- Homeowner chat from QR flow  
+- Noticeboard interactions  
+- Map interactions
+
+Everything must pass.
+
+────────────────────────────────────────
+7. FULL SYSTEM QA (AGENT MUST PERFORM)
+────────────────────────────────────────
+
+Perform a thorough end-to-end quality assurance sweep:
+
+- Test every page  
+- Test every button  
+- Test every form  
+- Test every route  
+- Test every upload  
+- Test chat with no docs  
+- Test chat with docs  
+- Test map loading  
+- Test noticeboard loading  
+- Test document download  
+- Test language switching  
+- Test mobile viewport  
+
+Fix any errors, console warnings, layout issues, or runtime issues.
+
+────────────────────────────────────────
+8. PRODUCTION LAUNCH READINESS CHECKLIST
+────────────────────────────────────────
+
+Agent must confirm:
+
+✔ Developer Portal stable and error-free  
+✔ Tenant Portal stable and error-free  
+✔ QR codes resolve instantly  
+✔ Document upload pipeline works in production  
+✔ Embeddings generated correctly  
+✔ Chat answers correctly  
+✔ All styles consistent (white, black, gold)  
+✔ All navigation intuitive  
+✔ All pages performant  
+✔ All security measures applied  
+✔ All logs working  
+✔ All alerts configured  
+✔ Mobile experience strong  
+✔ Database properly indexed  
+✔ System instructions functional  
+✔ Longview Park can be onboarded immediately  
+✔ Onboarding process takes <10 minutes  
+✔ Super admin fully operational  
+
+Only when all these pass can the system be considered ready.
+
+────────────────────────────────────────
+9. FINAL ACT
+────────────────────────────────────────
+
+Deliver a fully production-ready OpenHouse AI system with:
+
+- enterprise-grade stability  
+- luxury UI  
+- robust AI integrations  
+- safe and fast uploads  
+- predictable chat  
+- polished developer UX  
+- reliable homeowner UX  
+- scalable backend  
+- real monitoring  
+- real deployments  
+- zero broken paths  
+
+Begin all steps now.

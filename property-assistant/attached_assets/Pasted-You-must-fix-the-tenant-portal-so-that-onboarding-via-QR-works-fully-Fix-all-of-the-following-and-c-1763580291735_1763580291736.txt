@@ -1,0 +1,182 @@
+You must fix the tenant-portal so that onboarding via QR works fully.
+Fix all of the following and confirm end-to-end functionality:
+
+1. JWT Onboarding Token – Mandatory Requirements
+
+When a user scans a QR code, the system must generate a JWT containing:
+
+{
+  tenant_id,
+  development_id,
+  house_id,
+  full_name,        // FULL NAME, not prefix
+  email,
+  unit_number,
+  house_type_code
+}
+
+
+Fixes required:
+
+Confirm the API endpoint that generates QR codes is actually embedding full_name and house_id.
+
+Confirm the redirect loads /onboard with the JWT in the URL.
+
+Parse the JWT server-side (middleware.ts) AND client-side (useOnboarding.ts) and store in Supabase auth cookie + localStorage/session state.
+
+Success criteria:
+
+On first load, the app always knows the user's full identity.
+
+No more “Mr.” – must display full name exactly as listed in CSV.
+
+2. Fix Welcome Animation Timing
+
+Update the welcome animation component:
+
+apps/tenant-portal/src/components/onboarding/WelcomeGate.tsx
+
+Required changes:
+
+Force a 6-second minimum animation.
+
+Disable auto-skip.
+
+Prevent fade-out until 6s have elapsed.
+
+Use parsed full_name from onboarding JWT.
+
+Add fallback if token missing: DO NOT show “Mr.” – show “Welcome”.
+
+Success criteria:
+
+Animation lasts ~6 seconds every time.
+
+Always shows “Welcome <FULL NAME>”.
+
+Match Airbnb-style onboarding pacing (slow, clean, readable).
+
+3. Chat Context Must Load Automatically
+
+The chat component currently fails with:
+
+“Please select a development first to start chatting.”
+
+Cause: useChatContext() returns null because onboarding token not saved in global context.
+
+Fix:
+
+Update:
+
+apps/tenant-portal/src/providers/ContextProvider.tsx
+
+Ensure this context is set on load:
+
+setContext({
+   tenantId,
+   developmentId,
+   houseId,
+   fullName,
+   houseTypeCode,
+   unitNumber
+})
+
+Update chat API call payload:
+
+apps/tenant-portal/src/lib/chat/sendMessage.ts
+
+Payload must include:
+
+tenant_id
+development_id
+house_id
+house_type
+unit_number
+full_name
+
+Fix server-side:
+
+packages/api/src/chat/route.ts
+
+If context missing, do NOT block.
+Return 400 with log.
+
+Success criteria:
+
+When user opens the app, chat instantly knows:
+
+their development
+
+their unit
+
+their house type
+
+Asking “What size is my living room?” returns the correct floor plan details.
+
+4. Ensure House Lookup Works Correctly
+
+Fix the lookup function in:
+
+packages/api/src/houses/getHouseContext.ts
+
+Must reliably fetch:
+
+house
+
+house_type
+
+floorplans
+
+attributes
+using house_id from JWT.
+
+Ensure no fallback to session or selection UI.
+
+5. Regression Tests to Run Automatically
+
+Make the agent perform the following tests before finishing:
+
+Test A – Onboarding
+
+Load the onboarding URL with JWT.
+
+Confirm:
+
+full_name parsed
+
+development_id parsed
+
+house_id parsed
+
+Confirm local context created.
+
+Test B – Animation
+
+Render WelcomeGate.
+
+Confirm:
+
+6-second delay
+
+correct full name
+
+no premature skip
+
+Test C – Chat
+
+Ask “What size is my living room?”
+
+Confirm:
+
+context included in API call
+
+development auto-selected
+
+floor plan response returned
+
+Confirm no message:
+“Please select a development first.”
+
+**6. Do NOT touch styling, routing, or Supabase policy files.
+
+Only fix the onboarding+JWT pipeline and context cascade.**

@@ -1,0 +1,347 @@
+PHASE 7.1 — MASTER AGENT PROMPT
+
+ROLE:
+You are the Senior Security Engineer for OpenHouse AI.
+Your task is to perform a full security audit of the existing system without modifying any live code (read-only for this step).
+
+GOALS:
+
+Enumerate all exposed API routes across:
+
+Tenant Portal (apps/tenant-portal/app/api/*)
+
+Developer Portal (apps/developer-portal/app/api/*)
+
+Enterprise Admin (/admin-enterprise/api/*)
+
+packages/api (packages/api/src/*)
+
+Identify every route that does not use:
+
+getAdminContextFromSession()
+
+requireRole()
+
+assertEnterpriseUser()
+
+JWT validation (for tenant-portal endpoints)
+
+List all unprotected or partially protected endpoints.
+
+List all endpoints missing rate limits.
+
+List all endpoints missing schema validation (Zod or equivalent).
+
+List all endpoints missing audit logging.
+
+Identify any public Next.js routes leaking server-side data.
+
+Identify any missing POST → PATCH → DELETE security patterns.
+
+Check for accidental exposure in /public/ endpoints.
+
+Output a structured JSON report with sections:
+
+{
+  "api_surface": [],
+  "missing_role_enforcement": [],
+  "missing_jwt_validation": [],
+  "missing_rate_limits": [],
+  "missing_input_validation": [],
+  "missing_audit_logging": [],
+  "high_risk_findings": [],
+  "recommended_fixes": []
+}
+
+
+CONSTRAINTS:
+
+Do not modify any code in Phase 7.1.
+
+Do not install dependencies.
+
+Do not run migrations.
+
+Produce a diagnostic report only.
+
+Proceed.
+Scan every directory.
+Generate the JSON report.
+
+**PHASE 7.2 — ROLE ENFORCEMENT CONSOLIDATION
+
+(MASTER PROMPT)**
+
+Copy into Replit after finishing 7.1:
+
+PHASE 7.2 — MASTER AGENT PROMPT
+
+ROLE:
+You are the Senior Security Engineer. Apply consistent role enforcement based on the audit findings from Phase 7.1.
+
+GOALS:
+
+For all admin-facing endpoints:
+
+Add assertEnterpriseUser() or assertSuperAdmin() where required.
+
+For developer-facing endpoints:
+
+Add requireRole(['developer','admin','super_admin']).
+
+For tenant-portal endpoints:
+
+Ensure getHomeownerContext(request) is mandatory.
+
+Ensure every API route checks:
+
+Session validity
+
+Tenant scoping
+
+Development scoping
+
+Add consistent helper:
+
+assertTenantScoped(adminContext, targetTenantId)
+
+
+Do not change business logic.
+
+Apply changes incrementally, compile after each edit.
+
+FILES TO EDIT:
+
+apps/developer-portal/app/api/**/*
+
+apps/tenant-portal/app/api/**/*
+
+packages/api/src/**/*
+
+CONSTRAINTS:
+
+No route restructuring
+
+No refactors outside security enforcement
+
+No visual changes
+
+No changes to tenant portal UI
+
+Proceed step-by-step.
+Modify only routes missing enforcement.
+
+**PHASE 7.3 — JWT & SESSION SECURITY
+
+(MASTER PROMPT)**
+
+PHASE 7.3 — MASTER AGENT PROMPT
+
+ROLE: Strengthen all authentication tokens and session flows.
+
+TASKS:
+
+Harden homeowner JWT creation:
+
+Add audience, issuer, subject, 1h expiry.
+
+Add token_version for forced invalidation.
+
+Add JWT rotation logic on every /chat request.
+
+Enforce secure cookie flags:
+
+secure: true
+
+sameSite: 'strict'
+
+httpOnly: true
+
+Add session_version to admins & invalidate on role update.
+
+Add logoutAllSessions endpoint.
+
+Add detection for JWT tampering.
+
+FILES TO MODIFY:
+
+packages/api/src/auth/*
+
+apps/tenant-portal/app/api/auth/*
+
+apps/developer-portal/app/api/session/*
+
+Proceed safely.
+Do not break onboarding flow.
+
+PHASE 7.4 — RATE LIMITING (GLOBAL & PER-ROLE)
+
+PHASE 7.4 — MASTER AGENT PROMPT
+
+TASKS:
+
+Apply role-aware rate limits:
+
+Role	Limit
+homeowner	30 requests/min
+developer	60 requests/min
+admin	100 requests/min
+super_admin	200 requests/min
+unauthenticated	10 requests/min
+
+Protect all public endpoints:
+
+/api/qr/*
+
+/api/onboarding/*
+
+Protect high-cost endpoints:
+
+/api/chat
+
+/api/train
+
+/api/admin/analytics/*
+
+Implement shared utility:
+
+await enforceRateLimit({ key, limit, windowMs })
+
+
+Ensure rate limit errors return:
+
+429
+
+JSON error body
+
+Proceed and patch all missing endpoints.
+
+PHASE 7.5 — AUDIT LOGGING ENHANCEMENT
+
+PHASE 7.5 — MASTER AGENT PROMPT
+
+TASKS:
+
+Every write action must log:
+
+actor_id
+
+actor_email
+
+ip_address
+
+endpoint
+
+payload_hash (SHA256)
+
+tenant_id
+
+development_id
+
+Wrap all sensitive endpoints with:
+
+await logAuditEvent({...})
+
+
+Add audit logging for:
+
+document uploads
+
+developer creation
+
+role changes
+
+QR generation
+
+homeowner impersonation
+
+Add audit viewer in enterprise admin (placeholder only).
+
+Proceed and implement logging.
+
+PHASE 7.6 — DATA INTEGRITY ENFORCEMENT
+
+PHASE 7.6 — MASTER AGENT PROMPT
+
+TASKS:
+
+Add missing FKs:
+
+homeowners.unit_id → units.id
+
+doc_chunks.house_type_code → house_types.house_type_code
+
+Enforce constraints:
+
+NOT NULL on critical fields
+
+Enum for document types
+
+Add indexes for:
+
+homeowners.last_active
+
+documents.document_type
+
+Migrate safely with ALTER TABLE … USING.
+
+Proceed with migrations carefully.
+No data loss.
+
+PHASE 7.7 — API GUARDRAILS & INPUT VALIDATION
+
+PHASE 7.7 — MASTER AGENT PROMPT
+
+TASKS:
+
+Add Zod schemas for all write APIs:
+
+homeowner create
+
+document upload metadata
+
+developer creation
+
+development updates
+
+settings updates
+
+Validate:
+
+strings (min/max)
+
+numbers
+
+dates
+
+enums
+
+URLs
+
+Reject malformed payloads with:
+
+400 + helpful message
+
+Proceed methodically.
+Validate before touching DB.
+
+PHASE 7.8 — ERROR BOUNDARIES & SAFE FAILURE MODES
+
+PHASE 7.8 — MASTER AGENT PROMPT
+
+TASKS:
+
+Add React error boundary to Developer Portal:
+
+Wrap layout in <ErrorBoundary>
+
+Add API safe failure handler:
+
+try { … } catch (err) { return safeApiError(err); }
+
+
+Ensure tenant portal never leaks stack traces.
+
+Return human-friendly error messages.
+
+Proceed without altering UI layout.

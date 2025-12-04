@@ -1,0 +1,278 @@
+You are the Lead Platform Engineer for OpenHouse AI.
+Phase 11 is the final operationalisation phase before the Longview Park pilot goes live and the platform is ready to onboard external developers.
+Your objective is to industrialise, stabilise, secure, and prepare the system for production traffic, without breaking any existing flows.
+
+Follow the instructions step-by-step.
+Do not rebuild anything already completed in Phases 1–10.
+Only harden, optimise, and complete.
+
+PHASE 11 OBJECTIVES
+1. PERFORMANCE HARDENING
+
+Implement all required performance optimisations across the monorepo:
+
+Ensure no endpoint runs expensive or unbounded queries.
+
+Enforce pagination on every /admin/*, /analytics/*, /units/*, /homeowners/*, and /documents/* route.
+
+Add missing indexes not already created (check DB).
+
+Ensure analytics endpoints use cache-first logic with cache invalidation hooks.
+
+Add batching where appropriate (e.g., message retrieval, document views).
+
+Optimise all RAG queries for latency and cost.
+
+2. BACKGROUND JOB PIPELINE FINALISATION
+
+Confirm all heavy operations are moved off the request cycle:
+
+PDF → chunking → embedding → storage pipeline must run via background job.
+
+Geocoding pipeline must run in background.
+
+Document re-ingestion must run in background.
+
+RAG re-indexing jobs must run in background.
+
+Implement missing retry logic + exponential backoff.
+Ensure jobs write into job_status table.
+
+3. ERROR TRACKING + OBSERVABILITY
+
+Add a minimal but effective observability layer:
+
+Implement global API error logging with error_log table.
+
+Add try/catch wrappers to admin endpoints.
+
+Add Sentry-compatible wrapper (or local logger alternative if Sentry disabled).
+
+Add request latency logging to /admin/analytics/* endpoints.
+
+Add OpenAI error logger writing into llm_error_log.
+
+4. SECURITY FINALISATION
+
+Confirm all Phase 7 work remains intact and finish the remaining gaps:
+
+Audit RBAC in every admin endpoint.
+
+Ensure tenant isolation is never broken.
+
+Validate JWT payload everywhere.
+
+Add anti-automation rate limits on:
+/api/chat, /api/public/*, /api/qr/*.
+
+Add IP logging on QR scans.
+
+Ensure impersonation tokens have strict expiry and logging.
+
+5. QA HARDENING OF PURCHASER APP
+
+Stabilise and finalise the purchaser UI:
+
+Fix hydration mismatches.
+
+Ensure intro animation uses full purchaser name + correct timing.
+
+Ensure development + house context is always loaded before chat begins.
+
+Ensure no UI flicker on load.
+
+Make sure chat UI theme is fully consistent (gold accents, not gold bubbles).
+
+All docs must appear correctly filtered by house type.
+
+All doc download links must work and use signed URLs.
+
+Map loads from correct home coordinates and all POIs work.
+
+6. QA HARDENING OF DEVELOPER PORTAL
+
+Confirm the entire new portal is stable (Phase 9 work):
+
+Charts render with real data.
+
+Units table, homeowners table, and document table are all paginated and filterable.
+
+Insights cards use real analytics.
+
+Deep-dive dashboards load under 2 seconds.
+
+No console errors.
+
+No undefined values.
+
+No hydration mismatches.
+
+Responsive on tablet + desktop.
+
+7. QA HARDENING OF SUPER-ADMIN PORTAL
+
+Validate everything:
+
+Tenant list
+
+Development list
+
+Cross-tenant analytics
+
+Impersonation
+
+Activity logs
+
+RAG logs
+
+Document ingestion logs
+
+Error logs
+
+System load dashboard
+
+Rate limits dashboard
+
+Background job monitor
+
+Fix missing fields, missing filters, or missing pagination.
+
+8. LOAD TESTING
+
+Simulate realistic traffic:
+
+50 simultaneous homeowners querying within the same development.
+
+200 RAG queries in parallel.
+
+30 document uploads (multi-MB) in a batch job.
+
+Ensure:
+
+No timeouts
+
+No memory blowouts
+
+No unbounded queries
+
+No API rate limit crashes
+
+9. DNS, ENV, AND PRODUCTION CONFIG VALIDATION
+
+Check all configuration:
+
+Validate all environment variables exist and are correct.
+
+Validate JWT secret matches production setup.
+
+Validate Supabase configuration.
+
+Validate Google Maps key.
+
+Validate OpenAI key + model selection.
+
+Validate CORS.
+
+Validate HTTPS.
+
+Validate domain routing (openhouseai.ie).
+
+Prepare Cloudflare deployment settings.
+
+10. FINAL ACCEPTANCE CHECKLIST
+
+Run through:
+
+Full home onboarding flow
+
+Full developer workflow
+
+Full admin workflow
+
+All analytics
+
+All maps
+
+All chat flows
+
+All doc flows
+
+All RAG flows
+
+All JWT contexts
+
+All dashboards
+
+All background jobs
+
+All logs
+
+All security boundaries
+
+Fix any deviations.
+
+PHASE 11 — SUPER-PROMPT (COPY/PASTE INTO REPLIT AGENT)
+You are the Lead Platform Engineer for OpenHouse AI.
+
+Execute PHASE 11 — PRODUCTION HARDENING, LOAD TESTING, MONITORING, AND GO-LIVE PREP.
+
+Your tasks:
+
+1. Performance Hardening  
+   - Add pagination everywhere.  
+   - Add missing DB indexes.  
+   - Convert heavy queries to cached queries.  
+   - Reduce payload size on all endpoints.  
+   - Optimise RAG retrieval order and limit.  
+
+2. Background Job Pipeline  
+   - Ensure PDF ingestion, geocoding, and embeddings run in background.  
+   - Add retry logic + job_status table logging.  
+   - Ensure synchronous endpoints no longer trigger heavy work.  
+
+3. Error Tracking + Observability  
+   - Add global API error handler and error_log table writes.  
+   - Add latency tracking.  
+   - Add OpenAI error logging.  
+
+4. Security Finalisation  
+   - Audit RBAC across all admin and tenant scopes.  
+   - Enforce rate limits (chat, QR, public endpoints).  
+   - Validate all JWT payloads.  
+   - Add QR IP logging.  
+   - Harden impersonation expiration + logs.  
+
+5. Purchaser App QA  
+   - Fix intro animation timing + use full name.  
+   - Ensure house + development loaded before chat.  
+   - Fix hydration mismatch.  
+   - Apply consistent gold-accent theme.  
+   - Fix document visibility logic.  
+   - Ensure signed URLs for downloads.  
+   - Fix maps and POI logic with real coordinates.  
+
+6. Developer Portal QA  
+   - Fix charts, insights cards, and pagination.  
+   - Eliminate console errors + undefined values.  
+   - Optimise load time under 2 seconds.  
+
+7. Super Admin QA  
+   - Validate all analytics dashboards.  
+   - Fix missing fields, missing filters.  
+   - Implement pagination everywhere.  
+   - Add system load and rate limit monitoring.  
+
+8. Load Testing  
+   - Simulate parallel users and RAG traffic.  
+   - Fix any bottlenecks.  
+
+9. DNS / ENV Validation  
+   - Ensure production variables ready for deployment.  
+
+10. Final Acceptance  
+   - Run full E2E test: onboarding → chat → docs → analytics → maps → admin.  
+
+Perform changes incrementally, verifying compilation after each step.  
+Do not break existing portals.  
+Use existing code structure.  
+Proceed step-by-step until Phase 11 is fully complete.

@@ -1,0 +1,293 @@
+You are a senior full stack and AI engineer working inside the OpenHouse / Longview Park project in this Replit workspace.
+
+CONTEXT
+
+- This is a production grade property assistant for new homes.
+- Developers upload documents in the Developer Portal under “Documents”.
+- Purchasers use a chat assistant to ask questions about their home, development, and community.
+- The assistant uses a RAG pipeline: documents → text extraction → chunking → embeddings → vector search → LLM answer.
+
+CURRENT PROBLEM
+
+1) A document called “Kitchen & Wardrobe Narrative - Updated” has been uploaded (Word and PDF versions). It clearly specifies who supplied the kitchen.
+2) When the purchaser asks “who supplied my kitchen?”, the assistant responds:
+
+   “Based on the documents available for your home, I do not see details for this item. Would you like me to check with your developer?”
+
+3) This is unacceptable. For OpenHouse to be viable, the assistant must reliably answer basic factual questions from uploaded documents (kitchens, wardrobes, boilers, windows, parking, bins, BER, etc).
+4) There is also a UX discrepancy: a PDF version of the kitchen narrative was uploaded “successfully”, but only the Word versions show in the Documents table.
+
+You previously fixed a major bug where documents were saved but not processed into chunks or embeddings. That is not sufficient. We now need a systemic upgrade of:
+
+- document ingestion reliability
+- retrieval intelligence
+- answer policy
+- monitoring and tests
+
+The end state must be: a “super smart” assistant that uses all available data, provides best effort answers, and never silently ignores a document that was uploaded successfully.
+
+NON NEGOTIABLE REQUIREMENTS
+
+- Do not break existing QR onboarding, auth, chat UI, maps, notices, or documents UI.
+- Keep the database schema and table names consistent. Use migrations for schema changes.
+- Preserve current RAG infra (pgvector, embeddings) but harden it.
+- Always scope retrieval by development and unit, never across unrelated developments.
+- After your changes, the kitchen narrative test must pass: the assistant must correctly identify the kitchen supplier.
+
+====================================================================
+PHASE 0 – DIAGNOSE THE CURRENT FAILURE AND THE PDF ISSUE
+====================================================================
+
+1) Locate the kitchen narrative documents in the database.
+   - Search in the `documents` table for file names like:
+     - “Kitchen & Wardrobe Narrative - Updated”
+   - Confirm:
+     - Both DOCX and PDF entries are present.
+     - development_id and any unit scoping are correct.
+
+2) For each of those document rows:
+   - Count the number of chunks in `doc_chunks` or equivalent:
+     - Confirm there are > 0 chunks and embeddings.
+   - If any document has 0 chunks:
+     - That is still an ingestion failure.
+     - Note which ones and fix ingestion in Phase 1.
+
+3) Investigate why the PDF is not visible in the Developer Portal list:
+   - Inspect the query or API used to populate the list.
+   - Check for filter conditions such as:
+     - file_type in ('doc', 'docx') or similar.
+   - Ensure:
+     - All supported file types (including PDF) appear in the UI.
+     - There is no silent deduplication that hides the PDF.
+
+4) After fixing the visibility filter, verify in the UI that:
+   - DOCX and PDF entries show correctly with their size and upload date.
+   - Both types are eligible for ingestion.
+
+====================================================================
+PHASE 1 – HARDEN DOCUMENT INGESTION AND REPROCESS HISTORICAL DOCS
+====================================================================
+
+Goal: Every document that appears in the portal must be ingested into the RAG index with chunks and embeddings, or clearly marked as failed.
+
+1) Create a one off re-ingestion script or migration:
+   - For each row in `documents`:
+     - If there are 0 related rows in `doc_chunks` for that document:
+       - Run the standard pipeline:
+         - load file from storage
+         - extract text
+         - chunk text
+         - generate embeddings
+         - insert `doc_chunks` rows with metadata
+   - Log any documents that still fail (parsing error, unsupported format etc).
+
+2) In the upload endpoint and the document processing pipeline:
+   - After processing, assert:
+     - extracted_text_length > 0
+     - chunk_count > 0
+     - embedding generation succeeded
+   - If any assertion fails:
+     - Mark the document as `status = 'failed'` or similar.
+     - Do not mark training as completed.
+     - Log a detailed error including:
+       - document id
+       - file name
+       - error message
+
+3) Surface ingestion health in the Developer Portal:
+   - In the Documents list, show a status column:
+     - Completed
+     - Processing
+     - Failed
+   - For each development (in the summary header), show:
+     - “X documents, Y with processing errors, Z with 0 chunks”
+   - This ensures ingestion failures are visible to the developer, not hidden.
+
+4) Build a dev only “Document inspector” tool:
+   - Input fields:
+     - development_id
+     - optional unit_id
+     - keyword string
+   - Output:
+     - list of documents that contain that keyword
+     - number of chunks per document
+     - sample snippets for quick validation
+   - Use this to sanity check that:
+     - the kitchen narrative, spec docs, warranties etc are actually present in the index.
+
+====================================================================
+PHASE 2 – UPGRADE RETRIEVAL LOGIC TO BE ROBUST AND SMART
+====================================================================
+
+Goal: When a purchaser asks a question, the system must aggressively search all relevant context (unit then development), and rank the most relevant chunks intelligently using both semantics and keywords.
+
+1) Locate the current retrieval function used in the chat endpoint (for example `/api/chat`).
+2) Replace the current single stage vector search with a multi stage strategy:
+
+A. Scope resolution
+   - For every chat request, resolve:
+     - current_unit_id
+     - current_development_id
+     - language (if applicable)
+   - These IDs must be passed into the retrieval logic.
+
+B. Stage 1 – unit scoped search
+   - Search the vector index for top N chunks where:
+     - unit_id = current_unit_id OR
+     - unit_id is null AND development_id = current_development_id
+   - Set N between 40 and 60 so that you have enough candidates for re ranking.
+   - Record:
+     - similarity score
+     - chunk text
+     - document metadata (title, file name, type).
+
+C. Stage 2 – development wide fallback
+   - If Stage 1 yields no candidates above a low floor, run a second search:
+     - all chunks where development_id = current_development_id
+     - ignore unit_id
+   - Again retrieve top N and record scores.
+
+D. Keyword and domain scoring
+   - From the user query, extract keyword tokens (simple approach is fine at first: lowercase, remove stopwords).
+   - Maintain a small domain dictionary for supplier style questions:
+     - supplier, installer, contractor, fitter, provider, manufacturer, kitchen, wardrobe, boiler, windows, doors, flooring etc.
+   - For each candidate chunk from both stages:
+     - Compute a keyword score:
+       - count of overlaps between tokens and chunk text, weighted by importance.
+   - If the Important Docs feature with `is_important` is available:
+     - carry `is_important` into chunks and plan to apply a future multiplier.
+     - For now, you can add a flag to the metadata.
+
+E. Final scoring and ranking
+   - For each chunk, compute:
+
+     `final_score = 0.7 * vector_similarity + 0.3 * keyword_score`
+
+     (make the weights configurable).
+
+   - If `is_important` is present and true, optionally apply a small multiplier:
+
+     `final_score *= 1.2`
+
+   - Sort candidates by `final_score`.
+   - Select the top M chunks to send to the model (for example M between 8 and 16, depending on token budget).
+
+====================================================================
+PHASE 3 – MAKE THE ANSWER POLICY “BEST EFFORT, HONEST”
+====================================================================
+
+Right now the assistant is too conservative and goes straight to “no info in documents”. You must change the control flow so it prefers an informed attempt, while still flagging uncertainty.
+
+1) Remove any hard “vector score threshold” that short circuits to a canned “no information” response when scores are below T.
+
+2) Implement the following logic:
+
+   - If there are zero candidate chunks across both retrieval stages:
+     - Return the existing “no information” template, offering to contact the developer.
+
+   - If there are candidate chunks and at least one chunk mentions core nouns from the query (for example for “who supplied my kitchen” the chunk contains “kitchen” and some supplier-like phrase such as “supplied by”, “installed by”, “kitchen supplier”, or a company name):
+     - Always attempt an answer using those chunks.
+     - Label confidence as high or medium based on how direct the evidence is.
+
+3) Update the system prompt for the LLM used in answering. Instructions should include:
+
+   - You have access to context snippets extracted from documents linked to the user’s home and development.
+   - Use these snippets as primary evidence.
+   - If there is any plausible evidence addressing the question, you must attempt a best effort answer.
+   - If evidence is partial or indirect, clearly say that you are inferring based on the available documents.
+   - Only say that you cannot find the information when nothing in the context is relevant at all.
+
+4) When constructing the prompt, include document metadata with each chunk, for example:
+
+   - “Source: Kitchen & Wardrobe Narrative - Updated (Word Document)”
+   - “Source: Mechanical & Electrical Specification, section 3.5”
+
+   This helps the model phrase answers like:
+
+   - “According to the Kitchen & Wardrobe Narrative for your development, the kitchen was supplied and installed by [Supplier Name].”
+
+5) Implement a light intent classification layer for “supplier lookup” style questions:
+
+   - If the user query matches patterns like:
+     - “who supplied my X”
+     - “who installed the X”
+     - “who installed my windows / wardrobes / boiler / doors”
+   - Then:
+     - Boost the keyword list with:
+       - supplier, installed, contractor, fitter, provider, manufacturer.
+     - This steers the hybrid scoring toward narrative and spec paragraphs that contain supplier information.
+
+====================================================================
+PHASE 4 – REGRESSION TESTS AND “GOLDEN” QUESTIONS
+====================================================================
+
+To avoid future regressions, add a small internal test harness.
+
+1) For Longview Park (or one test development), define at least 15 questions, for example:
+
+   - Who supplied my kitchen  
+   - Who supplied my wardrobes  
+   - What make and model is my boiler  
+   - What windows do I have  
+   - Who manages waste collection  
+   - What are the parking rules  
+   - What is my BER rating  
+   - Who is the management company  
+   - What flooring is specified in the living room  
+   - What is the waste segregation policy
+
+2) Implement a script or test function that:
+
+   - Runs these questions through the chat API for a known unit.
+   - Captures the LLM response.
+   - Checks for required keywords or entities in the answer (for example the kitchen supplier name, boiler model, window supplier etc).
+
+3) Add a simple internal page or CLI output that clearly flags which questions passed and which failed. This is for you and the product owner, not purchasers.
+
+4) As part of this change, ensure that the “who supplied my kitchen” test passes:
+
+   - The assistant must name the supplier exactly as in the Kitchen & Wardrobe Narrative.
+   - If the narrative indicates development wide supplier rather than unit specific, the answer can say this explicitly.
+
+====================================================================
+PHASE 5 – FINAL VERIFICATION CHECKLIST
+====================================================================
+
+Before considering this work complete, confirm the following:
+
+1) Developer Portal
+   - The Kitchen & Wardrobe narrative shows both DOCX and PDF versions after upload.
+   - Status for each is “Completed” with non zero chunk count.
+   - The ingestion health summary shows zero documents with “0 chunks” or “failed” for the test development.
+
+2) RAG Index
+   - Using the internal Document inspector, searching for “kitchen” returns:
+     - chunks from the Kitchen & Wardrobe narrative.
+   - At least one chunk clearly contains the sentence or paragraph that names the supplier.
+
+3) Chat Behaviour
+   - For a purchaser unit linked to Longview Park:
+     - Asking “who supplied my kitchen” returns a natural language answer that includes the correct supplier name and cites the kitchen narrative as the source.
+   - Other gold questions receive plausible and factual answers when documents exist.
+
+4) Failure Behaviour
+   - When there is genuinely no relevant document, the assistant still falls back to the safe response offering to check with the developer.
+   - There are no crashes or 500 errors in the ingestion or chat APIs.
+
+====================================================================
+DELIVERABLES
+====================================================================
+
+When you finish, write a summary into the Replit task log that includes:
+
+- Files and modules changed for:
+  - ingestion
+  - retrieval logic
+  - answer generation
+  - tests / dev tools
+- Any new configuration constants (for example scoring weights).
+- A brief description of the new retrieval pipeline.
+- Proof that the kitchen supplier question now works against the kitchen narrative document.
+- Any limitations or follow up tasks you recommend.
+
+Execute these steps now to upgrade the assistant from “barely working RAG” to a robust, best effort, production ready assistant that can answer questions on any part of the house, development or community using all available documents.

@@ -1,0 +1,100 @@
+You are the Replit Agent working on the OpenHouse AI platform.
+
+Your task is to execute **PHASE 17 — LOAD TESTING, MONITORING, AND ERROR CAPTURE**.
+
+This phase ensures the system can handle real-world usage during the Longview Park pilot, identifies bottlenecks, and introduces lightweight observability.
+
+Work strictly inside the existing architecture.
+
+────────────────────────────────────────
+PHASE 17 OBJECTIVES
+────────────────────────────────────────
+
+1. Load Test: Onboarding Flow
+   • Simulate 20 homeowners onboarding in parallel:
+       – hitting /onboarding/{token}
+       – completing magic link flow
+   • Measure response times
+   • Ensure no rate limit issues
+   • Log any JWT or Supabase errors
+
+2. Load Test: Chat Requests
+   • Simulate parallel chat interactions:
+       – 20 houses × 3 sample questions each
+   • Validate:
+       – RAG retrieval time
+       – OpenAI completion stability
+       – Message persistence reliability
+   • Record average latency per step:
+       – JWT validation
+       – chunk retrieval
+       – embedding similarity search
+       – LLM generation
+       – message insert
+
+3. Batch RAG Stress Test
+   • Create a script: scripts/loadtest-rag.ts
+   • For each uploaded PDF:
+       – run 20 parallel RAG queries
+   • Track:
+       – p95 and p99 response times
+       – any timeouts
+       – Supabase RPC/SQL errors
+
+4. Infrastructure Monitoring
+   • Add temporary logging to /api/chat and /api/documents routes:
+       – start/end timestamps
+       – tenant_id, development_id, house_id
+       – error stack traces
+   • Enable verbose logging only in dev or load test mode
+
+5. Error Capture Layer
+   • Add a new server module: /server/error-tracker.ts
+   • Add functions:
+       logApiError(route, error, metadata)
+       logLLMError(prompt, error)
+       logSupabaseError(query, error)
+   • Ensure all critical routes log through this module
+
+6. Create Admin Monitoring Dashboard (Developer Portal)
+   • Add page: /system/monitoring
+   • Show:
+       – latest 100 errors (from file logs)
+       – average chat latency
+       – number of chat requests past 24h
+       – number of onboarding events past 24h
+   • Include auto-refresh (every 10 seconds)
+   • Developer-only access
+
+7. Fix Bottlenecks & Edge Cases
+   • Identify any API endpoint performing slowly
+   • Fix:
+       – N+1 queries
+       – missing indexes
+       – inefficient Supabase filters
+       – excessive LLM token usage
+
+8. Documentation
+   • Create docs/PHASE_17_LOAD_TEST.md with:
+       – load test scripts
+       – results summary (p50, p95, p99)
+       – bottlenecks found & fixes
+       – monitoring dashboard usage
+       – how to run load tests again
+       – recommended concurrency limits
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• scripts/loadtest-rag.ts  
+• Onboarding load test simulation  
+• Chat concurrency test  
+• Error tracker module  
+• Monitoring dashboard (developer portal)  
+• Performance improvements applied  
+• Full documentation of results  
+
+────────────────────────────────────────
+
+Proceed with PHASE 17 now.

@@ -1,0 +1,338 @@
+OBJECTIVE
+
+Industrialise the platform’s multi-tenant architecture so that:
+
+Every tenant (developer) is fully isolated across data, documents, embeddings, chat history, analytics, and maps.
+
+All portals (Tenant Portal, Developer Portal, Admin Enterprise Portal) share a unified tenancy context.
+
+Inactive tenant behaviour is defined and enforced.
+
+Cross-tenant analytics become reliable, indexed, performant, and secure.
+
+All legacy inconsistencies are eliminated (role confusion, orphaned data, duplicate patterns, missing foreign keys).
+
+Supabase Auth + custom RBAC unify under a single contract.
+
+Do NOT modify existing logic that is already correct. Only consolidate, harden, and standardise.
+
+SCOPE FOR PHASE 6
+SECTION A — TENANCY CONTEXT UNIFICATION
+
+You must:
+
+Create a single source of truth tenancy resolver used across:
+
+Tenant Portal
+
+Developer Portal
+
+Admin Enterprise Portal
+
+All API routes
+File: lib/tenancy-context.ts
+
+This resolver must:
+
+Read session/JWT/route params
+
+Return {tenantId, developmentId?, unitId?, role, scope}
+
+Enforce tenant boundary rules
+
+Fail-safe into correct error states
+
+Replace all ad-hoc logic such as:
+
+getAdminContextFromSession()
+
+Per-route tenant lookups
+With the new unified resolver.
+
+Centralise errors:
+
+TENANT_NOT_FOUND
+
+INVALID_TENANT
+
+INSUFFICIENT_SCOPE
+
+CROSS_TENANT_ACCESS_BLOCKED
+
+SECTION B — ROLE & PERMISSION CONSOLIDATION
+
+Create a unified RBAC enforcement layer:
+
+Roles
+
+homeowner
+
+developer
+
+admin
+
+super_admin
+
+Responsibilities
+
+Implement requireRole(role[]) consistently for:
+
+Admin Enterprise
+
+Developer Portal
+
+Public endpoints
+
+Enforce scope:
+
+homeowner → only own unit + development
+
+developer → only developments they own
+
+admin → all tenant data
+
+super_admin → all tenants
+
+Harden against:
+
+Missing tenant IDs
+
+Developer viewing wrong tenant
+
+Super Admin override required for cross-tenant queries
+
+SECTION C — CROSS-TENANT ANALYTICS STANDARDISATION
+
+Normalise all analytics API endpoints to:
+
+const ctx = await getTenancyContext({ requireRole: ['admin', 'super_admin'] });
+
+
+Then:
+
+If role == admin → filter to tenant_id only
+
+If role == super_admin → allow optional ?tenant_id or ?development_id
+
+Enforce consistent structure across:
+
+/api/admin/analytics/overview
+
+/api/admin/analytics/chat
+
+/api/admin/analytics/rag
+
+/api/admin/units
+
+/api/admin/homeowners/stats
+
+/api/admin/system-logs
+
+Add pagination, column selection, caching, and strict tenant_id filters to every endpoint.
+
+SECTION D — FOREIGN KEY + DATA INTEGRITY CONSOLIDATION
+
+Apply migrations to fix long-standing inconsistencies:
+
+Required FKs
+
+homeowners.unit_id → units.id
+
+units.development_id → developments.id
+
+documents.house_type_id → house_types.id
+
+doc_chunks.document_id → documents.id
+
+Fix Orphaned Data
+
+Write a migration script to detect:
+
+orphaned homeowners
+
+orphaned doc_chunks
+
+orphaned messages
+
+orphaned qr_tokens
+
+Auto-repair where possible, log unresolved entities.
+
+SECTION E — TENANT DELETION POLICIES
+
+Create the full lifecycle policy:
+
+Tenant Deletion
+
+Soft-delete first
+
+Then hard-delete with cascade
+
+Block homeowner logins for deleted tenants
+
+Block developer login for disabled tenants
+
+Development Deletion
+
+Soft-delete
+
+Mark associated units + homeowners as archived
+
+Exclude from analytics
+
+SECTION F — URL & ROUTING CONSOLIDATION
+
+Standardise all URLs to:
+
+Tenant Portal
+
+/t/[tenantSlug]/d/[developmentSlug]/...
+
+Developer Portal
+
+/developer/... always bound to a tenant via session.
+
+Admin Enterprise Portal
+
+/admin-enterprise/...
+Must always require:
+
+admin (tenant-scoped)
+
+or super_admin (cross-tenant)
+
+Remove any inconsistent or legacy paths.
+
+SECTION G — SESSION & JWT CONSOLIDATION
+
+House all JWT signing & verification methods inside:
+lib/session-engine.ts
+
+Create consistent JWT payload structure:
+
+tenant_id
+
+development_id
+
+unit_id
+
+house_type_code
+
+role
+
+impersonated_by?
+
+Ensure developer portal and admin portal both use the same verifier.
+
+Remove any legacy token methods.
+
+SECTION H — PER-TENANT CONFIG NORMALISATION
+
+Unify tenant theming:
+
+brand colours
+
+logo URL
+
+dark/light preference
+
+home screen messaging
+
+Sources:
+
+theme_config table
+
+tenants.brand jsonb
+
+Normalise this so the entire system uses:
+
+const theme = await getTenantTheme(tenantId);
+
+SECTION I — CLEANUP OF LEGACY DIRECTORIES
+
+Remove or fully deprecate:
+
+apps/admin-portal
+
+apps/resident-app
+
+apps/assistant-tenant
+
+Old duplicated developer dashboards
+
+Keep the new unified structure.
+
+SECTION J — REQUIRED OUTPUTS FOR THIS PHASE
+
+The Replit Agent must deliver:
+
+1. A new tenancy engine
+
+Files created:
+
+lib/tenancy-context.ts
+
+lib/session-engine.ts
+
+lib/rbac.ts
+
+2. Updated API routes
+
+Every route under /api/admin/* and /api/developers/* must adopt the revised tenancy enforcement.
+
+3. Updated dashboards
+
+Developer Portal and Admin Enterprise Portal must now:
+
+Filter correctly
+
+Hide data from other tenants
+
+Enforce role-based navigation visibility
+
+4. Migrations
+
+Add missing FKs
+
+Add soft-delete columns
+
+Add indexes on (tenant_id, created_at)
+
+5. Remove legacy folders
+6. End-to-end smoke test
+
+Perform checks for:
+
+QR onboarding still works
+
+Chat still isolated per tenant
+
+RAG pipeline isolated
+
+Document classification isolated
+
+Analytics filtered correctly
+
+Admin Enterprise can view cross-tenant data
+
+Developer cannot see other tenants
+
+SECTION K — NEVER DO IN PHASE 6
+
+The Agent must not:
+
+Change core RAG logic
+
+Change QR onboarding behaviour
+
+Change tenant portal UX
+
+Rewrite the analytics engine
+
+Modify embedding logic
+
+Touch Cloudflare/Vercel configs
+
+Overwrite custom styles
+
+Only consolidate multi-tenant behaviours.

@@ -1,0 +1,101 @@
+You are the Replit Agent for the `PropertyAssistant` monorepo. Your goal is to make document ingestion and retrieval bulletproof so that ANY uploaded document or floorplan can be queried reliably by purchasers at scale (thousands of houses).
+
+High-level objectives:
+
+1. Harden the document processing pipeline so that every document is fully processed server-side into structured data (text chunks + embeddings, and floorplan JSON for plans).
+2. Ensure the chat assistant always queries the correct scoped data (tenant + development + house-type) and never relies on local dev or manual classification.
+3. Provide simple scripts Sam can run to reprocess existing documents and to validate the pipelines.
+
+Follow these phases, one at a time, committing small, reviewable changes:
+
+PHASE A – STANDARD DOCUMENT INGESTION
+
+1. Open `packages/api/src/document-processor.ts`. Implement a clear switch on `doc_kind`:
+
+   * `floorplan` -> `processFloorplanDocument(document)`
+   * everything else -> `processStandardDocument(document)`
+2. In both paths, update the `documents` row with:
+
+   * `processing_status` = 'processing' | 'complete' | 'error'
+   * `processing_error` text on failures
+   * never leave docs half-processed.
+3. Implement `processStandardDocument` to:
+
+   * Download the document from storage (reuse existing helpers where possible).
+   * If PDF: extract text via the existing PDF tools. If text length is very small (likely scanned), call the OpenAI Vision/OCR helper instead.
+   * If image: go straight to OpenAI Vision/OCR.
+   * Normalize text, split into chunks (~500–1000 tokens with overlap).
+   * For each chunk, insert into `doc_chunks` with:
+
+     * tenant_id, development_id, house_type_id, doc_id, doc_kind, page_number, content, embedding.
+   * Make sure the embedding call uses the existing embedding helper in the codebase.
+4. Ensure `doc_chunks` has appropriate indexes:
+
+   * Vector index for similarity search.
+   * Composite btree index on `(tenant_id, development_id, house_type_id, doc_kind)`.
+
+PHASE B – FLOORPLAN VISION PIPELINE
+5. Inspect existing floorplan vision code (`packages/api/src/train/floorplan-vision.ts` or similar) and any existing tables for floorplan analysis.
+6. If needed, create or adjust a `floorplan_vision` table with at least:
+
+* id, tenant_id, development_id, house_type_id, document_id,
+* floor_name, room_name, room_type,
+* length_m, width_m, area_m2,
+* notes, raw_json, created_at.
+
+7. Implement `processFloorplanDocument(document)` in `document-processor` to:
+
+   * Convert the floorplan (PDF or image) into images if needed.
+   * Call an OpenAI Vision helper with a strict JSON schema prompt to extract floors and rooms.
+   * Parse and validate JSON; on error, set `processing_status = 'error'`, `processing_error` and `needs_review = true`.
+   * Insert per-room records into `floorplan_vision`.
+   * Build natural-language summaries per floor and for the whole house (e.g. describing layout and room sizes).
+   * Chunk and embed these summaries into `doc_chunks` with `doc_kind = 'floorplan_summary'`.
+8. Add a simple test script under `scripts/test-vision-extraction.ts` that:
+
+   * Picks one known floorplan document (e.g. BD01).
+   * Runs ONLY `processFloorplanDocument` for that doc.
+   * Asserts that at least some `floorplan_vision` rows and `floorplan_summary` chunks exist.
+
+PHASE C – RAG RETRIEVAL + CHAT INTEGRATION
+9. Find the RAG retrieval helper used by the chat assistant (e.g. `packages/api/src/rag/*.ts`). Refactor it so it accepts:
+
+* `{ tenantId, developmentId?, houseTypeId?, unitId?, question }`.
+
+10. Implement retrieval rules:
+
+* First query `doc_chunks` filtered by tenant + development + house-type.
+* If few results, relax house-type but keep development.
+* If still low, relax to tenant-only.
+* Apply doc_kind boosting: prioritize `floorplan_summary` for spatial questions, `warranty` for warranty questions, etc.
+
+11. Add a helper to detect if a question is “spatial/room/floorplan-related” using simple keyword heuristics (plan/floor/room/size/dimensions/layout).
+12. When spatial, fetch relevant `floorplan_vision` rows for the user’s `house_type_id` and include them as additional structured context in the model call.
+13. Update the chat answer function so that:
+
+* It passes both text chunks and optional floorplan data to the LLM.
+* It uses a system prompt that forbids hallucinations and instructs the model to say “This information is not in your documents” when data is missing.
+* It short-circuits with a fallback message if there are no useful chunks and no floorplan data.
+
+PHASE D – BATCH SCRIPTS AND QA
+14. Create `scripts/reprocess-all-docs.ts` that:
+
+* Selects all documents where `processed = false` OR a `force_reprocess` flag is true.
+* Deletes existing `doc_chunks` and floorplan vision records for that document.
+* Calls the same `document-processor` pipeline used in production.
+* Logs a clear summary: processed count, errors, docs needing review.
+
+15. Ensure the existing classification script `scripts/auto-classify-and-map-docs.ts` and new reprocess script can be run locally and in Replit’s shell.
+16. Add concise documentation in `replit.md`:
+
+* “How document ingestion works end-to-end.”
+* “How to reprocess all documents.”
+* “How to run the floorplan vision test and what success looks like.”
+
+Throughout:
+
+* Respect existing monorepo patterns and naming.
+* Avoid breaking existing APIs or routes; make integration additive.
+* Keep changes incremental and run tests where they exist.
+
+When you finish each phase, print a short status summary and tell me exactly which script commands Sam should run to backfill or test (e.g. `npx tsx scripts/reprocess-all-docs.ts`).

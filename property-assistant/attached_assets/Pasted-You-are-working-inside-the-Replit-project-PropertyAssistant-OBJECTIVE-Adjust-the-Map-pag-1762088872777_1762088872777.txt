@@ -1,0 +1,91 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Adjust the Map page layout so the Google Map expands vertically to fill all space between the refinements bar (top buttons like “Shops”, “Schools”, etc.) and the fixed bottom Dock toolbar.  
+Eliminate the white gap below the map for a full, seamless viewport fit.
+
+---
+
+## TASKS
+
+### 1️⃣ Modify Map Layout
+Open `app/map/page.tsx` (or equivalent Map component) and update the layout container:
+
+```tsx
+export default function MapPage() {
+  const categories = [
+    "All",
+    "Shops",
+    "Schools",
+    "Healthcare",
+    "Transport",
+    "Food & Drink",
+    "Gyms & Fitness",
+    "Parks",
+    "Services",
+    "Childcare",
+    "Public Offices",
+  ];
+
+  return (
+    <section className="relative flex flex-col h-full w-full bg-white dark:bg-neutral-950 overflow-hidden">
+      {/* Refinement Buttons */}
+      <div className="flex flex-wrap justify-center gap-2 px-4 pt-4 pb-3 z-10 bg-white dark:bg-neutral-950">
+        {categories.map((c) => (
+          <button
+            key={c}
+            className="px-4 py-1.5 text-sm rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-neutral-700 transition"
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {/* Map Container */}
+      <div
+        id="map"
+        className="flex-1 w-full rounded-none overflow-hidden"
+        style={{
+          height: "calc(100vh - var(--topbar) - var(--dock) - 90px)", // 90px ≈ height of filter buttons
+        }}
+      />
+    </section>
+  );
+}
+✅ The key here is the inline style={{ height: "calc(100vh - var(--topbar) - var(--dock) - 90px)" }}, which dynamically adjusts map height based on viewport minus the known fixed elements (TopBar + Dock + filter buttons).
+
+2️⃣ Ensure Layout Variables Exist
+Confirm in your global CSS (globals.css or equivalent):
+
+css
+Copy code
+:root {
+  --topbar: 56px;
+  --dock: 60px;
+}
+3️⃣ (Optional) Make Height Auto-Responsive
+If the button row height changes on mobile, you can make it fully dynamic using Flexbox instead:
+
+tsx
+Copy code
+<section className="relative flex flex-col h-[calc(100vh-var(--topbar)-var(--dock))]">
+  <div className="flex-none flex flex-wrap justify-center gap-2 px-4 pt-4 pb-3 z-10 bg-white dark:bg-neutral-950">
+    {/* buttons */}
+  </div>
+  <div id="map" className="flex-1 w-full overflow-hidden rounded-none" />
+</section>
+This approach auto-calculates height without manual pixel math, ensuring no overlap or whitespace even if button rows grow/shrink.
+
+4️⃣ QA CHECKLIST
+✅ No white gap under map
+✅ Map resizes responsively with window height
+✅ Dock remains visible and fixed
+✅ Refinement buttons stay pinned above map
+✅ Works in both light and dark mode
+
+💬 COMMIT MESSAGE
+pgsql
+Copy code
+fix(ui): expand Google Map to fill full height between refinements and bottom dock

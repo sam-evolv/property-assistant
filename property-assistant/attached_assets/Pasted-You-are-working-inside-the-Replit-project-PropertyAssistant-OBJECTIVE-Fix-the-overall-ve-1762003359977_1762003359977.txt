@@ -1,0 +1,191 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Fix the overall vertical layout misalignment and restore consistent structure across Chat, Map, Noticeboard, and Documents pages.  
+Ensure all components are properly padded between the fixed TopBar and Dock, and that all interactive elements look premium and well-spaced.
+
+---
+
+## TASKS
+
+### 1️⃣ GLOBAL LAYOUT ARCHITECTURE FIX
+- Open `app/layout.tsx` and wrap main content in a container that respects fixed top/bottom toolbars:
+
+  ```tsx
+  <main
+    className="
+      relative
+      flex flex-col
+      h-[calc(100vh-var(--topbar)-var(--dock))]
+      mt-[var(--topbar)]
+      mb-[var(--dock)]
+      overflow-hidden
+      bg-white dark:bg-neutral-950
+      transition-colors duration-300
+    "
+  >
+    {children}
+  </main>
+This guarantees every page auto-adjusts to toolbar spacing and vertically centers properly.
+
+2️⃣ CHAT PAGE — Move Input Down + Center Content
+In app/chat/page.tsx, move the chatbox and input bar down above the Dock, and ensure visual symmetry:
+
+tsx
+Copy code
+export default function ChatPage() {
+  return (
+    <section className="relative flex flex-col h-full justify-between items-center bg-white dark:bg-neutral-950 overflow-hidden">
+      {/* Messages Container */}
+      <div className="flex-1 w-full overflow-y-auto px-4 pt-4 pb-[7rem] scrollbar-hide">
+        {/* Messages or placeholder */}
+        <div className="text-center text-gray-400 dark:text-gray-500 mt-[10%]">
+          Ask anything about your home or community…
+        </div>
+      </div>
+
+      {/* Input Bar */}
+      <div className="fixed bottom-[calc(var(--dock)+1rem)] left-1/2 -translate-x-1/2 w-full max-w-2xl px-4">
+        <div className="flex items-center bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-full shadow-sm px-4 py-3">
+          <input
+            className="flex-1 bg-transparent text-gray-800 dark:text-gray-100 outline-none placeholder-gray-400 dark:placeholder-gray-500"
+            placeholder="Ask about your home or community..."
+          />
+          <button className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 text-sm">
+            Ask
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+✅ Result: Chat stays visually centered, no scrollbars, and the text box now sits just above the bottom toolbar — like ChatGPT.
+
+3️⃣ MAP PAGE — Restore Refinements + Proper Centering
+In app/map/page.tsx, reintroduce refinement buttons and fix map box proportions:
+
+tsx
+Copy code
+export default function MapPage() {
+  const refinements = [
+    "All",
+    "Shops",
+    "Schools",
+    "Healthcare",
+    "Transport",
+    "Food & Drink",
+    "Gyms",
+    "Parks",
+    "Services",
+    "Childcare",
+    "Public Offices"
+  ];
+
+  return (
+    <section className="relative h-full w-full flex flex-col items-center bg-white dark:bg-neutral-950 overflow-hidden">
+      {/* Refinement Buttons */}
+      <div className="w-full flex flex-wrap justify-center gap-2 px-4 pt-4 pb-3">
+        {refinements.map((r) => (
+          <button
+            key={r}
+            className="
+              px-4 py-1.5 text-sm rounded-full
+              bg-gray-100 dark:bg-neutral-800
+              text-gray-800 dark:text-gray-100
+              hover:bg-gray-200 dark:hover:bg-neutral-700
+              transition
+            "
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      {/* Map Container */}
+      <div
+        id="map"
+        className="w-[92%] h-[72%] rounded-2xl shadow-lg overflow-hidden"
+      />
+    </section>
+  );
+}
+✅ Result: The map now has elegant spacing and balanced buttons — no cramming at the top.
+
+4️⃣ TOPBAR — Make Language & Theme Toggles Visible
+In components/TopBar.tsx, increase opacity and contrast of toggle buttons:
+
+tsx
+Copy code
+<div className="flex items-center gap-3">
+  <button className="text-sm text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium">
+    EN
+  </button>
+  <button
+    className="
+      w-8 h-8 flex items-center justify-center
+      rounded-full border border-gray-300 dark:border-neutral-700
+      text-gray-800 dark:text-gray-200
+      hover:bg-gray-100 dark:hover:bg-neutral-800
+      transition
+    "
+  >
+    🌓
+  </button>
+</div>
+✅ Result: Top-right icons now have presence — crisp, visible, and modern.
+
+5️⃣ NOTICEBOARD — Move “Add Notice” to Top & Fix Overlap
+In app/noticeboard/page.tsx, reposition the button and prevent overlap with toolbar:
+
+tsx
+Copy code
+export default function NoticeboardPage() {
+  return (
+    <section className="relative h-full w-full bg-white dark:bg-neutral-950 overflow-hidden pt-[1rem] px-4">
+      <div className="flex items-center justify-between mb-4 mt-[var(--topbar)]">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          Community Noticeboard
+        </h1>
+        <button
+          className="
+            flex items-center gap-2 bg-blue-600 hover:bg-blue-700
+            text-white rounded-full px-4 py-2 text-sm font-medium
+            transition shadow-sm
+          "
+        >
+          ➕ Add Notice
+        </button>
+      </div>
+
+      <div className="overflow-y-auto h-[calc(100%-6rem)] scrollbar-hide">
+        {/* Existing notice cards */}
+      </div>
+    </section>
+  );
+}
+✅ Result: Button is now top-right like a proper action, all notices visible below header, no cutting off.
+
+6️⃣ DOCUMENTS — Prevent Clipping
+Apply consistent padding and respect TopBar/Dock:
+
+tsx
+Copy code
+<section className="h-full w-full overflow-y-auto px-6 pt-[calc(var(--topbar)+1rem)] pb-[calc(var(--dock)+1rem)] bg-white dark:bg-neutral-950 transition-colors duration-300">
+  {/* document cards here */}
+</section>
+✅ Result: Document cards sit neatly between top and bottom with full visibility.
+
+7️⃣ FINAL CHECKLIST
+✅ Chat input bar aligned above Dock.
+
+✅ Map refinements restored and balanced.
+
+✅ Noticeboard “Add Notice” button at top, fully visible.
+
+✅ No content overlaps with TopBar or Dock.
+
+✅ All pages maintain consistent spacing and visual rhythm.
+
+✅ English/dark mode toggles bold and visible.

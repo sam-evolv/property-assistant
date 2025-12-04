@@ -1,0 +1,261 @@
+ROLE:
+You are the principal engineer responsible for implementing Phase 4 of the Enterprise Developer Portal. This phase introduces full operational analytics, deep-dive dashboards, event logging, and performance foundations across the existing monorepo.
+You must NOT break existing purchaser chat, RAG, QR onboarding, or developer dashboard logic.
+
+OBJECTIVE:
+Implement the full analytics engine, event logging system, aggregation tables, and high-performance API endpoints that power all Enterprise dashboards.
+All work must integrate seamlessly with the current codebase exactly as it exists.
+
+PHASE 4 REQUIREMENTS
+1. Database Upgrades (packages/db/schema.ts)
+
+Add the missing analytics columns:
+
+messages
+token_count INTEGER
+cost_usd DECIMAL(10,6)
+latency_ms INTEGER
+cited_document_ids TEXT[]
+user_rating INTEGER
+
+documents
+view_count INTEGER DEFAULT 0
+download_count INTEGER DEFAULT 0
+
+homeowners
+last_active TIMESTAMP
+total_chats INTEGER DEFAULT 0
+total_downloads INTEGER DEFAULT 0
+unit_id UUID REFERENCES units(id)
+
+units
+geocoding_status VARCHAR(20)
+last_chat_at TIMESTAMP
+
+2. Create New Aggregation Tables
+
+These power the enterprise dashboards.
+
+document_views (
+  id UUID PK,
+  document_id UUID,
+  homeowner_id UUID,
+  viewed_at TIMESTAMP
+)
+
+chat_analytics_daily (
+  id UUID PK,
+  tenant_id UUID,
+  development_id UUID,
+  date DATE,
+  messages INTEGER,
+  avg_latency_ms INTEGER,
+  avg_cost_usd DECIMAL(10,6)
+)
+
+development_stats (
+  id UUID PK,
+  development_id UUID,
+  total_messages INTEGER,
+  active_homeowners INTEGER,
+  inactive_homeowners INTEGER,
+  missing_docs INTEGER,
+  updated_at TIMESTAMP
+)
+
+rag_search_log (…)  -- already defined in Phase 3 output
+
+3. Build the Event Logging Layer
+
+In packages/api/src/audit/:
+
+Create a unified logEvent() function
+
+Log:
+
+chat message timestamps
+
+document views
+
+document downloads
+
+login failures
+
+impersonation events
+
+rate-limit events
+
+training job failures
+
+All logs must write to audit_log.
+
+4. Build High-Performance Analytics Endpoints
+
+In apps/developer-portal/app/api/admin/analytics/:
+
+Build the following endpoints:
+/overview
+/chat
+/rag
+/maps
+/developments/[id]/timeline
+/developments/[id]/units/detailed
+/developments/[id]/homeowners/engagement
+/developments/[id]/documents/analytics
+/developments/[id]/chat/detailed
+/developments/[id]/rag/quality
+/developments/[id]/errors
+
+
+Requirements:
+
+Must apply caching (api_cache) with 15 min TTL
+
+Must apply rate limiting via packages/api/src/rate-limiter.ts
+
+Must support pagination
+
+Must select explicit columns only, never SELECT *
+
+5. Connect Analytics to Enterprise UI
+
+Wire all new endpoints into admin-enterprise/*-client.tsx components.
+
+Ensure:
+
+No frontend crashes
+
+All loading states covered
+
+Graphs render with stable datasets
+
+Errors are caught by React error boundaries
+
+6. Impersonation Engine
+
+Implement:
+
+POST /api/admin/homeowners/[id]/impersonate
+
+
+Returns:
+
+homeowner JWT (1h expiry)
+
+direct login URL to tenant portal
+
+Audit log:
+type = impersonation, actor = admin.email
+
+7. Improve Document Telemetry
+
+Each time a document is:
+
+viewed in the tenant portal → increment view_count + insert into document_views
+
+downloaded → increment download_count
+
+Where to hook:
+
+Tenant portal →
+
+apps/tenant-portal/app/api/public/documents/route.ts
+apps/tenant-portal/components/chat-premium/DownloadCard.tsx
+
+8. RAG Search Logging
+
+Every chat message must also write a row into:
+
+rag_search_log
+
+
+From packages/api/src/chat/retrieval.ts inject:
+
+query_embedding_hash
+
+best_similarity
+
+avg_similarity
+
+latency_ms
+
+9. Data Quality Scripts (optional but preferred)
+
+Add /scripts/fix/ folder with:
+
+fix-missing-house-types.ts
+fix-orphaned-documents.ts
+fix-null-homeowners.ts
+
+AGENT EXECUTION RULES
+
+Do NOT break existing tenant portal or public API logic.
+
+Do NOT modify RAG retrieval except adding logging hooks.
+
+Do NOT rewrite chat UI or buyer onboarding.
+
+All new components must be placed within:
+
+apps/developer-portal/app/admin-enterprise/
+
+
+Any shared business logic belongs in:
+
+packages/api/src/
+
+
+Any schema updates belong in:
+
+packages/db/schema.ts + new migration file
+
+
+After implementation:
+
+run migrations
+
+generate new types
+
+validate compile
+
+run a full test of all admin pages
+
+DELIVERABLES FOR THIS PHASE
+
+The Agent must complete:
+
+Database extended
+
+Aggregation tables created
+
+Logging layer implemented
+
+Full analytics engine built
+
+Enterprise dashboard fully wired
+
+Impersonation system operational
+
+Document telemetry fully live
+
+RAG logging complete
+
+No regressions in existing flows
+
+SUCCESS CRITERIA
+
+This phase is complete when:
+
+Enterprise dashboard displays accurate analytics for Longview Park
+
+Document view/download tracking works
+
+Chat cost + latency metrics appear
+
+RAG logs can be viewed
+
+Admin impersonation works
+
+Nothing in the tenant app is broken
+
+If

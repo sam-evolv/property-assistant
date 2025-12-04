@@ -1,0 +1,94 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant platform.
+
+Your task is to execute **PHASE 15 — PRODUCTION DEPLOYMENT PIPELINE**.
+
+The goal of this phase is to prepare the system for real production usage by configuring deployment targets, environment variables, build steps, database migrations, and domain setup.
+
+Work strictly within existing architecture.
+
+────────────────────────────────────────────────────────
+PHASE 15 OBJECTIVES
+────────────────────────────────────────────────────────
+
+1. Build Optimisation & Production Configuration
+   • Ensure Next.js apps (developer-portal, tenant-portal) compile in production mode
+   • Verify no server components import client-only modules
+   • Ensure environment variables are correctly referenced via process.env
+   • Add production build scripts to the root package.json
+
+2. Environment Variable Audit
+   • Create `.env.production.example`
+   • Include all required variables:
+       – NEXT_PUBLIC_SUPABASE_URL
+       – SUPABASE_SERVICE_ROLE_KEY (server only)
+       – SUPABASE_ANON_KEY
+       – JWT_SECRET
+       – OPENAI_API_KEY
+       – VECTOR_TABLE vars
+       – Tenant theming configuration defaults
+   • Ensure NO secrets leak into the frontend bundle
+   • Ensure service-role key is isolated in route handlers only
+
+3. Supabase Deployment Preparation
+   • Validate migrations in packages/db/migrations
+   • Run `supabase db diff` logic if applicable
+   • Ensure RLS policies compile without warnings
+   • Add production-ready SQL: indexes, vacuum hints, constraints
+
+4. Vercel Deployment Setup
+   • Add vercel.json at repo root with:
+       – Functions settings
+       – Region = dub (Ireland)
+       – Hosting for both portals
+   • Ensure each Next.js app has the correct output target
+   • Add correct build commands:
+       npm install
+       npm run build
+   • Configure API routes to run on Vercel Edge where appropriate
+
+5. Domain + Routing Architecture
+   • Prepare environment for:
+       – app.openhouseai.ie → Tenant Portal
+       – developers.openhouseai.ie → Developer Portal
+   • Add basePath support if needed
+   • Ensure proper rewrites for /api routes
+
+6. Production Logging + Monitoring
+   • Switch logger to production mode:
+       – Info-level only
+       – Errors include trace
+   • Add lightweight runtime checks:
+       – /api/health
+       – /api/ready
+   • Ensure no console.debug logs in production
+
+7. Production Build Test
+   • Run full production build locally inside Replit
+   • Fix all production-only issues:
+       – import misconfigurations
+       – hydration errors
+       – environment issues
+       – missing dependencies
+
+8. Deployment Checklist Documentation
+   • Create docs/PHASE_15_DEPLOYMENT.md with:
+       – Deployment steps (Supabase + Vercel)
+       – Required env vars
+       – Domain mapping flow
+       – Post-deployment health checks
+       – Rollback instructions
+       – How to update migrations in production
+
+────────────────────────────────────────────────────────
+
+Deliverables:
+• vercel.json created and configured  
+• Production environment examples  
+• Migrations validated  
+• Tenant Portal & Developer Portal production builds passing  
+• Domain routing prepared  
+• Deployment documentation created  
+
+────────────────────────────────────────────────────────
+
+Proceed with PHASE 15 now.

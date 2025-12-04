@@ -1,0 +1,157 @@
+You are upgrading the Property Assistant codebase to introduce a dynamic AI model-routing layer.
+
+Follow these steps carefully:
+
+1. **Create a new file**
+   - Path: `/lib/ai/modelRouter.ts`
+
+2. **Insert the following complete code:**
+
+```ts
+import OpenAI from "openai";
+import { cosineSimilarity } from "./similarity"; // optional helper
+import type { RetrievedDoc } from "@/types";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+/**
+ * Determines which model to call based on query complexity and retrieval quality.
+ */
+export async function routeModel(
+  query: string,
+  retrievedDocs: RetrievedDoc[] = [],
+  retrievalScore?: number
+) {
+  const complexity = estimateComplexity(query);
+  const lowConfidence = retrievalScore !== undefined && retrievalScore < 0.8;
+
+  const useReasoning =
+    complexity === "high" ||
+    lowConfidence ||
+    /why|how|calculate|explain|compare|derive/i.test(query);
+
+  const model = useReasoning ? "gpt-4.1" : "gpt-4o-mini";
+  const reasoning = useReasoning
+    ? "complex reasoning or low retrieval confidence"
+    : "simple contextual answer";
+
+  console.log(`[Router] Using ${model} → ${reasoning}`);
+  return model;
+}
+
+/**
+ * Quick heuristic to classify complexity of user queries.
+ */
+function estimateComplexity(query: string): "low" | "medium" | "high" {
+  const wordCount = query.trim().split(/\s+/).length;
+  if (wordCount < 8) return "low";
+  if (wordCount < 20) return "medium";
+  return "high";
+}
+
+/**
+ * Calls the chosen model with context-aware RAG prompt.
+ */
+export async function generateAnswer({
+  query,
+  retrievedDocs,
+  retrievalScore,
+  tenantName,
+}: {
+  query: string;
+  retrievedDocs: RetrievedDoc[];
+  retrievalScore?: number;
+  tenantName: string;
+}) {
+  const model = await routeModel(query, retrievedDocs, retrievalScore);
+
+  const context = retrievedDocs
+    .slice(0, 5)
+    .map((d) => d.content)
+    .join("\n\n");
+
+  const messages = [
+    {
+      role: "system",
+      content: `You are the AI Property Assistant for ${tenantName}.
+Answer questions only using the context provided.
+If context is insufficient, politely say you don’t know.`,
+    },
+    { role: "user", content: `${query}\n\nContext:\n${context}` },
+  ];
+
+  const completion = await openai.chat.completions.create({
+    model,
+    messages,
+    temperature: 0.3,
+    max_tokens: 600,
+    stream: false,
+  });
+
+  return completion.choices[0].message.content;
+}
+Modify the chat API route
+
+Path: /app/api/chat/route.ts
+
+Add the following imports and logic (replacing existing placeholder code):
+
+ts
+Copy code
+import { generateAnswer } from "@/lib/ai/modelRouter";
+
+export async function POST(req: Request) {
+  const { query, tenantSlug } = await req.json();
+
+  // 1. Retrieve docs from Supabase vector store
+  const { data: retrievedDocs, score } = await fetchTenantDocs(tenantSlug, query);
+
+  // 2. Generate model-routed answer
+  const answer = await generateAnswer({
+    query,
+    retrievedDocs,
+    retrievalScore: score,
+    tenantName: tenantSlug,
+  });
+
+  return new Response(JSON.stringify({ answer }), { status: 200 });
+}
+Ensure Environment Variables Exist
+
+Add OPENAI_API_KEY to your Replit Secrets.
+
+Confirm you have @openai installed:
+
+nginx
+Copy code
+npm install openai
+Test Workflow
+
+Run npm run dev.
+
+Ask a simple resident query (e.g. “When are bins collected?”) → should use gpt-4o-mini.
+
+Ask a reasoning query (e.g. “Why is my heating system using a buffer tank?”) → should automatically route to gpt-4.1.
+
+Observe [Router] Using ... logs in console confirming correct routing.
+
+Commit Message
+
+After successful testing, commit as:
+
+csharp
+Copy code
+feat(ai): add dynamic model router (GPT-4o-mini + GPT-4.1)
+Proceed now to create and integrate this file exactly as described.
+
+yaml
+Copy code
+
+---
+
+✅ **Result:**  
+You’ll have an intelligent, automatic routing layer that keeps 95 % of chats running cheaply on GPT-4o-mini while escalating complex queries to GPT-4.1 for high-fidelity answers — cutting monthly costs by over 90 % while preserving premium response quality.
+
+
+
+

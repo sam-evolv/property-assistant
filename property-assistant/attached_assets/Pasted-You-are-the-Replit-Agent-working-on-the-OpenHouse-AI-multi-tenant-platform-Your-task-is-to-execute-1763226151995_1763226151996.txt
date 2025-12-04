@@ -1,0 +1,96 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant platform.
+
+Your task is to execute **PHASE 18 — PWA PACKAGING FOR iOS + ANDROID**.
+
+The goal is to make the tenant portal installable as a native-feeling app, with proper offline caching, icons, splash screens, and manifest integration.
+
+Work strictly within existing architecture.
+
+────────────────────────────────────────
+PHASE 18 OBJECTIVES
+────────────────────────────────────────
+
+1. Add Web App Manifest
+   Create: apps/tenant-portal/public/manifest.json
+
+   Include:
+   • name: "OpenHouse AI"
+   • short_name: "OpenHouse"
+   • display: "standalone"
+   • start_url: "/"
+   • background_color: "#ffffff"
+   • theme_color: use tenant theme (fallback: #1A73E8)
+   • icons:
+       /icons/icon-192.png
+       /icons/icon-512.png
+       /icons/maskable-icon.png (maskable)
+
+2. Add PWA Icons
+   • Generate icons in 192px, 512px, maskable 1024px
+   • Store them in apps/tenant-portal/public/icons/
+
+3. Add Service Worker
+   Create: apps/tenant-portal/public/sw.js
+
+   Requirements:
+   • Cache-first strategy for static assets
+   • Network-first strategy for API endpoints
+   • Offline fallback screen
+   • Versioned cache keys
+   • Clean-up of old caches
+
+4. Integrate Service Worker in Next.js App
+   Update root layout or _app to:
+      • register service worker on client-side mount
+      • gracefully handle updates
+
+5. Add Offline Fallback Screen
+   Create: apps/tenant-portal/app/offline/page.tsx
+   Simple message:
+      “You’re offline. Certain features may be unavailable.”
+
+6. Add iOS-Specific Meta Tags (Critical)
+   In tenant portal <head>:
+   • apple-mobile-web-app-capable="yes"
+   • apple-touch-icon reference
+   • status bar color meta tags
+
+7. Lighthouse PWA Validation
+   • Run Lighthouse inside Replit’s preview
+   • Fix required issues:
+       – manifest detected
+       – service worker active
+       – start URL valid
+       – icons provided
+       – HTTPS enforced
+   • Target: Lighthouse PWA score ≥ 95
+
+8. Tenant-Theming Integration
+   • Manifest theme_color must dynamically use tenant theme
+   • Inject via middleware or manifest.ts logic
+   • Ensure tenant logos used for splash screen (if provided)
+
+9. Documentation
+   • Create docs/PHASE_18_PWA.md
+   • Document:
+       – How to install app on iOS
+       – How to install on Android
+       – Limitations (iOS background execution)
+       – Cache invalidation strategy
+       – How updates propagate
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• manifest.json  
+• icons generated  
+• service worker implemented  
+• offline fallback screen  
+• dynamic theme integration  
+• Lighthouse PWA score ≥ 95  
+• docs/PHASE_18_PWA.md  
+
+────────────────────────────────────────
+
+Proceed with PHASE 18 now.

@@ -1,0 +1,324 @@
+You are debugging a Next.js 14 app running inside a monorepo on Replit.
+
+The app path is:
+
+/home/runner/workspace/apps/developer-portal
+
+When I open the app in the browser (any route, including / and /super), the console shows repeated Webpack runtime errors, for example:
+
+webpack.js?v=1763999841818:715 Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'call')
+    at options.factory (webpack.js?v=1763999841818:715:31)
+    at __webpack_require__ (webpack.js?v=1763999841818:37:33)
+    at fn (webpack.js?v=1763999841818:371:21)
+    at __webpack_require__.t (webpack.js?v=1763999841818:117:38)
+
+
+The stack traces reference ONLY Next and React internals, for example:
+
+next-flight-client-entry-loader.js
+
+app-router.js
+
+client-page.js
+
+layout-router.js
+
+render-from-template-context.js
+
+not-found-boundary.js
+
+redirect-boundary.js
+
+react-jsx-dev-runtime.development.js
+
+jsx-dev-runtime.js
+
+app/layout.js
+
+app/layout-client.tsx
+
+Hydration warnings also appear:
+
+Warning: An error occurred during hydration. The server HTML was replaced with client content in <#document>.
+Uncaught Error: There was an error while hydrating. Because the error happened outside of a Suspense boundary, the entire root will switch to client rendering.
+
+
+This is a Webpack / React runtime misconfiguration, not a normal component bug. A module in the client bundle is missing or mis-registered. Likely causes:
+
+Custom webpack config or Next.js config that changes optimization, entry, output, or React aliases.
+
+Multiple versions of React / ReactDOM in the dependency tree.
+
+Duplicate / conflicting Next app runtime on the same page.
+
+Other agents have already “fixed” this once, but the error still appears in the browser. Your job is to fully root-cause and eliminate this error.
+
+You must:
+
+Identify the real root cause in config / build, not just silence the error.
+
+Fix it in a minimal, robust way.
+
+Confirm the app builds and renders without the Webpack “reading 'call'” errors.
+
+HARD CONSTRAINTS
+
+Do NOT change or bump versions of next, react, or react-dom in any package.json.
+
+Do NOT add a top-level webpack dependency.
+
+Do NOT delete or rename existing routes/layouts in app.
+
+Do NOT just wrap everything in try/catch or ignore the React DevOverlay – you must fix the root cause.
+
+Prefer small, targeted edits with clear comments where you change behaviour.
+
+STEP 1 – Scan for dangerous Webpack / React configuration
+
+Search the entire repo from the workspace root:
+
+cd /home/runner/workspace
+
+rg "next.config" .
+rg "webpack(" .
+rg "resolve.alias" .
+rg "react/jsx-dev-runtime" .
+rg "jsx-dev-runtime" .
+rg "externals" .
+
+
+Open all of the following, if they exist:
+
+/home/runner/workspace/next.config.* (root)
+
+/home/runner/workspace/apps/developer-portal/next.config.*
+
+Any shared config like next.config.base.js, withNx, withTM, etc.
+
+Any separate webpack.config.* that might be imported into Next configs.
+
+For every next.config.* that affects apps/developer-portal, inspect the webpack function and related fields.
+
+If you see anything like this (examples of dangerous patterns):
+
+config.optimization.runtimeChunk = 'single';
+config.entry = async () => { ... };
+config.output = { ... };
+config.plugins.push(new webpack.WhateverPlugin(...));
+
+config.resolve.alias['react'] = ...;
+config.resolve.alias['react-dom'] = ...;
+config.resolve.alias['react/jsx-runtime'] = ...;
+config.resolve.alias['react/jsx-dev-runtime'] = ...;
+
+config.externals = [...];
+config.externals.push('react', 'react-dom');
+
+
+Treat these as suspect for causing the options.factory / reading 'call' errors.
+
+For apps/developer-portal/next.config.*, replace the config with this minimal, safe baseline (match the file extension appropriately):
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+  },
+  // Keep Webpack as close to default as possible.
+  webpack: (config) => {
+    // IMPORTANT: Do not modify config.optimization, entry, output,
+    // or React aliases here. If anything custom was here before,
+    // remove or comment it with an explanation.
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+
+
+If there is a root Next config that wraps with Nx, Turborepo or similar:
+
+Ensure its webpack function, if present, also does not modify optimization.runtimeChunk, entry, output, externals, or any react* aliases.
+
+Reduce it to “pass-through plus any absolutely essential tweaks” only. If in doubt, comment out customisations and leave a comment:
+
+// Removed custom runtime / alias config because it caused Webpack runtime
+// to break in the browser with 'options.factory' reading 'call' errors.
+
+STEP 2 – Verify React / Next dependency integrity
+
+From apps/developer-portal:
+
+Inspect package.json.
+
+There should be a single next dependency.
+
+There should be a single react and react-dom.
+
+There should NOT be any direct webpack dependency.
+
+Check for duplicates in the full repo:
+
+cd /home/runner/workspace
+
+npm ls next || true
+npm ls react || true
+npm ls react-dom || true
+npm ls webpack || true
+
+
+If you see multiple versions of react or react-dom in the tree (e.g. one under the root and another under apps/developer-portal):
+
+Prefer the version dictated by next in the monorepo root.
+
+Remove extra, app-local react / react-dom from apps/developer-portal/package.json if they conflict with the root.
+
+Run npm install at the workspace root to re-dedupe.
+
+Leave a short code comment in package.json (as a //-style comment is not valid JSON, instead write in a separate README-dev.md under apps/developer-portal) explaining what you did.
+
+STEP 3 – Sanity check JSX / React runtime configuration
+
+From the workspace root, locate tsconfig.json / jsconfig.json:
+
+cd /home/runner/workspace
+rg "\"jsx\"" .
+rg "jsxImportSource" .
+
+
+For the config used by apps/developer-portal:
+
+Ensure compilerOptions.jsx is one of: "preserve", "react-jsx", or "react-jsxdev".
+
+Ensure there is no weird jsxImportSource pointing to a custom runtime.
+
+If jsxImportSource is set and not required, remove it.
+
+In the codebase, ensure no app code manually imports react/jsx-runtime or react/jsx-dev-runtime:
+
+rg "react/jsx-runtime" apps/developer-portal -n
+rg "react/jsx-dev-runtime" apps/developer-portal -n
+
+
+If any app or component files import these modules directly, remove those imports and use standard JSX (import React from "react";) instead.
+
+Only the Next/React build pipeline should import these runtime modules.
+
+STEP 4 – Clean build artefacts and rebuild
+
+From apps/developer-portal:
+
+cd /home/runner/workspace/apps/developer-portal
+
+rm -rf .next .turbo node_modules
+
+npm install
+
+npm run lint || echo "LINT_FAILED"
+npm run build
+
+
+If npm run lint or npm run build fails, fix the underlying code issues in the referenced files.
+
+Repeat npm run build until it succeeds.
+
+STEP 5 – Create a minimal debug route to isolate the problem
+
+In apps/developer-portal/app, create a simple route:
+
+app/debug/page.tsx:
+
+// app/debug/page.tsx
+export default function DebugPage() {
+  return (
+    <main style={{ padding: 32 }}>
+      <h1>Debug route</h1>
+      <p>If you can see this without Webpack runtime errors, the core app shell is healthy.</p>
+    </main>
+  );
+}
+
+
+Ensure app/layout.tsx and app/layout-client.tsx:
+
+Do NOT import any webpack or dev-only tooling.
+
+Do NOT import react/jsx-runtime or react/jsx-dev-runtime directly.
+
+Use only standard imports like:
+
+import type { Metadata } from 'next';
+import './globals.css';
+
+
+If layout-client.tsx has "use client"; at the top, that is fine, but the file should not be doing anything unusual with React runtime.
+
+Re-run:
+
+npm run dev -- --port 3000
+
+STEP 6 – Verify server output and browser behaviour
+
+With dev running:
+
+From a separate shell:
+
+curl -sS -D- http://127.0.0.1:3000/debug | head -n 40
+
+
+Confirm:
+
+HTTP/1.1 200 is returned.
+
+The body begins with valid HTML.
+
+In the Replit preview and an “Open in new tab” browser window:
+
+Open /debug.
+
+Then open / and /super (or your main app route).
+
+Confirm the following for all of these routes:
+
+The page renders.
+
+There is no red React DevOverlay complaining about runtime errors.
+
+The browser console does not show TypeError: Cannot read properties of undefined (reading 'call') in webpack.js.
+
+The hydration warnings about replacing server HTML no longer appear.
+
+If /debug works but / or /super still triggers the error, the root layout shell is now correct but some specific route code is pulling in a second, bad React/webpack runtime. In that case:
+
+Incrementally comment out non-essential imports in the failing route(s) (charts, complex third-party UI libs, custom webpack-loader tricks) until the error disappears.
+
+When you find the import that causes the error, open that dependency’s source and check if it is bundling its own React or its own webpack bootstrap. If so, either:
+
+Remove or lazy-load this dependency on the client in a safe way, or
+
+Replace it with a compatible alternative.
+
+Document this in a comment where you adjust the import.
+
+FINAL REPORT BACK TO ME
+
+In your final message, provide:
+
+The exact root cause you identified (file + description).
+
+The before and after of the key config change(s), especially in:
+
+apps/developer-portal/next.config.*
+
+Any root/shared Next config you touched.
+
+Confirmation that:
+
+npm run build now succeeds.
+
+/debug renders OK.
+
+The original route(s) that were failing now render in the browser with no options.factory / reading 'call' runtime errors in webpack.js.
+
+Do not state “fixed” unless all the above conditions are satisfied.

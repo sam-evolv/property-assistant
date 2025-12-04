@@ -1,0 +1,237 @@
+You are a senior front-end engineer and product designer working inside this Replit project.
+
+PROJECT
+This is the Longview Park “property assistant” web app. The main home screen already works functionally. The goal is NOT to change logic, routes, state management or component structure. The only task is to visually upgrade the existing UI.
+
+NEW OBJECTIVE (REVISED)
+1) Restore the four quick-action options to a compact 2x2 grid of small pills in the middle of the screen (two on the top row, two on the bottom row).
+2) Remove the current large horizontal cards and all emoji-style icons – they look cheap. Pills can be text-only or use subtle system-style icons, but no emoji.
+3) Format the screen like ChatGPT so that, on a typical mobile viewport, the entire page fits within a single screen height. The user should not need to scroll to see any part of:
+   - Header
+   - Hero text
+   - 2x2 pills
+   - Input bar
+
+No UX behaviour or copy should change. Only the visual layout and styling.
+
+SCREEN STRUCTURE (MUST KEEP)
+- Top bar with Longview Park logo, development name, language selector, theme toggle
+- Main hero:
+  - Title: “Ask anything about your home or community”
+  - Sub-copy under it
+- Four quick actions:
+  - Public Transport
+  - Waste collection
+  - Parking rules
+  - Local area
+- Bottom input bar:
+  - Text input
+  - Mic button
+  - Send button
+- “Powered by AI / reference only” system text
+
+You may re-wrap elements in divs for layout, but you must not add/remove any functional elements.
+
+GLOBAL LAYOUT REQUIREMENTS
+1) Full-screen layout with no vertical scrolling on typical mobile:
+   - Root of this screen should use:
+     - `className="h-screen overflow-hidden bg-gradient-to-b from-[#f5f7fb] to-white"`
+   - Inside, use a vertical flex layout:
+     - `className="flex h-full flex-col"`
+   - Structure:
+     - Header: fixed-height top section
+     - Content: flex-1 middle section that vertically centers hero + pills
+     - Footer: fixed-height bottom input section
+
+2) Example skeleton:
+
+```jsx
+<div className="h-screen overflow-hidden bg-gradient-to-b from-[#f5f7fb] to-white">
+  <div className="mx-auto flex h-full max-w-md flex-col px-4">
+    {/* HEADER */}
+    <header className="flex items-center justify-between py-3 border-b border-black/5 bg-white/80 backdrop-blur-xl">
+      {/* existing header content */}
+    </header>
+
+    {/* MAIN CONTENT (hero + pills) */}
+    <main className="flex flex-1 flex-col items-stretch justify-center">
+      {/* hero + 2x2 pills */}
+    </main>
+
+    {/* INPUT BAR */}
+    <footer className="pb-4 pt-3">
+      {/* input + mic + send + disclaimer */}
+    </footer>
+  </div>
+</div>
+The flex centering in <main> must be tuned so that, combined with header and footer heights, the whole layout fits neatly on screen without scroll. Reduce vertical spacing if necessary.
+
+HEADER DESIGN (KEEP, JUST POLISH)
+
+Same content, slightly premium styling:
+
+Container:
+
+className="flex items-center justify-between py-3 border-b border-black/5 bg-white/80 backdrop-blur-xl"
+
+Left group:
+
+Logo badge:
+
+flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.55)]
+
+Text:
+
+text-[15px] font-semibold tracking-tight text-slate-900
+
+Right group:
+
+Language pill:
+
+flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition
+
+Theme icon button:
+
+flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm hover:bg-slate-50 transition
+
+HERO TEXT
+
+Keep copy identical, polish typography:
+
+jsx
+Copy code
+<h1 className="text-center text-[20px] font-semibold leading-snug tracking-tight text-slate-900">
+  Ask anything about your home
+  <span className="block text-slate-900/90">or community</span>
+</h1>
+
+<p className="mt-2 text-center text-[13px] leading-relaxed text-slate-500">
+  Quick answers for daily life: floor plans, amenities, local services, and more.
+</p>
+Ensure top and bottom margins around the hero are tight enough that the entire layout still fits one screen height once the pills and footer are present.
+
+2×2 PILL GRID (KEY CHANGE)
+Replace the large horizontal cards and emojis with a compact 2-column grid of pills.
+
+LAYOUT
+
+Place the grid immediately under the hero, centered within the main content:
+
+className="mt-5 grid grid-cols-2 gap-3"
+
+PILL STYLE
+
+Each pill is a compact, high-quality button:
+
+Use subtle icons if you have an icon set (e.g. outline SVG), but no emoji.
+
+Text-only pills are acceptable if icons are not easily available.
+
+Example pill component:
+
+jsx
+Copy code
+function TopicPill({ label, Icon }) {
+  return (
+    <button
+      className="flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-[13px] font-medium text-slate-800 shadow-[0_4px_10px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-[0_10px_24px_rgba(15,23,42,0.16)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(15,23,42,0.14)]"
+    >
+      {Icon && <Icon className="h-3.5 w-3.5 text-amber-500" />}
+      <span>{label}</span>
+    </button>
+  );
+}
+Grid usage:
+
+jsx
+Copy code
+<div className="mt-5 grid grid-cols-2 gap-3">
+  <TopicPill label="Public transport" Icon={PublicTransportIcon} />
+  <TopicPill label="Waste collection" Icon={WasteIcon} />
+  <TopicPill label="Parking rules" Icon={ParkingIcon} />
+  <TopicPill label="Local area" Icon={LocationIcon} />
+</div>
+If you do not have SVG icons at hand, set Icon={null} and allow pills to be text-only. The critical requirement is: compact size, 2x2 grid, centered, visually premium. No emojis.
+
+CHAT INPUT BAR (BOTTOM)
+Keep the structure and copy, just use a premium pill and ensure its total height leaves room within h-screen:
+
+Wrapper:
+
+jsx
+Copy code
+<div className="rounded-full border border-slate-200 bg-slate-50/80 px-3 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] focus-within:border-amber-400 focus-within:bg-white focus-within:shadow-[0_12px_30px_rgba(15,23,42,0.16)] transition-all">
+  <div className="flex items-center">
+    <input
+      className="flex-1 border-none bg-transparent px-2 py-2 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+      placeholder="Ask about your home or community..."
+    />
+    <button className="mr-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm hover:bg-slate-100 transition">
+      {/* mic icon */}
+    </button>
+    <button className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-[0_8px_20px_rgba(245,158,11,0.7)] hover:brightness-110 active:translate-y-0.5 active:shadow-[0_4px_12px_rgba(245,158,11,0.7)] transition-all">
+      {/* send icon */}
+    </button>
+  </div>
+</div>
+
+<p className="mt-2 text-center text-[11px] text-slate-400">
+  Powered by AI • Information provided for reference only
+</p>
+Adjust pt/pb on <footer> so that header + main + footer fit exactly on typical phone height. If needed, slightly reduce mt- values around the hero and grid.
+
+MOTION & CONSISTENCY
+
+All interactive elements should have:
+
+transition-all duration-200 ease-out
+
+Slight hover:-translate-y-0.5 and stronger shadow on hover
+
+Rounding:
+
+Pills and circular buttons: rounded-full
+
+Colour palette:
+
+Backgrounds: white / very light grey
+
+Text: slate greys
+
+Accent: existing amber/gold only
+
+IMPLEMENTATION STEPS
+
+Locate the component(s) responsible for the Longview Park “home” / initial chat screen.
+
+Apply the h-screen + flex flex-col layout pattern so header, content, and footer sit in a vertical stack with no scroll.
+
+Replace the current large horizontal topic cards and emojis with the 2x2 small pill grid described above, reusing existing handlers and labels.
+
+Adjust spacing (margins, paddings) to ensure everything fits within one screen height on a typical mobile viewport.
+
+Do not touch any API calls, handlers, or text content; this is a purely visual/layout refactor.
+
+Run the app, visually validate on the default mobile viewport:
+
+No vertical scrolling required.
+
+Header, hero, pills, and input are all visible at once.
+
+Pills appear as a compact 2x2 grid with no emojis.
+
+When finished, summarise:
+
+Files changed
+
+Components touched
+
+Any compromises required to keep the page truly no-scroll on small devices.
+
+Copy code
+
+
+
+
+
+

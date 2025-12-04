@@ -1,0 +1,115 @@
+You are working inside the Replit project "PropertyAssistant".  
+Your task is to ensure the entire Admin Dashboard is fully functional, stable, and production-ready.  
+This includes every tab and sub-route within `/app/admin/*`.
+
+Follow these steps precisely:
+
+---
+
+### 🩺 1. DIAGNOSE AND FIX ROUTING ERRORS
+- Check all files under `app/admin/` for route conflicts or missing default exports.
+- Ensure every folder has an `index` or `page.tsx` file.
+- Verify each admin page imports the shared layout from `app/admin/layout.tsx`.
+- Confirm all imports use absolute or correct relative paths (no `../..` mistakes).
+- Fix any “hydration”, “component mismatch”, or “undefined use client” warnings.
+
+**Expected structure:**
+app/
+└── admin/
+├── layout.tsx
+├── page.tsx // Dashboard
+├── tenants/page.tsx
+├── documents/page.tsx
+├── notices/page.tsx
+├── faqs/page.tsx
+├── pois/page.tsx
+├── analytics/page.tsx
+
+yaml
+Copy code
+
+---
+
+### 🧩 2. VERIFY COMPONENT IMPORTS
+- Ensure `AdminCard`, `FormField`, and `ActionButton` are imported from `components/` in all relevant pages.
+- Confirm `Framer Motion` and `react-hot-toast` are properly installed and imported.
+- Add `"use client"` at the top of any page using hooks, animations, or toast notifications.
+
+---
+
+### ⚙️ 3. FIX STATE, HYDRATION & THEME ISSUES
+- Wrap all pages with `<AdminLayout>` to guarantee consistent dark theme.
+- Confirm `<Toaster />` is mounted once inside `app/admin/layout.tsx`.
+- Fix any hydration errors caused by async data fetching or mismatched props.
+
+---
+
+### 🧭 4. ENSURE NAVIGATION WORKS
+- All sidebar links in `app/admin/layout.tsx` must navigate client-side using:
+  ```tsx
+  <Link href="/admin/tenants">Tenants</Link>
+Highlight the active link with gradient border and hover glow.
+
+Ensure navigation doesn’t reload or cause blank screens.
+
+📊 5. REINSTATE ALL CORE PAGES
+If any of these are missing or broken, re-create them using the following patterns:
+
+/app/admin/page.tsx
+Shows quick stats, shortcuts to create new developments, and a table of estates.
+
+/app/admin/tenants/page.tsx
+CRUD interface for developments — name, slug, color theme, description.
+
+/app/admin/documents/page.tsx
+Document management — upload files (PDF, DOCX), view list, delete.
+
+/app/admin/faqs/page.tsx
+FAQ editor with question, answer, category, and delete.
+
+/app/admin/notices/page.tsx
+Noticeboard — create, edit, archive announcements.
+
+/app/admin/pois/page.tsx
+Points of Interest manager — local suppliers, amenities, etc.
+
+/app/admin/analytics/page.tsx
+Charts (Chart.js) for query counts, usage by tenant, token costs, and active users.
+
+🪄 6. ADD ERROR BOUNDARIES & LOADING STATES
+Add loading.tsx and error.tsx inside /app/admin and all subfolders.
+
+Loading screen: spinner and “Loading dashboard…” text.
+
+Error screen: graceful message “Something went wrong. Try refreshing.”
+
+🎨 7. TEST UI INTERACTIVITY
+Open every tab manually: /admin/, /admin/tenants, /admin/documents, etc.
+
+Verify smooth navigation, toast notifications, and Framer Motion animations.
+
+Test mobile view (sidebar collapses correctly).
+
+Confirm theme colors load properly from each tenant’s settings.
+
+✅ SUCCESS CRITERIA
+No blank screens or hydration warnings.
+
+Every admin tab loads instantly.
+
+Sidebar links work across all routes.
+
+Dark theme consistent throughout.
+
+Toasts and animations functional.
+
+Layout reusable for future admin modules.
+
+Commit all fixes under a new branch:
+admin-dashboard-stability
+
+Then merge to main after successful test.
+
+💡 Optional Enhancement
+If not yet added, implement AdminBreadcrumbs in the top bar to show navigation context dynamically (e.g., “Admin / Documents / Upload”).
+

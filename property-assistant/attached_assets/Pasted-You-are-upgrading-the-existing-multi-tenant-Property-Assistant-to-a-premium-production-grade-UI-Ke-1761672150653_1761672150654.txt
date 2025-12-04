@@ -1,0 +1,310 @@
+You are upgrading the existing multi-tenant Property Assistant to a premium, production-grade UI. Keep the current routes and backend. Replace the presentation layer with a unified design system, high-quality components, motion, and accessibility that match top-tier products like ChatGPT, Apple, and Google. Deliver a fully working build with a live style guide and zero visual regressions.
+
+0) Guardrails
+
+Do not break existing API routes, RAG, Admin CRUD, or Tenant Pack import.
+
+If a library is unavailable, use the closest stable alternative and log the decision in the console.
+
+No stubs. Ship working code.
+
+Respect prefers-reduced-motion and WCAG AA contrast.
+
+Irish language toggle continues to work.
+
+1) Design system foundations
+
+Create a first-class token system and Tailwind integration.
+
+Files
+
+/design/tokens.css - CSS variables for color, spacing, radii, shadows, typography, z-index, motion.
+
+/design/theme.ts - Functions to derive tenant themes from a base brand color.
+
+/design/motion.ts - Duration, easing, spring presets, micro-interaction helpers.
+
+/design/typography.ts - Type scale and utilities.
+
+Color tokens
+Define semantic tokens. Light and dark palettes. All consumable via data-attributes.
+
+:root {
+  /* base */
+  --radius-xs: 6px; --radius-sm: 10px; --radius-md: 14px; --radius-lg: 18px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.03);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.12);
+  --ring: 0 0 0 2px color-mix(in oklab, var(--brand-600) 40%, white 0%);
+  /* light surface system */
+  --bg: #0b0c0f; /* will be overridden per theme */
+  --surface-1: #0f1115;
+  --surface-2: #12151b;
+  --surface-3: #161a22;
+  --text-1: #eef2f8;
+  --text-2: color-mix(in oklab, var(--text-1) 72%, transparent);
+  --muted: #778199;
+  --border: #1e2531;
+  /* brand scales injected at runtime */
+  --brand-50:  ; --brand-100: ; --brand-200: ; --brand-300: ;
+  --brand-400: ; --brand-500: ; --brand-600: ; --brand-700: ;
+  --brand-contrast: #0b0c0f;
+  --accent: var(--brand-500);
+}
+[data-theme="light"] { /* computed via theme.ts */ }
+[data-theme="dark"]  { /* computed via theme.ts */ }
+
+
+Tailwind
+
+Configure tailwind.config.ts to read CSS variables for colors, radii, shadows, and spacing.
+
+Add utilities for focus rings, elevation, and container queries.
+
+Fonts
+
+Use @next/font/google to load Inter and optionally Source Serif 4 for long-form content.
+
+Fallback stack: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial.
+
+2) Tenant-aware theming
+
+Implement brand-to-theme derivation.
+
+/design/theme.ts
+
+deriveTheme(brandHex: string): Record<string,string> to compute brand scale and set CSS variables.
+
+On tenant resolve, set document.documentElement.dataset.theme to light or dark based on system preference and user toggle.
+
+Expose a ThemeProvider that reads tenant.brand, writes CSS variables, and persists theme choice.
+
+Wire this in the root layout so every page inherits correct tokens.
+
+3) Global polish
+
+/app/globals.css
+
+Import tokens.
+
+High-quality focus styles: 2px outline, offset 2px, color --brand-600.
+
+Selection color using brand 300 background with brand 800 text.
+
+Smooth scrolling, toned scrollbars.
+
+Container max-widths with fluid padding.
+
+Skeleton base class and shimmer.
+
+Accessibility
+
+Skip link in root layout.
+
+Visible focus states on all interactive elements.
+
+ARIA on dialogs, drawers, toasts, tooltips.
+
+4) Premium component library
+
+Create a cohesive set of components under /components/ui using Radix primitives.
+
+Atoms
+
+Button (primary, subtle, outline, ghost, destructive; sizes sm, md, lg; loading state)
+
+IconButton
+
+Input, Textarea, Select, Checkbox, Switch, Radio
+
+Label, Badge, Kbd, Tooltip, Toast
+
+Molecules
+
+Card with header, content, footer regions
+
+Tabs, Accordion, DropdownMenu, Popover, Dialog, Drawer, Sheet
+
+Table with sticky header, dense mode
+
+Pagination, EmptyState, Skeleton, Spinner
+
+CommandPalette (cmd+k) using cmdk for quick nav
+
+Layouts
+
+AppShell for resident pages with topbar and responsive sheet menu
+
+AdminShell with left sidebar, breadcrumb topbar, and responsive collapse
+
+SplitPane for desktop map + detail
+
+Patterns
+
+Form with Zod resolver, error banners, inline help
+
+Uploader with PDF progress bars, drag-and-drop, and success states
+
+DataGrid list with filters, search, and empty states
+
+5) Chat experience upgrade
+
+Rebuild the chat UI to ChatGPT-grade.
+
+Files
+
+/components/chat/ChatLayout.tsx - 2-column when space allows: thread and source drawer
+
+/components/chat/Message.tsx - message bubble with subtle elevation, max-width, rich content
+
+/components/chat/StreamingMessage.tsx - streamed tokens with caret and skeleton
+
+/components/chat/CitationPills.tsx - clickable pills with doc titles
+
+/components/chat/CtaBar.tsx - two smart CTAs below each assistant message
+
+/components/chat/Composer.tsx - sticky bottom input with multiline grow, submit, mic icon placeholder, quick chips
+
+Details
+
+Smooth autoscroll with overscroll anchor.
+
+Code blocks styled with shiki or prism if present.
+
+Copy button on answers and code blocks.
+
+Tooltips on citations. Clicking opens a SourceDrawer with preview and download.
+
+System banners for fallback mode and rate limit warnings.
+
+6) Map and Notices UX
+
+Map
+
+MapLibre dark and light styles tuned to tokens.
+
+Cluster styling with count bubbles and hover pulse.
+
+Category chips across the top that snap to a horizontal scroll on mobile.
+
+Bottom sheet for POI details with actions and directions link.
+
+Notices
+
+Card list with date badges. Empty state with illustration. Admin edit flows have optimistic updates.
+
+7) Admin console upgrade
+
+AdminShell with sidebar sections, active item highlight, keyboard nav.
+
+Tables with sticky header, zebra rows, and compact density.
+
+Inline create and edit modals with validation summaries.
+
+Import progress card that polls job status with a progress bar and per-file breakdown.
+
+Global toasts and error boundary with Sentry hook.
+
+8) Internationalisation and copy system
+
+/i18n/strings.ts dictionary with English and Irish keys for all UI labels and common phrases.
+
+useLocale() hook and LanguageToggle component in the header.
+
+Persist choice in localStorage. No page reload required.
+
+9) Motion and micro-interactions
+
+Subtle elevation and scale on hover for cards and buttons. Easing cubic-bezier(.2,.8,.2,1).
+
+Dialogs and sheets use spring pop with reduced motion fallback to fade.
+
+Skeleton shimmer that respects reduced motion.
+
+Map pins breathe on focus. No gaudy animations.
+
+10) Performance hygiene
+
+Font loading via @next/font to avoid layout shift.
+
+Static image placeholders with blurDataURL.
+
+Debounced inputs. prefetch navigations. Avoid layout jank.
+
+Remove unused CSS with Tailwind content globs.
+
+11) Pages to add or update
+
+/design-system route that showcases tokens, components, and patterns with copy-paste examples.
+
+Update /chat, /map, /notices, /docs/[id], /onboard, and /admin/* to the new components and layout.
+
+Ensure mobile breakpoints are best-in-class. Hero and headers look great at 360 px, 390 px, and 430 px widths.
+
+12) Implementation plan
+
+Install dependencies: @radix-ui/react-*, cmdk, class-variance-authority, tailwind-merge, framer-motion or motion alternative if needed, prismjs or shiki.
+
+Add tokens, theme derivation, globals, and Tailwind config.
+
+Build UI atoms, then molecules, then shells.
+
+Replace existing pages to use new shells and components.
+
+Implement chat visual stack and source drawer.
+
+Implement map chips and detail sheet.
+
+Upgrade Admin tables, forms, and import progress.
+
+Build /design-system with live examples.
+
+QA and accessibility pass.
+
+13) Definition of done
+
+Consistent visual language, spacing grid on 4 and 8 px rhythm.
+
+Chat thread streams smoothly, has citations, CTAs, copy buttons, and no scroll jank.
+
+Map has clusters, chips, and a polished bottom sheet.
+
+Admin has modern sidebar, dense tables, and optimistic forms.
+
+Light and dark themes look premium. Tenant brand color drives accents.
+
+/design-system demonstrates every component.
+
+All pages pass keyboard navigation and screen reader smoke tests.
+
+Performance: no layout shift from fonts, interactive to next paint under 200 ms on dev hardware.
+
+14) QA checklist (automate where possible)
+
+Contrast check for primary, text, muted on light and dark.
+
+Focus ring visible on all interactive elements.
+
+Resize at 320 px, 768 px, 1024 px, 1440 px. No layout overflow.
+
+Stream 3 long answers in chat. No dropped frames. Composer remains sticky.
+
+Tenant theme switch and Irish toggle persist.
+
+Notices empty state and error states render correctly.
+
+Components render in /design-system without console errors.
+
+15) Post-setup output
+
+When complete, print to console:
+
+A summary of components created and pages upgraded.
+
+How to adjust brand color per tenant.
+
+Link to /design-system.
+
+A short note on any library substitutions that were needed.
+
+Proceed now. Create or update all files as specified. Migrate existing pages to the new components without breaking data flows. No stubs. Ship a running build with the upgraded UI.

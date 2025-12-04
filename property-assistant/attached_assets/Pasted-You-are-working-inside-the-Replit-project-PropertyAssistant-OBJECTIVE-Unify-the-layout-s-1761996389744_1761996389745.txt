@@ -1,0 +1,158 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Unify the layout so the **bottom dock (Chat / Map / Noticeboard / Documents)** is persistent across *all pages*,  
+while the **top bar** only contains the **Seaview logo**, **language selector**, and **dark mode toggle**.  
+
+Currently, the toolbar disappears on the chat page and reappears at the top on other pages — this must be corrected for visual consistency and UX cohesion.
+
+---
+
+## TARGET STATE
+
+**✅ Top Bar (always visible):**
+- Left: Seaview logo (clickable → homepage)
+- Right: Language selector & dark mode toggle only  
+- No “Chat / Map / Documents / Notices” buttons up here.
+
+**✅ Bottom Dock (persistent across all pages):**
+- Fixed dock with icons for:
+  - Chat  
+  - Map  
+  - Noticeboard  
+  - Documents  
+- Evenly spaced, translucent background (`backdrop-blur-xl bg-white/80 dark:bg-neutral-950/80`)
+- Active tab visually highlighted (blue tint or subtle underline)
+- Remains fixed across all routes (`/`, `/chat`, `/map`, `/noticeboard`, `/documents`)
+
+**✅ Page Content (changes per route):**
+- Everything above the dock swaps based on the route.
+- The dock itself never unmounts or reloads when switching pages.
+
+---
+
+## TASKS
+
+1. **Refactor Layout Structure**
+   - Create or update a **global layout wrapper** (`app/layout.tsx` or `app/(public)/layout.tsx`):
+     - Keep the *top bar* and *bottom dock* outside of the `children` so they render persistently.
+     - Only the `children` content changes on route switch.
+   - Example structure:
+
+     ```tsx
+     import Dock from "@/components/Dock";
+     import TopBar from "@/components/TopBar";
+
+     export default function RootLayout({ children }) {
+       return (
+         <html lang="en">
+           <body className="flex flex-col min-h-screen bg-white dark:bg-neutral-950 transition-colors duration-300">
+             <TopBar />
+             <main className="flex-1 flex flex-col items-center justify-start pt-6 pb-24 px-6">
+               {children}
+             </main>
+             <Dock />
+           </body>
+         </html>
+       );
+     }
+     ```
+
+---
+
+2. **TopBar Component**
+   - Minimal design:
+     ```tsx
+     import { LanguageSelector, ThemeToggle } from "@/components/ui";
+
+     export default function TopBar() {
+       return (
+         <header className="w-full flex justify-between items-center px-6 py-3 border-b border-gray-100 dark:border-neutral-800 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-xl sticky top-0 z-50">
+           <a href="/" className="flex items-center gap-2">
+             <img src="/seaview-logo.svg" alt="Seaview" className="h-8" />
+           </a>
+           <div className="flex items-center gap-4">
+             <LanguageSelector />
+             <ThemeToggle />
+           </div>
+         </header>
+       );
+     }
+     ```
+
+---
+
+3. **Bottom Dock Component (Persistent Navigation)**
+   - Already created — just ensure it’s **global**, not route-specific.
+   - Update to highlight active page:
+     ```tsx
+     import { usePathname } from "next/navigation";
+     import {
+       ChatBubbleLeftEllipsisIcon,
+       MapIcon,
+       MegaphoneIcon,
+       DocumentTextIcon,
+     } from "@heroicons/react/24/outline";
+
+     const navItems = [
+       { name: "Chat", href: "/chat", icon: ChatBubbleLeftEllipsisIcon },
+       { name: "Map", href: "/map", icon: MapIcon },
+       { name: "Noticeboard", href: "/noticeboard", icon: MegaphoneIcon },
+       { name: "Documents", href: "/documents", icon: DocumentTextIcon },
+     ];
+
+     export default function Dock() {
+       const pathname = usePathname();
+       return (
+         <footer className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-xl border-t border-gray-100 dark:border-neutral-800 py-3 flex justify-evenly items-center z-50">
+           {navItems.map(({ name, href, icon: Icon }) => (
+             <a
+               key={name}
+               href={href}
+               className={`flex flex-col items-center text-xs font-medium transition ${
+                 pathname === href
+                   ? "text-blue-600 dark:text-blue-400"
+                   : "text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+               }`}
+             >
+               <Icon className="h-5 w-5 mb-1" />
+               {name}
+             </a>
+           ))}
+         </footer>
+       );
+     }
+     ```
+
+---
+
+4. **Remove Redundant Headers**
+   - Delete or comment out all per-page `<header>` elements that contained Chat/Map/Notice/Docs.
+   - Each page should now **only** contain its unique content inside `<main>`.
+
+---
+
+5. **Verify Consistency**
+   - `/` (home): top bar + dock both visible
+   - `/chat`: same dock persists, no new header introduced
+   - `/map`, `/noticeboard`, `/documents`: same dock + top bar layout applies
+   - Confirm dark mode and language toggles remain operational globally.
+
+---
+
+6. **Commit Message**
+refactor(ui): unify global layout with persistent bottom dock and minimal top bar
+
+yaml
+Copy code
+
+---
+
+## ACCEPTANCE CRITERIA
+- ✅ Top bar only shows logo + language + theme toggle.
+- ✅ Bottom dock is persistent across all pages.
+- ✅ No duplicate navigation headers anywhere.
+- ✅ Active page in the dock is visually highlighted.
+- ✅ Page transitions feel seamless and consistent.

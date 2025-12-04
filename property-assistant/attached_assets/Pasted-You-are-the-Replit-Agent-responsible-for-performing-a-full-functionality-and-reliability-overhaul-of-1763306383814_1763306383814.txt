@@ -1,0 +1,328 @@
+You are the Replit Agent responsible for performing a full functionality and reliability overhaul of the entire OpenHouse AI platform:
+
+• Developer Portal  
+• Tenant/Homeowner Portal  
+• Shared backend API (packages/api)  
+• Supabase integration  
+• Embedding + training pipeline  
+• Multi-tenant context  
+• Document upload → parsing → embedding → storage → retrieval pipeline  
+• Chat system  
+• Map & POI system  
+• Noticeboard  
+• House types, houses, developments, instructions  
+• Everything end-to-end  
+
+Your goal is to convert the platform from a fragile MVP into a **robust, predictable, zero-friction, production-ready SaaS**.
+
+Follow these instructions meticulously.
+
+────────────────────────────────────────
+0. FIRST PRINCIPLES — GLOBAL SYSTEM REQUIREMENTS
+────────────────────────────────────────
+
+The platform must deliver:
+
+1. **100% functioning CRUD for all entities**
+   - Tenants
+   - Developments
+   - Houses
+   - House Types
+   - Documents
+   - System instructions
+   - Noticeboard posts
+
+2. **Flawless document upload + processing**
+   - Upload via FormData
+   - Store original file in Supabase Storage
+   - Extract text (PDF/TXT/DOCX/CSV/JSON)
+   - Break into chunks safely
+   - Generate embeddings
+   - Insert chunks into documents_chunks table
+   - Update UI with upload status + errors
+
+3. **Working Preview Chat**
+   - Automatically resolves development → tenant → chat context
+   - Runs RAG over embeddings for this development only
+   - Returns clean, consistent AI outputs
+   - Resilient against missing instructions, missing embeddings
+
+4. **Multi-tenant isolation**
+   - Every API call must be tenant-aware
+   - Super admin bypass allowed only for sam@evolvai.ie
+
+5. **Error-free Developer Portal**
+   - No broken pages
+   - No missing params
+   - No “Development Not Found”
+   - No undefined errors in console
+   - All API calls succeed or error clearly
+
+6. **Error-free Tenant Portal**
+   - Map loads
+   - Chat loads
+   - Noticeboard loads
+   - Documents load
+   - No 500s on cold start
+   - No undefined items
+
+7. **Zero broken links, missing pages, failing routes, or SSR/CSR conflicts**
+
+Your job is to systematically validate and fix all of the above.
+
+────────────────────────────────────────
+1. FIX ALL API ROUTES
+────────────────────────────────────────
+
+Inspect and repair every API route found in:
+
+packages/api/routes/
+
+Specifically ensure correctness for:
+
+- developments.ts
+- documents.ts
+- train.ts
+- instructions.ts
+- houses.ts
+- houseTypes.ts
+- tenants.ts
+- chat.ts
+- noticeboard.ts
+
+For each:
+
+1. Validate route path matches how portals call it  
+2. Validate HTTP method  
+3. Validate request body format  
+4. Validate tenant isolation  
+5. Validate DB queries  
+6. Validate return shape matches UI expectations  
+7. Add consistent error structures:
+   {
+     ok: false,
+     error: "detailed message"
+   }
+
+8. Add console/error logs to diagnose failures
+
+────────────────────────────────────────
+2. FIX SUPABASE & DATABASE LAYER
+────────────────────────────────────────
+
+Check the following tables exist with correct schema:
+
+- tenants  
+- developments  
+- houses  
+- house_types  
+- documents  
+- document_chunks  
+- instructions  
+- noticeboard_posts  
+
+Then ensure:
+
+• Every SELECT, INSERT, UPDATE, DELETE aligns with actual schema  
+• All queries use service role key on backend  
+• RLS is disabled OR enforced correctly in-app  
+• Super admin is whitelisted  
+
+Fix any mismatches immediately.
+
+────────────────────────────────────────
+3. FIX THE DOCUMENT → EMBEDDING PIPELINE
+────────────────────────────────────────
+
+Repair the entire training flow:
+
+1. Upload file via `/api/train`  
+2. Parse file type:  
+   - PDF → pdf-parse  
+   - DOCX → mammoth  
+   - CSV → parse rows  
+   - TXT → plain text  
+   - JSON → stringify values  
+
+3. Chunk text using a safe, deterministic splitter (300–600 chars each)
+
+4. For each chunk:  
+   - Generate embedding  
+   - Insert into document_chunks table with correct developmentId and documentId  
+
+5. Save original document metadata:  
+   - documentId  
+   - fileName  
+   - fileSize  
+   - fileType  
+   - developmentId  
+   - tenantId  
+
+6. Update UI state so document appears instantly
+
+Add clear success and failure messages.
+
+────────────────────────────────────────
+4. FIX THE PREVIEW CHAT ENDPOINT
+────────────────────────────────────────
+
+Ensure:
+
+1. Chat endpoint loads system instructions for the selected development  
+2. Chat endpoint loads ALL chunks for that development  
+3. Calls OpenAI GPT with:  
+   - System instructions  
+   - Top-k relevant embeddings  
+   - User query  
+4. Returns properly formatted messages  
+5. Handles errors without crashing UI
+
+Add:
+- retry logic  
+- safe fallback when no embeddings found  
+- guardrails for empty instructions  
+
+────────────────────────────────────────
+5. FIX ALL FRONTEND ROUTING & SERVER COMPONENTS (Next.js)
+────────────────────────────────────────
+
+Fix pages under:
+
+apps/developer-portal/src/app/(dashboard)/developments/…
+
+Specifically ensure:
+
+• developmentId is correctly extracted  
+• All fetch calls use `/api/*` relative paths  
+• No call references localhost  
+• No page loads without tenant context  
+• All components handle null/undefined gracefully  
+
+Repair layout.tsx, page.tsx, and loading.tsx if necessary.
+
+────────────────────────────────────────
+6. FIX DEVELOPER PORTAL FUNCTIONALITY END TO END
+────────────────────────────────────────
+
+Verify and repair:
+
+✓ Can create a new development  
+✓ Can update development  
+✓ Can load development detail page  
+✓ Can switch tabs reliably  
+✓ Can upload documents  
+✓ Document count updates  
+✓ Instructions save reliably  
+✓ Houses load  
+✓ House types load  
+✓ Map preview loads  
+✓ Preview Chat works
+
+No flicker, no errors, no undefined items.
+
+────────────────────────────────────────
+7. FIX TENANT PORTAL FUNCTIONALITY END TO END
+────────────────────────────────────────
+
+Verify and repair:
+
+✓ Home screen loads  
+✓ Language toggle works  
+✓ QR flow loads the development  
+✓ Chat works  
+✓ Map loads  
+✓ POI markers appear  
+✓ Noticeboard loads & posts render  
+✓ Documents load  
+✓ House info loads  
+
+Fix any missing data wiring.
+
+────────────────────────────────────────
+8. HARDEN ERROR HANDLING AND LOGGING
+────────────────────────────────────────
+
+Add logging for:
+
+• Every backend error  
+• Every failed DB query  
+• Every failed OpenAI call  
+• Every failed upload  
+• Every malformed request  
+
+Logging must include:
+
+- timestamp  
+- route  
+- tenantId  
+- developmentId  
+- error message  
+- stack if available  
+
+Make logs readable and actionable.
+
+────────────────────────────────────────
+9. VALIDATE ENVIRONMENT VARIABLES
+────────────────────────────────────────
+
+Validate that the following exist and are used properly:
+
+- DATABASE_URL  
+- SUPABASE_SERVICE_ROLE_KEY  
+- SUPABASE_URL  
+- SUPABASE_ANON_KEY  
+- SUPABASE_JWT_SECRET  
+- OPENAI_API_KEY  
+- GOOGLE_MAPS_API_KEY  
+- SESSION_SECRET  
+- POSTGRES_URL (if used)  
+
+Remove any unused env vars.  
+Ensure server-side code uses service role keys.  
+Ensure client-side uses only anon keys.
+
+────────────────────────────────────────
+10. TEST EVERYTHING (AGENT MUST DO)
+────────────────────────────────────────
+
+The Agent must:
+
+1. Test uploading several files  
+2. Test invalid files  
+3. Test large files  
+4. Test documents appearing  
+5. Test chat with no embeddings  
+6. Test chat with embeddings  
+7. Test developer portal navigation  
+8. Test tenant portal chat  
+9. Test noticeboard posts  
+10. Test map render  
+11. Test multi-tenant access  
+12. Test super admin access  
+13. Test permissions & failure cases  
+
+Repair all failures.
+
+────────────────────────────────────────
+11. FINAL CERTIFICATION — SYSTEM MUST PASS
+────────────────────────────────────────
+
+Before completing the loop, the Agent must confirm:
+
+✔ All pages load without errors  
+✔ All uploads work reliably  
+✔ All API routes respond correctly  
+✔ All CRUD operations work  
+✔ All chat functions work  
+✔ All instructions load and save  
+✔ All map and noticeboard pages load  
+✔ No console errors  
+✔ No server errors  
+✔ No race conditions  
+✔ No broken links  
+✔ No SSR hydration issues  
+✔ No dependency warnings  
+
+Deliver a system that is **fully functional, stable, predictable, and production-ready**.
+
+Begin now.

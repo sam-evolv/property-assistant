@@ -1,0 +1,400 @@
+You are the Replit Agent working on the OpenHouse AI monorepo (PropertyAssistant on Replit).
+
+Your objective in THIS PASS ONLY is:
+
+- Make the system stable enough that:
+  - I can log in to the Developer Portal
+  - I can see the Developments list
+  - I can open Longview Park
+  - I can upload Longview Park documents
+  - The system parses and stores those documents (documents + chunks)
+  - I can use Preview Chat to ask questions about Longview Park and get real answers
+
+Do NOT just plan or summarise.  
+You must modify code, fix concrete issues, and show diffs.
+
+────────────────────────────────────────
+0. ORIENTATION AND CONSTRAINTS
+────────────────────────────────────────
+
+1. This is a Next.js monorepo with at least:
+   - apps/developer-portal (developer + super-admin)
+   - apps/tenant-portal (homeowner)
+   - packages/api (backend routes)
+   - packages/db or db/ (schema, drizzle, Supabase client, etc.)
+
+2. Supabase is already provisioned and environment variables are set in Replit Secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, etc.).
+
+3. The priority in this pass:
+   - Developer Portal must work end-to-end for Longview Park.
+   - Document upload, parsing, embeddings, and storage must work for Longview Park.
+   - Preview Chat must work for Longview Park.
+
+Ignore non-essential features for now (analytics, noticeboards, advanced UI polish). Focus on reliability.
+
+────────────────────────────────────────
+1. FIX THE DEVELOPER PORTAL API CLIENT
+────────────────────────────────────────
+
+Goal: All Developer Portal API calls must use same-origin `/api` routes with no hardcoded hosts.
+
+1. Open:
+   - apps/developer-portal/lib/api-client.ts
+     (If this file does not exist but a similar one does, locate the actual API client used by the Developer Portal and use that instead.)
+
+2. In this file:
+   - Define a single base constant:
+
+     ```ts
+     const API_BASE_URL = "/api";
+     ```
+
+   - Replace ALL API URLs so they become:
+
+     ```ts
+     fetch(`${API_BASE_URL}/developments`)
+     fetch(`${API_BASE_URL}/developments/${id}`)
+     fetch(`${API_BASE_URL}/documents`)
+     fetch(`${API_BASE_URL}/train`)
+     fetch(`${API_BASE_URL}/chat`)
+     // etc.
+     ```
+
+   - Remove ALL occurrences of:
+     - `window.location.origin`
+     - `localhost:3000` or `localhost:3001`
+     - `replit.dev` URLs
+     - Any other absolute URLs
+
+3. Ensure the API client:
+   - Always returns typed JSON or throws a clear error
+   - Logs errors with route + status + message
+
+Show the diff for this file when done.
+
+────────────────────────────────────────
+2. FIX DEVELOPER PORTAL ROUTING FOR DEVELOPMENTS
+────────────────────────────────────────
+
+Goal: Developer Portal must load the Developments list and Longview Park detail page without errors.
+
+1. Open:
+   - apps/developer-portal/src/app/(dashboard)/developments/page.tsx
+   - apps/developer-portal/src/app/(dashboard)/developments/[id]/page.tsx
+
+2. For the Developments list page:
+   - Ensure it calls `GET /api/developments` via the API client.
+   - Render all developments in a table or card list.
+   - Show name, location, and a link to the detail page.
+   - Links should navigate to `/developments/{id}` where `{id}` is the development_id from the DB.
+
+3. For the Development detail page `[id]/page.tsx`:
+   - Read `params.id` from the Next.js route params.
+   - Call `GET /api/developments/${params.id}` via the API client.
+   - If the development exists:
+     - Show its name, address, and description.
+     - Render tabs or sections for:
+       - Overview
+       - Houses / House Types (can be skeletal for now)
+       - Documents
+       - Preview Chat
+   - If it does NOT exist:
+     - Show a clean, branded “Development not found” state.
+   - Never allow undefined tenant context to crash the page. Use safe guards and loading states.
+
+4. Open the backend route that serves developments:
+   - Look under packages/api or apps/api for developments routes (e.g. `routes/developments.ts`).
+
+   Ensure:
+   - `GET /api/developments` returns a list of developments with at least: id, tenant_id, name, address/description.
+   - `GET /api/developments/:id` returns the same fields for one development.
+   - Both queries filter by tenant_id where appropriate, but super_admin should be able to see all.
+
+Show diffs for all files modified in this step.
+
+────────────────────────────────────────
+3. FIX ADMIN / TENANT CONTEXT FOR SUPER ADMIN
+────────────────────────────────────────
+
+Goal: As `sam@evolvai.ie` (super_admin), I must be able to see and open Longview Park without context errors.
+
+1. Open:
+   - apps/developer-portal/src/context/TenantContext.tsx
+   - Any other relevant admin context file (e.g. AdminContext, AuthContext).
+
+2. Ensure:
+   - The context reads the current admin session (from Supabase or your auth layer).
+   - If `role === "super_admin"`:
+     - Allow viewing all tenants and developments by default.
+     - Do NOT block rendering if tenantId is null.
+   - If `role === "developer"`:
+     - tenantId must resolve from the admin record and be used to filter developments.
+
+3. Harden the context:
+   - Provide loading states while session is resolving.
+   - Provide clear fallback UI if context is missing, instead of throwing.
+   - Avoid throwing errors on undefined context or tenantId; use conditional rendering instead.
+
+Show diffs here as well.
+
+────────────────────────────────────────
+4. FIX DOCUMENT UPLOAD PAGE (FRONTEND)
+────────────────────────────────────────
+
+Goal: From the Longview Park detail page, I can open a Documents tab, select a file, and submit an upload to `/api/train`.
+
+1. In:
+   - apps/developer-portal/src/app/(dashboard)/developments/[id]/documents/page.tsx
+     (or wherever the Documents tab lives)
+
+2. Implement or fix:
+   - A file input (single PDF for now).
+   - An Upload button that:
+     - Creates `FormData`
+     - Appends `file`
+     - Appends `developmentId` = params.id
+     - Appends `tenantId` if required
+
+   Example:
+
+   ```ts
+   const formData = new FormData();
+   formData.append("file", file);
+   formData.append("developmentId", developmentId);
+Submits to POST /api/train via fetch(${API_BASE_URL}/train, { method: "POST", body: formData }).
+
+On success, refreshes the document list.
+
+Shows a success toast.
+
+On error, shows a clear error toast with a short message.
+
+Under the upload UI:
+
+Render a list of documents for this development (fetched from GET /api/documents?developmentId=... or similar).
+
+Show at least: file name, uploaded date.
+
+Show diffs.
+
+────────────────────────────────────────
+5. FIX BACKEND TRAINING ROUTE: /api/train
+────────────────────────────────────────
+
+Goal: Uploading a PDF from the Developer Portal results in:
+
+A row in documents
+
+Multiple rows in document_chunks with embeddings
+
+Locate the training route file (e.g.):
+
+packages/api/src/routes/train.ts
+
+apps/developer-portal/app/api/train/route.ts
+Use the actual path in this repo.
+
+Ensure the route:
+
+Accepts multipart/form-data
+
+Reads:
+
+file
+
+developmentId (string)
+
+Validates:
+
+file is present and is a PDF
+
+developmentId is present and refers to an existing development
+
+Store the raw document:
+
+Insert into documents table with:
+
+id (uuid)
+
+development_id
+
+tenant_id (if relevant)
+
+title / file_name
+
+mime_type
+
+size_bytes
+
+created_at
+
+Parse the PDF:
+
+Use pdf-parse or the existing PDF parsing library.
+
+Extract text content.
+
+Log the length of the extracted text.
+
+Chunk the text:
+
+Implement a simple chunker (e.g. 500–800 characters per chunk, split on paragraphs where possible).
+
+For each chunk, create an embedding using OpenAI text-embedding-3-large.
+
+Insert into document_chunks with:
+
+id
+
+document_id
+
+development_id
+
+tenant_id
+
+content
+
+embedding (vector)
+
+created_at
+
+Return a structured response:
+
+{ ok: true, documentId, chunkCount } on success.
+
+{ ok: false, error: "..." } on failure, with HTTP 4xx/5xx.
+
+Add clear logging:
+
+When the request starts, log: developmentId, fileName, size.
+
+After parsing: number of characters.
+
+After chunking: number of chunks.
+
+After embeddings: success / failure.
+
+Show diffs for this route file, and any DB access helper files you modify.
+
+────────────────────────────────────────
+6. FIX PREVIEW CHAT FOR LONGVIEW PARK
+────────────────────────────────────────
+
+Goal: On the Developer Portal → Longview Park → Preview Chat, I can ask a question and get an answer grounded in the uploaded docs.
+
+Locate the chat API route (e.g. /api/chat):
+
+packages/api/src/routes/chat.ts
+
+or the equivalent
+
+Ensure this route:
+
+Accepts JSON body:
+
+message
+
+developmentId
+
+Fetches top N chunks from document_chunks WHERE development_id = developmentId, ordered by vector similarity to the query embedding.
+
+Builds a prompt that includes:
+
+System instructions (if you have a per-development prompt)
+
+The most relevant chunks as context
+
+The user message
+
+Calls GPT-4.1 or GPT-4.1-mini.
+
+Returns { answer, citations } where citations reference chunk ids or source documents.
+
+Open the Preview Chat component in the Developer Portal:
+
+apps/developer-portal/src/app/(dashboard)/developments/[id]/chat/page.tsx
+(or equivalent)
+
+Ensure it:
+
+Calls POST /api/chat with message and developmentId.
+
+Renders responses clearly.
+
+Shows loading state while waiting for a reply.
+
+Handles error states gracefully.
+
+Show diffs.
+
+────────────────────────────────────────
+7. RUN A FULL, SELF-CHECKED TEST FOR LONGVIEW PARK
+────────────────────────────────────────
+
+After making all the above changes, you must run the following checks yourself and fix issues as you see them:
+
+Start Developer Portal:
+
+bash
+Copy code
+cd apps/developer-portal
+npm run dev -- --port 3001
+In the browser:
+
+Log in as sam@evolvai.ie.
+
+Open the Developments page.
+
+Confirm Longview Park appears.
+
+Click Longview Park and confirm the detail page loads.
+
+Go to Documents tab:
+
+Upload a real Longview Park PDF.
+
+Confirm Network tab shows POST /api/train with 200 OK.
+
+Check logs output for parse → chunk → embed pipeline.
+
+Confirm the document appears in the list.
+
+Go to Preview Chat:
+
+Ask a question that is clearly answered in that PDF.
+
+Confirm the answer reflects the document content.
+
+Confirm no errors in the console or server logs.
+
+If any step fails, fix it immediately within this prompt scope (do not postpone to another phase).
+
+────────────────────────────────────────
+8. DELIVERABLES FOR THIS PHASE
+────────────────────────────────────────
+
+At the end of this pass:
+
+Developer Portal:
+
+Developments list loads.
+
+Longview Park detail page loads.
+
+Documents tab allows upload.
+
+Uploaded docs are stored and chunked.
+
+Preview Chat answers grounded questions about Longview Park.
+
+Backend:
+
+/api/developments and /api/developments/:id work correctly.
+
+/api/train works end-to-end for PDFs.
+
+/api/chat works for Longview Park.
+
+No critical errors in browser console or server logs during the flows above.
+
+Apply all required code changes now and show the diffs for each modified file.

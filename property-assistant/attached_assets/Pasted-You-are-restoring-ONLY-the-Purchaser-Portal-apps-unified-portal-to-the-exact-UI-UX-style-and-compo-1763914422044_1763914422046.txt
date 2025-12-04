@@ -1,0 +1,122 @@
+You are restoring ONLY the Purchaser Portal (apps/unified-portal) to the exact UI/UX style and component architecture shown in the reference images below. Everything must match the earlier Seaview-style design: clean, white, polished, minimalistic, modern. This restoration applies ONLY to the tenant-facing portal. Do NOT modify the super-admin, developer admin, backend API routes, or database.
+
+REFERENCE IMAGES (style, layout, components):
+1. /mnt/data/Screenshot 2025-11-23 at 16.10.31.png
+2. /mnt/data/Screenshot 2025-11-23 at 16.10.42.png
+3. /mnt/data/Screenshot 2025-11-23 at 16.10.50.png
+4. /mnt/data/Screenshot 2025-11-23 at 16.10.57.png
+These reflect the correct layout, spacing, typography, components, UX behaviours, and visual hierarchy.
+
+YOUR OBJECTIVE:
+Completely revert the Purchaser Portal to the original design Sam created — NOT any of the yellow UI or incorrect revisions. Every screen must be rebuilt to match the Seaview-style reference.
+
+CORE RULE:
+If a component in the current code does NOT match the reference images or original design, DELETE IT and rebuild it cleanly.
+
+-----------------------------------
+### 1. RESTORE THE CHAT HOMESCREEN (MOST IMPORTANT)
+Rebuild the Chat Home exactly like the Seaview reference:
+- Remove ANY yellow/gold bubbles, icons, headers, or gradients
+- No double toolbars or top bars
+- NO giant question buttons dominating the screen
+- Layout must be:
+
+   - Centered logo  
+   - “Welcome to Longview Park” title  
+   - Subtext in smaller grey font  
+   - Four pill-style quick prompts (small, subtle pills – not massive buttons)  
+   - Chat input at the bottom with microphone icon  
+   - Tabs: Chat | Map | Notice | Docs (matching Seaview style)
+
+- Restore the real text input box.
+- Restore dictation/microphone functionality.
+- The Chat engine must answer questions correctly and use RAG documents.
+- Greeting should include property address + house type.
+
+-----------------------------------
+### 2. FIX MAPS TAB — FULL GOOGLE MAPS RESTORATION
+Replace the current broken mapping system with:
+- REAL Google Maps (JavaScript SDK)
+- Load automatically to the user’s home location (from unit.address)
+- TOP FILTER BAR identical to Seaview (horizontal scroll pills):
+   Banking, Bars, Cafés, DIY, Dog Park, Schools, EV Charging, Fuel, Shopping, Parks, Medical, etc.
+- Map markers must populate automatically based on category pressed.
+- No thumbnails, no giant buttons, no yellow UI.
+- Remove wrong addresses (currently showing “2 Longview Park” for everyone)
+- Remove OSM references entirely.
+
+-----------------------------------
+### 3. FIX DOCUMENTS TAB — REAL DOCUMENT LOGIC
+Documents must load from Supabase:
+- If document filename contains the user’s houseType (BD01, BD02, AL03 etc.) → show it.
+- If document is general (no house type tag) → show it for everyone.
+- Use clean grid layout exactly like reference screenshots.
+- Fix all errors at bottom of screen.
+- No yellow icons or oversized spacing.
+
+-----------------------------------
+### 4. FIX NOTICEBOARD TAB (IDENTICAL TO REFERENCE)
+- Replace entire screen with Seaview-style design:
+   - Clean white cards, modern shadows
+   - Category filters at top (All, Event, Lost & Found, Alert, Buy/Sell, Service, General)
+   - Floating blue + button bottom-right
+   - No top yellow header
+- Restore full post creation workflow.
+- Ensure notices reflect ONLY the user’s development.
+
+-----------------------------------
+### 5. LANGUAGE SWITCHING
+Full restoration:
+- EN dropdown top-right using flag + caret
+- When changed:
+   - All UI labels change (Chat, Map, Notices, Docs)
+   - Chat queries pass language hint to backend
+   - Maps filter pills are translated
+
+-----------------------------------
+### 6. REMOVE EVERYTHING THE SYSTEM ADDED THAT WAS NOT REQUESTED
+This includes:
+- Yellow colour scheme
+- Yellow header
+- Oversized question buttons
+- Wrong icons
+- Wrong fonts
+- Double toolbars
+- Broken address rendering
+- OSM map implementation
+- Missing chat input box
+- Missing microphone
+- Empty docs and errors
+- Any layout not matching reference images
+
+-----------------------------------
+### 7. DEPENDENCIES & FIXES
+- Ensure Google Maps SDK loads with the portal’s API key from env
+- Fix any missing imports for icons/components
+- Remove unused styles from previous attempts
+- Repair any React errors preventing docs from loading
+- Ensure unit context loads correctly from QR URL → home → chat
+
+-----------------------------------
+### 8. DELIVERABLE
+At the end you must produce:
+- Clean, restored Chat Home matching reference images
+- Working Maps with real Google Maps + filter pills
+- Working Documents with correct filtering logic
+- Working Noticeboard with modern cards
+- Working language dropdown
+- Clean bottom tab bar with no extra top bars
+
+This must look polished, premium, modern, and consistent — EXACTLY like the reference design Sam originally created, only cleaner.
+
+DO NOT TOUCH:
+- Developer Dashboard
+- Super Admin Portal
+- RAG Index
+- Training Jobs
+- Backend migrations
+- Auth logic beyond QR login flow
+
+ONLY Purchaser Portal UI/UX.
+
+Make all code changes now.

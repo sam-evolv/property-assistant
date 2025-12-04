@@ -1,0 +1,125 @@
+You are helping debug a Next.js 14 app in Replit. The preview and the “Open in new tab” URL /super both crash with this error:
+
+Unhandled Runtime Error
+TypeError: Cannot read properties of undefined (reading 'call')
+at .next/static/chunks/webpack.js
+
+This means Webpack is trying to execute undefined as a function because some module or webpack configuration is broken. The error is not in .next/static/chunks/webpack.js itself – it is caused by a misconfigured page/component or a bad next.config webpack hook.
+
+Your job is to identify the real cause, fix it once, correctly, and prove the fix by running the app and checking /super without errors.
+
+Hard constraints
+
+Do NOT change dependency versions in package.json (no upgrades/downgrades of next, react, react-dom, webpack, etc.).
+
+Do NOT change routing structure or remove pages/layouts unless absolutely required to fix a clearly broken file.
+
+Prefer minimal, targeted edits over sweeping rewrites.
+
+If you disable or comment out any code, add a short comment with the reason.
+
+Step 1 – Clean build artefacts and run a production build
+
+In the project root, run:
+
+rm -rf .next .turbo
+npm install
+npm run lint || echo "lint-failed"
+npm run build
+
+
+If npm run lint or npm run build fails, stop and surface the full error output in your reasoning and use that to locate the faulty file.
+
+Fix any build-time errors before moving on. After each fix, re-run npm run build until it succeeds.
+
+Step 2 – Find the offending file for the /super route
+
+After a successful npm run build, start the dev server:
+
+npm run dev
+
+
+Open the /super URL that currently crashes.
+
+In the Next.js error overlay / stack trace, scroll down until you see the first frame that points into the app code, not .next/static/.... It will look like one of:
+
+apps/unified-portal/app/super/page.tsx
+
+apps/unified-portal/app/super/layout.tsx
+
+a component used by /super such as components/SuperDashboard.tsx
+
+Open that file and inspect it for typical causes:
+
+A page.tsx or layout.tsx that does not export a valid React component as default.
+
+A dynamic import that references a non-existent export.
+
+A component, hook, or helper that is undefined but is being called as a function.
+
+Badly formed props or spread that would cause a module to be undefined.
+
+Fix the concrete issue you find, keeping behaviour unchanged other than removing the crash.
+
+Step 3 – Inspect and stabilise next.config.*
+
+Open next.config.js or next.config.mjs.
+
+If there is a custom webpack function, validate it:
+
+const nextConfig = {
+  webpack: (config, { isServer, dev }) => {
+    // custom changes...
+    return config; // MUST be returned
+  },
+};
+
+
+Ensure:
+
+It always returns config.
+
+It does not push undefined plugins or loaders.
+
+It does not replace config.entry, config.optimization, etc. with invalid values.
+
+If you suspect the problem is here and it is not obvious, temporarily comment out the entire custom webpack block, then:
+
+rm -rf .next .turbo
+npm run build
+npm run dev
+
+
+If /super now works, re-introduce only the minimal required customisation from that block, one change at a time, verifying that the app still runs.
+
+Do not re-add code that causes the runtime error.
+
+Step 4 – Regression checks
+
+After your fix:
+
+Ensure npm run build completes successfully.
+
+Start the dev server with npm run dev.
+
+Confirm the following routes open without any red error overlay or console runtime errors:
+
+/ (main entry)
+
+/super (super-admin portal)
+
+Confirm that hot reload continues to function.
+
+If you make any assumptions (for example, temporarily disabling a non-critical plugin or feature), explain them briefly in a comment in the relevant file.
+
+Deliverables
+
+A working application where /super loads both in preview and in the “Open” tab with no TypeError: Cannot read properties of undefined (reading 'call').
+
+A short summary in your final message listing:
+
+The root cause you found (file and code snippet).
+
+The exact change you made to fix it.
+
+Any code you commented out or removed, with justification.

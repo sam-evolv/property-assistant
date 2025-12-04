@@ -1,0 +1,89 @@
+You are working inside the Replit project "PropertyAssistant". 
+Implement Google Maps functionality using the stored secret GOOGLE_MAPS_API_KEY.
+
+---
+
+## OBJECTIVE
+Add a fully functional `/map` route that renders a live Google Map centered on Cork City and supports future dynamic POI markers.
+
+---
+
+## TASKS
+
+1. ✅ **Expose environment key**
+   - In `.env.example`, add:
+     ```
+     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+     ```
+   - In Replit Secrets, confirm GOOGLE_MAPS_API_KEY already exists (do not print it).
+   - Ensure it’s accessible client-side via `process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`.
+
+2. ✅ **Create a new file:** `app/map/page.tsx`
+   ```tsx
+   'use client';
+   import { useEffect, useRef } from 'react';
+
+   export default function MapPage() {
+     const mapRef = useRef<HTMLDivElement>(null);
+
+     useEffect(() => {
+       const initMap = () => {
+         if (!window.google || !mapRef.current) return;
+         const map = new window.google.maps.Map(mapRef.current, {
+           center: { lat: 51.8979, lng: -8.4711 }, // Cork default
+           zoom: 13,
+           styles: [
+             { elementType: 'geometry', stylers: [{ color: '#0C0D0F' }] },
+             { elementType: 'labels.text.fill', stylers: [{ color: '#EDEDED' }] },
+           ],
+           disableDefaultUI: true,
+         });
+         new window.google.maps.Marker({
+           position: { lat: 51.8979, lng: -8.4711 },
+           map,
+           title: 'Seaview Development',
+         });
+       };
+
+       const id = 'google-maps-script';
+       if (!document.getElementById(id)) {
+         const script = document.createElement('script');
+         script.id = id;
+         script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+         script.async = true;
+         script.onload = initMap;
+         document.body.appendChild(script);
+       } else initMap();
+     }, []);
+
+     return (
+       <div className="h-screen w-full bg-[#0C0D0F]">
+         <div ref={mapRef} className="h-full w-full rounded-lg shadow-lg" />
+       </div>
+     );
+   }
+✅ Add placeholder for future POI integration
+Below the marker logic, insert:
+
+tsx
+Copy code
+fetch('/api/pois')
+  .then(res => res.json())
+  .then(pois => pois.forEach(p =>
+    new google.maps.Marker({
+      position: { lat: p.lat, lng: p.lng },
+      map,
+      title: p.name,
+    })
+  ));
+(Do not throw error if /api/pois doesn’t exist yet.)
+
+✅ Verify security
+
+Restrict the Google Maps API key in Google Cloud Console to:
+
+HTTP referrers: *.replit.dev, *.repl.co
+
+APIs: Maps JavaScript + Places only.
+
+Do not log or print the key.

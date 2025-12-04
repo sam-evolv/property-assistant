@@ -1,0 +1,26 @@
+react-dom.development.js:38560 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+DevelopmentContext.tsx:44 [DevelopmentContext] Hydrating Object
+AuthContext.tsx:47 [AuthContext] Hydrating Object
+DevelopmentContext.tsx:44 [DevelopmentContext] Hydrating Object
+AuthContext.tsx:47 [AuthContext] Hydrating Object
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hot-reloader-client.js:187 [Fast Refresh] rebuilding
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+useAnalyticsV2.ts:20  GET https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30 500 (Internal Server Error)
+fetchAnalyticsV2 @ useAnalyticsV2.ts:20
+revalidateOnFocus @ useAnalyticsV2.ts:141
+eval @ index.mjs:106
+eval @ index.mjs:359
+onRevalidate @ index.mjs:519
+currentConfig.onErrorRetry.retryCount @ index.mjs:446
+useAnalyticsV2.ts:20  GET https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/api/analytics-v2/overview?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&days=30 500 (Internal Server Error)
+fetchAnalyticsV2 @ useAnalyticsV2.ts:20
+revalidateOnFocus @ useAnalyticsV2.ts:141
+eval @ index.mjs:106
+eval @ index.mjs:359
+onRevalidate @ index.mjs:519
+currentConfig.onErrorRetry.retryCount @ index.mjs:446

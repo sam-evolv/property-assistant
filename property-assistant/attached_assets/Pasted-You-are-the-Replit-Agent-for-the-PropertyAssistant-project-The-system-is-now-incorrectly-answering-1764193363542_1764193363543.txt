@@ -1,0 +1,205 @@
+You are the Replit Agent for the PropertyAssistant project. The system is now 
+incorrectly answering room-dimension questions (e.g. "what size is the downstairs 
+toilet") with fabricated values. This MUST stop.
+
+Your goal in this task is to enforce STRICT, NON-NEGOTIABLE grounding rules for 
+all answers that include numeric room dimensions (length, width, area, m², mm, etc.) 
+and wire this into the existing enhanced OCR + unit-first retrieval pipeline you 
+already built.
+
+========================================================
+PHASE 1 – CREATE A SINGLE SOURCE OF TRUTH FOR ROOM SIZES
+========================================================
+
+1. Identify where room dimension data is stored after the enhanced OCR:
+   - The existing code wrote parsed dimensions into some combination of:
+     - `extracted_features` JSON on documents
+     - any `room_dimensions` / `unit_intelligence` tables
+     - or similar structures in the DB.
+   - Open those files and confirm the exact data shape and location.
+
+2. Create (or standardise on) a **single canonical structure** for room dimensions 
+   per unit / house type, e.g.:
+
+   ```ts
+   // TypeScript type (or equivalent)
+   type RoomDimension = {
+     room_name: string;        // "Toilet", "Downstairs WC"
+     level?: string;           // "Ground Floor"
+     length_m?: number;
+     width_m?: number;
+     area_m2?: number;
+     source_document_id: string;
+     extraction_confidence: number; // 0–1
+   };
+
+   type UnitRoomDimensions = {
+     tenant_id: string;
+     development_id: string;
+     house_type_id: string;
+     unit_type_code: string;  // "BD01"
+     rooms: RoomDimension[];
+     updated_at: Date;
+   };
+Ensure that after document processing / reprocessing, all detected room size
+information for a given house type (e.g. BD01) is written into this canonical
+store (DB table or JSONB column). If that store does not exist yet, create a
+dedicated table (e.g. unit_room_dimensions) and the necessary Drizzle schema
+and migration.
+
+The canonical store MUST be:
+
+Indexed by tenant_id, development_id, house_type_id and unit_type_code.
+
+Populated during document ingestion and reprocessing for any drawings that
+contain measurable dimensions.
+
+========================================================
+PHASE 2 – DIMENSION ANSWER GUARDRAIL (NO FABRICATION)
+You must now update the chat answer logic so that any answer which includes
+room dimensions is derived ONLY from this canonical store or not given at all.
+
+Open the main chat handling file (previously updated for unit-first retrieval),
+likely packages/api/src/chat.ts.
+
+Implement a helper:
+
+ts
+Copy code
+async function getRoomDimensionForQuestion(ctx, question: string): Promise<{
+  found: boolean;
+  room?: RoomDimension;
+}> {
+  // a) Detect room intent and room name from the question:
+  //    e.g. "downstairs toilet", "living room", "kitchen / dining"
+  // b) Map that phrase to a normalised room_name ("Toilet", "WC", etc.).
+  // c) Look up the current purchaser context:
+  //    tenant_id, development_id, house_type_id, unit_type_code
+  // d) Query the canonical `unit_room_dimensions` data
+  // e) Use a simple fuzzy match against room_name and (optionally) level
+}
+Add an early room-dimension branch to the chat pipeline:
+
+Before calling the general RAG / LLM answer generation, detect if the user
+question is about room size / dimensions, e.g. if it contains:
+
+"size", "dimensions", "how big", "area", "m²", "square metres", "width", "length"
+
+plus a room name ("toilet", "WC", "living room", etc.).
+
+If it is a room-dimension question:
+
+Call getRoomDimensionForQuestion.
+
+If found === true AND extraction_confidence >= 0.75 AND at least length/width
+OR area are present:
+
+Build a grounded answer using ONLY those numeric values.
+
+If found === false OR extraction_confidence < 0.75:
+
+DO NOT invent or approximate.
+
+Return a safe, honest reply such as:
+
+"I do not have a precise numeric size for the downstairs toilet in your BD01
+house type in the current drawings. I can check with your developer if you like,
+or confirm once updated plans are available."
+
+This branch MUST never call the LLM to free-form invent numbers.
+
+Only if the question is not a room-dimension question should the normal RAG + LLM
+pipeline continue as currently implemented.
+
+========================================================
+PHASE 3 – DISALLOW NUMERIC FABRICATION FROM RAG/LLM
+To prevent the LLM from "guessing" even when the developer accidentally bypasses
+the helper, add an additional layer of protection.
+
+In the answer generation function, after the model returns a response, run a
+simple post-validator:
+
+If the original user question was about room size/dimensions, and
+
+The canonical data lookup in PHASE 2 found nothing, and
+
+The LLM answer text contains patterns like:
+
+[0-9]+(\.[0-9]+)?\s*m
+
+[0-9]+(\.[0-9]+)?\s*m²
+
+"x" or "×" between numbers, etc.,
+THEN:
+
+Discard the LLM answer.
+
+Replace it with the safe fallback message:
+
+"I don’t have exact room dimensions for that space in your current documents,
+so I can’t give you a precise size."
+
+Make this validator small, deterministic, and easy to test.
+
+========================================================
+PHASE 4 – UNIT-WIDE BEHAVIOUR (SCALABLE FOR THOUSANDS OF HOUSES)
+Ensure the canonical unit_room_dimensions entries are per house type, not
+just per single demo unit, so that:
+
+Every purchaser of a BD01 house uses the same BD01 dimension profile, etc.
+
+This scales to thousands of houses with the same type.
+
+The pipeline MUST:
+
+Rebuild or update the unit_room_dimensions entry whenever:
+
+relevant floor plan documents are added
+
+reprocessing is triggered from the developer dashboard.
+
+========================================================
+PHASE 5 – TESTS & VERIFICATION
+Create or extend automated tests (e.g. in scripts/test-pipeline.ts and any
+API test suite) to cover:
+
+A BD01 house type where toilet dimensions are present in the plan:
+
+Ask "what size is the downstairs toilet?"
+
+Expect a response that EXACTLY matches the stored numeric values.
+
+Assert no fallback text.
+
+A house type without any dimension in the floor plans:
+
+Ask "what size is the downstairs toilet?"
+
+Expect a safe fallback answer that explicitly says it does not have the
+exact numeric dimensions.
+
+Assert that no numbers with "m" or "m²" appear in the answer.
+
+Regression test:
+
+Confirm non-dimension questions (e.g. "who supplied my kitchen") still go
+through the normal RAG pipeline and behave as before.
+
+========================================================
+DELIVERABLES
+By the end of this task, the system MUST satisfy all of the following:
+
+It NEVER fabricates room dimensions.
+
+Any numeric room size reported is fully backed by the canonical room-dimension store.
+
+If no reliable data is available, the assistant clearly says it does not have
+the exact size and does not guess.
+
+The behaviour works for BD01 and is implemented generically for all present
+and future house types.
+
+All new code is committed and passes the updated test suite.
+
+yaml
+Copy code

@@ -1,0 +1,197 @@
+You are a senior full stack engineer working inside this Replit project for the OpenHouse / Longview Park assistant.
+
+Goal
+Implement a first class “Important documents” system that:
+1) Lets developers flag a small subset of uploaded documents as Important / Must read.
+2) Trains the AI on all documents. Important documents are just tagged and weighted more highly.
+3) Shows “Important” documents as a highlighted section in the homeowner Documents tab.
+4) Shows a one time Important docs consent gate to purchasers on first use (and again when the important set changes).
+5) Surfaces clear agreement status for each unit in the developer portal.
+
+You must deliver this without breaking any existing QR onboarding, chat, maps, or document upload flows.
+
+High level rules
+- All uploaded documents are always ingested into the RAG index. There is no “AI vs non AI” segmentation.
+- A boolean flag `is_important` marks the critical subset.
+- Important documents:
+  - Are visually highlighted to purchasers in a distinct section.
+  - Are used to populate the consent gate message.
+  - Receive a retrieval weighting boost in RAG.
+- Developers only need to decide which docs are Important. Nothing else about training.
+
+Stack assumptions
+Use the existing backend stack (Node / Express or similar) and ORM or migrations (likely Drizzle with Postgres). Reuse current conventions for schema, routing and front end architecture.
+
+PHASE 1 – Data model
+
+1. Update the `documents` table:
+   - Add `is_important boolean not null default false`.
+   - Add `important_rank integer null` (for ordering within the important list).
+   - Do not remove any existing columns.
+
+2. Update the RAG chunks table (whatever backs your vector index, for example `rag_chunks`):
+   - Add `is_important boolean not null default false`.
+   - When you ingest or reingest a document, every chunk created from that document must copy the parent document’s `is_important` value into `rag_chunks.is_important`.
+
+3. Versioning and agreement tracking:
+   - On `developments`:
+     - Add `important_docs_version integer not null default 1`.
+   - On `units` (or equivalent per house record):
+     - Add `important_docs_agreed_version integer not null default 0`.
+     - Add `important_docs_agreed_at timestamptz null`.
+
+4. Optional audit table for evidence:
+   - Create table `important_docs_agreements` with:
+     - id (pk)
+     - unit_id (fk)
+     - purchaser_id or user_id (fk)
+     - development_id (fk)
+     - important_docs_version integer
+     - agreed_at timestamptz
+     - ip_address text null
+     - user_agent text null
+
+Use the existing migration system to create all of the above. Do not hard code schema in code.
+
+PHASE 2 – Document upload and management (developer portal)
+
+The current Documents tab in the developer portal shows a single upload box with a “Training Jobs” list. Keep that structure, but extend it.
+
+5. Upload behaviour:
+   - Maintain the current drag and drop box and file selection buttons.
+   - Every uploaded file becomes:
+     - A row in `documents` with `is_important = false` and `important_rank = null`.
+     - A queued RAG ingestion job, exactly as it does today.
+   - There is no segmentation at upload. Everything trains the AI.
+
+6. Document list enhancements:
+   - In the “Training Jobs” or Documents list, add:
+     - A visible “Important” toggle or star icon on each document row.
+     - A small label that reads “Important” when `is_important` is true.
+
+7. Important toggle behaviour:
+   - When a developer clicks the Important toggle:
+     - Update `documents.is_important` accordingly.
+     - If they mark a document as important:
+       - Ensure the development does not exceed the configured cap (for example 10 important docs). If it would, block the change and show a clear error: “You can mark up to 10 important documents. Unmark another before adding this one.”
+       - Assign a default `important_rank` if it is currently null (for example max existing important_rank plus 1).
+   - Provide a simple way to adjust `important_rank` (for example drag and drop or up/down controls) so the developer can decide ordering in the Important list.
+
+8. Publishing important documents:
+   - Add a “Save important documents” or “Publish important set” action in the Documents tab.
+   - When this is triggered:
+     - Persist the final `is_important` and `important_rank` values.
+     - Increment `developments.important_docs_version` by 1 for that development.
+     - Trigger a background job that re-tags chunks in `rag_chunks` for that development so their `is_important` matches the document’s current flag (or, if your ingestion pipeline already resynchronises this, call into it).
+
+PHASE 3 – RAG weighting
+
+9. Retrieval scoring:
+   - In the RAG retrieval code, after you compute similarity for candidate chunks, apply a small weighting boost for important chunks.
+   - Example logic:
+     - For each chunk:
+       - `score = similarity`
+       - If `is_important` is true, apply `score = score * 1.2` or `score = score + importance_bias` where importance_bias is a small constant.
+   - Make the weighting factor a configuration constant so it can be tuned centrally.
+   - Preserve the existing maximum context size, chunk count etc.
+
+PHASE 4 – Purchaser consent gate
+
+10. Backend status endpoint:
+    - Add `GET /api/purchaser/important-docs-status` (or similar) which:
+      - Uses the authenticated purchaser to resolve:
+        - The associated `unit` and `development`.
+      - Fetches all documents for that development where `is_important = true`, ordered by `important_rank` then name.
+      - Returns JSON:
+        - `mustAgree: boolean` calculated as:
+          - `true` if there is at least one important document and `unit.important_docs_agreed_version < development.important_docs_version`.
+          - `false` otherwise.
+        - `docs: [{ id, title, file_name, important_rank }]` for the important docs.
+        - `version: number` which is `development.important_docs_version`.
+
+11. Backend agree endpoint:
+    - Add `POST /api/purchaser/important-docs-agree` which:
+      - Validates auth and resolves unit and development as above.
+      - Checks that `development.important_docs_version > unit.important_docs_agreed_version` and there is at least one important doc. If not, returns a safe 200 with no change.
+      - Sets:
+        - `unit.important_docs_agreed_version = development.important_docs_version`.
+        - `unit.important_docs_agreed_at = now()`.
+      - Inserts a row into `important_docs_agreements` with:
+        - unit_id, purchaser_id, development_id, version, timestamp, ip, user_agent.
+      - Returns success.
+
+12. Purchaser app integration:
+    - On purchaser app boot (after QR onboarding and authentication, before showing chat or maps), call `GET /api/purchaser/important-docs-status`.
+    - If `mustAgree` is true, render a full screen blocking overlay with:
+      - Existing gold home icon at the top.
+      - Title text for example: “Before you get started”.
+      - Body copy that explains:
+
+        “Your builder has marked a small number of documents as important for understanding and maintaining your home. By continuing, you agree to read these documents in the Documents tab.”
+
+      - A simple list of the important documents from `docs` (title only).
+      - A single primary button: “I agree to read these documents”.
+    - When the primary button is pressed:
+      - Call `POST /api/purchaser/important-docs-agree`.
+      - On success, close the overlay and allow the user to use the app.
+    - Do not allow navigation to chat, maps, or documents while the gate is open. The only escape path allowed is log out if you already support that.
+
+PHASE 5 – Purchaser Documents tab segregation
+
+13. Documents tab API:
+    - Ensure the existing API that powers the purchaser Documents tab returns `is_important` and `important_rank` for each document.
+
+14. UI changes:
+    - At the top of the Documents screen add filter chips:
+      - `[ All documents ] [ Important ]`
+    - Below that, render:
+      - If there are any important documents:
+        - A pinned section titled “Important documents to read” using a card that:
+          - Lists the important docs ordered by `important_rank`.
+          - Shows a subtle gold “Important” badge or pill on each row.
+      - Under that section, show the full list of documents.
+        - In the “All documents” view, important docs should still show as part of the list but can be visually grouped at the top if design allows.
+        - In the “Important” filter view, only show important docs.
+
+15. Visual design guidelines:
+    - Important docs:
+      - Slightly different background color and border (for example soft gold tone) while still matching the overall aesthetic.
+      - “Important” badge in gold with rounded pill styling.
+    - Normal docs:
+      - Neutral background and border.
+
+PHASE 6 – Developer portal visibility and reporting
+
+16. Units list:
+    - In the developer portal where you list houses or units, add a column:
+      - “Important docs agreement”.
+      - Display:
+        - If `important_docs_agreed_version >= important_docs_version`: show “Agreed” with a green indicator and the agreed date.
+        - Else: show “Not agreed” with a neutral or red indicator.
+
+17. Unit detail page:
+    - Add a section “Important documents agreement” that shows:
+      - Status: “Agreed” or “Not agreed”.
+      - `important_docs_agreed_at` (human readable date).
+      - `important_docs_agreed_version` versus `important_docs_version`.
+      - A link button “View important documents” that opens the documents view filtered to important docs.
+
+18. Optional audit page:
+    - Provide a simple admin or developer read only page that lists `important_docs_agreements` records for a given development or unit for support and legal review.
+
+Quality and safety checks
+
+19. Make sure:
+    - All new endpoints are wired into the existing authentication and authorization model.
+    - Migration scripts are idempotent and safe to run in production.
+    - The consent gate does not create an infinite loop and handles the case where there are no important docs.
+    - The RAG weighting is applied only at retrieval time and does not change how embeddings are stored.
+
+20. When you finish:
+    - List all migrations created.
+    - List all backend files and endpoints you added or modified.
+    - List all front end components you changed in:
+      - Developer portal Documents tab.
+      - Purchaser consent gate.
+      - Purchaser Documents tab.
+    - Confirm that existing upload behaviour still works and that the assistant continues to answer questions from all documents, with important ones correctly prioritised where relevant.

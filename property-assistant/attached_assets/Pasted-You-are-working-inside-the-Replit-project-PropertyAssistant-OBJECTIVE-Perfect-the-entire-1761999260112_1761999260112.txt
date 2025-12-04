@@ -1,0 +1,154 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Perfect the entire application’s UI/UX by:
+1. Enabling a fully functional, system-aware dark/light mode toggle that recolors *every* element dynamically.
+2. Correcting layout behavior so the Chat and Map pages are **completely static single-screen views** (no scrollbars, no overlap).
+3. Refining and expanding the Map filters (shops, schools, healthcare, transport, etc.) into a comprehensive, professional category system.
+4. Polishing the entire layout so every page feels like a first-party native app — fluid, balanced, and responsive.
+
+---
+
+## TASKS
+
+### 1. ✅ GLOBAL DARK/LIGHT MODE PARITY
+
+- Implement full dynamic theming using Tailwind’s dark mode.  
+  Confirm `darkMode: "class"` in `tailwind.config.ts`.
+
+- The theme toggle must:
+  - Update `<html>` class (`dark` / remove `dark`) instantly.
+  - Persist preference in `localStorage`.
+  - Default to user system setting (`prefers-color-scheme`).
+
+- All elements adapt dynamically:
+  | Element | Light Mode | Dark Mode |
+  |----------|-------------|-----------|
+  | Background | `bg-white` | `bg-neutral-950` |
+  | Text | `text-gray-900` | `text-gray-100` |
+  | Cards | `bg-gray-50` | `bg-neutral-900` |
+  | Borders | `border-gray-200` | `border-neutral-800` |
+  | Dock | `bg-white/80 backdrop-blur-xl` | `bg-neutral-950/80 backdrop-blur-xl` |
+  | Input bar | `bg-gray-50 border-gray-200` | `bg-neutral-900 border-neutral-800` |
+  | Buttons | `bg-blue-600 hover:bg-blue-700` | `bg-blue-500 hover:bg-blue-600` |
+
+- Test transitions in both modes across:
+  - Chat
+  - Map
+  - Noticeboard
+  - Documents
+
+---
+
+### 2. ✅ CHAT LAYOUT (STATIC FULL-SCREEN EXPERIENCE)
+
+- The Chat interface should mimic ChatGPT exactly:
+  - Full viewport lock:  
+    ```tsx
+    <main className="h-screen flex flex-col justify-between items-center overflow-hidden">
+    ```
+  - Top bar (logo + toggles) fixed.
+  - Message area fixed height with subtle gradient top/bottom (`overflow-y-auto` only inside chat container).
+  - Input bar fixed above bottom dock:
+    ```tsx
+    <div className="w-full max-w-2xl flex items-center bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-full shadow-sm px-4 py-3 fixed bottom-[5rem] left-1/2 -translate-x-1/2">
+    ```
+  - The white overlap issue (input under dock) must be eliminated by reserving bottom padding (`pb-[6rem]` in chat container).
+  - Remove page scroll — only internal message area scrolls.
+  - Center initial empty state perfectly:
+    ```
+    <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
+      <p>Ask anything about your home or community…</p>
+    </div>
+    ```
+
+---
+
+### 3. ✅ MAP PAGE (STATIC VIEWPORT + REFINED FILTERS)
+
+- Map must occupy the visible viewport without requiring scrollbars.
+  - Wrap map in full-height container:
+    ```tsx
+    <main className="h-screen flex flex-col items-center justify-between overflow-hidden">
+    ```
+  - Set map container:
+    ```tsx
+    <div id="map" className="w-[92%] h-[75%] rounded-2xl shadow-2xl overflow-hidden"></div>
+    ```
+  - Move category filter buttons to a responsive top bar that adapts to viewport width.
+
+- **Expand category buttons**:
+  Replace the current limited set (`All, Shops, Schools, Healthcare, Transport`) with the following:
+
+All | Shops | Schools | Healthcare | Transport | Food & Drink | Gyms & Fitness | Parks | Services | Childcare | Public Offices
+
+bash
+Copy code
+
+Use `flex-wrap` with scrollable overflow (`overflow-x-auto`) for mobile.
+
+Example:
+```tsx
+<div className="flex gap-2 overflow-x-auto px-4 py-3 w-full justify-center scrollbar-hide">
+  {["All","Shops","Schools","Healthcare","Transport","Food & Drink","Gyms & Fitness","Parks","Services","Childcare","Public Offices"].map(item => (
+    <button key={item}
+      className="px-4 py-1.5 rounded-full backdrop-blur-md bg-white/70 dark:bg-neutral-800/60 text-sm text-gray-800 dark:text-gray-100 shadow-sm hover:shadow-md transition whitespace-nowrap">
+      {item}
+    </button>
+  ))}
+</div>
+Add subtle active state (bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300).
+
+Ensure the map zooms and centers dynamically on filter selection (POI category queries update markers).
+
+4. ✅ GENERAL POLISH
+Ensure equal spacing and visual balance across all pages:
+
+Dock icons evenly distributed (justify-around).
+
+Remove any inconsistent vertical gaps.
+
+Center all content inside max-w-3xl mx-auto.
+
+Use consistent text-base + text-sm font scale system.
+
+Adjust hover/press states:
+
+All buttons and icons use transition-all duration-200.
+
+Add subtle scale on hover for touch feel (hover:scale-[1.03]).
+
+Ensure consistent z-index layering:
+Top bar (z-50), map overlays (z-40), dock (z-30), content (z-20).
+
+5. ✅ QUALITY & TESTING
+Test all pages in:
+
+Desktop view
+
+iPhone 14 viewport
+
+iPad viewport
+
+Confirm no scrollbar visible anywhere except internal message scroll in chat.
+
+Toggle between light/dark mode — ensure background, cards, icons, map overlays all adapt.
+
+Check map category responsiveness.
+
+Confirm no overlap between chatbox and dock at any resolution.
+
+6. ✅ COMMIT MESSAGE
+pgsql
+Copy code
+feat(ui): enable full dark/light theme parity, lock chat and map to static single-screen layout, expand map filters, and refine spacing for native app polish
+ACCEPTANCE CRITERIA
+✅ Dark/light mode fully functional and smooth across every UI element.
+
+✅ Chat interface mirrors ChatGPT: one fixed viewport, no scrolling, input correctly positioned.
+
+✅ Map page matches the same principle: no scrolling, fixed to screen, all category buttons responsive.
+
+✅ UI feels fluid, responsive, and premium under all conditions.

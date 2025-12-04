@@ -1,0 +1,208 @@
+Agent, your task is to implement Phase 8, which establishes the full SaaS-style admin hierarchy:
+
+Super-Admin Dashboard (Sam / EvolvAI)
+
+Developer Dashboard (one per developer)
+
+Development Management (multiple estates per developer)
+
+This must be implemented with full multi-tenant isolation, built on top of the existing tenant structure and current RAG framework.
+
+Proceed methodically.
+
+✔︎ OBJECTIVES FOR PHASE 8
+A. Create Super-Admin Role (Sam / EvolvAI)
+
+Implement a new role called "super_admin" with the following capabilities:
+
+View ALL developers
+
+Create new developers
+
+Edit/delete developers
+
+View all developments across all developers
+
+Create/delete developments for ANY developer
+
+View global analytics
+
+View aggregated cross-development questions
+
+Override system prompts and RAG instructions globally
+
+Files to update:
+
+packages/db/schema.ts → add "super_admin" role
+
+Update Supabase policies to allow super-admin access to all rows
+
+packages/api/src/auth/getTenantContext.ts → recognize super_admin
+
+B. Create Developer Dashboard
+
+Inside apps/developer-portal, implement:
+
+Developer can:
+
+See all developments they own
+
+Create/delete developments
+
+Upload documents to each development
+
+Edit instructions for the development AI
+
+View analytics (chat logs, FAQs, common issues)
+
+Manage POI maps
+
+Manage notice board posts
+
+View list of homeowners for each development
+
+FEATURE: Developer-level isolation
+A developer ONLY sees:
+
+Their own developments
+
+Their own documents
+
+Their own chats
+
+Their own homeowners
+
+Files:
+
+apps/developer-portal/app/(dashboard)/developments/page.tsx
+
+apps/developer-portal/app/api/developments/*
+
+packages/api/src/developments/*
+
+Extend current development creation API
+
+C. Build Super-Admin Dashboard UX
+
+Inside apps/developer-portal create a new section:
+
+/admin
+
+Views:
+
+Developers Overview
+
+List all developers
+
+Create developer
+
+Delete developer
+
+Reset developer password
+
+Global Developments List
+
+See ALL developments across all developers
+
+Jump into any one
+
+Global AI Settings
+
+Global RAG prompt template
+
+Global model settings
+
+Global analytics
+
+Global Chat Analytics
+
+Top issues across all developments
+
+Most common question categories
+
+Heatmap of query volume by development
+
+D. Rewire Development Creation
+
+ALL development creation MUST move to:
+
+Super-admin (Sam)
+
+Developer dashboard
+
+Remove the temporary /dev/seed and /tenant/developments/new patterns.
+
+Update:
+
+/api/developments/create
+
+/api/developers/create
+
+Ensure:
+
+Ownership = developer_id
+
+Tenant = developer’s tenant
+
+Development belongs to the correct tenant
+
+E. Homeowner Onboarding Placeholder
+
+Add placeholder tables + API:
+
+homeowners table:
+
+id
+
+name
+
+email
+
+house_type
+
+address
+
+unique_qr_token
+
+development_id
+
+created_at
+
+No frontend needed yet.
+Just ensure the data structure and create endpoints.
+
+F. Security Hardening
+
+Ensure:
+
+Super-admin: unrestricted
+
+Developer: sees only THEIR data
+
+Homeowner: no access to admin portal
+
+Tenant isolation still enforced at RAG level
+
+Update Supabase policies as needed.
+
+G. Deliverables
+
+Agent must produce:
+
+✔ All new schema changes
+✔ All new API routes
+✔ Updated developer portal UI tabs
+✔ A working Super-Admin dashboard layout with placeholder pages
+✔ Updated development creation interface
+✔ Proper role-based access handling
+✔ Supabase row-level security updates
+✔ Full integration and zero TypeScript errors
+
+AFTER PHASE 8 SUCCESSFULLY COMPLETES:
+
+We will move to:
+
+Phase 9 — Homeowner QR Onboarding System (Magic QR)
+Phase 10 — Integrating POI Maps
+Phase 11 — Production Deployment (Cloudflare + Supabase + GitHub)
+AGENT: BEGIN PHASE 8 NOW

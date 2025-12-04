@@ -1,0 +1,81 @@
+I need you to completely fix the entire AI training pipeline.
+
+Requirements:
+
+1. Ensure the following API routes exist and work end to end:
+   - POST /api/train
+   - GET /api/train/jobs
+   - GET /api/train/stats
+   - GET /api/train/:id (optional)
+
+2. Fix the core issue causing "No valid files to process":
+   - The backend is not reading or processing uploaded files correctly.
+   - FormData is correctly sent from the frontend, but the backend route 
+     is failing early before processing PDFs.
+   - Ensure the backend correctly parses FormData using 
+     `request.formData()` or the appropriate server-side parser.
+
+3. Implement full training pipeline logic:
+   - Accept multiple uploaded files via FormData (PDFs only).
+   - For each PDF:
+       * Validate file type and size
+       * Convert PDF → text
+       * Chunk text into 500–1500 token chunks
+       * Generate embeddings for each chunk 
+         using OpenAI (gpt-4.1-mini-embed or similar)
+       * Insert into Supabase table `doc_chunks` with:
+            id, tenant_id, document_id, chunk_index,
+            content, embedding (vector), created_at
+   - Create a new row in `training_jobs`:
+            id, tenant_id, status, file_count, 
+            processed_chunks, total_chunks, 
+            started_at, updated_at, error_message
+   - Update progress as each file is processed.
+   - Set job status to "completed" when finished.
+   - Insert row(s) into `documents` table for each uploaded file.
+
+4. Fix tenant isolation:
+   - Every operation must use `tenantId` passed in FormData.
+   - Ensure all database inserts use tenant_id correctly.
+
+5. Implement proper error handling:
+   - If a PDF is unreadable, mark job as failed and return error details.
+   - If OpenAI embedding fails, retry 2 times before failing.
+
+6. Add clear response payloads:
+   - POST /api/train returns:
+         { success: true, jobId }
+   - /api/train/jobs returns list of past jobs for that tenant.
+   - /api/train/stats returns:
+         { totalChunks, totalDocuments, lastTrainingJob }
+
+7. Ensure Supabase code uses the correct environment variable:
+   - SUPABASE_DB_URL for Drizzle & migrations
+   - NEXT_PUBLIC_SUPABASE_URL + ANON_KEY for client-side fetches
+   - SUPABASE_SERVICE_ROLE_KEY for server-side operations
+
+8. Make the following fixes to file handling:
+   - Do not wrap file in JSON
+   - Make sure backend extracts: 
+         const data = await req.formData();
+         const files = data.getAll("files");
+   - Support multiple files called "files"
+
+9. After all fixes:
+   - Test training with 2 PDFs (small and large)
+   - Confirm chunk creation in Supabase table `doc_chunks`
+   - Confirm entries appear in `training_jobs`
+   - Confirm embeddings column has vector data.
+
+10. Do not change the frontend UI except:
+   - Ensure it sends files[] and tenantId properly. 
+   - Show errors returned from /api/train.
+
+Deliverables:
+- Fully working training system
+- Clean, readable code
+- No placeholder logic
+- Real embeddings stored in Supabase
+- Job tracking that doesn't break
+- Multi-file upload support
+- No more 400/404/500 errors

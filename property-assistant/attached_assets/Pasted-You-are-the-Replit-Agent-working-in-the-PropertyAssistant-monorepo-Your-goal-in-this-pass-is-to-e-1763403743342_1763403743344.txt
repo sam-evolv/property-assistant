@@ -1,0 +1,192 @@
+You are the Replit Agent working in the PropertyAssistant monorepo.  
+Your goal in this pass is to ensure that TONIGHT the system is capable of:
+
+1. Uploading development documents  
+2. Importing houses in bulk from an Excel/CSV file  
+3. Generating QR codes per house  
+4. Resolving the QR code into a house context (house_id, house_type, purchaser_name, etc.)  
+5. Booting the Tenant Assistant personalised for that house  
+6. Answering simple factual questions about:
+   - The house (type, rooms, metadata)
+   - The uploaded development documents (FAQs, manuals, etc.)
+7. Running fully end-to-end with NO errors.
+
+You MUST perform real code changes and show diffs.  
+Do not plan. Do not summarise. FIX the system.
+
+────────────────────────────────────────
+SECTION 1 — FIX DOCUMENT UPLOAD → TRAIN → EMBEDDINGS
+────────────────────────────────────────
+
+GOAL: When Sam uploads PDFs for Longview Park, THEY MUST:
+- Successfully upload  
+- Parse correctly  
+- Chunk correctly  
+- Produce embeddings  
+- Be queryable in chat  
+
+A. Fix the Developer Portal upload form  
+- Ensure FormData includes: file + developmentId  
+- POST to `/api/train`
+
+B. Fix the backend `/api/train` route  
+- Correctly read multipart/form-data  
+- Save document row  
+- Parse PDF using dynamic import of pdf-parse  
+- Extract text reliably  
+- Chunk text (size ~800–1200 chars)  
+- Generate embeddings using OpenAI text-embedding-3-large  
+- Insert into document_chunks table with fields:
+    - development_id  
+    - document_id  
+    - content  
+    - embedding  
+
+C. Add logging  
+Log:
+- bytes received  
+- text extracted length  
+- number of chunks  
+- embedding success  
+
+The training job MUST complete without error.
+
+────────────────────────────────────────
+SECTION 2 — BULK HOUSE IMPORT (EXCEL/CSV)
+────────────────────────────────────────
+
+GOAL: Allow Sam to import 75-house dataset from Excel tonight.
+
+A. Add a backend route: `/api/houses/import`
+- Accept CSV or XLSX  
+- Parse rows  
+- Insert into `houses` table with:
+    - house_id (auto)
+    - development_id
+    - purchaser_name
+    - address
+    - house_type
+    - bedrooms
+    - area_sqm (optional)
+    - MRPN
+    - electricity_account
+    - ESB_Eirgrid_number
+    - unique_code (lv-park-001 etc.)
+    - metadata JSON (extra fields)
+
+B. Add a Developer Portal page:  
+`/developments/[id]/houses/import`
+- Upload CSV  
+- Preview table  
+- Confirm import  
+- Show count of imported houses  
+
+C. After import:  
+- Confirm houses appear in `/developments/[id]/houses` list  
+- Ensure each house row includes the `unique_code`
+
+────────────────────────────────────────
+SECTION 3 — QR CODE GENERATION PER HOUSE
+────────────────────────────────────────
+
+GOAL: Generate a QR code that opens the Tenant Portal EXACTLY into that house context.
+
+A. Add QR generation button on each house row  
+- Generates QR image  
+- Encodes URL:
+  `${TENANT_PORTAL_BASE_URL}/${developmentId}/house/${house.unique_code}`
+
+B. Store unique_code → house_id mapping in the DB  
+- Add route: `/api/houses/resolve?code=lv-park-001`  
+- Returns: { house_id, development_id, purchaser_name, house_type, metadata }
+
+C. Tenant Portal entrypoint:  
+- At `[developmentId]/house/[unique_code]`, call resolve route  
+- Load:
+  - purchaser_name  
+  - house_type  
+  - bedrooms  
+  - all house metadata  
+  - system instructions  
+  - development documents  
+
+────────────────────────────────────────
+SECTION 4 — TENANT ASSISTANT PERSONALISATION
+────────────────────────────────────────
+
+GOAL: When Sam scans the QR code on his phone, the assistant should say:
+
+“Good evening Sam, welcome to Longview Park. How can I help with your home at 1 Longview Park?”
+
+Implement:
+
+A. In Tenant Portal initialisation:
+- After resolving house:
+  - Save purchaser_name to state  
+  - Save house_type  
+  - Save house metadata  
+
+B. Personalised system instructions must include:
+- Purchaser name  
+- House type  
+- Basic metadata  
+
+C. Chat intro should use purchaser name.
+
+────────────────────────────────────────
+SECTION 5 — MAKE CHAT RAG USE HOUSE + DEVELOPMENT CONTEXT
+────────────────────────────────────────
+
+GOAL: The assistant should correctly answer:
+- “What house type am I?”  
+- “How many bedrooms do I have?”  
+- “What is my MRPN?”  
+- And also answer from PDFs (FAQs, manuals, etc.)
+
+Modify `/api/chat` route:
+
+1. Accept houseId and developmentId  
+2. Fetch house metadata  
+3. Fetch top document chunks from development documents  
+4. Build prompt with:
+   - System instructions  
+   - House metadata  
+   - Top chunks  
+   - Last few messages  
+
+5. Use GPT-4.1-mini for speed  
+6. Return { answer, citations }
+
+────────────────────────────────────────
+SECTION 6 — VALIDATION TEST SUITE (REQUIRED TONIGHT)
+────────────────────────────────────────
+
+Before completing this prompt, you MUST confirm all of the following works:
+
+1. Developer Portal loads Longview Park  
+2. I can upload PDFs without any failures  
+3. Training completes  
+4. Document chunks appear in DB  
+5. I can import a 75-row CSV  
+6. Houses appear with unique codes  
+7. I can generate a QR code per house  
+8. Scanning that QR on mobile loads correct personalised screen  
+9. Chat can answer:
+   - “What house type is mine?”  
+   - “How many bedrooms does my house have?”  
+   - “What is my MRPN?”  
+   - FAQ answers pulled from uploaded PDF  
+10. No crashes, no 500s, no undefined errors.
+
+────────────────────────────────────────
+SECTION 7 — DELIVERABLES
+────────────────────────────────────────
+
+At the end of this prompt you must output:
+
+- Full list of files modified  
+- Full diffs for those files  
+- Confirmation that the test sequence will work tonight  
+- Instructions for Sam (simple): upload docs → import houses → generate QR → scan → chat.
+
+Execute everything now.

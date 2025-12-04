@@ -1,0 +1,69 @@
+I need you to fully fix both the Drizzle configuration and the AI training pipeline.
+
+STEP 1 — FIX DRIZZLE CONFIG
+
+1. Open packages/db/drizzle.config.ts and correct the schema path.
+   The correct schema file is located at:
+        packages/api/src/db/schema.ts
+
+2. Update drizzle.config.ts so that:
+   - schema: "packages/api/src/db/schema.ts"
+   - out: "packages/db/migrations"
+
+3. Ensure the config loads correctly and remove any incorrect glob patterns such as “./**/*.ts” or “./schema.ts”.
+
+4. After the config is fixed, run:
+       npx drizzle-kit generate --config=packages/db/drizzle.config.ts
+   Then run:
+       npx drizzle-kit push --config=packages/db/drizzle.config.ts
+
+5. Confirm that migrations run without errors and that Drizzle reports the schema is up to date.
+
+STEP 2 — FIX AI TRAINING PIPELINE
+
+Repair the following API routes:
+
+   POST /api/train
+   GET  /api/train/jobs
+   GET  /api/train/stats
+
+Make sure POST /api/train works end-to-end:
+
+1. Accept multiple PDF files from FormData:
+     const data = await request.formData();
+     const files = data.getAll("files");
+     const tenantId = data.get("tenantId");
+
+2. Validate file types and sizes.
+
+3. Process each PDF:
+   - Extract text (using pdf-parse or existing utility)
+   - Split into 500–1500 token chunks
+   - Create embeddings using OpenAI
+   - Insert each chunk into Supabase table "doc_chunks" with:
+         id, tenant_id, document_id, content, embedding, chunk_index, created_at
+
+4. Insert a row into "documents" for each uploaded file.
+
+5. Create a "training_jobs" row to track progress:
+        id, tenant_id, status, total_chunks, processed_chunks, file_count
+
+6. Update job status to "completed" when done.  
+   Handle errors gracefully and write the error to the job row.
+
+7. Implement GET /api/train/jobs to return all training jobs for the tenant, ordered by most recent.
+8. Implement GET /api/train/stats to return:
+        totalChunks, totalDocuments, lastTrainingJob
+
+STEP 3 — CONFIRM EVERYTHING WORKS
+
+1. Test training with the two small PDFs in attached_assets/test_pdfs.
+2. Verify:
+   - doc_chunks has records
+   - documents has rows
+   - training_jobs shows the completed job
+3. Fix any further issues encountered.
+
+Do not modify the frontend except to ensure it sends files[] and tenantId correctly.
+
+Make all code changes required across the backend until the entire flow works reliably.

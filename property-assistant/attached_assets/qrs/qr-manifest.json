@@ -1,0 +1,194 @@
+{
+  "generated_at": "2025-11-15T16:30:04.628Z",
+  "development": {
+    "id": "34b5c910-91f9-458c-a9c5-6c4c04ea8bda",
+    "name": "Longview Park",
+    "tenant": "OpenHouse AI Platform"
+  },
+  "base_url": "https://app.openhouseai.ie",
+  "environment": "development",
+  "total_houses": 20,
+  "qr_codes_generated": 20,
+  "houses": [
+    {
+      "house_id": "a63821ac-bb87-48dd-8d42-6028e399b744",
+      "house_number": "1",
+      "qr_uid": "22601f91-798a-43bf-a526-84c6854f3d8e",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/22601f91-798a-43bf-a526-84c6854f3d8e",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_a63821ac-bb87-48dd-8d42-6028e399b744.png",
+      "house_type": "A",
+      "address": "1 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "02939d84-2f8e-4591-9172-9070cd14138e",
+      "house_number": "2",
+      "qr_uid": "aca1ff1c-7ace-44ff-94cd-ab2ff273b16e",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/aca1ff1c-7ace-44ff-94cd-ab2ff273b16e",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_02939d84-2f8e-4591-9172-9070cd14138e.png",
+      "house_type": "A",
+      "address": "2 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "568cbd56-24f8-49bb-8c19-7413ec738525",
+      "house_number": "3",
+      "qr_uid": "4e1a0ffa-5ef3-4ec2-93c6-67242818a6b8",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/4e1a0ffa-5ef3-4ec2-93c6-67242818a6b8",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_568cbd56-24f8-49bb-8c19-7413ec738525.png",
+      "house_type": "B",
+      "address": "3 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "41107104-c76d-4abe-907c-429bb7aa823f",
+      "house_number": "4",
+      "qr_uid": "b1bc749c-1e4c-42a5-81f8-d3b55327edcf",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/b1bc749c-1e4c-42a5-81f8-d3b55327edcf",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_41107104-c76d-4abe-907c-429bb7aa823f.png",
+      "house_type": "B",
+      "address": "4 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "0ba5fa63-64b7-4f3e-87df-571e563125fd",
+      "house_number": "5",
+      "qr_uid": "3424970f-b5d4-4317-97a4-9aff87c2bcbb",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/3424970f-b5d4-4317-97a4-9aff87c2bcbb",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_0ba5fa63-64b7-4f3e-87df-571e563125fd.png",
+      "house_type": "A",
+      "address": "5 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "ab901f71-11a4-46d4-a335-052162d04ea5",
+      "house_number": "6",
+      "qr_uid": "3296c13d-df6c-4dad-92b2-c5a504009336",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/3296c13d-df6c-4dad-92b2-c5a504009336",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_ab901f71-11a4-46d4-a335-052162d04ea5.png",
+      "house_type": "C",
+      "address": "6 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "1a714ceb-86bf-4938-bd8d-0f51b963a790",
+      "house_number": "7",
+      "qr_uid": "1ff04e55-8baa-44f9-86cd-8baae10506c8",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/1ff04e55-8baa-44f9-86cd-8baae10506c8",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_1a714ceb-86bf-4938-bd8d-0f51b963a790.png",
+      "house_type": "B",
+      "address": "7 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "8d0c7e4d-1e6f-4700-a2b8-71f075bd876c",
+      "house_number": "8",
+      "qr_uid": "34a25621-d143-4856-a60f-99c8ca1db857",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/34a25621-d143-4856-a60f-99c8ca1db857",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_8d0c7e4d-1e6f-4700-a2b8-71f075bd876c.png",
+      "house_type": "B",
+      "address": "8 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "915734da-bd7b-4929-b42a-f6862fd93837",
+      "house_number": "9",
+      "qr_uid": "8e811a92-f97e-4381-a235-05fa7a88dc27",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/8e811a92-f97e-4381-a235-05fa7a88dc27",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_915734da-bd7b-4929-b42a-f6862fd93837.png",
+      "house_type": "C",
+      "address": "9 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "32cefcad-acaa-480e-add4-6a3e5415ba6d",
+      "house_number": "10",
+      "qr_uid": "954b5932-02aa-47e1-b83c-adc660ab16cd",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/954b5932-02aa-47e1-b83c-adc660ab16cd",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_32cefcad-acaa-480e-add4-6a3e5415ba6d.png",
+      "house_type": "C",
+      "address": "10 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "8df412d4-d5d1-45ea-a19d-b7ec2cf0360e",
+      "house_number": "11",
+      "qr_uid": "d3472aff-ca24-4886-99ff-f164d4aa3b1b",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/d3472aff-ca24-4886-99ff-f164d4aa3b1b",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_8df412d4-d5d1-45ea-a19d-b7ec2cf0360e.png",
+      "house_type": "D",
+      "address": "11 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "78140de4-b796-4f3f-95f3-8afcce2b8828",
+      "house_number": "12",
+      "qr_uid": "e2ad49cf-b14e-42f3-a361-3582c651185f",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/e2ad49cf-b14e-42f3-a361-3582c651185f",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_78140de4-b796-4f3f-95f3-8afcce2b8828.png",
+      "house_type": "A",
+      "address": "12 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "46908249-b9e8-4ed6-8ce0-99665ebadf03",
+      "house_number": "13",
+      "qr_uid": "25a1d2e6-8f4b-4f09-b828-2784eec660d9",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/25a1d2e6-8f4b-4f09-b828-2784eec660d9",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_46908249-b9e8-4ed6-8ce0-99665ebadf03.png",
+      "house_type": "C",
+      "address": "13 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "86f07274-52e6-464a-a08b-629440bb2832",
+      "house_number": "14",
+      "qr_uid": "f137c7b4-9689-4faf-bcf1-bc3f7d2b03c4",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/f137c7b4-9689-4faf-bcf1-bc3f7d2b03c4",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_86f07274-52e6-464a-a08b-629440bb2832.png",
+      "house_type": "D",
+      "address": "14 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "71e51c9d-b25e-4499-92c7-82f17f97b458",
+      "house_number": "15",
+      "qr_uid": "0fcac271-7acd-4e76-b171-92819b5391de",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/0fcac271-7acd-4e76-b171-92819b5391de",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_71e51c9d-b25e-4499-92c7-82f17f97b458.png",
+      "house_type": "B",
+      "address": "15 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "17414623-a58c-4b9d-908f-463f0a85e701",
+      "house_number": "16",
+      "qr_uid": "312b41dd-8b6d-4a19-83e9-b65f581dca9b",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/312b41dd-8b6d-4a19-83e9-b65f581dca9b",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_17414623-a58c-4b9d-908f-463f0a85e701.png",
+      "house_type": "B",
+      "address": "16 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "5c02133a-f232-4b68-8630-661f235393f7",
+      "house_number": "17",
+      "qr_uid": "d8d9b928-9694-4ee5-b6b6-173a2af031e0",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/d8d9b928-9694-4ee5-b6b6-173a2af031e0",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_5c02133a-f232-4b68-8630-661f235393f7.png",
+      "house_type": "D",
+      "address": "17 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "0f724a24-8c97-4e73-a7f7-bb297f708a5c",
+      "house_number": "18",
+      "qr_uid": "76b59360-e432-495e-a63a-e3f12ae02ef1",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/76b59360-e432-495e-a63a-e3f12ae02ef1",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_0f724a24-8c97-4e73-a7f7-bb297f708a5c.png",
+      "house_type": "D",
+      "address": "18 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "678449d7-bfa6-496c-a3f2-45cfec77c94a",
+      "house_number": "19",
+      "qr_uid": "b75409e7-88ed-4d30-9cc7-6dbca978cb34",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/b75409e7-88ed-4d30-9cc7-6dbca978cb34",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_678449d7-bfa6-496c-a3f2-45cfec77c94a.png",
+      "house_type": "D",
+      "address": "19 Longview Park, Drogheda, Co. Louth"
+    },
+    {
+      "house_id": "9b8fe863-0061-44dc-947d-734db3cc9af7",
+      "house_number": "20",
+      "qr_uid": "f2fa863c-b4e2-4a06-b4e8-1804e0b45c95",
+      "onboarding_url": "https://app.openhouseai.ie/onboarding/f2fa863c-b4e2-4a06-b4e8-1804e0b45c95",
+      "file_path": "/home/runner/workspace/attached_assets/qrs/house_9b8fe863-0061-44dc-947d-734db3cc9af7.png",
+      "house_type": "A",
+      "address": "20 Longview Park, Drogheda, Co. Louth"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+You are to execute Phases 6.6, 6.7, and 6.8 in a single, atomic upgrade.
+Your objective is to finalise the Enterprise Analytics System, ensure perfect stability, and deliver real analytics for all developments, starting with Longview Park.
+
+This phase must achieve the following deliverables with ZERO regressions:
+
+PHASE 6.6 — Endpoint Hardening & Data Validation Layer
+Mandatory Tasks
+
+Audit all analytics API routes under:
+
+/api/admin/platform/analytics
+
+/api/admin/developments/[id]/analytics
+
+/packages/analytics-engine/src/*
+
+Implement a data validation layer using Zod or a lightweight schema inside:
+
+request params
+
+incoming query filters
+
+outgoing responses
+
+Add strict null-handling for all metrics:
+
+If a development has zero messages, zero docs, etc → return clean structured zeros
+
+If timestamps missing → auto-fallback to created_at
+
+Ensure no endpoint ever throws. Replace crashes with:
+
+return NextResponse.json({ error: "...", safeFallback: true }, { status: 200 });
+
+
+Confirm all queries run against the correct tenant:
+
+Analytics Engine must always filter by development_id
+
+No cross-tenant leakage
+
+PHASE 6.7 — Real Data Integration & Cross-Panel Sync
+Mandatory Tasks
+
+Connect the newly hardened endpoints to:
+
+Developer Portal Analytics
+
+Enterprise Admin Analytics
+
+Development-Level Analytics (Longview Park)
+
+Ensure all panels pull real, live data:
+
+Total houses
+
+Total documents
+
+Total chat messages (30d + all-time)
+
+Message volume timeline
+
+Document distribution
+
+House type distribution
+
+RAG hit-rate
+
+Token costs
+
+AI usage breakdown
+
+Top questions
+
+Top units by message volume
+
+Remove all placeholder/mock data from:
+
+Components under /components/analytics/*
+
+Any dummy arrays inside charts/cards
+
+Stub endpoints created earlier to unblock rendering
+
+Rewire the Enterprise Admin dashboard to show:
+
+Longview Park
+
+Any future developments automatically
+
+Ensure the following route loads perfectly with real data:
+/developments/[id]/analytics
+
+PHASE 6.8 — End-to-End Reliability, Caching, and Performance Polish
+Mandatory Tasks
+
+Add server-side caching (simple in-memory Map is fine for now):
+
+Cache each analytics payload for 60 seconds
+
+Auto-bust cache when documents/houses/messages change
+
+Add client-side SWR caching for all analytics pages:
+
+Prevents flashing
+
+Faster perceived performance
+
+Add loading skeletons for:
+
+Charts
+
+Insights
+
+Cards
+
+Tables
+
+Optimize chart rendering:
+
+Disable animations for large datasets
+
+Memoize Recharts components
+
+Compress timeline arrays
+
+Add a global analytics error boundary:
+
+No component at any layer should throw visibly
+
+Replace with a soft “Analytics temporarily unavailable”
+
+Ensure ALL analytics pages load cleanly in:
+
+Developer dashboard
+
+Enterprise dashboard
+
+Development detail (Longview Park)
+
+Preview mode
+
+Final verification:
+
+Longview Park analytics must return non-zero metrics
+
+Charts must display the existing 26 messages, 163 documents, 12 house types, etc.
+
+No 404
+
+No 500
+
+No hydration errors
+
+No missing imports
+
+SUCCESS CRITERIA
+
+The phase is complete when:
+
+Longview Park analytics dashboard displays fully with all charts and metrics populated.
+
+Enterprise Admin dashboard shows platform-wide analytics with no errors.
+
+Developer dashboard /analytics loads with real data.
+
+All analytics accesses use:
+
+correct tenant
+
+validated schema
+
+hardened endpoints
+
+stable caching
+
+No page returns 404.
+
+No broken imports or missing modules.
+
+The entire system stays stable on refresh.
+
+DO NOT CONTINUE TO PHASE 7 UNTIL ALL CRITERIA ARE MET.

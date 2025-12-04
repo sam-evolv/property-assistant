@@ -1,0 +1,292 @@
+This is the only source of truth for the Planner. Follow it literally and completely.
+Do NOT invent new design decisions. Do NOT deviate from the specifications.
+All work must restore the portal to the exact design shown in Sam’s screenshots AND improve quality.
+
+📌 PRIMARY OBJECTIVE
+
+Restore and rebuild the entire Purchaser Portal UX/UI so that it matches the design and structure of the 4 high-quality reference screenshots (MVP screenshots), but using OpenHouse AI's white-gold-black theme instead of blue.
+
+The Purchaser Portal was previously correct but has been corrupted by recent changes.
+Your job is to reset the entire Purchaser Portal ONLY (chat, maps, noticeboard, documents) back to Sam’s original design shown in the 8 screenshots, then upgrade it with the new quality requirements.
+
+No changes should be made to:
+
+Super Admin Portal
+
+Developer Portal
+
+Database schema
+
+Authentication / impersonation logic
+
+Only the Purchaser Portal UI, UX, and data wiring must be rebuilt.
+
+🟡 GLOBAL NON-NEGOTIABLE RULES
+1. Theme
+
+Use the OpenHouse AI brand:
+
+White background
+
+Gold primary accents (#D4A017 type shade)
+
+Clean black typography
+
+Light-gray subtle dividers
+
+Premium UI similar to ChatGPT/Gemini
+
+Remove ALL blue styling.
+Remove ALL blue buttons.
+Remove ALL blue icons.
+
+2. Mobile-First Layout
+
+The design must fit entirely on an iPhone screen without scrolling on first load:
+
+Logo
+
+Welcome text
+
+Four suggestion pills
+
+Input bar
+must be visible without scrolling.
+
+3. Top Bar
+
+The top bar must contain ONLY:
+
+Top-left: Small development logo (uploaded by developer)
+
+Top-right: Language selector + dark/light mode toggle
+
+Remove:
+
+Address bars
+
+Unit metadata bars
+
+Breadcrumbs
+
+Counters
+
+Headers like “Longview Park”
+
+Any unnecessary chrome
+
+🧩 MODULE-BY-MODULE SPECIFICATION
+
+Follow these literally.
+
+SECTION 1 — CHAT TAB
+1.1 Restore exact MVP layout (per screenshots)
+
+Must include:
+
+Center circular developer logo
+
+Bold headline:
+“Ask anything about your home or community”
+
+Subtext (smaller, cleaner, darker text)
+
+Four small suggestion pills
+(These must be smaller and higher quality than current ones.)
+
+1.2 Input bar
+
+Compact height
+
+Clear black placeholder text (no faint gray)
+
+Microphone button must work
+
+Ask button aligned and compact
+
+1.3 No scrolling needed on first load
+
+Everything must fit on screen.
+
+1.4 Chat messages
+
+When chatting:
+
+Use white/gold/black
+
+No blue bubbles
+
+No variations in theme
+
+Must look premium and consistent
+
+1.5 Logo upload
+
+Developer portal must allow the developer to upload a logo.
+This logo must appear:
+
+In the top-left corner
+
+In the center of the chat home screen
+
+SECTION 2 — MAP TAB
+2.1 Remove incorrect top bar
+
+Remove:
+
+Address bar
+
+Unit info
+
+Google/Apple Maps buttons
+
+2.2 Map
+
+Restore Google Maps API
+
+Center the map on the development’s actual latitude/longitude
+
+Fix API key usage
+
+Ensure map always loads correctly
+
+2.3 Filter bar
+
+Restore the MVP filter bar design:
+
+Horizontal scroll pill filters
+
+Small icons
+
+Categories:
+Banking, Bars, Cafés, DIY, Dog Parks, Schools, EV Charging, Fuel, Groceries, Restaurants, Gyms, etc.
+
+Use gold/gray styling
+
+Clicking a filter updates map markers
+
+SECTION 3 — NOTICEBOARD TAB
+3.1 Remove incorrect title bar
+
+Replace entire top header with:
+
+Top-left logo
+
+Top-right language toggle + dark/light mode
+
+3.2 Proper name
+
+Rename to:
+“Community Noticeboard”
+
+3.3 Restore MVP layout
+
+Category filters (All, Event, Alert, Lost & Found, etc.)
+
+Card layout exactly like the reference images
+
+Gold/gray/black theme
+
+“Create Post” floating button centered at bottom
+
+No counters
+
+No blue
+
+SECTION 4 — DOCUMENTS TAB
+4.1 Fix document fetching
+
+The current implementation is broken.
+Implement the correct logic:
+
+Document logic rules (critical):
+
+All documents WITHOUT a unit-type tag are global documents → appear for every house.
+
+Any document whose filename or metadata contains a house type (BD01, BD02, BS01, BS02, AT01, etc.):
+
+Only show these to units with the same house type.
+
+4.2 Restore MVP grid layout
+
+Category grid
+
+Small icons
+
+Document counts
+
+Gold/white/black theme
+
+Search bar
+
+Pill filters
+
+4.3 Remove address bar
+
+Do NOT show the user their address. They know it.
+
+SECTION 5 — FUNCTIONAL FIXES
+5.1 Microphone must work
+5.2 Language switching must work
+5.3 Dark/light mode must work
+5.4 All icons must be correct resolution
+5.5 All four main tabs must share the same top bar design
+5.6 No errors at console or UI
+SECTION 6 — DO NOT TOUCH
+
+The Planner must not modify:
+
+Admin dashboard
+
+Developer dashboard
+
+Impersonation logic
+
+Backend authentication
+
+Database schema
+
+RAG embeddings
+
+Supabase tables
+
+OpenAI logic
+
+Routing for super admin
+
+Only the Purchaser Portal UX/UI and data wiring.
+
+SECTION 7 — OUTPUT FORMAT FOR PLANNER
+
+Respond with:
+
+A complete list of required code changes
+
+Files to modify
+
+Components to rebuild
+
+Ensure the plan is modular, sequential, and safe
+
+No dependencies on previous broken code
+
+Ensure backward compatibility with existing APIs
+
+Prioritise UI rebuild → then data wiring → then functional fixes
+
+SECTION 8 — QUALITY BAR
+
+Design must feel like ChatGPT/Gemini quality:
+
+Smooth spacing
+
+Perfect typography
+
+Clean alignment
+
+High-end polish
+
+Zero clutter
+
+This is a premium property-tech product used by large developers.
+The UX must match that standard.

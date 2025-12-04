@@ -1,0 +1,195 @@
+Your task: Fix the Tenant Portal so that QR onboarding, Welcome animation, and Chat context all work flawlessly and consistently.
+All three current issues must be completely eliminated.
+
+THE THREE ISSUES TO FIX
+1. Full purchaser name not appearing
+
+Fix root cause:
+
+Ensure JWT contains: first_name, last_name, full_name
+
+Ensure Welcome screen uses full_name from JWT, not placeholder “Mr.”
+
+Ensure qr-resolver.ts retrieves the correct homeowner name from DB and passes it through onboarding.
+
+2. Welcome animation too fast
+
+Requirements:
+
+Each slide must be readable.
+
+TOTAL time ≈ 6 seconds.
+
+Fix:
+
+Welcome screen should:
+
+Show: “Welcome to [Development Name]” → 2 seconds
+
+Show purchaser full name: “Mr. & Mrs. John and Mary Smith” (exact DB string, no truncation) → 2 seconds
+
+Show: “We’re getting your home assistant ready…” → 2 seconds
+
+Use chained setTimeout or animation state machine.
+
+Do not push to /chat before the 6 seconds is complete.
+
+3. “Please select a development before chatting” MUST NEVER appear again
+
+Fix root cause:
+
+Chat page is rendering BEFORE DevelopmentContext finishes loading JWT payload.
+
+It incorrectly falls back to “undefined → please select development”.
+
+You must fix this by:
+
+JWT MUST contain: development_id, development_name, unit_id, house_type_id, house_type_code.
+
+/api/auth/context MUST always return these values.
+
+DevelopmentContext must:
+
+Load from JWT cookie on mount
+
+Set loading=true until JWT validated
+
+Only render children after context is populated
+
+Chat page must:
+
+Never check URL params for development
+
+Always use DevelopmentContext only
+
+Block UI until context is loaded (loading spinner)
+
+If context fails:
+→ Log error
+→ Redirect to onboarding
+→ NEVER show “Select development first”.
+
+WHAT YOU MUST UPDATE
+
+Modify ALL the following files:
+
+1. /packages/api/src/qr-resolver.ts
+
+Load homeowner full name from DB.
+
+Include name in onboarding payload.
+
+2. /apps/tenant-portal/app/onboarding/[token]/page.tsx
+
+Properly build JWT with all fields.
+
+Write both cookies:
+
+homeowner_jwt (30 days, HttpOnly, secure)
+
+onboarded=true (12 months)
+
+3. /apps/tenant-portal/server/lib/jwt.ts
+
+Ensure JWT encoder/decoder includes:
+
+homeowner_id
+
+full_name
+
+first_name
+
+last_name
+
+email
+
+development_id
+
+unit_id
+
+unit_number
+
+house_type_code
+
+house_type_id
+
+4. /apps/tenant-portal/app/onboarding/[token]/welcome.tsx
+
+Replace fixed “Mr.” with homeowner.full_name.
+
+Implement 3-stage animation, total 6s.
+
+Ensure redirect only occurs AFTER animations.
+
+5. /apps/tenant-portal/app/api/auth/context/route.ts
+
+Always return decoded JWT fields.
+
+If missing or invalid → 401 → never return partial data.
+
+6. /apps/tenant-portal/contexts/DevelopmentContext.tsx
+
+Add loading state.
+
+Do NOT default to null or empty — wait for JWT.
+
+Only render children when loaded.
+
+If error: redirect to onboarding.
+
+7. /apps/tenant-portal/app/(public)/chat/page.tsx
+
+Remove any code that checks URL for development.
+
+Use ONLY DevelopmentContext.
+
+If loading: show loader.
+
+When loaded: allow chat.
+
+8. /apps/tenant-portal/app/api/chat/route.ts
+
+Load context from JWT, not request body.
+
+Pass house_type_code into RAG vector search.
+
+SUCCESS CRITERIA (MANDATORY)
+On scanning QR code (first time):
+
+Welcome screen shows for ~6 seconds.
+
+Correct full purchaser name appears (first + last).
+
+Correct development name and unit displayed.
+
+Redirects to /d/{development_id}/chat.
+
+On scanning QR again (returning):
+
+Skips welcome.
+
+Goes immediately to /d/{development_id}/chat.
+
+Inside Chat:
+
+Never shows “select a development”.
+
+Always knows exactly who the user is.
+
+Answers house-specific questions like:
+
+“What size is my living room?”
+
+“Show me my floor plan.”
+
+Based ONLY on that homeowner’s house type.
+
+DO NOT STOP UNTIL THESE ARE VERIFIED WORKING
+
+Add console logs for each step to prove correctness.
+
+Restart tenant portal and test the entire flow.
+
+Do not mark tasks complete until validated in logs.
+
+Use this entire prompt as a single Agent instruction.

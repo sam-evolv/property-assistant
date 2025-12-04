@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "@api/*": ["../../packages/api/src/*"],
+      "@db/*": ["../../packages/db/*"],
+      "@openhouse/api": ["../../packages/api/src/index.ts"],
+      "@openhouse/api/*": ["../../packages/api/src/*"],
+      "@openhouse/db": ["../../packages/db/src/index.ts"],
+      "@openhouse/db/*": ["../../packages/db/src/*"],
+      "@openhouse/core": ["../../packages/core/src/index.ts"],
+      "@openhouse/core/*": ["../../packages/core/src/*"],
+      "analytics-engine": ["../../packages/analytics-engine/src/index.ts"],
+      "analytics-engine/*": ["../../packages/analytics-engine/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

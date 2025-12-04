@@ -1,0 +1,344 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+
+Goal: Implement an automatic document classification and house-type
+mapping layer so that developers can simply bulk-upload documents for a
+development and the platform does ALL of the following behind the scenes:
+
+1) Classify documents (floorplan, spec, warranty, brochure, etc.).
+2) Infer and attach house_type for floorplans where possible.
+3) Queue floorplans into the existing Vision → unit_room_dimensions pipeline.
+4) Queue all docs into the existing RAG ingestion pipeline.
+5) Surface only ambiguous cases in an internal "Needs Review" view.
+
+The existing dimension pipeline, canonical room name system and guardrails
+MUST remain intact. Do NOT remove or weaken any safety logic or existing
+ingestion behaviour.
+
+======================================================================
+PHASE 0 – Recon: understand current documents & house type linkage
+======================================================================
+
+1. Inspect the current database schema and document code paths:
+
+   - DB schema: documents, house_types, any join tables:
+       - `packages/db/schema.ts`
+   - Document upload / management routes:
+       - `apps/unified-portal/app/api/documents/...`
+       - developer portal documents page components
+   - Existing dimension and RAG ingestion entrypoints:
+       - `packages/api/src/train/...`
+       - `apps/unified-portal/app/api/documents/reprocess/route.ts`
+       - any upload-specific handlers already wired to the training pipeline.
+
+2. Do NOT change any of the existing RAG or Vision pipelines. The goal is
+   to orchestrate them, not redesign them.
+
+======================================================================
+PHASE 1 – Extend the documents schema (non-breaking)
+======================================================================
+
+3. Extend the `documents` schema with the following additional fields
+   (add columns and indexes via Drizzle schema + migration):
+
+   New columns on `documents`:
+
+   - `doc_kind` TEXT NULL
+       Examples: 'floorplan', 'specification', 'warranty', 'brochure',
+                 'legal', 'other'
+   - `mapping_confidence` DOUBLE PRECISION NULL
+       0.0–1.0 score representing how confident we are in classification
+       and house-type mapping.
+   - `house_type_id` UUID NULL
+       Optional direct link to `house_types` for floorplans.
+   - `auto_mapped` BOOLEAN NOT NULL DEFAULT FALSE
+       Whether the system auto-mapped this doc.
+   - `needs_review` BOOLEAN NOT NULL DEFAULT FALSE
+       Whether this document needs manual review.
+
+   Add useful indexes, for example:
+
+   - INDEX on (development_id, doc_kind)
+   - INDEX on (house_type_id)
+   - INDEX on (needs_review)
+   - INDEX on (auto_mapped, mapping_confidence)
+
+4. Run the migration. Confirm existing records are untouched and that
+   all code still compiles.
+
+======================================================================
+PHASE 2 – Document classification module
+======================================================================
+
+5. Create a new classification module:
+
+   `packages/api/src/documents/classify-document.ts`
+
+   Responsibilities:
+
+   - Given a document record (id, filename, development_id, etc.) and,
+     when available, some extracted text, assign:
+       - `doc_kind`
+       - `mapping_confidence` (just for kind, not yet for house type)
+
+   Implementation approach:
+
+   a) Start with heuristics:
+      - Filename patterns:
+        * 'floor', 'plan', 'floorplan', 'Ground and First Floor',
+          'GF', 'FF', 'proposed floor plan', etc. → candidate 'floorplan'
+        * 'elevations', 'section', etc. → candidate 'elevations'
+        * 'specification', 'spec' → 'specification'
+        * 'warranty', 'guarantee' → 'warranty'
+        * 'brochure', 'sales brochure', 'marketing' → 'brochure'
+      - Document category/type if a field already exists in the schema.
+
+   b) Optional LLM refinement (if extracted text available):
+      - For ambiguous cases, use a cheap OpenAI model (already
+        configured in the project) to classify into:
+          ['floorplan', 'specification', 'warranty',
+           'brochure', 'legal', 'other']
+      - The LLM's output should be used to adjust `doc_kind` and
+        `mapping_confidence` upwards/downwards.
+
+   c) Rules:
+      - If heuristics are very strong (e.g. filename contains
+        "Ground and First Floor Plan" and category is "Floorplan"),
+        set doc_kind='floorplan', mapping_confidence ≥ 0.95.
+      - If LLM and heuristics disagree, choose the more conservative
+        'other' and mark `needs_review = TRUE`.
+
+   d) Expose a function:
+
+      ```ts
+      export async function classifyDocument(
+        db,
+        document: DocumentRecord
+      ): Promise<{
+        doc_kind: string;
+        mapping_confidence: number;
+        needs_review: boolean;
+      }>;
+      ```
+
+======================================================================
+PHASE 3 – Automatic house-type mapping for floorplans
+======================================================================
+
+6. Create a separate module:
+
+   `packages/api/src/documents/map-floorplan-to-house-type.ts`
+
+   Responsibilities:
+
+   - For documents with `doc_kind = 'floorplan'` in a given development,
+     infer the corresponding house_type and attach it.
+
+   Implementation:
+
+   a) For a given document and development:
+
+      - Pull all `house_types` for the document's `development_id`.
+
+      - Gather candidate house_type_codes from:
+        * Filename patterns, e.g. 'BD01', 'BD-01', 'House Type BD01'.
+        * Any existing metadata fields (if present).
+        * Extracted text snippets, for example:
+          "House Type BD01", "Type BD02", etc.
+
+   b) Matching:
+
+      - Normalise candidate tokens: strip spaces, dashes, case, etc.
+      - Matching priority:
+         1. Exact matches of known codes: 'BD01', 'BD02', 'BS01', etc.
+         2. "House Type BD01" style strings.
+      - If exactly one house_type matches → map it:
+          - documents.house_type_id = that id
+          - auto_mapped = TRUE
+          - increase mapping_confidence towards 0.9+
+          - needs_review = FALSE
+      - If zero or >1 matches → do NOT guess:
+          - keep house_type_id = NULL
+          - needs_review = TRUE
+          - leave mapping_confidence low (e.g. ≤ 0.5)
+          - log a clear message in the docs or logs.
+
+   c) Expose a function:
+
+      ```ts
+      export async function autoMapFloorplanToHouseType(
+        db,
+        document: DocumentRecord
+      ): Promise<{
+        house_type_id: string | null;
+        mapping_confidence: number;
+        needs_review: boolean;
+      }>;
+      ```
+
+======================================================================
+PHASE 4 – Orchestration: auto classify + map after every upload
+======================================================================
+
+7. Hook this into the existing upload / creation flow for documents.
+
+   - Find where documents are created/saved (upload endpoint).
+   - After a document is created:
+     1. Call `classifyDocument`.
+     2. Persist `doc_kind`, `mapping_confidence`, `needs_review`.
+     3. If `doc_kind === 'floorplan'`:
+        - Call `autoMapFloorplanToHouseType`.
+        - Persist `house_type_id`, updated `mapping_confidence`,
+          `auto_mapped`, `needs_review` flags.
+
+   - All of this should happen asynchronously / non-blocking from the
+     user’s point of view. The developer UX remains:
+       - Choose development
+       - Drag+drop docs
+       - Done.
+
+8. Important: do NOT remove any existing explicit category selection
+   in the UI if it exists. Use it as a strong additional signal, but
+   keep the dev experience unchanged. The goal is to allow them to
+   "just dump docs" as well.
+
+======================================================================
+PHASE 5 – Integration with existing Vision + RAG train pipelines
+======================================================================
+
+9. Vision (room dimensions) integration:
+
+   - In the existing Vision pipeline (floorplan-vision.ts and
+     corresponding train/ingest hooks):
+
+     - Ensure that Vision extraction runs automatically for documents
+       that satisfy BOTH:
+         * doc_kind = 'floorplan'
+         * house_type_id IS NOT NULL
+
+     - This means:
+         - Once a floorplan is auto-mapped to a house type, it will
+           be picked up and processed into `unit_room_dimensions`
+           without any manual action.
+
+     - Floorplans where `house_type_id` is NULL (ambiguous) should:
+         - NOT be processed via Vision until fixed.
+         - Remain flagged (`needs_review = TRUE`) so an internal admin
+           can resolve them safely.
+
+10. RAG ingestion integration:
+
+    - For all documents (regardless of doc_kind), ensure that your
+      existing RAG ingestion / chunking pipeline continues to run
+      as it already does.
+
+    - Optionally, add doc_kind to chunk metadata so you can later
+      prioritise certain kinds of content (specs, warranties, etc.)
+      in retrieval. Do NOT change any behaviour now; just store the
+      metadata.
+
+======================================================================
+PHASE 6 – "Needs Review" internal view (admin only)
+======================================================================
+
+11. Implement a simple internal admin view (web UI) to manage ambiguous docs:
+
+    - Location: super admin or dev-only route, e.g.
+      `/super/documents/review` or `/developer/documents/review`
+      restricted appropriately.
+
+    - Behaviour:
+      - List documents where `needs_review = TRUE`, grouped by development.
+      - Show:
+        * file name
+        * current doc_kind
+        * any candidate house_type_code you inferred
+        * mapping_confidence
+        * house_type_id (if any)
+
+      - Provide very simple actions:
+        * Set doc_kind manually (drop-down).
+        * Set house_type_id manually (select from that development’s house types).
+        * Mark as "reviewed" → sets `needs_review = FALSE`.
+
+    - This is for internal QA. Developers that use the product do not
+      need to see this. Keep it minimal but functional.
+
+======================================================================
+PHASE 7 – Batch processing & verification
+======================================================================
+
+12. Extend or create a script to batch classify + map + reprocess:
+
+    - `scripts/auto-classify-and-map-docs.ts`:
+
+      Behaviour:
+      - Accept CLI args:
+        * --tenantSlug
+        * --developmentSlug
+      - For all documents in the scope:
+        * Run `classifyDocument` if doc_kind is NULL.
+        * Run `autoMapFloorplanToHouseType` for floorplans without
+          house_type_id.
+      - Print a summary:
+        * total docs
+        * docs by doc_kind
+        * floorplans mapped with high confidence
+        * floorplans needing review
+
+    - Optionally chain this into:
+      `scripts/reprocess-all-floorplans.ts` so you can run:
+
+      ```bash
+      npx tsx scripts/auto-classify-and-map-docs.ts --developmentSlug longview-park
+      npx tsx scripts/reprocess-all-floorplans.ts --developmentSlug longview-park
+      npx tsx scripts/inspect-room-dimensions.ts --developmentSlug longview-park
+      ```
+
+      to fully commission a development.
+
+======================================================================
+PHASE 8 – Testing & non-regression
+======================================================================
+
+13. Add tests to cover:
+
+    - `classifyDocument`:
+      * Given sample filenames and text, doc_kind is correct and
+        mapping_confidence behaves as expected.
+    - `autoMapFloorplanToHouseType`:
+      * For a development with house_types BD01, BD02, etc:
+        - A file like "281-MHL-BD01-...Ground and First Floor Plans..."
+          maps to BD01 with high confidence.
+        - Ambiguous or unmatched files set `needs_review = TRUE`.
+    - End-to-end:
+      * Create test documents:
+        - floorplan with BD01 in name.
+        - generic spec.
+      * Run classification + mapping and assert that:
+        - floorplan has doc_kind='floorplan', correct house_type_id,
+          auto_mapped=TRUE.
+        - spec is classified appropriately and does not trigger Vision.
+
+14. Re-run existing tests:
+    - `npx tsx scripts/test-dimension-priority.ts`
+    - `npx tsx scripts/test-pipeline.ts` (or similar)
+    Confirm no regressions.
+
+======================================================================
+SUCCESS CRITERIA
+======================================================================
+
+When you are done:
+
+- Developers can continue to upload documents exactly as before:
+  pick development, drag+drop PDFs, done.
+- Behind the scenes:
+  - Every doc gets a `doc_kind`.
+  - Floorplans are automatically linked to house types where possible.
+  - Those mapped floorplans are automatically processed by Vision into
+    `unit_room_dimensions`.
+  - All docs are ingested into the existing RAG pipeline.
+  - Ambiguous docs are flagged in an internal "Needs Review" view.
+- The dimension guardrail and room-size answering behaviour remain
+  exactly as previously specified: numbers only from structured sources,
+  never hallucinated.

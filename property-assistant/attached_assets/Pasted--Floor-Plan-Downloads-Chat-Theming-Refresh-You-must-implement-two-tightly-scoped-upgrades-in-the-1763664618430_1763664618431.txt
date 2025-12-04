@@ -1,0 +1,405 @@
+“Floor-Plan Downloads + Chat Theming Refresh”
+
+You must implement two tightly scoped upgrades in the tenant portal:
+
+Smart download links for architectural documents in chat.
+
+Consistent, premium chat UI styling (gold/black without solid gold bubbles).
+
+Do not regress any existing behaviour (QR onboarding, JWT context, maps, docs, etc).
+
+STEP 0 – DISCOVERY
+
+Identify the core chat stack in the tenant portal:
+
+Chat page: something like apps/tenant-portal/app/(public)/chat/page.tsx.
+
+Chat components: ChatMessage, ChatBubble, MessageList, ChatInput, etc.
+
+Chat API route: apps/tenant-portal/app/api/chat/route.ts or equivalent that ultimately calls shared logic in packages/api/src/chat/*.
+
+Identify the documents stack:
+
+DB schema for documents, rag_chunks etc in packages/api/src/db/schema.ts.
+
+Where document metadata is stored: document_type, file_name, relative_path, file_url, house_type_code or similar.
+
+Any existing utilities that fetch documents per development_id, house_type_code or unit_id.
+
+Identify the tenant chat message render component that renders assistant/user bubbles and is safe to extend with a “Download” button component.
+
+PART A – DOWNLOADABLE PLANS & ELEVATIONS FROM CHAT
+A1. Define document semantics
+
+We want to surface only relevant plans for the current purchaser:
+
+Floor plans
+
+Elevations
+
+Site plans (if present)
+
+Any “architectural” PDF or image attached to their house type.
+
+Implement or refine document_type and/or a category field so these docs can be filtered.
+
+In schema.ts confirm documents has:
+
+development_id
+
+house_type_code or equivalent
+
+document_type (string)
+
+file_url (or relative_path + bucket base URL)
+
+If document_type is too generic, extend the schema and ingestion to classify documents as one of:
+
+architectural_floor_plan
+
+elevations
+
+site_plan
+
+specification
+
+manual
+
+other
+
+Use a simple classification heuristic in the ingest pipeline (packages/api/src/train/ingest.ts) based on filename and/or path, for example:
+
+Contains FLOOR, PLAN, FP → architectural_floor_plan
+
+Contains ELEVATION, ELEV → elevations
+
+Contains SITE and PLAN → site_plan
+
+Do not re-ingest everything right now, just ensure new docs get categorised correctly.
+
+A2. Server helper – fetch relevant docs for a unit
+
+Create a small helper in packages/api/src/chat/doc-links.ts:
+
+export type HouseDocKind = "architectural_floor_plan" | "elevations" | "site_plan";
+
+export interface HouseDocLink {
+  kind: HouseDocKind;
+  title: string;
+  url: string;
+  house_type_code: string;
+}
+
+export async function getHouseDocLinksForContext(opts: {
+  tenantId: string;
+  developmentId: string;
+  unitId?: string | null;
+  houseTypeCode?: string | null;
+}): Promise<HouseDocLink[]> {
+  // 1. Resolve the unit if needed to get houseTypeCode.
+  // 2. Query documents where:
+  //    - development_id = developmentId
+  //    - house_type_code = resolved houseTypeCode
+  //    - document_type IN ('architectural_floor_plan','elevations','site_plan')
+  // 3. Map to { kind, title, url, house_type_code }.
+}
+
+
+Notes:
+
+If the unit has no dedicated docs, fall back to house-type docs (by house_type_code) for that development.
+
+url should be a fully resolvable public URL or signed URL depending on existing storage conventions.
+
+A3. Lightweight intent detection on the chat backend
+
+We do not want a heavy intent framework; just robust keyword logic.
+
+In the shared chat handler (where we call OpenAI and build the final response), add a step that inspects the user’s latest message plus the classified docs.
+
+Implement a function like:
+
+export type DocIntent =
+  | "wants_floor_plan"
+  | "wants_elevations"
+  | "wants_site_plan"
+  | "no_doc";
+
+export function inferDocIntentFromMessage(message: string): DocIntent {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("floor plan") || lower.includes("floorplan") || lower.includes("house plan")) {
+    return "wants_floor_plan";
+  }
+  if (lower.includes("elevation")) {
+    return "wants_elevations";
+  }
+  if (lower.includes("site plan") || lower.includes("site layout")) {
+    return "wants_site_plan";
+  }
+
+  // Edge case: sizing questions about rooms
+  if (
+    lower.includes("size of my living room") ||
+    (lower.includes("size") && lower.includes("living room"))
+  ) {
+    // treat as floor-plan-adjacent
+    return "wants_floor_plan";
+  }
+
+  return "no_doc";
+}
+
+A4. Attach download metadata to chat API response
+
+Extend the chat API response model to include optional document download actions.
+
+Add a field to the response JSON, for example:
+
+export interface ChatResponse {
+  message: string;
+  // existing fields...
+  downloadActions?: {
+    label: string;    // e.g. "Download your BD01 architectural floor plan"
+    kind: "architectural_floor_plan" | "elevations" | "site_plan";
+    url: string;
+  }[];
+}
+
+
+Logic:
+
+After generating the LLM reply, compute intent = inferDocIntentFromMessage(userMessage).
+
+If intent !== "no_doc":
+
+Fetch doc links: const docs = await getHouseDocLinksForContext(...).
+
+Filter to the relevant kind. If at least one exists, pick the best candidate (e.g. most recent or with “BD01” in title).
+
+Add one or more downloadActions entries to the response.
+
+When intent is floor-plan adjacent (e.g. “What size is my living room?”):
+
+Keep the LLM’s natural-language answer as is.
+
+Also populate one downloadActions entry for the architectural floor plan.
+
+PART B – RENDER BEAUTIFUL DOWNLOAD BUTTONS IN CHAT
+B1. Create a shared “DownloadCard” UI component
+
+In the tenant UI (e.g. apps/tenant-portal/components/chat/DownloadCard.tsx) build a small component:
+
+Design spec:
+
+Full-width card inside the assistant message column.
+
+Rounded corners, subtle shadow.
+
+Neutral background (white) with gold outline to match the new bubble style.
+
+Includes:
+
+Title: e.g. “Architectural Floor Plan – BD01”
+
+Short description: e.g. “Tap to download the detailed floor plan for your home.”
+
+Primary button: “Download” with download icon.
+
+Rough JSX:
+
+type DownloadCardProps = {
+  label: string;
+  url: string;
+};
+
+export function DownloadCard({ label, url }: DownloadCardProps) {
+  return (
+    <div className="mt-2 rounded-xl border border-gold-500 bg-white/95 px-3 py-2 text-sm shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col">
+          <span className="font-medium text-slate-900">{label}</span>
+          <span className="text-xs text-slate-500">
+            Download the full architectural PDF for your home.
+          </span>
+        </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center rounded-full border border-gold-500 px-3 py-1 text-xs font-semibold text-gold-700 hover:bg-gold-50 active:bg-gold-100 transition"
+        >
+          Download
+        </a>
+      </div>
+    </div>
+  );
+}
+
+
+Replace gold-500/gold-700 with the existing gold colour tokens used across OpenHouse.
+
+B2. Wire to the chat message renderer
+
+In the chat message list component where assistant messages are rendered:
+
+Parse the API response (ensure downloadActions is available on each assistant message object).
+
+For each downloadActions entry, render a DownloadCard below the assistant text bubble.
+
+Example:
+
+{message.role === "assistant" && message.downloadActions?.map((action) => (
+  <DownloadCard key={action.url} label={action.label} url={action.url} />
+))}
+
+
+Ensure mobile layout stays tight and elegant.
+
+PART C – CHAT THEME REFRESH (COLOUR + BUBBLES)
+
+We want a consistent, premium OpenHouse gold/black aesthetic across the entire app, with these constraints:
+
+No solid gold message bubbles.
+
+No solid pure black message bubbles.
+
+User and assistant should still be visually distinct.
+
+Keep everything classy, not loud.
+
+C1. Define design tokens
+
+Add or confirm a central theme file (e.g. apps/tenant-portal/styles/theme.css or Tailwind config).
+
+Key colours (use the existing OpenHouse palette, adjust names accordingly):
+
+--oh-bg – overall app background (off-white).
+
+--oh-gold – primary accent (existing gold).
+
+--oh-gold-soft – very light gold tint (for subtle backgrounds).
+
+--oh-charcoal – dark grey for assistant bubbles.
+
+--oh-text-main – near-black text.
+
+--oh-text-muted – mid grey.
+
+C2. New bubble styles
+
+Update the chat bubble components (where user vs assistant messages are styled).
+
+Target end state:
+
+User bubble:
+
+Background: pure white (or app background).
+
+Border: 1px or 1.5px gold.
+
+Text: --oh-text-main.
+
+Slight shadow (very subtle) to keep it premium.
+
+Corner radius: 18–20px, with “tail” slight rounding if already implemented.
+
+Assistant bubble:
+
+Background: dark charcoal / very dark grey (--oh-charcoal).
+
+Border: 1px gold (same tone).
+
+Text: white/off-white for contrast.
+
+Same radius and spacing as user bubble.
+
+System messages / info lines (if any):
+
+Background: pale neutral (light grey or soft gold tint).
+
+Text: muted.
+
+Implementation example (Tailwind-style):
+
+const baseBubble = "max-w-[80%] rounded-2xl px-3 py-2 text-sm";
+
+const userBubble = `${baseBubble} border border-oh-gold bg-white text-slate-900 shadow-sm`;
+const assistantBubble = `${baseBubble} border border-oh-gold bg-oh-charcoal text-white`;
+
+
+Apply these consistently anywhere chat messages appear (developer portal preview, tenant portal, etc).
+
+Remove any conflicting legacy classes that:
+
+Set solid gold background for user messages.
+
+Use blue/iMessage-style colours.
+
+C3. Ensure consistency across app
+
+Search for all chat-like components:
+
+Tenant chat page.
+
+Developer portal preview chat (if distinct).
+
+Any “sample conversation” widgets.
+
+Ensure all of them:
+
+Use the same bubble components or styles.
+
+Use the same gold/charcoal palette.
+
+Use consistent font sizes and spacing.
+
+PART D – QA CHECKLIST
+
+Before you finish, manually verify all of the following:
+
+Download links
+
+Scan a Longview Park QR for a known BD01 unit.
+
+Ask: “What size is my living room?”
+
+Assistant gives a sensible answer using RAG.
+
+Below the response, there is a Download card for the BD01 architectural floor plan.
+
+Ask: “Can I get the elevations for my house?”
+
+Assistant answers.
+
+Download card for BD01 elevations appears.
+
+Clicking “Download” opens the correct PDF in a new tab and the file is clearly the right house type.
+
+House type isolation
+
+Confirm that the download links are always for the current user’s house type only (BD01 etc), not for other types in the same development.
+
+For a different unit with another house type, the links change accordingly.
+
+Chat theming
+
+User messages display as white bubbles with gold outline, text dark, no solid gold backgrounds.
+
+Assistant messages display as dark grey bubbles with gold outline, text white.
+
+The look and feel is consistent on:
+
+Tenant portal on mobile and desktop.
+
+Developer portal preview chat.
+
+No regressions
+
+QR onboarding still shows the personalised welcome sequence.
+
+Chat still loads without “Select a development” errors.
+
+Map and Documents tabs work as before.
+
+When all acceptance criteria above are satisfied, commit the changes and stop.

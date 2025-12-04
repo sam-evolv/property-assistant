@@ -1,0 +1,253 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+
+Goal: Implement a robust, future-proof mechanism so that, for any
+architectural floorplan like the uploaded BD01 PDFs, the system:
+
+1) reliably reads room sizes (m²) using OpenAI Vision,
+2) stores them in a structured, auditable table per house type, and
+3) answers purchaser questions about room sizes ONLY from that table,
+   never by guessing.
+
+This must work for all current and future house types, not just BD01.
+
+========================================================
+PHASE 1 – Canonical Room Dimensions Table
+========================================================
+
+1. In the DB schema (Drizzle), create a new table if it does not exist:
+
+   Name: unit_room_dimensions
+
+   Columns:
+   - id                 UUID PK
+   - tenant_id          UUID NOT NULL (FK tenants)
+   - development_id     UUID NOT NULL (FK developments)
+   - house_type_id      UUID NOT NULL (FK house_types)
+   - unit_type_code     TEXT NOT NULL   -- e.g. "BD01"
+   - room_name          TEXT NOT NULL   -- "Toilet", "Living Room"
+   - level              TEXT NULL       -- "Ground Floor", "First Floor"
+   - length_m           DOUBLE PRECISION NULL
+   - width_m            DOUBLE PRECISION NULL
+   - area_m2            DOUBLE PRECISION NULL
+   - source             TEXT NOT NULL   -- "vision_floorplan" | "manual" | "schedule"
+   - confidence         DOUBLE PRECISION NOT NULL DEFAULT 0.9
+   - raw_payload        JSONB DEFAULT '{}'   -- raw model output for debugging
+   - created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   - updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+   Indexes:
+   - (tenant_id, development_id, house_type_id, unit_type_code)
+   - (tenant_id, house_type_id, room_name)
+
+   Add the schema entry in `packages/db/schema.ts` and create the migration.
+
+========================================================
+PHASE 2 – Floorplan Vision Extraction Module
+========================================================
+
+2. Create a new module:
+
+   `packages/api/src/train/floorplan-vision.ts`
+
+   Responsibilities:
+   - given a floorplan document (PDF or image) and a known house type code,
+     call OpenAI Vision to extract room sizes into structured JSON.
+
+3. Implementation details:
+
+   a) Input:
+      - tenant_id, development_id, house_type_id, unit_type_code
+      - document buffer (PDF) and/or rendered PNG for first page
+      - document_id
+
+   b) Rendering:
+      - If the file is PDF, render page 1 to PNG using an existing tool in the
+        project (pdf-lib, pdfjs, or current image conversion used elsewhere).
+        Prefer reusing existing code in `parse.ts` / `enhanced-ocr.ts`.
+      - Use a reasonably high resolution (e.g. ~150–200 dpi) to keep labels readable.
+
+   c) OpenAI Vision call:
+      - Use the existing OpenAI client and an image + text prompt.
+      - Model: `"gpt-4.1-mini"` or equivalent vision-capable model already used.
+      - Use `response_format` with a JSON schema so the response is strictly JSON.
+
+      System / user prompt (or equivalent) should say:
+
+      > You are an expert architectural drafter.
+      > You are given an architectural floorplan drawing.
+      > Identify all habitable rooms and internal spaces with their names
+      > and areas in square metres (m²). Use the numeric values printed on
+      > the plan, such as "14.0 m² Kitchen/Dining", "2.4 m² Toilet".
+      > If you see area values, do NOT infer or estimate – only use exact
+      > printed values.
+      > Output strictly in this JSON format:
+      >
+      > {
+      >   "house_type_code": "BD01",
+      >   "levels": [
+      >     {
+      >       "level_name": "Ground Floor",
+      >       "rooms": [
+      >         { "room_name": "Kitchen/Dining", "area_m2": 14.0 },
+      >         { "room_name": "Toilet",         "area_m2": 2.4  },
+      >         ...
+      >       ]
+      >     },
+      >     {
+      >       "level_name": "First Floor",
+      >       "rooms": [ ... ]
+      >     }
+      >   ]
+      > }
+
+      - Ensure the JSON schema matches this shape so we can parse confidently.
+
+   d) Post-processing:
+      - Parse the JSON.
+      - For each room, create or upsert a row in `unit_room_dimensions`:
+        - tenant_id, development_id, house_type_id, unit_type_code
+        - room_name       (normalised, e.g. "Toilet", "Bedroom 1")
+        - level           (level_name)
+        - area_m2         (as returned)
+        - length_m, width_m left NULL unless explicitly present
+        - source          "vision_floorplan"
+        - confidence      0.9 by default or use any confidence hint from the model.
+        - raw_payload     the original JSON object for that room.
+
+      - Upsert strategy: if (tenant_id, development_id, house_type_id,
+        unit_type_code, room_name, level) already exists, update area/confidence.
+
+========================================================
+PHASE 3 – Hook Vision Extraction into Document Pipeline
+========================================================
+
+4. Integrate this into the existing document ingestion / reprocessing:
+
+   a) When a developer uploads or reprocesses documents, for each doc:
+
+      - Determine if it is a floorplan:
+        - Already categorised as "Floorplan" in your UI, OR
+        - file name contains "Floor", "Plan", "Floor Plan", etc.
+        - Prefer existing category field if available.
+
+      - If floorplan:
+        - Call `extractRoomDimensionsFromFloorplan(...)` from
+          `floorplan-vision.ts` AFTER normal text/OCR extraction has completed.
+        - This means a single reprocess of a BD01 floorplan will populate
+          `unit_room_dimensions` for all BD01 rooms.
+
+   b) Add logging via `document_processing_logs`:
+      - log success with number of rooms extracted
+      - log errors with detailed messages, but do not crash the pipeline
+
+========================================================
+PHASE 4 – Chat Integration for Room Size Questions
+========================================================
+
+5. Modify the purchaser chat pipeline (`packages/api/src/chat.ts` or
+   wherever chat is handled) so that room size questions are answered ONLY
+   from `unit_room_dimensions`.
+
+   a) Implement a helper:
+
+      ```ts
+      async function resolveRoomDimensionFromQuestion(ctx, question: string) {
+        // ctx contains purchaser: tenant_id, development_id, house_type_id, unit_type_code
+
+        // 1. Detect if question is about room size:
+        //    look for keywords: "size", "dimensions", "how big",
+        //    "area", "m2", "m²", "square metres", "sq m", etc.
+        //    If not, return { isDimensionQuestion: false }.
+
+        // 2. Extract / normalise room name from question:
+        //    e.g. "downstairs toilet", "wc", "living room", "kitchen/dining".
+        //    Map common variants into canonical names. Use a small mapping
+        //    table and a fuzzy match if needed.
+
+        // 3. If it IS a dimension question:
+        //    Query unit_room_dimensions where:
+        //      tenant_id, development_id, house_type_id, unit_type_code
+        //      AND lower(room_name) ~ canonical name
+        //    Prefer matches with the same level if user said "downstairs", etc.
+
+        // 4. Return:
+        //    {
+        //      isDimensionQuestion: true,
+        //      found: boolean,
+        //      room: RoomDimension | null
+        //    }
+      }
+      ```
+
+   b) In the main chat handler:
+
+      - Before any RAG/LLM call, run `resolveRoomDimensionFromQuestion`.
+
+      - If `isDimensionQuestion === true` AND `found === true` AND
+        `room.area_m2` (or length/width) is present:
+
+        - Compose the answer directly using ONLY that data, e.g.:
+
+          > "The downstairs toilet in your BD01 house type is 2.4 m²
+          > according to the plans for your home."
+
+        - Do NOT call the LLM for this branch.
+
+      - If `isDimensionQuestion === true` AND `found === false`:
+
+        - Return a safe fallback answer:
+
+          > "I do not have an exact measured size for that room in your
+          > current plans, so I cannot give you a precise dimension."
+
+        - Again, DO NOT let the LLM guess numbers.
+
+      - Only if `isDimensionQuestion === false` should the normal
+        RAG/LLM pipeline run.
+
+   c) Add a defensive numeric guard:
+
+      - If, for any reason, a dimension question falls through to
+        the LLM path, post-process the model’s answer:
+          - If there is no matching row in `unit_room_dimensions`
+            AND the answer contains patterns like `\d+(\.\d+)?\s*m`
+            or `\d+(\.\d+)?\s*m²`,
+            then replace the answer entirely with the safe fallback text.
+      - This ensures there is **no hallucinated room size** visible to users.
+
+========================================================
+PHASE 5 – Tests / Verification
+========================================================
+
+6. Add automated tests:
+
+   a) Seed `unit_room_dimensions` with sample entries for BD01 from the
+      actual BD01 floorplan (e.g. Living Room 24.0 m², Toilet 2.4 m², etc.).
+
+   b) Test:
+      - Question: "what size is the downstairs toilet?"
+        Expect: answer mentions "2.4 m²" and uses the exact stored value.
+      - Question: "how big is my kitchen/dining room?"
+        Expect: answer mentions "14.0 m²" (or whatever is stored).
+
+   c) Add a test house type with NO room dimensions:
+      - Ask: "what size is the downstairs toilet?"
+        Expect: safe fallback answer with NO numeric dimensions.
+
+   d) Ensure existing non-dimension Q&A (e.g. "who supplied my kitchen?")
+      still passes.
+
+========================================================
+DELIVERABLE
+========================================================
+
+After this task:
+
+- Room sizes are extracted from floorplans by OpenAI Vision into
+  `unit_room_dimensions`.
+- Purchaser size questions are answered exclusively from this table.
+- If no data exists, the system honestly says it does not know the size
+  and never guesses.
+- The mechanism works generically for any house type whose floorplans
+  follow similar conventions (area text like "14.0 m² Kitchen/Dining").
+- All TypeScript, Drizzle, and Next code compiles and tests pass.

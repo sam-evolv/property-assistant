@@ -461,6 +461,7 @@ export const doc_chunks = pgTable('doc_chunks', {
   content: text('content').notNull(),
   embedding: vector('embedding', { dimensions: 1536 }),
   house_type_code: text('house_type_code'),
+  doc_kind: text('doc_kind'),
   source_type: varchar('source_type', { length: 50 }).notNull(),
   source_id: uuid('source_id'),
   is_important: boolean('is_important').default(false).notNull(),
@@ -474,6 +475,29 @@ export const doc_chunks = pgTable('doc_chunks', {
   tenantSourceIdx: index('doc_chunks_tenant_source_idx').on(table.tenant_id, table.source_type, table.source_id),
   tenantDevIdx: index('doc_chunks_tenant_dev_idx').on(table.tenant_id, table.development_id),
   devHouseTypeIdx: index('doc_chunks_dev_house_type_idx').on(table.development_id, table.house_type_code),
+}));
+
+export const floorplan_vision = pgTable('floorplan_vision', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  house_type_id: uuid('house_type_id').references(() => houseTypes.id),
+  document_id: uuid('document_id').references(() => documents.id),
+  floor_name: text('floor_name'),
+  room_name: text('room_name').notNull(),
+  room_type: text('room_type'),
+  canonical_room_name: text('canonical_room_name'),
+  length_m: doublePrecision('length_m'),
+  width_m: doublePrecision('width_m'),
+  area_m2: doublePrecision('area_m2'),
+  notes: text('notes'),
+  raw_json: jsonb('raw_json'),
+  confidence: doublePrecision('confidence'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantDevIdx: index('floorplan_vision_tenant_dev_idx').on(table.tenant_id, table.development_id),
+  houseTypeIdx: index('floorplan_vision_house_type_idx').on(table.house_type_id),
+  documentIdx: index('floorplan_vision_document_idx').on(table.document_id),
 }));
 
 export const training_jobs = pgTable('training_jobs', {

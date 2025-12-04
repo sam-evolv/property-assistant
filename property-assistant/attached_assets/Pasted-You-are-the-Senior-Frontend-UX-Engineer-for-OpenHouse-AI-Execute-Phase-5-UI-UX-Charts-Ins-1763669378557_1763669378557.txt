@@ -1,0 +1,117 @@
+You are the Senior Frontend + UX Engineer for OpenHouse AI.  
+Execute **Phase 5 — UI/UX, Charts, Insights, Polish**.
+
+PRIMARY OBJECTIVE:
+Enhance the Enterprise Admin Portal with complete, production-ready UI and analytics UX polish. 
+No new data models. No backend expansion. 
+Use ONLY existing APIs and the expanded schema delivered in Phase 4.
+
+You are upgrading the entire Admin Enterprise interface so it feels premium, navigable, and insight-driven.
+
+====================================
+PHASE 5 — REQUIRED DELIVERABLES
+====================================
+
+1. GLOBAL UI/UX POLISH
+------------------------------------
+– Unify header, sidebar, and spacing across all /admin-enterprise pages  
+– Standardise padding, spacing, font-heirarchy, and card layouts  
+– Improve empty states (icons, helpful descriptions, action CTAs)  
+– Add consistent loading skeletons for every page  
+– Add error boundaries across all enterprise pages  
+– Implement dark/light neutral theme that matches existing OpenHouse palette  
+
+2. CHARTS + VISUAL INSIGHTS IMPLEMENTATION
+------------------------------------
+Use **recharts**, **react-chartjs-2**, or existing chart lib already used in repo.
+
+Add charts to the following pages (use actual API data, not mock):
+
+A. **Overview Dashboard**
+– Message volume (7-day, 30-day)
+– Active homeowners (count + trendline)
+– Document upload trend
+– RAG chunks count per development
+– Last 10 chats with timestamps
+
+B. **Chat Analytics Page**
+– Daily message volume (line chart)
+– Unanswerable questions (bar chart)
+– Top-10 question categories (pie chart)
+– Average AI latency (line chart)
+– Estimated cost chart (bar or line)
+
+C. **RAG Analytics Page**
+– Total chunks per development (bar chart)
+– Orphaned chunks (stat card)
+– Embedding age distribution (bar or histogram)
+– Chunk similarity distribution (if available)
+
+3. ENTERPRISE TABLE POLISH
+------------------------------------
+– Add sorting to all tables (columns: created_at, name, volume, status)  
+– Add search bars for homeowners, units, and documents  
+– Add pagination UI matching the portal style (previous/next + page counts)  
+– Add hover effects, row highlighting, and consistent icons  
+
+4. COMPONENTS TO UPGRADE
+------------------------------------
+– Update `<Card/>` to support chart headers  
+– Add `<InsightCard/>`: stat, trend arrow, sublabel  
+– Add `<SectionHeader/>` reused across all analytics pages  
+– Add `<DataTable/>` wrapper component for consistent styling  
+
+5. ENTERPRISE NAVIGATION ENHANCEMENTS
+------------------------------------
+– Highlight active nav item  
+– Add small breadcrumbs to pages with nested structure  
+– Improve mobile responsiveness for narrow screens  
+
+6. PAGE-SPECIFIC POLISH
+------------------------------------
+
+A. **Units Explorer**
+– Add visual status indicators (occupied, unoccupied, missing docs)  
+– Add badges: "Docs OK", "Missing Plans", "Missing Manuals"  
+– Add quick filters along top (dropdown or pill selectors)
+
+B. **Homeowner Directory**
+– Add activity status (active in last 24h, 7d, 30d)  
+– Add “Chats” column  
+– Add search by name and email  
+
+C. **System Logs**
+– Add log-level filters (Info, Warning, Error)  
+– Improve table readability with icons per log level  
+– Add timestamp formatting  
+
+7. MICRO-INTERACTIONS
+------------------------------------
+– Smooth fade-ins on charts  
+– Animate counters on InsightCards  
+– Animate loading skeletons  
+– Use consistent transitions for page mounts  
+
+8. QUALITY CHECKS
+------------------------------------
+– No console errors  
+– All charts render on real API data  
+– All pages load within 500–700ms locally  
+– No broken CSS in dark mode  
+– No hydration mismatches  
+
+====================================
+RESTRICTIONS
+====================================
+– Do NOT modify backend logic  
+– Do NOT edit data models  
+– Do NOT introduce new API endpoints  
+– Do NOT create experimental screens  
+– Work ONLY in apps/developer-portal/app/admin-enterprise and supporting components  
+
+====================================
+OUTPUT
+====================================
+Implement all UI/UX enhancements, charts, and design polish across the Enterprise Admin Portal. 
+Make commits iteratively. 
+Focus on clean, consistent, premium-quality UI.

@@ -1,0 +1,268 @@
+You are working inside the Replit project PropertyAssistant.
+Perform all actions in the order below and verify each step completes successfully.
+
+🧱 1. Core Goals
+
+Upgrade the Property Assistant to a production-grade, multi-tenant RAG platform that:
+
+Lets multiple housing developments each have their own AI assistant (tenant isolation)
+
+Answers user queries using their estate’s handover documents (RAG)
+
+Routes queries dynamically between gpt-3.5-turbo and gpt-4-turbo
+
+Handles GDPR data exports/deletions
+
+Is extremely easy for Sam to set up new schemes from a dashboard
+
+⚙️ 2. Fix and Verify Environment
+
+Ensure all environment variables exist in Secrets:
+
+OPENAI_API_KEY
+SUPABASE_URL
+SUPABASE_KEY
+DATABASE_URL
+SESSION_SECRET
+
+
+Confirm app runs on port 5000 (Replit requirement).
+In .replit:
+
+run = "next dev --port 5000"
+
+
+Stop all previous processes if port is busy:
+
+pkill -f "next dev" || true
+npm run dev
+
+🧠 3. Supabase Vector Database Setup
+
+Connect Supabase as your vector backend (Postgres + pgvector).
+
+Create Schema:
+
+Run this SQL in your Supabase SQL editor:
+
+create extension if not exists vector;
+
+create table tenants (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique,
+  name text,
+  created_at timestamptz default now()
+);
+
+create table documents (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references tenants(id) on delete cascade,
+  title text,
+  content text,
+  embedding vector(1536),
+  created_at timestamptz default now()
+);
+
+
+Enable RLS (Row-Level Security):
+
+alter table documents enable row level security;
+create policy "tenant_isolation"
+on documents for all
+using (tenant_id = auth.uid());
+
+📄 4. Add Document Upload + Embedding Route
+
+Create a new file:
+📁 /app/api/upload/route.ts
+
+import OpenAI from "openai";
+import pdf from "pdf-parse";
+import { createClient } from "@supabase/supabase-js";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+
+export async function POST(req: Request) {
+  const form = await req.formData();
+  const file = form.get("file") as File;
+  const tenant = form.get("tenant") as string;
+
+  if (!file || !tenant) return new Response("Missing file or tenant", { status: 400 });
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { text } = await pdf(buffer);
+
+  const chunks = text.match(/.{1,2500}/gs) || [];
+  for (const chunk of chunks) {
+    const emb = await openai.embeddings.create({
+      model: "text-embedding-3-large",
+      input: chunk,
+    });
+    await supabase.from("documents").insert({
+      tenant_id: tenant,
+      content: chunk,
+      embedding: emb.data[0].embedding,
+    });
+  }
+
+  return new Response("✅ Document uploaded and embedded successfully", { status: 200 });
+}
+
+💬 5. Enhance Chat Route for RAG Integration
+
+In /app/api/chat/route.ts, modify retrieval logic:
+
+import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
+import { generateAnswer } from "@/lib/ai/modelRouter";
+
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export async function POST(req: Request) {
+  try {
+    const { query, tenantSlug } = await req.json();
+
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-large",
+      input: query,
+    });
+
+    const { data: docs } = await supabase.rpc("match_documents", {
+      query_embedding: embedding.data[0].embedding,
+      match_threshold: 0.8,
+      match_count: 5,
+      tenant_id: tenantSlug,
+    });
+
+    const answer = await generateAnswer({
+      query,
+      retrievedDocs: docs || [],
+      tenantName: tenantSlug,
+    });
+
+    return new Response(JSON.stringify({ answer }), { status: 200 });
+  } catch (err: any) {
+    console.error("Chat route error:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+}
+
+🧩 6. Tenant Management Dashboard
+
+Create a new route:
+📁 /app/admin/page.tsx
+
+"use client";
+import { useState } from "react";
+
+export default function AdminDashboard() {
+  const [tenantName, setTenantName] = useState("");
+  const [slug, setSlug] = useState("");
+
+  const createTenant = async () => {
+    const res = await fetch("/api/tenants", {
+      method: "POST",
+      body: JSON.stringify({ tenantName, slug }),
+    });
+    alert(await res.text());
+  };
+
+  return (
+    <div className="p-10">
+      <h1 className="text-2xl font-bold mb-4">🧱 Create New Development</h1>
+      <input
+        placeholder="Development name"
+        className="border p-2 mr-2"
+        value={tenantName}
+        onChange={(e) => setTenantName(e.target.value)}
+      />
+      <input
+        placeholder="Slug (e.g., seaview)"
+        className="border p-2 mr-2"
+        value={slug}
+        onChange={(e) => setSlug(e.target.value)}
+      />
+      <button
+        onClick={createTenant}
+        className="bg-black text-white px-4 py-2 rounded"
+      >
+        Create
+      </button>
+    </div>
+  );
+}
+
+
+Create /app/api/tenants/route.ts:
+
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
+
+export async function POST(req: Request) {
+  const { tenantName, slug } = await req.json();
+  const { error } = await supabase.from("tenants").insert({ name: tenantName, slug });
+  if (error) return new Response(`❌ Error: ${error.message}`, { status: 400 });
+  return new Response(`✅ Tenant "${tenantName}" created successfully`);
+}
+
+⚖️ 7. GDPR & Privacy Features
+
+Create:
+
+/app/api/export/route.ts → returns all user data (name, address)
+
+/app/api/delete/route.ts → deletes user’s record from Supabase
+Add a Privacy Policy link to your app footer.
+
+🧠 8. Verification Tests
+
+After implementation:
+
+Run npm run dev → confirm server running on port 5000.
+
+Visit /admin → create a new tenant.
+
+Upload PDFs via /upload.
+
+Open /chat → ask a question about the document.
+You should see:
+
+[Router] Using gpt-3.5-turbo → simple contextual answer
+[RAG] 5 docs retrieved (avg sim 0.86)
+
+
+Confirm answers are grounded in the uploaded doc content.
+
+💸 9. Model Routing Confirmation
+
+Verify your logs show:
+
+[Router] Using gpt-3.5-turbo → simple contextual answer
+[Router] Using gpt-4-turbo → complex reasoning or low retrieval confidence
+
+
+You now have intelligent routing saving ~90% OpenAI cost.
+
+🚀 10. Final Checkpoint
+
+Create a Replit checkpoint named:
+
+✅ Property Assistant v2 - RAG + Multi-Tenant + GDPR Ready (Oct 2025)
+
+✅ Expected Outcome
+
+Fully functional Replit app on port 5000
+
+Multi-tenant setup with per-development isolation
+
+RAG pipeline using text-embedding-3-large
+
+Admin wizard for new developments
+
+Verified OpenAI connectivity and model routing
+
+Privacy compliance with data export/delete endpoints
+
+Stable, scalable foundation ready for live rollout across Irish housing schemes by Jan 2026

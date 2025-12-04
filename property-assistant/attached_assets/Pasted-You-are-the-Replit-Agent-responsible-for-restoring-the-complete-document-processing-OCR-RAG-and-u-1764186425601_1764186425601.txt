@@ -1,0 +1,115 @@
+You are the Replit Agent responsible for restoring the complete document-processing,
+OCR, RAG, and unit-specific answering pipeline for the OpenHouse AI Unified Portal.
+
+Your objective is to return the system to the stable behaviour it had yesterday:
+purchasers must be able to ask “How big is my living room?” and the assistant must
+answer correctly based on their specific unit type (e.g., BD01 at 3 Longview Park).
+
+Your tasks MUST be completed in this exact order, without skipping or improvising:
+
+---------------------------------------------------------------------
+PHASE 1 — INSTALL & ENABLE FULL OCR SUPPORT
+---------------------------------------------------------------------
+1. Install the following libraries if missing:
+   - pdf-parse
+   - pdfjs-dist
+   - sharp
+   - tesseract.js or node-tesseract-ocr
+   - jimp
+
+2. Create a utility in `lib/ocr.js` that:
+   - detects if a PDF page has NO text
+   - converts each page to an image buffer
+   - runs OCR on each page
+   - concatenates extracted text
+   - returns clean, plain English text
+
+3. Ensure that all document-processing functions IMPORT AND USE this new OCR layer.
+
+---------------------------------------------------------------------
+PHASE 2 — FIX THE REPROCESSING ENDPOINT
+---------------------------------------------------------------------
+Fix `/api/documents/reprocess` so that:
+
+1. It loads ALL documents from Supabase
+2. For each document:
+   - Downloads the file
+   - Runs processDocument(file) which NOW includes OCR fallback
+   - Deletes old chunks
+   - Recreates fresh chunks
+   - Embeds new chunks via embedding model
+   - Updates DB with status = "processed"
+3. Wrap the entire loop in:
+   - try/catch blocks
+   - proper JSON responses
+   - console logging to track failures
+
+Guarantee that ALL documents process without “pdfParse is not a function” or
+“Class constructor cannot be invoked without new”.
+
+---------------------------------------------------------------------
+PHASE 3 — RESTORE THE OLD WORKING PDF PROCESSOR
+---------------------------------------------------------------------
+Yesterday’s version DID work. Restore its logic:
+
+- Use pdfParse first
+- If text length < 200 chars → trigger OCR
+- Clean the text
+- Generate deterministic chunks of ~1,500 chars
+- Embed with model "text-embedding-3-large"
+- Save chunks → Supabase
+
+---------------------------------------------------------------------
+PHASE 4 — IMPROVE FLOOR PLAN DIMENSION EXTRACTION
+---------------------------------------------------------------------
+Floor plans do NOT contain text-based room dimensions. The model must still answer.
+
+Implement a structured fallback:
+
+1. Add a new JSON column `room_dimensions` to `units` table if missing.
+2. For BD01, BD02, BD03 insert:
+   - Known dimensions (pulled from your internal knowledge or Supplier Specs)
+3. Update RAG answer logic so:
+   - First tries RAG chunks
+   - If no measurement values found → fallback to structured data
+4. Final response to the user must always include a numeric dimension.
+
+---------------------------------------------------------------------
+PHASE 5 — UNIT-SPECIFIC FILTERING RESTORATION
+---------------------------------------------------------------------
+Ensure that:
+
+1. When a purchaser logs in…
+2. Their `unit_uid` → maps to correct `house_type_code` in DB
+3. RAG query filters exclusively on matching house_type_code
+4. Incorrect types (e.g., BD03 for BD01) NEVER appear.
+
+This function MUST work:
+
+Ask: “How big is my living room?”
+→ Identify unit
+→ Pull BD01 data only
+→ Extract answer
+→ Provide dimensions
+
+---------------------------------------------------------------------
+PHASE 6 — FINAL QA
+---------------------------------------------------------------------
+After changes, run:
+
+- Reprocess ALL documents
+- Confirm 0 failures
+- Ask test questions in the purchaser demo portal:
+
+“What size is my living room?”
+“What size is my kitchen?”
+“What size is Bedroom 2?”
+“Show me all BD01 dimensions.”
+“Summarise my floor plan.”
+
+They must ALL return correct BD01 results.
+
+---------------------------------------------------------------------
+When done, say: “FULL RESTORE COMPLETE”.
+Do not summarise intermediate steps.
+Just execute.

@@ -1,0 +1,65 @@
+You are the Replit Agent.  
+Set up Supabase + Drizzle database foundation for the OpenHouse AI monorepo.
+
+1️⃣ Dependencies
+- In root: install `drizzle-orm`, `drizzle-kit`, `pg`, `supabase-js`, `@supabase/auth-helpers-nextjs`, `dotenv`.
+- Create `/packages/db/drizzle.config.ts` configured for Supabase Postgres (EU region).
+
+2️⃣ Environment Variables
+Append to root `.env` and create `.env.local.example`:
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_JWT_SECRET=
+POSTGRES_URL=
+DATABASE_REGION=eu
+
+bash
+Copy code
+Do NOT commit real keys. Print placeholders only.
+
+3️⃣ Schema Setup → `/packages/db/schema.ts`
+Define tables with Drizzle ORM:
+- tenants (id, name, slug, logo_url, created_at)
+- admins (id, tenant_id, email, role)
+- documents (id, tenant_id, title, file_url, version, updated_at)
+- noticeboard_posts (id, tenant_id, title, content, author_id, created_at)
+- pois (id, tenant_id, name, category, lat, lng)
+- messages (id, tenant_id, user_id, content, created_at, source)
+- analytics_daily (id, tenant_id, metric, value, date)
+Add FKs + indexes for tenant_id.
+
+4️⃣ Row-Level Security (RLS)
+- Generate `/packages/db/policies.sql`
+  - Enable RLS on every table.
+  - Policy: users can access rows only where tenant_id = auth.jwt().tenant_id.
+  - Admins (role = 'platform') bypass tenant filter.
+
+5️⃣ Scripts → root `package.json`
+"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
+"db:migrate": "drizzle-kit migrate --config packages/db/drizzle.config.ts",
+"db:seed": "tsx ./packages/db/seed.ts"
+
+markdown
+Copy code
+
+6️⃣ Seed → `/packages/db/seed.ts`
+Insert demo tenant 'Seaview Estates' + one admin user. Print their login URL.
+
+7️⃣ Integration
+- In `/apps/assistant-tenant/lib/supabaseClient.ts` create Supabase client (import from `@supabase/supabase-js`).
+- In `/apps/master-admin/lib/supabaseServer.ts` do same with service role key.
+- Export helper `getTenantId()` from `packages/auth` to read `tenant_id` from JWT or subdomain.
+
+8️⃣ Verification Steps (print at end)
+- Confirm DB connection success.
+- Run `npm run db:migrate` to apply migrations.
+- Run `npm run db:seed` to add demo tenant.
+- Return console message ✅ “All database setup complete”.
+
+Constraints:
+- Do NOT remove any existing files.
+- Keep output minimal and non-interactive.
+- Use EU region Supabase defaults.
+
+Begin now.

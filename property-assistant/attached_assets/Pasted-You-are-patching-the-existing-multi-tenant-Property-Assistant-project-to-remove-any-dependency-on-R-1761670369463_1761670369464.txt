@@ -1,0 +1,77 @@
+You are patching the existing multi-tenant Property Assistant project to remove any dependency on “Replit AI Integrations” for embeddings and to make ingestion asynchronous, tenancy-safe, and production-ready. Apply all changes below end-to-end and ship a working build.
+
+1) Create /lib/ai/embeddings.ts with:
+- export async function embedChunks(texts: string[]): Promise<number[][]>
+- Uses fetch to call OpenAI Embeddings REST API (model text-embedding-3-large).
+- Batches up to 64 chunks per request.
+- Retries with exponential backoff on 429/5xx.
+- Validates output shape and returns number[][].
+
+2) Create /lib/rag/chunk.ts:
+- export function chunkText(input: string): string[]
+- Split on paragraphs and sentence boundaries. Target ~800 token chunks, 100 token overlap.
+- Strip headers, footers, repeated page numbers.
+
+3) Update /app/api/tenant-pack/route.ts:
+- On ZIP upload, enqueue a job record instead of processing inline.
+- Create table jobs(id uuid pk default gen_random_uuid(), tenant_id uuid, type text, status text, progress int, total int, error text, created_at timestamptz default now()) if missing.
+- Write a “DOC_IMPORT” job with status “queued”.
+
+4) Add /app/api/jobs/[id]/status/route.ts:
+- Returns { status, progress, total, error }.
+- Admin UI polls this endpoint to show ingestion progress.
+
+5) Add /app/api/jobs/[id]/run/route.ts:
+- Server-only route. Processes the job in small batches to avoid timeouts.
+- Steps per batch:
+  a) Read next unprocessed PDFs from Supabase Storage for this tenant.
+  b) Extract text via pdf-parse.
+  c) chunkText -> embedChunks -> insert into doc_chunks (tenant_id, doc_id, chunk_index, content, embedding).
+  d) Update jobs.progress and jobs.total.
+- Stop after a fixed work quantum and return { continue: true } if more remains. The Admin UI continues calling until done. On completion set status “done”.
+
+6) Update Admin Import page (/app/(admin)/admin/import-tenant-pack/page.tsx):
+- After upload, show a progress card wired to the job status endpoint.
+- Button “Resume” calls /api/jobs/[id]/run until status = done.
+- Display per-file progress and summarized errors.
+
+7) Replace any Replit “AI Integration” calls:
+- All embeddings must use /lib/ai/embeddings.ts.
+- Remove any references to platform AI integrations.
+
+8) Tenancy and RLS:
+- Create user_roles table:
+  create table if not exists user_roles(
+    user_id uuid not null,
+    tenant_id uuid not null references tenants(id) on delete cascade,
+    role text not null check (role in ('owner','admin','editor','viewer')),
+    primary key (user_id, tenant_id)
+  );
+
+- RLS policies for admin tables should check that auth.uid() is a member of user_roles for that tenant.
+  Example for faqs:
+    alter table faqs enable row level security;
+    create policy admin_faqs_rw on faqs
+      using (exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.tenant_id = faqs.tenant_id))
+      with check (exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.tenant_id = faqs.tenant_id));
+
+- Public resident routes continue to use the service role on the server and must always filter by tenant_id resolved from the host header. Validate the slug against tenants.slug and 404 if not found.
+
+9) Chat fallback:
+- In /app/api/chat/route.ts, wrap OpenAI calls in try/catch.
+- On error, run a semantic search over FAQs using trigram similarity or a lightweight embedding cached at import time and return an answer plus CTAs with a “degraded mode” banner.
+
+10) Environment:
+- .env.example must include OPENAI_API_KEY and SUPABASE_SERVICE_ROLE_KEY.
+- Ensure service role is only referenced in server code.
+
+11) Tests:
+- Add tests for:
+  - embedChunks batching and output shape (mock OpenAI).
+  - job runner processes a synthetic PDF and writes doc_chunks.
+  - RLS: authenticated admin can CRUD their tenant data, not others.
+
+12) Post-patch output:
+- Print instructions: how to create a Tenant Pack job, how to resume processing, and how to verify embeddings exist for a tenant.
+
+Execute now and do not leave stubs. If a library is unavailable, select the closest stable alternative and document the change in the console.

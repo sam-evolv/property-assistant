@@ -1,0 +1,172 @@
+You are debugging a Next.js 14 app in a monorepo in Replit.
+
+The app is in:
+/home/runner/workspace/apps/developer-portal
+
+When I open the app (for example /super) in the browser, the console repeatedly shows:
+
+Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'call')
+    at options.factory (webpack.js:715:31)
+    at __webpack_require__ (webpack.js:37:33)
+    at fn (webpack.js:371:21)
+    ...
+
+
+and the trace mentions:
+
+node_modules/next/dist/client/components/app-router.js
+
+client-page.js
+
+layout-router.js
+
+render-from-template-context.js
+
+app/layout.js
+
+app/layout-client.tsx
+
+react-jsx-dev-runtime.development.js
+
+jsx-dev-runtime.js
+
+The React dev overlay appears with “Unhandled Runtime Error” and the page does not render.
+
+This is not a normal component bug. It is a Webpack/runtime issue. A module in the client bundle is missing or mis-registered, usually because next.config.* has an incorrect webpack override, or React/JSX is aliased incorrectly. I have already asked other agents to fix it several times; they said it was fixed but the error persists.
+
+Your job is to:
+
+Find the true root cause.
+
+Fix it in a minimal and robust way.
+
+Prove that the app builds and /super renders without the error.
+
+Hard constraints
+
+Do NOT change dependency versions in any package.json (no upgrading/downgrading next, react, react-dom, or adding a direct webpack dependency).
+
+Do NOT delete or rename app routes or layouts.
+
+Prefer minimal, targeted edits.
+
+If you comment out or remove code, leave a short comment explaining why.
+
+Do NOT just silence errors or wrap everything in generic try/catch. The runtime must actually work.
+
+STEP 1 – Inspect and reset next.config for developer-portal
+
+Open apps/developer-portal/next.config.js (or .mjs).
+
+If there is ANY custom webpack override, or custom optimization, or React aliases, assume this is the likely cause.
+
+Typical problematic patterns to REMOVE for now:
+
+config.optimization.runtimeChunk = 'single';
+config.entry = async () => { ... };
+config.output.library = ...;
+config.output.chunkLoading = ...;
+
+config.resolve.alias['react'] = '...';
+config.resolve.alias['react-dom'] = '...';
+config.resolve.alias['react/jsx-runtime'] = '...';
+config.resolve.alias['react/jsx-dev-runtime'] = '...';
+
+
+Replace the config with a minimal, safe version:
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+  },
+  webpack: (config) => {
+    // Keep webpack config as close to default as possible.
+    // Do not modify config.optimization or React aliases here.
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+
+
+If there is a ROOT next.config.* that also wraps the app (for example in the repo root with withNx or similar), make sure it also does not modify optimization.runtimeChunk, entry, or React aliases. If it does, simplify it in the same way: keep the config minimal and always return config;.
+
+STEP 2 – Verify dependencies are sane (no duplicate React / Webpack)
+
+Open apps/developer-portal/package.json and check:
+
+There is a single next dependency.
+
+There is a single react and react-dom pair.
+
+There is no direct webpack dependency that would override Next’s internal one.
+
+If you see extra React/ReactDOM or webpack versions, remove the duplicates so that only Next’s normal stack remains.
+
+After any change, run npm install in apps/developer-portal.
+
+STEP 3 – Clean and rebuild from scratch
+
+From /home/runner/workspace/apps/developer-portal:
+
+rm -rf .next .turbo
+
+npm install
+
+npm run lint || echo "LINT_FAILED"
+npm run build
+
+
+If npm run lint or npm run build fails, use the error message to find and fix the problem in the referenced file(s) before continuing.
+
+Re-run npm run build until it succeeds.
+
+STEP 4 – Run dev and confirm /super works from the server’s point of view
+
+Start dev:
+
+npm run dev -- --port 3000
+
+
+In another shell tab, request /super directly from the dev server:
+
+curl -sS -D- http://127.0.0.1:3000/super | head -n 40
+
+
+Confirm:
+
+The response status is HTTP/1.1 200 (or 304) and
+
+The body starts with valid HTML (e.g. <!doctype html> or <html>).
+
+If curl returns an error or non-HTML, inspect the dev server logs, find the first stack frame in our own code, and fix that specific issue. Then re-run build and dev.
+
+STEP 5 – Final browser verification
+
+With dev still running, open /super in the Replit preview and in “Open in new tab”.
+
+Confirm:
+
+The page renders.
+
+The React overlay is not shown.
+
+The browser console no longer logs TypeError: Cannot read properties of undefined (reading 'call') from webpack.js.
+
+Final response requirements
+
+In your final message to me:
+
+State the root cause you found (file and a brief description).
+
+Show the before vs after of any important change (especially in next.config.*).
+
+Confirm that:
+
+npm run build succeeded, and
+
+/super works both via curl and in the browser with no Webpack “undefined 'call'” errors.
+
+Do NOT say “fixed” unless all of these checks pass.

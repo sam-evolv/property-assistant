@@ -1,0 +1,226 @@
+You are now executing Phase 3 of the OpenHouse AI monorepo migration.
+
+Your job is to extract all shared API logic from both portals into a single clean package called:
+
+/packages/api
+
+
+This package MUST contain:
+
+/packages/api
+  /src
+    chat.ts
+    train.ts
+    developments.ts
+    tenants.ts
+    auth.ts
+    rate-limit.ts
+    vector-store.ts
+    utils.ts
+  index.ts
+  package.json
+  tsconfig.json
+
+PHASE 3 OBJECTIVES
+
+You must complete ALL the following:
+
+1. EXTRACT SHARED API LOGIC INTO /packages/api
+
+Move the following logic OUT of portal apps and into shared package:
+
+Required consolidations:
+
+/api/chat (AI chat pipeline)
+
+/api/train (file upload + chunking + training job creation)
+
+/api/train/jobs
+
+/api/developments
+
+/api/developments/[id]
+
+/api/admin/default-tenant
+
+Tenancy helpers (getTenantId, assertTenant)
+
+Auth helpers (getUser, requireAdmin)
+
+DB helpers (drizzle client, type definitions)
+
+Vector embeddings + search logic
+
+Training chunker (PDF/text extraction, chunker, embedder)
+
+OpenAI client + model selector
+
+⚠️ The goal is:
+ZERO business logic inside app routes.
+ALL logic lives inside the shared package.
+
+Each portal’s route MUST become a thin wrapper:
+
+import { handler } from '@openhouse/api/chat';
+
+export const POST = handler;
+
+
+Nothing else.
+
+2. FIX IMPORT PATHS ACROSS BOTH PORTALS
+
+Update paths globally:
+
+Developer Portal
+apps/developer-portal/app/api/* → import from @openhouse/api
+
+Tenant Portal
+apps/tenant-portal/app/api/* → import from @openhouse/api
+
+What MUST import from shared package:
+
+tenancy tools
+
+auth tools
+
+db client
+
+AI utilities
+
+vector search
+
+training pipeline
+
+chat pipeline
+
+Ensure tsconfig paths
+
+Add to root tsconfig:
+
+{
+  "compilerOptions": {
+    "paths": {
+      "@openhouse/api/*": ["packages/api/src/*"],
+      "@openhouse/db/*": ["packages/db/src/*"],
+      "@openhouse/auth/*": ["packages/auth/src/*"]
+    }
+  }
+}
+
+3. REMOVE DUPLICATE API ROUTES
+
+After consolidation:
+
+delete all duplicated logic in both portals
+
+replace every API route with thin wrappers ONLY
+
+4. STANDARDISE TRAINING + CHATTING ENDPOINTS
+These MUST be unified and stable:
+
+POST /api/train
+GET /api/train/jobs
+POST /api/chat
+GET /api/developments
+POST /api/developments
+PATCH /api/developments/[id]
+
+Chat endpoint MUST:
+
+load system instructions from DB
+
+load relevant vector chunks via tenant + development
+
+return { answer, chunksUsed }
+
+Training endpoint MUST:
+
+accept multiple files
+
+extract text
+
+chunk
+
+embed
+
+store chunks correctly
+
+create training job entries
+
+5. ENSURE TENANCY RESOLUTION WORKS EVERYWHERE
+
+Updates required:
+
+Tenancy must work uniformly for BOTH portals
+
+Each request must carry:
+
+tenantId
+
+developmentId
+
+Tenant resolver must be moved into the shared package
+
+Fix all cases where tenantId was undefined.
+
+6. UPDATE BOTH PORTALS TO USE SHARED LOGIC
+
+After extraction:
+
+Developer Portal
+
+/developments/[id]/train should correctly fetch jobs
+
+/developments/[id]/chat should chat properly
+
+/developments/[id]/docs should upload + train
+
+Tenant Portal
+
+/dev/chat should call same chat pipeline
+
+/dev/knowledge should call same training pipeline
+
+Everything MUST behave identically.
+
+7. VALIDATE FUNCTIONALITY
+
+After all code modifications, run full tests:
+
+Confirm:
+
+Developer portal loads /developments correctly
+
+Creating a new development works
+
+Uploading PDFs trains successfully
+
+Training Jobs display correctly
+
+Chat answers based on training
+
+Tenant portal remains unaffected
+
+No duplicate API logic remains
+
+Fix ANY errors automatically.
+
+8. FINAL PHASE 3 OUTPUT
+
+When complete, print:
+
+PHASE 3 COMPLETE
+Shared API package created
+Routes migrated
+Portals fully wired to shared API
+Training + chat stable
+Ready for Phase 4: Admin Console
+
+✔️ Execute Now
+
+Begin Phase 3.
+Do NOT skip any steps.
+Do NOT restructure anything not listed above.
+Fix errors as you go.
+Refactor safely, preserving all functionality.

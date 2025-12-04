@@ -1,0 +1,200 @@
+Elevate Lighthouse performance to 90+ on desktop by refactoring architecture, bundle strategy, asset pipeline, React component structure, and third-party loading behaviour.
+
+Context:
+This is a Next.js (App Router) codebase with shadcn/ui, charts, Google Maps, analytics dashboards, RAG features, and multiple admin/developer panels. The project currently exhibits high JS payload, long main-thread blocking time, and heavy third-party scripts loading on first paint.
+
+AGENT — DO THIS IN SEQUENTIAL ORDER
+1. Implement Dynamic Imports for All Heavy Components
+
+Search the entire codebase for components that include:
+
+Google Maps
+
+Charts (e.g. Recharts, Chart.js, Nivo)
+
+Tables with heavy logic
+
+RAG or vector client initialisation
+
+PDF/document previewers
+
+Rich text editors
+
+Analytics cards
+
+Homeowner + unit + developer admin panels
+
+Wrap every such import in a dynamic import with SSR disabled:
+
+import dynamic from "next/dynamic";
+
+const ComponentName = dynamic(
+  () => import("./ComponentName"),
+  { ssr: false, loading: () => <div className="opacity-40">Loading…</div> }
+);
+
+
+Ensure all pages load with lightweight shells first, and heavy components mount only in the browser.
+
+2. Refactor Google Maps to Load On-Demand Only
+
+Locate the Maps tab component. Apply:
+
+Convert the entire Map component to a dynamic import with ssr: false.
+
+Ensure the Google Maps SDK script is not in _app.tsx or a layout file.
+
+Load the Maps SDK only after the user navigates to the Maps tab.
+
+Wrap markers and map logic in useEffect so it executes post-hydration.
+
+3. Reduce Initial JS Bundle Size
+
+Run next-bundle-analyzer (install if needed). Then:
+
+Identify bundles larger than 150kb.
+
+Split them using dynamic imports.
+
+Move all static configuration objects outside React component bodies.
+
+Memoise all table column config, chart config, and expensive arrays.
+
+Add:
+
+// next.config.js
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: true,
+});
+module.exports = withBundleAnalyzer({
+  reactStrictMode: true,
+});
+
+
+Fix every oversized chunk flagged by the analyzer.
+
+4. Optimise Images, Video, and Static Assets
+
+Apply globally:
+
+Convert all images to AVIF or WebP via Next/Image.
+
+Add priority={true} only to the single hero image (if applicable).
+
+Remove all non-hero images from initial SSR payload.
+
+Compress hero video to <3MB and serve hvc1 codec on Safari.
+
+Lazy-load every non-critical image with loading="lazy".
+
+Implement a static asset caching rule:
+
+Cache-Control: public, max-age=31536000, immutable
+
+5. Kill Unnecessary Re-renders
+
+Search for re-render hotspots:
+
+Wrap all heavy components with React.memo.
+
+Wrap all callback props with useCallback.
+
+Memoise computed values with useMemo.
+
+Move global state or context providers out of high-frequency render trees.
+
+Ensure table components, charts, and analytics cards do not re-render when unrelated state updates.
+
+6. Extract Critical CSS + Purge Dead Tailwind
+
+Tasks:
+
+Enable full Tailwind purge.
+
+Remove unused global styles.
+
+Ensure shadcn/ui components rely on Tailwind extraction, not client-side JS.
+
+Inline the minimal CSS required for the top fold only.
+
+7. Convert All Page-Level Data Fetching to Cached/Deferred
+
+For all pages in /super, /developer, /homeowners, /units:
+
+Use fetch() with { next: { revalidate: 60 } } to enable ISR.
+
+Move non-critical API calls inside useEffect.
+
+Defer loading of analytics datasets until after initial paint.
+
+Replace blocking server-side calls with background React Query hydration where feasible.
+
+8. Add Full CDN+Caching Headers
+
+Ensure Vercel/Netlify configuration includes:
+
+Cache-Control: public, max-age=31536000, immutable for static assets
+
+stale-while-revalidate for API routes
+
+Compression: brotli + gzip
+
+9. Eliminate All Layout Shifts
+
+Audit the UI for CLS triggers:
+
+Add explicit width/height to all images.
+
+Ensure components do not shift after hydration.
+
+Stabilise the Maps component container with a fixed height.
+
+Set tables and cards to fixed dimensions where possible.
+
+10. Final Pass — Lighthouse CI
+
+After fixes:
+
+Install Lighthouse CI.
+
+Add .lighthouserc.js with performance threshold >= 90.
+
+Run local + deployed tests.
+
+Fix remaining red or yellow flags until the desktop score reaches 90+.
+
+AGENT OUTPUT REQUIREMENTS
+
+For every change, the agent must:
+
+Modify code directly.
+
+Show the specific diff.
+
+Validate that dynamic imports, memoisation, asset conversions, and layout stabilisation are correct.
+
+Re-run the dev server and confirm no type or runtime errors.
+
+Re-run Lighthouse (via npx @lhci/cli collect) and post the score.
+
+SUCCESS CRITERIA
+
+The remediation is complete only when Lighthouse desktop metrics achieve:
+
+Performance: 90+
+
+FCP < 1.4s
+
+LCP < 1.8s
+
+TBT < 150ms
+
+CLS < 0.02
+
+Total initial JS < 160kb
+
+Initial payload < 350kb
+
+Google Maps loads only on demand
+
+All heavy components dynamically imported

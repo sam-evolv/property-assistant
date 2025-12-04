@@ -1,0 +1,164 @@
+You are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+Upgrade the entire UI and UX to deliver a **fully polished, single-screen app experience** that feels as refined and fluid as ChatGPT or an iOS native app.  
+No scrolling should be required on any main view (Chat, Map, Noticeboard, Documents).  
+All interfaces should be visually balanced, equally spaced, and aesthetically premium.
+
+---
+
+## TASKS
+
+### 1. ✅ GLOBAL EXPERIENCE & LAYOUT
+
+- Lock viewport to a **single screen** (100vh height).
+- Remove unnecessary scroll behaviour across all routes.
+- Use Flexbox or Grid with `h-screen` containers to vertically center content.
+- Adjust chat page so the input bar and conversation area fit within the screen naturally — no overflow or scroll required.
+- Add smooth, minimal transitions between pages (fade or slide).
+
+```tsx
+<main className="h-screen flex flex-col justify-between items-center overflow-hidden bg-white dark:bg-neutral-950 transition-colors duration-300">
+Maintain persistent top bar (logo + language + theme toggle) and bottom dock.
+
+Center the chat area vertically with subtle breathing space above/below.
+
+2. ✅ BOTTOM NAVIGATION POLISH
+Evenly distribute the four buttons perfectly (equal spacing on all screen widths).
+
+Reduce icon size slightly for refinement (h-5 w-5 on desktop, h-4 w-4 on mobile).
+
+Tighten vertical spacing so text labels sit closer to icons.
+
+Add smooth hover + active feedback (scale 1.05, colour fade).
+
+Ensure the dock never overlaps content (reserve bottom padding where needed).
+
+3. ✅ CHAT INTERFACE (FLAGSHIP EXPERIENCE)
+Build Chat view like ChatGPT:
+
+Fixed full-height viewport.
+
+Chat area fills space above input bar.
+
+Input bar always visible and anchored to bottom dock.
+
+Centered placeholder message (“Ask about your home or community…”).
+
+Animate input bar focus — gentle lift and shadow (translateY(-2px)).
+
+Add subtle background gradient behind messages.
+
+Use soft borders + translucent background (bg-white/80 dark:bg-neutral-900/80).
+
+Provide auto-scroll for messages only (inner container scroll, not page scroll).
+
+4. ✅ MAP INTERFACE UPGRADE
+Redesign Map screen to feel premium and integrated:
+
+Embed map container with rounded corners and shadow.
+
+Add white translucent overlay bar with subtle icons for “Refine Area” or “Filters”.
+
+Replace basic buttons with rounded glass buttons (backdrop-blur-md bg-white/40 dark:bg-neutral-800/50 border border-white/20).
+
+Typography: smaller, semi-bold, and neutral grey.
+
+Layout example:
+
+tsx
+Copy code
+<div className="h-full w-full relative flex flex-col items-center justify-center">
+  <div className="absolute top-4 left-0 right-0 flex justify-center gap-3">
+    <button className="px-4 py-1.5 rounded-full backdrop-blur-md bg-white/50 dark:bg-neutral-800/50 text-sm text-gray-800 dark:text-gray-200 shadow-sm">
+      Refine Area
+    </button>
+    <button className="px-4 py-1.5 rounded-full backdrop-blur-md bg-white/50 dark:bg-neutral-800/50 text-sm text-gray-800 dark:text-gray-200 shadow-sm">
+      Local Amenities
+    </button>
+  </div>
+  <div id="map" className="w-[90%] h-[75%] rounded-xl shadow-lg overflow-hidden"></div>
+</div>
+5. ✅ NOTICEBOARD REDESIGN
+Make it bright, structured, and visually engaging:
+
+Replace solid black with dynamic background that adapts to light/dark mode.
+
+Cards for each notice with white or neutral surfaces, slight shadows.
+
+Add “Add Notice” button with floating action style (bottom-right corner).
+
+Ensure all text uses proper colour contrast (dark mode readable).
+
+Example card style:
+
+tsx
+Copy code
+<div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+  <h3 className="font-semibold text-gray-800 dark:text-gray-100">Notice Title</h3>
+  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Notice description…</p>
+</div>
+6. ✅ DOCUMENTS PAGE POLISH
+Modernize the layout:
+
+Replace plain list with styled document cards (pdf, docx, etc. icons).
+
+Add file-type icon, title, and “View / Download” buttons inline.
+
+Consistent spacing and subtle hover effects.
+
+Use the same visual system as Noticeboard (light/dark adaptive cards).
+
+Optionally add a search bar (Search documents…) at top.
+
+7. ✅ VISUAL COHESION
+All four main pages share:
+
+Matching paddings + margins.
+
+Consistent max-w-xl constraint for central elements.
+
+Font sizes: use text-base for primary content, text-sm for secondary.
+
+Rounded corners (rounded-xl) everywhere for consistency.
+
+Use same elevation system: shadow-sm → shadow-md on hover.
+
+Soft transitions (transition-all duration-200).
+
+8. ✅ DARK MODE TUNING
+Ensure every surface, button, and text has a dark-mode variant.
+
+Use neutral, deep greys instead of true black.
+
+Chat background → bg-neutral-950/95
+
+Map overlays and cards adapt to dark:bg-neutral-800/50.
+
+Noticeboard and Document cards should invert cleanly between modes.
+
+9. ✅ PERFORMANCE & BEHAVIOUR
+Optimize map rendering (defer loading until visible).
+
+Ensure transitions between pages don’t reset layout flickers.
+
+Keep persistent Dock + Header mounted at all times (no re-render flicker).
+
+Ensure consistent 60fps transitions (use CSS transitions only).
+
+10. ✅ COMMIT MESSAGE
+pgsql
+Copy code
+feat(ui): upgrade all main pages to polished single-screen layout with refined dock, chat-like input, and premium light/dark UI parity
+ACCEPTANCE CRITERIA
+Chat screen behaves like ChatGPT: one static viewport, no page scroll, polished input bar interaction.
+
+Bottom dock perfectly balanced (equal spacing, crisp icons, active state highlight).
+
+Map screen feels refined with translucent overlays and better buttons.
+
+Noticeboard and Documents have light/dark adaptive card designs.
+
+Entire app feels cohesive, fast, and “native.”

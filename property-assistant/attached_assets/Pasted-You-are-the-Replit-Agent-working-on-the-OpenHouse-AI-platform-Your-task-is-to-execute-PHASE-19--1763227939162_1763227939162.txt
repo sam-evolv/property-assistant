@@ -1,0 +1,105 @@
+You are the Replit Agent working on the OpenHouse AI platform.
+
+Your task is to execute **PHASE 19 — MULTI-LANGUAGE SUPPORT (LOCALISATION ENGINE)**.
+
+This phase introduces full i18n support for the tenant portal and developer portal, enabling homeowners to use the system in multiple languages (initial target: EN, IE-English, PL, ES, FR).
+
+Work strictly within the existing architecture.
+
+────────────────────────────────────────
+PHASE 19 OBJECTIVES
+────────────────────────────────────────
+
+1. Create i18n Directory Structure
+   • Add: /apps/tenant-portal/i18n/
+     - en.json
+     - ie.json (English – Ireland)
+     - pl.json
+     - es.json
+     - fr.json
+
+   • Add developer-portal equivalents.
+
+   • Each JSON file contains:
+     {
+       "welcome": "",
+       "scan_qr": "",
+       "chat": "",
+       "map": "",
+       "documents": "",
+       "noticeboard": "",
+       ...
+     }
+
+2. Build Translation Loader
+   • Add utility: /apps/tenant-portal/lib/i18n.ts
+   • Must:
+     - detect language from browser
+     - fallback to English
+     - allow manual override via ?lang=pl
+     - support tenant-specific overrides later
+
+3. Wrap the Entire App in a Translation Provider
+   • Modify root layout (tenant portal)
+   • Inject translations into client components
+   • Enforce SSR-compatibility for Next.js 14 App Router
+
+4. Update All UI Text to Use i18n
+   • Navbar
+   • Onboarding screens
+   • Chat prompts
+   • Map labels
+   • Document UI
+   • Offline screen
+   • PWA metadata (if possible)
+
+5. Add Language Selector UI
+   • Add a language dropdown in top-right corner of the Tenant Portal
+   • Options: EN, IE, PL, ES, FR
+   • Store selection in:
+     – cookie OR
+     – localStorage
+
+6. Translate Core System Strings
+   • Use OpenAI to generate translations
+   • Fill each JSON file with:
+     - high-quality translations
+     - no marketing tone
+     - professional, clear, property-focused wording
+
+7. Update Developer Portal
+   • Add basic multi-language support there too
+   • Include EN + PL initially (others optional)
+   • Add language selector
+
+8. Testing & Validation
+   • Test:
+     – iOS PWA in Polish
+     – Android in Spanish
+     – Desktop override via ?lang=ie
+   • Ensure:
+     – RTL safety (even if RTL languages not added yet)
+     – No hardcoded text remains
+
+9. Documentation
+   • Create docs/PHASE_19_LOCALISATION.md
+   • Detail:
+     – how to add new languages
+     – how tenants can override strings
+     – how localisation loads in PWA
+     – how to test multi-language flows
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+• i18n directories + JSON translation files  
+• Translation loader + provider  
+• Language selector UI  
+• All UI text migrated to i18n  
+• Multi-language PWA onboarding  
+• docs/PHASE_19_LOCALISATION.md  
+
+────────────────────────────────────────
+
+Proceed with PHASE 19 now.

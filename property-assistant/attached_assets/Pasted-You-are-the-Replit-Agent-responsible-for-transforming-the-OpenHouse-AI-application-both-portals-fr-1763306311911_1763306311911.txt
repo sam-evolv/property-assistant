@@ -1,0 +1,259 @@
+You are the Replit Agent responsible for transforming the OpenHouse AI application (both portals) from a functional MVP into a **premium, elegant, highly-polished SaaS product** with a coherent, luxury-grade UI/UX system.
+
+Your job is to implement a **full design system overhaul** across:
+- apps/developer-portal
+- apps/tenant-portal
+- Shared components in packages/ui
+- All navigation, dashboards, tables, forms, cards, modals, interactions
+
+This redesign must reflect the **OpenHouseAI brand identity**:
+- **White as the primary canvas**
+- **Deep matte black as the structural color**
+- **Premium metallic gold for accents, highlights, CTAs, borders, and key UI elements**
+- **Minimalist, high-clarity layout**
+- **Smooth micro-interactions**
+- **High signal, low noise**
+- **Premium product feel one step above PropTech norms**
+
+────────────────────────────────────────
+0. BRAND SYSTEM — DEFINE THE VISUAL LANGUAGE
+────────────────────────────────────────
+
+Implement a unified design system:
+
+**COLORS**
+- primary: #FFFFFF
+- black: #000000 or #0C0C0C (matte black)
+- gold: #C7A556 (premium metallic gold — refine if necessary)
+- greys: minimal, neutral greys for spacing, dividers, and secondary text
+
+**TYPOGRAPHY**
+- Use a modern, premium sans-serif font (e.g. Inter, Satoshi, or IBM Plex Sans)
+- Headings: tight letter-spacing, strong hierarchy
+- Body: light, unobtrusive, readable
+
+**SPACING & GRID**
+- Use a deliberate spacing scale (4 / 8 / 12 / 16 / 24 / 32 / 48 px)
+- All content aligns to a consistent grid layout
+- Use whitespace generously (Apple-like lightness)
+
+**COMPONENT SHAPE**
+- Consistent radius: 10–12px
+- Subtle shadows only where needed
+- Inputs & buttons with defined height, spacing, and iconography
+
+**INTERACTION DESIGN**
+- Buttons: gold background, black text OR black with gold text
+- Hover states: subtle elevation, smooth transition
+- Tabs: underline or indicator in gold
+- Cards: white background, gold border or accent stripe
+- Icons: black with gold highlights where appropriate
+
+All components must feel intentional and premium.
+
+────────────────────────────────────────
+1. GLOBAL REFACTOR — IMPLEMENT DESIGN SYSTEM IN CODE
+────────────────────────────────────────
+
+Apply the design system across:
+
+1. **Tailwind config**
+   - Add custom color palette for white/black/gold
+   - Add spacing scale, typography scale, border radius
+   - Add shadows/transitions consistent with premium feel
+
+2. **shadcn/ui integration**
+   - Override default variants to match OpenHouse design
+   - Create custom theme presets for:
+     - Button
+     - Card
+     - Input
+     - Dialog/Modal
+     - Tabs
+     - Table
+
+3. **Reusable UI Components in packages/ui**
+   - Refactor components into shared design:
+     - Button
+     - Card
+     - Navigation bar
+     - Sidebar (developer portal)
+     - Mobile bottom nav (homeowner portal)
+     - File uploader
+     - Upload drag-and-drop zone
+     - Document list item
+     - Development cards
+     - Chat UI
+   - Add animation primitives for smooth transitions.
+
+────────────────────────────────────────
+2. REDESIGN: DEVELOPER PORTAL (Admin)
+────────────────────────────────────────
+
+The Developer Portal is the “enterprise-facing” portion of OpenHouse AI. It must feel like a seven-figure B2B tool.
+
+Transform the following screens using the white/black/gold aesthetic:
+
+**2.1. Login page**
+- Minimalist hero style
+- White background, gold accents
+- Premium typography
+- Simple, confident structure
+
+**2.2. Dashboard**
+- Replace basic tiles with:
+  - White cards
+  - Gold accent border or header stripe
+  - Clear icons
+  - Smooth hover transitions
+- Align analytics, counts, visuals in a well-balanced grid
+
+**2.3. Developments list**
+- Premium cards or table layout
+- Gold-highlighted CTAs
+- Clear status indicators
+
+**2.4. Development detail page**
+- Rebuild page header with:
+  - Large title
+  - Gold accent line
+  - High clarity sub-header text
+- Tabs redesigned in gold/black/white
+- Layout spacing optimised
+
+**2.5. Documents tab**
+- Beautiful upload module:
+  - Gold border drop-zone
+  - Cloud icon in black/gold
+  - Smooth hover and drag-over state
+- Document list redesigned:
+  - White cards with gold icons
+  - Clear file size, uploaded date, actions
+
+**2.6. AI Instructions tab**
+- Refined textarea
+- Clear “Save” CTA
+- Gold border, premium typography
+
+**2.7. Preview Chat**
+- Chat bubbles redesigned:
+  - White bubbles for user
+  - Black bubbles with gold trim for AI
+- Sticky input bar with gold highlight
+- Smooth scroll and transitions
+
+────────────────────────────────────────
+3. REDESIGN: TENANT / HOMEOWNER PORTAL
+────────────────────────────────────────
+
+This is the homeowner-facing “consumer” product. It must feel modern, safe, beautiful, and effortless:
+
+**3.1. Welcome screen**
+- Large title, simple iconography
+- Gold highlight on CTA
+- Calm white space
+
+**3.2. Bottom nav**
+- Rebuild with:
+  - Black background
+  - Gold active icon/label
+  - White inactive icons
+- Smooth transitions
+
+**3.3. Chat page**
+- Refine chat UI:
+  - Larger spacing
+  - Gold message bubbles for AI
+  - Minimal white bubbles for user
+  - Clean typography
+  - Sticky bottom bar
+
+**3.4. Map page**
+- Integrate Map with gold pins/markers using brand styling
+- Clean filters, whitespace, typography
+
+**3.5. Noticeboard**
+- Premium card style
+- Gold date separators
+- Clear “Add Post” button for developers
+
+**3.6. Documents screen**
+- Clean vertical card list
+- Gold icons, black text
+- Easy, intuitive access
+
+────────────────────────────────────────
+4. MICROINTERACTIONS & POLISH
+────────────────────────────────────────
+
+Implement the small but important premium touches:
+
+- Smooth fade and slide transitions (200–250ms)
+- Button press animations
+- Tab underline animation in gold
+- Drag-over highlight for file uploads
+- Hover softness on cards
+- Smooth scroll for chat and long pages
+- “Toast” notifications:
+  - Black or white background
+  - Gold icon highlight
+  - Clean typography
+
+Ensure all of these feel intentional and well-crafted.
+
+────────────────────────────────────────
+5. CONSISTENT COMPONENT LIBRARY
+────────────────────────────────────────
+
+Create or refine a **single component directory** in `packages/ui` with:
+
+- Button (black, gold, white variants)
+- Card (gold edge highlight)
+- SectionHeader (title + gold accent line)
+- PageContainer (consistent spacing)
+- FileUploader
+- ChatBubble (user & AI variants)
+- Input, Textarea, Select with brand styling
+- Tabs styled in white/black/gold
+- Table components (minimalist, high contrast)
+
+All duplicated UI must be removed across portals.
+
+────────────────────────────────────────
+6. RESPONSIVE DESIGN & MOBILE OPTIMISATION
+────────────────────────────────────────
+
+Ensure:
+
+- All pages responsive (desktop → tablet → mobile)
+- Developer portal works on laptops and large monitors
+- Homeowner portal is fully mobile-first
+- No layout breaks, no overflow issues, no clipped elements
+- Mobile bottom navigation remains fixed and elegant
+
+────────────────────────────────────────
+7. ACCESSIBILITY & QUALITY
+────────────────────────────────────────
+
+Ensure:
+
+- Sufficient contrast (gold on black, black on white)
+- Accessible interactive sizes (min 44px touch targets)
+- ARIA labels for navigation and chat controls
+- Keyboard navigation works
+
+────────────────────────────────────────
+8. FINAL VALIDATION PASS
+────────────────────────────────────────
+
+When design overhaul is complete, verify:
+
+1. Every screen across both portals follows the white/black/gold system.
+2. No legacy colors or components remain.
+3. Navigation is clear, consistent, and intuitive.
+4. All interactions feel smooth and premium.
+5. Uploading a document looks beautiful and works flawlessly.
+6. Preview Chat is visually elegant and responsive.
+7. Homeowner portal feels like a premium mobile app.
+
+Apply this redesign across all apps and shared component libraries now.

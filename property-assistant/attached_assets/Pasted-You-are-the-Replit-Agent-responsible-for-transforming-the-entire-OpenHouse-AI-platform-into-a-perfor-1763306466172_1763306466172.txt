@@ -1,0 +1,300 @@
+You are the Replit Agent responsible for transforming the entire OpenHouse AI platform into a performant, scalable, and production-ready SaaS capable of supporting thousands of developments and tens of thousands of homeowners.
+
+Your objective:  
+**Deliver a platform that is fast, stable, resource-efficient, horizontally scalable, and capable of handling high-volume AI workloads without degradation.**
+
+────────────────────────────────────────
+0. CORE GOALS — WHAT “HIGH PERFORMANCE” MEANS FOR THIS PRODUCT
+────────────────────────────────────────
+
+The platform must be optimised to:
+
+1. Render every page in <150ms SSR (<80ms CSR) under normal load.  
+2. Reduce database query time + load by 40–60%.  
+3. Scale cleanly with:
+   - 10,000+ developments  
+   - 100,000+ documents  
+   - millions of embedding chunks  
+   - large homeowner traffic spikes  
+4. Enable background AI processing safely and predictably.  
+5. Minimise OpenAI API calls to control cost.  
+6. Improve resilience against cold starts.  
+7. Remove code paths that cause blocking or unnecessary recomputation.  
+8. Use modern performance patterns across Next.js & Postgres.
+
+Perform all tasks below.
+
+────────────────────────────────────────
+1. DATABASE PERFORMANCE & SCALABILITY IMPROVEMENTS
+────────────────────────────────────────
+
+1.1. Add or verify **indexes** on critical columns:
+
+- developments.id  
+- developments.tenant_id  
+- houses.development_id  
+- house_types.development_id  
+- documents.development_id  
+- documents.tenant_id  
+- document_chunks.document_id  
+- document_chunks.development_id  
+- document_chunks.embedding (vector index if pgvector)  
+- instructions.development_id  
+- noticeboard_posts.development_id  
+
+1.2. Add compound indexes where needed:
+
+- (tenant_id, development_id)  
+- (development_id, created_at)  
+- (document_id, chunk_index)  
+
+1.3. Ensure the embedding vector column uses **pgvector** with correct indexing:
+
+CREATE INDEX ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+1.4. Optimise slow queries:
+
+- Refactor SELECT * → explicit columns  
+- Reduce unnecessary joins  
+- Add LIMIT, OFFSET, ordering  
+- Use count(*) carefully  
+- Chunk embedding retrieval (50–100 at a time)
+
+1.5. Add pagination to all tables.
+
+────────────────────────────────────────
+2. BACKEND PERFORMANCE & RATE LIMITING
+────────────────────────────────────────
+
+2.1. Optimise API handlers in packages/api/:
+
+- Remove blocking synchronous operations  
+- Convert heavy work to background tasks  
+- Use streaming for large responses  
+- Prefer async/await + batched inserts  
+- Cache repeated queries (in-memory + 60s TTL)
+
+2.2. Add intelligent rate limiting:
+
+- /api/train → limit by (tenant_id, minute)  
+- /api/chat  → limit by (tenant_id, second)
+
+2.3. Add global try/catch + centralized error handler.
+
+2.4. Reduce OpenAI calls:
+
+- Cache embedding results for identical documents  
+- Cache chat responses when same question asked  
+- Deduplicate similar chunks using hashing
+
+────────────────────────────────────────
+3. FRONTEND PERFORMANCE (Next.js + React)
+────────────────────────────────────────
+
+3.1. Audit all pages under:
+
+apps/developer-portal/src/app  
+apps/tenant-portal/src/app  
+
+Fix:
+
+- Unnecessary re-renders  
+- Client components used where server components suffice  
+- Missing React keys  
+- N+1 data fetching patterns  
+- Blocking API calls on initial page load  
+- Heavy components that should load lazily
+
+3.2. Use:
+
+- React.Suspense  
+- streaming SSR  
+- dynamic(() => import(...)) with ssr: false for heavy components  
+- memoization on expensive components  
+- local cache using SWR or React Query where appropriate
+
+3.3. Optimise list rendering:
+
+- Virtualise long lists (documents, houses, chunks)  
+- Use lightweight table components  
+- Avoid rerendering maps/POI layers unnecessarily
+
+────────────────────────────────────────
+4. OPTIMISE CHAT & RAG PERFORMANCE
+────────────────────────────────────────
+
+4.1. Add vector search limits:
+
+- Top-K = 8 or 12, not hundreds  
+- Use filters: development_id = X
+
+4.2. Add embedding cache table:
+
+Schema:
+- hash TEXT PRIMARY KEY  
+- embedding VECTOR  
+- created_at TIMESTAMP  
+
+4.3. Precompute chunk hashes to avoid regeneration.
+
+4.4. Add RAG retrieval batching (parallel vector queries).
+
+4.5. Add a warm cache:
+
+- On development page load: prefetch instructions, top chunks  
+- On chat start: prefetch likely sections  
+
+────────────────────────────────────────
+5. UPLOAD PIPELINE PERFORMANCE
+────────────────────────────────────────
+
+5.1. Convert the `/api/train` pipeline to:
+
+✓ Stream PDF parsing (incremental chunks)  
+✓ Batch embedding requests (20–50 per call)  
+✓ Parallelise chunk insertion  
+✓ Use queue-based processing:
+
+Implement a lightweight queue:
+
+- TRAINING_JOBS table  
+- Worker in `workers/embedding-worker.ts`  
+- Train API just enqueues work  
+- Worker processes jobs asynchronously  
+
+This prevents upload timeouts and allows high-volume processing.
+
+5.2. Fix file upload limits:
+
+- Support up to 20MB  
+- Chunk PDFs >10MB into streaming mode  
+
+5.3. Add clear upload statuses:
+
+- queued  
+- parsing  
+- embedding  
+- storing  
+- complete  
+- failed  
+
+────────────────────────────────────────
+6. COLD START & DEPLOYMENT OPTIMISATION
+────────────────────────────────────────
+
+6.1. Move heavy imports to dynamic imports:
+
+- pdf-parse  
+- mammoth  
+- OpenAI client  
+- pgvector functions  
+
+6.2. Reduce bundle size dramatically:
+
+- Tree-shake unused packages  
+- Remove unused code paths  
+- Verify no accidental server-side heavy imports in client bundles  
+
+6.3. Lazy-load map components to avoid cold-start delay.
+
+6.4. Prewarm critical resources at server boot.
+
+────────────────────────────────────────
+7. CACHE EVERYTHING YOU REASONABLY CAN
+────────────────────────────────────────
+
+7.1. Use route caching:
+
+- Cache developments list for 30s  
+- Cache instructions for 30s  
+- Cache map POIs for 60s  
+- Cache noticeboard posts for 30s  
+
+7.2. Add in-memory LRU cache:
+
+- Max size: ~300 entries  
+- Evict based on least recently used  
+- Works across all API calls  
+
+7.3. Add server-side hydration cache for SSR pages.
+
+────────────────────────────────────────
+8. ROBUST TELEMETRY, LOGGING & OBSERVABILITY
+────────────────────────────────────────
+
+8.1. Implement unified logging layer:
+
+- route  
+- method  
+- status  
+- duration  
+- tenant_id  
+- development_id  
+- error_message  
+
+8.2. Add performance timing wrappers to:
+
+- all DB queries  
+- all AI calls  
+- all vector searches  
+- all upload operations  
+
+8.3. Add structured logs in JSON for production:
+
+{
+  level: "info" | "error",
+  route: "/api/chat",
+  ms: 42,
+  tenant_id: "xxx",
+  development_id: "xxx",
+  message: "Embedding search complete"
+}
+
+8.4. Add slow-query detection:
+Log any DB query > 120ms.
+
+────────────────────────────────────────
+9. LOAD TESTING & STRESS SIMULATION (AGENT MUST PERFORM)
+────────────────────────────────────────
+
+Simulate:
+
+• 150 simultaneous PDF uploads  
+• 500 simultaneous chat requests  
+• 2000 reads of developments list  
+• 100 POI map loads  
+• 500 document list loads  
+
+Measure:
+
+- average latency  
+- p95 latency  
+- error rate  
+- memory footprint  
+- API throughput  
+
+Fix all bottlenecks.
+
+────────────────────────────────────────
+10. FINAL PRODUCTION CERTIFICATION
+────────────────────────────────────────
+
+Agent must only finish after confirming:
+
+✔ All endpoints <150ms average  
+✔ Chat <500ms average  
+✔ Upload pipeline stable  
+✔ Tenant Portal cold start <1.5s  
+✔ Developer Portal navigation instant  
+✔ All pages render without blocking or flickering  
+✔ Zero memory leaks  
+✔ Zero N+1 queries  
+✔ All indexes exist and are effective  
+✔ All caches functioning  
+✔ No console errors  
+✔ No server-side warnings  
+✔ No broken flows  
+
+This platform must now match the operational standard of a **7-figure SaaS** engineered for real estate developers.
+
+Proceed with the complete optimisation sweep now.

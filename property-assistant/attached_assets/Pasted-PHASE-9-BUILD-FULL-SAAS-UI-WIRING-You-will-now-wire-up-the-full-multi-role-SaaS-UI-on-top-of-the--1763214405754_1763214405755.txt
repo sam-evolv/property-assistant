@@ -1,0 +1,221 @@
+PHASE 9 – BUILD FULL SAAS UI WIRING
+
+You will now wire up the full multi-role SaaS UI on top of the working backend API and RBAC system.
+
+OBJECTIVE
+
+Implement fully functional UI flows for:
+
+Super Admin
+
+Developer
+
+Tenant/Homeowner (public portal)
+
+This includes navigation, layout, data fetching, and client/server boundaries.
+
+TASKS
+1. Add Global Auth Context + Role Context
+
+In:
+
+apps/developer-portal/app/layout.tsx
+
+apps/tenant-portal/app/layout.tsx
+
+Implement:
+
+getAdminContext() usage inside Server Components
+
+Redirect logic:
+
+super_admin → /admin
+
+developer → /dashboard
+
+unauthorized → /login
+
+Expose context as:
+
+context.userRole
+context.tenantId
+context.adminId
+
+2. Implement Super-Admin Dashboard UI
+
+Location:
+apps/developer-portal/app/admin/page.tsx
+
+Build a proper UI that fetches via API:
+
+GET /api/developers
+
+GET /api/developments
+
+Show:
+
+developer list with “View”, “Edit”, “Delete” actions
+
+button: “Create Developer”
+
+button: “Create Development”
+
+Use Tailwind + Shadcn UI components.
+
+3. Implement Developer Dashboard UI
+
+Location:
+apps/developer-portal/app/dashboard/page.tsx
+
+Fetch:
+
+GET /api/developments (RBAC-filtered)
+
+GET /api/homeowners?developmentId=…
+
+Display:
+
+List of developments owned by the developer
+
+Inside each development:
+
+total homeowners
+
+button: View Homeowners
+
+button: Upload Docs (placeholder for future)
+
+Also add:
+
+/dashboard/homeowners/[id] → homeowner details page (read-only)
+
+4. Wire Development CRUD Forms
+
+Create pages:
+
+/admin/developments/new
+
+/admin/developments/[id]/edit
+
+Forms must POST/PATCH via:
+
+POST /api/developments
+
+PATCH /api/developments/[id]
+
+Include:
+
+dev name
+
+address
+
+tenant assignment
+
+developer assignment
+
+Validate based on RBAC.
+
+5. Wire Developer CRUD Forms
+
+Create:
+
+/admin/developers/new
+
+/admin/developers/[id]/edit
+
+Using APIs:
+
+POST /api/developers
+
+PATCH /api/developers/[id]
+
+DELETE /api/developers/[id]
+
+6. Implement Homeowner List UI (RBAC filtered)
+
+Location:
+apps/developer-portal/app/dashboard/homeowners/page.tsx
+
+Fetch:
+
+GET /api/homeowners?developmentId=…
+
+Show table:
+
+name
+
+email
+
+house_type
+
+address
+
+QR token (masked, reveal on click)
+
+7. Add Shared Components
+
+Create in packages/ui:
+
+Sidebar
+
+Top Bar
+
+Role-aware Navigation
+
+Loading State
+
+Error State
+
+8. Connect Tenant Portal Welcome Screen
+
+Modify:
+
+apps/tenant-portal/app/page.tsx
+
+Steps:
+
+Detect QR token if present in search params
+
+Fetch homeowner via secure lookup (use API once created)
+
+If missing → show “Scan your QR code to begin”
+
+If found → show Homeowner Info
+
+Prepare route for Chat/Map/Docs navigation (placeholder for now)
+
+9. Cleanup + Code Review
+
+Fix imports
+
+Ensure no circular deps
+
+Remove unused files
+
+Restart server workflow
+
+Run end-to-end test:
+
+login as super-admin
+
+create developer
+
+create development
+
+assign developer
+
+login as developer and access only their assigned developments
+
+DELIVERABLE
+
+A fully wired SaaS UI system where:
+
+Super-admin manages developers + developments
+
+Developer sees only what belongs to them
+
+Tenant portal is ready for QR onboarding
+
+RBAC is fully enforced visually and functionally
+
+Begin Phase 9 now.

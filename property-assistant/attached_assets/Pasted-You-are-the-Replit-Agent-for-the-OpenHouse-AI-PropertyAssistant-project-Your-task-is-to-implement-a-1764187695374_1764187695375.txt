@@ -1,0 +1,124 @@
+You are the Replit Agent for the OpenHouse AI PropertyAssistant project.
+Your task is to implement a national-scale, fault-tolerant, fully automatic document → intelligence pipeline consisting of four layers:
+
+1. Upgrade the Document Processing Pipeline
+
+Modify /packages/api/src/train/* to include:
+
+A. Multi-pass extraction:
+
+pdf-parse or mammoth (first attempt)
+
+OCR fallback using tesseract.js
+
+GPT-4o Vision extraction for floorplans and image-only PDFs
+
+B. Extract structured data from floorplans:
+
+Use GPT-4o to detect:
+
+room names
+
+room dimensions
+
+door/window dimensions
+
+scale indicators
+
+kitchen supplier
+
+wardrobe supplier
+
+Return JSON blocks and merge into unit intelligence.
+
+Store output in:
+extracted_features (JSONB) in the documents table.
+
+2. Create the Structured “Unit Intelligence Profile”
+
+Add a new table:
+
+unit_intelligence_profiles {
+  id UUID PK
+  development_id UUID
+  unit_type_id UUID
+  unit_name TEXT
+  floor_area_total FLOAT
+  rooms JSONB  // name, dimensions, extracted confidence
+  suppliers JSONB // kitchen, wardrobe, glazing
+  ber JSONB
+  heating JSONB
+  metadata JSONB // versioning, extraction quality
+  created_at TIMESTAMP
+  updated_at TIMESTAMP
+}
+
+
+When documents are uploaded or reprocessed, automatically build/update this profile.
+
+3. Enhance RAG Filtering
+
+In /packages/api/src/chat.ts:
+
+Filter RAG chunks by unit_type_id
+
+If no match, expand to development
+
+If still no match, fallback to AI reasoning + structured profile
+
+4. Update Chat Logic with 4-layer fallback
+
+Implement:
+
+Layer 1 — RAG direct answer
+
+Layer 2 — Structured Intelligence Profile (unit_intelligence_profiles)
+
+Layer 3 — Vision-extracted room dimensions
+
+Layer 4 — AI reasoning using building patterns
+
+Always return the best available answer.
+
+5. Fix Reprocessing System
+
+The /api/documents/reprocess route must:
+
+correctly serialize JSON
+
+run the full extraction pipeline
+
+delete old chunks and regenerate new ones
+
+update intelligence profiles
+
+handle OCR latency
+
+handle image-only PDFs cleanly
+
+Add robust logging.
+
+6. Confirm with end-to-end tests
+
+Create test scripts to verify:
+
+uploading any floorplan
+
+uploading image-only PDFs
+
+asking “what size is my living room?”
+
+asking “who supplied my kitchen?”
+
+asking “what is my total floor area?”
+
+Tests must pass for BD01, BD02, BD03 AND ANY future unit type.
+
+REPLIT AGENT PROMPT END
+
+Final Note
+
+This is the correct approach.
+If you patch BD01 again and again, you'll waste days.
+
+This architecture makes the entire system developer-proof, document-proof, scalable, and future-safe.

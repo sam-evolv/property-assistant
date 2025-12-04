@@ -1,0 +1,189 @@
+You are to rebuild the entire analytics system end-to-end.
+Your objective is to make the analytics pages WORK with real data (Longview Park, units, homeowners, messages, documents) and permanently remove all broken references from earlier phases.
+
+This phase includes backend API reconstruction, DB queries, frontend client updates, and global route synchronisation.
+
+Follow these instructions exactly and update all code accordingly.
+
+🔧 1. CLEANUP & RESET
+Remove all legacy analytics code:
+
+Delete:
+
+apps/unified-portal/app/api/admin/analytics/**
+
+apps/unified-portal/app/api/super/analytics/**
+
+any analytics/*.ts remnants
+
+outdated client files referencing old endpoints
+
+Remove ALL imports referencing:
+
+/api/admin/analytics
+
+/api/super/analytics
+
+/analytics/chat (legacy)
+
+Remove broken pages:
+
+/super/chat-analytics/**
+
+/super/rag/** (if referencing deleted files)
+
+any unused client components tied to removed analytics endpoints
+
+🔥 2. BUILD THE NEW ANALYTICS ENGINE
+
+Create a fully functional analytics engine that exposes superadmin-level platform metrics.
+
+Create new backend endpoints:
+
+apps/unified-portal/app/api/super/analytics/overview/route.ts
+apps/unified-portal/app/api/super/analytics/messages/route.ts
+apps/unified-portal/app/api/super/analytics/developments/route.ts
+apps/unified-portal/app/api/super/analytics/homeowners/route.ts
+apps/unified-portal/app/api/super/analytics/units/route.ts
+apps/unified-portal/app/api/super/analytics/documents/route.ts
+apps/unified-portal/app/api/super/analytics/rag-performance/route.ts
+
+
+Each endpoint must:
+
+2.1 Query the real database
+
+Use Drizzle + Supabase connection to pull:
+
+total developments
+
+total units
+
+total homeowners
+
+total messages (from messages table)
+
+message volume (last 14/30 days)
+
+top questions (GROUP BY message content)
+
+top developments (message count per development)
+
+AI usage (tokens, cost)
+
+active homeowners (7-day window)
+
+RAG performance (embedding speed, chunks, failures)
+
+documents uploaded per development
+
+2.2 Return structured JSON
+
+Example pattern:
+
+return NextResponse.json({
+  totalDevelopments,
+  totalUnits,
+  totalHomeowners,
+  totalMessages,
+  messageVolume,
+  topQuestions,
+  topDevelopments,
+  aiUsage,
+  activeHomeowners,
+  ragHealth,
+  documents
+});
+
+🎨 3. FIX ALL FRONTEND CLIENTS TO MATCH THE NEW API
+
+Update:
+
+apps/unified-portal/app/super/overview-client.tsx
+apps/unified-portal/app/super/chat-analytics/chat-analytics-client.tsx
+apps/unified-portal/app/super/rag/rag-client.tsx
+apps/unified-portal/app/super/developments/developments-analytics-client.tsx
+
+For each client:
+
+Replace all fetch URLs with the new endpoints:
+
+/api/super/analytics/overview
+/api/super/analytics/messages
+/api/super/analytics/developments
+/api/super/analytics/homeowners
+/api/super/analytics/units
+/api/super/analytics/documents
+/api/super/analytics/rag-performance
+
+
+Remove ANY reference to:
+
+/api/admin/analytics
+
+/api/super/overview-analytics
+
+/api/admin/platform-metrics
+
+Ensure loading skeletons still work.
+
+📌 4. FIX CORE ROUTING
+
+Ensure:
+
+Superadmin dashboard routes
+
+/super/overview
+
+/super/chat-analytics
+
+/super/rag
+
+/super/developments
+
+/super/homeowners
+
+/super/units
+
+/super/documents
+
+All must correctly import the new client components.
+
+🧪 5. VERIFY PLATFORM SYNC
+
+Implement a platform-wide test:
+
+Backend must confirm:
+
+DB is reachable
+
+session token is valid
+
+superadmin role is required for all endpoints
+
+UI must confirm:
+
+All charts populate with real data
+
+Longview Park analytics show up
+
+No 404 pages
+
+No “Failed to fetch platform metrics”
+
+Navigation between tabs works
+
+Data refresh works
+
+🚀 6. OUTPUT REQUIRED
+
+When finished, you MUST output:
+
+✔ A list of every file you created
+✔ Every file you modified
+✔ Every file you deleted
+✔ And a screenshot of the working dashboard
+
+Do not stop until:
+
+The SuperAdmin dashboard loads REAL metrics for Longview Park with no errors, no placeholders, and no blank charts.

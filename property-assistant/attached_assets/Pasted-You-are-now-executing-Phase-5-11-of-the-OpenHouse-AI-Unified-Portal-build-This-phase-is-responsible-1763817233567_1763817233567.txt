@@ -1,0 +1,256 @@
+You are now executing Phase 5.11 of the OpenHouse AI Unified Portal build.
+This phase is responsible for wiring the premium analytics system (built in Phase 5.10) into the /analytics dashboard so the analytics experience finally becomes visible, interactive, and production-ready.
+
+Phase 5.10 delivered foundation only.
+Phase 5.11 delivers actual integration + final UX polish.
+
+You must execute the following tasks in order and with zero UI regression.
+
+✅ PHASE 5.11 — OBJECTIVE
+
+Transform the currently empty/placeholder analytics page into a fully functional enterprise dashboard by:
+
+Connecting all new analytics-v2 API routes
+
+Rendering all premium UI components
+
+Replacing legacy charts/UI
+
+Implementing multi-tab navigation
+
+Ensuring full tenant isolation & theme consistency
+
+Delivering a cohesive, premium, black-white-gold analytics experience
+
+✅ PHASE 5.11 — TASK LIST
+1. Integrate All New API Routes
+
+Use the following premium endpoints:
+
+/api/analytics-v2/user-funnel
+
+/api/analytics-v2/knowledge-gaps
+
+/api/analytics-v2/cost-trajectory
+
+/api/analytics-v2/rag-performance
+
+/api/analytics-v2/document-health
+
+/api/analytics-v2/insights
+
+/api/analytics-v2/user-engagement
+
+Implement a new folder:
+
+apps/unified-portal/hooks/useAnalyticsV2.ts
+
+
+Export fetcher hooks for every route.
+
+Each hook must support:
+
+tenant-aware edge fetch
+
+suspense compatibility
+
+graceful error states
+
+24h insights caching for insights endpoint
+
+2. Build the Analytics Dashboard Tab System
+
+Replace the existing placeholder tabs with a 7-tab structured analytics experience:
+
+Overview
+
+Trends
+
+Knowledge Gaps
+
+RAG Performance
+
+Document Health
+
+Homeowner Engagement
+
+Units Intelligence
+
+Each tab must map to its own section component:
+
+apps/unified-portal/app/analytics/tabs/
+  overview.tsx
+  trends.tsx
+  knowledge.tsx
+  rag.tsx
+  documents.tsx
+  engagement.tsx
+  units.tsx
+
+3. Render All Premium Components
+
+Replace the old charts with the new premium components:
+
+MetricPulseCard
+
+TrendStream
+
+InsightBanner
+
+HealthGauge
+
+CostTrajectory
+
+FunnelPath
+
+GapHeatmap
+
+RAGPerformanceChart
+
+DocumentHealthGrid
+
+UserEngagementRadar
+
+Each tab must pull in the appropriate components and fetcher hooks.
+
+4. Implement Executive Summary (Overview Tab)
+
+This section must display:
+
+A. 10 Insight Cards
+
+Total messages 30/60/90d
+
+Monthly active users
+
+Document count & health score
+
+RAG accuracy score
+
+Top 3 knowledge gaps
+
+Cost-per-message trend
+
+Avg. response latency
+
+Most engaged house types
+
+Developer activity index
+
+AI insights summary (from OpenAI)
+
+B. Executive Charts
+
+Message Volume (Premium TrendStream)
+
+Cost Trajectory (CostTrajectory)
+
+House Type Distribution (Premium version)
+
+C. AI Insights Banner
+
+Use InsightBanner with:
+
+development_id
+
+tenant_id
+
+insights text from API
+
+5. Replace All Legacy Components
+
+Remove:
+
+old Recharts components
+
+old bar/line chart wrappers
+
+old summary boxes
+
+unused analytics utilities
+
+Everything in /components/analytics/legacy/* must be replaced.
+
+6. Navigation Polish & Layout
+
+Implement:
+
+sticky horizontal tabs
+
+soft scroll anchoring
+
+smooth fade transitions
+
+skeleton loaders for all premium components
+
+Ensure UI matches the global theme:
+
+charcoal black background
+
+off-white panel surfaces
+
+premium gold accents
+
+subtle elevation & shadows
+
+7. Final QA Checklist
+
+Before finishing Phase 5.11, verify:
+
+Functionality
+
+All charts load correctly
+
+All API routes respond without 401/403
+
+No tenant leakage (verify by switching accounts)
+
+UX
+
+No layout shifts
+
+All components align grid-perfect
+
+Responsive on mobile/tablet
+
+No overlapping scroll containers
+
+Performance
+
+No waterfall fetches
+
+Components Suspense-ready
+
+API calls deduped
+
+Page loads < 300ms once cached
+
+8. Documentation
+
+Update:
+
+logs/PHASE_5.11_COMPLETION_REPORT.md
+
+Include:
+
+Routes integrated
+
+Components wired
+
+Removed legacy components
+
+UX improvements
+
+Performance notes
+
+Before/after screenshots (auto-generated if capable)
+
+replit.md
+
+Append Phase 5.11 summary under the Analytics section.
+
+🚀 EXECUTION INSTRUCTION
+
+Run all changes using the Replit Agent without breaking existing functionality.
+
+Start now.

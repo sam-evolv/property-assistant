@@ -1,0 +1,217 @@
+You are upgrading the OpenHouse AI Developer Portal admin panel into a full enterprise-grade control centre. 
+You must implement a comprehensive, data-rich admin interface at /admin that surfaces ALL operational, 
+developer, development, document, unit, homeowner, analytics, and system insights required for a SaaS 
+platform used by property developers.
+
+Do NOT touch tenant-portal code. Only modify the developer-portal under apps/developer-portal.
+
+---------------------------------------
+PHASE 1 — DATA MODEL DISCOVERY
+---------------------------------------
+1. Traverse all codebases in packages/api, packages/db, packages/web, apps/tenant-portal, apps/developer-portal.
+2. Build a full map of:
+   - Developers
+   - Developments
+   - Units
+   - Homeowners
+   - House types
+   - Documents
+   - RAG chunks
+   - Chat logs
+   - Login sessions
+   - Ingestion logs
+   - Maps config
+   - Keys, settings, translation data
+
+3. For each entity, extract:
+   - Fields
+   - Relationships
+   - Foreign keys
+   - API endpoints available
+   - Missing endpoints that must be created
+
+Output a consolidated schema & endpoint plan.
+
+---------------------------------------
+PHASE 2 — ADMIN PANEL ARCHITECTURE
+---------------------------------------
+Create a new “Admin Dashboard” in apps/developer-portal with a left-side navigation panel:
+
+MENU:
+- Overview Dashboard
+- Developers
+- Developments
+- Units
+- Homeowners
+- Documents
+- RAG Index
+- Chat Analytics
+- Map Analytics
+- System Logs
+- Error Reports
+- Ingestion Pipeline
+- Settings
+
+---------------------------------------
+PHASE 3 — PAGE IMPLEMENTATION
+---------------------------------------
+
+### 1. Overview Dashboard
+Show:
+- Total developers
+- Total developments
+- Total units
+- Total homeowners onboarded
+- Units with missing docs
+- Docs by category
+- Last 20 chats
+- AI usage stats (API calls today, last 7 days, cost estimate)
+- Error count (24h)
+- Heatmap of the most frequently asked questions
+
+### 2. Developer Management
+Show:
+- Developer ID
+- Name
+- Email
+- Created developments count
+- Last login
+- Button to impersonate developer (admin-only)
+
+### 3. Development Management
+For every development:
+- Name, address, schema version, created_at
+- Number of units
+- Number of homeowners
+- Document count by category
+- Mapping configuration state
+- Onboarding QR code preview & download
+- Link to “deep dive view”
+
+### 4. Development Deep Dive Panel
+Tabs:
+- Overview
+- Units
+- Homeowners
+- Documents
+- RAG
+- Chat Logs
+- Maps
+- Errors
+
+Include:
+- Full timeline of ingestion events
+- Missing docs warnings
+- Duplicate homeowners detection
+- Incorrect house type assignments
+
+### 5. Unit Explorer
+For each unit:
+- Full address
+- Unit UID
+- Development
+- House type
+- Homeowner assigned
+- Missing floor plan / elevation detection
+- Button to view RAG chunks that relate to this unit
+
+### 6. Homeowner Directory
+Show:
+- Full name
+- Email
+- Unit assigned
+- JWT metadata (house_type, unit_id)
+- Last active
+- Chat usage stats
+- Error triggers
+- Map usage stats
+
+---------------------------------------
+PHASE 4 — DOCUMENT MANAGEMENT UPGRADE
+---------------------------------------
+Admin panel MUST show:
+- All documents for development
+- Classified type (floor_plan, elevation, manual, misc)
+- Which house type each is tied to
+- Whether linked correctly
+- Whether used in RAG
+- File size, upload date
+- Broken links
+
+Implement:
+- Bulk re-classify button
+- Re-run ingestion button
+- Auto-detect house type codes (BDxx / BSxx / BTxx)
+- Show unmatched documents warning
+
+---------------------------------------
+PHASE 5 — ANALYTICS MODULES
+---------------------------------------
+
+### Chat Analytics
+Show:
+- Top 20 questions per development
+- Top unanswerable questions
+- Questions requiring development-specific fixes
+- Chat volume (daily, weekly, monthly)
+- Average response latency
+- Agent RAG vs LLM fallback ratios
+- Cost estimation (tokens in/out)
+
+### RAG Analytics
+Show:
+- Total chunks per development
+- Average chunk quality
+- Chunk age distribution
+- Orphaned chunks
+- Duplicated chunks
+- Chunked documents mapping
+
+### Map Analytics
+Show:
+- Map loads per user
+- Most used POI categories
+- Coordinates distribution
+- Missing or broken POIs
+
+### System Logs
+Expose:
+- All server logs
+- Warning-level logs
+- Error-level logs
+- API failure logs
+- Realtime tail
+
+---------------------------------------
+PHASE 6 — SECURITY & ADMIN CONTROLS
+---------------------------------------
+Add:
+- Admin-only routes (role: admin)
+- Login session viewer
+- Impersonation safeguards
+- Access logs for admin actions
+- Change audit history
+
+---------------------------------------
+PHASE 7 — UI/UX
+---------------------------------------
+Use:
+- Next.js app router
+- shadcn/ui components
+- Dark mode (default)
+- Table filtering, sorting, and full-text search
+- Charts (recharts)
+- Responsive layouts
+
+---------------------------------------
+DELIVERABLES
+---------------------------------------
+1. Fully functional admin console under /admin
+2. All required server endpoints
+3. Updated API handlers for analytics
+4. Fully styled UI
+5. No regressions in tenant-portal or QR onboarding
+
+When finished:
+- Restart developer-portal server
+- Output screenshot verification

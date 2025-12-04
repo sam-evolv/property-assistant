@@ -1,0 +1,312 @@
+Your objective is to extract, map, and formalise every system requirement across the entire OpenHouse AI platform before any implementation begins.
+
+You must produce the following outputs clearly and explicitly:
+
+1. End-to-End Platform Architecture Map
+
+Map the full architecture across:
+
+A. Tenant Portal
+
+Chat engine
+
+RAG pipeline
+
+Floor plan download layer
+
+Document access layer
+
+QR onboarding
+
+JWT identity and homeowner lookup
+
+Mapping feature
+
+Points of interest
+
+UI theming
+
+Multi-language support
+
+B. Developer Portal
+
+Uploading CSVs
+
+Unit ingestion
+
+Document ingestion
+
+Floor plan / elevation management
+
+House-type filtering logic
+
+Developer analytics
+
+Development analytics
+
+Activity logs
+
+C. Admin Enterprise Portal (new)
+
+Developer management
+
+Development-level dashboards
+
+Activity & usage metrics
+
+Document analytics
+
+Search logs
+
+Chat analytics
+
+Unit-level analytics
+
+Homeowner journeys
+
+Fraud / anomaly detection
+
+D. Backend Services
+
+Supabase DB
+
+Storage buckets
+
+Vector embeddings
+
+Document chunking
+
+User session layer
+
+QR code resolver
+
+Map & geodata APIs
+
+2. Full Truth Table for Homeowner Identity Resolution
+
+Explicitly define how the system determines:
+
+Development
+
+Unit
+
+House type
+
+Address
+
+Purchaser names (full)
+
+Unique ID
+
+Floor plan IDs
+
+Elevation sets
+
+Architectural plans
+
+Permissions & document visibility
+
+This will prevent further issues like “Please select a development first”.
+
+3. Document Routing Matrix (Critical)
+
+Define exactly how documents should be exposed in the tenant portal.
+
+For each uploaded document, clarify:
+
+Does it have a house-type code?
+
+If yes – show ONLY to matching units
+
+If no – show to ALL units
+
+If requested in chat, include download link
+
+If floor plan or elevation – expose structured metadata (size, rooms, etc.)
+
+Build a matrix like:
+
+Document Category	Requires House Type?	Visible To	Download Link	RAG Source?
+Architectural Plan	Yes	Matching units only	Yes	Yes
+Elevations	Yes	Matching units only	Yes	Yes
+General Development Docs	No	All units	Yes	Yes
+BER, Warranty, O&M	No	All units	Yes	Yes
+4. Chat Engine Input Context Blueprint
+
+List all contextual data that must be automatically injected into every chat request:
+
+development_id
+
+development name
+
+unit_id
+
+address
+
+purchaser full names
+
+house type
+
+floor plan metadata
+
+all matching documents
+
+allowed document download links
+
+map centre coordinates
+
+selected points of interest
+
+This prevents the engine from ever asking the user to select a development again.
+
+5. Mapping Requirements Specification
+
+Define:
+
+How to anchor the map to each purchaser’s exact address
+
+How to fetch nearby amenities using Google Maps Places API
+
+Which categories to include (schools, supermarkets, gyms, GPs, bus stops, etc.)
+
+How to cache these results per development
+
+How to show categories in the UI
+
+How to make it feel premium and “alive”
+
+6. Theming Specification
+
+Define the unified brand system:
+
+Chat bubble style (white + gold outline, grey + gold outline)
+
+Remove all solid gold blocks
+
+Icon colour sets
+
+Gold tone defined in hex
+
+Full light/dark mode behaviour
+
+Typography rules
+
+Button styles (esp. download buttons)
+
+This ensures consistent design across chat, documents, map, onboarding, and UI.
+
+7. CSV Upload & Unit Ingestion Requirements
+
+You must produce:
+
+A structured schema of required CSV fields
+
+Strong validation rules
+
+Error messages that are actually useful
+
+How to ingest units
+
+How to link units to house types
+
+How to assign purchaser names correctly
+
+How to regenerate QR codes
+
+How to handle missing or invalid data
+
+This resolves the “75 errors” CSV issue permanently.
+
+8. Analytics Requirements
+
+Define analytics needed for:
+
+Developer Portal
+
+Usage charts
+
+Document views
+
+Chat volume
+
+Top questions
+
+Heat pump queries
+
+Opening rate of PDFs
+
+Homeowner satisfaction proxies
+
+Day-by-day engagement
+
+Admin Enterprise Portal
+
+Developer-level rollups
+
+Cross-development insights
+
+Early issue pattern spotting
+
+Common questions across all developments
+
+PDF popularity
+
+System load
+
+Error rates
+
+9. Phase 3 Architecture Roadmap
+
+Define the next steps for implementation:
+
+JSON models
+
+API endpoints
+
+DB migrations
+
+Component rewrites
+
+Caching
+
+Error handling
+
+Testing plan
+
+Be explicit.
+
+MANDATORY EXECUTION RULES
+
+Do NOT modify any files yet
+
+Do NOT write code
+
+Do NOT generate migrations
+
+Do NOT install packages
+
+Produce structured outputs only
+
+Everything must be mapped before touching code
+
+Deliverables
+
+Produce a Phase 2 output containing ALL of the following:
+
+Full architecture map
+
+Identity resolution truth table
+
+Document routing matrix
+
+Chat context blueprint
+
+Map specification
+
+Theming system spec
+
+CSV ingestion spec
+
+Analytics spec
+
+Phase 3 roadmap

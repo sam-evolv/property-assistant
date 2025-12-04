@@ -1,0 +1,129 @@
+Fix the entire Developer Portal so that:
+
+• all pages load
+• Development detail pages work
+• document uploads work
+• PDF parsing works
+• embeddings are created
+• documents show in the UI
+• Preview Chat works
+• super admin access works
+• tenant context resolves correctly
+
+APPLY THE FOLLOWING FIXES:
+
+-----------------------------------------------------
+1. FIX API ROUTING (CRITICAL)
+-----------------------------------------------------
+• Remove ALL hardcoded URLs pointing to:
+  http://localhost:3001
+  https://*.replit.dev:3001
+  window.location.origin
+• Replace EVERY API call with the correct relative path:
+  fetch("/api/train")
+  fetch("/api/developments")
+  fetch("/api/developments/[id]")
+  fetch("/api/documents")
+  fetch("/api/chat")
+
+• This ensures same-origin routing and cookie forwarding.
+• Fix the API client in:
+  apps/developer-portal/src/lib/api.ts
+  apps/developer-portal/src/utils/api.ts
+  packages/api-client/src/index.ts
+
+-----------------------------------------------------
+2. FIX DEVELOPER PORTAL ROUTING
+-----------------------------------------------------
+Repair the pages under:
+apps/developer-portal/src/app/(dashboard)/developments/[id]/
+
+• Ensure developmentId is taken from params correctly.
+• Ensure server components call fetch("/api/developments/{id}") correctly.
+• Ensure the page loads the development instead of showing “Development Not Found”.
+
+-----------------------------------------------------
+3. FIX TENANT CONTEXT
+-----------------------------------------------------
+In apps/developer-portal/src/context/TenantContext.tsx:
+
+• Default to SUPER ADMIN mode for sam@evolvai.ie
+• Resolve tenantId from:
+  – Supabase session
+  – or development.tenant_id
+• Never require request headers for tenant resolution in the Developer Portal.
+• Ensure tenant context doesn’t crash the app when missing.
+
+-----------------------------------------------------
+4. FIX BACKEND ROUTES
+-----------------------------------------------------
+In packages/api/routes:
+
+• Ensure /api/developments/:id returns the correct row.
+• Ensure /api/train receives:
+  – file
+  – developmentId
+  – tenantId
+• Ensure a service-role Supabase client is used for DB operations.
+• Ensure no RLS errors occur when super admin requests data.
+
+-----------------------------------------------------
+5. FIX RLS TO ALLOW SUPER ADMIN ACCESS
+-----------------------------------------------------
+Update Supabase policies so:
+• Users with email = sam@evolvai.ie have FULL ACCESS to all rows.
+• Developer users can only access rows matching their tenant_id.
+
+-----------------------------------------------------
+6. FIX PDF PARSER
+-----------------------------------------------------
+Search entire monorepo for pdfParse / PDFParse / pdf-parse:
+• Use correct import:
+  import pdfParse from "pdf-parse";
+  OR
+  const pdfParse = require("pdf-parse").default || require("pdf-parse");
+• Ensure typeof pdfParse === "function".
+• Catch PDF parsing errors and return clean server messages.
+
+-----------------------------------------------------
+7. FIX FILE UPLOAD HANDLER: /api/train
+-----------------------------------------------------
+• Confirm the route exists and is mounted.
+• Ensure multer or formidable is configured correctly for Next.js.
+• Ensure req.file.buffer is available.
+• After upload:
+  – parse PDF
+  – generate embeddings
+  – insert into doc_chunks
+  – insert into documents
+• Return success JSON.
+
+-----------------------------------------------------
+8. VALIDATE SYSTEM END-TO-END
+-----------------------------------------------------
+After fixes, restart backend:
+
+cd apps/developer-portal
+npm run dev -- --port 3001
+
+Then validate the following:
+
+1. Sign into Developer Portal.
+2. Navigate to Developments list.
+3. Open Longview Park detail page.
+4. No “Development Not Found” error.
+5. Navigate to Documents tab.
+6. Upload a PDF file.
+7. Browser Network tab shows: POST /api/train (same origin).
+8. Shell logs show:
+   POST /api/train
+   Parsing PDF...
+   Embeddings generated...
+9. Database tables “documents” and “doc_chunks” get new rows.
+10. Document count updates in UI.
+11. System Instructions update.
+12. Preview Chat references document content.
+
+-----------------------------------------------------
+APPLY ALL FIXES IN THE MONOREPO NOW.
+-----------------------------------------------------

@@ -1,0 +1,221 @@
+Your task is to fix the Tenant Portal so that after a homeowner enters via QR code:
+
+A. The Welcome Flow works correctly
+
+It must show the buyer’s full name, not “Mr.”
+
+It must show “Welcome to [Development Name]”
+
+It must show their exact unit number
+
+It must stay visible for 4–5 seconds, not the current ~0.7 seconds
+
+It must fade or transition smoothly
+
+It must run only on first login
+
+Afterward it must redirect automatically to the correct chat route, not the public one
+
+B. The Chat Page ALWAYS knows who the user is
+
+The chat MUST automatically know:
+
+tenant_id
+
+development_id
+
+unit_id
+
+house_type_id
+
+homeowner_id
+
+homeowner_full_name
+
+email
+
+And it must never show:
+“Please select a development first to start chatting.”
+
+The chat must use the user’s house type and unit to answer questions such as:
+“What size is my living room?”
+“What size is my kitchen?”
+“Do I have an en-suite?”
+“What is my heating system?”
+etc.
+
+C. Fix ALL context propagation
+
+Make the following changes:
+
+1. FIX JWT GENERATION DURING QR ONBOARDING
+
+Open:
+
+apps/tenant-portal/app/onboarding/[token]/actions.ts
+
+Modify JWT payload to include:
+
+{
+  tenant_id,
+  development_id,
+  unit_id,
+  house_type_id,
+  homeowner_id,
+  homeowner_full_name: homeowner.first_name + " " + homeowner.last_name,
+  email: homeowner.email,
+  exp: 60 * 60 * 24 * 30   // 30 days
+}
+
+
+Then ensure:
+
+cookies().set("homeowner_token", jwt, {
+  httpOnly: true,
+  secure: true,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30
+})
+
+
+Also set:
+
+cookies().set("onboarded", "true", {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365
+});
+
+
+After creating cookies, redirect to the correct route:
+
+redirect(`/d/${development_id}/chat`);
+
+
+Never redirect to /chat.
+
+2. FIX WELCOME SCREEN
+
+Open:
+
+apps/tenant-portal/app/onboarding/[token]/welcome.tsx
+
+Modify component:
+
+Pull context from JWT using server-side cookies
+
+Show:
+
+Welcome to {development.name}
+{homeowner_full_name}
+Getting your home assistant ready…
+
+
+Add a 4.5 second delay:
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    router.push(`/d/${development_id}/chat`);
+  }, 4500);
+
+  return () => clearTimeout(timer);
+}, []);
+
+
+Add simple fade animation (CSS class).
+
+3. FIX DEVELOPMENT CONTEXT
+
+Open:
+
+apps/tenant-portal/contexts/DevelopmentContext.tsx
+
+Ensure it loads values from JWT cookie:
+
+const token = cookies().get("homeowner_token")?.value;
+
+if (token) {
+  const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+
+  setDevelopmentId(decoded.development_id);
+  setUnitId(decoded.unit_id);
+  setHouseTypeId(decoded.house_type_id);
+  setHomeowner({
+    id: decoded.homeowner_id,
+    name: decoded.homeowner_full_name,
+    email: decoded.email
+  });
+}
+
+
+This runs on initial load.
+
+4. FIX CHAT PAGE
+
+Open:
+
+apps/tenant-portal/app/(private)/d/[developmentId]/chat/page.tsx
+
+If context is missing → load from JWT, not show an error.
+
+Replace “Please select a development first” logic with:
+
+if (!context.development_id) {
+  // Attempt to repopulate from JWT cookie
+  hydrateContextFromJWT();
+}
+
+
+If still missing (should never happen):
+redirect to onboarding.
+
+5. ENSURE RAG USES THE USER’S HOUSE TYPE
+
+Open:
+
+apps/tenant-portal/app/api/chat/route.ts
+
+Inject identity into the embedding query:
+
+const houseTypeId = decoded.house_type_id;
+const unitId = decoded.unit_id;
+
+const results = await db
+  .select(...)
+  .where(eq(doc_chunks.house_type_id, houseTypeId));
+
+
+This ensures:
+
+“What size is my living room?” refers to their floor plan
+
+Not BD01 randomly
+
+And not all chunks globally
+
+6. LOG EVERYTHING
+
+Add logs:
+
+[JWT] Decoded: homeowner, development, unit
+[WELCOME] Displaying welcome for {homeowner_full_name}
+[CHAT] Loaded context for {unit_id}
+
+SUCCESS CRITERIA
+
+QR scan →
+Welcome screen for 4.5 seconds →
+Shows correct full name, unit number, development →
+Redirects to /d/{development_id}/chat →
+Chat opens with full identity and full context loaded →
+User asks “What size is my living room?” →
+AI uses their specific house type floor plan and returns:
+
+Length
+
+Width
+
+Total m²
+
+No errors. No “select development” messages.
+
+Apply all changes above. Confirm each file modified in the logs. Restart the tenant portal when complete.

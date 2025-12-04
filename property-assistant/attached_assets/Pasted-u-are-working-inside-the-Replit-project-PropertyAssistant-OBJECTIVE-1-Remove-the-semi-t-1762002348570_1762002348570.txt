@@ -1,0 +1,152 @@
+u are working inside the Replit project “PropertyAssistant”.
+
+---
+
+## OBJECTIVE
+1. Remove the semi-transparent gray tint from top and bottom toolbars.
+2. Refine the Map page layout so buttons and map spacing feel balanced and intentional.
+3. Add a floating “Add Notice” button to the Noticeboard page.
+
+---
+
+## TASKS
+
+### 1️⃣ FIX TOOLBAR BACKGROUNDS (Light/Dark Mode Accurate)
+- In TopBar.tsx and Dock.tsx replace current tinted backgrounds with solid colour surfaces that respond to theme.
+- **TopBar**
+  ```tsx
+  <header
+    className="
+      h-[var(--topbar)]
+      w-full
+      flex items-center justify-between px-6
+      border-b border-gray-200 dark:border-neutral-800
+      bg-white dark:bg-neutral-950
+      transition-colors duration-300 z-50 fixed top-0
+    "
+  >
+Dock
+
+tsx
+Copy code
+<footer
+  className="
+    h-[var(--dock)]
+    w-full
+    flex items-center justify-evenly
+    border-t border-gray-200 dark:border-neutral-800
+    bg-white dark:bg-neutral-950
+    transition-colors duration-300
+    fixed bottom-0 inset-x-0 z-50
+  "
+>
+Remove any use of bg-white/70, dark:bg-neutral-950/70, or backdrop-blur-*.
+
+Result: toolbars are now solid white or solid black depending on mode, no gray tint.
+
+2️⃣ MAP PAGE REFINEMENT
+Layout Adjustments
+Reduce map container height slightly and introduce comfortable vertical rhythm.
+
+Revised layout for app/map/page.tsx:
+
+tsx
+Copy code
+export default function MapPage() {
+  const categories = [
+    "All",
+    "Shops",
+    "Schools",
+    "Healthcare",
+    "Transport",
+    "Food & Drink",
+    "Gyms & Fitness",
+    "Parks",
+    "Services",
+    "Childcare",
+    "Public Offices"
+  ];
+
+  return (
+    <section className="h-full w-full flex flex-col items-center justify-start bg-white dark:bg-neutral-950 transition-colors duration-300 overflow-hidden">
+      {/* Filter Buttons */}
+      <div className="w-full flex flex-wrap justify-center gap-2 px-4 pt-4 pb-3">
+        {categories.map((item) => (
+          <button
+            key={item}
+            className="
+              px-4 py-1.5 rounded-full
+              bg-gray-100 dark:bg-neutral-800
+              text-sm text-gray-800 dark:text-gray-100
+              hover:bg-gray-200 dark:hover:bg-neutral-700
+              transition
+            "
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+
+      {/* Map Container */}
+      <div
+        id="map"
+        className="
+          w-[92%]
+          h-[70%]
+          rounded-2xl
+          shadow-lg
+          overflow-hidden
+          mt-2
+        "
+      />
+    </section>
+  );
+}
+The h-[70%] leaves breathing room above and below.
+
+Ensure no scroll introduced (overflow-hidden).
+
+3️⃣ ADD “ADD NOTICE” BUTTON TO NOTICEBOARD
+Visual Design
+Floating Action Button (FAB) in bottom-right corner above Dock.
+
+Opens modal or form (stubbed for now).
+
+In app/noticeboard/page.tsx:
+tsx
+Copy code
+import { Plus } from "lucide-react";
+
+export default function NoticeboardPage() {
+  return (
+    <section className="h-full w-full relative bg-white dark:bg-neutral-950 transition-colors duration-300">
+      {/* existing notices grid/list */}
+
+      <button
+        className="
+          absolute bottom-20 right-6
+          flex items-center gap-2
+          bg-blue-600 hover:bg-blue-700
+          text-white text-sm font-medium
+          rounded-full shadow-lg
+          px-4 py-2.5
+          transition
+        "
+        onClick={() => alert('Open Add Notice modal (to implement)')}
+      >
+        <Plus className="h-4 w-4" />
+        Add Notice
+      </button>
+    </section>
+  );
+}
+Future hook: replace alert with modal for notice submission (components/modals/AddNoticeModal.tsx).
+
+4️⃣ VERIFY
+✅ Toolbars pure white/black — no gray tint visible.
+
+✅ Map page balanced layout, proper breathing space, buttons well aligned.
+
+✅ Noticeboard includes “Add Notice” button above Dock.
+
+✅ No new scrollbars introduced anywhere.

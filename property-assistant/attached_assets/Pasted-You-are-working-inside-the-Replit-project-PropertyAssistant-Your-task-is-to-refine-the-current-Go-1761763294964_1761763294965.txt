@@ -1,0 +1,170 @@
+You are working inside the Replit project “PropertyAssistant”.
+Your task is to refine the current Google Maps integration so it can dynamically display places within a specific area (e.g., Seaview Development in Cork City) using the existing GOOGLE_MAPS_API_KEY.
+
+---
+
+## OBJECTIVE
+Upgrade the /map functionality to show and filter Points of Interest (POIs) within a specific radius around a development. 
+Use the Google Places API for live results and prepare for future caching in Supabase.
+
+---
+
+## TASKS
+
+1. ✅ **Create a new API route:** `app/api/pois/route.ts`
+   - This endpoint will take query parameters `lat`, `lng`, `radius`, and optional `category`.
+   - It should call the Google Places API (server-side) and return a clean JSON list of POIs.
+
+   ```ts
+   import { NextResponse } from "next/server";
+
+   export async function GET(req: Request) {
+     const { searchParams } = new URL(req.url);
+     const lat = parseFloat(searchParams.get("lat") || "51.8979");
+     const lng = parseFloat(searchParams.get("lng") || "-8.4711");
+     const radius = parseInt(searchParams.get("radius") || "3000", 10);
+     const category = searchParams.get("category") || "all";
+
+     const categoryMap: Record<string, string> = {
+       shops: "supermarket|store|shopping_mall",
+       schools: "school|university",
+       healthcare: "hospital|pharmacy|doctor",
+       transport: "bus_station|train_station|transit_station",
+     };
+
+     const types = categoryMap[category] || Object.values(categoryMap).join("|");
+
+     const res = await fetch(
+       `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${types}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+     );
+
+     const data = await res.json();
+
+     const pois = (data.results || []).map((r: any) => ({
+       name: r.name,
+       lat: r.geometry.location.lat,
+       lng: r.geometry.location.lng,
+       category,
+     }));
+
+     return NextResponse.json(pois);
+   }
+✅ Update the front-end map logic:
+File: app/(public)/map/page.tsx
+
+Add top buttons for filtering categories (All, Schools, Shops, Healthcare, Transport).
+
+Fetch /api/pois dynamically when a category is selected.
+
+Display colored markers for each category.
+
+tsx
+Copy code
+"use client";
+import { useEffect, useRef, useState } from "react";
+
+const categories = [
+  { key: "all", label: "All", color: "blue" },
+  { key: "schools", label: "Schools", color: "orange" },
+  { key: "shops", label: "Shops", color: "green" },
+  { key: "healthcare", label: "Healthcare", color: "red" },
+  { key: "transport", label: "Transport", color: "purple" },
+];
+
+export default function MapPage() {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [category, setCategory] = useState("all");
+  const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
+
+  const devCenter = { lat: 51.8979, lng: -8.4711 };
+  const radius = 3000;
+
+  useEffect(() => {
+    const initMap = () => {
+      if (!mapRef.current) return;
+      const gMap = new window.google.maps.Map(mapRef.current, {
+        center: devCenter,
+        zoom: 13,
+        disableDefaultUI: true,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#0C0D0F" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#EDEDED" }] },
+        ],
+      });
+      setMap(gMap);
+    };
+
+    if (!window.google) {
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.onload = initMap;
+      document.body.appendChild(script);
+    } else initMap();
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+    markers.forEach((m) => m.setMap(null)); // clear old
+    fetch(`/api/pois?lat=${devCenter.lat}&lng=${devCenter.lng}&radius=${radius}&category=${category}`)
+      .then((r) => r.json())
+      .then((pois) => {
+        const newMarkers = pois.map((p: any) => {
+          return new google.maps.Marker({
+            position: { lat: p.lat, lng: p.lng },
+            map,
+            title: p.name,
+          });
+        });
+        setMarkers(newMarkers);
+      });
+  }, [map, category]);
+
+  return (
+    <div className="h-screen w-full relative">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 z-10 bg-black/70 rounded-lg p-2">
+        {categories.map((c) => (
+          <button
+            key={c.key}
+            onClick={() => setCategory(c.key)}
+            className={`px-3 py-1 rounded-md text-white text-sm ${
+              category === c.key ? "bg-blue-600" : "bg-gray-700"
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <div ref={mapRef} className="h-full w-full rounded-lg" />
+    </div>
+  );
+}
+✅ Secure your API key
+
+Restrict in Google Cloud Console → Credentials:
+
+Referrers: *.replit.dev, *.repl.co
+
+APIs: “Maps JavaScript API” and “Places API” only.
+
+✅ Testing
+
+Run npm run dev
+
+Open /map
+
+Click “Schools”, “Shops”, etc.
+
+Watch dynamic POI markers appear around Cork.
+
+ACCEPTANCE CRITERIA
+/api/pois returns relevant places within 3 km of Cork center.
+
+Front-end map filters dynamically by category.
+
+Works responsively on desktop and mobile.
+
+API key remains secure.
+
+Ready for caching or database integration later.

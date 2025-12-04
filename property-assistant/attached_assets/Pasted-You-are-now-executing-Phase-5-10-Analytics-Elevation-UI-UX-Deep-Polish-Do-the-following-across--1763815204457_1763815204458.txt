@@ -1,0 +1,218 @@
+You are now executing Phase 5.10 — Analytics Elevation & UI/UX Deep Polish.
+Do the following across the developer dashboard, enterprise dashboard, and global analytics stack:
+
+1. Add All Missing Intelligence Components
+
+Implement the full suite of analytics widgets originally planned:
+
+A) RAG / AI Performance
+
+Top RAG misses (documents that fail retrieval)
+
+Embedding drift graph
+
+Retrieval latency distribution
+
+“Problematic Documents” list
+(sorted by fetch failures or no-match scores)
+
+B) User Intelligence
+
+Top homeowner questions (30 days)
+
+Repeated questions (indicating missing content)
+
+“Confusion Points” heatmap
+
+Homeowner engagement funnel:
+
+QR Scan → First Visit → Chat Use → Return Visit
+
+C) Content & Document Intelligence
+
+Document health scoring (unused, under-used, outdated)
+
+Missing document predictions (AI-based)
+
+“Knowledge Gaps by House Type”
+
+Document freshness timeline (upload age distribution)
+
+D) Operational Metrics
+
+Monthly active homeowners
+
+Developer support load reduction (AI-estimated)
+
+Cost-to-serve analytics (OpenAI cost modeling)
+
+Chat deflection rate (% of questions answered without staff)
+
+2. Add 8 New Premium UI Components
+
+All visually aligned to the OpenHouseAI black/white/gold design:
+
+MetricPulseCard (animated KPI tile)
+
+TrendStream (real-time sparkline strip)
+
+InsightBanner (AI-generated written insight)
+
+HealthGauge (donut gauge for document/RAG health)
+
+PersonaSplitChart (engagement split by persona)
+
+HeatMatrix (for question categories)
+
+ContentLifecycleChart (document upload → use → decay)
+
+CostTrajectory (OpenAI cost modelling chart)
+
+3. Expand the Navigation
+
+Add new left-nav + tab navigation that matches a premium SaaS product:
+
+Developer Portal
+Dashboard
+Developments
+Analytics
+  • Overview
+  • Trends
+  • Homeowners
+  • Documents
+  • RAG Performance
+  • Knowledge Gaps
+  • Cost Intelligence
+Tools
+Settings
+Theme Editor
+
+Enterprise Dashboard (Super Admin)
+Global Analytics
+Developers
+  • Performance Leaderboard
+  • Risk Flags
+  • Knowledge Holes
+System Health
+AI Assistant Training
+Billing & Costs
+
+4. Visual Consistency Pass
+
+Apply a global polish pass:
+
+Standardise all padding, spacing, and corner radii
+
+Replace all inconsistent icons with a unified icon set
+
+Ensure all metric cards use the same typography scale
+
+Replace leftover placeholders with real skeleton loaders
+
+Add tasteful micro-animations (fade, slide-in, counters, hover)
+
+5. Improve Charting Quality
+
+For all charts:
+
+Use smooth bezier curves where appropriate
+
+Increase hitbox sizes for tooltips (mobile-friendly)
+
+Add hover-based value markers
+
+Add multi-series support for upcoming phases
+
+Improve axis formatting (remove clutter, add thousand separators)
+
+Dark-mode gold theme by default
+
+6. Improve Analytics API (analytics-v2)
+
+Expand all existing 7 endpoints + add 6 new ones:
+
+New API routes:
+/api/analytics-v2/top-questions
+/api/analytics-v2/repeated-questions
+/api/analytics-v2/rag-latency
+/api/analytics-v2/document-health
+/api/analytics-v2/cost-model
+/api/analytics-v2/user-funnel
+
+
+All must:
+
+Use assertEnterpriseUser + enforceTenantScope
+
+Return structured JSON
+
+Be typed (TypeScript interfaces)
+
+Include error boundaries
+
+7. Add AI-Generated Insights
+
+Every analytics tab gets a top banner:
+
+“Insight generated automatically based on the last 30 days of activity.”
+
+Implement:
+
+generateInsightFor(sectionName, metrics)
+
+Call OpenAI GPT-4.1-mini or 4.1 (whichever you used previously)
+
+Cache results for 24h
+
+8. Layout Overhaul
+
+Fix what you complained about:
+
+Remove clutter
+
+Increase white/black contrast separation
+
+Make all charts equal height
+
+Use a professional 4-column grid at desktop widths
+
+Improve mobile responsiveness dramatically
+
+Add section headers with descriptions
+
+9. Ensure All Old Analytics are Removed
+
+System must contain:
+
+No legacy charts
+
+No dead imports
+
+No unused code
+
+No previous analytics versions
+
+10. Final Output Requirements
+
+When complete, provide:
+
+A) Full code changes
+
+(Agent should generate everything.)
+
+B) A “Phase 5.10 COMPLETION REPORT” including:
+
+New components added
+
+API routes generated
+
+UI changes
+
+Bugs fixed
+
+Outstanding opportunities for Phase 5.11
+
+Before vs. after comparison
+
+C) Update replit.md with:
+PHASE 5.10 — Analytics Elevation Pass Complete

@@ -1,0 +1,244 @@
+Elevate the mobile Lighthouse performance score to 90+, focusing on CPU throttling, JS weight, render-blocking elimination, hydration overhead, asset compression, animation discipline, and layout stability.
+
+Context:
+Next.js App Router, shadcn/ui, charts, Google Maps, analytics-heavy screens, custom videos, and multi-panel dashboards.
+Mobile runs 3–6x slower CPU simulations, so code that passes desktop will fail mobile unless optimised explicitly.
+
+AGENT — FOLLOW THESE STEPS EXACTLY
+1. Force Aggressive JS Weight Reduction
+
+Mobile Lighthouse punishes JS execution time.
+Search entire repo and implement:
+
+Convert every non-critical component to dynamic import.
+
+Apply ssr: false to every map, chart, table, RAG block, and analytics card.
+
+Break up any large page-level component into smaller dynamically-loaded chunks.
+
+Eliminate unused imports and dead code paths.
+
+Goal:
+Initial JS bundle <= 140kb on mobile.
+
+2. Disable All Heavy Animations on Mobile
+
+Search for:
+
+Framer Motion
+
+Large transitions
+
+CSS animations with large keyframes
+
+Lottie animations
+
+Video autoplay animations
+
+Implement a mobile-only guard:
+
+const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+if (isMobile) {
+  return <StaticVersion />;
+}
+
+
+StaticVersion = no animation, reduced assets, simpler layout.
+
+Goal:
+Cut animation CPU time by 80% on mobile.
+
+3. Optimise Image Strategy for Mobile
+
+Actions:
+
+Serve all images through <Image /> with quality={50} for mobile breakpoints.
+
+Convert all images to WebP or AVIF.
+
+Ensure placeholder="blur" for any top-fold image.
+
+Replace all hero images >700px wide with mobile-specific variants.
+
+Also add:
+
+sizes="(max-width: 768px) 100vw, 33vw"
+
+
+Goal:
+Reduce mobile image payload to <150kb on first paint.
+
+4. Hero Video Remediation
+
+If you use a video (e.g., Seaview / Longview splash), apply:
+
+Do not autoplay on mobile.
+
+Replace with a poster image on devices < 768px.
+
+Only load video when user taps “Play”.
+
+Mobile throttled CPU cannot handle autoplay HQ video.
+
+Goal:
+Eliminate 1.5–3.0s delays caused by video decoding.
+
+5. Maps Must NEVER Load Automatically
+
+Google Maps is a death sentence for mobile Lighthouse unless handled correctly.
+
+Instructions:
+
+Remove Maps SDK from all global layouts.
+
+Dynamic import map component with ssr: false.
+
+Only load Maps after a user action such as pressing “Open Map”.
+
+Use a static image placeholder until user requests interactive map.
+
+if (!mapOpen) return <StaticMapPreview />;
+
+
+Goal:
+0KB Maps payload on initial load.
+
+6. Reduce Hydration Time by Minimising DOM Size
+
+Tasks:
+
+Audit pages for nested containers, deep trees, excessive wrappers.
+
+Flatten layout by removing unnecessary divs, containers, and custom wrappers.
+
+Convert all multi-section dashboards into collapsible accordions on mobile.
+
+Reduce number of React components on initial render.
+
+Goal:
+DOM node count < 900 nodes on first paint.
+
+7. Kill Render-Blocking CSS for Mobile
+
+Actions:
+
+Remove large global CSS.
+
+Ensure Tailwind purge is active.
+
+Inline only critical CSS in the head.
+
+Move the rest to deferred CSS via Next.js automatic optimisation.
+
+Goal:
+Reduce CSS-blocking time by 40–60 percent.
+
+8. Remove All Client-Side JS Where Possible
+
+Specific tasks:
+
+Convert UI-only components to pure CSS (e.g., accordions, tabs).
+
+Remove JS-driven navbar animations on mobile.
+
+Replace expensive click handlers with CSS :focus or :target where possible.
+
+Remove unnecessary state that triggers re-renders.
+
+Goal:
+Cut JS execution time by 50 percent.
+
+9. Ensure Complete Layout Stability (Zero CLS)
+
+For all mobile breakpoints:
+
+Add fixed width/height to all images.
+
+Pre-set card heights.
+
+Pre-set map container height (100–350px).
+
+Ensure fonts do not cause layout shift (use font-display: swap).
+
+Stabilise navbar and header logic so they do not shift after hydration.
+
+Goal:
+CLS target: 0.00 – 0.02.
+
+10. Mobile-First Caching Strategy
+
+In next.config.js or middleware:
+
+Apply long-term caching for static assets.
+
+Enable Brotli compression.
+
+Add:
+
+Cache-Control: public, max-age=31536000, immutable
+
+
+Goal:
+Reduce mobile network overhead by ~35 percent.
+
+11. Mobile Lighthouse CI Validation
+
+After implementing the full optimisation:
+
+Install Lighthouse CI and set:
+
+{
+  "ci": {
+    "assert": {
+      "assertions": {
+        "performance": ["error", {"minScore": 0.90}]
+      }
+    }
+  }
+}
+
+
+Agent must:
+
+Run Lighthouse mobile mode.
+
+Print results.
+
+Re-iterate until performance ≥ 90+.
+
+AGENT OUTPUT REQUIREMENTS
+
+For every step, the agent must:
+
+Modify code directly.
+
+Show diffs.
+
+Validate the build.
+
+Re-run Lighthouse.
+
+Continue fixes until the score surpasses 90.
+
+SUCCESS CRITERIA (MOBILE)
+
+Performance Score: 90+
+
+FCP ≤ 1.6s
+
+LCP ≤ 2.0s
+
+TBT ≤ 200ms
+
+CLS ≤ 0.02
+
+JS initial bundle ≤ 140kb
+
+Images < 150kb on initial load
+
+Google Maps not loaded until user action
+
+No autoplay hero video on mobile
+
+No heavy animation on mobile

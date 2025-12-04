@@ -1,0 +1,66 @@
+You are a senior front-end engineer and product designer working inside this Replit project.
+
+PROJECT
+This is the Longview Park “property assistant” web app. The main home screen already works functionally. The goal is NOT to change logic, routes, state management or component structure. The only task is to visually upgrade the existing UI.
+
+NEW OBJECTIVE (REVISED)
+1) Restore the four quick-action options to a compact 2x2 grid of small pills in the middle of the screen (two on the top row, two on the bottom row).
+2) Remove the current large horizontal cards and all emoji-style icons – they look cheap. Pills can be text-only or use subtle system-style icons, but no emoji.
+3) Format the screen like ChatGPT so that, on a typical mobile viewport, the entire page fits within a single screen height. The user should not need to scroll to see any part of:
+   - Header
+   - Hero text
+   - 2x2 pills
+   - Input bar
+
+No UX behaviour or copy should change. Only the visual layout and styling.
+
+SCREEN STRUCTURE (MUST KEEP)
+- Top bar with Longview Park logo, development name, language selector, theme toggle
+- Main hero:
+  - Title: “Ask anything about your home or community”
+  - Sub-copy under it
+- Four quick actions:
+  - Public Transport
+  - Waste collection
+  - Parking rules
+  - Local area
+- Bottom input bar:
+  - Text input
+  - Mic button
+  - Send button
+- “Powered by AI / reference only” system text
+
+You may re-wrap elements in divs for layout, but you must not add/remove any functional elements.
+
+GLOBAL LAYOUT REQUIREMENTS
+1) Full-screen layout with no vertical scrolling on typical mobile:
+   - Root of this screen should use:
+     - `className="h-screen overflow-hidden bg-gradient-to-b from-[#f5f7fb] to-white"`
+   - Inside, use a vertical flex layout:
+     - `className="flex h-full flex-col"`
+   - Structure:
+     - Header: fixed-height top section
+     - Content: flex-1 middle section that vertically centers hero + pills
+     - Footer: fixed-height bottom input section
+
+2) Example skeleton:
+
+```jsx
+<div className="h-screen overflow-hidden bg-gradient-to-b from-[#f5f7fb] to-white">
+  <div className="mx-auto flex h-full max-w-md flex-col px-4">
+    {/* HEADER */}
+    <header className="flex items-center justify-between py-3 border-b border-black/5 bg-white/80 backdrop-blur-xl">
+      {/* existing header content */}
+    </header>
+
+    {/* MAIN CONTENT (hero + pills) */}
+    <main className="flex flex-1 flex-col items-stretch justify-center">
+      {/* hero + 2x2 pills */}
+    </main>
+
+    {/* INPUT BAR */}
+    <footer className="pb-4 pt-3">
+      {/* input + mic + send + disclaimer */}
+    </footer>
+  </div>
+</div>

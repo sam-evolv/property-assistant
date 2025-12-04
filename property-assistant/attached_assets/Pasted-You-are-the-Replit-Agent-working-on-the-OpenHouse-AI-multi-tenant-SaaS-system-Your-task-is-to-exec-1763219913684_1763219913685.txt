@@ -1,0 +1,98 @@
+You are the Replit Agent working on the OpenHouse AI multi-tenant SaaS system.
+
+Your task is to execute **PHASE 12 — TENANT PORTAL UX & FULL PURCHASER ONBOARDING FLOW**.
+
+This phase takes the secure backend (completed in Phase 11) and builds a polished, production-ready buyer experience.
+
+Work ONLY within existing architecture and conventions.
+
+────────────────────────────────────────────────────────
+PHASE 12 OBJECTIVES
+────────────────────────────────────────────────────────
+
+1. Purchaser Onboarding Flow (Tenant Portal)
+   • Implement full onboarding flow at /onboarding/[token]
+   • Decode homeowner JWT
+   • Resolve tenant + development + house + house_type metadata
+   • Display a beautiful, branded onboarding experience:
+       – Development logo
+       – House type & purchaser greeting
+       – Short intro animation or loader
+       – "Entering your personalised portal…" message
+   • Set a secure cookie storing session context
+   • Redirect to /chat after onboarding
+
+2. Tenant Portal Navigation UX Improvements
+   • Improve bottom nav bar (Chat / Map / Noticeboard / Documents)
+   • Add active-state highlighting
+   • Ensure mobile-first polish
+   • Ensure it works after JWT onboarding context loads
+
+3. Chat Screen Enhancements
+   • Display house metadata in header:
+       – House type
+       – Development name
+   • Improve spacing, bubble styles, scroll behaviour
+   • Integrate citations UI (collapsible panel under each message)
+   • Persistent chat history via house_id
+
+4. Documents Browser UX
+   • Create a beautiful document library UI
+   • Group by:
+       – Manuals
+       – Specs
+       – Warranties
+       – Certifications
+   • Show file type icons (PDF, image)
+   • Implement secure document fetch using JWT auth
+   • Include search bar for documents
+
+5. Map Screen UX (Google Maps POI)
+   • Display map centered on development location
+   • Show essential categories (school, bus, GP, shop)
+   • Create scrollable chips for filtering categories
+   • Add polished markers with icons
+
+6. Noticeboard UX
+   • Create scrollable feed
+   • Show developer posts (title, body, date)
+   • Add category filter (Announcement, Reminder, Tip)
+   • Ensure developer moderation controls still work
+
+7. Branded UI Layer
+   • Add theme-config support:
+       – Colors
+       – Logo
+       – Accent color
+   • All screens must reference tenant theme_config table fields
+   • Ensure fallback theme if theme_config missing
+
+8. Mobile Polish & Edge Cases
+   • Ensure every screen works on iPhone SE → iPhone 15 Pro Max
+   • Fix overflow & hydration warnings
+   • Handle invalid/expired onboarding token gracefully:
+       – Show safe error message
+       – Button: “Scan QR again”
+
+────────────────────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────────────────────
+
+At the end of Phase 12, produce:
+
+1. Updated UI components:
+   • Onboarding
+   • Chat
+   • Documents
+   • Map
+   • Noticeboard
+   • Navbar
+
+2. New file: /apps/tenant-portal/docs/PHASE_12_SUMMARY.md
+
+3. List of any remaining UX gaps
+
+4. Confirmation that onboarding → chat flow works end-to-end:
+   QR → JWT → /onboarding → session cookie → /chat
+
+Proceed with PHASE 12 now.

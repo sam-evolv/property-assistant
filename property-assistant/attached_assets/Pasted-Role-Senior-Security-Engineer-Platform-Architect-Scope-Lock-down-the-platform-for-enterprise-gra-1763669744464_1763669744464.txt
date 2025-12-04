@@ -1,0 +1,346 @@
+Role: Senior Security Engineer + Platform Architect
+Scope: Lock down the platform for enterprise-grade deployment
+
+OBJECTIVE
+
+Implement full-stack security hardening across the entire OpenHouse AI ecosystem, covering:
+
+Authentication
+
+Authorization / RBAC enforcement
+
+Rate limiting
+
+Audit logging
+
+Data validation
+
+Encryption + token integrity
+
+Secrets management
+
+API surface reduction
+
+Vulnerability coverage
+
+JWT strengthening
+
+Frontend protections (XSS, CSRF, session hijacking)
+
+All changes must be incremental, fully backward compatible, and must NOT break any existing portal or API functionality.
+
+PHASE 7 — TASK LIST
+7.1 — Standardise Authentication
+
+Unify everything to one consistent pattern:
+
+Developer/Admin Portal → getAdminContextFromSession()
+
+Tenant Portal → homeowner JWT
+
+All admin APIs → reject unless role is admin or super_admin
+
+All developer APIs → require developer or above
+
+Explicit removal of any inconsistent auth helpers
+
+Deliverables:
+
+Audit all routes in apps/developer-portal/app/api/**
+
+Validate proper session extraction
+
+Remove legacy patterns
+
+Add unit tests for role rejection + unauthorized access paths
+
+7.2 — Global RBAC Enforcement Layer
+
+Introduce a single shared RBAC helper:
+
+requireRole(['admin', 'super_admin'])
+requireTenantAccess(tenant_id)
+requireDevelopmentAccess(development_id)
+
+
+Apply to:
+
+/api/admin/**
+
+/api/developers/**
+
+/api/developments/**
+
+/api/train/**
+
+Deliverables:
+
+RBAC helper in packages/api/src/rbac.ts
+
+Replace all inline role checks with unified helper
+
+Add explicit error codes (401/403)
+
+7.3 — Rate Limiting Expansion
+
+Extend rate limiting to:
+
+All developer APIs
+
+All admin APIs
+
+Chat API (already partially done)
+
+Document download endpoints
+
+Login endpoints
+
+QR verification endpoint
+
+Training job triggers
+
+Rules:
+
+Endpoint Type	Limit
+Admin analytics	100 requests/min/admin
+Developer endpoints	300 requests/min/developer
+Chat	20 messages/min/homeowner
+Document downloads	30/min/homeowner
+Login operations	10/min/IP
+QR scans	20/hour/IP
+
+Deliverables:
+
+Extend packages/api/src/rate-limiter.ts
+
+Integrate into all API routes
+
+7.4 — Audit Logging Expansion
+
+Expand the existing audit log:
+
+Log the following:
+
+Document uploads
+
+Document deletions
+
+Training job triggers
+
+Developer creation
+
+Role changes
+
+Impersonation events
+
+Theme changes
+
+QR generation
+
+Data exports
+
+Any admin → homeowner action
+
+Mandatory Metadata:
+
+actor_id
+
+actor_email
+
+IP address
+
+previous_value
+
+new_value
+
+timestamp
+
+endpoint invoked
+
+Deliverables:
+
+logAuditEvent() upgraded
+
+Add calls across all critical APIs
+
+Add missing fields to audit_log table via migration
+
+7.5 — Data Validation Hardening
+
+Implement Zod-based validation in all input points:
+
+All POST bodies
+
+All query parameters
+
+All FormData uploads
+
+All CSV imports
+
+Deliverables:
+
+Introduce packages/api/src/validation/**
+
+Add validators per endpoint type
+
+Apply in all API routes (non-breaking)
+
+7.6 — JWT Hardening (Homeowner Token + Admin Session)
+
+Homeowner JWT
+
+Switch to HS512 or RS256
+
+Add ip_hash to detect token theft
+
+Add session_id for revocation
+
+Set default expiry to 24 hours
+
+Store session entries in database
+
+Admin Session
+
+Add forced rotation every 12 hours
+
+Add browser fingerprint binding
+
+Add automatic invalidation after 7 days
+
+Deliverables:
+
+Update signing/verification logic
+
+Add DB table for sessions
+
+Add middleware checks
+
+7.7 — Secrets Management
+
+Implement:
+
+Consistent environment variable schema
+
+Detection of missing secrets at boot
+
+No secrets logged anywhere
+
+Support for secret rotation
+
+Secret usage audit
+
+Deliverables:
+
+/packages/api/src/bootstrap/validateEnv.ts
+
+Update main init.ts to enforce checks
+
+7.8 — API Surface Review (Prune + Hide Dangerous Routes)
+
+Remove:
+
+Any unused legacy routes
+
+Old admin dashboards
+
+Old resident-app endpoints
+
+Unreachable pages/components
+
+Deprecated training logic
+
+Mark remaining as:
+
+public
+
+homeowner only
+
+developer
+
+admin
+
+super_admin
+
+internal only
+
+Deliverables:
+
+Full list of deprecated paths
+
+Remove dead code
+
+Refactor routing structure to be explicit
+
+7.9 — Frontend Security
+
+Apply:
+
+Strict CSP
+
+Disable inline scripts
+
+Add sanitiser to any text content
+
+Protect chat messages from injection
+
+Protect queries from XSS
+
+Add CSRF protection for all POST routes
+
+Add secure cookie flags
+
+Deliverables:
+
+Security headers middleware
+
+React sanitiser wrappers
+
+Update middleware.ts for tenant portal
+
+Update Supabase auth cookie config
+
+7.10 — Vulnerability Sweep
+
+Run a complete sweep for:
+
+SQL injection
+
+Unsafe SELECT * patterns
+
+N+1 queries
+
+Any SSRF vectors in external APIs
+
+Unsafe file-handling in PDF ingestion
+
+Missing MIME-type validation
+
+Large file upload DoS attacks
+
+Broken Access Control
+
+Unbounded responses
+
+Deliverables:
+
+Patch all vulnerabilities
+
+Add Zod validation in risky endpoints
+
+Add file-size limits
+
+Add MIME-type whitelist
+
+EXPECTED OUTPUT
+
+The Replit Agent must:
+
+Implement each task in order
+
+Commit small safe increments
+
+Report changes back
+
+Stop if encountering contradictions or unclear legacy code
+
+Ask for clarification before deleting anything major
