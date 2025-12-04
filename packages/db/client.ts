@@ -2,10 +2,12 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, PoolClient, PoolConfig } from 'pg';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+// Supabase is now the single source of truth for the database
+// Legacy DATABASE_URL is kept as LEGACY_DATABASE_URL for migration scripts only
+const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
 if (!connectionString) {
-  throw new Error('DATABASE_URL or POSTGRES_URL is not defined in environment variables');
+  throw new Error('SUPABASE_DB_URL (or DATABASE_URL fallback) is not defined in environment variables');
 }
 
 // Pool configuration with production-ready settings
