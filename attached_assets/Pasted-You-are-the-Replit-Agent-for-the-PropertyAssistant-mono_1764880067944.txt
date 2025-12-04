@@ -1,0 +1,91 @@
+You are the Replit Agent for the PropertyAssistant monorepo.
+Goal: fix the PDF parsing failed: pdfParse is not a function error that occurs when running npx tsx scripts/reprocess-all-docs.ts --force. This error comes from packages/api/src/document-processor.ts and the way the pdf-parse library is imported and used.
+
+Requirements:
+
+In packages/api/src/document-processor.ts, remove any direct import pdfParse from "pdf-parse" or require("pdf-parse") usage.
+
+Implement a lazy dynamic import helper that normalises the export so we always end up with a callable function:
+
+// near top of document-processor.ts (outside the class)
+let pdfParseFn: ((data: Buffer) => Promise<{ text: string }>) | null = null;
+
+async function getPdfParse() {
+  if (pdfParseFn) return pdfParseFn;
+
+  const mod = await import('pdf-parse');
+  const fn: any = (mod as any).default ?? (mod as any);
+
+  if (typeof fn !== 'function') {
+    throw new Error('pdf-parse module did not export a function');
+  }
+
+  pdfParseFn = fn;
+  return pdfParseFn;
+}
+
+
+In the DocumentProcessor.extractText implementation for PDFs (where we currently call pdfParse(...)), change it to:
+
+// inside DocumentProcessor.extractText, in the PDF branch
+const pdfParse = await getPdfParse();
+const parsed = await pdfParse(buffer);
+const text = parsed?.text ?? '';
+
+
+Keep the surrounding logic (logging, error handling, mime-type checks) exactly as it is – only replace the way we obtain and call pdfParse.
+
+Make sure extractText remains async and still returns the same type as before.
+
+Do not touch any of the Vision/floorplan code, RAG code, or scripts except for what’s needed to fix the pdf-parse import.
+
+After editing, run:
+
+npm run lint -- --max-warnings=0 || true
+npm run typecheck || true
+
+
+Report any TypeScript issues related to the new helper and fix them, but ignore unrelated warnings.
+
+Finally, in the Replit shell, run:
+
+npx tsx scripts/reprocess-all-docs.ts --force
+
+
+and confirm that:
+
+The previous pdfParse is not a function error is gone.
+
+A good proportion of PDFs now show as ✅ Successful in the summary.
+
+If any remaining errors are unrelated (e.g. genuinely corrupt PDFs), just list a couple of examples in the notes but don’t try to “fix” the files in code.
+
+2) What you need to do, step-by-step
+
+Open the Agent panel in your PropertyAssistant Replit.
+
+Paste the exact prompt above and run it.
+
+Let the Agent finish its edits and checks. If it pauses asking for confirmation, accept the file changes.
+
+When it’s done, go to the Shell in Replit and run:
+
+npx tsx scripts/reprocess-all-docs.ts --force
+
+
+Wait for the summary:
+
+You want to see a large number of ✅ Successful and no pdfParse is not a function errors.
+
+If that looks good, optionally run the floorplan vision test again:
+
+npx tsx scripts/test-vision-extraction.ts
+
+
+Once those pass (or only show genuine data issues), the backend is in the state you need:
+
+Every document goes through classification + text extraction.
+
+Floorplans go through Vision.
+
+All content is in the RAG store, ready for chat.

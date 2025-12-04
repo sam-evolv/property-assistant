@@ -15,7 +15,11 @@ function normaliseBase(base: string) {
 }
 
 function normalisePath(path: string) {
-  return path.replace(/^\/+/, "");
+  let normalised = path.replace(/^\/+/, "");
+  if (normalised.startsWith("uploads/")) {
+    normalised = normalised.substring("uploads/".length);
+  }
+  return normalised;
 }
 
 export function resolveUploadUrl(rawPath: string): string {

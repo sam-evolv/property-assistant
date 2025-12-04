@@ -7,10 +7,35 @@ import { logger } from './logger';
 import { extractTextWithOCR, cleanOCRText } from './train/ocr';
 import { extractRoomDimensionsFromFloorplan, FloorplanVisionInput } from './train/floorplan-vision';
 import { resolveUploadUrl } from './resolve-upload-url';
+import { getDocumentProxy } from 'unpdf';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
+
+async function extractPDFTextWithUnpdf(buffer: Buffer): Promise<string> {
+  const uint8Array = new Uint8Array(buffer);
+  const pdf = await getDocumentProxy(uint8Array);
+  const numPages = pdf.numPages;
+  
+  const textParts: string[] = [];
+  
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    
+    const pageText = textContent.items
+      .filter((item: any) => 'str' in item)
+      .map((item: any) => item.str)
+      .join(' ');
+    
+    if (pageText.trim()) {
+      textParts.push(pageText);
+    }
+  }
+  
+  return textParts.join('\n\n');
+}
 
 export type ProcessingStatus = 'pending' | 'processing' | 'complete' | 'error';
 export type DocKind = 'floorplan' | 'specification' | 'warranty' | 'brochure' | 'legal' | 'other' | 'floorplan_summary';
@@ -413,9 +438,8 @@ export class DocumentProcessor {
 
   private static async extractPdfText(buffer: Buffer): Promise<string> {
     try {
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(buffer);
-      return data.text.replace(/\s+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      const text = await extractPDFTextWithUnpdf(buffer);
+      return text.replace(/\s+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
     } catch (error: any) {
       throw new Error(`PDF parsing failed: ${error.message}`);
     }
