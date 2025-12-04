@@ -34,17 +34,43 @@ async function cleanupBatch(table: string, timeColumn: string): Promise<number> 
   return totalDeleted;
 }
 
+async function tableExists(tableName: string): Promise<boolean> {
+  try {
+    const result = await db.execute(sql`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = ${tableName}
+      ) as exists
+    `);
+    return result.rows?.[0]?.exists === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function cleanupExpiredCache(): Promise<void> {
   try {
-    const cacheDeleted = await cleanupBatch('api_cache', 'expiry');
-    const rateLimitsDeleted = await cleanupBatch('rate_limits', 'reset_time');
+    let cacheDeleted = 0;
+    let rateLimitsDeleted = 0;
+    let sessionsDeleted = 0;
+
+    // Only clean tables that exist
+    if (await tableExists('api_cache')) {
+      cacheDeleted = await cleanupBatch('api_cache', 'expiry');
+    }
     
-    const sessionsResult = await db.execute(sql`
-      DELETE FROM sessions
-      WHERE expires_at < NOW() - INTERVAL '7 days'
-      OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL '7 days')
-    `);
-    const sessionsDeleted = sessionsResult.rowCount || 0;
+    if (await tableExists('rate_limits')) {
+      rateLimitsDeleted = await cleanupBatch('rate_limits', 'reset_time');
+    }
+    
+    if (await tableExists('sessions')) {
+      const sessionsResult = await db.execute(sql`
+        DELETE FROM sessions
+        WHERE expires_at < NOW() - INTERVAL '7 days'
+        OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL '7 days')
+      `);
+      sessionsDeleted = sessionsResult.rowCount || 0;
+    }
     
     if (cacheDeleted > 0 || rateLimitsDeleted > 0 || sessionsDeleted > 0) {
       console.log(`[Cleanup] Removed ${cacheDeleted} expired cache entries, ${rateLimitsDeleted} expired rate limits, ${sessionsDeleted} old sessions`);

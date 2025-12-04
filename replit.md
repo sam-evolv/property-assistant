@@ -3,16 +3,24 @@
 ## 📋 Overview
 OpenHouse AI is a comprehensive multi-tenant SaaS platform that provides AI-powered property assistance for real estate developments. The platform supports thousands of developments and homeowners with RAG-based chat, document processing with OCR and vector embeddings, hierarchical RBAC, and white-label theming.
 
-### Current Database State (Phase 6 - Analytics Verification)
-**Single Development Configuration:**
+### Current Database State (December 2025 - Supabase Migration Complete)
+**Database:** Supabase PostgreSQL (migrated from Neon)
 - **Active Development:** Longview Park, Ballyhooly Road, Ballyvolane, Cork City
 - **Units:** 75 houses
 - **Homeowners:** 16 registered residents
-- **Documents:** 184 property documents
-- **Messages:** 26 chat interactions
-- **Purpose:** Clean dataset for verifying analytics accuracy and testing dashboard features
+- **Documents:** 98 property documents
+- **Doc Chunks:** 366 text chunks with 1536-dim embeddings
+- **Embedding Cache:** 484 cached OpenAI embeddings
+- **Messages:** 40 chat interactions
+- **Tenants:** 6 organizations
+- **Admins:** 7 admin users
 
-All other developments have been removed to enable accurate analytics verification.
+**Migration Details:**
+- Migrated 1,557 rows across 29 tables from Neon to Supabase
+- Uses UPSERT (ON CONFLICT DO UPDATE) for idempotent re-runs
+- Auto-generated codes for developments/house_types where null
+- Script: `scripts/migrate-from-legacy.ts`
+- Docs: `docs/database-migration.md`
 
 ## 🏗️ Project Architecture
 

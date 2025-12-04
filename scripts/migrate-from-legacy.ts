@@ -139,6 +139,53 @@ function escapeIdentifier(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Transform row data to handle schema differences between source and target.
+ * This handles cases where target has NOT NULL constraints on columns that
+ * may be NULL in the source data.
+ */
+function transformRow(tableName: string, row: Record<string, any>): Record<string, any> {
+  const transformed = { ...row };
+  
+  if (tableName === 'developments') {
+    // Generate a code from the name if it's null
+    if (!transformed.code && transformed.name) {
+      transformed.code = transformed.name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 20);
+    }
+    // Generate a slug from the name if it's null
+    if (!transformed.slug && transformed.name) {
+      transformed.slug = transformed.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+  }
+  
+  if (tableName === 'units') {
+    // Generate a code from the unit_number if it's null
+    if (!transformed.code && transformed.unit_number) {
+      transformed.code = `UNIT-${transformed.unit_number}`;
+    }
+  }
+  
+  if (tableName === 'house_types') {
+    // Generate a code from the name if it's null
+    if (!transformed.code && transformed.name) {
+      transformed.code = transformed.name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 20);
+    }
+  }
+  
+  return transformed;
+}
+
 async function copyTable(
   sourcePool: Pool,
   targetPool: Pool,
@@ -195,7 +242,9 @@ async function copyTable(
        ON CONFLICT (${keyColumnList}) DO NOTHING`;
 
   for (const row of rows) {
-    const values = commonColumns.map(c => row[c]);
+    // Apply transformations to handle schema differences
+    const transformedRow = transformRow(tableName, row);
+    const values = commonColumns.map(c => transformedRow[c]);
     try {
       await targetPool.query(upsertQuery, values);
       copied++;
@@ -258,6 +307,15 @@ async function runMigration() {
   const targetPool = new Pool({
     connectionString: DATABASE_URL,
     ssl: { rejectUnauthorized: false },
+  });
+
+  // Add error handlers to prevent unhandled error crashes
+  sourcePool.on('error', (err) => {
+    console.log(`  ⚠️  Source pool error (non-fatal): ${err.message}`);
+  });
+
+  targetPool.on('error', (err) => {
+    console.log(`  ⚠️  Target pool error (non-fatal): ${err.message}`);
   });
 
   const results: { table: string; copied: number; errors: number }[] = [];
