@@ -1,0 +1,61 @@
+You are the Replit Agent for the **PropertyAssistant** monorepo.
+
+**Goal:** Fix `scripts/test-dimension-priority.ts` so that `npx tsx scripts/test-dimension-priority.ts` runs cleanly without violating the `documents_house_type_id_fkey` constraint. The test must NOT try to delete real `house_types` that are referenced by existing `documents`.
+
+**Current failure (for context):**
+- The test prints:
+
+  - `DrizzleQueryError: Failed query: DELETE FROM house_types WHERE tenant_id = $1::uuid`
+  - `ERROR: update or delete on table "house_types" violates foreign key constraint "documents_house_type_id_fkey" on table "documents"`
+  - `Key (id)=... is still referenced from table "documents".`
+
+This means the test harness is trying to clean up by deleting from `house_types` for a tenant that already has real `documents` pointing at those house types.
+
+---
+
+### What I want you to do
+
+1. **Open and review the test file**
+   - Open `scripts/test-dimension-priority.ts`.
+   - Identify the `setupTestData` (or equivalent) function and any SQL that deletes from `house_types`, `documents`, or other core tables.
+
+2. **Change the test to use an isolated tenant per run**
+   - Instead of using any existing tenant id (or a hard-coded one), generate a **fresh tenant id** for each test run.
+     - Use `randomUUID` from Node’s `crypto` module (or equivalent) for `tenant_id`.
+     - If the test currently assumes a specific tenant row exists, update it so the test creates its own tenant / development / house types / units / dimension rows as needed.
+   - All inserts in this test should be scoped to this new `tenant_id` (and corresponding `development_id` / `house_type_id` / `unit_id` etc.).
+
+3. **Remove destructive cleanup that hits shared data**
+   - Remove or comment out any raw SQL like:
+     - `DELETE FROM house_types WHERE tenant_id = ...`
+     - `DELETE FROM documents WHERE tenant_id = ...`
+     - Or anything similar that operates on a tenant that might be shared with real data.
+   - After the change, the test should rely on using a **throwaway tenant** instead of deleting from shared tables.
+   - It’s acceptable if the test leaves a small amount of synthetic data in the DB; correctness and safety are more important than a perfectly clean DB.
+
+4. **Keep the test behaviourally identical**
+   - Do **not** change what the test is trying to verify:
+     - The three-tier dimension lookup priority logic must be the same.
+     - Any assertions about how dimensions are resolved (e.g. unit-level override vs house-type vs development default) should remain intact.
+   - Only touch:
+     - How test data is seeded (tenant / development / house types / units / dimensions).
+     - The destructive cleanup queries that conflict with the new FK constraints.
+
+5. **Add basic comments**
+   - In `test-dimension-priority.ts`, add a short comment near the new `tenant_id` and data seeding explaining:
+     - That the test uses an isolated tenant id per run.
+     - That we deliberately avoid deleting shared records to respect FK constraints.
+
+6. **Run and show the test output**
+   - From the project root, run:
+     - `npx tsx scripts/test-dimension-priority.ts`
+   - Ensure it now:
+     - Executes without FK violations or Drizzle query errors.
+     - Either passes fully, or (if there are logical assertion failures) clearly shows assertion messages rather than DB/constraint errors.
+   - Paste the final test output into your response.
+
+7. **Final tidy-up**
+   - If you had to add any imports (e.g. `randomUUID`) or helper utilities, ensure they are correctly typed and used.
+   - Ensure there are no TypeScript or LSP errors in `scripts/test-dimension-priority.ts`.
+
+When you’re done, summarise exactly what you changed (file, functions touched, and the new test data strategy) and confirm that `npx tsx scripts/test-dimension-priority.ts` now runs without any foreign key errors.

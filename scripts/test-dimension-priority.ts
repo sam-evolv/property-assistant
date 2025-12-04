@@ -1,5 +1,6 @@
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
 import { getCanonicalRoomDimension } from '../packages/api/src/dimension-guardrail';
 
 interface TestCase {
@@ -9,20 +10,33 @@ interface TestCase {
   expectedArea?: number;
 }
 
-async function setupTestData(tenantId: string, developmentId: string, houseTypeCode: string) {
-  console.log('🔧 Setting up test data...\n');
+/**
+ * Test setup creates isolated test data using a unique house type code per run.
+ * This avoids FK constraint violations with shared production data.
+ * 
+ * IMPORTANT: We use an existing tenant/development to avoid schema issues,
+ * but generate a unique house_type_code per run so our test data is isolated.
+ * We intentionally do NOT delete shared house_types to respect FK constraints
+ * from the documents table (documents_house_type_id_fkey).
+ */
+async function setupTestData(
+  tenantId: string, 
+  developmentId: string, 
+  houseTypeCode: string
+): Promise<string> {
+  console.log('🔧 Setting up isolated test data...');
+  console.log(`   Using Tenant ID: ${tenantId}`);
+  console.log(`   Using Development ID: ${developmentId}`);
+  console.log(`   Unique House Type Code: ${houseTypeCode}\n`);
 
-  await db.execute(sql`DELETE FROM unit_room_dimensions WHERE tenant_id = ${tenantId}::uuid`);
-  await db.execute(sql`DELETE FROM unit_intelligence_profiles WHERE tenant_id = ${tenantId}::uuid`);
-  await db.execute(sql`DELETE FROM house_types WHERE tenant_id = ${tenantId}::uuid`);
-
+  // Create house type with base dimensions (unique code per run)
   const houseTypeResult = await db.execute<{ id: string }>(sql`
     INSERT INTO house_types (
       id, tenant_id, development_id, house_type_code, name,
       total_floor_area_sqm, room_dimensions
     )
     VALUES (
-      gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${houseTypeCode}, 'Test Type',
+      gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${houseTypeCode}, 'Test Type - Dimension Priority',
       100.0,
       '{
         "living_room": {"length_m": 5.0, "width_m": 4.0, "area_sqm": 20.0},
@@ -32,8 +46,12 @@ async function setupTestData(tenantId: string, developmentId: string, houseTypeC
     RETURNING id
   `);
   const houseTypeId = houseTypeResult.rows?.[0]?.id;
-  console.log('✅ Created house_types with living_room and kitchen');
+  if (!houseTypeId) {
+    throw new Error('Failed to create test house type');
+  }
+  console.log('✅ Created house_types with living_room and kitchen (base tier)');
 
+  // Create intelligence profile (overrides house_types for bedroom_1 and kitchen)
   await db.execute(sql`
     INSERT INTO unit_intelligence_profiles (
       id, tenant_id, development_id, house_type_code, version, is_current,
@@ -50,8 +68,9 @@ async function setupTestData(tenantId: string, developmentId: string, houseTypeC
       '{}'::jsonb
     )
   `);
-  console.log('✅ Created intelligence_profile with bedroom_1 and kitchen (overrides house_types)');
+  console.log('✅ Created intelligence_profile with bedroom_1 and kitchen (mid tier)');
 
+  // Create vision-extracted dimensions (highest priority)
   await db.execute(sql`
     INSERT INTO unit_room_dimensions (
       tenant_id, development_id, house_type_id, unit_type_code, room_name, level,
@@ -63,13 +82,47 @@ async function setupTestData(tenantId: string, developmentId: string, houseTypeC
       (${tenantId}::uuid, ${developmentId}::uuid, ${houseTypeId}::uuid, ${houseTypeCode}, 'Kitchen', 'Ground Floor',
        12.8, 0.92, 'gpt-4o-vision')
   `);
-  console.log('✅ Created unit_room_dimensions with living_room and kitchen (highest priority)\n');
+  console.log('✅ Created unit_room_dimensions with living_room and kitchen (top tier)\n');
+
+  return houseTypeId;
 }
 
-async function cleanupTestData(tenantId: string) {
-  await db.execute(sql`DELETE FROM unit_room_dimensions WHERE tenant_id = ${tenantId}::uuid`);
-  await db.execute(sql`DELETE FROM unit_intelligence_profiles WHERE tenant_id = ${tenantId}::uuid`);
-  await db.execute(sql`DELETE FROM house_types WHERE tenant_id = ${tenantId}::uuid`);
+/**
+ * Cleanup removes only our isolated test data using the unique house type code.
+ * We clean up in reverse order of dependencies to avoid FK violations:
+ * 1. unit_room_dimensions (references house_types)
+ * 2. unit_intelligence_profiles (no downstream FK)
+ * 3. house_types (only if no documents reference it)
+ * 
+ * Since we use a unique house_type_code per run and create no documents,
+ * it's safe to delete our specific test house_type.
+ */
+async function cleanupTestData(tenantId: string, houseTypeCode: string, houseTypeId: string) {
+  console.log('🧹 Cleaning up isolated test data...');
+  
+  // Delete vision dimensions first (they reference house_type_id)
+  await db.execute(sql`
+    DELETE FROM unit_room_dimensions 
+    WHERE house_type_id = ${houseTypeId}::uuid
+  `);
+  console.log('   ✓ Cleaned unit_room_dimensions');
+  
+  // Delete intelligence profiles
+  await db.execute(sql`
+    DELETE FROM unit_intelligence_profiles 
+    WHERE tenant_id = ${tenantId}::uuid 
+    AND house_type_code = ${houseTypeCode}
+  `);
+  console.log('   ✓ Cleaned unit_intelligence_profiles');
+  
+  // Delete our specific test house type (safe because we created no documents referencing it)
+  await db.execute(sql`
+    DELETE FROM house_types 
+    WHERE id = ${houseTypeId}::uuid
+  `);
+  console.log('   ✓ Cleaned house_types');
+  
+  console.log('✅ Test data cleanup complete\n');
 }
 
 async function testDimensionPriority() {
@@ -77,11 +130,16 @@ async function testDimensionPriority() {
   console.log('3-TIER DIMENSION LOOKUP PRIORITY TEST');
   console.log('='.repeat(80) + '\n');
 
+  // Use existing tenant/development but generate unique house type code per run
+  // This prevents FK constraint violations with shared production data
   const tenantId = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
   const developmentId = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-  const houseTypeCode = 'TEST1';
+  
+  // Generate unique house type code for this test run
+  const runId = Date.now().toString(36).slice(-4).toUpperCase() + randomUUID().slice(0, 4).toUpperCase();
+  const houseTypeCode = `TEST-DIM-${runId}`;
 
-  await setupTestData(tenantId, developmentId, houseTypeCode);
+  const houseTypeId = await setupTestData(tenantId, developmentId, houseTypeCode);
 
   const testCases: TestCase[] = [
     {
@@ -153,7 +211,7 @@ async function testDimensionPriority() {
   console.log(`❌ Failed: ${failCount}`);
   console.log(`Success Rate: ${((passCount / testCases.length) * 100).toFixed(0)}%\n`);
 
-  await cleanupTestData(tenantId);
+  await cleanupTestData(tenantId, houseTypeCode, houseTypeId);
 
   if (failCount === 0) {
     console.log('🎉 All tests passed! The 3-tier fallback system works correctly:\n');
@@ -163,10 +221,12 @@ async function testDimensionPriority() {
   } else {
     console.log('⚠️  Some tests failed. Check the dimension guardrail logic.\n');
   }
+  
+  return failCount === 0;
 }
 
 testDimensionPriority()
-  .then(() => process.exit(0))
+  .then((success) => process.exit(success ? 0 : 1))
   .catch((error) => {
     console.error('❌ Test failed:', error);
     process.exit(1);
