@@ -5,6 +5,7 @@ integrations = ["javascript_openai:1.0.0", "javascript_database:1.0.0", "resend:
 
 [nix]
 channel = "stable-25_05"
+packages = ["util-linux"]
 
 [workflows]
 runButton = "Project"

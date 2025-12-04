@@ -1,6 +1,20 @@
 import Tesseract from 'tesseract.js';
 import { getDocumentProxy } from 'unpdf';
-import { createCanvas } from 'canvas';
+
+let createCanvas: ((width: number, height: number) => any) | null = null;
+
+async function loadCanvas(): Promise<typeof createCanvas> {
+  if (!createCanvas) {
+    try {
+      const canvasModule = await import('canvas');
+      createCanvas = canvasModule.createCanvas;
+    } catch (error) {
+      console.warn('⚠️ OCR: Canvas library not available. OCR functionality disabled.');
+      createCanvas = null;
+    }
+  }
+  return createCanvas;
+}
 
 interface OCRResult {
   text: string;
@@ -9,6 +23,11 @@ interface OCRResult {
 }
 
 export async function extractTextWithOCR(buffer: Buffer, fileName: string): Promise<OCRResult> {
+  const canvasFn = await loadCanvas();
+  if (!canvasFn) {
+    console.warn('⚠️ OCR: Canvas not available, returning empty result');
+    return { text: '', confidence: 0, pageCount: 0 };
+  }
   console.log(`🔍 OCR: Starting OCR extraction for ${fileName}`);
   
   try {
@@ -29,7 +48,7 @@ export async function extractTextWithOCR(buffer: Buffer, fileName: string): Prom
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2.0 });
         
-        const canvas = createCanvas(viewport.width, viewport.height);
+        const canvas = canvasFn(viewport.width, viewport.height);
         const context = canvas.getContext('2d');
         
         const renderContext = {
