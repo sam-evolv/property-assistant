@@ -1,6 +1,7 @@
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import { DocumentProcessor, DocKind } from '../packages/api/src/document-processor';
+import { resolveUploadUrl } from '../packages/api/src/resolve-upload-url';
 
 interface ReprocessOptions {
   forceReprocess?: boolean;
@@ -20,7 +21,7 @@ interface ReprocessResult {
   visionExtracted?: boolean;
 }
 
-interface DocumentRow {
+interface DocumentRow extends Record<string, unknown> {
   id: string;
   tenant_id: string;
   development_id: string | null;
@@ -108,7 +109,10 @@ async function reprocessDocument(doc: any): Promise<ReprocessResult> {
   }
 
   try {
-    const response = await fetch(fileUrl);
+    const resolvedUrl = resolveUploadUrl(fileUrl);
+    console.log(`   Resolved URL: ${fileUrl} -> ${resolvedUrl}`);
+    
+    const response = await fetch(resolvedUrl);
     if (!response.ok) {
       return {
         documentId: doc.id,

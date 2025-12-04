@@ -1,0 +1,84 @@
+You are the Replit Agent for the PropertyAssistant monorepo.  
+Implement the following system-wide fix:
+
+----------------------------------------------------------------------
+GOAL: Ensure every document (especially floorplans) is processed using
+an absolute URL instead of the failing relative `/uploads/...` paths.
+----------------------------------------------------------------------
+
+1. Create a new helper file:
+   packages/api/src/resolve-upload-url.ts
+
+   Insert EXACTLY the following code:
+
+   ------------------------------------------------------------
+   const PUBLIC_UPLOAD_BASE_URL =
+     process.env.PUBLIC_UPLOAD_BASE_URL ||
+     process.env.NEXT_PUBLIC_UPLOAD_BASE_URL ||
+     "";
+
+   if (!PUBLIC_UPLOAD_BASE_URL) {
+     console.warn(
+       "[resolve-upload-url] PUBLIC_UPLOAD_BASE_URL is not set. " +
+         "Relative /uploads/... URLs will fail."
+     );
+   }
+
+   function normaliseBase(base: string) {
+     return base.replace(/\/+$/, "");
+   }
+
+   function normalisePath(path: string) {
+     return path.replace(/^\/+/, "");
+   }
+
+   export function resolveUploadUrl(rawPath: string): string {
+     if (!rawPath) {
+       throw new Error("resolveUploadUrl: rawPath is empty");
+     }
+
+     if (/^https?:\/\//i.test(rawPath)) {
+       return rawPath;
+     }
+
+     if (!PUBLIC_UPLOAD_BASE_URL) {
+       throw new Error(
+         `resolveUploadUrl: PUBLIC_UPLOAD_BASE_URL is not configured; got relative path "${rawPath}"`
+       );
+     }
+
+     const base = normaliseBase(PUBLIC_UPLOAD_BASE_URL);
+     const path = normalisePath(rawPath);
+
+     return `${base}/${path}`;
+   }
+   ------------------------------------------------------------
+
+2. Modify ALL code that fetches documents so it passes through this resolver:
+
+   Files to update:
+   - packages/api/src/document-processor.ts
+   - packages/api/src/train/floorplan-vision.ts
+   - Any other file that uses `fetch(doc.file_path)` or `fetch(doc.url)`
+
+   Replace patterns like:
+     const fileUrl = doc.file_path;
+     await fetch(fileUrl);
+
+   With:
+     const fileUrl = resolveUploadUrl(doc.file_path || doc.url);
+     await fetch(fileUrl);
+
+   Ensure the import exists at the top of each file:
+     import { resolveUploadUrl } from "../resolve-upload-url";
+
+   (Adjust pathing: `./resolve-upload-url` or `../resolve-upload-url` depending on folder.)
+
+3. DO NOT change any other logic.  
+   Only fix URL resolution and ensure all document pipelines use absolute URLs.
+
+4. After changes, run:
+   npx tsx scripts/reprocess-all-floorplans.ts --force
+
+----------------------------------------------------------------------
+Execute changes now.

@@ -1,10 +1,26 @@
 import OpenAI from 'openai';
 import { getDocumentProxy } from 'unpdf';
-import { createCanvas } from 'canvas';
 import { db } from '@openhouse/db/client';
 import { unit_room_dimensions } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { normalizeToCanonicalRoomName } from '../normalize-room-name';
+
+type CreateCanvasFn = (width: number, height: number) => any;
+
+let cachedCreateCanvas: CreateCanvasFn | null = null;
+
+async function loadCanvas(): Promise<CreateCanvasFn | null> {
+  if (cachedCreateCanvas) return cachedCreateCanvas;
+  
+  try {
+    const canvasModule = await import('canvas');
+    cachedCreateCanvas = canvasModule.createCanvas;
+    return cachedCreateCanvas;
+  } catch (error) {
+    console.warn('[floorplan-vision] Canvas library not available:', error);
+    return null;
+  }
+}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -109,6 +125,11 @@ const FLOORPLAN_VISION_JSON_SCHEMA = {
 };
 
 async function renderPDFPageToBase64(pdf: any, pageNum: number): Promise<string> {
+  const createCanvas = await loadCanvas();
+  if (!createCanvas) {
+    throw new Error('Canvas library not available for PDF rendering');
+  }
+  
   const page = await pdf.getPage(pageNum);
   const viewport = page.getViewport({ scale: 2.0 });
   

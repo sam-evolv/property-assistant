@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { logger } from './logger';
 import { extractTextWithOCR, cleanOCRText } from './train/ocr';
 import { extractRoomDimensionsFromFloorplan, FloorplanVisionInput } from './train/floorplan-vision';
+import { resolveUploadUrl } from './resolve-upload-url';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -662,8 +663,11 @@ export class DocumentProcessor {
       throw new Error(`Document has no file URL: ${documentId}`);
     }
 
-    const fileUrl = doc.file_url || doc.storage_url;
-    const response = await fetch(fileUrl!);
+    const rawUrl = doc.file_url || doc.storage_url;
+    const fileUrl = resolveUploadUrl(rawUrl!);
+    logger.info(`[DocumentProcessor] Resolved URL: ${rawUrl} -> ${fileUrl}`);
+    
+    const response = await fetch(fileUrl);
     if (!response.ok) {
       throw new Error(`Failed to download document: ${response.statusText}`);
     }
