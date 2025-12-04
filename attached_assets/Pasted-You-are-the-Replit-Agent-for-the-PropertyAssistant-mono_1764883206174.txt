@@ -1,0 +1,77 @@
+You are the Replit Agent for the “PropertyAssistant” monorepo. 
+
+Objective
+Migrate the entire application database from the legacy Replit Postgres (DATABASE_URL) into the Supabase Postgres instance (SUPABASE_DB_URL), and then make Supabase the single source of truth for ALL runtime code and ALL scripts (chat assistant, ingestion/training, analytics, etc.).
+
+High-level requirements
+- Supabase Postgres becomes the only database the app talks to.
+- All tables defined in packages/db/schema.ts (tenants, developments, documents, doc_chunks, rag_chunks, embedding_cache, homeowners, units, analytics_*, etc.) must exist in Supabase.
+- All document ingestion / training scripts (scripts/reprocess-all-docs.ts, seed-longview-park.ts, test-*.ts, intel pipeline scripts, etc.) must read/write against Supabase, not the old Replit DB.
+- Keep the solution production-grade and repeatable: migrations, not ad-hoc SQL; clear environment variable usage; updated documentation in replit.md.
+
+Work plan
+
+1. Inspect current DB wiring
+   - Locate the Drizzle client and config files (typically packages/db/client.ts and drizzle.config.ts).
+   - Confirm which env var they currently use (DATABASE_URL) and where SUPABASE_DB_URL is referenced, if at all.
+   - In the Replit shell, echo DATABASE_URL and SUPABASE_DB_URL (don’t print secrets to logs, just verify which one points to Supabase using host/user/db name patterns).
+
+2. Make Supabase the Drizzle target
+   - Update drizzle.config.ts so Drizzle migrations use SUPABASE_DB_URL (or a new env var like MIGRATION_DB_URL that points to Supabase).
+   - Update the shared DB client (packages/db/client.ts and any other connection helpers) so the application runtime uses SUPABASE_DB_URL as the connection string.
+   - Keep the legacy Replit connection available under a DIFFERENT env var (e.g. LEGACY_DATABASE_URL) for migration scripts only.
+
+3. Create the full schema in Supabase via migrations
+   - Using packages/db/schema.ts, generate migrations that create ALL application tables in Supabase, including vector columns (rag_chunks, doc_chunks, embedding_cache) and all relations.
+   - Ensure required extensions are handled in the first migration (e.g. `create extension if not exists pgcrypto;` for gen_random_uuid() and `create extension if not exists vector;` for the vector type).
+   - Run the migrations against Supabase and verify in Supabase → SQL Editor that tables like documents, doc_chunks, rag_chunks, tenants, units, homeowners, analytics_events, analytics_platform_stats, etc. now exist in the public schema.
+
+4. Data migration strategy
+   - Assume the Replit Postgres (DATABASE_URL / LEGACY_DATABASE_URL) holds the current pilot data (documents, doc_chunks, tenants, developments, units, etc.).
+   - Implement one of these approaches, preferring a clean, repeatable script:
+
+     Option A – Table-by-table copy script (preferred for this project):
+     - Create a Node/TypeScript script in scripts/, e.g. `migrate-db-to-supabase.ts`.
+     - In that script, open two separate connections:
+       - source = LEGACY_DATABASE_URL (Replit Postgres)
+       - target = SUPABASE_DB_URL (Supabase)
+     - For each core table (in a sensible order respecting FKs: tenants → admins → developments → house_types → units → homeowners → documents → doc_chunks → rag_chunks → analytics_* → others), copy rows in batches.
+     - Use simple `SELECT * FROM table` on source and `INSERT ... ON CONFLICT DO NOTHING` on target to allow re-runs.
+     - Ensure UUIDs and primary keys are preserved exactly; do NOT generate new ids.
+     - Make the script idempotent so it can be safely re-run.
+
+     Option B – pg_dump/psql pipeline (only if tools are easily available in this environment):
+     - Use pg_dump against the Replit DB and restore into Supabase, then let migrations clean up. (Only do this if you can guarantee it won’t clobber existing Supabase analytics tables.)
+
+   - Implement Option A unless you hit a hard blocker.
+
+5. Wire ingestion and training scripts to Supabase
+   - Review scripts in /scripts (reprocess-all-docs.ts, test-pipeline.ts, test-training-pipeline.ts, seed-longview-park.ts, intel-related scripts).
+   - Ensure every script that currently imports the shared DB client or creates its own connection uses the Supabase connection (SUPABASE_DB_URL).
+   - Remove any direct references to DATABASE_URL in code; centralise on a single helper that reads SUPABASE_DB_URL.
+   - Run `npx tsx scripts/reprocess-all-docs.ts --limit 3` as a sanity check and confirm that:
+     - It connects to Supabase.
+     - It reads documents from the Supabase `documents` table.
+     - It writes chunks to the Supabase `doc_chunks` / `rag_chunks` tables.
+
+6. Runtime verification
+   - Start the unified-portal app (npm run dev or the existing command).
+   - Hit the purchaser interface, upload a document if that flow exists, or re-trigger document ingestion for a known document.
+   - Confirm via Supabase:
+     - New rows appear in documents/doc_chunks/rag_chunks.
+     - Analytics events and analytics_platform_stats are still being written into Supabase.
+   - Confirm that the chat assistant’s RAG queries are hitting Supabase-backed tables (check any SQL logging or inspector utilities if present).
+
+7. Clean-up and configuration hardening
+   - Once you have confirmed the app and scripts are exclusively using Supabase:
+     - Update .env.example / .env.local.example / .env.production.example to reflect Supabase as the canonical DB (SUPABASE_DB_URL and/or DATABASE_URL pointing to Supabase, plus any note about LEGACY_DATABASE_URL being optional for migration only).
+     - Add a clear section to replit.md titled “Database Architecture (Supabase Single Source of Truth)” which documents:
+       - The DB URL(s) and which ones are actually used.
+       - How to run migrations.
+       - How to re-run the data migration script if needed.
+       - How the document ingestion and training pipeline interacts with Supabase (tables and scripts involved).
+
+Guardrails
+- Do NOT delete data from the legacy Replit database until there is a confirmed backup and the Supabase migration is verified.
+- Keep changes incremental and commit logical units with clear messages (e.g. “feat(db): point drizzle to Supabase”, “chore(db): add migrate-db-to-supabase script”, etc.).
+- If you’re unsure about a destructive step, stop and surface the options in replit.md instead of guessing.
