@@ -5,13 +5,16 @@ import { normalizeToCanonicalRoomName } from './normalize-room-name';
 export interface CanonicalRoomDimension {
   room_name: string;
   room_key: string;
-  level?: string;
+  floor?: string;
   length_m?: number;
   width_m?: number;
-  area_m2?: number;
+  area_sqm?: number;
+  ceiling_height_m?: number;
   source_document_id?: string;
   extraction_confidence: number;
-  source: 'vision_floorplan' | 'intelligence_profile' | 'house_types' | 'manual';
+  verified: boolean;
+  unit_id?: string;
+  source: 'verified_unit' | 'verified_house_type' | 'vision_floorplan' | 'intelligence_profile' | 'house_types' | 'manual';
 }
 
 export interface DimensionLookupResult {
@@ -140,46 +143,145 @@ export async function getCanonicalRoomDimension(
   tenantId: string,
   developmentId: string,
   houseTypeCode: string,
-  roomKey: string
+  roomKey: string,
+  unitId?: string
 ): Promise<DimensionLookupResult> {
   const canonicalRoomName = normalizeToCanonicalRoomName(roomKey);
   
   console.log(`\n🔍 DIMENSION GUARDRAIL: Looking up "${roomKey}" for ${houseTypeCode}`);
   console.log(`   📌 Canonical room name: ${canonicalRoomName}`);
+  console.log(`   📌 Unit ID: ${unitId || 'not specified'}`);
   
-  const visionResult = await db.execute<{
+  if (unitId) {
+    const verifiedUnitResult = await db.execute<{
+      room_name: string;
+      room_key: string;
+      floor: string | null;
+      length_m: number | null;
+      width_m: number | null;
+      area_sqm: string | null;
+      ceiling_height_m: string | null;
+      confidence: number;
+      verified: boolean;
+      unit_id: string;
+    }>(sql`
+      SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, verified, unit_id
+      FROM unit_room_dimensions
+      WHERE tenant_id = ${tenantId}::uuid
+        AND unit_id = ${unitId}::uuid
+        AND room_key = ${roomKey}
+        AND verified = true
+      ORDER BY confidence DESC, updated_at DESC
+      LIMIT 1
+    `);
+    
+    if (verifiedUnitResult.rows && verifiedUnitResult.rows.length > 0) {
+      const room = verifiedUnitResult.rows[0];
+      console.log(`   ✅ PRIORITY 1: Found verified unit-level dimension: ${room.area_sqm} m²`);
+      
+      return {
+        found: true,
+        room: {
+          room_name: formatRoomNameForDisplay(roomKey),
+          room_key: roomKey,
+          floor: room.floor || undefined,
+          length_m: room.length_m || undefined,
+          width_m: room.width_m || undefined,
+          area_sqm: room.area_sqm ? parseFloat(room.area_sqm) : undefined,
+          ceiling_height_m: room.ceiling_height_m ? parseFloat(room.ceiling_height_m) : undefined,
+          extraction_confidence: room.confidence || 0.95,
+          verified: true,
+          unit_id: room.unit_id,
+          source: 'verified_unit',
+        },
+        houseTypeCode,
+      };
+    }
+  }
+  
+  const verifiedHouseTypeResult = await db.execute<{
     room_name: string;
-    canonical_room_name: string;
-    level: string | null;
+    room_key: string;
+    floor: string | null;
     length_m: number | null;
     width_m: number | null;
-    area_m2: number | null;
+    area_sqm: string | null;
+    ceiling_height_m: string | null;
     confidence: number;
-    source: string;
+    verified: boolean;
   }>(sql`
-    SELECT room_name, canonical_room_name, level, length_m, width_m, area_m2, confidence, source
+    SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, verified
     FROM unit_room_dimensions
     WHERE tenant_id = ${tenantId}::uuid
       AND unit_type_code = ${houseTypeCode}
-      AND canonical_room_name = ${canonicalRoomName}
+      AND room_key = ${roomKey}
+      AND verified = true
+      AND unit_id IS NULL
     ORDER BY confidence DESC, updated_at DESC
     LIMIT 1
   `);
   
-  if (visionResult.rows && visionResult.rows.length > 0) {
-    const room = visionResult.rows[0];
-    console.log(`   ✅ Found in unit_room_dimensions (Vision): ${room.area_m2} m²`);
+  if (verifiedHouseTypeResult.rows && verifiedHouseTypeResult.rows.length > 0) {
+    const room = verifiedHouseTypeResult.rows[0];
+    console.log(`   ✅ PRIORITY 2: Found verified house-type-level dimension: ${room.area_sqm} m²`);
     
     return {
       found: true,
       room: {
         room_name: formatRoomNameForDisplay(roomKey),
         room_key: roomKey,
-        level: room.level || undefined,
+        floor: room.floor || undefined,
         length_m: room.length_m || undefined,
         width_m: room.width_m || undefined,
-        area_m2: room.area_m2 || undefined,
-        extraction_confidence: room.confidence || 0.9,
+        area_sqm: room.area_sqm ? parseFloat(room.area_sqm) : undefined,
+        ceiling_height_m: room.ceiling_height_m ? parseFloat(room.ceiling_height_m) : undefined,
+        extraction_confidence: room.confidence || 0.95,
+        verified: true,
+        source: 'verified_house_type',
+      },
+      houseTypeCode,
+    };
+  }
+  
+  const unverifiedVisionResult = await db.execute<{
+    room_name: string;
+    room_key: string;
+    floor: string | null;
+    length_m: number | null;
+    width_m: number | null;
+    area_sqm: string | null;
+    ceiling_height_m: string | null;
+    confidence: number;
+    verified: boolean;
+    unit_id: string | null;
+  }>(sql`
+    SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, verified, unit_id
+    FROM unit_room_dimensions
+    WHERE tenant_id = ${tenantId}::uuid
+      AND unit_type_code = ${houseTypeCode}
+      AND room_key = ${roomKey}
+      AND verified = false
+    ORDER BY confidence DESC, updated_at DESC
+    LIMIT 1
+  `);
+  
+  if (unverifiedVisionResult.rows && unverifiedVisionResult.rows.length > 0) {
+    const room = unverifiedVisionResult.rows[0];
+    console.log(`   ⚠️ PRIORITY 3: Found unverified vision extraction: ${room.area_sqm} m² (needs verification)`);
+    
+    return {
+      found: true,
+      room: {
+        room_name: formatRoomNameForDisplay(roomKey),
+        room_key: roomKey,
+        floor: room.floor || undefined,
+        length_m: room.length_m || undefined,
+        width_m: room.width_m || undefined,
+        area_sqm: room.area_sqm ? parseFloat(room.area_sqm) : undefined,
+        ceiling_height_m: room.ceiling_height_m ? parseFloat(room.ceiling_height_m) : undefined,
+        extraction_confidence: room.confidence || 0.7,
+        verified: false,
+        unit_id: room.unit_id || undefined,
         source: 'vision_floorplan',
       },
       houseTypeCode,
@@ -206,7 +308,7 @@ export async function getCanonicalRoomDimension(
     
     if (rooms[roomKey] && (rooms[roomKey].length_m || rooms[roomKey].area_sqm)) {
       const room = rooms[roomKey];
-      console.log(`   ✅ Found in intelligence profile: ${room.length_m}m × ${room.width_m}m`);
+      console.log(`   ⚠️ PRIORITY 4: Found in intelligence profile: ${room.length_m}m × ${room.width_m}m`);
       
       return {
         found: true,
@@ -215,9 +317,10 @@ export async function getCanonicalRoomDimension(
           room_key: roomKey,
           length_m: room.length_m,
           width_m: room.width_m,
-          area_m2: room.area_sqm || (room.length_m && room.width_m ? room.length_m * room.width_m : undefined),
+          area_sqm: room.area_sqm || (room.length_m && room.width_m ? room.length_m * room.width_m : undefined),
           source_document_id: profile.source_document_ids?.[0],
           extraction_confidence: room.confidence || 0.8,
+          verified: false,
           source: 'intelligence_profile',
         },
         houseTypeCode,
@@ -227,7 +330,7 @@ export async function getCanonicalRoomDimension(
     const normalizedKey = normalizeRoomKey(roomKey);
     for (const [key, value] of Object.entries(rooms)) {
       if (normalizeRoomKey(key) === normalizedKey && value && (value.length_m || value.area_sqm)) {
-        console.log(`   ✅ Found in profile (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
+        console.log(`   ⚠️ PRIORITY 4: Found in profile (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
         return {
           found: true,
           room: {
@@ -235,9 +338,10 @@ export async function getCanonicalRoomDimension(
             room_key: key,
             length_m: value.length_m,
             width_m: value.width_m,
-            area_m2: value.area_sqm || (value.length_m && value.width_m ? value.length_m * value.width_m : undefined),
+            area_sqm: value.area_sqm || (value.length_m && value.width_m ? value.length_m * value.width_m : undefined),
             source_document_id: profile.source_document_ids?.[0],
             extraction_confidence: value.confidence || 0.8,
+            verified: false,
             source: 'intelligence_profile',
           },
           houseTypeCode,
@@ -263,7 +367,7 @@ export async function getCanonicalRoomDimension(
     
     if (roomDims[roomKey] && (roomDims[roomKey].length_m || roomDims[roomKey].area_sqm)) {
       const room = roomDims[roomKey];
-      console.log(`   ✅ Found in house_types: ${room.length_m}m × ${room.width_m}m`);
+      console.log(`   ⚠️ PRIORITY 5: Found in house_types: ${room.length_m}m × ${room.width_m}m`);
       
       return {
         found: true,
@@ -272,8 +376,9 @@ export async function getCanonicalRoomDimension(
           room_key: roomKey,
           length_m: room.length_m,
           width_m: room.width_m,
-          area_m2: room.area_sqm || (room.length_m && room.width_m ? room.length_m * room.width_m : undefined),
+          area_sqm: room.area_sqm || (room.length_m && room.width_m ? room.length_m * room.width_m : undefined),
           extraction_confidence: 1.0,
+          verified: false,
           source: 'house_types',
         },
         houseTypeCode,
@@ -283,7 +388,7 @@ export async function getCanonicalRoomDimension(
     const normalizedKey = normalizeRoomKey(roomKey);
     for (const [key, value] of Object.entries(roomDims)) {
       if (normalizeRoomKey(key) === normalizedKey && value && (value.length_m || value.area_sqm)) {
-        console.log(`   ✅ Found in house_types (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
+        console.log(`   ⚠️ PRIORITY 5: Found in house_types (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
         return {
           found: true,
           room: {
@@ -291,8 +396,9 @@ export async function getCanonicalRoomDimension(
             room_key: key,
             length_m: value.length_m,
             width_m: value.width_m,
-            area_m2: value.area_sqm || (value.length_m && value.width_m ? value.length_m * value.width_m : undefined),
+            area_sqm: value.area_sqm || (value.length_m && value.width_m ? value.length_m * value.width_m : undefined),
             extraction_confidence: 1.0,
+            verified: false,
             source: 'house_types',
           },
           houseTypeCode,
@@ -312,9 +418,122 @@ export async function getCanonicalRoomDimension(
 export async function getAllCanonicalRoomDimensions(
   tenantId: string,
   developmentId: string,
-  houseTypeCode: string
+  houseTypeCode: string,
+  unitId?: string
 ): Promise<CanonicalRoomDimension[]> {
-  const rooms: CanonicalRoomDimension[] = [];
+  const rooms: Map<string, CanonicalRoomDimension> = new Map();
+  
+  if (unitId) {
+    const verifiedUnitRooms = await db.execute<{
+      room_name: string;
+      room_key: string;
+      floor: string | null;
+      length_m: number | null;
+      width_m: number | null;
+      area_sqm: string | null;
+      ceiling_height_m: string | null;
+      confidence: number;
+      verified: boolean;
+      unit_id: string;
+    }>(sql`
+      SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, verified, unit_id
+      FROM unit_room_dimensions
+      WHERE tenant_id = ${tenantId}::uuid
+        AND unit_id = ${unitId}::uuid
+        AND verified = true
+      ORDER BY confidence DESC
+    `);
+    
+    for (const row of verifiedUnitRooms.rows || []) {
+      rooms.set(row.room_key, {
+        room_name: formatRoomNameForDisplay(row.room_key),
+        room_key: row.room_key,
+        floor: row.floor || undefined,
+        length_m: row.length_m || undefined,
+        width_m: row.width_m || undefined,
+        area_sqm: row.area_sqm ? parseFloat(row.area_sqm) : undefined,
+        ceiling_height_m: row.ceiling_height_m ? parseFloat(row.ceiling_height_m) : undefined,
+        extraction_confidence: row.confidence || 0.95,
+        verified: true,
+        unit_id: row.unit_id,
+        source: 'verified_unit',
+      });
+    }
+  }
+  
+  const verifiedHouseTypeRooms = await db.execute<{
+    room_name: string;
+    room_key: string;
+    floor: string | null;
+    length_m: number | null;
+    width_m: number | null;
+    area_sqm: string | null;
+    ceiling_height_m: string | null;
+    confidence: number;
+    verified: boolean;
+  }>(sql`
+    SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, verified
+    FROM unit_room_dimensions
+    WHERE tenant_id = ${tenantId}::uuid
+      AND unit_type_code = ${houseTypeCode}
+      AND verified = true
+      AND unit_id IS NULL
+    ORDER BY confidence DESC
+  `);
+  
+  for (const row of verifiedHouseTypeRooms.rows || []) {
+    if (!rooms.has(row.room_key)) {
+      rooms.set(row.room_key, {
+        room_name: formatRoomNameForDisplay(row.room_key),
+        room_key: row.room_key,
+        floor: row.floor || undefined,
+        length_m: row.length_m || undefined,
+        width_m: row.width_m || undefined,
+        area_sqm: row.area_sqm ? parseFloat(row.area_sqm) : undefined,
+        ceiling_height_m: row.ceiling_height_m ? parseFloat(row.ceiling_height_m) : undefined,
+        extraction_confidence: row.confidence || 0.95,
+        verified: true,
+        source: 'verified_house_type',
+      });
+    }
+  }
+  
+  const unverifiedRooms = await db.execute<{
+    room_name: string;
+    room_key: string;
+    floor: string | null;
+    length_m: number | null;
+    width_m: number | null;
+    area_sqm: string | null;
+    ceiling_height_m: string | null;
+    confidence: number;
+    unit_id: string | null;
+  }>(sql`
+    SELECT room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, confidence, unit_id
+    FROM unit_room_dimensions
+    WHERE tenant_id = ${tenantId}::uuid
+      AND unit_type_code = ${houseTypeCode}
+      AND verified = false
+    ORDER BY confidence DESC
+  `);
+  
+  for (const row of unverifiedRooms.rows || []) {
+    if (!rooms.has(row.room_key)) {
+      rooms.set(row.room_key, {
+        room_name: formatRoomNameForDisplay(row.room_key),
+        room_key: row.room_key,
+        floor: row.floor || undefined,
+        length_m: row.length_m || undefined,
+        width_m: row.width_m || undefined,
+        area_sqm: row.area_sqm ? parseFloat(row.area_sqm) : undefined,
+        ceiling_height_m: row.ceiling_height_m ? parseFloat(row.ceiling_height_m) : undefined,
+        extraction_confidence: row.confidence || 0.7,
+        verified: false,
+        unit_id: row.unit_id || undefined,
+        source: 'vision_floorplan',
+      });
+    }
+  }
   
   const profileResult = await db.execute<{
     rooms: Record<string, any>;
@@ -334,15 +553,16 @@ export async function getAllCanonicalRoomDimensions(
     const profileRooms = profile.rooms || {};
     
     for (const [key, value] of Object.entries(profileRooms)) {
-      if (value && (value.length_m || value.area_sqm)) {
-        rooms.push({
+      if (value && (value.length_m || value.area_sqm) && !rooms.has(key)) {
+        rooms.set(key, {
           room_name: formatRoomNameForDisplay(key),
           room_key: key,
           length_m: value.length_m,
           width_m: value.width_m,
-          area_m2: value.area_sqm,
+          area_sqm: value.area_sqm,
           source_document_id: profile.source_document_ids?.[0],
           extraction_confidence: value.confidence || 0.8,
+          verified: false,
           source: 'intelligence_profile',
         });
       }
@@ -364,24 +584,22 @@ export async function getAllCanonicalRoomDimensions(
     const roomDims = ht.room_dimensions || {};
     
     for (const [key, value] of Object.entries(roomDims)) {
-      if (value && (value.length_m || value.area_sqm)) {
-        const existingIdx = rooms.findIndex(r => r.room_key === key);
-        if (existingIdx === -1) {
-          rooms.push({
-            room_name: formatRoomNameForDisplay(key),
-            room_key: key,
-            length_m: value.length_m,
-            width_m: value.width_m,
-            area_m2: value.area_sqm,
-            extraction_confidence: 1.0,
-            source: 'house_types',
-          });
-        }
+      if (value && (value.length_m || value.area_sqm) && !rooms.has(key)) {
+        rooms.set(key, {
+          room_name: formatRoomNameForDisplay(key),
+          room_key: key,
+          length_m: value.length_m,
+          width_m: value.width_m,
+          area_sqm: value.area_sqm,
+          extraction_confidence: 1.0,
+          verified: false,
+          source: 'house_types',
+        });
       }
     }
   }
   
-  return rooms;
+  return Array.from(rooms.values());
 }
 
 export function formatGroundedDimensionAnswer(
@@ -394,25 +612,40 @@ export function formatGroundedDimensionAnswer(
   if (room.length_m && room.width_m) {
     parts.push(`Your ${room.room_name} measures approximately ${room.length_m.toFixed(1)}m × ${room.width_m.toFixed(1)}m`);
     
-    const area = room.area_m2 || (room.length_m * room.width_m);
+    const area = room.area_sqm || (room.length_m * room.width_m);
     parts.push(`giving a floor area of ${area.toFixed(1)} m²`);
-  } else if (room.area_m2) {
-    parts.push(`Your ${room.room_name} has a floor area of approximately ${room.area_m2.toFixed(1)} m²`);
+  } else if (room.area_sqm) {
+    parts.push(`Your ${room.room_name} has a floor area of approximately ${room.area_sqm.toFixed(1)} m²`);
+  }
+  
+  if (room.ceiling_height_m) {
+    parts.push(`with a ceiling height of ${room.ceiling_height_m.toFixed(2)}m`);
   }
   
   let answer = parts.join(', ') + '.';
   
-  const sourceDesc = room.source === 'intelligence_profile' 
-    ? 'extracted from your floor plans' 
-    : 'from the specifications';
+  const sourceDescriptions: Record<string, string> = {
+    'verified_unit': 'verified measurements for your specific unit',
+    'verified_house_type': 'verified measurements for your house type',
+    'vision_floorplan': 'extracted from your floor plans',
+    'intelligence_profile': 'extracted from your documents',
+    'house_types': 'from the specifications',
+    'manual': 'from manual entry',
+  };
   
-  answer += ` This is based on data ${sourceDesc} for your ${houseTypeCode} house type`;
+  const sourceDesc = sourceDescriptions[room.source] || 'from available data';
+  
+  answer += ` This is based on ${sourceDesc} for your ${houseTypeCode} house type`;
   
   if (address) {
     answer += ` at ${address}`;
   }
   
   answer += '.';
+  
+  if (!room.verified && room.source !== 'house_types') {
+    answer += ' Note: These dimensions are from automated extraction and may require verification.';
+  }
   
   return answer;
 }
@@ -468,7 +701,8 @@ export async function applyDimensionGuardrail(
   tenantId: string,
   developmentId: string,
   houseTypeCode: string | undefined,
-  address?: string
+  address?: string,
+  unitId?: string
 ): Promise<DimensionGuardrailResult> {
   if (!isDimensionQuestion(question)) {
     return { shouldIntercept: false, lookupSuccessful: false };
@@ -490,12 +724,12 @@ export async function applyDimensionGuardrail(
     };
   }
   
-  const lookup = await getCanonicalRoomDimension(tenantId, developmentId, houseTypeCode, roomKey);
+  const lookup = await getCanonicalRoomDimension(tenantId, developmentId, houseTypeCode, roomKey, unitId);
   
   if (lookup.found && lookup.room) {
     const confidence = lookup.room.extraction_confidence;
     
-    if (confidence >= 0.75 && (lookup.room.length_m || lookup.room.area_m2)) {
+    if (confidence >= 0.75 && (lookup.room.length_m || lookup.room.area_sqm)) {
       return {
         shouldIntercept: true,
         groundedAnswer: formatGroundedDimensionAnswer(lookup.room, houseTypeCode, address),

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut } from 'lucide-react';
+import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut, Ruler } from 'lucide-react';
 
 interface SidebarMenuProps {
   children: React.ReactNode;
@@ -30,6 +30,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
       { label: 'Documents', href: '/developer/documents', icon: FileText },
+      { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
     ],
   },
   {
