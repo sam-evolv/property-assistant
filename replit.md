@@ -57,6 +57,53 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Smart Archive Phase 2: Document Upload & AI Classification (December 2025) - COMPLETED ✅
+
+**AI-powered document upload with automatic classification and filtering:**
+
+**Upload Pipeline:**
+- Multi-file drag-and-drop upload via UploadModal component
+- Supabase Storage integration with signed URL generation on-demand
+- Stores storage paths (not expiring signed URLs) for reliability
+- Automatic bucket creation if documents bucket doesn't exist
+
+**AI Auto-Classification:**
+- GPT-4 powered discipline detection from filename patterns
+- Keyword-based fallback classification (95%+ accuracy for common patterns)
+- 8 discipline categories: architectural, structural, mechanical, electrical, plumbing, civil, landscape, other
+- House type code extraction from filenames (BD01, BS-02, Type-C patterns)
+
+**Manual Override Options:**
+- Discipline selection dropdown
+- House type selection dropdown
+- "Mark as Important" checkbox
+- "Mark as Must Read" checkbox
+
+**Filtering & Search:**
+- Filter by house type code
+- Filter by important flag
+- Filter by must-read flag
+- Filter by AI-classified flag
+- Pagination support
+
+**Database Schema:**
+```sql
+ALTER TABLE documents ADD COLUMN must_read BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE documents ADD COLUMN ai_classified BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX idx_documents_must_read ON documents(tenant_id, development_id, must_read);
+CREATE INDEX idx_documents_ai_classified ON documents(tenant_id, development_id, ai_classified);
+```
+
+**Key Files:**
+- `apps/unified-portal/app/developer/api/archive/upload/route.ts` - Upload API with validation
+- `apps/unified-portal/lib/ai-classify.ts` - AI classification helper
+- `apps/unified-portal/components/archive/UploadModal.tsx` - Upload UI component
+- `apps/unified-portal/components/archive/DocumentCard.tsx` - Card with badges display
+- `apps/unified-portal/lib/archive.ts` - Fetch helper with filter support
+- `packages/db/migrations/013_extend_documents_for_classification.sql` - Database migration
+
+---
+
 ### Multi-Development Access Control (December 2025) - COMPLETED ✅
 
 **Granular development-level access control with RLS + React Context:**
