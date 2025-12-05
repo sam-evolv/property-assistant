@@ -35,6 +35,8 @@ export interface ArchiveDocument {
   doc_kind: string | null;
   house_type_code: string | null;
   is_important: boolean;
+  must_read?: boolean;
+  ai_classified?: boolean;
   mime_type: string | null;
   size_kb: number | null;
   created_at: string;
@@ -148,7 +150,7 @@ export async function fetchArchiveDisciplines({
 }
 
 /**
- * Fetches documents for a specific discipline with pagination
+ * Fetches documents for a specific discipline with pagination and filters
  */
 export async function fetchDocumentsByDiscipline({
   tenantId,
@@ -156,19 +158,27 @@ export async function fetchDocumentsByDiscipline({
   discipline,
   page = 1,
   pageSize = 20,
+  houseTypeCode,
+  important,
+  mustRead,
+  aiClassified,
 }: {
   tenantId: string;
   developmentId?: string | null;
   discipline: string;
   page?: number;
   pageSize?: number;
+  houseTypeCode?: string | null;
+  important?: boolean;
+  mustRead?: boolean;
+  aiClassified?: boolean;
 }): Promise<FetchDocumentsResult> {
   const supabase = await createServerSupabaseClient();
   const offset = (page - 1) * pageSize;
   
   let query = supabase
     .from('documents')
-    .select('id, title, file_name, file_url, storage_url, discipline, revision_code, doc_kind, house_type_code, is_important, mime_type, size_kb, created_at, updated_at', { count: 'exact' })
+    .select('id, title, file_name, file_url, storage_url, discipline, revision_code, doc_kind, house_type_code, is_important, must_read, ai_classified, mime_type, size_kb, created_at, updated_at', { count: 'exact' })
     .eq('tenant_id', tenantId)
     .eq('status', 'active');
   
@@ -178,10 +188,23 @@ export async function fetchDocumentsByDiscipline({
   
   // Handle discipline filtering
   if (discipline === 'other') {
-    // 'other' includes null/empty disciplines and any non-standard disciplines
     query = query.or('discipline.is.null,discipline.not.in.(architectural,structural,mechanical,electrical,plumbing,civil,landscape)');
   } else {
     query = query.ilike('discipline', discipline);
+  }
+
+  // Apply additional filters
+  if (houseTypeCode) {
+    query = query.eq('house_type_code', houseTypeCode);
+  }
+  if (important) {
+    query = query.eq('is_important', true);
+  }
+  if (mustRead) {
+    query = query.eq('must_read', true);
+  }
+  if (aiClassified) {
+    query = query.eq('ai_classified', true);
   }
   
   // Add pagination and ordering
@@ -198,9 +221,31 @@ export async function fetchDocumentsByDiscipline({
   
   const totalCount = count || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  const processedDocs = await Promise.all((documents || []).map(async (doc: Record<string, unknown>) => {
+    let resolvedUrl = doc.file_url as string | null;
+    
+    if (!resolvedUrl && doc.storage_url) {
+      const storagePath = doc.storage_url as string;
+      if (storagePath.startsWith('tenant/')) {
+        const { data } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(storagePath, 3600);
+        resolvedUrl = data?.signedUrl || null;
+      } else {
+        resolvedUrl = storagePath;
+      }
+    }
+    
+    return {
+      ...doc,
+      file_url: resolvedUrl,
+      storage_url: doc.storage_url,
+    } as ArchiveDocument;
+  }));
   
   return {
-    documents: (documents || []) as ArchiveDocument[],
+    documents: processedDocs,
     totalCount,
     page,
     pageSize,

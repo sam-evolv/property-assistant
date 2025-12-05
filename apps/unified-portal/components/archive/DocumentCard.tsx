@@ -8,7 +8,9 @@ import {
   Download,
   Eye,
   Star,
-  Clock
+  Clock,
+  Sparkles,
+  AlertTriangle
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive';
 
@@ -43,19 +45,31 @@ function formatDate(dateStr: string) {
 export function DocumentCard({ document, onView }: DocumentCardProps) {
   const FileIcon = getFileIcon(document.mime_type);
   const fileUrl = document.storage_url || document.file_url;
+  const extendedDoc = document as ArchiveDocument & { 
+    must_read?: boolean; 
+    ai_classified?: boolean;
+  };
   
   return (
     <div className="group relative p-5 rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 hover:border-gold-500/30 transition-all duration-200">
-      {/* Important Badge */}
-      {document.is_important && (
-        <div className="absolute -top-2 -right-2">
-          <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
-            <Star className="w-3.5 h-3.5 text-white fill-white" />
+      <div className="absolute -top-2 -right-2 flex items-center gap-1">
+        {document.is_important && (
+          <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center" title="Important">
+            <Star className="w-3.5 h-3.5 text-black fill-black" />
           </div>
-        </div>
-      )}
+        )}
+        {extendedDoc.must_read && (
+          <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center" title="Must Read">
+            <AlertTriangle className="w-3.5 h-3.5 text-white" />
+          </div>
+        )}
+        {extendedDoc.ai_classified && (
+          <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center" title="AI Classified">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+        )}
+      </div>
 
-      {/* File Icon & Preview Area */}
       <div className="flex items-start gap-4 mb-4">
         <div className="w-12 h-12 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
           <FileIcon className="w-6 h-6 text-gray-400" />
@@ -71,16 +85,20 @@ export function DocumentCard({ document, onView }: DocumentCardProps) {
         </div>
       </div>
 
-      {/* Metadata Row */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {document.revision_code && (
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-            Rev {document.revision_code}
+        {document.discipline && (
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-gold-500/10 text-gold-400 border border-gold-500/20">
+            {document.discipline}
           </span>
         )}
         {document.house_type_code && (
           <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
             {document.house_type_code}
+          </span>
+        )}
+        {document.revision_code && (
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            Rev {document.revision_code}
           </span>
         )}
         {document.doc_kind && (
@@ -90,7 +108,6 @@ export function DocumentCard({ document, onView }: DocumentCardProps) {
         )}
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-800">
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <Clock className="w-3.5 h-3.5" />
