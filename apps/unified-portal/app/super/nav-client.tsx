@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Smartphone
 } from 'lucide-react';
+import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 
 interface MenuItem {
   href: string;
@@ -70,6 +71,9 @@ export function AdminEnterpriseNav() {
         <h1 className="text-xl font-bold text-gray-900">OpenHouse AI</h1>
         <p className="text-sm text-gray-500 mt-1">Enterprise Admin</p>
       </div>
+      
+      {/* Development Switcher */}
+      <DevelopmentSwitcher />
       
       <div className="flex-1 overflow-y-auto py-4">
         {menuSections.map((section) => (

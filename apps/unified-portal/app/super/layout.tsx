@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireRole } from '@/lib/supabase-server';
-import { AdminEnterpriseNav } from './nav-client';
+import { SuperLayoutClient } from './super-layout-client';
 
 export default async function AdminEnterpriseLayout({
   children,
@@ -13,12 +13,5 @@ export default async function AdminEnterpriseLayout({
     redirect('/unauthorized');
   }
 
-  return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminEnterpriseNav />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
-    </div>
-  );
+  return <SuperLayoutClient>{children}</SuperLayoutClient>;
 }
