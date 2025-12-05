@@ -59,7 +59,7 @@ OpenHouse AI/
 
 ### Multi-Development Access Control (December 2025) - COMPLETED ✅
 
-**Granular development-level access control with RLS:**
+**Granular development-level access control with RLS + React Context:**
 
 **New Tables:**
 - `users` - Application users table synced with Supabase auth.users
@@ -80,10 +80,44 @@ OpenHouse AI/
 - `documents`: SELECT with development access check
 - `doc_chunks`: SELECT with development access check
 
+**React Context (CurrentContext):**
+- `CurrentContextProvider` - Wraps super layout, provides tenant/development state
+- `useCurrentContext()` - Access tenantId, developmentId, setDevelopmentId
+- `useSafeCurrentContext()` - Safe hook with hydration handling
+- `useRequireDevelopment()` - Throws if no development selected
+- **localStorage Persistence:** Saves per-tenant development selection (`current-dev-${tenantId}`)
+
+**DevelopmentSwitcher Component:**
+- Dropdown in AdminEnterpriseNav sidebar for switching developments
+- "All Schemes" option (null developmentId) for macro analytics
+- Fetches developments via RLS-protected `/api/developments` endpoint
+- Displays current development name with visual indicators
+
+**Usage:**
+```tsx
+// In any component under CurrentContextProvider
+import { useCurrentContext } from '@/contexts/CurrentContext';
+
+function MyComponent() {
+  const { tenantId, developmentId, setDevelopmentId } = useCurrentContext();
+  
+  // developmentId is null for "All Schemes" or a specific development UUID
+  const tabProps = { 
+    tenantId, 
+    developmentId: developmentId ?? undefined, // Convert null to undefined for optional props
+    days: 30 
+  };
+}
+```
+
 **Key Files:**
-- `packages/db/migrations/011_user_developments.sql`
-- `packages/db/schema.ts` - Added users and userDevelopments tables
-- `packages/db/policies.sql` - Added helper function and RLS policies
+- `packages/db/migrations/011_user_developments.sql` - Database tables
+- `packages/db/schema.ts` - Drizzle schema for users and userDevelopments
+- `packages/db/policies.sql` - RLS helper function and policies
+- `apps/unified-portal/contexts/CurrentContext.tsx` - React context provider
+- `apps/unified-portal/components/developer/DevelopmentSwitcher.tsx` - UI component
+- `apps/unified-portal/app/super/super-layout-client.tsx` - Layout wrapper with context
+- `apps/unified-portal/app/super/nav-client.tsx` - Nav with DevelopmentSwitcher integration
 
 ---
 
