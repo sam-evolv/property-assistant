@@ -11,6 +11,7 @@ import {
   Users,
   Target,
   MessageSquare,
+  Building2,
 } from 'lucide-react';
 import { OverviewTab } from './tabs/overview';
 import { TrendsTab } from './tabs/trends';
@@ -20,6 +21,7 @@ import { DocumentsTab } from './tabs/documents';
 import { EngagementTab } from './tabs/engagement';
 import { UnitsTab } from './tabs/units';
 import { QuestionsTab } from './tabs/questions';
+import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 
 type TabId = 'overview' | 'questions' | 'trends' | 'knowledge-gaps' | 'rag-performance' | 'documents' | 'homeowners' | 'units';
 
@@ -46,9 +48,11 @@ interface AnalyticsClientProps {
 
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const { developmentId } = useSafeCurrentContext();
 
   const tabProps = { 
     tenantId, 
+    developmentId: developmentId ?? undefined,
     days: 30 
   };
 
