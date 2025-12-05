@@ -5,7 +5,7 @@ import {
   BarChart3, PieChart, AlertTriangle, TrendingUp, 
   FileText, Clock, Sparkles, Target, Loader2
 } from 'lucide-react';
-import { useCurrentContext } from '@/contexts/CurrentContext';
+import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES } from '@/lib/archive';
 
 interface DisciplineCoverage {
@@ -65,14 +65,14 @@ interface InsightsData {
 }
 
 export function InsightsTab() {
-  const { tenantId, developmentId } = useCurrentContext();
+  const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
   const [insights, setInsights] = useState<InsightsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchInsights() {
-      if (!tenantId) return;
+      if (!isHydrated || !tenantId) return;
       
       setIsLoading(true);
       setError(null);
@@ -98,7 +98,7 @@ export function InsightsTab() {
     }
 
     fetchInsights();
-  }, [tenantId, developmentId]);
+  }, [isHydrated, tenantId, developmentId]);
 
   if (isLoading) {
     return (

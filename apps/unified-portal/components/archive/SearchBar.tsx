@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Search, Filter, X, Loader2 } from 'lucide-react';
-import { useCurrentContext } from '@/contexts/CurrentContext';
+import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, type DisciplineType } from '@/lib/archive';
 
 interface SearchFilters {
@@ -26,7 +26,7 @@ export function SearchBar({
   developments = [],
   houseTypes = []
 }: SearchBarProps) {
-  const { developmentId, setDevelopmentId } = useCurrentContext();
+  const { developmentId, setDevelopmentId } = useSafeCurrentContext();
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({});
