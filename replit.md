@@ -57,6 +57,36 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Multi-Development Access Control (December 2025) - COMPLETED ✅
+
+**Granular development-level access control with RLS:**
+
+**New Tables:**
+- `users` - Application users table synced with Supabase auth.users
+  - `id` (UUID) - Matches `auth.users.id`
+  - `tenant_id` - Links to tenant organization
+  - `role` - User role: user, tenant_admin, platform_admin
+- `user_developments` - Maps users to developments they can access
+  - Composite primary key: (user_id, development_id)
+  - `role` - Development-specific role: member, manager, admin
+
+**RLS Helper Function:**
+- `user_has_development_access(dev_id uuid)` - Checks if auth.uid() has access to a development
+
+**RLS Policies:**
+- `users`: SELECT/INSERT/UPDATE for own record or platform role
+- `user_developments`: SELECT own mappings, INSERT/UPDATE/DELETE for tenant_admin only
+- `developments`: SELECT with `user_has_development_access()` check
+- `documents`: SELECT with development access check
+- `doc_chunks`: SELECT with development access check
+
+**Key Files:**
+- `packages/db/migrations/011_user_developments.sql`
+- `packages/db/schema.ts` - Added users and userDevelopments tables
+- `packages/db/policies.sql` - Added helper function and RLS policies
+
+---
+
 ### Automated Floorplan Processing Pipeline (December 2025) - COMPLETED ✅
 
 **National-scale automated floor plan processing with zero manual entry:**
