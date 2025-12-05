@@ -9,15 +9,13 @@ import { createServerSupabaseClient } from './supabase-server';
 
 export type DisciplineType = 
   | 'architectural'
-  | 'engineering'
-  | 'electrical'
+  | 'structural'
   | 'mechanical'
-  | 'planning'
-  | 'civils'
-  | 'as-builts'
-  | 'handover'
-  | 'important'
-  | 'uncategorized';
+  | 'electrical'
+  | 'plumbing'
+  | 'civil'
+  | 'landscape'
+  | 'other';
 
 export interface DisciplineSummary {
   discipline: DisciplineType;
@@ -51,23 +49,27 @@ export interface FetchDocumentsResult {
   totalPages: number;
 }
 
-export const DISCIPLINES: Record<DisciplineType, { label: string; description: string }> = {
-  architectural: { label: 'Architectural', description: 'Floor plans, elevations, sections' },
-  engineering: { label: 'Engineering', description: 'Structural calculations and drawings' },
-  electrical: { label: 'Electrical', description: 'Electrical layouts and specifications' },
-  mechanical: { label: 'Mechanical', description: 'HVAC and plumbing systems' },
-  planning: { label: 'Planning', description: 'Planning permissions and applications' },
-  civils: { label: 'Civils', description: 'Site works and civil engineering' },
-  'as-builts': { label: 'As-Builts', description: 'As-built drawings and records' },
-  handover: { label: 'Handover Docs', description: 'Completion and handover documentation' },
-  important: { label: 'Important / Must Read', description: 'Critical documents for residents' },
-  uncategorized: { label: 'Uncategorized', description: 'Documents pending categorization' },
+export const DISCIPLINES: Record<DisciplineType, { label: string; description: string; icon: string; color: string }> = {
+  architectural: { label: 'Architectural', description: 'Floor plans, elevations, sections, details', icon: 'Building2', color: 'blue' },
+  structural: { label: 'Structural', description: 'Structural drawings, calculations, foundations', icon: 'Hammer', color: 'orange' },
+  mechanical: { label: 'Mechanical', description: 'HVAC systems, ventilation, heating', icon: 'Cog', color: 'green' },
+  electrical: { label: 'Electrical', description: 'Electrical layouts, lighting, power systems', icon: 'Zap', color: 'yellow' },
+  plumbing: { label: 'Plumbing', description: 'Water supply, drainage, sanitary systems', icon: 'Droplet', color: 'cyan' },
+  civil: { label: 'Civil', description: 'Site works, roads, drainage, earthworks', icon: 'Mountain', color: 'brown' },
+  landscape: { label: 'Landscape', description: 'Landscaping plans, planting, hardscape', icon: 'Trees', color: 'emerald' },
+  other: { label: 'Other', description: 'Other documents and uncategorized files', icon: 'Files', color: 'gray' },
 };
 
 export function getDisciplineDisplayName(discipline: string | null): string {
-  if (!discipline) return 'Uncategorized';
+  if (!discipline) return 'Other';
   const key = discipline.toLowerCase() as DisciplineType;
   return DISCIPLINES[key]?.label || discipline;
+}
+
+export function getDisciplineInfo(discipline: string | null): { label: string; description: string; icon: string; color: string } {
+  if (!discipline) return DISCIPLINES.other;
+  const key = discipline.toLowerCase() as DisciplineType;
+  return DISCIPLINES[key] || DISCIPLINES.other;
 }
 
 /**
@@ -109,8 +111,8 @@ export async function fetchArchiveDisciplines({
   
   // Count documents per discipline
   (docs || []).forEach(doc => {
-    const disc = doc.discipline?.toLowerCase() || 'uncategorized';
-    const key = Object.keys(DISCIPLINES).includes(disc) ? disc : 'uncategorized';
+    const disc = doc.discipline?.toLowerCase() || 'other';
+    const key = Object.keys(DISCIPLINES).includes(disc) ? disc : 'other';
     
     const current = disciplineMap.get(key) || { count: 0, lastUpdated: null };
     current.count++;
@@ -134,11 +136,12 @@ export async function fetchArchiveDisciplines({
     });
   });
   
-  // Sort: important first, then by file count descending
+  // Sort by file count descending, then alphabetically
   summaries.sort((a, b) => {
-    if (a.discipline === 'important') return -1;
-    if (b.discipline === 'important') return 1;
-    return b.fileCount - a.fileCount;
+    if (b.fileCount !== a.fileCount) {
+      return b.fileCount - a.fileCount;
+    }
+    return a.displayName.localeCompare(b.displayName);
   });
   
   return summaries;
@@ -174,10 +177,9 @@ export async function fetchDocumentsByDiscipline({
   }
   
   // Handle discipline filtering
-  if (discipline === 'important') {
-    query = query.eq('is_important', true);
-  } else if (discipline === 'uncategorized') {
-    query = query.is('discipline', null);
+  if (discipline === 'other') {
+    // 'other' includes null/empty disciplines and any non-standard disciplines
+    query = query.or('discipline.is.null,discipline.not.in.(architectural,structural,mechanical,electrical,plumbing,civil,landscape)');
   } else {
     query = query.ilike('discipline', discipline);
   }
