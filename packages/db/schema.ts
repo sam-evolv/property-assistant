@@ -77,6 +77,8 @@ export const documents = pgTable('documents', {
   house_type_code: text('house_type_code'),
   document_type: text('document_type').notNull(),
   doc_kind: text('doc_kind'),
+  discipline: text('discipline'),
+  revision_code: varchar('revision_code', { length: 20 }),
   mapping_confidence: doublePrecision('mapping_confidence'),
   auto_mapped: boolean('auto_mapped').default(false).notNull(),
   needs_review: boolean('needs_review').default(false).notNull(),
@@ -110,6 +112,8 @@ export const documents = pgTable('documents', {
   devHouseTypeIdx: index('documents_dev_house_type_idx').on(table.development_id, table.house_type_code, table.document_type),
   tenantDevIdx: index('documents_tenant_dev_idx').on(table.tenant_id, table.development_id),
   docKindIdx: index('documents_doc_kind_idx').on(table.development_id, table.doc_kind),
+  disciplineIdx: index('documents_discipline_idx').on(table.tenant_id, table.development_id, table.discipline),
+  archiveIdx: index('documents_archive_idx').on(table.tenant_id, table.development_id, table.discipline, table.created_at),
   needsReviewIdx: index('documents_needs_review_idx').on(table.needs_review),
   autoMappedConfidenceIdx: index('documents_auto_mapped_confidence_idx').on(table.auto_mapped, table.mapping_confidence),
 }));

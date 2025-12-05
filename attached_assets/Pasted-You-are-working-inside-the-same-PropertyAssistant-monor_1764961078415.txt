@@ -1,0 +1,218 @@
+You are working inside the same PropertyAssistant monorepo.
+
+Goal: Implement **Phase 2 of the Smart Archive** — a full document upload pipeline integrated with Supabase storage, metadata extraction, AI auto-classification, discipline detection, and unit/house-type tagging.
+
+This MUST work cleanly with:
+
+* Supabase storage buckets
+* The documents + doc_chunks tables
+* Our RLS model (user_developments + helper function)
+* The Smart Archive UI built in Phase 1
+* The existing auto-classification scripts in `property-assistant/scripts`
+
+Do NOT break the assistant, the purchaser UI, floorplan pipeline, or existing ingestion logic.
+
+---
+
+## PHASE 2 — FEATURE SPECIFICATION
+
+---
+
+### 1) Upload UI (developer dashboard only)
+
+Inside the Smart Archive pages:
+
+* Add an “Upload Documents” button.
+* Only visible if the logged-in user has `role = tenant_admin`.
+* Clicking the button opens a modal with:
+
+Fields:
+
+* File picker (multiple PDFs, images allowed)
+* Discipline (optional — user may leave blank)
+* House Type (optional — dropdown of house_types in this development)
+* Mark as Important (checkbox)
+* Mark as Must-Read (checkbox)
+
+For now, implement using HeadlessUI or your existing modal component.
+
+The modal must call a new API route:
+
+**POST `/developer/api/archive/upload`**
+
+Payload:
+
+* tenantId
+* developmentId
+* userId
+* files (multipart form)
+* metadata (discipline override, house_type override, flags)
+
+### 2) Backend upload API route
+
+Create:
+
+`apps/unified-portal/app/developer/api/archive/upload/route.ts`
+
+This endpoint must:
+
+1. Validate the requester:
+
+   * Extract session + user
+   * Check tenant_admin role
+   * Confirm user_has_development_access(developmentId) via RLS-safe query
+
+2. Store files in Supabase Storage:
+
+   * Create a new storage bucket if needed: `documents`
+   * Store files under path structure:
+     `tenant/{tenantId}/development/{developmentId}/{uuid-filename}`
+
+3. Insert metadata into documents table:
+
+   * id = uuid
+   * file_name
+   * file_url
+   * mime_type
+   * tenant_id
+   * development_id
+   * uploader_id
+   * discipline (initially null unless overridden)
+   * house_type_id (null unless provided)
+   * important (boolean)
+   * must_read (boolean)
+   * created_at / updated_at timestamps
+
+4. Trigger a background classification job via existing scripts:
+
+   * Use:
+     `scripts/auto-classify-and-map-docs.ts`
+     OR create a new job if needed.
+
+   The job must:
+
+   * Extract text using existing PDF/image extraction logic from the assistant pipeline.
+   * Generate embeddings using the existing OpenAI embedding helpers.
+   * Insert rows into `doc_chunks`.
+   * Assign or update:
+
+     * `discipline`
+     * `house_type_id`
+     * `tags`
+   * Return classification results.
+
+5. Return a structured response to the UI:
+
+   ```
+   {
+     success: true,
+     uploaded: [
+       { id, file_name, discipline, house_type, important, must_read }
+     ]
+   }
+   ```
+
+### 3) Automatic Discipline Classification
+
+Extend `auto-classify-and-map-docs.ts`.
+
+Implement a classification step using existing LLM helpers:
+
+Rules:
+
+* Identify engineering vs architectural vs mechanical vs electrical vs planning vs as-builts.
+* If discipline was manually selected in upload UI, do not override — only complement if missing.
+* If discipline is blank, infer it.
+
+Add a mapping:
+
+```
+If title/text contains “Elevation, Section, Plan, GA” → Architectural
+If text contains “Structural, Beam, Column, Rebar” → Structural / Engineering
+If text contains “Wiring, Circuit, Load, Containment” → Electrical
+If text contains “Duct, Vent, HVAC” → Mechanical
+If text contains “Planning, Permission, Part 8” → Planning
+If text contains “As-built, Record drawing” → As-Built
+```
+
+Ensure these mappings are configurable in code.
+
+### 4) Automatic House Type / Unit Type Tagging
+
+Use existing logic from:
+
+* `tag-documents-house-types.ts`
+* `link-bd01-documents.ts`
+
+Integrate that logic so that after extraction:
+
+* The script automatically associates the document with house types whose identifiers appear in the text:
+
+  * E.g. “BD01”, “BD02”, “BS03”
+
+If multiple types appear:
+
+* Assign all of them.
+* Mark primary = first match.
+
+Write back to documents table:
+
+* house_type_id: primary match
+* tags: array of matches
+
+### 5) Updating the Smart Archive UI
+
+Update discipline detail page `/developer/archive/[discipline]/page.tsx`:
+
+* After uploads complete, refresh document list.
+* Show a small “AI processed” badge on documents that have been classified.
+* Add filters:
+
+  * By house type
+  * By important/must-read
+
+Add tags display on DocumentCard:
+
+* discipline
+* house type
+* important / must-read
+
+### 6) RLS, Security, and Storage
+
+* Confirm the storage bucket uses RLS-safe signed URLs.
+* Do NOT expose the storage key publicly.
+* All metadata inserts must rely on RLS policies you added in Phase 1.
+* Ensure the upload endpoint only allows tenant_admin users.
+
+### 7) Migrations if missing fields
+
+If `documents` table does NOT have these columns, add a migration:
+
+* discipline text
+* house_type_id uuid (FK to house_types)
+* important boolean default false
+* must_read boolean default false
+* tags jsonb default '[]'
+
+Name it:
+
+`013_extend_documents_for_classification.sql`
+
+Reflect in Drizzle schema.
+
+### 8) Verification Steps
+
+At the end, in Replit Agent log, report:
+
+* New API route created
+* Modal components created
+* Upload flow working
+* Classification pipeline hooked in
+* Metadata updating correctly
+* Smart Archive UI updated with tags + new filters
+* No purchaser-facing code modified
+* No chat or assistant logic broken
+
+---
+
+Execute ALL of the above tasks now.

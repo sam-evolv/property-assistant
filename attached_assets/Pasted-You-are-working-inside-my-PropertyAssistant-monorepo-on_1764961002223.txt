@@ -1,0 +1,193 @@
+You are working inside my PropertyAssistant monorepo on Replit.
+
+Goal: implement a complete Smart Archive feature inside the developer dashboard.
+It must integrate cleanly with:
+
+* Supabase (documents + doc_chunks + new categorisation)
+* Existing Drizzle schema
+* The new multi-development context (tenantId + developmentId)
+* Our existing design system and component structure
+
+Do NOT break any existing purchaser-facing logic or chat logic.
+This feature is strictly for developer/admin users inside the unified portal.
+
+---
+
+## HIGH-LEVEL SPECIFICATION
+
+The Smart Archive must:
+
+1. Live under a new route:
+
+   `apps/unified-portal/app/developer/archive/page.tsx`
+
+2. Display a **grid of discipline folders**, similar to Procore but much more modern:
+
+   * Architectural
+   * Engineering
+   * Electrical
+   * Mechanical
+   * Planning
+   * Civils
+   * As-Builts
+   * Handover Docs
+   * Important / Must Read Docs
+
+   Each folder card shows:
+
+   * Discipline name
+   * Total file count
+   * Last updated date (latest uploaded doc)
+   * Icon representing a folder (use existing icon system)
+
+3. When a discipline is clicked, navigate to:
+
+   `/developer/archive/[discipline]`
+
+   And show a document grid containing:
+
+   * Thumbnail preview (if available)
+   * Document title
+   * Revision code (if applicable)
+   * Upload date
+   * Tags (house type, unit type, important/must-read, etc.)
+   * Pagination for large result sets
+
+4. Smart Archive must automatically filter by:
+
+   * tenantId
+   * developmentId
+
+   Using:
+
+   const { tenantId, developmentId } = useCurrentContext();
+
+   All Supabase queries must include these.
+
+5. Build a backend query utility:
+
+   * Create `apps/unified-portal/lib/archive.ts`
+   * Add helper functions:
+
+     * `fetchArchiveDisciplines({ tenantId, developmentId })`
+     * `fetchDocumentsByDiscipline({ tenantId, developmentId, discipline })`
+
+   These must:
+
+   * Query the `documents` table
+   * Group by category (discipline)
+   * Return file count + latest updated date, etc.
+
+6. **Add new discipline field to documents (if not present)**:
+   In `packages/db/schema.ts`:
+
+   * Add `discipline` column (text)
+   * Create a migration file:
+     `012_add_discipline_to_documents.sql`
+   * Apply via drizzle-kit push
+
+7. Update RLS if needed:
+   The RLS must already ensure that documents are restricted to developments the user is mapped to.
+   If not, add:
+
+   create policy "Users see documents in their developments"
+   on public.documents
+   for select
+   using (public.user_has_development_access(development_id));
+
+8. Build a visually clean UI:
+   In `apps/unified-portal/components/archive` create:
+
+   * `DisciplineCard.tsx`
+   * `DisciplineGrid.tsx`
+   * `DocumentGrid.tsx`
+   * `DocumentCard.tsx`
+
+   These must use Tailwind, matching existing dashboard styling:
+
+   * Dark theme
+   * Rounded corners
+   * Hover elevation
+   * Responsive grid
+   * Subtle borders + shadows
+
+9. The Smart Archive page layout:
+
+   `/developer/archive/page.tsx`:
+
+   * Fetch disciplines via `fetchArchiveDisciplines`
+   * Render `<DisciplineGrid disciplines={data} />`
+
+   `/developer/archive/[discipline]/page.tsx`:
+
+   * Fetch documents via `fetchDocumentsByDiscipline`
+   * Render `<DocumentGrid docs={data} />`
+
+10. Add routing links to the developer sidebar:
+
+    * Add “Smart Archive” item under existing developer tools.
+
+11. Add upload support (Phase 1 = viewer only; Phase 2 = uploader UI):
+    For now, implement:
+
+    * A top-right “Upload” button (visible only to tenant_admin roles)
+    * Button opens a placeholder modal saying: “Upload functionality coming soon.”
+      Do not implement upload logic in this prompt.
+
+---
+
+## DETAILED TECHNICAL TASKS
+
+1. DB + Schema:
+
+   * Inspect current `documents` table.
+   * If `discipline` does NOT exist, create migration + schema update.
+   * Add index on `(tenant_id, development_id, discipline)`.
+
+2. Backend helpers:
+
+   * Under `apps/unified-portal/lib/archive.ts`, implement the required Supabase queries using the unified client system.
+   * Ensure pagination support for discipline detail pages.
+
+3. Frontend components:
+
+   * Each component must be self-contained, strongly typed with TypeScript.
+   * Use existing UI primitives (cards, grids, typography).
+   * Ensure responsiveness for mobile and desktop.
+
+4. Page implementation:
+
+   * Build clean pages using the new components.
+   * Use Suspense + loading components if needed.
+
+5. Integration with context:
+
+   * Every query must read tenantId + developmentId from `useCurrentContext()`.
+   * Disable querying until both values are non-null.
+
+6. Developer sidebar update:
+
+   * Find existing dev sidebar (likely in `components/layout`).
+   * Add a new link to `/developer/archive`.
+
+7. Logging + verification:
+   When done, report in the Replit Agent log:
+
+   * All files created
+   * All files modified
+   * Migrations applied
+   * Smart Archive fully functional for viewing
+   * No purchaser-facing routes affected
+
+---
+
+## NON-NEGOTIABLES
+
+* Do NOT break existing chat, purchaser UI, unit mapping, floorplans, or onboarding.
+* Do NOT modify unrelated tables or RLS.
+* Do NOT add any logic to purchaser routes.
+* This must be fully contained in the developer dashboard.
+
+---
+
+Execute all of the above now.

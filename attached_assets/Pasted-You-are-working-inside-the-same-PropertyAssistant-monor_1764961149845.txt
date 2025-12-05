@@ -1,0 +1,326 @@
+You are working inside the same PropertyAssistant monorepo.
+
+Your goal is to implement **Phase 3 of the Smart Archive**:
+A fully production-grade **Intelligent Search + Insights Layer** for developers, sitting on top of the Smart Archive built in Phases 1 and 2.
+
+This must work:
+
+* Without breaking the purchaser assistant
+* Without modifying the purchaser interface
+* Using existing RLS, pgvector, and doc_chunks pipeline
+* Using the same Supabase DB and the same vector embedding system
+* With clean, modular, easily-extensible architecture
+
+---
+
+## **PHASE 3 — FEATURE SPECIFICATION**
+
+---
+
+### **1. Developer-Level Global Search (Cross-Development)**
+
+Create a unified search endpoint:
+
+**GET `/developer/api/archive/search`**
+
+Query params:
+
+* `tenantId`
+* `developerId`
+* `developmentId` (optional — if omitted, search all)
+* `q` text
+* `discipline` (optional)
+* `houseType` (optional)
+* `limit` default 20
+
+This endpoint must:
+
+1. Validate the user (tenant_admin only).
+2. Resolve which developments the user has access to via `user_developments`.
+3. Query metadata from `documents` table with filters:
+
+   * `discipline`
+   * `house_type_id`
+   * important/must_read filters if added later
+4. Combine metadata filtering with **pgvector semantic search** across `doc_chunks`.
+
+Rank documents using:
+
+* 80% semantic similarity
+* 20% keyword overlap weighting
+
+Return structure:
+
+```
+{
+  results: [
+    {
+      document_id,
+      file_name,
+      discipline,
+      house_type,
+      score,
+      preview_text,
+      tags,
+      important,
+      must_read,
+      development_id,
+      file_url
+    }
+  ]
+}
+```
+
+**Note:** Do not return raw chunk text. Use ~200–300 char preview snippet pulled from the top-ranked chunk.
+
+Add the route under:
+
+`apps/unified-portal/app/developer/api/archive/search/route.ts`
+
+---
+
+### **2. Search UI in Developer Dashboard**
+
+Inside Phase 1’s Smart Archive main screen:
+
+Add a search bar across the top with:
+
+* Global keyword search input
+* Dropdown:
+
+  * “All Developments”
+  * Or select one development (auto-populated from user_developments)
+* Filters:
+
+  * Discipline (multi-select)
+  * House type
+  * Important/must-read toggle
+  * “AI-only results” toggle (returns only semantically relevant hits)
+
+Search results appear in a new page:
+
+`/developer/archive/search`
+
+OR inline, depending on your existing architecture.
+
+Each result card shows:
+
+* File name
+* Discipline badge
+* House type
+* Preview snippet
+* Tags
+* Development name
+* Important/Must-Read icons
+
+Clicking takes you to the Document Detail View (existing or build minimal view now).
+
+---
+
+### **3. Document Detail View (Developer)**
+
+Create a new page:
+
+`/developer/archive/document/[id]/page.tsx`
+
+This view includes:
+
+* File preview (use Supabase signed URL, open PDF inline if possible)
+* Metadata panel:
+
+  * discipline (editable)
+  * house type (editable dropdown)
+  * tags (editable chips)
+  * important/must-read toggles
+* “Re-run AI classification” button:
+
+  * POST `/developer/api/archive/reprocess`
+  * Re-triggers chunking + classification
+* Show extracted text preview (top 10–20 chunks)
+* Show embedding info (not raw vector, just metadata)
+
+All edits must:
+
+* Update DB
+* Revalidate RLS-secure components
+* Not break purchaser assistant
+
+---
+
+### **4. AI Insights Layer ("Operational Intelligence")**
+
+Add a new endpoint:
+
+**GET `/developer/api/archive/insights`**
+
+This endpoint aggregates:
+
+**A. Document Coverage**
+
+* Number of documents per discipline
+* Number of missing disciplines
+* House-type coverage report:
+
+  * % of house types with structural docs
+  * % with electrical docs
+  * % with as-built docs
+
+**B. Document Age / Currency**
+
+* Docs older than 1 year
+* Docs replaced by newer versions (detect via similarity + timestamps)
+
+**C. Classification Confidence**
+
+* Mean classification confidence per discipline
+* Flags low-confidence docs
+
+**D. Development-Level Intelligence (multi-dev when user has permissions)**
+
+* Top 10 most referenced terms across all documents
+* Auto-detected risk areas:
+
+  * e.g. “fire stopping”, “structural load”, “drainage”, “M&E containment”
+* Missing-document predictions:
+
+  * If BD01 has 6 disciplines but BD02 has 3, highlight gaps.
+
+This becomes the “Developer Knowledge Hub”.
+
+Store nothing new in DB — all computed via SQL + lightweight server logic.
+
+Return payload:
+
+```
+{
+  document_coverage: {...},
+  classification_quality: {...},
+  currency: {...},
+  keyword_trends: [...],
+  predicted_gaps: [...]
+}
+```
+
+---
+
+### **5. Developer Dashboard UI – Insights Tab**
+
+Inside `/developer/archive` add a new tab:
+
+**Insights**
+
+Visual components:
+
+* Bar charts for discipline coverage
+* Table for house-type coverage
+* Heatmap for document currency
+* Badge list for risk-highlight terms
+* Gap detection table
+
+Use existing internal component library or shadcn.
+
+Keep UI lightweight and performant.
+
+---
+
+### **6. Pre-Compute Embedding Metadata (Performance Boost)**
+
+Enhance `doc_chunks` with two computed columns (add migration if missing):
+
+* `token_count` integer
+* `embedding_norm` float
+
+This enables faster scoring:
+
+```
+cosine_similarity = (dot_product / embedding_norm)
+```
+
+Add migration:
+
+`014_optimize_doc_chunks_for_search.sql`
+
+Update Drizzle schema accordingly.
+
+Modify the chunking script to store token_count and embedding_norm.
+
+---
+
+### **7. Search Caching Layer (Optional but recommended)**
+
+Implement a caching mechanism using the existing Supabase Postgres:
+
+Create table `search_cache`:
+
+* id uuid
+* user_id uuid
+* query text
+* filters jsonb
+* results jsonb
+* created_at timestamp
+
+TTL: 6 hours
+Add simple fetch-store logic in the search API.
+
+Only cache metadata and document IDs — not raw text.
+
+---
+
+### **8. Strict RLS & Security Validation**
+
+Ensure:
+
+* Search only returns documents for developments the user has access to.
+* Insights endpoint only aggregates accessible developments.
+* No embedding or chunk operations leak cross-tenant data.
+* Reprocess endpoint checks tenant_admin role strictly.
+
+Use the helper from Phase 1:
+
+`user_can_access_development(userId, developmentId)`
+
+---
+
+### **9. Migrations Required**
+
+If missing:
+
+**documents:**
+
+* tags jsonb
+* discipline text
+* house_type_id uuid
+* important boolean
+* must_read boolean
+
+**doc_chunks:**
+
+* token_count integer
+* embedding_norm float
+
+**search_cache:**
+
+* full schema as defined above
+
+---
+
+### **10. Deliverables for this prompt**
+
+You must:
+
+1. Generate all required migrations.
+2. Create all endpoints (search, insights, reprocess).
+3. Build Search UI components.
+4. Build Document Detail View.
+5. Build Insights UI.
+6. Update Drizzle schema.
+7. Update scripts for embedding metadata.
+8. Ensure full compatibility with existing assistant + purchaser pipeline.
+
+Do not break any existing flows.
+
+---
+
+## END OF PHASE 3
+
+After completing this, pause and wait for Phase 4.
