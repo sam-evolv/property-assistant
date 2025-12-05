@@ -1,16 +1,21 @@
-'use client';
+import { getServerSession } from '@/lib/supabase-server';
+import { DeveloperLayoutProvider } from './layout-provider';
+import { redirect } from 'next/navigation';
 
-import { DeveloperLayoutWithSidebar } from './layout-sidebar';
-import { CurrentContextProvider } from '@/contexts/CurrentContext';
-
-export default function DeveloperLayout({
+export default async function DeveloperLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession();
+  
+  if (!session) {
+    redirect('/login?redirectTo=/developer');
+  }
+
   return (
-    <CurrentContextProvider>
-      <DeveloperLayoutWithSidebar>{children}</DeveloperLayoutWithSidebar>
-    </CurrentContextProvider>
+    <DeveloperLayoutProvider session={session}>
+      {children}
+    </DeveloperLayoutProvider>
   );
 }
