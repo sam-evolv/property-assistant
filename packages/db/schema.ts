@@ -1014,3 +1014,51 @@ export const document_processing_logs = pgTable('document_processing_logs', {
   eventTypeIdx: index('doc_processing_logs_event_type_idx').on(table.event_type),
   createdAtIdx: index('doc_processing_logs_created_at_idx').on(table.created_at),
 }));
+
+// Users table - syncs with Supabase auth.users for RLS
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey(),  // Matches auth.users.id
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  email: text('email'),
+  role: text('role').notNull().default('user'),  // user, tenant_admin, platform_admin
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('users_tenant_idx').on(table.tenant_id),
+  emailIdx: index('users_email_idx').on(table.email),
+  roleIdx: index('users_role_idx').on(table.role),
+}));
+
+// User-to-development mapping for multi-development access control
+export const userDevelopments = pgTable('user_developments', {
+  user_id: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  development_id: uuid('development_id').notNull().references(() => developments.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('member'),  // member, manager, admin
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  pk: index('user_developments_pk').on(table.user_id, table.development_id),
+  developmentIdx: index('user_developments_development_idx').on(table.development_id, table.user_id),
+  userIdx: index('user_developments_user_idx').on(table.user_id, table.development_id),
+}));
+
+// Relations for users
+export const usersRelations = relations(users, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [users.tenant_id],
+    references: [tenants.id],
+  }),
+  userDevelopments: many(userDevelopments),
+}));
+
+// Relations for userDevelopments
+export const userDevelopmentsRelations = relations(userDevelopments, ({ one }) => ({
+  user: one(users, {
+    fields: [userDevelopments.user_id],
+    references: [users.id],
+  }),
+  development: one(developments, {
+    fields: [userDevelopments.development_id],
+    references: [developments.id],
+  }),
+}));
