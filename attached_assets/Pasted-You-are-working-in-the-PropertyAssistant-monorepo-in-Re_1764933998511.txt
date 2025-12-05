@@ -1,0 +1,190 @@
+You are working in the "PropertyAssistant" monorepo in Replit. The goal is to implement a bullet-proof, production-grade pipeline for room dimensions so that the purchaser chat assistant can answer questions like “What size is the living room in my house?” with accurate, deterministic values from the database.
+
+The stack:
+- Backend DB: Supabase Postgres, accessed via DATABASE_URL
+- ORM: Drizzle (packages/db/schema.ts, migrations in packages/db/migrations)
+- Web app: Next.js / unified portal under apps/unified-portal (or similar)
+- Chat API: There is already a chat endpoint used by the purchaser interface (search for “chat” API route).
+- Developer dashboard: There is an existing developer/admin UI in the unified portal.
+
+YOUR TASKS
+
+PHASE 1 — DATABASE SCHEMA (unit_room_dimensions)
+
+1. Open packages/db/schema.ts and check whether a table like `unit_room_dimensions` already exists.
+   - If it exists, align it to the schema below.
+   - If it does not exist, add a new pgTable definition EXACTLY matching this logical model (adapt field names to the file’s conventions but keep semantics):
+
+   Fields:
+   - id (uuid, primary key, default gen_random_uuid())
+   - tenant_id (uuid, not null, FK -> tenants.id, on delete cascade)
+   - development_id (uuid, not null, FK -> developments.id, on delete cascade)
+   - house_type_id (uuid, not null, FK -> house_types.id, on delete cascade)
+   - unit_id (uuid, nullable, FK -> units.id, on delete cascade)
+   - room_name (text, not null)         // human label: “Living Room”
+   - room_key (text, not null)          // canonical key: “living_room” (lower_snake_case)
+   - floor (text, nullable)             // “ground”, “first”, etc.
+   - length_m (numeric(6,2), nullable)
+   - width_m (numeric(6,2), nullable)
+   - area_sqm (numeric(7,2), nullable)
+   - ceiling_height_m (numeric(5,2), nullable)
+   - source (text, not null, default 'unknown')  // 'schedule_pdf' | 'floorplan_vision' | 'manual_override'
+   - verified (boolean, not null, default false)
+   - notes (text, nullable)
+   - created_at (timestamptz, not null, default now())
+   - updated_at (timestamptz, not null, default now())
+
+   Indexes:
+   - idx_urd_tenant_dev_house  on (tenant_id, development_id, house_type_id)
+   - idx_urd_room_key          on (room_key)
+   - idx_urd_unit              on (unit_id)
+   - uniq_urd_house_room_floor_source unique on (house_type_id, coalesce(unit_id, UUID_ZERO), room_key, coalesce(floor, ''), source)
+
+2. Add/update the Drizzle definition so it matches. Use existing style for imports and naming.
+
+3. Create a new migration under packages/db/migrations that:
+   - Creates the table if it does not exist.
+   - Adds the indexes and unique index.
+   - Adds or updates a trigger/function to keep updated_at in sync if you prefer DB-level enforcement; otherwise, ensure the application always sets updated_at on update.
+
+4. Run:
+   - cd packages/db
+   - npx drizzle-kit push
+   Confirm the migration runs cleanly against the Supabase database (DATABASE_URL), with no destructive changes to existing business data.
+
+PHASE 2 — DIMENSION_QUERY BRANCH IN CHAT API
+
+Goal: For dimension-related questions, the assistant should query `unit_room_dimensions` first and only fall back to RAG if no verified data exists.
+
+5. Locate the chat endpoint used by the purchaser interface.
+   - Search in apps/ for API routes or handlers with names like `chat`, `ask`, `assistant`, or `conversation`.
+   - This is likely under `apps/unified-portal` in an `app/api/chat` route or similar.
+
+6. Inside the chat handler, implement a “dimension query” decision branch with the following behaviour:
+
+   a) Intent classification:
+      - Before calling the LLM, run a lightweight classifier function that inspects the latest user message and determines if it is a “dimension question”.
+      - Consider messages asking about: room size, length, width, area, floor area, room dimensions, etc.
+      - Implement this as a small, pure function `isDimensionQuestion(message: string): boolean`, based on keyword heuristics (e.g., “size”, “how big”, “dimensions”, “m²”, “sqm”, “length”, “width”, “floor area”, “living room size”, etc.) to keep it deterministic.
+
+   b) Room name resolution:
+      - Implement a helper `inferRoomKey(message: string): { roomKey: string; floorHint?: string }` that maps user language to canonical room_key values.
+      - Normalise common variants:
+        - “living room”, “sitting room”, “lounge” -> `living_room`
+        - “kitchen”, “kitchen / dining”, “kitchen-dining” -> `kitchen` or `kitchen_dining` (depending on your business model)
+        - “bedroom 1”, “master bedroom”, “main bedroom” -> `bedroom_1`
+      - Keep this mapping in a central config so it can be extended per-development if required.
+
+   c) Context IDs:
+      - Use the existing tenant_id, development_id, house_type_id, and unit_id resolution logic already present for the purchaser assistant.
+      - DO NOT hardcode dev IDs. Read them from the authenticated user / QR context as the rest of the assistant does.
+
+   d) Database lookup:
+      - If `isDimensionQuestion` returns true AND you have resolved a tenant_id, development_id, house_type_id, run a direct SQL/Drizzle query:
+
+        - Prefer a VERIFIED match at unit-level, else at house-type level:
+
+          1) Try:
+             select * from unit_room_dimensions
+             where tenant_id = ?
+               and development_id = ?
+               and house_type_id = ?
+               and unit_id = ?
+               and room_key = ?
+               and verified = true
+             limit 1;
+
+          2) If no result and unit_id is not null, try again without unit_id (house-type default):
+             select * from unit_room_dimensions
+             where tenant_id = ?
+               and development_id = ?
+               and house_type_id = ?
+               and room_key = ?
+               and verified = true
+             order by source = 'manual_override' desc, source = 'schedule_pdf' desc
+             limit 1;
+
+      - Wrap this into a helper like `getVerifiedRoomDimensions(context, roomKey)`.
+
+   e) Response construction:
+      - If a verified record is found, DO NOT call the main LLM for this answer. Construct a deterministic reply directly in TypeScript using the numeric values.
+        Example textual pattern:
+        - “For your BD01 home, the living room is approximately 4.5m x 3.8m, which is about 17.1m².”
+      - Keep rounding logic consistent (e.g. 1 decimal place, or 2 if necessary).
+      - Include a short caveat if data source is not `manual_override` (e.g. “based on the latest architectural plans”).
+
+   f) Fallback:
+      - If no verified dimensions are found:
+        - Option A: return a safe, non-fabricated answer (“I don’t have a precise numeric size for the living room in your BD01 house type yet.”).
+        - Option B: include that context when calling the LLM so that it DOES NOT hallucinate numbers (e.g. system message: “You do not know the numeric dimensions. Do not guess.”).
+      - Never fabricate numeric dimensions from RAG alone.
+
+   g) Logging:
+      - Emit an analytics event in your existing analytics pipeline for each dimension query:
+        - event_type: 'dimension_query'
+        - event_data: roomKey, hasVerifiedData, resolvedFromDB, tenant_id, development_id, house_type_id, unit_id.
+      - This will be used later for monitoring.
+
+PHASE 3 — MINIMAL VERIFICATION UI IN DEVELOPER DASHBOARD
+
+Goal: Give developer / internal users a simple way to review and approve extracted dimensions so we can safely rely on `verified = true`.
+
+7. Locate the developer/admin dashboard React code (likely under apps/unified-portal in a route such as `/developer` or `/admin`).
+
+8. Add a new page/section called “Room Dimensions” or “Dimensions Verification” accessible only to developer/admin roles.
+   - Use existing auth/role checks.
+   - UI requirements:
+     - Filter by tenant, development, and house type.
+     - Show a table with columns:
+       - room_name
+       - floor
+       - length_m
+       - width_m
+       - area_sqm
+       - ceiling_height_m
+       - source
+       - verified (checkbox)
+       - last updated
+     - Allow inline editing of numeric fields and notes.
+     - Allow toggling `verified` on/off.
+   - Use the existing API patterns in the repo:
+     - Create an API route or handler (e.g. `/api/admin/unit-room-dimensions`) for CRUD operations on `unit_room_dimensions`.
+     - Protect it with the same admin/developer auth guard as other admin APIs.
+
+9. Implement the backend handlers for the verification UI:
+   - GET: list `unit_room_dimensions` for given tenant_id / development_id / house_type_id.
+   - PATCH/PUT: update fields and set `verified` true/false.
+   - Ensure all writes also update the `updated_at` timestamp.
+
+10. Connect the UI to these APIs using the project’s preferred data-fetching method (React Query / SWR / fetch in server actions, depending on the current structure).
+
+11. Add a small visual cue in the developer dashboard that indicates “Dimensions coverage”:
+   - e.g. “12 / 14 rooms verified” for a given house type.
+   - This is optional but helpful for QA.
+
+PHASE 4 — TESTS / VALIDATION
+
+12. Update or create test scripts under `scripts/` to validate dimension behaviour:
+   - `scripts/test-dimension-priority.ts`:
+     - For a known house_type, insert a test row in `unit_room_dimensions` with known values and verified = true.
+     - Call the chat endpoint programmatically with a sample question like “What size is the living room in my house?”
+     - Assert that the response contains the expected numeric values from the DB and not hallucinated text.
+   - `scripts/test-dimension-guardrail.ts`:
+     - For a house_type with NO `unit_room_dimensions` entries, call the chat endpoint with the same kind of questions.
+     - Assert that the response explicitly states that it does not know the numeric size and does not output fake numbers.
+
+13. Run all existing tests plus the new dimension tests and ensure everything passes.
+
+CONSTRAINTS
+
+- Do not change environment variable names (DATABASE_URL, SUPABASE_DB_URL, etc.).
+- Do not break existing analytics_events or other production tables.
+- Keep changes as minimal and focused as possible.
+- Prefer explicit, well-named helper functions over large monolithic handlers.
+- When in doubt, follow the existing coding style in this repo.
+
+Once you have finished all steps, leave comments in the relevant files summarising the behaviour:
+- In the chat handler: a short comment explaining the dimension_query branch.
+- In the verification UI component: a short comment explaining its purpose.
+
+End of instructions.
