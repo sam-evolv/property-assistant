@@ -1037,7 +1037,6 @@ export const userDevelopments = pgTable('user_developments', {
   role: text('role').notNull().default('member'),  // member, manager, admin
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  pk: index('user_developments_pk').on(table.user_id, table.development_id),
   developmentIdx: index('user_developments_development_idx').on(table.development_id, table.user_id),
   userIdx: index('user_developments_user_idx').on(table.user_id, table.development_id),
 }));
