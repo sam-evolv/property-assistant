@@ -1,78 +1,31 @@
 /**
- * Smart Archive Backend Helpers
+ * Smart Archive Backend Helpers (Server-only)
  * 
  * Provides functions for fetching and organizing documents by discipline
  * for the developer dashboard Smart Archive feature.
+ * 
+ * NOTE: This file uses server-only dependencies (next/headers).
+ * For client components, import from './archive-constants' instead.
  */
 
 import { createServerSupabaseClient } from './supabase-server';
+import { 
+  DISCIPLINES, 
+  type DisciplineType, 
+  type DisciplineSummary, 
+  type ArchiveDocument, 
+  type FetchDocumentsResult 
+} from './archive-constants';
 
-export type DisciplineType = 
-  | 'architectural'
-  | 'structural'
-  | 'mechanical'
-  | 'electrical'
-  | 'plumbing'
-  | 'civil'
-  | 'landscape'
-  | 'other';
-
-export interface DisciplineSummary {
-  discipline: DisciplineType;
-  displayName: string;
-  fileCount: number;
-  lastUpdated: string | null;
-}
-
-export interface ArchiveDocument {
-  id: string;
-  title: string;
-  file_name: string;
-  file_url: string | null;
-  storage_url: string | null;
-  discipline: string | null;
-  revision_code: string | null;
-  doc_kind: string | null;
-  house_type_code: string | null;
-  is_important: boolean;
-  must_read?: boolean;
-  ai_classified?: boolean;
-  mime_type: string | null;
-  size_kb: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FetchDocumentsResult {
-  documents: ArchiveDocument[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-export const DISCIPLINES: Record<DisciplineType, { label: string; description: string; icon: string; color: string }> = {
-  architectural: { label: 'Architectural', description: 'Floor plans, elevations, sections, details', icon: 'Building2', color: 'blue' },
-  structural: { label: 'Structural', description: 'Structural drawings, calculations, foundations', icon: 'Hammer', color: 'orange' },
-  mechanical: { label: 'Mechanical', description: 'HVAC systems, ventilation, heating', icon: 'Cog', color: 'green' },
-  electrical: { label: 'Electrical', description: 'Electrical layouts, lighting, power systems', icon: 'Zap', color: 'yellow' },
-  plumbing: { label: 'Plumbing', description: 'Water supply, drainage, sanitary systems', icon: 'Droplet', color: 'cyan' },
-  civil: { label: 'Civil', description: 'Site works, roads, drainage, earthworks', icon: 'Mountain', color: 'brown' },
-  landscape: { label: 'Landscape', description: 'Landscaping plans, planting, hardscape', icon: 'Trees', color: 'emerald' },
-  other: { label: 'Other', description: 'Other documents and uncategorized files', icon: 'Files', color: 'gray' },
-};
-
-export function getDisciplineDisplayName(discipline: string | null): string {
-  if (!discipline) return 'Other';
-  const key = discipline.toLowerCase() as DisciplineType;
-  return DISCIPLINES[key]?.label || discipline;
-}
-
-export function getDisciplineInfo(discipline: string | null): { label: string; description: string; icon: string; color: string } {
-  if (!discipline) return DISCIPLINES.other;
-  const key = discipline.toLowerCase() as DisciplineType;
-  return DISCIPLINES[key] || DISCIPLINES.other;
-}
+export { 
+  DISCIPLINES, 
+  getDisciplineDisplayName, 
+  getDisciplineInfo,
+  type DisciplineType, 
+  type DisciplineSummary, 
+  type ArchiveDocument, 
+  type FetchDocumentsResult 
+} from './archive-constants';
 
 /**
  * Fetches discipline summaries with file counts for the archive grid

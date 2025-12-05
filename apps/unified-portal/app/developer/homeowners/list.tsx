@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AdminSession } from '@/lib/supabase-server';
+import { AdminSession } from '@/lib/types';
 import { ArrowLeft, Copy, Eye, EyeOff, Edit2, Users, Mail } from 'lucide-react';
 
 interface Unit {

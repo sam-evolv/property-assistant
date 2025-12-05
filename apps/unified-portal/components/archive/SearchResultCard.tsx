@@ -2,7 +2,7 @@
 
 import { FileText, Star, AlertCircle, Sparkles, Building2, Calendar, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
-import { DISCIPLINES, type DisciplineType } from '@/lib/archive';
+import { DISCIPLINES, type DisciplineType } from '@/lib/archive-constants';
 
 interface SearchResult {
   document_id: string;

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { DocumentCard } from './DocumentCard';
 import { ChevronLeft, ChevronRight, FileX } from 'lucide-react';
-import type { ArchiveDocument } from '@/lib/archive';
+import type { ArchiveDocument } from '@/lib/archive-constants';
 
 interface DocumentGridProps {
   documents: ArchiveDocument[];

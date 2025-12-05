@@ -3,15 +3,9 @@ import { cookies } from 'next/headers';
 import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
+import type { AdminRole, AdminSession } from './types';
 
-export type AdminRole = 'super_admin' | 'developer' | 'admin';
-
-export interface AdminSession {
-  id: string;
-  email: string;
-  role: AdminRole;
-  tenantId: string;
-}
+export type { AdminRole, AdminSession } from './types';
 
 export async function createServerSupabaseClient() {
   return createServerComponentClient({ cookies });

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Search, Filter, X, Loader2 } from 'lucide-react';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { DISCIPLINES, type DisciplineType } from '@/lib/archive';
+import { DISCIPLINES, type DisciplineType } from '@/lib/archive-constants';
 
 interface SearchFilters {
   discipline?: string;

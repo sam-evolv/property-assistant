@@ -6,7 +6,7 @@ import {
   FileText, Clock, Sparkles, Target, Loader2
 } from 'lucide-react';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { DISCIPLINES } from '@/lib/archive';
+import { DISCIPLINES } from '@/lib/archive-constants';
 
 interface DisciplineCoverage {
   discipline: string;

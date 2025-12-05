@@ -1,7 +1,7 @@
 'use client';
 
 import { DisciplineCard } from './DisciplineCard';
-import type { DisciplineSummary } from '@/lib/archive';
+import type { DisciplineSummary } from '@/lib/archive-constants';
 
 interface DisciplineGridProps {
   disciplines: DisciplineSummary[];

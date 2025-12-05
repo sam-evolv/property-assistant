@@ -12,7 +12,7 @@ import {
   Files,
   ChevronRight
 } from 'lucide-react';
-import type { DisciplineType, DisciplineSummary } from '@/lib/archive';
+import type { DisciplineType, DisciplineSummary } from '@/lib/archive-constants';
 
 const disciplineIcons: Record<DisciplineType, typeof Building2> = {
   architectural: Building2,

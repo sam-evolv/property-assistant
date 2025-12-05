@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AdminSession } from '@/lib/supabase-server';
+import { AdminSession } from '@/lib/types';
 
 interface Homeowner {
   id: string;

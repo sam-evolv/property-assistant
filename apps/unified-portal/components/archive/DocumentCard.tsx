@@ -12,7 +12,7 @@ import {
   Sparkles,
   AlertTriangle
 } from 'lucide-react';
-import type { ArchiveDocument } from '@/lib/archive';
+import type { ArchiveDocument } from '@/lib/archive-constants';
 
 interface DocumentCardProps {
   document: ArchiveDocument;

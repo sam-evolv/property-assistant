@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { X, Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { DISCIPLINES, type DisciplineType } from '@/lib/archive';
+import { DISCIPLINES, type DisciplineType } from '@/lib/archive-constants';
 
 interface UploadModalProps {
   isOpen: boolean;
