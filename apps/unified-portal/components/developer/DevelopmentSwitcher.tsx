@@ -30,20 +30,22 @@ export function DevelopmentSwitcher() {
   const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch developments on mount
+  // Fetch developments on mount - server handles auth via cookies
   useEffect(() => {
-    if (!tenantId) return;
-    
     async function fetchDevelopments() {
       try {
         setIsLoading(true);
+        console.log('[DevelopmentSwitcher] Fetching developments...');
         const response = await fetch('/api/developments');
         
         if (!response.ok) {
-          throw new Error('Failed to fetch developments');
+          const errorData = await response.json().catch(() => ({}));
+          console.error('[DevelopmentSwitcher] API error:', response.status, errorData);
+          throw new Error(errorData.error || 'Failed to fetch developments');
         }
         
         const data = await response.json();
+        console.log('[DevelopmentSwitcher] Loaded developments:', data.developments?.length || 0);
         setDevelopments(data.developments || []);
         setError(null);
       } catch (err) {
@@ -55,7 +57,7 @@ export function DevelopmentSwitcher() {
     }
 
     fetchDevelopments();
-  }, [tenantId]);
+  }, []);
 
   // Close dropdown on click outside
   useEffect(() => {
