@@ -3713,6 +3713,27 @@ npm run db:studio      # Open Drizzle Studio
 - ✅ Automated cleanup worker (all services)
 - ✅ Structured logging with performance timing
 
+## 🗂️ Smart Archive System
+The Smart Archive organizes construction documents by discipline for easy navigation:
+
+### Discipline Categories (8 total)
+- **Architectural**: Floor plans, elevations, sections, details
+- **Structural**: Structural drawings, calculations, foundations
+- **Mechanical**: HVAC systems, ventilation, heating
+- **Electrical**: Electrical layouts, lighting, power systems
+- **Plumbing**: Water supply, drainage, sanitary systems
+- **Civil**: Site works, roads, drainage, earthworks
+- **Landscape**: Landscaping plans, planting, hardscape
+- **Other**: Uncategorized and miscellaneous documents
+
+### Archive Routes
+- `/developer/archive` - Discipline overview with document counts
+- `/developer/archive/[discipline]` - Document listing with pagination (20 docs/page)
+
+### API Endpoints
+- `GET /api/archive/disciplines` - Fetches discipline summaries
+- `GET /api/archive/documents` - Fetches documents by discipline
+
 ## 🚧 Next Steps (Phase 2+)
 - Frontend performance optimization (React, lazy loading)
 - Query optimization (pagination, explicit columns)
