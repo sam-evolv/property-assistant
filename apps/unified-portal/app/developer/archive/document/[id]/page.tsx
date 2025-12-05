@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
-import { DISCIPLINES, type DisciplineType } from '@/lib/archive';
+import { DISCIPLINES, type DisciplineType } from '@/lib/archive-constants';
 
 interface DocumentDetail {
   id: string;

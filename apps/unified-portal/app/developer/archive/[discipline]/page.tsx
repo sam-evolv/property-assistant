@@ -6,8 +6,7 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, FolderOpen, RefreshCw, Plus, Filter, Star, AlertTriangle, Sparkles } from 'lucide-react';
 import { DocumentGrid, UploadModal } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { DISCIPLINES, getDisciplineDisplayName } from '@/lib/archive';
-import type { ArchiveDocument, DisciplineType } from '@/lib/archive';
+import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
 
 interface HouseType {
   id: string;

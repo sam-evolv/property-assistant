@@ -5,7 +5,7 @@ import { db } from '@openhouse/db/client';
 import { documents, admins, houseTypes, userDevelopments } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { classifyDocumentWithAI, extractHouseTypeCodes } from '@/lib/ai-classify';
-import type { DisciplineType } from '@/lib/archive';
+import type { DisciplineType } from '@/lib/archive-constants';
 
 interface UploadMetadata {
   discipline?: DisciplineType | null;
@@ -64,41 +64,46 @@ async function uploadToSupabaseStorage(
   const uniqueId = crypto.randomUUID();
   const storagePath = `tenant/${tenantId}/development/${developmentId}/${uniqueId}.${fileExt}`;
 
-  const { data: buckets } = await supabase.storage.listBuckets();
-  const bucketExists = buckets?.some(b => b.name === 'documents');
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === 'documents');
 
-  if (!bucketExists) {
-    const { error: createError } = await supabase.storage.createBucket('documents', {
-      public: false,
-      fileSizeLimit: 52428800,
-    });
-    if (createError && !createError.message.includes('already exists')) {
-      console.error('[Upload] Failed to create bucket:', createError);
-      return { error: 'Failed to create storage bucket' };
+    if (!bucketExists) {
+      const { error: createError } = await supabase.storage.createBucket('documents', {
+        public: false,
+        fileSizeLimit: 52428800,
+      });
+      if (createError && !createError.message.includes('already exists')) {
+        console.warn('[Upload] Could not create bucket, continuing without storage:', createError.message);
+        return { path: storagePath, publicUrl: '' };
+      }
     }
+
+    const buffer = await file.arrayBuffer();
+    const { error: uploadError } = await supabase.storage
+      .from('documents')
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.warn('[Upload] Storage upload failed, continuing without file storage:', uploadError.message);
+      return { path: storagePath, publicUrl: '' };
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(storagePath);
+
+    return {
+      path: storagePath,
+      publicUrl: publicUrlData?.publicUrl || ''
+    };
+  } catch (err) {
+    console.warn('[Upload] Storage error, continuing without file storage:', err);
+    return { path: storagePath, publicUrl: '' };
   }
-
-  const buffer = await file.arrayBuffer();
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false
-    });
-
-  if (uploadError) {
-    console.error('[Upload] Storage upload failed:', uploadError);
-    return { error: `Storage upload failed: ${uploadError.message}` };
-  }
-
-  const { data: publicUrlData } = supabase.storage
-    .from('documents')
-    .getPublicUrl(storagePath);
-
-  return {
-    path: storagePath,
-    publicUrl: publicUrlData?.publicUrl || ''
-  };
 }
 
 async function extractTextFromFile(file: File): Promise<string> {

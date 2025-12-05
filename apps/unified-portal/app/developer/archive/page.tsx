@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { DisciplineGrid, UploadModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import type { DisciplineSummary } from '@/lib/archive';
+import type { DisciplineSummary } from '@/lib/archive-constants';
 
 interface HouseType {
   id: string;
