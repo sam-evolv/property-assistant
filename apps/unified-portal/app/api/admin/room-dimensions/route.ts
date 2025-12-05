@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { unit_room_dimensions, developments, houseTypes, units } from '@openhouse/db/schema';
-import { eq, and, sql, isNull, desc } from 'drizzle-orm';
+import { unitRoomDimensions, developments, houseTypes, units } from '@openhouse/db/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { getAdminSession } from '@openhouse/api/session';
 
 export const runtime = 'nodejs';
@@ -11,7 +11,6 @@ interface RoomDimensionInput {
   development_id: string;
   house_type_id: string;
   unit_id?: string;
-  unit_type_code: string;
   room_name: string;
   room_key: string;
   floor?: string;
@@ -22,7 +21,6 @@ interface RoomDimensionInput {
   verified: boolean;
   notes?: string;
   source?: string;
-  confidence?: number;
 }
 
 async function validateTenantOwnership(
@@ -91,62 +89,59 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let conditions = [eq(unit_room_dimensions.tenant_id, session.tenantId)];
+    let conditions = [eq(unitRoomDimensions.tenantId, session.tenantId)];
 
     if (developmentId) {
-      conditions.push(eq(unit_room_dimensions.development_id, developmentId));
+      conditions.push(eq(unitRoomDimensions.developmentId, developmentId));
     }
     if (houseTypeId) {
-      conditions.push(eq(unit_room_dimensions.house_type_id, houseTypeId));
+      conditions.push(eq(unitRoomDimensions.houseTypeId, houseTypeId));
     }
     if (unitId) {
-      conditions.push(eq(unit_room_dimensions.unit_id, unitId));
+      conditions.push(eq(unitRoomDimensions.unitId, unitId));
     }
     if (verifiedOnly) {
-      conditions.push(eq(unit_room_dimensions.verified, true));
+      conditions.push(eq(unitRoomDimensions.verified, true));
     }
 
     const dimensions = await db
       .select({
-        id: unit_room_dimensions.id,
-        tenant_id: unit_room_dimensions.tenant_id,
-        development_id: unit_room_dimensions.development_id,
-        house_type_id: unit_room_dimensions.house_type_id,
-        unit_id: unit_room_dimensions.unit_id,
-        unit_type_code: unit_room_dimensions.unit_type_code,
-        room_name: unit_room_dimensions.room_name,
-        room_key: unit_room_dimensions.room_key,
-        floor: unit_room_dimensions.floor,
-        length_m: unit_room_dimensions.length_m,
-        width_m: unit_room_dimensions.width_m,
-        area_sqm: unit_room_dimensions.area_sqm,
-        ceiling_height_m: unit_room_dimensions.ceiling_height_m,
-        source: unit_room_dimensions.source,
-        verified: unit_room_dimensions.verified,
-        confidence: unit_room_dimensions.confidence,
-        notes: unit_room_dimensions.notes,
-        created_at: unit_room_dimensions.created_at,
-        updated_at: unit_room_dimensions.updated_at,
+        id: unitRoomDimensions.id,
+        tenant_id: unitRoomDimensions.tenantId,
+        development_id: unitRoomDimensions.developmentId,
+        house_type_id: unitRoomDimensions.houseTypeId,
+        unit_id: unitRoomDimensions.unitId,
+        room_name: unitRoomDimensions.roomName,
+        room_key: unitRoomDimensions.roomKey,
+        floor: unitRoomDimensions.floor,
+        length_m: unitRoomDimensions.lengthM,
+        width_m: unitRoomDimensions.widthM,
+        area_sqm: unitRoomDimensions.areaSqm,
+        ceiling_height_m: unitRoomDimensions.ceilingHeightM,
+        source: unitRoomDimensions.source,
+        verified: unitRoomDimensions.verified,
+        notes: unitRoomDimensions.notes,
+        created_at: unitRoomDimensions.createdAt,
+        updated_at: unitRoomDimensions.updatedAt,
         development_name: developments.name,
         house_type_code: houseTypes.house_type_code,
         unit_number: units.unit_number,
       })
-      .from(unit_room_dimensions)
-      .leftJoin(developments, eq(unit_room_dimensions.development_id, developments.id))
-      .leftJoin(houseTypes, eq(unit_room_dimensions.house_type_id, houseTypes.id))
-      .leftJoin(units, eq(unit_room_dimensions.unit_id, units.id))
+      .from(unitRoomDimensions)
+      .leftJoin(developments, eq(unitRoomDimensions.developmentId, developments.id))
+      .leftJoin(houseTypes, eq(unitRoomDimensions.houseTypeId, houseTypes.id))
+      .leftJoin(units, eq(unitRoomDimensions.unitId, units.id))
       .where(and(...conditions))
       .orderBy(
-        desc(unit_room_dimensions.verified),
-        unit_room_dimensions.room_key,
-        desc(unit_room_dimensions.updated_at)
+        desc(unitRoomDimensions.verified),
+        unitRoomDimensions.roomKey,
+        desc(unitRoomDimensions.updatedAt)
       );
 
     const stats = await db.execute<{ 
       total: string; 
       verified: string; 
       unverified: string;
-      by_source: { source: string; count: number }[];
     }>(sql`
       SELECT 
         COUNT(*) as total,
@@ -202,22 +197,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 403 });
     }
 
-    const [newDimension] = await db.insert(unit_room_dimensions).values({
-      tenant_id: session.tenantId,
-      development_id: body.development_id,
-      house_type_id: body.house_type_id,
-      unit_id: body.unit_id || null,
-      unit_type_code: body.unit_type_code,
-      room_name: body.room_name,
-      room_key: body.room_key,
+    const [newDimension] = await db.insert(unitRoomDimensions).values({
+      tenantId: session.tenantId,
+      developmentId: body.development_id,
+      houseTypeId: body.house_type_id,
+      unitId: body.unit_id || null,
+      roomName: body.room_name,
+      roomKey: body.room_key,
       floor: body.floor || null,
-      length_m: body.length_m || null,
-      width_m: body.width_m || null,
-      area_sqm: body.area_sqm ? String(body.area_sqm) : null,
-      ceiling_height_m: body.ceiling_height_m ? String(body.ceiling_height_m) : null,
+      lengthM: body.length_m ? String(body.length_m) : null,
+      widthM: body.width_m ? String(body.width_m) : null,
+      areaSqm: body.area_sqm ? String(body.area_sqm) : null,
+      ceilingHeightM: body.ceiling_height_m ? String(body.ceiling_height_m) : null,
       source: body.source || 'manual',
       verified: body.verified ?? false,
-      confidence: body.confidence ?? 0.9,
       notes: body.notes || null,
     }).returning();
 
@@ -252,10 +245,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.query.unit_room_dimensions.findFirst({
+    const existing = await db.query.unitRoomDimensions.findFirst({
       where: and(
-        eq(unit_room_dimensions.id, body.id),
-        eq(unit_room_dimensions.tenant_id, session.tenantId)
+        eq(unitRoomDimensions.id, body.id),
+        eq(unitRoomDimensions.tenantId, session.tenantId)
       ),
     });
 
@@ -266,10 +259,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (body.unit_id && body.unit_id !== existing.unit_id) {
+    if (body.unit_id && body.unit_id !== existing.unitId) {
       const validation = await validateTenantOwnership(
         session.tenantId,
-        existing.development_id,
+        existing.developmentId,
         undefined,
         body.unit_id
       );
@@ -279,29 +272,28 @@ export async function PUT(request: NextRequest) {
     }
 
     const updateData: Record<string, any> = {
-      updated_at: new Date(),
+      updatedAt: new Date(),
     };
 
-    if (body.room_name !== undefined) updateData.room_name = body.room_name;
-    if (body.room_key !== undefined) updateData.room_key = body.room_key;
+    if (body.room_name !== undefined) updateData.roomName = body.room_name;
+    if (body.room_key !== undefined) updateData.roomKey = body.room_key;
     if (body.floor !== undefined) updateData.floor = body.floor;
-    if (body.length_m !== undefined) updateData.length_m = body.length_m;
-    if (body.width_m !== undefined) updateData.width_m = body.width_m;
-    if (body.area_sqm !== undefined) updateData.area_sqm = String(body.area_sqm);
-    if (body.ceiling_height_m !== undefined) updateData.ceiling_height_m = String(body.ceiling_height_m);
+    if (body.length_m !== undefined) updateData.lengthM = String(body.length_m);
+    if (body.width_m !== undefined) updateData.widthM = String(body.width_m);
+    if (body.area_sqm !== undefined) updateData.areaSqm = String(body.area_sqm);
+    if (body.ceiling_height_m !== undefined) updateData.ceilingHeightM = String(body.ceiling_height_m);
     if (body.verified !== undefined) updateData.verified = body.verified;
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.source !== undefined) updateData.source = body.source;
-    if (body.confidence !== undefined) updateData.confidence = body.confidence;
-    if (body.unit_id !== undefined) updateData.unit_id = body.unit_id;
+    if (body.unit_id !== undefined) updateData.unitId = body.unit_id;
 
     const [updated] = await db
-      .update(unit_room_dimensions)
+      .update(unitRoomDimensions)
       .set(updateData)
       .where(
         and(
-          eq(unit_room_dimensions.id, body.id),
-          eq(unit_room_dimensions.tenant_id, session.tenantId)
+          eq(unitRoomDimensions.id, body.id),
+          eq(unitRoomDimensions.tenantId, session.tenantId)
         )
       )
       .returning();
@@ -338,10 +330,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await db.query.unit_room_dimensions.findFirst({
+    const existing = await db.query.unitRoomDimensions.findFirst({
       where: and(
-        eq(unit_room_dimensions.id, id),
-        eq(unit_room_dimensions.tenant_id, session.tenantId)
+        eq(unitRoomDimensions.id, id),
+        eq(unitRoomDimensions.tenantId, session.tenantId)
       ),
     });
 
@@ -353,11 +345,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db
-      .delete(unit_room_dimensions)
+      .delete(unitRoomDimensions)
       .where(
         and(
-          eq(unit_room_dimensions.id, id),
-          eq(unit_room_dimensions.tenant_id, session.tenantId)
+          eq(unitRoomDimensions.id, id),
+          eq(unitRoomDimensions.tenantId, session.tenantId)
         )
       );
 

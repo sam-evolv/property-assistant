@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { unit_room_dimensions } from '@openhouse/db/schema';
+import { unitRoomDimensions } from '@openhouse/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getAdminSession } from '@openhouse/api/session';
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const updateData: Record<string, any> = {
       verified: body.verified,
-      updated_at: new Date(),
+      updatedAt: new Date(),
     };
 
     if (body.notes !== undefined) {
@@ -60,15 +60,15 @@ export async function POST(request: NextRequest) {
     }
 
     const updated = await db
-      .update(unit_room_dimensions)
+      .update(unitRoomDimensions)
       .set(updateData)
       .where(
         and(
-          inArray(unit_room_dimensions.id, body.ids),
-          eq(unit_room_dimensions.tenant_id, session.tenantId)
+          inArray(unitRoomDimensions.id, body.ids),
+          eq(unitRoomDimensions.tenantId, session.tenantId)
         )
       )
-      .returning({ id: unit_room_dimensions.id });
+      .returning({ id: unitRoomDimensions.id });
 
     console.log(`[ROOM-DIMENSIONS] Batch verified ${updated.length} dimensions by ${session.email}, verified=${body.verified}`);
 

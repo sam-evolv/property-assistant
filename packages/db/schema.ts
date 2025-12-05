@@ -885,39 +885,48 @@ export const unit_intelligence_profiles = pgTable('unit_intelligence_profiles', 
   unitIdx: index('intel_profiles_unit_idx').on(table.unit_id),
 }));
 
-export const unit_room_dimensions = pgTable('unit_room_dimensions', {
+export const unitRoomDimensions = pgTable('unit_room_dimensions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  development_id: uuid('development_id').references(() => developments.id, { onDelete: 'cascade' }).notNull(),
-  house_type_id: uuid('house_type_id').references(() => houseTypes.id, { onDelete: 'cascade' }).notNull(),
-  unit_id: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }),
-  unit_type_code: text('unit_type_code').notNull(),
-  room_name: text('room_name').notNull(),
-  room_key: text('room_key').notNull(),
-  canonical_room_name: text('canonical_room_name'),
+
+  tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  developmentId: uuid('development_id').references(() => developments.id, { onDelete: 'cascade' }).notNull(),
+  houseTypeId: uuid('house_type_id').references(() => houseTypes.id, { onDelete: 'cascade' }).notNull(),
+  unitId: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }),
+
+  roomName: text('room_name').notNull(),
+  roomKey: text('room_key').notNull(),
   floor: text('floor'),
-  level: text('level'),
-  length_m: doublePrecision('length_m'),
-  width_m: doublePrecision('width_m'),
-  area_sqm: decimal('area_sqm', { precision: 7, scale: 2 }),
-  area_m2: doublePrecision('area_m2'),
-  ceiling_height_m: decimal('ceiling_height_m', { precision: 5, scale: 2 }),
+
+  lengthM: decimal('length_m', { precision: 6, scale: 2 }),
+  widthM: decimal('width_m', { precision: 6, scale: 2 }),
+  areaSqm: decimal('area_sqm', { precision: 7, scale: 2 }),
+  ceilingHeightM: decimal('ceiling_height_m', { precision: 5, scale: 2 }),
+
   source: text('source').notNull().default('unknown'),
   verified: boolean('verified').notNull().default(false),
-  confidence: doublePrecision('confidence').notNull().default(0.9),
+
   notes: text('notes'),
-  raw_payload: jsonb('raw_payload').default(sql`'{}'::jsonb`),
-  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  tenantIdx: index('room_dims_tenant_idx').on(table.tenant_id),
-  developmentIdx: index('room_dims_development_idx').on(table.development_id),
-  houseTypeIdx: index('room_dims_house_type_idx').on(table.house_type_id),
-  unitIdx: index('room_dims_unit_idx').on(table.unit_id),
-  roomKeyIdx: index('room_dims_room_key_idx').on(table.room_key),
-  tenantDevHouseTypeIdx: index('room_dims_tenant_dev_house_type_idx').on(table.tenant_id, table.development_id, table.house_type_id),
-  verifiedIdx: index('room_dims_verified_idx').on(table.verified),
+  tenantDevHouseIdx: index('idx_urd_tenant_dev_house').on(
+    table.tenantId,
+    table.developmentId,
+    table.houseTypeId,
+  ),
+  roomKeyIdx: index('idx_urd_room_key').on(table.roomKey),
+  unitIdx: index('idx_urd_unit').on(table.unitId),
+  uniqueHouseRoomFloorSource: uniqueIndex('uniq_urd_house_room_floor_source').on(
+    table.houseTypeId,
+    table.unitId,
+    table.roomKey,
+    table.floor,
+    table.source,
+  ),
 }));
+
+export const unit_room_dimensions = unitRoomDimensions;
 
 export const intel_extractions = pgTable('intel_extractions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),

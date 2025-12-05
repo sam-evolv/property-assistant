@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { getDocumentProxy } from 'unpdf';
 import { db } from '@openhouse/db/client';
-import { unit_room_dimensions } from '@openhouse/db/schema';
+import { unitRoomDimensions } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { normalizeToCanonicalRoomName } from '../normalize-room-name';
 
@@ -258,57 +258,56 @@ export async function extractRoomDimensionsFromFloorplan(
     for (const level of aggregatedResult.levels) {
       for (const room of level.rooms) {
         const normalizedRoomName = normalizeRoomName(room.room_name);
-        const canonicalRoomName = normalizeToCanonicalRoomName(room.room_name);
+        const roomKey = normalizeToCanonicalRoomName(room.room_name);
+        const floorName = level.level_name || null;
         
-        console.log(`    🏷️  ${room.room_name} → canonical: ${canonicalRoomName}`);
+        console.log(`    🏷️  ${room.room_name} → room_key: ${roomKey}`);
         
         const existing = await db
           .select()
-          .from(unit_room_dimensions)
+          .from(unitRoomDimensions)
           .where(
             and(
-              eq(unit_room_dimensions.tenant_id, tenant_id),
-              eq(unit_room_dimensions.development_id, development_id),
-              eq(unit_room_dimensions.house_type_id, house_type_id),
-              eq(unit_room_dimensions.unit_type_code, unit_type_code),
-              eq(unit_room_dimensions.canonical_room_name, canonicalRoomName),
-              level.level_name
-                ? eq(unit_room_dimensions.level, level.level_name)
-                : sql`${unit_room_dimensions.level} IS NULL`
+              eq(unitRoomDimensions.tenantId, tenant_id),
+              eq(unitRoomDimensions.developmentId, development_id),
+              eq(unitRoomDimensions.houseTypeId, house_type_id),
+              eq(unitRoomDimensions.roomKey, roomKey),
+              floorName
+                ? eq(unitRoomDimensions.floor, floorName)
+                : sql`${unitRoomDimensions.floor} IS NULL`
             )
           )
           .limit(1);
         
         const roomData = {
-          tenant_id,
-          development_id,
-          house_type_id,
-          unit_type_code,
-          room_name: room.room_name,
-          canonical_room_name: canonicalRoomName,
-          level: level.level_name || null,
-          length_m: room.length_m || null,
-          width_m: room.width_m || null,
-          area_m2: room.area_m2,
-          source: 'vision_floorplan' as const,
-          confidence: 0.9,
-          raw_payload: JSON.stringify(room),
-          updated_at: new Date(),
+          tenantId: tenant_id,
+          developmentId: development_id,
+          houseTypeId: house_type_id,
+          roomName: room.room_name,
+          roomKey: roomKey,
+          floor: floorName,
+          lengthM: room.length_m ? String(room.length_m) : null,
+          widthM: room.width_m ? String(room.width_m) : null,
+          areaSqm: room.area_m2 ? String(room.area_m2) : null,
+          source: 'vision_floorplan',
+          verified: false,
+          notes: `Extracted via Vision API from ${fileName}`,
+          updatedAt: new Date(),
         };
         
         if (existing.length > 0) {
           await db
-            .update(unit_room_dimensions)
+            .update(unitRoomDimensions)
             .set(roomData)
-            .where(eq(unit_room_dimensions.id, existing[0].id));
+            .where(eq(unitRoomDimensions.id, existing[0].id));
           
           console.log(`  ✏️  Updated: ${normalizedRoomName} (${room.area_m2} m²) - ${level.level_name}`);
         } else {
           await db
-            .insert(unit_room_dimensions)
+            .insert(unitRoomDimensions)
             .values({
               ...roomData,
-              created_at: new Date(),
+              createdAt: new Date(),
             });
           
           console.log(`  ➕ Inserted: ${normalizedRoomName} (${room.area_m2} m²) - ${level.level_name}`);

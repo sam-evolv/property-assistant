@@ -57,45 +57,47 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
-### Room Dimensions Pipeline (December 2025) - IN PROGRESS 🔧
+### Room Dimensions Pipeline (December 2025) - COMPLETED ✅
 
 **Production-grade room dimension verification and prioritized lookup system:**
 
-**Phase 1: Schema Enhancement** ✅
-- Extended `unit_room_dimensions` table with new columns:
-  - `unit_id` - Links dimension to specific unit (nullable for house-type-level)
-  - `room_key` - Normalized room identifier
-  - `floor` - Floor level (ground, first, etc.)
-  - `area_sqm` - Area in square meters
-  - `ceiling_height_m` - Ceiling height
-  - `verified` - Boolean flag for human verification
-  - `notes` - Free-form verification notes
-- Backward compatible with existing columns
+**Database Schema** (`unit_room_dimensions` table):
+```sql
+id                uuid PRIMARY KEY
+tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE
+development_id    uuid NOT NULL REFERENCES developments(id) ON DELETE CASCADE
+house_type_id     uuid NOT NULL REFERENCES house_types(id) ON DELETE CASCADE
+unit_id           uuid REFERENCES units(id) ON DELETE CASCADE
+room_name         text NOT NULL        -- Display name: "Living Room"
+room_key          text NOT NULL        -- Canonical key: "living_room"
+floor             text                 -- "ground", "first", etc.
+length_m          numeric(6,2)
+width_m           numeric(6,2)
+area_sqm          numeric(7,2)
+ceiling_height_m  numeric(5,2)
+source            text NOT NULL DEFAULT 'unknown'
+verified          boolean NOT NULL DEFAULT false
+notes             text
+created_at        timestamptz NOT NULL DEFAULT now()
+updated_at        timestamptz NOT NULL DEFAULT now()
+```
 
-**Phase 2: Dimension Guardrail with Priority Lookup** ✅
-- 5-tier priority system for dimension lookups:
-  1. **Priority 1**: Verified unit-level dimensions (verified=true AND unit_id set)
-  2. **Priority 2**: Verified house-type-level dimensions (verified=true AND unit_id NULL)
-  3. **Priority 3**: Unverified vision extractions
-  4. **Priority 4**: Intelligence profile data
-  5. **Priority 5**: House types fallback
-- Updated `dimension-guardrail.ts` with full priority implementation
-- Chat responses indicate verification status and source
+**Indexes:**
+- `idx_urd_tenant_dev_house` - Composite for tenant isolation queries
+- `idx_urd_room_key` - Fast room lookups
+- `idx_urd_unit` - Unit-specific queries
+- `uniq_urd_house_room_floor_source` - Uniqueness guard
 
-**Phase 3: Verification API & Dashboard** ✅
-- REST API: `/api/admin/room-dimensions`
-  - GET: List dimensions with filters (development, house_type, verified)
-  - POST: Create new dimension with tenant ownership validation
-  - PUT: Update dimension with cross-reference validation
-  - DELETE: Remove dimension with tenant scope
-- Batch verification: `/api/admin/room-dimensions/batch-verify`
-  - Verify/unverify up to 100 dimensions at once
-  - Pre-validation ensures all IDs belong to tenant
-- Developer dashboard UI: `/developer/room-dimensions`
-  - Filter by development, house type, verification status
-  - Inline editing with save/cancel
-  - Batch selection and verification
-  - Stats panel (total, verified, pending)
+**Drizzle Schema:**
+- Export: `unitRoomDimensions` (camelCase properties)
+- Alias: `unit_room_dimensions` (backward compatibility)
+
+**Verification API:**
+- `GET /api/admin/room-dimensions` - List with filters
+- `POST /api/admin/room-dimensions` - Create dimension
+- `PUT /api/admin/room-dimensions` - Update dimension
+- `DELETE /api/admin/room-dimensions` - Remove dimension
+- `POST /api/admin/room-dimensions/batch-verify` - Batch verification
 
 **Security:**
 - Tenant isolation on all CRUD operations
@@ -103,10 +105,10 @@ OpenHouse AI/
 - Session-based authentication via `getAdminSession()`
 
 **Key Files:**
-- `packages/db/schema.ts` - unit_room_dimensions schema
-- `packages/api/src/dimension-guardrail.ts` - Priority lookup logic
+- `packages/db/migrations/009_unit_room_dimensions.sql` - SQL migration
+- `packages/db/schema.ts` - Drizzle schema definition
+- `packages/api/src/train/floorplan-vision.ts` - Vision extraction
 - `apps/unified-portal/app/api/admin/room-dimensions/route.ts` - CRUD API
-- `apps/unified-portal/app/developer/room-dimensions/page.tsx` - Verification UI
 
 ### Enhanced Document Ingestion Pipeline (December 2025) - COMPLETED ✅
 

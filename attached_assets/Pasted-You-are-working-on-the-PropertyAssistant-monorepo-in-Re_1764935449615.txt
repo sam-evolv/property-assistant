@@ -1,0 +1,165 @@
+You are working on the PropertyAssistant monorepo in Replit.
+
+Goal:
+Add a robust database foundation for room dimensions so the assistant can reliably answer questions like “what size is the living room in my house?” using Supabase (the primary DB), Drizzle, and our existing schema.
+
+Do the following very carefully, with minimal disruption:
+
+1) UNDERSTAND THE LAYOUT
+
+- Confirm that:
+  - The Drizzle package is in `packages/db`.
+  - SQL migrations live in `packages/db/migrations`.
+  - The main Drizzle schema is in `packages/db/schema.ts` (or equivalent).
+- Do NOT change any existing table definitions except where explicitly required.
+
+2) CREATE A NEW SQL MIGRATION FOR SUPABASE
+
+Create a new migration file in `packages/db/migrations/` with the next sequential number in the filename, e.g. `009_unit_room_dimensions.sql` (use the next number after the highest existing migration).
+
+The file must contain EXACTLY this SQL DDL:
+
+---
+-- 1) Extension (if not already enabled)
+create extension if not exists "uuid-ossp";
+
+-- 2) Table
+create table if not exists public.unit_room_dimensions (
+  id                uuid primary key default gen_random_uuid(),
+
+  tenant_id         uuid not null references public.tenants(id) on delete cascade,
+  development_id    uuid not null references public.developments(id) on delete cascade,
+  house_type_id     uuid not null references public.house_types(id) on delete cascade,
+  unit_id           uuid references public.units(id) on delete cascade,
+
+  -- Business fields
+  room_name         text not null,                -- as seen by the user, e.g. "Living Room"
+  room_key          text not null,                -- canonical, e.g. "living_room"
+  floor             text,                         -- "ground", "first", etc. (optional enum later)
+
+  length_m          numeric(6,2),                 -- 9999.99 max
+  width_m           numeric(6,2),
+  area_sqm          numeric(7,2),
+  ceiling_height_m  numeric(5,2),
+
+  source            text not null default 'unknown',  -- 'schedule_pdf' | 'floorplan_vision' | 'manual_override'
+  verified          boolean not null default false,   -- only TRUE is used in answers
+
+  notes             text,
+
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+-- 3) Indexes for fast lookup
+create index if not exists idx_urd_tenant_dev_house
+  on public.unit_room_dimensions (tenant_id, development_id, house_type_id);
+
+create index if not exists idx_urd_room_key
+  on public.unit_room_dimensions (room_key);
+
+create index if not exists idx_urd_unit
+  on public.unit_room_dimensions (unit_id);
+
+-- 4) Uniqueness guard:
+-- At most one canonical record per (house_type, unit?, room_key, floor, source)
+create unique index if not exists uniq_urd_house_room_floor_source
+  on public.unit_room_dimensions (
+    house_type_id,
+    coalesce(unit_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    room_key,
+    coalesce(floor, ''),
+    source
+  );
+
+-- 5) Updated_at maintenance (if you want DB-level enforcement)
+create or replace function set_unit_room_dimensions_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_unit_room_dimensions_updated_at on public.unit_room_dimensions;
+
+create trigger trg_unit_room_dimensions_updated_at
+before update on public.unit_room_dimensions
+for each row
+execute function set_unit_room_dimensions_updated_at();
+---
+
+Do not modify this SQL.
+
+3) ADD THE DRIZZLE TABLE TO `schema.ts`
+
+Open `packages/db/schema.ts`.
+
+Add a new `unitRoomDimensions` table definition that matches the SQL above. Use the existing style in this file (imports for `uuid`, `text`, `numeric`, `boolean`, `timestamp`, `index`, `uniqueIndex`, and `sql`).
+
+Use this as the base, but adapt imports/paths to match the current file:
+
+---
+export const unitRoomDimensions = pgTable('unit_room_dimensions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+
+  tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
+  developmentId: uuid('development_id').references(() => developments.id).notNull(),
+  houseTypeId: uuid('house_type_id').references(() => houseTypes.id).notNull(),
+  unitId: uuid('unit_id').references(() => units.id),
+
+  roomName: text('room_name').notNull(),
+  roomKey: text('room_key').notNull(),        // canonical key, lower_snake_case
+  floor: text('floor'),
+
+  lengthM: numeric('length_m', { precision: 6, scale: 2 }),
+  widthM: numeric('width_m', { precision: 6, scale: 2 }),
+  areaSqm: numeric('area_sqm', { precision: 7, scale: 2 }),
+  ceilingHeightM: numeric('ceiling_height_m', { precision: 5, scale: 2 }),
+
+  source: text('source').notNull().default('unknown'),
+  verified: boolean('verified').notNull().default(false),
+
+  notes: text('notes'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantDevHouseIdx: index('idx_urd_tenant_dev_house').on(
+    table.tenantId,
+    table.developmentId,
+    table.houseTypeId,
+  ),
+  roomKeyIdx: index('idx_urd_room_key').on(table.roomKey),
+  unitIdx: index('idx_urd_unit').on(table.unitId),
+  uniqueHouseRoomFloorSource: uniqueIndex('uniq_urd_house_room_floor_source').on(
+    table.houseTypeId,
+    table.unitId,
+    table.roomKey,
+    table.floor,
+    table.source,
+  ),
+}));
+---
+
+Ensure this new export is included in whatever index/export pattern the file uses so that the rest of the app can import `unitRoomDimensions` if needed.
+
+4) APPLY THE MIGRATION TO SUPABASE
+
+Run, from the project root, using the existing Supabase `DATABASE_URL`:
+
+- `cd packages/db`
+- `npx drizzle-kit push`
+
+Show the output in the shell and confirm the migration applied without errors.
+
+5) VERIFY IN SUPABASE
+
+Using the SQL Editor (Primary Database), generate and run a quick verification query, for example:
+
+- List the table:
+
+  ```sql
+  select table_name
+  from information_schema.tables
+  where table_name = 'unit_room_dimensions';
