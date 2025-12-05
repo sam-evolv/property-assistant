@@ -473,6 +473,8 @@ export const doc_chunks = pgTable('doc_chunks', {
   source_type: varchar('source_type', { length: 50 }).notNull(),
   source_id: uuid('source_id'),
   is_important: boolean('is_important').default(false).notNull(),
+  token_count: integer('token_count').default(0),
+  embedding_norm: doublePrecision('embedding_norm'),
   metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
@@ -483,6 +485,23 @@ export const doc_chunks = pgTable('doc_chunks', {
   tenantSourceIdx: index('doc_chunks_tenant_source_idx').on(table.tenant_id, table.source_type, table.source_id),
   tenantDevIdx: index('doc_chunks_tenant_dev_idx').on(table.tenant_id, table.development_id),
   devHouseTypeIdx: index('doc_chunks_dev_house_type_idx').on(table.development_id, table.house_type_code),
+}));
+
+export const search_cache = pgTable('search_cache', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  user_id: uuid('user_id').notNull(),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  query: text('query').notNull(),
+  filters: jsonb('filters').default(sql`'{}'::jsonb`),
+  results: jsonb('results').notNull(),
+  hit_count: integer('hit_count').default(0),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (table) => ({
+  userIdx: index('search_cache_user_idx').on(table.user_id),
+  tenantIdx: index('search_cache_tenant_idx').on(table.tenant_id),
+  queryIdx: index('search_cache_query_idx').on(table.tenant_id, table.query),
+  expiresIdx: index('search_cache_expires_idx').on(table.expires_at),
 }));
 
 export const floorplan_vision = pgTable('floorplan_vision', {
