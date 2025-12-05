@@ -97,7 +97,7 @@ export function extractHouseTypeCodes(text: string): string[] {
   const matches = text.toUpperCase().match(HOUSE_TYPE_PATTERN);
   if (!matches) return [];
   
-  const uniqueCodes = [...new Set(matches)];
+  const uniqueCodes = Array.from(new Set(matches));
   return uniqueCodes;
 }
 

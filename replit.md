@@ -57,6 +57,56 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Smart Archive Phase 3: Deep Semantic Search & Insights (December 2025) - COMPLETED ✅
+
+**AI-powered semantic search with hybrid ranking and operational insights:**
+
+**Global Semantic Search:**
+- Cross-development document search with pgvector embeddings
+- Hybrid ranking: 80% semantic similarity + 20% BM25 keyword score
+- Filters: discipline, house type, important, must-read, AI-only
+- Search caching with 6-hour TTL for performance
+- RLS-aware: respects user_developments access control
+
+**Document Detail View:**
+- Full document preview with PDF inline display
+- Metadata editing: discipline, house type, tags, flags
+- Extracted text chunks preview (top 10-20 chunks)
+- "Re-run AI Classification" button for reclassification
+- Embedding info display (chunks count, processing status)
+
+**AI Insights Dashboard:**
+- Discipline coverage: bar charts showing document distribution
+- House type coverage: per-house-type discipline completeness
+- Classification quality: AI classification rate, needs review count
+- Document currency: recent vs old documents analysis
+- Gap detection: predicts missing documentation per house type
+- Keyword trends: top terms with risk term highlighting
+
+**Database Schema (Migration 014):**
+```sql
+ALTER TABLE doc_chunks ADD COLUMN token_count INTEGER DEFAULT 0;
+ALTER TABLE doc_chunks ADD COLUMN embedding_norm DOUBLE PRECISION;
+ALTER TABLE doc_chunks ADD COLUMN search_content TSVECTOR;
+CREATE TABLE search_cache (id, user_id, tenant_id, query, filters, results, expires_at, hit_count);
+CREATE INDEX idx_doc_chunks_search_content ON doc_chunks USING GIN(search_content);
+```
+
+**Note:** Documents use existing `ai_tags` JSONB column for AI-generated tags (not adding separate `tags` column).
+
+**Key Files:**
+- `apps/unified-portal/app/developer/api/archive/search/route.ts` - Hybrid search API
+- `apps/unified-portal/app/developer/api/archive/insights/route.ts` - Insights API
+- `apps/unified-portal/app/developer/api/archive/reprocess/route.ts` - Reprocess API
+- `apps/unified-portal/app/developer/archive/search/page.tsx` - Search UI
+- `apps/unified-portal/app/developer/archive/document/[id]/page.tsx` - Detail view
+- `apps/unified-portal/components/archive/InsightsTab.tsx` - Insights UI
+- `apps/unified-portal/components/archive/SearchBar.tsx` - Search with filters
+- `apps/unified-portal/components/archive/SearchResultCard.tsx` - Result card
+- `packages/db/migrations/014_optimize_doc_chunks_for_search.sql` - DB migration
+
+---
+
 ### Smart Archive Phase 2: Document Upload & AI Classification (December 2025) - COMPLETED ✅
 
 **AI-powered document upload with automatic classification and filtering:**

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FolderArchive, Plus, RefreshCw } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3 } from 'lucide-react';
+import Link from 'next/link';
 import { DisciplineGrid, UploadModal } from '@/components/archive';
+import { InsightsTab } from '@/components/archive/InsightsTab';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import type { DisciplineSummary } from '@/lib/archive';
 
@@ -12,12 +14,15 @@ interface HouseType {
   name: string | null;
 }
 
+type TabType = 'archive' | 'insights';
+
 export default function SmartArchivePage() {
   const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
   const [disciplines, setDisciplines] = useState<DisciplineSummary[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('archive');
 
   const loadDisciplines = useCallback(async () => {
     if (!tenantId) return;
@@ -95,6 +100,13 @@ export default function SmartArchivePage() {
             </div>
             
             <div className="flex items-center gap-3">
+              <Link
+                href="/developer/archive/search"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              >
+                <Search className="w-5 h-5" />
+                <span>Search</span>
+              </Link>
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
@@ -114,22 +126,51 @@ export default function SmartArchivePage() {
               )}
             </div>
           </div>
+          
+          <div className="flex gap-1 mt-6">
+            <button
+              onClick={() => setActiveTab('archive')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'archive'
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              }`}
+            >
+              <FolderArchive className="w-4 h-4" />
+              <span>Documents</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('insights')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'insights'
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Insights</span>
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {!developmentId ? (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-              <FolderArchive className="w-10 h-10 text-gray-600" />
+        {activeTab === 'archive' ? (
+          !developmentId ? (
+            <div className="text-center py-20">
+              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <FolderArchive className="w-10 h-10 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Select a Development</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                Choose a development from the sidebar to view its document archive.
+              </p>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Select a Development</h3>
-            <p className="text-gray-400 max-w-md mx-auto">
-              Choose a development from the sidebar to view its document archive.
-            </p>
-          </div>
+          ) : (
+            <DisciplineGrid disciplines={disciplines} isLoading={isLoading} />
+          )
         ) : (
-          <DisciplineGrid disciplines={disciplines} isLoading={isLoading} />
+          <InsightsTab />
         )}
       </div>
 
