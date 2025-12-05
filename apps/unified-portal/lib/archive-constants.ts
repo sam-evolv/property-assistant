@@ -37,8 +37,8 @@ export interface ArchiveDocument {
   ai_classified?: boolean;
   mime_type: string | null;
   size_kb: number | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface FetchDocumentsResult {
