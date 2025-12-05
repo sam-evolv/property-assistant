@@ -1,0 +1,130 @@
+Implement a scalable mechanism so the assistant can answer questions like “How big is my living room?” by either returning stored structured dimensions or, if missing, returning the floor plan PDF for that house type.
+
+STEP 1 — Database Migration (Supabase + Drizzle)
+
+Create a DB migration that:
+
+Adds a new JSONB column dimensions to house_types
+
+Ensures it is nullable (not all types will have dimensions initially)
+
+Adds no RLS changes (existing RLS will suffice)
+
+Do this:
+
+Create a new Drizzle migration called add_dimensions_to_house_types and add:
+
+ALTER TABLE house_types
+ADD COLUMN IF NOT EXISTS dimensions JSONB;
+
+
+Then update the Drizzle schema:
+
+dimensions: jsonb('dimensions'),
+
+STEP 2 — Supabase Storage Setup
+
+Create the folder structure:
+
+/floorplans/{tenant_slug}/{development_slug}/{house_type_code}.pdf
+
+
+Ensure a public READ policy exists for authenticated users of that tenant only.
+
+If it doesn’t exist, create a Bucket named floorplans and apply RLS:
+
+Only users where auth.uid() is mapped to that tenant via your user_developments or tenants join can read.
+
+STEP 3 — API Endpoint
+
+Create a new endpoint:
+
+/api/floorplan/[houseTypeId]/route.ts
+
+
+The endpoint should return:
+
+structured dimensions (if exist)
+
+signed URL for the floor plan PDF (if exists)
+
+Route logic:
+
+import { db } from '@/server/db';
+import { houseTypes } from '@/server/db/schema';
+import { supabase } from '@/server/supabase';
+
+export async function GET(req, { params }) {
+  const { houseTypeId } = params;
+
+  const ht = await db.query.houseTypes.findFirst({
+    where: eq(houseTypes.id, houseTypeId)
+  });
+
+  if (!ht) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  // Generate file path
+  const filePath = `floorplans/${ht.tenant_slug}/${ht.development_slug}/${ht.code}.pdf`;
+
+  const { data: signedUrl } = await supabase
+    .storage
+    .from('floorplans')
+    .createSignedUrl(filePath, 3600);
+
+  return Response.json({
+    dimensions: ht.dimensions || null,
+    floorplanUrl: signedUrl?.signedUrl || null
+  });
+}
+
+STEP 4 — Frontend: Room Query Handler
+
+In your assistant helper (the logic layer that the chat interface calls), add:
+
+export async function getRoomInfo(houseTypeId: string) {
+  const res = await fetch(`/api/floorplan/${houseTypeId}`);
+  const data = await res.json();
+
+  if (data.dimensions) {
+    return {
+      type: 'dimensions',
+      dimensions: data.dimensions
+    };
+  }
+
+  return {
+    type: 'floorplan',
+    url: data.floorplanUrl
+  };
+}
+
+STEP 5 — Purchaser UI Component
+
+Create a component:
+
+components/units/RoomInfoDisplay.tsx
+
+
+Logic:
+
+if (type === 'dimensions') {
+  return (
+    <div>
+      <h2 className="font-bold text-xl">Room Measurements</h2>
+      {Object.entries(dimensions).map(([room, vals]) => (
+        <p key={room}>
+          {room}: {vals.length}m × {vals.width}m
+        </p>
+      ))}
+    </div>
+  );
+}
+
+if (type === 'floorplan') {
+  return (
+    <iframe
+      src={url}
+      className="w-full h-[600px] rounded-xl shadow-lg"
+    />
+  );
+}

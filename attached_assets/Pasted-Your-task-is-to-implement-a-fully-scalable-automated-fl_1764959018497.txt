@@ -1,0 +1,154 @@
+Your task is to implement a fully scalable, automated floor-plan processing system inside the OpenHouse codebase. The system must require zero manual entry of room measurements, zero manual PDF configuration, and must work entirely from bulk developer uploads.
+
+Implement all of the following:
+
+================================================================================
+1. BULK FLOOR PLAN INGESTION
+================================================================================
+
+Developers upload all PDFs in bulk via the existing developer dashboard. Build the
+backend logic that:
+
+- Accepts any number of PDFs uploaded at once.
+- Reads each filename.
+- Automatically extracts the house_type_code from the filename (BD01, BS01, etc.)
+  using a regex or deterministic parser.
+- Stores the PDF in Supabase Storage at the canonical path:
+      floorplans/{development_id}/{house_type_code}.pdf
+- Updates or inserts metadata for that house type if needed
+  (but never expects manual dimensions).
+
+Ensure that folder structures and bucket names are created if missing.
+
+================================================================================
+2. API ROUTE FOR FLOOR PLAN RETRIEVAL
+================================================================================
+
+Create a new endpoint:
+
+    /api/floorplans/[unitId]/route.ts
+
+This endpoint must:
+
+- Look up the unit by ID.
+- Resolve the related house_type → development → tenant.
+- Construct the file path:
+      floorplans/{development_id}/{house_type_code}.pdf
+- Create and return a signed Supabase URL for the PDF.
+- Also return stored dimensions if they exist (see Section 3).
+- Return a clean JSON response:
+      { dimensions: {...} | null, floorplanUrl: string | null }
+
+No assumptions should be made about dimensions always existing.
+
+================================================================================
+3. OCR AUTO-EXTRACTION PIPELINE (FULLY AUTOMATED)
+================================================================================
+
+Implement a background job or async processing helper that runs on each newly
+uploaded PDF. This must:
+
+1. Download the PDF from Supabase.
+2. Extract embedded text using server-side OCR + PDF parsing.
+   - Use PDF.js, pdf-parse, Tesseract, or a GPT-Vision API endpoint.
+   - Extract all text matching measurement patterns:
+         - e.g. "3.8 m", "6.3m", "2.5m", “3.7 m x 2.5 m”
+3. Normalize all measurements:
+   - Convert to numeric floats.
+   - Standardize units (meters).
+   - Map them to room labels where possible:
+         living_room, bedroom_1, bedroom_2, kitchen_dining, utility, hall, wc, ensuite
+     If mapping is ambiguous, leave dimensions null.
+4. Store the extracted dimensions in the `house_types.dimensions` JSONB column.
+
+Add the Drizzle migration if not already present:
+
+    ALTER TABLE house_types ADD COLUMN IF NOT EXISTS dimensions JSONB;
+
+Ensure the OCR extractor NEVER blocks uploads; failure simply means fallback mode.
+
+================================================================================
+4. UNIVERSAL ASSISTANT FALLBACK RULE
+================================================================================
+
+Modify the assistant logic so that ANY user question about:
+
+- room size
+- room dimensions
+- area
+- square meters
+- "how big is my ___"
+- layout details involving measurements
+
+must trigger the following workflow:
+
+1. Call the new /api/floorplans/[unitId] endpoint.
+2. If dimensions JSON exists → display the structured dimensions ONLY.
+3. If dimensions DO NOT exist → return the signed PDF URL and tell the user:
+     “Here is your official floor plan, which shows the room dimensions clearly.”
+
+Under no circumstances should the assistant guess or hallucinate measurements.
+
+================================================================================
+5. FRONT-END UI COMPONENTS
+================================================================================
+
+Create a reusable PDF viewer component at:
+
+    components/units/FloorPlanViewer.tsx
+
+Requirements:
+
+- 100% width, 600px height on desktop, 80vh on mobile.
+- Rounded corners (lg), subtle shadow, smooth border.
+- Accepts a signed URL as a prop.
+- Displays a loading skeleton until the iframe loads.
+
+Create a front-end display wrapper:
+
+- If dimensions exist: show dimension table + a “View Floor Plan” button.
+- If no dimensions: show the PDF immediately.
+
+================================================================================
+6. RLS MULTI-TENANT SECURITY
+================================================================================
+
+Ensure that:
+
+- Purchasers can ONLY access floorplans belonging to their development.
+- Developers can ONLY access floorplans belonging to developments they manage.
+- Supabase Storage policies enforce:
+      auth.uid() must match a user in user_developments for the development_id.
+
+If storage RLS is not already configured, implement it.
+
+================================================================================
+7. PROVIDE ALL UPDATED FILES
+================================================================================
+
+Return:
+
+- All new code files
+- All modified code files
+- All migrations
+- All new folders
+- Any server-side OCR utilities
+
+Ensure everything follows Next.js 14 App Router, Drizzle ORM, Supabase JS v2,
+and TypeScript conventions.
+
+================================================================================
+8. DO NOT REQUIRE ANY MANUAL DIMENSION ENTRY
+================================================================================
+
+This entire system must run on:
+
+- Bulk uploads only
+- Automatic filename → house type mapping
+- Automatic OCR extraction
+- Automatic fallback to PDF if OCR fails
+
+The operator (Sam) should not need to enter ANY room measurements OR manually
+configure ANY PDF per house type.
+
+================================================================================

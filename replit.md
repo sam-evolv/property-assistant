@@ -57,6 +57,32 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Floorplan & Room Info System (December 2025) - COMPLETED ✅
+
+**Scalable mechanism for assistant to answer room dimension questions:**
+
+**Database Change** (`house_types.dimensions` column):
+- Added `dimensions JSONB` column to `house_types` table
+- Stores structured room dimensions: `{"living_room": {"length": 5.2, "width": 4.1}, ...}`
+- Migration: `packages/db/migrations/010_add_dimensions_to_house_types.sql`
+
+**API Endpoint**: `/api/floorplan/[houseTypeId]`
+- Returns structured dimensions if available
+- Falls back to signed URL for floorplan PDF from Supabase Storage
+- Path pattern: `/floorplans/{tenant_slug}/{development_slug}/{house_type_code}.pdf`
+
+**Frontend Components**:
+- `lib/room-info.ts` - Room query handler with `getRoomInfo()` function
+- `components/purchaser/RoomInfoDisplay.tsx` - UI component for dimensions/floorplan display
+
+**Key Files**:
+- `packages/db/migrations/010_add_dimensions_to_house_types.sql`
+- `apps/unified-portal/app/api/floorplan/[houseTypeId]/route.ts`
+- `apps/unified-portal/lib/room-info.ts`
+- `apps/unified-portal/components/purchaser/RoomInfoDisplay.tsx`
+
+---
+
 ### Room Dimensions Pipeline (December 2025) - COMPLETED ✅
 
 **Production-grade room dimension verification and prioritized lookup system:**

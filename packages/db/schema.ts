@@ -49,6 +49,7 @@ export const houseTypes = pgTable('house_types', {
   description: text('description'),
   total_floor_area_sqm: decimal('total_floor_area_sqm', { precision: 10, scale: 2 }),
   room_dimensions: jsonb('room_dimensions').default(sql`'{}'::jsonb`),
+  dimensions: jsonb('dimensions'),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('house_types_tenant_idx').on(table.tenant_id),
