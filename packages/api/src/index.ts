@@ -69,3 +69,15 @@ export { classifyDocument, classifyByFilename } from './documents/classify-docum
 export { autoMapFloorplanToHouseType, extractHouseTypeCodes } from './documents/map-floorplan-to-house-type';
 export type { DocumentClassificationResult } from './documents/classify-document';
 export type { HouseTypeMappingResult } from './documents/map-floorplan-to-house-type';
+
+// Floorplan storage and processing
+export {
+  processFloorplanUpload,
+  uploadFloorplanToStorage,
+  getFloorplanSignedUrl,
+  extractHouseTypeCodeFromFilename,
+  storeDimensionsInHouseType,
+  getHouseTypeDimensions,
+  ensureFloorplansBucketExists,
+} from './floorplan-storage';
+export type { FloorplanUploadResult, FloorplanDimensions } from './floorplan-storage';

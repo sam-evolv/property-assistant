@@ -1,0 +1,125 @@
+You are working in the same PropertyAssistant monorepo on Replit.
+
+Goal: implement a global tenant/development context plus a DevelopmentSwitcher component so a developer user can quickly switch between schemes. Do NOT break any existing routing or UI.
+
+High-level requirements:
+
+* Current tenantId and developmentId should live in a React context, available across the developer dashboard.
+* DevelopmentSwitcher in the header lets the user pick:
+
+  * “All schemes” (null developmentId) for macro analytics.
+  * A specific development for all per-scheme views.
+* All new code must be additive and minimal; do not refactor large parts of the app.
+
+Assumptions (verify and adapt to actual structure):
+
+* Unified Portal frontend is in `apps/unified-portal`.
+* Next.js app router is used.
+* There is a top-level layout / shell component for authenticated developer views where the header lives.
+
+TASKS
+
+1. Inspect current app structure
+
+* Look in `apps/unified-portal/app` and `apps/unified-portal/components` to find:
+
+  * The main layout used for logged-in developer views (e.g. `app/(protected)/layout.tsx`, `app/developer/layout.tsx`, or similar).
+  * The existing header component where navigation and user menu live.
+* Do NOT change routes; just identify the right place to mount the DevelopmentSwitcher.
+
+2. Create a CurrentContext provider
+
+* Under `apps/unified-portal/context`, create a new file `CurrentContext.tsx` (create the folder if it does not exist).
+
+* Implement a React context with this API:
+
+  export type CurrentContextValue = {
+  tenantId: string | null;
+  developmentId: string | null; // null or "all" can represent "All schemes"
+  setTenantId: (id: string | null) => void;
+  setDevelopmentId: (id: string | null) => void;
+  };
+
+  * Use `useState` to store tenantId and developmentId.
+  * Expose a `CurrentContextProvider` component that takes `initialTenantId`, `initialDevelopmentId` and `children`.
+  * Optionally persist the last selected development per tenant in localStorage with a key like `current-dev-${tenantId}`.
+
+* Also export a hook:
+
+  export const useCurrentContext = (): CurrentContextValue => {
+  // throws if used outside provider
+  };
+
+3. Wrap the main developer layout in the provider
+
+* In the main layout file for the developer dashboard, wrap its children with `CurrentContextProvider`.
+* For now, use placeholder values for initialTenantId and initialDevelopmentId:
+
+  * initialTenantId: derive from whatever user/tenant data is already available on the client (e.g. from session or a user context). If there is an existing hook or provider that carries tenant info, use that.
+  * initialDevelopmentId: choose a sensible default (first development the user has access to) if such data is already loaded. If not, leave it as null and let the UI prompt the user to pick a development.
+* Do NOT change public routes or purchaser views.
+
+4. Implement DevelopmentSwitcher component
+
+* Under `apps/unified-portal/components/developer` (or a similar folder you see used for dev-facing components), create `DevelopmentSwitcher.tsx`.
+
+* The component should:
+
+  * Use `useCurrentContext()` to read `tenantId`, `developmentId`, `setDevelopmentId`.
+
+  * Use the existing Supabase client setup to fetch the list of developments for the current tenant:
+
+    select id, name, status
+    from developments
+    order by name;
+
+    (Only rows allowed by RLS will be returned.)
+
+  * Render a button in the header showing the current development name or “Select development”.
+
+  * On click, open a dropdown / popover listing:
+
+    * One item: “All schemes” → calls `setDevelopmentId(null)`.
+    * A list of individual developments the user can pick → calls `setDevelopmentId(dev.id)`.
+
+* Do not implement fancy design; use the existing design system / Tailwind classes already used in your header for dropdowns and menus.
+
+5. Integrate DevelopmentSwitcher into the header
+
+* Locate the header component used in developer views (e.g. `apps/unified-portal/components/layout/Header.tsx` or similar).
+* Import and render `<DevelopmentSwitcher />` in a sensible place in the header, near the existing navigation items.
+* Ensure it only shows for authenticated developer users, not for purchaser-facing pages.
+
+6. Wire archive and analytics code to the context (minimal changes only)
+
+* Identify the Smart Archive / developer dashboard pages that will eventually use the development context (e.g. archive, analytics).
+
+* For at least one key page (e.g. the developer analytics or documents list), update the data-fetching hook to use `tenantId` and `developmentId` from `useCurrentContext()` and include them in the query key.
+
+* Example pattern:
+
+  const { tenantId, developmentId } = useCurrentContext();
+
+  const { data } = useQuery(
+  ['archive', tenantId, developmentId],
+  () => fetchArchive({ tenantId, developmentId }),
+  { enabled: !!tenantId }
+  );
+
+* Do not change business logic beyond reading those IDs from the context and passing them into the existing API/client calls.
+
+7. Verify behaviour
+
+* Run the unified portal dev server.
+* Confirm:
+
+  * The app still builds with no TypeScript errors from the new context code.
+  * The DevelopmentSwitcher dropdown loads the list of developments for the logged-in user.
+  * Selecting a different development updates the context (you can temporarily log the current devId somewhere to confirm).
+  * Existing pages continue to render as before, aside from the new switcher.
+
+Finally, summarise in the Replit Agent log:
+
+* Files created or updated.
+* How to use the CurrentContextProvider and DevelopmentSwitcher going forward.
+* Any assumptions you had to make about where user/tenant info comes from.

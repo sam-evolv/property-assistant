@@ -23,6 +23,7 @@ export interface DimensionLookupResult {
   allRooms?: CanonicalRoomDimension[];
   houseTypeCode?: string;
   reason?: string;
+  suggestFloorplan?: boolean;
 }
 
 const ROOM_NAME_MAPPINGS: Record<string, string[]> = {
@@ -352,9 +353,10 @@ export async function getCanonicalRoomDimension(
   
   const houseTypeResult = await db.execute<{
     room_dimensions: Record<string, any>;
+    dimensions: Record<string, any>;
     total_floor_area_sqm: string;
   }>(sql`
-    SELECT room_dimensions, total_floor_area_sqm
+    SELECT room_dimensions, dimensions, total_floor_area_sqm
     FROM house_types
     WHERE development_id = ${developmentId}::uuid
       AND house_type_code = ${houseTypeCode}
@@ -363,6 +365,49 @@ export async function getCanonicalRoomDimension(
   
   if (houseTypeResult.rows && houseTypeResult.rows.length > 0) {
     const ht = houseTypeResult.rows[0];
+    
+    const dims = ht.dimensions || {};
+    if (dims[roomKey] && (dims[roomKey].length || dims[roomKey].area)) {
+      const room = dims[roomKey];
+      console.log(`   ✅ PRIORITY 5a: Found in house_types.dimensions: ${room.length}m × ${room.width}m`);
+      
+      return {
+        found: true,
+        room: {
+          room_name: formatRoomNameForDisplay(roomKey),
+          room_key: roomKey,
+          length_m: room.length,
+          width_m: room.width,
+          area_sqm: room.area || (room.length && room.width ? room.length * room.width : undefined),
+          extraction_confidence: 1.0,
+          verified: false,
+          source: 'house_types',
+        },
+        houseTypeCode,
+      };
+    }
+    
+    const normalizedKeyDims = normalizeRoomKey(roomKey);
+    for (const [key, value] of Object.entries(dims)) {
+      if (normalizeRoomKey(key) === normalizedKeyDims && value && (value.length || value.area)) {
+        console.log(`   ✅ PRIORITY 5a: Found in house_types.dimensions (fuzzy): ${value.length}m × ${value.width}m`);
+        return {
+          found: true,
+          room: {
+            room_name: formatRoomNameForDisplay(key),
+            room_key: key,
+            length_m: value.length,
+            width_m: value.width,
+            area_sqm: value.area || (value.length && value.width ? value.length * value.width : undefined),
+            extraction_confidence: 1.0,
+            verified: false,
+            source: 'house_types',
+          },
+          houseTypeCode,
+        };
+      }
+    }
+    
     const roomDims = ht.room_dimensions || {};
     
     if (roomDims[roomKey] && (roomDims[roomKey].length_m || roomDims[roomKey].area_sqm)) {
@@ -407,12 +452,28 @@ export async function getCanonicalRoomDimension(
     }
   }
   
-  console.log(`   ❌ No dimension data found for "${roomKey}"`);
+  console.log(`   ❌ No dimension data found for "${roomKey}" - will suggest floorplan fallback`);
   return {
     found: false,
     reason: `No verified dimension data found for "${formatRoomNameForDisplay(roomKey)}" in ${houseTypeCode}`,
     houseTypeCode,
+    suggestFloorplan: true,
   };
+}
+
+export const FLOORPLAN_FALLBACK_RESPONSE = `I don't have the exact room dimensions stored in my database yet. However, your official floor plan shows all room measurements clearly.
+
+You can view your floor plan in the Documents section, or I can provide a link to it directly. The floor plan is the most accurate source for room dimensions.
+
+Would you like me to help you find your floor plan?`;
+
+export function getFloorplanFallbackMessage(roomName: string, houseTypeCode?: string): string {
+  const roomDisplay = formatRoomNameForDisplay(roomName);
+  return `I don't have the exact dimensions for the ${roomDisplay}${houseTypeCode ? ` in ${houseTypeCode}` : ''} stored yet.
+
+Your official floor plan shows all room measurements clearly. You can find it in your Documents section under "Floor Plans" or "House Type Documents".
+
+The floor plan is the most accurate source for room dimensions and will show you the exact size of the ${roomDisplay}.`;
 }
 
 export async function getAllCanonicalRoomDimensions(
@@ -651,14 +712,15 @@ export function formatGroundedDimensionAnswer(
 }
 
 export const SAFE_DIMENSION_FALLBACK = 
-  "I don't have verified room dimensions for that space in your current documents, " +
-  "so I can't give you a precise size. Would you like me to check with your developer " +
-  "for the exact measurements?";
+  "I don't have verified room dimensions for that space in my database yet. " +
+  "However, your official floor plan shows all room measurements clearly. " +
+  "You can find it in your Documents section under 'Floor Plans'. " +
+  "Would you like me to help you locate your floor plan?";
 
 export const SAFE_DIMENSION_FALLBACK_SPECIFIC = (roomName: string, houseTypeCode: string) =>
-  `I don't have a precise numeric size for the ${roomName} in your ${houseTypeCode} house type ` +
-  `in the current drawings. I can check with your developer if you like, or confirm once ` +
-  `updated plans are available.`;
+  `I don't have the exact dimensions for the ${roomName} in your ${houseTypeCode} stored yet. ` +
+  `Your official floor plan shows all room measurements clearly - you can find it in your Documents section. ` +
+  `The floor plan is the most accurate source for room dimensions.`;
 
 export function containsFabricatedDimensions(
   text: string,
@@ -694,6 +756,7 @@ export interface DimensionGuardrailResult {
   groundedAnswer?: string;
   roomKey?: string;
   lookupSuccessful: boolean;
+  suggestFloorplan?: boolean;
 }
 
 export async function applyDimensionGuardrail(
@@ -721,6 +784,7 @@ export async function applyDimensionGuardrail(
       groundedAnswer: SAFE_DIMENSION_FALLBACK,
       roomKey,
       lookupSuccessful: false,
+      suggestFloorplan: true,
     };
   }
   
@@ -743,6 +807,7 @@ export async function applyDimensionGuardrail(
         groundedAnswer: SAFE_DIMENSION_FALLBACK_SPECIFIC(lookup.room.room_name, houseTypeCode),
         roomKey,
         lookupSuccessful: false,
+        suggestFloorplan: true,
       };
     }
   }
@@ -752,6 +817,7 @@ export async function applyDimensionGuardrail(
     groundedAnswer: SAFE_DIMENSION_FALLBACK_SPECIFIC(formatRoomNameForDisplay(roomKey), houseTypeCode),
     roomKey,
     lookupSuccessful: false,
+    suggestFloorplan: true,
   };
 }
 
@@ -772,7 +838,7 @@ export function validateLLMResponseForDimensions(
     console.log('❌ DIMENSION VALIDATOR: Discarding LLM response with fabricated dimensions');
     return {
       isValid: false,
-      sanitizedResponse: "I don't have exact room dimensions for that space in your current documents, so I can't give you a precise size. Would you like me to check with your developer for the exact measurements?",
+      sanitizedResponse: "I don't have the exact dimensions for that room in my database yet. Your official floor plan shows all room measurements clearly - you can find it in your Documents section under 'Floor Plans'.",
     };
   }
   

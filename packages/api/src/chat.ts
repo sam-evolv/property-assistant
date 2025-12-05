@@ -373,6 +373,7 @@ export async function handleChatRequest(req: NextRequest) {
           chunksUsed: 0,
           source: dimensionGuardrailResult.lookupSuccessful ? 'dimension_guardrail' : 'dimension_fallback',
           grounded: dimensionGuardrailResult.lookupSuccessful,
+          suggestFloorplan: dimensionGuardrailResult.suggestFloorplan,
         });
       }
     } else {

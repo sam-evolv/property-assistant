@@ -1,0 +1,215 @@
+You are working in my PropertyAssistant monorepo on Replit.
+
+Goal: implement multi-development access control using a user_developments table + RLS, without breaking anything that already works.
+
+High-level requirements:
+
+* One tenant = one developer organisation.
+* One development = one scheme / site.
+* A user can be mapped to multiple developments via user_developments.
+* RLS must ensure users only see rows for developments they are mapped to.
+* Only tenant_admin users can manage mappings.
+* Do NOT change any existing business logic or endpoints; just add the DB + policies.
+
+Repo notes:
+
+* Supabase / Postgres schema is managed with Drizzle in `packages/db`.
+* SQL migrations live in `packages/db/migrations`.
+* There is a `policies.sql` file in `packages/db` that is used to manage RLS.
+* `schema.ts` is the Drizzle schema.
+
+TASKS
+
+1. Inspect current schema and policies
+
+* Open `packages/db/schema.ts` and confirm:
+
+  * tables: users, tenants, developments, documents, doc_chunks, unit_drawing_mappings (or similar).
+  * users.id is a UUID that matches auth.users.id.
+  * developments has tenant_id.
+* Open `packages/db/policies.sql` and review how RLS is currently applied.
+
+2. Create user_developments table via migration
+
+* Create a new migration file in `packages/db/migrations` named `011_user_developments.sql` (if 011 is taken, use the next sequential number).
+
+* In that migration, create the table and indexes exactly like this (adapt table names if the schema uses singular/plural, but keep the structure):
+
+  create table if not exists public.user_developments (
+  user_id        uuid not null references public.users (id) on delete cascade,
+  development_id uuid not null references public.developments (id) on delete cascade,
+  role           text not null default 'member',
+  created_at     timestamptz not null default now(),
+  primary key (user_id, development_id)
+  );
+
+  create index if not exists user_developments_development_idx
+  on public.user_developments (development_id, user_id);
+
+  create index if not exists user_developments_user_idx
+  on public.user_developments (user_id, development_id);
+
+* If developments does NOT already have tenant_id, add:
+
+  alter table public.developments
+  add column if not exists tenant_id uuid not null references public.tenants (id);
+
+  create index if not exists developments_tenant_idx
+  on public.developments (tenant_id);
+
+3. Update Drizzle schema
+
+* In `packages/db/schema.ts`, add a Drizzle table definition for user_developments matching the SQL above, including:
+
+  * composite primary key (user_id, development_id)
+  * role (text, default "member")
+  * created_at (timestamptz, default now()).
+* Export it with a sensible camelCase name (e.g. userDevelopments).
+
+4. Add helper function for RLS
+
+* In `packages/db/policies.sql`, add this helper function if it does not already exist:
+
+  create or replace function public.user_has_development_access(dev_id uuid)
+  returns boolean
+  language sql
+  security definer
+  stable
+  as $$
+  select exists (
+  select 1
+  from public.user_developments ud
+  where ud.user_id = auth.uid()
+  and ud.development_id = dev_id
+  );
+  $$;
+
+5. Enable RLS on relevant tables
+
+* Ensure RLS is enabled for:
+
+  * public.user_developments
+  * public.developments
+  * public.documents
+  * public.doc_chunks
+  * public.unit_drawing_mappings
+* If needed, add to `policies.sql`:
+
+  alter table public.user_developments enable row level security;
+  alter table public.developments     enable row level security;
+  alter table public.documents        enable row level security;
+  alter table public.doc_chunks       enable row level security;
+  alter table public.unit_drawing_mappings enable row level security;
+
+6. Add RLS policies using the helper
+
+* In `policies.sql`, add RLS policies exactly like this (adjust table names if needed):
+
+  -- user_developments
+  create policy "Users can view their own development mappings"
+  on public.user_developments
+  for select
+  using (user_id = auth.uid());
+
+  create policy "Tenant admins can add user development mappings"
+  on public.user_developments
+  for insert
+  with check (
+  exists (
+  select 1
+  from public.users u
+  where u.id = auth.uid()
+  and u.role = 'tenant_admin'
+  )
+  );
+
+  create policy "Tenant admins can update user development mappings"
+  on public.user_developments
+  for update
+  using (
+  exists (
+  select 1
+  from public.users u
+  where u.id = auth.uid()
+  and u.role = 'tenant_admin'
+  )
+  )
+  with check (
+  exists (
+  select 1
+  from public.users u
+  where u.id = auth.uid()
+  and u.role = 'tenant_admin'
+  )
+  );
+
+  create policy "Tenant admins can delete user development mappings"
+  on public.user_developments
+  for delete
+  using (
+  exists (
+  select 1
+  from public.users u
+  where u.id = auth.uid()
+  and u.role = 'tenant_admin'
+  )
+  );
+
+  -- developments
+  create policy "Users see only their developments"
+  on public.developments
+  for select
+  using (
+  public.user_has_development_access(id)
+  );
+
+  -- documents
+  create policy "Users see documents in their developments"
+  on public.documents
+  for select
+  using (
+  public.user_has_development_access(development_id)
+  );
+
+  -- doc_chunks
+  create policy "Users see doc_chunks in their developments"
+  on public.doc_chunks
+  for select
+  using (
+  public.user_has_development_access(development_id)
+  );
+
+  -- unit_drawing_mappings
+  create policy "Users see unit drawing mappings in their developments"
+  on public.unit_drawing_mappings
+  for select
+  using (
+  public.user_has_development_access(development_id)
+  );
+
+7. Apply migrations and policies
+
+* Run from the shell:
+
+  cd packages/db
+  npx drizzle-kit push
+
+* Then make sure the policies.sql content has been applied to Supabase:
+
+  * Either via an existing script in the repo that runs policies.sql, or by using the Supabase SQL editor and pasting only the new function + policies.
+  * If there is already a script referenced in README / DEPLOY docs for applying policies.sql, use that instead of inventing a new process.
+
+8. Verify
+
+* Use a small verification script or SQL queries to confirm:
+
+  * user_developments exists with the expected columns and indexes.
+  * developments, documents, doc_chunks, unit_drawing_mappings all have RLS enabled.
+  * The new policies are present in pg_policies.
+
+Finally, summarise in the Replit Agent log:
+
+* Which files were created/edited.
+* Confirmation that drizzle push completed.
+* Confirmation that the helper function and RLS policies are in place.
+* Confirmation that no existing endpoints or UI were changed.

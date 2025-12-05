@@ -57,29 +57,50 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
-### Floorplan & Room Info System (December 2025) - COMPLETED ✅
+### Automated Floorplan Processing Pipeline (December 2025) - COMPLETED ✅
 
-**Scalable mechanism for assistant to answer room dimension questions:**
+**National-scale automated floor plan processing with zero manual entry:**
 
-**Database Change** (`house_types.dimensions` column):
-- Added `dimensions JSONB` column to `house_types` table
-- Stores structured room dimensions: `{"living_room": {"length": 5.2, "width": 4.1}, ...}`
-- Migration: `packages/db/migrations/010_add_dimensions_to_house_types.sql`
+**Bulk Upload System** (`/api/floorplans/upload`):
+- Accepts bulk PDF uploads from developers
+- Auto-extracts house_type_code from filenames (e.g., BD01_floorplan.pdf → BD01)
+- Stores PDFs in Supabase Storage at: `floorplans/{development_id}/{house_type_code}.pdf`
+- Auto-creates house_type records if missing
+- Triggers background OCR/Vision extraction
 
-**API Endpoint**: `/api/floorplan/[houseTypeId]`
-- Returns structured dimensions if available
-- Falls back to signed URL for floorplan PDF from Supabase Storage
-- Path pattern: `/floorplans/{tenant_slug}/{development_slug}/{house_type_code}.pdf`
+**OCR Auto-Extraction Pipeline**:
+- Uses GPT-4 Vision API to extract room dimensions from floor plan PDFs
+- Stores extracted dimensions in both `unit_room_dimensions` and `house_types.dimensions`
+- No manual dimension entry required - fully automated
+- Graceful fallback if OCR fails (shows PDF to user)
 
-**Frontend Components**:
-- `lib/room-info.ts` - Room query handler with `getRoomInfo()` function
-- `components/purchaser/RoomInfoDisplay.tsx` - UI component for dimensions/floorplan display
+**Retrieval Endpoints**:
+- `/api/floorplans/[unitId]` - Get dimensions/floorplan for a unit
+- `/api/floorplan/[houseTypeId]` - Get dimensions/floorplan by house type
+- Both support admin session and purchaser token authentication
+
+**UI Components**:
+- `FloorPlanViewer.tsx` - PDF viewer with loading states
+- `DimensionsTable.tsx` - Structured dimension display
+- `FloorPlanWithDimensions.tsx` - Combined view with fallback logic
+
+**Assistant Integration**:
+- Dimension guardrail updated to check `house_types.dimensions` column
+- Floorplan fallback response when no dimensions found
+- Never hallucinates measurements - only uses verified data
+
+**Security**:
+- Admin session required for bulk upload
+- Tenant ownership validation on all endpoints
+- Purchaser token scoped to their development only
+- Supabase Storage bucket with appropriate policies
 
 **Key Files**:
-- `packages/db/migrations/010_add_dimensions_to_house_types.sql`
-- `apps/unified-portal/app/api/floorplan/[houseTypeId]/route.ts`
-- `apps/unified-portal/lib/room-info.ts`
-- `apps/unified-portal/components/purchaser/RoomInfoDisplay.tsx`
+- `packages/api/src/floorplan-storage.ts` - Storage operations
+- `apps/unified-portal/app/api/floorplans/upload/route.ts` - Bulk upload
+- `apps/unified-portal/app/api/floorplans/[unitId]/route.ts` - Unit retrieval
+- `apps/unified-portal/components/units/FloorPlanViewer.tsx` - UI components
+- `packages/api/src/dimension-guardrail.ts` - Updated lookup logic
 
 ---
 
