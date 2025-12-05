@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3 } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
@@ -23,6 +23,9 @@ export default function SmartArchivePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('archive');
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classifyProgress, setClassifyProgress] = useState<string | null>(null);
 
   const loadDisciplines = useCallback(async () => {
     if (!tenantId) return;
@@ -61,23 +64,87 @@ export default function SmartArchivePage() {
     }
   }, [tenantId, developmentId]);
 
+  const checkUnclassified = useCallback(async () => {
+    if (!tenantId) return;
+    
+    try {
+      const params = new URLSearchParams();
+      params.set('tenantId', tenantId);
+      if (developmentId) {
+        params.set('developmentId', developmentId);
+      }
+      
+      const response = await fetch(`/developer/api/archive/bulk-classify?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUnclassifiedCount(data.unclassifiedCount || 0);
+      }
+    } catch (error) {
+      console.error('[Archive] Failed to check unclassified:', error);
+    }
+  }, [tenantId, developmentId]);
+
   useEffect(() => {
     if (!isHydrated || !tenantId) return;
     loadDisciplines();
     loadHouseTypes();
-  }, [tenantId, developmentId, isHydrated, loadDisciplines, loadHouseTypes]);
+    checkUnclassified();
+  }, [tenantId, developmentId, isHydrated, loadDisciplines, loadHouseTypes, checkUnclassified]);
 
   const handleUploadComplete = () => {
     loadDisciplines();
+    checkUnclassified();
     setShowUploadModal(false);
   };
 
   const handleRefresh = () => {
     loadDisciplines();
     loadHouseTypes();
+    checkUnclassified();
+  };
+
+  const handleBulkClassify = async () => {
+    if (!tenantId || isClassifying) return;
+    
+    setIsClassifying(true);
+    setClassifyProgress('Starting AI classification...');
+    
+    try {
+      const response = await fetch('/developer/api/archive/bulk-classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          developmentId,
+          limit: 50
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setClassifyProgress(`Classified ${data.successCount} documents`);
+        
+        setTimeout(() => {
+          setClassifyProgress(null);
+          loadDisciplines();
+          checkUnclassified();
+        }, 2000);
+      } else {
+        setClassifyProgress('Classification failed');
+        setTimeout(() => setClassifyProgress(null), 3000);
+      }
+    } catch (error) {
+      console.error('[Archive] Bulk classify failed:', error);
+      setClassifyProgress('Classification failed');
+      setTimeout(() => setClassifyProgress(null), 3000);
+    } finally {
+      setIsClassifying(false);
+    }
   };
 
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
+  const otherDiscipline = disciplines.find(d => d.discipline === 'other');
+  const showClassifyBanner = developmentId && unclassifiedCount > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
@@ -153,6 +220,43 @@ export default function SmartArchivePage() {
           </div>
         </div>
       </div>
+
+      {showClassifyBanner && (
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-500/30 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-white font-medium">
+                  {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
+                </p>
+                <p className="text-gray-400 text-sm">
+                  Use AI to automatically organize documents into disciplines
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleBulkClassify}
+              disabled={isClassifying}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-400 transition-colors disabled:opacity-50"
+            >
+              {isClassifying ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{classifyProgress || 'Classifying...'}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Classify All</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
