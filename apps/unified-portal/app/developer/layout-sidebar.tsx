@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut, Ruler, FolderArchive } from 'lucide-react';
+import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 
 interface SidebarMenuProps {
   children: React.ReactNode;
@@ -69,6 +70,9 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
           </div>
           <p className="text-grey-400 text-xs">OpenHouse Platform</p>
         </div>
+
+        {/* Development Switcher */}
+        <DevelopmentSwitcher />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8">

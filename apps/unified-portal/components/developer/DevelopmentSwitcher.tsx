@@ -81,12 +81,12 @@ export function DevelopmentSwitcher() {
 
   if (isLoading) {
     return (
-      <div className="px-4 py-3 border-b border-gray-200">
+      <div className="px-4 py-3 border-b border-gold-900/20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gray-100 rounded-lg animate-pulse" />
+          <div className="w-8 h-8 bg-grey-800 rounded-lg animate-pulse" />
           <div className="flex-1">
-            <div className="h-3 w-20 bg-gray-100 rounded animate-pulse mb-1" />
-            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+            <div className="h-3 w-20 bg-grey-800 rounded animate-pulse mb-1" />
+            <div className="h-4 w-32 bg-grey-700 rounded animate-pulse" />
           </div>
         </div>
       </div>
@@ -95,22 +95,22 @@ export function DevelopmentSwitcher() {
 
   if (error) {
     return (
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="text-xs text-red-500">{error}</div>
+      <div className="px-4 py-3 border-b border-gold-900/20">
+        <div className="text-xs text-red-400">{error}</div>
       </div>
     );
   }
 
   return (
-    <div ref={dropdownRef} className="relative px-4 py-3 border-b border-gray-200">
+    <div ref={dropdownRef} className="relative px-4 py-3 border-b border-gold-900/20">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gold-50/50 transition-colors group"
+        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gold-500/10 transition-colors group"
       >
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
           developmentId 
-            ? 'bg-gold-100 text-gold-600' 
-            : 'bg-gray-100 text-gray-500'
+            ? 'bg-gold-500/20 text-gold-400' 
+            : 'bg-grey-800 text-grey-400'
         }`}>
           {developmentId ? (
             <Building2 className="w-4 h-4" />
@@ -119,14 +119,14 @@ export function DevelopmentSwitcher() {
           )}
         </div>
         <div className="flex-1 text-left">
-          <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+          <div className="text-[10px] font-medium text-grey-500 uppercase tracking-wider">
             Current Scheme
           </div>
-          <div className="text-sm font-semibold text-gray-900 truncate">
+          <div className="text-sm font-semibold text-white truncate">
             {displayName}
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-grey-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
