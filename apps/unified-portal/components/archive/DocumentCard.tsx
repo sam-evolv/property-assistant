@@ -1,11 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { 
   FileText, 
   FileImage, 
   FileSpreadsheet,
   File,
-  Download,
   Eye,
   Star,
   Clock,
@@ -16,7 +16,6 @@ import type { ArchiveDocument } from '@/lib/archive-constants';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
-  onView?: (doc: ArchiveDocument) => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -42,16 +41,18 @@ function formatDate(dateStr: string) {
   });
 }
 
-export function DocumentCard({ document, onView }: DocumentCardProps) {
+export function DocumentCard({ document }: DocumentCardProps) {
   const FileIcon = getFileIcon(document.mime_type);
-  const fileUrl = document.storage_url || document.file_url;
   const extendedDoc = document as ArchiveDocument & { 
     must_read?: boolean; 
     ai_classified?: boolean;
   };
   
   return (
-    <div className="group relative p-5 rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 hover:border-gold-500/30 transition-all duration-200">
+    <Link 
+      href={`/developer/archive/document/${document.id}`}
+      className="group relative p-5 rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 hover:border-gold-500/30 transition-all duration-200 block"
+    >
       <div className="absolute -top-2 -right-2 flex items-center gap-1">
         {document.is_important && (
           <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center" title="Important">
@@ -111,7 +112,7 @@ export function DocumentCard({ document, onView }: DocumentCardProps) {
       <div className="flex items-center justify-between pt-3 border-t border-gray-800">
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           <Clock className="w-3.5 h-3.5" />
-          <span>{formatDate(document.created_at)}</span>
+          <span>{document.created_at ? formatDate(document.created_at) : 'Unknown'}</span>
           {document.size_kb && (
             <>
               <span className="mx-1">•</span>
@@ -121,28 +122,11 @@ export function DocumentCard({ document, onView }: DocumentCardProps) {
         </div>
         
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onView && (
-            <button
-              onClick={() => onView(document)}
-              className="p-1.5 rounded-md hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-              title="Preview"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-          )}
-          {fileUrl && (
-            <a
-              href={fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded-md hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-              title="Download"
-            >
-              <Download className="w-4 h-4" />
-            </a>
-          )}
+          <span className="p-1.5 rounded-md hover:bg-gray-700 text-gray-400 hover:text-white transition-colors" title="View Details">
+            <Eye className="w-4 h-4" />
+          </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

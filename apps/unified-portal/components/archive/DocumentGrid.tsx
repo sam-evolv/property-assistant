@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { DocumentCard } from './DocumentCard';
 import { ChevronLeft, ChevronRight, FileX } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
@@ -22,8 +21,6 @@ export function DocumentGrid({
   totalCount,
   onPageChange 
 }: DocumentGridProps) {
-  const [viewingDoc, setViewingDoc] = useState<ArchiveDocument | null>(null);
-
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -66,25 +63,18 @@ export function DocumentGrid({
 
   return (
     <div className="space-y-6">
-      {/* Results Count */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-400">
           Showing {documents.length} of {totalCount} documents
         </p>
       </div>
 
-      {/* Document Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {documents.map((doc) => (
-          <DocumentCard 
-            key={doc.id} 
-            document={doc}
-            onView={setViewingDoc}
-          />
+          <DocumentCard key={doc.id} document={doc} />
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-6">
           <button
@@ -133,41 +123,6 @@ export function DocumentGrid({
           >
             <ChevronRight className="w-5 h-5" />
           </button>
-        </div>
-      )}
-
-      {/* Document Preview Modal (placeholder) */}
-      {viewingDoc && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setViewingDoc(null)}
-        >
-          <div 
-            className="bg-gray-900 rounded-2xl p-6 max-w-lg w-full border border-gray-700"
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-semibold text-white mb-2">{viewingDoc.title}</h3>
-            <p className="text-gray-400 mb-4">{viewingDoc.file_name}</p>
-            
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setViewingDoc(null)}
-                className="px-4 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors"
-              >
-                Close
-              </button>
-              {(viewingDoc.storage_url || viewingDoc.file_url) && (
-                <a
-                  href={viewingDoc.storage_url || viewingDoc.file_url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 rounded-lg bg-gold-500 text-white hover:bg-gold-600 transition-colors"
-                >
-                  Open Document
-                </a>
-              )}
-            </div>
-          </div>
         </div>
       )}
     </div>
