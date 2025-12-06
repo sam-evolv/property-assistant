@@ -4,17 +4,15 @@ import { db } from '@openhouse/db/client';
 import { qr_tokens } from '@openhouse/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 
-const SECRET = process.env.SESSION_SECRET || process.env.SUPABASE_JWT_SECRET;
+const SECRET: string = process.env.SESSION_SECRET || process.env.SUPABASE_JWT_SECRET || '';
 
 if (!SECRET) {
   throw new Error('CRITICAL: SESSION_SECRET or SUPABASE_JWT_SECRET environment variable is required for QR token generation');
 }
 
 interface QRTokenPayload {
-  unitId: string;
-  tenantId: string;
-  developmentId: string;
-  unitUid: string;
+  supabaseUnitId: string;  // Supabase units.id (UUID) - primary identifier
+  projectId: string;       // Supabase projects.id
 }
 
 interface GeneratedToken {
@@ -25,15 +23,16 @@ interface GeneratedToken {
 
 /**
  * Generate a secure, signed token for QR code onboarding
- * Format: {unitId}.{timestamp}.{nonce}.{signature}
+ * Format: {supabaseUnitId}:{projectId}:{timestamp}:{nonce}:{signature}
+ * Uses Supabase units.id (UUID) as the primary identifier
  */
 export function signQRToken(payload: QRTokenPayload, expiryHours: number = 720): GeneratedToken {
   const timestamp = Date.now();
   const nonce = nanoid(16);
   const expiresAt = new Date(timestamp + expiryHours * 60 * 60 * 1000);
   
-  // Create payload string
-  const payloadString = `${payload.unitId}:${payload.tenantId}:${payload.developmentId}:${payload.unitUid}:${timestamp}:${nonce}`;
+  // Create payload string with Supabase UUID as primary identifier
+  const payloadString = `${payload.supabaseUnitId}:${payload.projectId}:${timestamp}:${nonce}`;
   
   // Create HMAC signature
   const signature = crypto
@@ -44,12 +43,12 @@ export function signQRToken(payload: QRTokenPayload, expiryHours: number = 720):
   // Combine into token
   const token = `${payloadString}:${signature}`;
   
-  // Create purchaser onboarding URL - points to /homes/:unitUid?token=... with IntroAnimation
+  // Create purchaser onboarding URL - points to /homes/:supabaseUnitId?token=...
   // Priority: NEXT_PUBLIC_TENANT_PORTAL_URL > REPLIT_DEV_DOMAIN > localhost
   const baseUrl = 
     process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || 
     (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
-  const url = `${baseUrl}/homes/${payload.unitUid}?token=${encodeURIComponent(token)}`;
+  const url = `${baseUrl}/homes/${payload.supabaseUnitId}?token=${encodeURIComponent(token)}`;
   
   return { token, url, expiresAt };
 }
@@ -57,18 +56,20 @@ export function signQRToken(payload: QRTokenPayload, expiryHours: number = 720):
 /**
  * Verify a QR token and extract its payload
  * Returns null if token is invalid or expired
+ * Token format: {supabaseUnitId}:{projectId}:{timestamp}:{nonce}:{signature}
  */
 export function verifyQRToken(token: string): QRTokenPayload | null {
   try {
     const parts = token.split(':');
-    if (parts.length !== 7) {
+    if (parts.length !== 5) {
+      console.error('[QR Token] Invalid token format, expected 5 parts, got', parts.length);
       return null;
     }
     
-    const [unitId, tenantId, developmentId, unitUid, timestampStr, nonce, providedSignature] = parts;
+    const [supabaseUnitId, projectId, timestampStr, nonce, providedSignature] = parts;
     
     // Recreate payload string
-    const payloadString = `${unitId}:${tenantId}:${developmentId}:${unitUid}:${timestampStr}:${nonce}`;
+    const payloadString = `${supabaseUnitId}:${projectId}:${timestampStr}:${nonce}`;
     
     // Verify signature
     const expectedSignature = crypto
@@ -90,7 +91,7 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
       return null;
     }
     
-    return { unitId, tenantId, developmentId, unitUid };
+    return { supabaseUnitId, projectId };
   } catch (error) {
     console.error('[QR Token] Verification failed:', error);
     return null;
@@ -100,21 +101,20 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
 /**
  * Generate a QR token for a unit and store it in the database
  * ALWAYS generates a new token and invalidates old ones to prevent token reuse
+ * Uses Supabase units.id (UUID) as the primary identifier
  */
 export async function generateQRTokenForUnit(
-  unitId: string,
-  tenantId: string,
-  developmentId: string,
-  unitUid: string
+  supabaseUnitId: string,
+  projectId: string
 ): Promise<GeneratedToken> {
   // Invalidate ALL existing tokens for this unit (both used and unused)
   // This ensures each PDF generation creates fresh, unique tokens
   await db
     .delete(qr_tokens)
-    .where(eq(qr_tokens.unit_id, unitId));
+    .where(eq(qr_tokens.unit_id, supabaseUnitId));
   
   // Generate new token with fresh nonce and timestamp
-  const generated = signQRToken({ unitId, tenantId, developmentId, unitUid });
+  const generated = signQRToken({ supabaseUnitId, projectId });
   
   // Store in database
   const tokenHash = crypto
@@ -125,16 +125,16 @@ export async function generateQRTokenForUnit(
   // Store ONLY token_hash for security - plaintext token never persisted
   // Token is returned in response but not stored in DB
   await db.insert(qr_tokens).values({
-    unit_id: unitId,
-    tenant_id: tenantId,
-    development_id: developmentId,
+    unit_id: supabaseUnitId,
+    tenant_id: projectId,  // Reusing tenant_id column for projectId
+    development_id: projectId,
     token: null,  // Null - we only store the hash for security
     token_hash: tokenHash,
     expires_at: generated.expiresAt,
     created_at: new Date(),
   });
   
-  console.log(`[QR Token] Generated fresh token for unit ${unitUid}, invalidated old tokens`);
+  console.log(`[QR Token] Generated fresh token for Supabase unit ${supabaseUnitId}, invalidated old tokens`);
   
   return generated;
 }

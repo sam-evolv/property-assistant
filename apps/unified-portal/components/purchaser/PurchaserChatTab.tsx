@@ -67,6 +67,7 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  floorPlanUrl?: string | null;
 }
 
 interface PurchaserChatTabProps {
@@ -348,7 +349,11 @@ export default function PurchaserChatTab({
       if (data.answer) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: data.answer },
+          { 
+            role: 'assistant', 
+            content: data.answer,
+            floorPlanUrl: data.floorPlanUrl || null,
+          },
         ]);
       } else if (data.error) {
         const errorMessage = res.status === 401 || res.status === 403 
@@ -529,6 +534,23 @@ export default function PurchaserChatTab({
                     }`}
                   >
                     <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                    {msg.floorPlanUrl && (
+                      <a
+                        href={msg.floorPlanUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                          isDarkMode
+                            ? 'bg-gold-600/20 text-gold-400 hover:bg-gold-600/30'
+                            : 'bg-gold-100 text-gold-700 hover:bg-gold-200'
+                        }`}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        View Floor Plan (PDF)
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}

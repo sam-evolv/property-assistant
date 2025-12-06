@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/supabase-server';
-import { db } from '@openhouse/db/client';
-import { developments, units } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(
   request: NextRequest,
@@ -18,35 +21,42 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const developmentId = params.id;
+    const projectId = params.id;
     
-    const development = await db.query.developments.findFirst({
-      where: eq(developments.id, developmentId),
-    });
+    // Fetch project from Supabase
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
 
-    if (!development) {
-      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const developmentUnits = await db
-      .select()
-      .from(units)
-      .where(
-        and(
-          eq(units.development_id, developmentId),
-          eq(units.tenant_id, development.tenant_id)
-        )
-      )
-      .orderBy(units.unit_number);
+    // Fetch units with their unit types from Supabase
+    const { data: projectUnits, error: unitsError } = await supabase
+      .from('units')
+      .select(`
+        *,
+        unit_types (*)
+      `)
+      .eq('project_id', projectId)
+      .order('unit_number');
 
-    if (developmentUnits.length === 0) {
+    if (unitsError) {
+      console.error('[QR Codes] Error fetching units:', unitsError);
+      return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
+    }
+
+    if (!projectUnits || projectUnits.length === 0) {
       return NextResponse.json(
-        { error: 'No units found for this development' },
+        { error: 'No units found for this project' },
         { status: 404 }
       );
     }
 
-    console.log(`[QR Codes] Generating QR codes for ${developmentUnits.length} units in ${development.name}`);
+    console.log(`[QR Codes] Generating QR codes for ${projectUnits.length} units in ${project.name}`);
 
     const qrData: Array<{
       unitNumber: string;
@@ -58,16 +68,13 @@ export async function POST(
     }> = [];
 
     const batchSize = 10;
-    for (let i = 0; i < developmentUnits.length; i += batchSize) {
-      const batch = developmentUnits.slice(i, i + batchSize);
+    for (let i = 0; i < projectUnits.length; i += batchSize) {
+      const batch = projectUnits.slice(i, i + batchSize);
       const batchResults = await Promise.all(
         batch.map(async (unit) => {
-          const tokenData = await generateQRTokenForUnit(
-            unit.id,
-            unit.tenant_id,
-            unit.development_id,
-            unit.unit_uid
-          );
+          // Generate token using Supabase unit.id (UUID) as primary identifier
+          // This persists the token to the database for validation/revocation
+          const tokenData = await generateQRTokenForUnit(unit.id, projectId);
 
           const qrDataUrl = await QRCode.toDataURL(tokenData.url, {
             width: 300,
@@ -78,18 +85,29 @@ export async function POST(
             },
           });
 
+          // Get purchaser name from auth user if available
+          let purchaserName = 'Homeowner';
+          if (unit.user_id) {
+            const { data: authUser } = await supabase.auth.admin.getUserById(unit.user_id);
+            if (authUser?.user?.user_metadata?.full_name) {
+              purchaserName = authUser.user.user_metadata.full_name;
+            } else if (authUser?.user?.user_metadata?.name) {
+              purchaserName = authUser.user.user_metadata.name;
+            }
+          }
+
           return {
             unitNumber: unit.unit_number,
-            address: unit.address_line_1,
-            houseType: unit.house_type_code,
+            address: `Unit ${unit.unit_number}`,
+            houseType: unit.unit_types?.type_name || 'Standard',
             url: tokenData.url,
             qrDataUrl,
-            purchaserName: unit.purchaser_name || 'Homeowner',
+            purchaserName,
           };
         })
       );
       qrData.push(...batchResults);
-      console.log(`[QR Codes] Processed ${qrData.length}/${developmentUnits.length} units`);
+      console.log(`[QR Codes] Processed ${qrData.length}/${projectUnits.length} units`);
     }
 
     const pdf = new PDFDocument({
@@ -125,7 +143,7 @@ export async function POST(
         .font('Helvetica')
         .fillColor('#999')
         .text(
-          `${development.name || 'Development'} - QR Codes (Page ${pageNumber}/${totalPages})`,
+          `${project.name || 'Project'} - QR Codes (Page ${pageNumber}/${totalPages})`,
           margin,
           20,
           {
@@ -237,7 +255,7 @@ export async function POST(
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${development.code || 'development'}-qr-codes.pdf"`,
+        'Content-Disposition': `attachment; filename="${project.name || 'project'}-qr-codes.pdf"`,
         'Content-Length': pdfBuffer.length.toString(),
       },
     });

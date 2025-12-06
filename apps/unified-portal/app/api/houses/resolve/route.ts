@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyQRToken } from '@openhouse/api/qr-tokens';
+import { validateQRToken } from '@openhouse/api/qr-tokens';
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,19 +26,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing token parameter' }, { status: 400 });
     }
 
-    const payload = verifyQRToken(token);
+    const payload = await validateQRToken(token);
     if (!payload) {
       console.error('[HOUSES RESOLVE] Invalid or expired token');
       return NextResponse.json({ error: 'Invalid or expired QR code' }, { status: 401 });
     }
 
-    if (payload.unitUid !== code) {
-      console.error('[HOUSES RESOLVE] Token unitUid mismatch');
+    // Verify the token's supabaseUnitId matches the requested code (UUID)
+    if (payload.supabaseUnitId !== code) {
+      console.error('[HOUSES RESOLVE] Token supabaseUnitId mismatch:', {
+        expected: payload.supabaseUnitId,
+        received: code
+      });
       return NextResponse.json({ error: 'Invalid QR code for this unit' }, { status: 401 });
     }
 
-    console.log(`[HOUSES RESOLVE] Token validated for unit: ${code}`);
+    console.log(`[HOUSES RESOLVE] Token validated for Supabase unit: ${code}`);
 
+    // Query by Supabase units.id (UUID)
     const { data: unit, error: unitError } = await supabasePublic
       .from('units')
       .select(`
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
         unit_types (*),
         projects (*)
       `)
-      .or(`unit_number.eq.${code},id.eq.${code}`)
+      .eq('id', payload.supabaseUnitId)
       .single();
 
     if (unitError || !unit) {
@@ -70,12 +75,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       house_id: unit.id,
       user_id: unit.user_id,
-      development_id: project?.id || payload.developmentId || null,
+      development_id: project?.id || payload.projectId,
       development_code: project?.id || null,
       development_name: project?.name || 'Your Development',
       development_logo_url: null,
       development_system_instructions: project?.description || '',
-      unit_uid: unit.unit_number,
+      unit_uid: unit.id,  // Use Supabase UUID as unit_uid
       unit_number: unit.unit_number,
       address: `Unit ${unit.unit_number}`,
       eircode: null,
@@ -92,7 +97,7 @@ export async function GET(req: NextRequest) {
       latitude: null,
       longitude: null,
       metadata: null,
-      tenant_id: payload.tenantId || null,
+      tenant_id: payload.projectId,
       project_id: project?.id || null,
       unit_type_id: unit.unit_type_id,
     });
@@ -106,6 +111,7 @@ async function getPurchaserName(userId: string | null): Promise<string> {
   if (!userId) return 'Resident';
 
   try {
+    // Try profiles table first
     const { data, error } = await supabasePublic
       .from('profiles')
       .select('full_name, first_name, last_name')
@@ -113,9 +119,13 @@ async function getPurchaserName(userId: string | null): Promise<string> {
       .single();
 
     if (error || !data) {
+      // Fallback to auth user metadata
       const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
       if (authUser?.user?.user_metadata?.full_name) {
         return authUser.user.user_metadata.full_name;
+      }
+      if (authUser?.user?.user_metadata?.name) {
+        return authUser.user.user_metadata.name;
       }
       return 'Resident';
     }
