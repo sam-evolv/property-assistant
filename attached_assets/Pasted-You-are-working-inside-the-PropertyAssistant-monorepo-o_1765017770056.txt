@@ -1,0 +1,369 @@
+You are working inside the `PropertyAssistant` monorepo on Replit.
+
+Treat this as a production incident. You are a senior engineer brought in to stabilise and finish the Smart Archive and its connection to the assistant.
+
+Absolute constraints:
+
+* Do NOT break purchaser chat, purchaser UI, QR onboarding, or existing RLS.
+* Do NOT downgrade security of Supabase storage or Postgres.
+* Minimise changes to routing and global layout. Focus on fixing behaviour and wiring.
+* Keep all fixes self-contained and well-documented in the Replit Agent log.
+
+======================================================================
+0. QUICK RECON
+==============
+
+Before making changes:
+
+1. Inspect the current Smart Archive implementation:
+
+   * Developer pages:
+
+     * `/developer/archive`
+     * `/developer/archive/[discipline]`
+     * `/developer/archive/document/[id]`
+     * `/developer/archive/insights` (if exists)
+   * Components:
+
+     * Archive grid (discipline cards)
+     * Document list for a discipline
+     * Document detail / metadata view
+     * Quick View implementation
+   * API routes:
+
+     * Any `/developer/archive/...` APIs (search, classify, insights, etc.)
+     * Upload and classification endpoints.
+
+2. Inspect how documents are stored:
+
+   * DB: `documents`, `doc_chunks`, any `document_previews` table.
+   * Storage: Supabase bucket(s). Confirm path convention:
+     `tenant/{tenantId}/development/{developmentId}/{uuid}.{ext}` or similar.
+
+3. Inspect RAG / assistant pipeline:
+
+   * RAG query code used by the assistant API route(s).
+   * Ingestion scripts: `reprocess-all-docs.ts`, `auto-classify-and-map-docs.ts`, `test-rag.ts`, `test-chat.ts` or similar.
+   * How tenant/development filters are applied in RAG queries.
+
+Document your findings briefly in the Replit Agent log so it’s clear where things live.
+
+======================================================================
+
+1. FIX QUICK VIEW + FILE PREVIEW + DOWNLOAD
+   ======================================================================
+
+Problems to solve:
+
+* Quick View reports “No viewable file available” even though the file exists.
+* Discipline page cards show only a generic icon; we want an actual visual preview.
+* There is no obvious Download option for developers.
+
+Tasks:
+
+1.1 Quick View infrastructure
+
+* Find the component handling Quick View (toast / bottom sheet / modal) – e.g. `QuickView`, `DocumentQuickView`, etc.
+* Find how it resolves a file URL:
+
+  * If it calls a custom API route (e.g. `/api/archive/file?id=...`), inspect that route.
+  * If it calls Supabase directly, inspect that logic.
+
+Fixes:
+
+* Ensure the Supabase Storage path and file key match what is in `documents.file_path` or `file_url`.
+* Ensure the API or client:
+
+  * For PDFs: serves them with `Content-Type: application/pdf`.
+  * For images: uses the correct image content type.
+* Implement Quick View as one of:
+
+  * A modal with `<iframe>` or `<embed>` pointing at a signed URL.
+  * Or a dedicated “viewer” route opened in a modal overlay.
+
+If file exists in Storage but Quick View still fails:
+
+* Add logging around the URL resolution and HTTP status.
+* Ensure you are using `supabase.storage.from('bucket').createSignedUrl(...)` with a sane expiry (e.g. 10–30 minutes).
+* Handle error cases with a clear message and console logging.
+
+1.2 Visual preview on document cards
+
+* In the discipline detail page, each document card should show a small preview of the first page (similar to Procore).
+* Implement a preview approach that is realistic for this stack:
+  Option A (simpler, acceptable):
+
+  * Use the signed PDF URL in an `<img>` which relies on browser PDF thumbnailing. If this does not work reliably, choose option B.
+    Option B (better):
+  * Add an API route `/developer/archive/thumbnail/[id]` that:
+
+    * Gets the file from Supabase.
+    * Uses a server-side PDF/image renderer (or existing preview helper) to render the first page to a small PNG/JPEG.
+    * Caches the preview in a `document_previews` table or secondary Storage path.
+  * Document cards reference this endpoint as their `src`.
+* If the preview is not yet available, show a skeleton or fallback icon.
+
+Keep performance in mind:
+
+* Use a reasonable thumbnail size (e.g. 300px max width).
+* Lazy-load thumbnails.
+
+1.3 Download button
+
+* On the document card and on the document detail page:
+
+  * Add a “Download” button.
+  * It should obtain a signed URL from Supabase (use an API route if necessary to avoid leaking service keys).
+  * Clicking it should trigger a direct download of the original file (respecting original filename).
+
+1.4 Document detail UX
+
+* Preserve the existing document detail / metadata editor view, but do not force users into it every time:
+
+  * Default click on the card:
+
+    * Open Quick View (preview + download).
+  * Secondary action (e.g. small “Edit” icon or context menu):
+
+    * Navigate to the metadata page `/developer/archive/document/[id]`.
+
+======================================================================
+2. IMPROVE CLASSIFICATION QUALITY (REDUCE “OTHER”)
+==================================================
+
+Problem:
+
+* Only ~20 docs classified into disciplines; ~70+ are dumped into “Other”.
+
+Goal:
+
+* For this pilot, the majority of Longview Park drawings should land in sensible disciplines (Architectural, Structural, Mechanical, Electrical, Plumbing, Civil, etc.).
+* “Other” should be a genuine fall-back, not the default.
+
+Tasks:
+
+2.1 Inspect current classification logic
+
+* Open `scripts/auto-classify-and-map-docs.ts` and any related classification utilities.
+* Identify:
+
+  * The prompts / heuristics used.
+  * Where “other” is assigned.
+  * Whether filenames, folder hints, or text are being used.
+
+2.2 Make filename and folder signals first-class
+
+* For construction drawings, filenames and their Procore-like codes are highly informative.
+* Implement deterministic rules BEFORE LLM classification, for example:
+
+  * If filename contains “EL”, “ELEC”, “Electrical” and drawing content mentions circuits/load → Electrical.
+  * If filename contains “MECH”, “Mechanical”, “HVAC” → Mechanical.
+  * If filename contains “STR”, “Structural”, “RC”, “rebar” → Structural.
+  * If filename contains “PLUMB”, “Drainage”, “Plumbing” → Plumbing.
+  * If filename contains “ARCH”, “Floor Plan”, “Elevation”, “Section” → Architectural.
+* Use folder / path hints if available (e.g. folder name `Architectural Drawings - MHL`).
+
+2.3 LLM classification refinement
+
+* After applying deterministic rules, only run the LLM classifier for documents that:
+
+  * Have ambiguous signals.
+  * Or where filename/folder heuristics disagree.
+
+* Tighten the prompt:
+
+  * Make it explicit that “other” is only allowed if the document clearly does not belong to any known discipline.
+  * Ask the model to output a single discipline label from a fixed whitelist.
+
+2.4 Reclassification job
+
+* Add or update a script, e.g. `scripts/reclassify-documents.ts`:
+
+  * Target only documents in the current tenant/development whose `discipline = 'other'` OR `discipline IS NULL`.
+  * Re-run the improved pipeline.
+  * Log counts per discipline after reclassification.
+
+* Expose a developer-only button in the Smart Archive banner:
+
+  * “Classify All” should:
+
+    * Call an API route that triggers the script or queues a job.
+    * Show progress or at least a “job started” state.
+
+2.5 Manual override always wins
+
+* Ensure that manual discipline changes in the Document Detail view are **never overwritten** by reclassification jobs, unless explicitly requested.
+
+======================================================================
+3. FIX INSIGHTS ENDPOINT + UI
+=============================
+
+Problem:
+
+* The Insights tab in Smart Archive fails to generate anything.
+
+Goal:
+
+* Ensure the Insights page loads without error and provides at least a basic, correct dataset.
+
+Tasks:
+
+3.1 Backend check
+
+* Inspect the Insights backend route (likely `/developer/archive/insights` API).
+* Run it against Longview Park data and inspect any errors.
+* Fix common issues:
+
+  * Null handling when a discipline or house_type has no documents.
+  * Incorrect tenant/development filters.
+  * Joins against missing tables or aliases.
+
+3.2 Minimum viable dataset
+
+* At minimum, return:
+
+  * Document count per discipline.
+  * Document count per house type and discipline (coverage matrix).
+  * Count of documents older than 12 months (if timestamps exist).
+
+3.3 UI fixes
+
+* Update the Insights page to:
+
+  * Show loading state.
+  * Render charts/tables only when data is present.
+  * Gracefully handle “no data” with explanatory text instead of errors.
+
+Log the final payload shape in the Agent log.
+
+======================================================================
+4. ENSURE SMART ARCHIVE FEEDS THE ASSISTANT (RAG PIPELINE)
+==========================================================
+
+Problem:
+
+* The assistant currently “won’t answer anything” – suggests RAG is not finding / using documents.
+
+Goal:
+
+* All documents stored and classified in Smart Archive for a development must be:
+
+  * Ingested into `doc_chunks` with embeddings.
+  * Queried by the assistant when a purchaser or developer asks questions about that scheme.
+  * Correctly filtered by tenant and development (and optionally house_type / unit).
+
+Tasks:
+
+4.1 Verify ingestion coverage
+
+* Inspect ingestion scripts:
+
+  * Which table(s) do they read from?
+  * Are they picking up *all* `documents` for the pilot tenant/development, or only a subset?
+* Confirm:
+
+  * For at least one known drawing (e.g. the Architectural BD01 plan that appears in Smart Archive), there are corresponding records in `doc_chunks`.
+* If not:
+
+  * Fix the ingestion query to include all relevant documents in the Smart Archive.
+  * Ensure the Supabase Storage paths used by ingestion are correct.
+
+4.2 Verify chat RAG query
+
+* Locate the assistant’s RAG query code (developer and purchaser chat endpoints).
+* Confirm the WHERE conditions:
+
+  * Must filter by tenant_id and development_id based on current context.
+  * For purchaser: additionally filter by house_type / unit where appropriate.
+* Ensure there is no mismatch between:
+
+  * The tenant/development IDs used in Smart Archive.
+  * The IDs used in chat context.
+
+4.3 Run end-to-end tests
+
+* Add / adjust test scripts:
+
+  * `scripts/test-rag.ts`:
+
+    * Query for a known term (e.g. a room label from BD01 architectural drawing) and log top documents.
+  * `scripts/test-chat.ts`:
+
+    * Simulate a purchaser query like “What size is my living room?” or “Show me the BD01 ground floor plan” and log the assistant’s internal RAG selection.
+
+* Verify the assistant is now returning non-empty sources and sensible answers.
+
+4.4 Wire Smart Archive and RAG together conceptually
+
+* Ensure that:
+
+  * Any document stored in Smart Archive goes through:
+    Upload → Classification → Ingestion → doc_chunks → used by Assistant.
+* Add comments in key code paths explaining this flow.
+
+======================================================================
+5. UX POLISH + GUARDRAILS
+=========================
+
+Tasks:
+
+5.1 Archive landing page
+
+* Ensure the counts shown on each discipline card match reality (based on `documents` table).
+* Ensure the “needs classification” banner reflects actual counts (`discipline IS NULL or 'other'`).
+
+5.2 Discipline detail page
+
+* Ensure filters (house type, important/must-read) work.
+* Ensure pagination works and does not silently drop documents.
+
+5.3 Document detail
+
+* Confirm:
+
+  * Saving metadata updates `documents` table correctly.
+  * “Re-run AI Classification” button does what it says and logs outcomes.
+
+5.4 Error handling
+
+* For all new and existing API routes touched:
+
+  * Add clear error logs.
+  * Return structured error responses consumed by the UI, with user-friendly messages.
+
+======================================================================
+6. MIGRATIONS, TYPES, AND DOCUMENTATION
+=======================================
+
+Tasks:
+
+6.1 Migrations
+
+* If any new columns/tables are required (e.g. `document_previews`), create proper SQL migrations in `packages/db/migrations`.
+* Apply migrations via Drizzle.
+* Confirm schema in Supabase matches Drizzle.
+
+6.2 Types
+
+* Ensure TypeScript types for `Document`, `DocChunk`, etc., are up-to-date with new fields.
+* Fix any type errors introduced by this work.
+
+6.3 Replit Agent log summary
+
+* At the end, write a detailed summary in the Replit Agent log:
+
+  * Files created/modified.
+  * How Quick View now works.
+  * How previews and downloads work.
+  * How classification logic has improved.
+  * How Insights now behaves.
+  * How Smart Archive feeds the assistant.
+  * Any limitations or TODOs.
+
+======================================================================
+EXECUTION NOTES
+===============
+
+* Work in small, focused commits or changesets where possible.
+* After each major subsystem fix (previews, classification, insights, RAG), run the dev server and verify the corresponding UI manually (you can script these using existing test utilities).
+* Do NOT introduce large library dependencies unless strictly required. Prefer using what’s already in the repo.

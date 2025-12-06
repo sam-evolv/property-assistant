@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
     };
 
     const keywordQuery = await db.execute(sql.raw(`
-      SELECT word, count
+      SELECT word, count(*) as word_count
       FROM (
         SELECT regexp_split_to_table(lower(content), '\\s+') as word
         FROM doc_chunks
@@ -266,7 +266,7 @@ export async function GET(request: NextRequest) {
       .slice(0, 20)
       .map(row => ({
         term: row.word,
-        count: parseInt(row.count || '1'),
+        count: parseInt(row.word_count || '1'),
         is_risk_term: RISK_TERMS.some(rt => row.word.includes(rt.replace(' ', '')))
       }));
 

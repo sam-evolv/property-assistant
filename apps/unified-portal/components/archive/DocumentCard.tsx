@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Loader2,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
@@ -78,6 +79,26 @@ export function DocumentCard({ document }: DocumentCardProps) {
   const handleOpenExternal = () => {
     if (viewUrl) {
       window.open(viewUrl, '_blank');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (viewUrl) {
+      try {
+        const response = await fetch(viewUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = window.document.createElement('a');
+        a.href = url;
+        a.download = document.file_name || 'document';
+        window.document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        window.document.body.removeChild(a);
+      } catch (error) {
+        console.error('Download failed:', error);
+        window.open(viewUrl, '_blank');
+      }
     }
   };
 
@@ -168,6 +189,13 @@ export function DocumentCard({ document }: DocumentCardProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-black font-medium hover:bg-gold-400 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download</span>
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleOpenExternal(); }}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors"

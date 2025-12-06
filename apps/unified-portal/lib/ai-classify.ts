@@ -22,45 +22,96 @@ const DISCIPLINE_KEYWORDS: Record<DisciplineType, string[]> = {
   architectural: [
     'elevation', 'section', 'plan', 'ga', 'general arrangement', 
     'floor plan', 'layout', 'facade', 'roof plan', 'ceiling plan',
-    'detail', 'door schedule', 'window schedule', 'finish schedule'
+    'detail', 'door schedule', 'window schedule', 'finish schedule',
+    'house type', 'ground floor', 'first floor', 'second floor',
+    'furnishings', 'furniture', 'room layout', 'bedroom', 'living room',
+    '-dr-a-', 'arch', 'archit'
   ],
   structural: [
     'structural', 'beam', 'column', 'rebar', 'reinforcement', 
     'foundation', 'footing', 'slab', 'steel', 'concrete',
-    'load bearing', 'shear wall', 'truss', 'connection detail'
+    'load bearing', 'shear wall', 'truss', 'connection detail',
+    '-dr-s-', 'str', 'struct', 'raft', 'castleforms'
   ],
   mechanical: [
     'hvac', 'duct', 'vent', 'ventilation', 'heating', 'cooling',
     'air conditioning', 'mechanical', 'diffuser', 'ahu', 'vrf',
-    'boiler', 'chiller', 'heat pump', 'energy recovery'
+    'boiler', 'chiller', 'heat pump', 'energy recovery', 'altherma',
+    'daikin', 'm&e', 'mech', '-dr-m-', 'thermtek', 'thermal'
   ],
   electrical: [
     'electrical', 'wiring', 'circuit', 'load', 'containment',
     'lighting', 'power', 'socket', 'distribution board', 'db',
-    'cable tray', 'conduit', 'switch', 'panel', 'transformer'
+    'cable tray', 'conduit', 'switch', 'panel', 'transformer',
+    '-dr-e-', 'elec', 'isolator', 'solar', 'pv', 'module', 
+    'epod', 'charger', 'ohme', 'ev', 'esb', 'siro'
   ],
   plumbing: [
     'plumbing', 'water supply', 'drainage', 'sanitary', 'pipe',
     'waste', 'sewage', 'hot water', 'cold water', 'sprinkler',
-    'fire protection', 'toilet', 'bathroom', 'kitchen plumbing'
+    'fire protection', 'toilet', 'bathroom', 'kitchen plumbing',
+    '-dr-p-', 'plumb', 'soil', 'rainwater', 'instantor', 'copper',
+    'shower', 'trv', 'radiator', 'vessel', 'tank', 'flamco'
   ],
   civil: [
     'civil', 'site work', 'road', 'paving', 'earthwork',
     'grading', 'stormwater', 'drainage', 'utility', 'infrastructure',
-    'survey', 'topography', 'boundary', 'site plan'
+    'survey', 'topography', 'boundary', 'site plan',
+    '-dr-c-', 'transport', 'parking'
   ],
   landscape: [
     'landscape', 'planting', 'hardscape', 'garden', 'softscape',
     'irrigation', 'paving', 'fence', 'outdoor', 'amenity',
-    'playground', 'lawn', 'tree', 'shrub', 'vegetation'
+    'playground', 'lawn', 'tree', 'shrub', 'vegetation',
+    '-dr-l-', 'lansdcape', 'tobermore'
   ],
   other: []
 };
 
+const DOCUMENT_TYPE_PATTERNS: { pattern: RegExp; discipline: DisciplineType }[] = [
+  { pattern: /-dr-a-/i, discipline: 'architectural' },
+  { pattern: /-dr-s-/i, discipline: 'structural' },
+  { pattern: /-dr-m-/i, discipline: 'mechanical' },
+  { pattern: /-dr-e-/i, discipline: 'electrical' },
+  { pattern: /-dr-p-/i, discipline: 'plumbing' },
+  { pattern: /-dr-c-/i, discipline: 'civil' },
+  { pattern: /-dr-l-/i, discipline: 'landscape' },
+  { pattern: /\belevation/i, discipline: 'architectural' },
+  { pattern: /\bfloor\s*(plan|layout)/i, discipline: 'architectural' },
+  { pattern: /\b(ground|first|second)\s*floor/i, discipline: 'architectural' },
+  { pattern: /house\s*type/i, discipline: 'architectural' },
+  { pattern: /furnishing/i, discipline: 'architectural' },
+  { pattern: /\b(hvac|daikin|altherma|heat\s*pump)\b/i, discipline: 'mechanical' },
+  { pattern: /\bventilation\b/i, discipline: 'mechanical' },
+  { pattern: /\b(radiator|trv|thermostat)\b/i, discipline: 'plumbing' },
+  { pattern: /\b(drainage|rainwater|soil|waste)\b/i, discipline: 'plumbing' },
+  { pattern: /\b(sanitary|shower|bathroom)\b/i, discipline: 'plumbing' },
+  { pattern: /\b(ohme|ev\s*charger|epod|solar|pv\s*panel)\b/i, discipline: 'electrical' },
+  { pattern: /\b(fire\s*(panel|stopping|seal|door))/i, discipline: 'other' },
+  { pattern: /\b(waterproof|tanking|membrane)\b/i, discipline: 'other' },
+  { pattern: /\b(insulation|thermal)\b/i, discipline: 'other' },
+  { pattern: /\b(certificate|declaration|dop|datasheet|specification|spec)\b/i, discipline: 'other' },
+];
+
 const HOUSE_TYPE_PATTERN = /\b(BD|BS|BT|BZ)\d{2}\b/gi;
+
+export function classifyByPatterns(text: string): { discipline: DisciplineType; matched: boolean } {
+  for (const { pattern, discipline } of DOCUMENT_TYPE_PATTERNS) {
+    if (pattern.test(text)) {
+      return { discipline, matched: true };
+    }
+  }
+  return { discipline: 'other', matched: false };
+}
 
 export function classifyByKeywords(text: string): { discipline: DisciplineType; score: number } {
   const lowerText = text.toLowerCase();
+  
+  const patternResult = classifyByPatterns(lowerText);
+  if (patternResult.matched && patternResult.discipline !== 'other') {
+    return { discipline: patternResult.discipline, score: 5 };
+  }
+  
   const scores: Record<DisciplineType, number> = {
     architectural: 0,
     structural: 0,
@@ -84,10 +135,14 @@ export function classifyByKeywords(text: string): { discipline: DisciplineType; 
   let maxScore = 0;
 
   for (const [discipline, score] of Object.entries(scores)) {
-    if (score > maxScore) {
+    if (score > maxScore && discipline !== 'other') {
       maxScore = score;
       maxDiscipline = discipline as DisciplineType;
     }
+  }
+
+  if (patternResult.matched && patternResult.discipline === 'other' && maxScore === 0) {
+    return { discipline: 'other', score: 1 };
   }
 
   return { discipline: maxDiscipline, score: maxScore };
@@ -110,36 +165,40 @@ export async function classifyDocumentWithAI(
   const keywordResult = classifyByKeywords(combinedText);
   const houseTypeCodes = extractHouseTypeCodes(combinedText);
 
-  if (keywordResult.score >= 3) {
+  if (keywordResult.score >= 2) {
     return {
       discipline: keywordResult.discipline,
-      confidence: Math.min(0.95, 0.6 + keywordResult.score * 0.1),
+      confidence: Math.min(0.95, 0.5 + keywordResult.score * 0.12),
       houseTypeCodes,
       suggestedTags: [],
-      reasoning: `Classified by keyword matching (${keywordResult.score} matches)`
+      reasoning: `Classified by keyword/pattern matching (score: ${keywordResult.score})`
     };
   }
 
   try {
-    const prompt = `You are a construction document classifier. Analyze this document and classify it.
+    const prompt = `You are an expert construction document classifier for residential developments in Ireland/UK. 
+
+IMPORTANT: You MUST classify each document into ONE specific discipline. Only use "other" as an absolute last resort for documents that truly don't fit ANY discipline (like general product brochures or certifications).
 
 Document filename: ${fileName}
 ${textContent ? `Document content (first 2000 chars): ${textContent.slice(0, 2000)}` : 'No text content available.'}
 
-Classify this document into ONE of these disciplines:
-- architectural: Floor plans, elevations, sections, architectural details
-- structural: Structural drawings, calculations, foundations, beams, columns
-- mechanical: HVAC systems, ventilation, heating, cooling
-- electrical: Electrical layouts, lighting, power, circuits
-- plumbing: Water supply, drainage, sanitary systems
-- civil: Site works, roads, drainage, earthworks
-- landscape: Landscaping, planting, hardscape
-- other: Does not fit any category
+Disciplines (choose the BEST match):
+- architectural: House type drawings, floor plans, elevations, sections, room layouts, furniture plans, architectural details, GA drawings. Look for codes like BD01, BS02, BT03 (these are house types)
+- structural: Foundations, raft slabs, reinforcement, steel, concrete, beams, columns
+- mechanical: HVAC, heating systems, heat pumps (Daikin, Altherma), ventilation, air conditioning
+- electrical: Electrical layouts, lighting, EV chargers (Ohme), solar panels, distribution boards, home automation
+- plumbing: Water supply, drainage, sanitary ware, radiators, pipes, showers, bathrooms, rainwater systems
+- civil: Site works, roads, parking, transport infrastructure
+- landscape: Gardens, planting, fencing, outdoor areas
+- other: ONLY for product datasheets, certificates, and documents that genuinely don't relate to any discipline
 
-Respond in JSON format:
+Drawing reference codes hint: "-DR-A-" = Architectural, "-DR-S-" = Structural, "-DR-M-" = Mechanical, "-DR-E-" = Electrical, "-DR-P-" = Plumbing
+
+Respond ONLY with valid JSON:
 {
-  "discipline": "one of the above categories",
-  "confidence": 0.0 to 1.0,
+  "discipline": "architectural|structural|mechanical|electrical|plumbing|civil|landscape|other",
+  "confidence": 0.6 to 1.0,
   "suggestedTags": ["tag1", "tag2"],
   "reasoning": "Brief explanation"
 }`;
