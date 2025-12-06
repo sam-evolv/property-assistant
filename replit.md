@@ -107,6 +107,37 @@ CREATE INDEX idx_doc_chunks_search_content ON doc_chunks USING GIN(search_conten
 
 ---
 
+### Smart Archive RAG Pipeline Integration (December 2025) - COMPLETED ✅
+
+**Automatic embedding generation for AI assistant retrieval:**
+
+**Upload Pipeline (Now with RAG):**
+- Documents uploaded via Smart Archive now automatically generate embeddings
+- Text extraction → Chunking → Embedding generation → Storage all in one flow
+- Processing status tracked per document (pending, processing, complete, error)
+- `maxDuration = 300` for longer processing times on large documents
+
+**Bulk Reprocessing:**
+- New endpoint: `GET/POST /developer/api/archive/reprocess-all`
+- GET returns stats: total docs, with/without embeddings, pending, errors
+- POST processes documents in batches (default 20) with full RAG pipeline
+- Per-development access control: developer-role admins must specify developmentId
+- Super/tenant admins can process across all developments
+
+**Smart Archive UI Control:**
+- Blue "Index All Documents" banner shows when documents lack embeddings
+- Stats display: "Indexed X of Y documents"
+- One-click "Index All Documents" button triggers batch processing
+- Green banner confirms when all documents are indexed
+- Auto-refreshes stats after upload or reprocessing
+
+**Key Files:**
+- `apps/unified-portal/app/developer/api/archive/upload/route.ts` - RAG pipeline on upload
+- `apps/unified-portal/app/developer/api/archive/reprocess-all/route.ts` - Bulk reprocess endpoint
+- `apps/unified-portal/app/developer/archive/page.tsx` - UI with embedding stats banner
+
+---
+
 ### Smart Archive Phase 2: Document Upload & AI Classification (December 2025) - COMPLETED ✅
 
 **AI-powered document upload with automatic classification and filtering:**

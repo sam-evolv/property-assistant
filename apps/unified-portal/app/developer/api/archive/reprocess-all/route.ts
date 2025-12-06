@@ -211,7 +211,6 @@ export async function POST(request: NextRequest) {
       WHERE d.tenant_id = ${tenantId}::uuid
         AND d.status = 'active'
         ${developmentId ? sql`AND d.development_id = ${developmentId}::uuid` : sql``}
-        AND (d.processing_status IS NULL OR d.processing_status IN ('pending', 'error'))
       GROUP BY d.id
       HAVING COUNT(c.id) = 0
       ORDER BY d.created_at DESC

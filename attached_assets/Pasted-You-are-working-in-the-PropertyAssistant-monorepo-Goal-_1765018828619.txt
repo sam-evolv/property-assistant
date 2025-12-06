@@ -1,0 +1,90 @@
+You are working in the PropertyAssistant monorepo.
+
+Goal:
+Use the existing /developer/api/archive/reprocess-all endpoint to:
+
+1. Backfill embeddings for all existing documents from the Smart Archive.
+2. Add an admin only "Reprocess All Documents" control in the Smart Archive UI so developer admins can run this themselves for any development.
+
+Context:
+
+* The endpoint already exists at /developer/api/archive/reprocess-all.
+* GET returns stats for documents with and without embeddings.
+* POST processes documents in batches and respects development level access control.
+* I am using the unified portal Smart Archive view as a developer admin.
+
+Tasks:
+
+1. Wire a minimal Smart Archive admin control
+
+* Find the Smart Archive developer view component, for example something like:
+
+  * apps/unified-portal/app/developer/archive/page.tsx
+  * or apps/unified-portal/components/archive/ArchivePage.tsx
+* There is already developer context with tenant_id and development_id available in the page. If not, reuse the existing context or hooks you set up earlier for multi development support.
+
+Implement:
+
+* An admin only control, visible only to users with developer level access, for example in the Smart Archive header area.
+* The control should show:
+
+  * A "Reprocess All Documents" button.
+  * A small text area or badge that shows current stats like "Indexed 12 of 98 documents".
+* When the page loads, call the GET /developer/api/archive/reprocess-all endpoint for the current development and show:
+
+  * total documents
+  * documents with embeddings
+  * documents without embeddings
+* When the button is clicked:
+
+  * Call POST /developer/api/archive/reprocess-all for the current development.
+  * While processing, disable the button and show a spinner or "Reprocessing…" state.
+  * After completion, re call the GET endpoint and update the stats.
+
+Implementation details:
+
+* Use the existing API client patterns already in the app for authenticated calls from the browser to Next API routes.
+* The endpoint must always include the current tenant_id and development_id context, but do not hard code specific IDs. Use whatever context or cookies are already used for other developer scoped API calls.
+* Handle errors by:
+
+  * Logging to console
+  * Showing a simple toast or inline error message, consistent with the existing design system.
+
+2. Make sure the endpoint really runs per development
+
+* Confirm that GET and POST /developer/api/archive/reprocess-all are both filtering by:
+
+  * tenant_id = current tenant
+  * development_id = current development
+* If the endpoint is currently tenant wide, update it so that:
+
+  * It can take an optional development_id in the request (query or body)
+  * It defaults safely to the current development for the logged in developer user.
+* Ensure the RLS checks still enforce that a developer only sees or processes developments they are mapped to.
+
+3. Backfill now for current data
+
+* Once the button and stats are wired:
+
+  * In the running app as a developer admin, click "Reprocess All Documents" for the Longview scheme to process all 96 unembedded documents.
+* Optionally also provide a small Node script under scripts/ that can trigger POST /developer/api/archive/reprocess-all from the server side for a given development_id so that I have a non UI fallback. This script is optional, the priority is the in app button.
+
+4. Verification
+
+* After reprocessing for Longview:
+
+  * Use the GET endpoint to confirm that the count of documents with embeddings matches the number of active documents, or very close.
+  * Confirm that doc_chunks has rows for these documents.
+  * Ask the chat assistant a question that clearly needs a drawing or spec and make sure it now answers correctly.
+
+Deliverables:
+
+* Updated React component for Smart Archive with the new admin control.
+* Any updates to the reprocess all API route needed to support per development processing.
+* Brief summary in comments or replit.md explaining:
+
+  * How the button works.
+  * That it is per development and respects access control.
+  * How to run it when a new scheme is uploaded.
+
+Please implement everything above and make sure it works end to end without breaking the current Smart Archive or assistant behaviour.
