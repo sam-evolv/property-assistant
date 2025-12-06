@@ -47,6 +47,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.77",
     "@next/bundle-analyzer": "^16.0.4",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-tabs": "^1.0.4",
@@ -57,6 +58,7 @@
     "@types/pdfkit": "^0.17.3",
     "@types/qrcode": "^1.5.6",
     "@types/recharts": "^1.8.29",
+    "ai": "^5.0.108",
     "autoprefixer": "^10.4.16",
     "canvas": "^3.2.0",
     "class-variance-authority": "^0.7.0",
