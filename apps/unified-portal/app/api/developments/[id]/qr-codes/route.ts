@@ -64,7 +64,12 @@ export async function POST(
         batch.map(async (unit) => {
           // Generate token and persist to database
           // Uses unit.id as supabaseUnitId and developmentId as projectId
-          const tokenData = await generateQRTokenForUnit(unit.id, developmentId);
+          const tokenData = await generateQRTokenForUnit(
+            unit.id,           // supabaseUnitId
+            developmentId,     // projectId (used in token payload)
+            development.tenant_id,  // tenantId (for FK constraint)
+            developmentId      // developmentId (for tracking)
+          );
 
           const qrDataUrl = await QRCode.toDataURL(tokenData.url, {
             width: 300,

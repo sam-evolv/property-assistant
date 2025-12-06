@@ -105,7 +105,9 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
  */
 export async function generateQRTokenForUnit(
   supabaseUnitId: string,
-  projectId: string
+  projectId: string,
+  tenantId: string,  // Required for foreign key constraint
+  developmentId: string  // For development tracking
 ): Promise<GeneratedToken> {
   // Invalidate ALL existing tokens for this unit (both used and unused)
   // This ensures each PDF generation creates fresh, unique tokens
@@ -126,15 +128,15 @@ export async function generateQRTokenForUnit(
   // Token is returned in response but not stored in DB
   await db.insert(qr_tokens).values({
     unit_id: supabaseUnitId,
-    tenant_id: projectId,  // Reusing tenant_id column for projectId
-    development_id: projectId,
+    tenant_id: tenantId,  // Use actual tenant_id for FK constraint
+    development_id: developmentId,
     token: null,  // Null - we only store the hash for security
     token_hash: tokenHash,
     expires_at: generated.expiresAt,
     created_at: new Date(),
   });
   
-  console.log(`[QR Token] Generated fresh token for Supabase unit ${supabaseUnitId}, invalidated old tokens`);
+  console.log(`[QR Token] Generated fresh token for unit ${supabaseUnitId}, tenant ${tenantId}`);
   
   return generated;
 }
