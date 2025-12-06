@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { verifyQRToken } from '@openhouse/api/qr-tokens';
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing token parameter' }, { status: 400 });
     }
 
-    const payload = await validateQRToken(token);
+    // Use signature-based verification (no DB lookup needed)
+    const payload = verifyQRToken(token);
     if (!payload) {
       console.error('[HOUSES RESOLVE] Invalid or expired token');
       return NextResponse.json({ error: 'Invalid or expired QR code' }, { status: 401 });

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/supabase-server';
-import { db } from '@openhouse/db/client';
-import { developments, units } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
+import { createClient } from '@supabase/supabase-js';
+import { signQRToken } from '@openhouse/api/qr-tokens';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
+
+// Create Supabase admin client for fetching units
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(
   request: NextRequest,
@@ -18,80 +22,86 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const developmentId = params.id;
+    const projectId = params.id;
     
-    const development = await db.query.developments.findFirst({
-      where: eq(developments.id, developmentId),
-    });
+    // Fetch project from Supabase
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
 
-    if (!development) {
-      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    if (projectError || !project) {
+      console.error('[QR Codes] Project not found:', projectError);
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const developmentUnits = await db
-      .select()
-      .from(units)
-      .where(
-        and(
-          eq(units.development_id, developmentId),
-          eq(units.tenant_id, development.tenant_id)
-        )
-      )
-      .orderBy(units.unit_number);
+    // Fetch units from Supabase with unit_types
+    const { data: units, error: unitsError } = await supabaseAdmin
+      .from('units')
+      .select('*, unit_types(*)')
+      .eq('project_id', projectId)
+      .order('unit_number');
 
-    if (developmentUnits.length === 0) {
+    if (unitsError) {
+      console.error('[QR Codes] Error fetching units:', unitsError);
+      return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
+    }
+
+    if (!units || units.length === 0) {
       return NextResponse.json(
-        { error: 'No units found for this development' },
+        { error: 'No units found for this project in Supabase' },
         { status: 404 }
       );
     }
 
-    console.log(`[QR Codes] Generating QR codes for ${developmentUnits.length} units in ${development.name}`);
+    console.log(`[QR Codes] Generating QR codes for ${units.length} units in project ${project.name}`);
 
     const qrData: Array<{
       unitNumber: string;
-      address: string | null;
-      houseType: string | null;
+      unitType: string | null;
       url: string;
       qrDataUrl: string;
       purchaserName: string;
     }> = [];
 
-    const batchSize = 10;
-    for (let i = 0; i < developmentUnits.length; i += batchSize) {
-      const batch = developmentUnits.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async (unit) => {
-          // Generate token and persist to database
-          // Uses unit.id as supabaseUnitId and developmentId as projectId
-          const tokenData = await generateQRTokenForUnit(
-            unit.id,           // supabaseUnitId
-            developmentId,     // projectId (used in token payload)
-            development.tenant_id,  // tenantId (for FK constraint)
-            developmentId      // developmentId (for tracking)
-          );
+    // Generate QR codes for each unit from Supabase
+    for (const unit of units) {
+      // Generate signed token (no DB persistence - just signature-based validation)
+      const tokenData = signQRToken({
+        supabaseUnitId: unit.id,
+        projectId: projectId,
+      });
 
-          const qrDataUrl = await QRCode.toDataURL(tokenData.url, {
-            width: 300,
-            margin: 2,
-            color: {
-              dark: '#000000',
-              light: '#FFFFFF',
-            },
-          });
+      const qrDataUrl = await QRCode.toDataURL(tokenData.url, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
 
-          return {
-            unitNumber: unit.unit_number,
-            address: unit.address_line_1,
-            houseType: unit.house_type_code,
-            url: tokenData.url,
-            qrDataUrl,
-            purchaserName: unit.purchaser_name || 'Homeowner',
-          };
-        })
-      );
-      qrData.push(...batchResults);
-      console.log(`[QR Codes] Processed ${qrData.length}/${developmentUnits.length} units`);
+      // Get purchaser name from Supabase auth user if linked
+      let purchaserName = 'Homeowner';
+      if (unit.user_id) {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(unit.user_id);
+        if (authUser?.user?.user_metadata?.full_name) {
+          purchaserName = authUser.user.user_metadata.full_name;
+        } else if (authUser?.user?.user_metadata?.name) {
+          purchaserName = authUser.user.user_metadata.name;
+        }
+      }
+
+      qrData.push({
+        unitNumber: unit.unit_number,
+        unitType: unit.unit_types?.type_name || null,
+        url: tokenData.url,
+        qrDataUrl,
+        purchaserName,
+      });
+
+      console.log(`[QR Codes] Generated QR for unit ${unit.unit_number}`);
     }
 
     const pdf = new PDFDocument({
@@ -127,7 +137,7 @@ export async function POST(
         .font('Helvetica')
         .fillColor('#999')
         .text(
-          `${development.name || 'Development'} - QR Codes (Page ${pageNumber}/${totalPages})`,
+          `${project.name || 'Project'} - QR Codes (Page ${pageNumber}/${totalPages})`,
           margin,
           20,
           {
@@ -174,7 +184,7 @@ export async function POST(
         .fillAndStroke('#F8F8F8', '#D4AF37')
         .restore();
 
-      // Unit number and address
+      // Unit number and type
       const textX = xPosition + 15;
       let textY = yPosition + 12;
 
@@ -190,7 +200,7 @@ export async function POST(
       pdf
         .fontSize(8)
         .fillColor('#666')
-        .text(unit.address || 'Address not set', textX, textY, {
+        .text(unit.unitType || 'Standard Unit', textX, textY, {
           width: cardWidth - 30,
           ellipsis: true,
         });
@@ -222,7 +232,7 @@ export async function POST(
         .fontSize(7)
         .font('Helvetica')
         .fillColor('#666')
-        .text(`Type: ${unit.houseType || 'N/A'} | ${unit.purchaserName}`, textX, textY, {
+        .text(`${unit.purchaserName}`, textX, textY, {
           align: 'center',
           width: cardWidth - 30,
           ellipsis: true,
@@ -239,7 +249,7 @@ export async function POST(
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${development.code || 'development'}-qr-codes.pdf"`,
+        'Content-Disposition': `attachment; filename="${project.name || 'project'}-qr-codes.pdf"`,
         'Content-Length': pdfBuffer.length.toString(),
       },
     });
