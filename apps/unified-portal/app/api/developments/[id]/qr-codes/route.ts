@@ -3,7 +3,7 @@ import { requireSession } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { developments, units } from '@openhouse/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { signQRToken } from '@openhouse/api/qr-tokens';
+import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 
@@ -62,12 +62,9 @@ export async function POST(
       const batch = developmentUnits.slice(i, i + batchSize);
       const batchResults = await Promise.all(
         batch.map(async (unit) => {
-          // Generate token using unit.id as supabaseUnitId and developmentId as projectId
-          // This maintains compatibility with the new token format
-          const tokenData = signQRToken({
-            supabaseUnitId: unit.id,
-            projectId: developmentId,
-          });
+          // Generate token and persist to database
+          // Uses unit.id as supabaseUnitId and developmentId as projectId
+          const tokenData = await generateQRTokenForUnit(unit.id, developmentId);
 
           const qrDataUrl = await QRCode.toDataURL(tokenData.url, {
             width: 300,
