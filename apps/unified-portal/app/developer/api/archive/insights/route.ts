@@ -73,18 +73,19 @@ const RISK_TERMS = [
 ];
 
 async function validateDeveloperAccess(
-  userId: string,
+  email: string,
   tenantId: string
 ): Promise<{ valid: boolean; accessibleDevelopments: string[]; error?: string }> {
   const admin = await db.query.admins.findFirst({
     where: and(
-      eq(admins.id, userId),
+      eq(admins.email, email),
       eq(admins.tenant_id, tenantId)
     ),
     columns: { id: true, role: true }
   });
 
   if (!admin) {
+    console.log('[Insights] No admin found for email:', email, 'tenant:', tenantId);
     return { valid: false, accessibleDevelopments: [], error: 'Admin not found' };
   }
 
@@ -97,7 +98,7 @@ async function validateDeveloperAccess(
   }
 
   const userDevs = await db.query.userDevelopments.findMany({
-    where: eq(userDevelopments.user_id, userId),
+    where: eq(userDevelopments.user_id, admin.id),
     columns: { development_id: true }
   });
 
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServerComponentClient({ cookies });
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
     }
 
-    const access = await validateDeveloperAccess(user.id, tenantId);
+    const access = await validateDeveloperAccess(user.email, tenantId);
     if (!access.valid) {
       return NextResponse.json({ error: access.error }, { status: 403 });
     }

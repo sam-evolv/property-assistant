@@ -15,23 +15,24 @@ interface UploadMetadata {
 }
 
 async function validateTenantAdminAccess(
-  userId: string,
+  email: string,
   tenantId: string,
   developmentId: string
 ): Promise<{ valid: boolean; error?: string }> {
   const admin = await db.query.admins.findFirst({
     where: and(
-      eq(admins.id, userId),
+      eq(admins.email, email),
       eq(admins.tenant_id, tenantId)
     ),
     columns: { id: true, role: true }
   });
 
   if (!admin) {
+    console.log('[Upload] No admin found for email:', email, 'tenant:', tenantId);
     return { valid: false, error: 'Admin not found for this tenant' };
   }
 
-  if (admin.role === 'super_admin') {
+  if (admin.role === 'super_admin' || admin.role === 'tenant_admin') {
     return { valid: true };
   }
 
@@ -41,7 +42,7 @@ async function validateTenantAdminAccess(
 
   const hasAccess = await db.query.userDevelopments.findFirst({
     where: and(
-      eq(userDevelopments.user_id, userId),
+      eq(userDevelopments.user_id, admin.id),
       eq(userDevelopments.development_id, developmentId)
     ),
     columns: { user_id: true }

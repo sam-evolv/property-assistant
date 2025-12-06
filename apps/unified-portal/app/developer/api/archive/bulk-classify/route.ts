@@ -9,30 +9,31 @@ import { classifyDocumentWithAI } from '@/lib/ai-classify';
 const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape'];
 
 async function validateTenantAdminAccess(
-  userId: string,
+  email: string,
   tenantId: string,
   developmentId?: string
-): Promise<{ valid: boolean; error?: string }> {
+): Promise<{ valid: boolean; error?: string; adminId?: string }> {
   const admin = await db.query.admins.findFirst({
     where: and(
-      eq(admins.id, userId),
+      eq(admins.email, email),
       eq(admins.tenant_id, tenantId)
     ),
     columns: { id: true, role: true }
   });
 
   if (!admin) {
-    return { valid: false, error: 'Admin not found' };
+    console.log('[BulkClassify] No admin found for email:', email, 'tenant:', tenantId);
+    return { valid: false, error: 'Admin not found for this tenant' };
   }
 
   if (admin.role === 'super_admin' || admin.role === 'tenant_admin') {
-    return { valid: true };
+    return { valid: true, adminId: admin.id };
   }
 
   if (developmentId) {
     const hasAccess = await db.query.userDevelopments.findFirst({
       where: and(
-        eq(userDevelopments.user_id, userId),
+        eq(userDevelopments.user_id, admin.id),
         eq(userDevelopments.development_id, developmentId)
       ),
       columns: { user_id: true }
@@ -43,7 +44,7 @@ async function validateTenantAdminAccess(
     }
   }
 
-  return { valid: true };
+  return { valid: true, adminId: admin.id };
 }
 
 export async function POST(request: NextRequest) {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerComponentClient({ cookies });
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const access = await validateTenantAdminAccess(user.id, tenantId, developmentId);
+    const access = await validateTenantAdminAccess(user.email, tenantId, developmentId);
     if (!access.valid) {
       return NextResponse.json({ error: access.error }, { status: 403 });
     }
@@ -142,10 +143,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await db.execute(sql`
-      DELETE FROM search_cache 
-      WHERE tenant_id = ${tenantId}::uuid
-    `);
+    try {
+      await db.execute(sql`
+        DELETE FROM search_cache 
+        WHERE tenant_id = ${tenantId}::uuid
+      `);
+    } catch (e) {
+      console.log('[BulkClassify] No search_cache table or cleanup failed');
+    }
 
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;

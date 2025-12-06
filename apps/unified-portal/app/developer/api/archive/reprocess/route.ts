@@ -7,19 +7,20 @@ import { eq, and, sql } from 'drizzle-orm';
 import { classifyDocumentWithAI } from '@/lib/ai-classify';
 
 async function validateTenantAdminAccess(
-  userId: string,
+  email: string,
   tenantId: string,
   documentId: string
 ): Promise<{ valid: boolean; document?: typeof documents.$inferSelect; error?: string }> {
   const admin = await db.query.admins.findFirst({
     where: and(
-      eq(admins.id, userId),
+      eq(admins.email, email),
       eq(admins.tenant_id, tenantId)
     ),
     columns: { id: true, role: true }
   });
 
   if (!admin) {
+    console.log('[Reprocess] No admin found for email:', email, 'tenant:', tenantId);
     return { valid: false, error: 'Admin not found' };
   }
 
@@ -41,7 +42,7 @@ async function validateTenantAdminAccess(
   if (doc.development_id) {
     const hasAccess = await db.query.userDevelopments.findFirst({
       where: and(
-        eq(userDevelopments.user_id, userId),
+        eq(userDevelopments.user_id, admin.id),
         eq(userDevelopments.development_id, doc.development_id)
       ),
       columns: { user_id: true }
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerComponentClient({ cookies });
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const access = await validateTenantAdminAccess(user.id, tenantId, documentId);
+    const access = await validateTenantAdminAccess(user.email, tenantId, documentId);
     if (!access.valid || !access.document) {
       return NextResponse.json({ error: access.error }, { status: 403 });
     }
