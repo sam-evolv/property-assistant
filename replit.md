@@ -57,6 +57,35 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Hybrid Retrieval Architecture Pivot (December 2025) - IN PROGRESS 🔄
+
+**Major refactor from Naive RAG (vector-only) to Hybrid Retrieval (Structured SQL + Vector):**
+
+**New Database Schema (Supabase):**
+- `units` - linked to auth.users
+- `unit_types` - holds floor_plan_pdf_url, area, bedrooms, bathrooms
+- `projects` - development/property projects
+- `document_sections` - vector search with embeddings
+
+**New TypeScript Interfaces:**
+- `apps/unified-portal/types/database.ts` - Unit, UnitType, Project, DocumentSection
+
+**Chat API Router Pattern:**
+- Step A: Detect if question is about measurements/size/plans
+- Step B: If yes → Query units → unit_types for floor_plan_pdf_url, return structured data
+- Step C: If no → Perform vector search on document_sections via Supabase RPC
+
+**Key Files:**
+- `apps/unified-portal/app/api/chat/route.ts` - New hybrid retrieval chat API
+- `apps/unified-portal/types/database.ts` - New database type definitions
+
+**Environment Variables:**
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+- `OPENAI_API_KEY` - For embeddings and LLM responses
+
+---
+
 ### Smart Archive Phase 3: Deep Semantic Search & Insights (December 2025) - COMPLETED ✅
 
 **AI-powered semantic search with hybrid ranking and operational insights:**
