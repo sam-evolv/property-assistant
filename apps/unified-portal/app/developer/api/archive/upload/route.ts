@@ -6,6 +6,12 @@ import { documents, admins, houseTypes, userDevelopments } from '@openhouse/db/s
 import { eq, and, sql } from 'drizzle-orm';
 import { classifyDocumentWithAI, extractHouseTypeCodes } from '@/lib/ai-classify';
 import type { DisciplineType } from '@/lib/archive-constants';
+import { parseFile } from '@openhouse/api/train/parse';
+import { chunkTrainingItems } from '@openhouse/api/train/chunk';
+import { embedChunks } from '@openhouse/api/train/embed';
+import { ingestEmbeddings } from '@openhouse/api/train/ingest';
+
+export const maxDuration = 300;
 
 interface UploadMetadata {
   discipline?: DisciplineType | null;
@@ -120,6 +126,91 @@ async function extractTextFromFile(file: File): Promise<string> {
   return '';
 }
 
+async function processDocumentForRAG(
+  buffer: Buffer,
+  fileName: string,
+  fileType: string,
+  documentId: string,
+  tenantId: string,
+  developmentId: string,
+  houseTypeCode: string | null
+): Promise<{ success: boolean; chunksInserted: number; error?: string }> {
+  try {
+    console.log(`[RAG] Starting embedding generation for ${fileName}`);
+    
+    await db
+      .update(documents)
+      .set({ processing_status: 'processing', updated_at: new Date() })
+      .where(eq(documents.id, documentId));
+    
+    const items = await parseFile(buffer, fileName, tenantId, fileType);
+    console.log(`[RAG] Parsed ${items.length} items from ${fileName}`);
+    
+    if (items.length === 0) {
+      console.log(`[RAG] No content extracted from ${fileName}`);
+      await db
+        .update(documents)
+        .set({ processing_status: 'complete', chunks_count: 0, updated_at: new Date() })
+        .where(eq(documents.id, documentId));
+      return { success: true, chunksInserted: 0 };
+    }
+    
+    const chunkedItems = await chunkTrainingItems(items);
+    const allChunks = chunkedItems.flatMap(ci => ci.chunks);
+    console.log(`[RAG] Created ${allChunks.length} chunks from ${fileName}`);
+    
+    if (allChunks.length === 0) {
+      await db
+        .update(documents)
+        .set({ processing_status: 'complete', chunks_count: 0, updated_at: new Date() })
+        .where(eq(documents.id, documentId));
+      return { success: true, chunksInserted: 0 };
+    }
+    
+    const embeddings = await embedChunks(allChunks);
+    console.log(`[RAG] Generated ${embeddings.length} embeddings for ${fileName}`);
+    
+    const result = await ingestEmbeddings(
+      embeddings,
+      tenantId,
+      developmentId,
+      items[0]?.sourceType || 'document',
+      documentId,
+      houseTypeCode
+    );
+    
+    await db
+      .update(documents)
+      .set({
+        processing_status: 'complete',
+        chunks_count: result.chunksInserted,
+        updated_at: new Date()
+      })
+      .where(eq(documents.id, documentId));
+    
+    console.log(`[RAG] Successfully processed ${fileName}: ${result.chunksInserted} chunks stored`);
+    return { success: true, chunksInserted: result.chunksInserted };
+    
+  } catch (error) {
+    console.error(`[RAG] Failed to process ${fileName}:`, error);
+    
+    await db
+      .update(documents)
+      .set({
+        processing_status: 'error',
+        processing_error: error instanceof Error ? error.message : 'Unknown error',
+        updated_at: new Date()
+      })
+      .where(eq(documents.id, documentId));
+    
+    return { 
+      success: false, 
+      chunksInserted: 0, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
+
 async function findHouseTypeIdFromCodes(
   codes: string[],
   developmentId: string,
@@ -189,7 +280,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const accessCheck = await validateTenantAdminAccess(admin.id, tenantId, developmentId);
+    const accessCheck = await validateTenantAdminAccess(user.email, tenantId, developmentId);
     if (!accessCheck.valid) {
       return NextResponse.json(
         { error: accessCheck.error },
@@ -212,6 +303,8 @@ export async function POST(request: NextRequest) {
       isImportant: boolean;
       mustRead: boolean;
       aiClassified: boolean;
+      chunksCreated?: number;
+      ragError?: string;
     }> = [];
 
     for (const file of files) {
@@ -296,6 +389,27 @@ export async function POST(request: NextRequest) {
         updated_at: new Date(),
       });
 
+      console.log(`[Upload] Document saved: ${documentId}`);
+      
+      const fileBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(new Uint8Array(fileBuffer));
+      
+      let ragResult: { success: boolean; chunksInserted: number; error?: string } = { success: false, chunksInserted: 0 };
+      try {
+        ragResult = await processDocumentForRAG(
+          buffer,
+          file.name,
+          file.type,
+          documentId,
+          tenantId,
+          developmentId,
+          houseTypeCode
+        );
+      } catch (err) {
+        console.error(`[Upload] RAG processing failed for ${file.name}:`, err);
+        ragResult.error = err instanceof Error ? err.message : 'Unknown error';
+      }
+
       uploadedDocuments.push({
         id: documentId,
         fileName: file.name,
@@ -304,9 +418,9 @@ export async function POST(request: NextRequest) {
         isImportant: metadata.isImportant || false,
         mustRead: metadata.mustRead || false,
         aiClassified,
+        chunksCreated: ragResult.chunksInserted,
+        ragError: ragResult.error,
       });
-
-      console.log(`[Upload] Document saved: ${documentId}`);
     }
 
     return NextResponse.json({
