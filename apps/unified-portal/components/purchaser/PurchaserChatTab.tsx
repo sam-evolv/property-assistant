@@ -79,6 +79,7 @@ interface PurchaserChatTabProps {
   token: string;
   selectedLanguage: string;
   isDarkMode: boolean;
+  userId?: string | null;
 }
 
 // Translations for UI and prompts
@@ -223,6 +224,7 @@ export default function PurchaserChatTab({
   token,
   selectedLanguage,
   isDarkMode,
+  userId,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -337,6 +339,7 @@ export default function PurchaserChatTab({
         body: JSON.stringify({
           developmentId,
           message: textToSend,
+          userId: userId || undefined,
         }),
       });
 

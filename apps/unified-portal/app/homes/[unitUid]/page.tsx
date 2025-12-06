@@ -45,6 +45,9 @@ interface HouseContext {
   latitude: number | null;
   longitude: number | null;
   tenant_id: string;
+  user_id?: string | null;
+  project_id?: string | null;
+  floor_plan_pdf_url?: string | null;
 }
 
 const LANGUAGES = [
@@ -531,6 +534,7 @@ export default function HomeResidentPage() {
               token={validatedToken || ''}
               selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
+              userId={house.user_id}
             />
           </Tabs.Content>
 
