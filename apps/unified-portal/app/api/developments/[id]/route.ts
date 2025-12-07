@@ -29,7 +29,7 @@ export async function GET(
       .limit(1);
 
     if (development) {
-      return NextResponse.json(development);
+      return NextResponse.json({ development });
     }
 
     // Fallback: try Supabase projects table
@@ -39,41 +39,46 @@ export async function GET(
       .eq('id', params.id)
       .single();
 
-    if (error) {
-      console.log('[Development] Not found in projects, trying with real ID');
-      
-      // Try with real project ID
-      const { data: realProject } = await supabaseAdmin
-        .from('projects')
-        .select('*')
-        .eq('id', REAL_PROJECT_ID)
-        .single();
-      
-      if (realProject) {
-        return NextResponse.json({
+    if (project) {
+      return NextResponse.json({
+        development: {
+          id: project.id,
+          name: project.name || 'Development',
+          tenant_id: project.tenant_id,
+          created_at: project.created_at,
+          system_instructions: null,
+        }
+      });
+    }
+
+    // Try with real project ID as last resort
+    const { data: realProject } = await supabaseAdmin
+      .from('projects')
+      .select('*')
+      .eq('id', REAL_PROJECT_ID)
+      .single();
+
+    if (realProject) {
+      return NextResponse.json({
+        development: {
           id: params.id,
           name: realProject.name || 'Development',
           tenant_id: realProject.tenant_id,
           created_at: realProject.created_at,
-        });
-      }
-    }
-
-    if (project) {
-      return NextResponse.json({
-        id: project.id,
-        name: project.name || 'Development',
-        tenant_id: project.tenant_id,
-        created_at: project.created_at,
+          system_instructions: null,
+        }
       });
     }
 
     // Last fallback - return a mock development
     return NextResponse.json({
-      id: params.id,
-      name: 'Development',
-      tenant_id: null,
-      created_at: new Date().toISOString(),
+      development: {
+        id: params.id,
+        name: 'Development',
+        tenant_id: null,
+        created_at: new Date().toISOString(),
+        system_instructions: null,
+      }
     });
 
   } catch (error) {
