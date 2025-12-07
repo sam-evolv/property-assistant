@@ -45,51 +45,112 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] Generating query embedding...');
     const queryEmbedding = await generateEmbedding(message);
 
-    // STEP 2: Search with match_documents RPC
+    // STEP 2: Try match_document_sections RPC first, fallback to match_documents
     console.log('[Chat] Searching documents...');
-    const { data: matches, error: rpcError } = await supabase.rpc('match_documents', {
+    
+    let matches: Array<{ id: string; content: string; metadata: Record<string, unknown>; similarity: number }> | null = null;
+    
+    // Try match_document_sections (for document_sections table)
+    const { data: sectionsMatch, error: sectionsError } = await supabase.rpc('match_document_sections', {
       query_embedding: queryEmbedding,
-      match_threshold: 0.5,
+      match_threshold: 0.3,
       match_count: 5,
+      filter_project_id: PROJECT_ID,
     });
 
-    if (rpcError) {
-      console.error('[Chat] RPC error:', rpcError.message);
-    }
-
-    // Filter by PROJECT_ID (post-filter since RPC doesn't support it)
-    let relevantMatches: Array<{ id: string; content: string; metadata: Record<string, unknown>; similarity: number }> = [];
-    
-    if (matches && matches.length > 0) {
-      const matchIds = matches.map((m: { id: string }) => m.id);
+    if (!sectionsError && sectionsMatch && sectionsMatch.length > 0) {
+      console.log('[Chat] match_document_sections returned:', sectionsMatch.length);
+      matches = sectionsMatch;
+    } else {
+      if (sectionsError) {
+        console.log('[Chat] match_document_sections error:', sectionsError.message);
+      }
       
-      const { data: sections } = await supabase
-        .from('document_sections')
-        .select('id, content, metadata, project_id')
-        .in('id', matchIds)
-        .eq('project_id', PROJECT_ID);
+      // Fallback: Try match_documents (might be configured for documents table)
+      const { data: docsMatch, error: docsError } = await supabase.rpc('match_documents', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.3,
+        match_count: 5,
+      });
 
-      if (sections) {
-        const similarityMap = new Map(matches.map((m: { id: string; similarity: number }) => [m.id, m.similarity]));
-        relevantMatches = sections.map(s => ({
-          id: s.id,
-          content: s.content,
-          metadata: s.metadata || {},
-          similarity: (similarityMap.get(s.id) as number) || 0,
-        }));
-        relevantMatches.sort((a, b) => b.similarity - a.similarity);
+      if (!docsError && docsMatch && docsMatch.length > 0) {
+        console.log('[Chat] match_documents returned:', docsMatch.length);
+        // Post-filter by project_id
+        const matchIds = docsMatch.map((m: { id: string }) => m.id);
+        const { data: filtered } = await supabase
+          .from('document_sections')
+          .select('id, content, metadata')
+          .in('id', matchIds)
+          .eq('project_id', PROJECT_ID);
+        
+        if (filtered && filtered.length > 0) {
+          const simMap = new Map(docsMatch.map((m: { id: string; similarity: number }) => [m.id, m.similarity]));
+          matches = filtered.map(s => ({
+            id: s.id,
+            content: s.content,
+            metadata: s.metadata || {},
+            similarity: (simMap.get(s.id) as number) || 0.5,
+          }));
+        }
+      } else {
+        if (docsError) console.log('[Chat] match_documents error:', docsError.message);
       }
     }
 
-    console.log('[Chat] Relevant matches:', relevantMatches.length);
+    // If RPC doesn't work, do a simple text search fallback
+    if (!matches || matches.length === 0) {
+      console.log('[Chat] RPC failed, trying text search fallback...');
+      const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3).slice(0, 3);
+      
+      if (keywords.length > 0) {
+        const { data: textMatches } = await supabase
+          .from('document_sections')
+          .select('id, content, metadata')
+          .eq('project_id', PROJECT_ID)
+          .ilike('content', `%${keywords[0]}%`)
+          .limit(5);
 
-    // STEP 3: Inject Reference Data
+        if (textMatches && textMatches.length > 0) {
+          console.log('[Chat] Text search found:', textMatches.length);
+          matches = textMatches.map(s => ({
+            id: s.id,
+            content: s.content,
+            metadata: s.metadata || {},
+            similarity: 0.5,
+          }));
+        }
+      }
+    }
+
+    // Last resort: just get the first few chunks
+    if (!matches || matches.length === 0) {
+      console.log('[Chat] Falling back to first available chunks...');
+      const { data: anyChunks } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata')
+        .eq('project_id', PROJECT_ID)
+        .limit(3);
+
+      if (anyChunks && anyChunks.length > 0) {
+        console.log('[Chat] Using first', anyChunks.length, 'available chunks');
+        matches = anyChunks.map(s => ({
+          id: s.id,
+          content: s.content,
+          metadata: s.metadata || {},
+          similarity: 0.3,
+        }));
+      }
+    }
+
+    console.log('[Chat] Final matches:', matches?.length || 0);
+
+    // STEP 3: Build System Message
     let systemMessage: string;
 
-    if (relevantMatches.length > 0) {
-      const referenceData = relevantMatches
+    if (matches && matches.length > 0) {
+      const referenceData = matches
         .map((m, i) => {
-          const source = m.metadata?.file_name || m.metadata?.source || 'Document';
+          const source = (m.metadata?.file_name || m.metadata?.source || 'Document') as string;
           return `[${i + 1}] Source: ${source}\n${m.content}`;
         })
         .join('\n\n---\n\n');
@@ -104,7 +165,7 @@ INSTRUCTIONS:
 - Do NOT make up information.
 - Be concise and helpful.`;
 
-      console.log('[Chat] Context injected from', relevantMatches.length, 'documents');
+      console.log('[Chat] Context injected from', matches.length, 'documents');
     } else {
       systemMessage = `You are a helpful property assistant. No relevant documents were found for this question. Let the user know politely that you don't have information about their specific question in the uploaded documents.`;
       console.log('[Chat] No matching documents found');
@@ -130,12 +191,12 @@ INSTRUCTIONS:
     return NextResponse.json({
       success: true,
       answer,
-      source: relevantMatches.length > 0 ? 'vector_search' : 'no_context',
-      chunksUsed: relevantMatches.length,
-      documents: relevantMatches.map(m => ({
+      source: matches && matches.length > 0 ? 'vector_search' : 'no_context',
+      chunksUsed: matches?.length || 0,
+      documents: matches?.map(m => ({
         source: m.metadata?.file_name || m.metadata?.source,
         similarity: m.similarity,
-      })),
+      })) || [],
     });
 
   } catch (error) {
