@@ -101,38 +101,35 @@ async function getUnitContext(unitId: string): Promise<UnitContext | null> {
 // Build system context from unit data
 function buildUnitSystemContext(context: UnitContext): string {
   const lines = [
-    '=== CURRENT UNIT CONTEXT (AUTHORITATIVE DATA) ===',
+    '========================================',
+    'OFFICIAL FACTS (DO NOT GUESS - USE THESE):',
+    '========================================',
     `Address: ${context.address}`,
     `Owner: ${context.purchaserName}`,
     `House Type: ${context.houseType}`,
   ];
 
   if (context.bedrooms !== null) {
-    lines.push(`Bedrooms: ${context.bedrooms}`);
+    lines.push(`The house has ${context.bedrooms}.`);
   }
   if (context.bathrooms !== null) {
-    lines.push(`Bathrooms: ${context.bathrooms}`);
+    lines.push(`The house has ${context.bathrooms}.`);
   }
   if (context.propertyType) {
     lines.push(`Property Type: ${context.propertyType}`);
+  }
+  if (context.specs?.designation) {
+    lines.push(`Designation: ${context.specs.designation}`);
   }
   if (context.totalArea) {
     lines.push(`Total Area: ${context.totalArea} sqm`);
   }
 
-  // Include any additional specs
-  if (context.specs && Object.keys(context.specs).length > 0) {
-    lines.push('\nAdditional Specifications:');
-    for (const [key, value] of Object.entries(context.specs)) {
-      if (value && !['bedrooms', 'bathrooms', 'property_type', 'total_area_sqm'].includes(key.toLowerCase())) {
-        lines.push(`- ${key}: ${value}`);
-      }
-    }
-  }
-
-  lines.push('\n=== INSTRUCTIONS ===');
-  lines.push('ALWAYS use the above unit context data to answer questions about this home.');
-  lines.push('This data is authoritative - do not say "I don\'t know" if the answer is in the context above.');
+  lines.push('========================================');
+  lines.push('INSTRUCTION: You are the home assistant for this property.');
+  lines.push('When asked about bedrooms, bathrooms, or room counts, you MUST use the OFFICIAL FACTS above.');
+  lines.push('Do NOT guess or make up numbers. The data above is the ONLY truth.');
+  lines.push('========================================');
 
   return lines.join('\n');
 }
