@@ -9,8 +9,7 @@ interface Document {
   file_name: string;
   file_url: string | null;
   status: string;
-  created_at: string;
-  document_sections?: { count: number }[];
+  chunk_count: number;
 }
 
 export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => void }) {
@@ -24,7 +23,6 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
     setError(null);
 
     try {
-      // Fetch from server API (uses Admin Key, bypasses RLS)
       const res = await fetch('/api/documents/list');
       const data = await res.json();
 
@@ -46,12 +44,11 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
     fetchDocuments();
   }, [fetchDocuments]);
 
-  // Expose refresh for parent components
   useEffect(() => {
     if (onUploadComplete) {
-      // This allows parent to trigger refresh
+      fetchDocuments();
     }
-  }, [onUploadComplete]);
+  }, [onUploadComplete, fetchDocuments]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -65,13 +62,6 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
       default:
         return <FileText className="w-4 h-4 text-gray-500" />;
     }
-  };
-
-  const getChunkCount = (doc: Document): number => {
-    if (doc.document_sections && doc.document_sections.length > 0) {
-      return doc.document_sections[0]?.count || 0;
-    }
-    return 0;
   };
 
   if (isLoading) {
@@ -128,12 +118,7 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
                 <div>
                   <h4 className="font-medium text-white">{doc.title || doc.file_name}</h4>
                   <p className="text-sm text-gray-400">
-                    {getChunkCount(doc)} chunks indexed
-                    {doc.created_at && (
-                      <span className="ml-2">
-                        • {new Date(doc.created_at).toLocaleDateString()}
-                      </span>
-                    )}
+                    {doc.chunk_count} {doc.chunk_count === 1 ? 'chunk' : 'chunks'} indexed
                   </p>
                 </div>
               </div>
