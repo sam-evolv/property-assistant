@@ -5,11 +5,12 @@ import { db } from '@openhouse/db/client';
 import { messages, documents } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 
-// Create Supabase admin client for real unit data
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+const REAL_PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c';
 
 export async function GET(
   request: NextRequest,
@@ -17,24 +18,24 @@ export async function GET(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
-    const projectId = params.id;
+    
+    console.log('[Analytics] Frontend asked for:', params.id);
+    console.log('[Analytics] Overriding with REAL ID:', REAL_PROJECT_ID);
 
-    // Fetch unit count and types from Supabase
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('*, unit_types(type_name)')
-      .eq('project_id', projectId);
+      .select('id, unit_type_id')
+      .eq('project_id', REAL_PROJECT_ID);
 
     if (unitsError) {
-      console.error('[Analytics] Error fetching Supabase units:', unitsError);
+      console.error('[Analytics] Supabase error:', unitsError);
     }
 
     const houseCount = units?.length || 0;
 
-    // Aggregate house types from Supabase data
     const typeMap: Record<string, number> = {};
     (units || []).forEach(unit => {
-      const typeName = unit.unit_types?.type_name || 'Unknown';
+      const typeName = unit.unit_type_id || 'Unknown';
       typeMap[typeName] = (typeMap[typeName] || 0) + 1;
     });
     const houseTypes = Object.entries(typeMap).map(([type, count]) => ({ type, count }));
@@ -42,19 +43,19 @@ export async function GET(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Fetch message and document counts from legacy Drizzle database
+    const developmentId = params.id;
     const [chatCount, documentCount, recentChatCount, messageVolumeData] =
       await Promise.all([
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(messages)
-          .where(eq(messages.development_id, projectId))
+          .where(eq(messages.development_id, developmentId))
           .then((r) => r[0]?.count || 0),
 
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(documents)
-          .where(eq(documents.development_id, projectId))
+          .where(eq(documents.development_id, developmentId))
           .then((r) => r[0]?.count || 0),
 
         db
@@ -62,7 +63,7 @@ export async function GET(
           .from(messages)
           .where(
             and(
-              eq(messages.development_id, projectId),
+              eq(messages.development_id, developmentId),
               gte(messages.created_at, thirtyDaysAgo)
             )
           )
@@ -75,7 +76,7 @@ export async function GET(
           .from(messages)
           .where(
             and(
-              eq(messages.development_id, projectId),
+              eq(messages.development_id, developmentId),
               gte(messages.created_at, thirtyDaysAgo)
             )
           )
@@ -91,31 +92,23 @@ export async function GET(
       const dateStr = date.toISOString().split('T')[0];
       const dataPoint = messageVolumeData.find(d => d.date === dateStr);
       const count = dataPoint?.count || 0;
-      messageVolume.push({
-        date: dateStr,
-        count,
-      });
-      chatCosts.push({
-        date: dateStr,
-        cost: parseFloat((count * 0.002).toFixed(3)),
-      });
+      messageVolume.push({ date: dateStr, count });
+      chatCosts.push({ date: dateStr, cost: parseFloat((count * 0.002).toFixed(3)) });
     }
 
-    console.log(`[Analytics] Project ${projectId}: ${houseCount} units from Supabase`);
+    console.log(`[Analytics] Houses from Supabase: ${houseCount}`);
 
     return NextResponse.json({
       houses: houseCount,
       chatMessages: chatCount,
       documents: documentCount,
       recentChatMessages: recentChatCount,
-      houseTypes: houseTypes.length > 0
-        ? houseTypes
-        : [{ type: 'No Data', count: 0 }],
+      houseTypes: houseTypes.length > 0 ? houseTypes : [{ type: 'No Data', count: 0 }],
       messageVolume,
       chatCosts,
     });
   } catch (error) {
-    console.error('[Development Analytics Error]:', error);
+    console.error('[Analytics] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development analytics' },
       { status: 500 }

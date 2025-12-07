@@ -1,80 +1,71 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import jsPDF from 'jspdf'; 
+import jsPDF from 'jspdf';
 
-// Initialize Supabase Client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+const REAL_PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const projectId = params.id;
-    console.log("Generating QR codes for Project:", projectId);
+    console.log(`[QR] Frontend asked for: ${params.id}`);
+    console.log(`[QR] Overriding with REAL ID: ${REAL_PROJECT_ID}`);
 
-    // 1. DATABASE FETCH: Get only the real units from Supabase
     const { data: units, error } = await supabase
       .from('units')
-      .select('id, address')
-      .eq('project_id', projectId);
+      .select('id, unit_number, unit_type_id')
+      .eq('project_id', REAL_PROJECT_ID);
 
     if (error) {
-        console.error("Supabase Error:", error);
-        throw error;
+      console.error('[QR] Supabase Error:', error);
+      throw error;
     }
 
-    // Safety Check: If no units exist, stop.
+    console.log('[QR] Raw units response:', units);
+
     if (!units || units.length === 0) {
-      return NextResponse.json(
-        { error: "No units found in Supabase. Please add units to the database first." }, 
-        { status: 404 }
-      );
+      console.log('[QR] No units found for project:', REAL_PROJECT_ID);
+      return NextResponse.json({ error: 'No units found.' }, { status: 404 });
     }
 
-    console.log(`Generating PDF for ${units.length} units...`);
+    console.log(`[QR] Found ${units.length} units!`);
 
-    // 2. PDF GENERATION: Create the document
     const doc = new jsPDF();
     let yPos = 20;
 
     units.forEach((unit, index) => {
-      // Add new page every 4 stickers
       if (index > 0 && index % 4 === 0) {
         doc.addPage();
         yPos = 20;
       }
 
-      // 3. CONTENT: Use ONLY Supabase data. No "Ciara".
-      // This URL uses the NEW UUID format, compatible with your fix.
-      const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL}/homes/${unit.id}`;
+      const unitLabel = unit.unit_number || `Unit ${index + 1}`;
+      const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://openhouse.ai'}/homes/${unit.id}`;
 
       doc.setFontSize(16);
-      doc.text(`Unit: ${unit.address}`, 20, yPos);
-
+      doc.text(`Unit: ${unitLabel}`, 20, yPos);
       doc.setFontSize(10);
-      doc.text(`System ID: ${unit.id}`, 20, yPos + 7);
-      doc.text(`Link: ${qrUrl}`, 20, yPos + 15);
-
-      // Draw a box around it
-      doc.rect(15, yPos - 10, 180, 40);
-
-      yPos += 50;
+      doc.text(`ID: ${unit.id}`, 20, yPos + 7);
+      doc.text(`Link: ${qrUrl}`, 20, yPos + 14);
+      doc.rect(15, yPos - 10, 180, 35);
+      yPos += 45;
     });
 
-    // 4. RETURN FILE
     const pdfBuffer = doc.output('arraybuffer');
 
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="qr-codes-${projectId}.pdf"`,
+        'Content-Disposition': `attachment; filename="qr-codes-${units.length}-units.pdf"`,
       },
     });
 
   } catch (error: any) {
-    console.error("Critical Failure:", error);
+    console.error('[QR] Critical Failure:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

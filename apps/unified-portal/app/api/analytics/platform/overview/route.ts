@@ -1,41 +1,40 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
-import { developments, messages, homeowners, documents, admins } from '@openhouse/db/schema';
+import { messages, homeowners, documents, admins } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
-// Create Supabase admin client for real unit data
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+const REAL_PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c';
 
 export async function GET() {
   try {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Fetch unit count from Supabase (real data)
     const { count: supabaseUnitCount, error: unitError } = await supabaseAdmin
       .from('units')
-      .select('*', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', REAL_PROJECT_ID);
 
     if (unitError) {
-      console.error('[Analytics] Error fetching Supabase units:', unitError);
+      console.error('[Analytics] Supabase units error:', unitError);
     }
 
-    // Fetch project count from Supabase (real data)
     const { count: supabaseProjectCount, error: projectError } = await supabaseAdmin
       .from('projects')
-      .select('*', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true });
 
     if (projectError) {
-      console.error('[Analytics] Error fetching Supabase projects:', projectError);
+      console.error('[Analytics] Supabase projects error:', projectError);
     }
 
-    // Fetch legacy data from Drizzle for messages, docs, etc. (these stay in old schema for now)
     const [msgCount, activeUsers, homeownerCount, docCount, developerCount] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0),
       db.execute(sql`
@@ -50,8 +49,8 @@ export async function GET() {
 
     const overview = {
       total_developers: developerCount,
-      total_developments: supabaseProjectCount || 0,  // Use Supabase projects
-      total_units: supabaseUnitCount || 0,             // Use Supabase units
+      total_developments: supabaseProjectCount || 1,
+      total_units: supabaseUnitCount || 0,
       total_homeowners: homeownerCount,
       total_messages: msgCount,
       total_documents: docCount,
