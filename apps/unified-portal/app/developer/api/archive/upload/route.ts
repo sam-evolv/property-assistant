@@ -52,70 +52,32 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    // Use pdfjs-dist for reliable PDF text extraction
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-    
-    console.log('[Upload] Using pdfjs-dist for PDF extraction');
-    
-    // Load the PDF document
-    const data = new Uint8Array(buffer);
-    const loadingTask = pdfjsLib.getDocument({ data, useSystemFonts: true });
-    const pdfDoc = await loadingTask.promise;
-    
-    console.log(`[Upload] PDF loaded: ${pdfDoc.numPages} pages`);
-    
-    let fullText = '';
-    
-    // Extract text from each page
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: { str?: string }) => item.str || '')
-        .join(' ');
-      fullText += pageText + '\n';
-    }
-    
-    fullText = fullText.trim();
-    console.log(`[Upload] Extracted ${fullText.length} characters from PDF`);
-    
-    if (fullText.length > 0) {
-      console.log('[Upload] Preview:', fullText.slice(0, 200).replace(/\n/g, ' '));
-    }
-    
-    return fullText;
-  } catch (err) {
-    console.error('[Upload] PDF extraction error:', err);
-    
-    // Fallback: extract readable ASCII from buffer
-    try {
-      const rawText = buffer.toString('utf-8');
-      const readable = rawText.replace(/[^\x20-\x7E\n\r]/g, '').trim();
-      if (readable.length > 100) {
-        console.log('[Upload] Fallback: extracted', readable.length, 'chars');
-        return readable;
-      }
-    } catch {
-      // Ignore
-    }
-    
-    return '';
-  }
+function extractTextFromBuffer(buffer: Buffer): string {
+  // Simple but effective: extract readable ASCII text from PDF buffer
+  // This works because PDFs contain readable text streams
+  const rawText = buffer.toString('utf-8');
+  
+  // Remove non-printable characters but keep letters, numbers, punctuation, whitespace
+  const readable = rawText
+    .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  console.log(`[Upload] Extracted ${readable.length} characters from buffer`);
+  
+  return readable;
 }
 
-async function extractText(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
+function extractText(buffer: Buffer, mimeType: string, fileName: string): string {
   if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-    return await extractTextFromPdf(buffer);
+    return extractTextFromBuffer(buffer);
   }
   
   if (mimeType.includes('text') || fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
     return buffer.toString('utf-8');
   }
   
-  return '';
+  return extractTextFromBuffer(buffer);
 }
 
 export async function POST(request: NextRequest) {
@@ -155,74 +117,93 @@ export async function POST(request: NextRequest) {
       const storagePath = `${projectId}/${storageName}`;
 
       console.log(`\n[Developer Upload] File: ${fileName} (${mimeType})`);
+      console.log(`[Developer Upload] Size: ${buffer.length} bytes`);
 
       // Step A: Upload to Supabase Storage
       let publicUrl = '';
-      const { error: uploadError } = await supabase.storage
-        .from('development_docs')
-        .upload(storagePath, buffer, {
-          contentType: mimeType,
-          upsert: true,
-        });
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('development_docs')
+          .upload(storagePath, buffer, {
+            contentType: mimeType,
+            upsert: true,
+          });
 
-      if (uploadError) {
-        console.error('[Developer Upload] Storage error:', uploadError.message);
-        return NextResponse.json(
-          { error: `Storage upload failed: ${uploadError.message}` },
-          { status: 500 }
-        );
+        if (uploadError) {
+          console.error('[Developer Upload] Storage error:', uploadError.message);
+          return NextResponse.json(
+            { error: `Storage upload failed: ${uploadError.message}` },
+            { status: 500 }
+          );
+        }
+
+        const { data: urlData } = supabase.storage.from('development_docs').getPublicUrl(storagePath);
+        publicUrl = urlData?.publicUrl || '';
+        console.log('[Developer Upload] Stored at:', publicUrl);
+      } catch (storageErr) {
+        console.error('[Developer Upload] Storage exception:', storageErr);
+        return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 });
       }
 
-      const { data: urlData } = supabase.storage.from('development_docs').getPublicUrl(storagePath);
-      publicUrl = urlData?.publicUrl || '';
-      console.log('[Developer Upload] Stored at:', publicUrl);
-
-      // Step B: Extract text from PDF
-      const extractedText = await extractText(buffer, mimeType, fileName);
-      console.log(`[Developer Upload] Extracted ${extractedText.length} characters`);
+      // Step B: Extract text
+      console.log('[Developer Upload] Extracting text...');
+      let extractedText = '';
+      try {
+        extractedText = extractText(buffer, mimeType, fileName);
+        console.log(`[Developer Upload] Text length: ${extractedText.length} characters`);
+        if (extractedText.length > 0) {
+          console.log('[Developer Upload] Preview:', extractedText.slice(0, 150).replace(/\n/g, ' '));
+        }
+      } catch (textErr) {
+        console.error('[Developer Upload] Text extraction error:', textErr);
+        extractedText = '';
+      }
 
       // Step C: Chunk and embed
       let chunksEmbedded = 0;
       
-      if (extractedText.length > 50) {
-        const chunks = splitIntoChunks(extractedText);
-        console.log(`[Developer Upload] Split into ${chunks.length} chunks, generating embeddings...`);
+      if (extractedText.length > 100) {
+        try {
+          const chunks = splitIntoChunks(extractedText);
+          console.log(`[Developer Upload] Created ${chunks.length} chunks, generating embeddings...`);
 
-        for (let i = 0; i < chunks.length; i++) {
-          try {
-            console.log(`[Developer Upload] Embedding chunk ${i + 1}/${chunks.length}...`);
-            const embedding = await generateEmbedding(chunks[i]);
-            
-            const { error: insertError } = await supabase
-              .from('document_sections')
-              .insert({
-                project_id: projectId,
-                content: chunks[i],
-                embedding: embedding,
-                metadata: {
-                  source: fileName.replace(/\.[^/.]+$/, ''),
-                  file_name: fileName,
-                  file_url: publicUrl,
-                  chunk_index: i,
-                  total_chunks: chunks.length,
-                  discipline: metadata.discipline || 'other',
-                },
-              });
+          for (let i = 0; i < chunks.length; i++) {
+            try {
+              console.log(`[Developer Upload] Chunk ${i + 1}/${chunks.length}...`);
+              const embedding = await generateEmbedding(chunks[i]);
+              
+              const { error: insertError } = await supabase
+                .from('document_sections')
+                .insert({
+                  project_id: projectId,
+                  content: chunks[i],
+                  embedding: embedding,
+                  metadata: {
+                    source: fileName.replace(/\.[^/.]+$/, ''),
+                    file_name: fileName,
+                    file_url: publicUrl,
+                    chunk_index: i,
+                    total_chunks: chunks.length,
+                    discipline: metadata.discipline || 'other',
+                  },
+                });
 
-            if (!insertError) {
-              chunksEmbedded++;
-              console.log(`[Developer Upload] Chunk ${i + 1} embedded successfully`);
-            } else {
-              console.error(`[Developer Upload] Chunk ${i} DB error:`, insertError.message);
+              if (!insertError) {
+                chunksEmbedded++;
+              } else {
+                console.error(`[Developer Upload] Chunk ${i} DB error:`, insertError.message);
+              }
+            } catch (embErr) {
+              console.error(`[Developer Upload] Chunk ${i} error:`, embErr);
             }
-          } catch (embErr) {
-            console.error(`[Developer Upload] Embedding error chunk ${i}:`, embErr);
           }
-        }
 
-        console.log(`[Developer Upload] Embedded ${chunksEmbedded}/${chunks.length} chunks`);
+          console.log(`[Developer Upload] Embedded ${chunksEmbedded}/${chunks.length} chunks`);
+        } catch (chunkErr) {
+          console.error('[Developer Upload] Chunking error:', chunkErr);
+        }
       } else {
-        console.log('[Developer Upload] No text extracted, storing metadata only');
+        console.log('[Developer Upload] Text too short, storing metadata only');
         try {
           const embedding = await generateEmbedding(`Document: ${fileName}`);
           const { error: insertError } = await supabase
@@ -235,8 +216,6 @@ export async function POST(request: NextRequest) {
                 source: fileName.replace(/\.[^/.]+$/, ''),
                 file_name: fileName,
                 file_url: publicUrl,
-                chunk_index: 0,
-                total_chunks: 1,
                 discipline: metadata.discipline || 'other',
                 no_text_content: true,
               },
@@ -245,8 +224,8 @@ export async function POST(request: NextRequest) {
           if (!insertError) {
             chunksEmbedded = 1;
           }
-        } catch (err) {
-          console.error('[Developer Upload] Fallback embedding error:', err);
+        } catch (fallbackErr) {
+          console.error('[Developer Upload] Fallback error:', fallbackErr);
         }
       }
 
@@ -273,7 +252,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Developer Upload] Error:', error);
+    console.error('[Developer Upload] Fatal error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
