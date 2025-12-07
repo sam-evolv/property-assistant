@@ -11,21 +11,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const REAL_PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c';
+const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 export async function GET() {
   try {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Get all units count
-    const { count: allUnitCount, error: allError } = await supabaseAdmin
-      .from('units')
-      .select('id', { count: 'exact', head: true });
-
-    console.log('[Analytics] Total units in Supabase:', allUnitCount);
-
-    // Get units by project_id
+    // Get units count for the real project
     const { count: supabaseUnitCount, error: unitError } = await supabaseAdmin
       .from('units')
       .select('id', { count: 'exact', head: true })
@@ -35,10 +28,9 @@ export async function GET() {
       console.error('[Analytics] Supabase units error:', unitError);
     }
 
-    // Use all units if no project match
-    const finalUnitCount = (supabaseUnitCount && supabaseUnitCount > 0) ? supabaseUnitCount : (allUnitCount || 0);
-    console.log('[Analytics] Final unit count:', finalUnitCount);
+    console.log('[Analytics] Units count for project:', supabaseUnitCount);
 
+    // Get projects count
     const { count: supabaseProjectCount, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id', { count: 'exact', head: true });
@@ -62,7 +54,7 @@ export async function GET() {
     const overview = {
       total_developers: developerCount,
       total_developments: supabaseProjectCount || 1,
-      total_units: finalUnitCount,
+      total_units: supabaseUnitCount || 0,
       total_homeowners: homeownerCount,
       total_messages: msgCount,
       total_documents: docCount,

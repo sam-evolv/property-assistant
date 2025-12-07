@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const REAL_PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c';
+const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 export async function GET(
   request: NextRequest,
@@ -19,34 +19,31 @@ export async function GET(
   try {
     const session = await requireRole(['developer', 'super_admin']);
     
-    console.log('[Analytics] Frontend asked for:', params.id);
-    console.log('[Analytics] Overriding with REAL ID:', REAL_PROJECT_ID);
+    console.log('[Analytics] Fetching analytics for project:', REAL_PROJECT_ID);
 
-    // Get all units first
-    const { data: allUnits, error: allError } = await supabaseAdmin
-      .from('units')
-      .select('id, unit_type_id, project_id')
-      .limit(50);
-
-    console.log('[Analytics] All units in DB:', allUnits?.length);
-
-    // Try to get by project_id
+    // Get units with their types from Supabase
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('id, unit_type_id')
+      .select(`
+        id,
+        unit_types (
+          name,
+          bedrooms
+        )
+      `)
       .eq('project_id', REAL_PROJECT_ID);
 
     if (unitsError) {
       console.error('[Analytics] Supabase error:', unitsError);
     }
 
-    // Use all units if no project match
-    const finalUnits = (units && units.length > 0) ? units : (allUnits || []);
-    const houseCount = finalUnits?.length || 0;
+    const houseCount = units?.length || 0;
+    console.log('[Analytics] House count:', houseCount);
 
+    // Build house types breakdown
     const typeMap: Record<string, number> = {};
-    (finalUnits || []).forEach((unit: any) => {
-      const typeName = unit.unit_type_id || 'Unknown';
+    (units || []).forEach((unit: any) => {
+      const typeName = unit.unit_types?.name || 'Unknown';
       typeMap[typeName] = (typeMap[typeName] || 0) + 1;
     });
     const houseTypes = Object.entries(typeMap).map(([type, count]) => ({ type, count }));
@@ -106,8 +103,6 @@ export async function GET(
       messageVolume.push({ date: dateStr, count });
       chatCosts.push({ date: dateStr, cost: parseFloat((count * 0.002).toFixed(3)) });
     }
-
-    console.log(`[Analytics] Houses from Supabase: ${houseCount}`);
 
     return NextResponse.json({
       houses: houseCount,

@@ -1,0 +1,57 @@
+Context: We have successfully migrated the backend to Supabase. A seed script has populated 75 Units into the database under Project ID: 57dc3919-2725-4575-8046-9179075ac88e. However, the application is broken because the API routes are either using the wrong Project ID, blocked by RLS, or failing to fetch the new rich data columns.
+
+YOUR MISSION (Execute sequentially):
+
+1. FIX THE PUBLIC RESOLVER (Fixes "Access Error" on Scan)
+
+File: apps/unified-portal/app/api/houses/resolve/route.ts
+
+Issue: The public QR scan fails because standard RLS blocks non-logged-in users.
+
+Action: Rewrite the POST handler to:
+
+Initialize Supabase using process.env.SUPABASE_SERVICE_ROLE_KEY (Bypass RLS).
+
+Accept the { token } from the body (which is the Unit UUID).
+
+Query the units table matching id == token.
+
+Return: { unitId, address, purchaserName, floorPlanUrl, specs }.
+
+2. FIX THE QR PDF GENERATOR (Fixes "Missing Names" and "Blank Stickers")
+
+File: apps/unified-portal/app/api/developments/[id]/qr-codes/route.ts
+
+Action: Rewrite the POST handler completely.
+
+Hardcode Configuration:
+
+const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e'; (Ignore params.id)
+
+const BASE_URL = 'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev';
+
+Query: Fetch ALL units for REAL_PROJECT_ID. Must select purchaser_name and unit_types(name, specification_json).
+
+Design: Use jspdf to draw the "Gold Standard" stickers:
+
+Two columns per page.
+
+Header: Unit Number (e.g. "Unit: 1").
+
+Subheader: Purchaser Name (e.g. "Mr Herol Dsouza...").
+
+Footer: House Type + Beds (e.g. "BD01 | 3 Bedroom").
+
+QR: Encodes ${BASE_URL}/homes/${unit.id}.
+
+3. FIX THE DASHBOARD STATS (Fixes "0 Houses")
+
+File: apps/unified-portal/components/dashboard/OverviewTab.tsx (or similar dashboard component).
+
+Action: Ensure the "Houses" count fetches the count from Supabase using the same Hardcoded Project ID 57dc3919-2725-4575-8046-9179075ac88e. Do not rely on the URL param for now.
+
+4. VERIFICATION:
+
+Ensure jspdf and qrcode are installed.
+
+Ensure no code is trying to read legacy .csv files.

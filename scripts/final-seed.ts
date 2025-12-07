@@ -1,14 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 1. SETUP - Use Service Role to bypass security and write data
+// 1. SETUP
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const PROJECT_ID = '97dc3919-2726-4675-8046-9f79070ec88c'; // Your Real Project ID
-
-// 2. THE FULL GOLDEN CSV DATA (75 Units)
 const csvData = `LV-PARK,1,LV-PARK-001,Mr Herol Dsouza and Ms Janet Miranda,"1 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD01,D,HO,3 Bedroom,3 Bathroom,1396.72
 LV-PARK,2,LV-PARK-002,Mr Dany Jose and Ms Rosemol Joseph,2 Longview Park,BD02,D,HO,3 Bedroom,3 Bathroom,1396.72
 LV-PARK,3,LV-PARK-003,Ms Ciara Crowley and Mr Shane Cashman,"3 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD01,D,HO,3 Bedroom,3 Bathroom,1396.72
@@ -85,7 +82,6 @@ LV-PARK,73,LV-PARK-073,Cl?id,"73 Longview Park, Ballyhooly Road, Ballyvolane, Co
 LV-PARK,74,LV-PARK-074,Cl?id,"74 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BZ01,T,DP,3 Bedroom,2 Bathroom,1388.54
 LV-PARK,75,LV-PARK-075,Cl?id,"75 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BZ01,T,DP,3 Bedroom,2 Bathroom,1517.71`;
 
-// HELPER: Map simple letters to Full Words
 const mapDesignation = (code: string) => {
   if (code === 'D') return 'Detached';
   if (code === 'SD') return 'Semi-Detached';
@@ -100,29 +96,72 @@ const mapPropType = (code: string) => {
 };
 
 async function seed() {
-  console.log("Starting Rich Data Seed...");
+  console.log("Starting Final Seed...");
+
+  // 1. GET OR CREATE ORGANIZATION
+  // We look for ANY org. If none, we make one.
+  const { data: orgs } = await supabase.from('organizations').select('id').limit(1);
+  let orgId = orgs?.[0]?.id;
+
+  if (!orgId) {
+    console.log("No Organization found. Creating one...");
+    const { data: newOrg, error: orgError } = await supabase
+      .from('organizations')
+      .insert({ name: 'Development Co' })
+      .select('id')
+      .single();
+    if (orgError) throw new Error(`Org Create Failed: ${orgError.message}`);
+    orgId = newOrg.id;
+  }
+
+  // 2. GET OR CREATE PROJECT
+  console.log(`Using Org ID: ${orgId}`);
+  const { data: existingProject } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('name', 'Longview Park')
+    .single();
+
+  let projectId = existingProject?.id;
+
+  if (!projectId) {
+    console.log("Project 'Longview Park' not found. Creating it...");
+    const { data: newProject, error: projError } = await supabase
+      .from('projects')
+      .insert({ 
+        name: 'Longview Park', 
+        organization_id: orgId,
+        address: 'Ballyvolane, Cork'
+      })
+      .select('id')
+      .single();
+
+    if (projError) throw new Error(`Project Create Failed: ${projError.message}`);
+    projectId = newProject.id;
+  }
+
+  console.log(`TARGET PROJECT ID: ${projectId}`);
+
+  // 3. SEED THE DATA
   const lines = csvData.split('\n');
-  
-  // A. PROCESS UNIT TYPES FIRST (Unique "BD01", "BS01", etc.)
-  const typeMap = new Map();
+  const unitTypesMap = new Map();
 
   lines.forEach(line => {
-    // Basic CSV splitting (handling quotes)
     const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
     if (!matches) return;
     const cols = matches.map(m => m.replace(/^"|"$/g, ''));
 
-    const typeCode = cols[5]; // BD01
-    const designation = cols[6]; // D
-    const propType = cols[7]; // HO
-    const beds = cols[8]; // 3 Bedroom
-    const baths = cols[9]; // 3 Bathroom
-    const sqft = cols[10]; // 1396.72
+    const typeCode = cols[5];
+    const designation = cols[6];
+    const propType = cols[7];
+    const beds = cols[8];
+    const baths = cols[9];
+    const sqft = cols[10];
 
-    if (typeCode && !typeMap.has(typeCode)) {
-      typeMap.set(typeCode, {
+    if (typeCode && !unitTypesMap.has(typeCode)) {
+      unitTypesMap.set(typeCode, {
         name: typeCode,
-        floor_plan_pdf_url: 'https://example.com/placeholder.pdf', // You update this later
+        floor_plan_pdf_url: 'https://example.com/placeholder.pdf',
         specification_json: {
            designation: mapDesignation(designation),
            property_type: mapPropType(propType),
@@ -134,51 +173,71 @@ async function seed() {
     }
   });
 
-  console.log(`Found ${typeMap.size} unique house types.`);
-  
-  // Insert Types into Supabase
-  for (const [code, typeObj] of typeMap) {
-    const { data: existing } = await supabase.from('unit_types').select('id').eq('name', code).single();
+  console.log(`Processing ${unitTypesMap.size} House Types...`);
+
+  for (const [code, typeObj] of unitTypesMap) {
+    // Upsert the Unit Type
+    const { data: existing, error: selectErr } = await supabase
+        .from('unit_types')
+        .select('id')
+        .eq('name', code)
+        .eq('project_id', projectId) // Filter by OUR project
+        .single();
+
     if (!existing) {
        await supabase.from('unit_types').insert({ 
-         project_id: PROJECT_ID,
+         project_id: projectId,
          ...typeObj 
        });
     }
   }
 
-  // B. PROCESS UNITS
-  console.log("Creating Units...");
+  console.log("Processing Units...");
   for (const line of lines) {
     const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
     if (!matches) continue;
     const cols = matches.map(m => m.replace(/^"|"$/g, ''));
 
-    const unitNum = cols[1];
-    const ownerName = cols[3]; // "Mr Herol Dsouza..."
+    const ownerName = cols[3];
     const address = cols[4];
     const typeCode = cols[5];
 
-    // Find Type ID
-    const { data: typeData } = await supabase.from('unit_types').select('id').eq('name', typeCode).single();
-    
+    // Get Type ID (Within our Project)
+    const { data: typeData } = await supabase
+        .from('unit_types')
+        .select('id')
+        .eq('name', typeCode)
+        .eq('project_id', projectId)
+        .single();
+
     if (typeData) {
-      const { data: existingUnit } = await supabase.from('units').select('id').eq('address', address).single();
-      
+      const { data: existingUnit } = await supabase
+        .from('units')
+        .select('id')
+        .eq('address', address)
+        .eq('project_id', projectId)
+        .single();
+
       if (!existingUnit) {
-          await supabase.from('units').insert({
-            project_id: PROJECT_ID,
+          const { error: insertErr } = await supabase.from('units').insert({
+            project_id: projectId,
             unit_type_id: typeData.id,
             address: address,
-            purchaser_name: ownerName // Storing the name!
+            purchaser_name: ownerName
           });
+          if (insertErr) console.error(`Error adding unit ${address}:`, insertErr.message);
       } else {
-        // If it exists (from your previous tests), UPDATE it with the name
         await supabase.from('units').update({ purchaser_name: ownerName }).eq('id', existingUnit.id);
       }
     }
   }
   console.log("Seed Complete!");
+
+  // FINAL OUTPUT: Give the user the ID to put in their API route
+  console.log("\n============================================");
+  console.log("IMPORTANT: COPY THIS ID FOR YOUR API ROUTE:");
+  console.log(`REAL_PROJECT_ID = '${projectId}'`);
+  console.log("============================================");
 }
 
 seed();
