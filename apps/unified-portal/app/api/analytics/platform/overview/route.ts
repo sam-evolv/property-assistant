@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
-import { messages, homeowners, documents, admins } from '@openhouse/db/schema';
+import { messages, homeowners, admins } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,27 @@ export async function GET() {
       console.error('[Overview] Projects error:', projectError);
     }
 
-    const [msgCount, activeUsers, homeownerCount, docCount, developerCount] = await Promise.all([
+    // Get document count from Supabase document_sections (grouped by source)
+    const { data: docSections, error: docError } = await supabaseAdmin
+      .from('document_sections')
+      .select('metadata')
+      .eq('project_id', REAL_PROJECT_ID);
+
+    if (docError) {
+      console.error('[Overview] Documents error:', docError);
+    }
+
+    // Count unique documents by source/file_name
+    const uniqueDocs = new Set();
+    for (const section of docSections || []) {
+      const source = section.metadata?.source || section.metadata?.file_name;
+      if (source) uniqueDocs.add(source);
+    }
+    const docCount = uniqueDocs.size;
+
+    console.log('[Overview] Documents count (from Supabase):', docCount);
+
+    const [msgCount, activeUsers, homeownerCount, developerCount] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0),
       db.execute(sql`
         SELECT COUNT(DISTINCT house_id)::int as count
@@ -47,7 +67,6 @@ export async function GET() {
         WHERE created_at >= ${sevenDaysAgo} AND house_id IS NOT NULL
       `).then(r => r.rows[0]?.count || 0),
       db.select({ count: sql<number>`COUNT(*)::int` }).from(homeowners).then(r => r[0]?.count || 0),
-      db.select({ count: sql<number>`COUNT(*)::int` }).from(documents).then(r => r[0]?.count || 0),
       db.select({ count: sql<number>`COUNT(DISTINCT tenant_id)::int` }).from(admins).then(r => r[0]?.count || 0),
     ]);
 
