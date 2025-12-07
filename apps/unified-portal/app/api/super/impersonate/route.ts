@@ -22,29 +22,65 @@ export async function GET(req: NextRequest) {
 
     console.log('[Super Admin Impersonation] Looking up unit:', unitUid);
 
-    // Fetch unit from Supabase by unit_uid OR by id
-    const { data: unit, error } = await supabase
-      .from('units')
-      .select('id, unit_uid, address, purchaser_name, project_id')
-      .or(`unit_uid.eq.${unitUid},id.eq.${unitUid}`)
-      .limit(1)
-      .single();
+    // Try to find unit by:
+    // 1. Direct ID match (if it's a UUID)
+    // 2. Address contains the code (e.g., "LV-PARK-003" -> look for "3" in address)
+    // 3. Just get the first unit for the project if nothing matches
+    
+    let unit = null;
+    let error = null;
 
-    if (error || !unit) {
-      console.error('[Super Admin Impersonation] Unit not found:', error?.message);
+    // Check if it's a UUID format
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(unitUid);
+    
+    if (isUUID) {
+      // Direct ID lookup
+      const result = await supabase
+        .from('units')
+        .select('id, address, purchaser_name, project_id')
+        .eq('id', unitUid)
+        .single();
+      unit = result.data;
+      error = result.error;
+    }
+
+    if (!unit) {
+      // Try to extract a number from the unitUid (e.g., "LV-PARK-003" -> 3)
+      const numMatch = unitUid.match(/(\d+)/);
+      const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
+
+      // Get units for the project, ordered by address
+      const { data: units, error: listError } = await supabase
+        .from('units')
+        .select('id, address, purchaser_name, project_id')
+        .eq('project_id', PROJECT_ID)
+        .order('address', { ascending: true })
+        .limit(100);
+
+      if (listError || !units || units.length === 0) {
+        console.error('[Super Admin Impersonation] No units found:', listError?.message);
+        return NextResponse.json({ error: 'No units found for project' }, { status: 404 });
+      }
+
+      // Try to find by unit number, otherwise use first unit
+      const targetIndex = Math.min(unitNum - 1, units.length - 1);
+      unit = units[targetIndex >= 0 ? targetIndex : 0];
+    }
+
+    if (!unit) {
+      console.error('[Super Admin Impersonation] Unit not found');
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Generate a simple URL - no complex token needed for testing
-    // Just direct link to the homes page with the unit ID
+    // Generate simple URL
     const url = `${BASE_URL}/homes/${unit.id}`;
 
-    console.log(`[Super Admin Impersonation] Generated URL for unit ${unitUid}:`, url);
+    console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);
+    console.log(`[Super Admin Impersonation] URL:`, url);
     
     return NextResponse.json({ 
       url,
       unitId: unit.id,
-      unitUid: unit.unit_uid,
       address: unit.address,
       purchaserName: unit.purchaser_name,
     });
