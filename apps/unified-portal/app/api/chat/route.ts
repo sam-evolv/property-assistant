@@ -16,19 +16,11 @@ const openai = new OpenAI({
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
-interface ChatRequest {
-  message: string;
-  userId?: string;
-  unitId?: string;
-  houseId?: string;
-}
-
 interface DocumentMatch {
   id: string;
   content: string;
   metadata: Record<string, unknown>;
   similarity: number;
-  project_id?: string;
 }
 
 async function generateEmbedding(text: string): Promise<number[]> {
@@ -42,101 +34,72 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 async function searchDocuments(query: string): Promise<DocumentMatch[]> {
   try {
-    console.log('[Chat] Generating embedding for query...');
+    console.log('[Chat] Generating query embedding...');
     const queryEmbedding = await generateEmbedding(query);
     
-    console.log('[Chat] Embedding dimensions:', queryEmbedding.length);
-    console.log('[Chat] Filtering by PROJECT_ID:', PROJECT_ID);
-    
-    // Try RPC first with project_id filter
-    const { data, error } = await supabase.rpc('match_documents_by_project', {
+    // Call match_documents RPC
+    const { data, error } = await supabase.rpc('match_documents', {
       query_embedding: queryEmbedding,
-      match_threshold: 0.3,
+      match_threshold: 0.5,
       match_count: 5,
-      target_project_id: PROJECT_ID,
     });
 
     if (error) {
-      // Fallback: Use regular match_documents then manually filter
-      console.log('[Chat] Falling back to unfiltered RPC + post-filter...');
-      
-      const { data: allData, error: fallbackError } = await supabase.rpc('match_documents', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.3,
-        match_count: 20,
-      });
-      
-      if (fallbackError) {
-        console.error('[Chat] Vector search RPC error:', fallbackError.message);
-        return [];
-      }
-      
-      // Get the IDs and fetch project_id from document_sections
-      const ids = (allData || []).map((m: { id: string }) => m.id);
-      if (ids.length === 0) {
-        console.log('[Chat] No matches found');
-        return [];
-      }
-      
-      // Fetch sections with project_id filter
-      const { data: sections, error: sectionsError } = await supabase
-        .from('document_sections')
-        .select('id, content, metadata, project_id')
-        .in('id', ids)
-        .eq('project_id', PROJECT_ID);
-      
-      if (sectionsError) {
-        console.error('[Chat] Sections fetch error:', sectionsError.message);
-        return [];
-      }
-      
-      // Map back similarity scores
-      const similarityMap = new Map<string, number>((allData || []).map((m: { id: string; similarity: number }) => [m.id, m.similarity]));
-      const results: DocumentMatch[] = (sections || []).map((s: { id: string; content: string; metadata: Record<string, unknown>; project_id: string }) => ({
-        id: s.id,
-        content: s.content,
-        metadata: s.metadata || {},
-        similarity: similarityMap.get(s.id) ?? 0,
-        project_id: s.project_id,
-      }));
-      
-      // Sort by similarity
-      results.sort((a, b) => b.similarity - a.similarity);
-      
-      console.log(`[Chat] RAG RESULTS: ${results.length} chunks from Launch development`);
-      results.slice(0, 5).forEach((match, i) => {
-        console.log(`[Chat] Match ${i + 1}:`, {
-          similarity: match.similarity?.toFixed(3),
-          source: match.metadata?.file_name || match.metadata?.source,
-          contentPreview: match.content?.slice(0, 100),
-        });
-      });
-      
-      return results.slice(0, 5);
+      console.error('[Chat] RPC error:', error.message);
+      return [];
     }
 
-    console.log(`[Chat] RAG RESULTS: Found ${data?.length || 0} matching document chunks`);
-    
-    if (data && data.length > 0) {
-      data.forEach((match: DocumentMatch, i: number) => {
-        console.log(`[Chat] Match ${i + 1}:`, {
-          similarity: match.similarity?.toFixed(3),
-          source: match.metadata?.file_name || match.metadata?.source,
-          contentPreview: match.content?.slice(0, 100),
-        });
-      });
+    if (!data || data.length === 0) {
+      console.log('[Chat] No matches found');
+      return [];
     }
+
+    // Filter by project_id (post-filter since RPC doesn't filter by project)
+    const matchIds = data.map((m: { id: string }) => m.id);
     
-    return data || [];
+    const { data: sections, error: sectionsError } = await supabase
+      .from('document_sections')
+      .select('id, content, metadata, project_id')
+      .in('id', matchIds)
+      .eq('project_id', PROJECT_ID);
+
+    if (sectionsError) {
+      console.error('[Chat] Sections query error:', sectionsError.message);
+      return [];
+    }
+
+    // Build similarity map
+    const similarityMap = new Map<string, number>();
+    for (const m of data) {
+      similarityMap.set(m.id, m.similarity);
+    }
+
+    // Map results with similarity scores
+    const results: DocumentMatch[] = (sections || []).map((s: { id: string; content: string; metadata: Record<string, unknown> }) => ({
+      id: s.id,
+      content: s.content,
+      metadata: s.metadata || {},
+      similarity: similarityMap.get(s.id) || 0,
+    }));
+
+    // Sort by similarity descending
+    results.sort((a, b) => b.similarity - a.similarity);
+
+    console.log(`[Chat] Found ${results.length} relevant chunks from project`);
+    results.forEach((m, i) => {
+      console.log(`[Chat] Match ${i + 1}: similarity=${m.similarity.toFixed(3)}, source=${m.metadata?.file_name || 'unknown'}`);
+    });
+
+    return results;
   } catch (err) {
-    console.error('[Chat] searchDocuments error:', err);
+    console.error('[Chat] Search error:', err);
     return [];
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: ChatRequest = await request.json();
+    const body = await request.json();
     const { message } = body;
 
     if (!message) {
@@ -144,51 +107,50 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('\n' + '='.repeat(60));
-    console.log('[Chat] RAG CHAT WITH VECTOR SEARCH');
+    console.log('[Chat] RAG CHAT REQUEST');
     console.log('='.repeat(60));
-    console.log(`[Chat] User query: "${message}"`);
+    console.log(`[Chat] Query: "${message}"`);
 
-    // STEP 1: Search for relevant documents using vector similarity
+    // STEP 1: Search for relevant documents
     const matches = await searchDocuments(message);
 
-    // STEP 2: Build context from matches
-    let contextBlock = '';
+    // STEP 2: Build context block
+    let referenceData = '';
     if (matches.length > 0) {
-      const facts = matches.map((match, i) => {
-        const source = match.metadata?.file_name || match.metadata?.source || 'Document';
-        return `[${i + 1}] From "${source}":\n${match.content}`;
-      }).join('\n\n');
+      const facts = matches.map((m, i) => {
+        const source = m.metadata?.file_name || m.metadata?.source || 'Document';
+        return `[Source ${i + 1}: ${source}]\n${m.content}`;
+      }).join('\n\n---\n\n');
       
-      contextBlock = `CONTEXT FROM DOCUMENTS:\n${facts}`;
-      console.log('[Chat] Context built from', matches.length, 'document chunks');
+      referenceData = facts;
+      console.log(`[Chat] Context: ${matches.length} chunks, ${referenceData.length} chars`);
     } else {
-      console.log('[Chat] WARNING: No matching documents found in vector search');
+      console.log('[Chat] No matching documents found');
     }
 
-    // STEP 3: Build system prompt with injected context
-    const systemPrompt = contextBlock
-      ? `You are a helpful property assistant for the Launch development.
-
-${contextBlock}
+    // STEP 3: Build system message with RAG injection
+    let systemMessage: string;
+    
+    if (referenceData) {
+      systemMessage = `REFERENCE DATA:
+${referenceData}
 
 INSTRUCTIONS:
-1. Answer the user's question using ONLY the context above.
-2. If the context contains the answer, provide it clearly and mention which document it came from.
-3. If the context does NOT contain the answer, honestly say "I don't have information about that in the uploaded documents."
-4. Do NOT make up information. Only use the facts provided above.
-5. Be concise, friendly, and helpful.`
-      : `You are a helpful property assistant for the Launch development.
+- Answer the user's question using ONLY the reference data above.
+- If the reference data contains the answer, provide it clearly and cite which source it came from.
+- If the reference data does NOT contain the answer, say "I don't have information about that in the uploaded documents."
+- Do NOT make up information or use knowledge outside the reference data.
+- Be concise and helpful.`;
+    } else {
+      systemMessage = `You are a helpful property assistant. Unfortunately, no relevant documents were found in the knowledge base for this question. Let the user know politely that you don't have information about their specific question and suggest they upload relevant documents.`;
+    }
 
-The user is asking a question but no relevant documents were found in the knowledge base.
-Politely let them know you don't have information about their specific question in the uploaded documents.
-Suggest they upload relevant documents or ask about topics that might be covered in existing documentation.`;
-
-    // STEP 4: Generate response with GPT-4o-mini
-    console.log('[Chat] Generating AI response...');
+    // STEP 4: Generate response with OpenAI
+    console.log('[Chat] Calling GPT-4o-mini...');
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemMessage },
         { role: 'user', content: message },
       ],
       temperature: 0.3,
@@ -197,14 +159,13 @@ Suggest they upload relevant documents or ask about topics that might be covered
 
     const answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
 
-    console.log('[Chat] Response generated successfully');
-    console.log('[Chat] Answer preview:', answer.slice(0, 150));
+    console.log('[Chat] Response:', answer.slice(0, 150) + '...');
     console.log('='.repeat(60) + '\n');
 
     return NextResponse.json({
       success: true,
       answer,
-      source: matches.length > 0 ? 'vector_search' : 'fallback',
+      source: matches.length > 0 ? 'vector_search' : 'no_context',
       chunksUsed: matches.length,
       documents: matches.map(m => ({
         source: m.metadata?.file_name || m.metadata?.source,
@@ -215,7 +176,7 @@ Suggest they upload relevant documents or ask about topics that might be covered
   } catch (error) {
     console.error('[Chat] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Chat request failed' },
+      { error: error instanceof Error ? error.message : 'Chat failed' },
       { status: 500 }
     );
   }
