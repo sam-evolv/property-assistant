@@ -5,10 +5,8 @@ import OpenAI from 'openai';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-// Fix PDF Import Crash - use require for CommonJS
 const pdf = require('pdf-parse');
 
-// Initialize with Service Role to bypass RLS
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -43,27 +41,19 @@ function chunkText(text: string, chunkSize = 1000, overlap = 100): string[] {
 
 export async function POST(request: NextRequest) {
   console.log('\n============================================================');
-  console.log('[Developer Upload] DOCUMENT UPLOAD + TRAIN PIPELINE');
-  console.log('[Developer Upload] PROJECT_ID:', PROJECT_ID);
+  console.log('[Upload] SIMPLE DOCUMENT UPLOAD');
+  console.log('[Upload] PROJECT_ID:', PROJECT_ID);
   console.log('============================================================');
 
   try {
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
-    const metadataStr = formData.get('metadata') as string;
-
-    let metadata: { discipline?: string } = {};
-    try {
-      metadata = metadataStr ? JSON.parse(metadataStr) : {};
-    } catch {
-      metadata = {};
-    }
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    console.log(`[Developer Upload] Processing ${files.length} file(s)`);
+    console.log(`[Upload] Processing ${files.length} file(s)`);
     const results = [];
 
     for (const file of files) {
@@ -72,86 +62,57 @@ export async function POST(request: NextRequest) {
       const fileName = file.name;
       const mimeType = file.type || 'application/octet-stream';
       const fileBuffer = Buffer.from(await file.arrayBuffer());
+      const docName = fileName.replace(/\.[^/.]+$/, '');
 
-      console.log(`\n[Developer Upload] File: ${fileName}`);
-      console.log(`[Developer Upload] Size: ${fileBuffer.length} bytes`);
+      console.log(`\n[Upload] File: ${fileName} (${fileBuffer.length} bytes)`);
 
       // STEP 1: Upload to Storage
       const storagePath = `${PROJECT_ID}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-
       const { error: uploadError } = await supabase.storage
         .from('development_docs')
         .upload(storagePath, fileBuffer, { contentType: mimeType, upsert: true });
 
       if (uploadError) {
-        console.error('[Developer Upload] Storage error:', uploadError.message);
+        console.error('[Upload] Storage error:', uploadError.message);
         results.push({ fileName, status: 'failed', error: uploadError.message, chunks: 0 });
         continue;
       }
 
       const { data: urlData } = supabase.storage.from('development_docs').getPublicUrl(storagePath);
       const fileUrl = urlData?.publicUrl || '';
-      console.log('[Developer Upload] Storage: SUCCESS');
+      console.log('[Upload] Storage OK');
 
-      // STEP 2: Record in documents table
-      const { data: docRecord, error: docError } = await supabase
-        .from('documents')
-        .insert({
-          project_id: PROJECT_ID,
-          title: fileName.replace(/\.[^/.]+$/, ''),
-          file_name: fileName,
-          file_url: fileUrl,
-          mime_type: mimeType,
-          status: 'processing',
-        })
-        .select()
-        .single();
-
-      if (docError) {
-        console.error('[Developer Upload] Document record error:', docError.message);
-        results.push({ fileName, status: 'failed', error: docError.message, chunks: 0 });
-        continue;
-      }
-
-      console.log('[Developer Upload] Document ID:', docRecord.id);
-
-      // STEP 3: Parse PDF
+      // STEP 2: Parse PDF
       let extractedText = '';
-
       try {
         if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-          console.log('[Developer Upload] Parsing PDF...');
+          console.log('[Upload] Parsing PDF...');
           const data = await pdf(fileBuffer);
           extractedText = data.text || '';
-          console.log('[Developer Upload] PDF pages:', data.numpages);
-          console.log('[Developer Upload] PDF text:', extractedText.length, 'chars');
+          console.log(`[Upload] Extracted ${extractedText.length} chars from ${data.numpages} pages`);
         } else {
           extractedText = fileBuffer.toString('utf-8');
         }
       } catch (parseError) {
-        console.error('[Developer Upload] Parse error:', parseError);
-        await supabase.from('documents').update({ status: 'failed' }).eq('id', docRecord.id);
+        console.error('[Upload] Parse error:', parseError);
         results.push({ fileName, status: 'failed', error: 'PDF parsing failed', chunks: 0 });
         continue;
       }
 
       if (extractedText.length < 50) {
-        console.error('[Developer Upload] No readable text');
-        await supabase.from('documents').update({ status: 'failed' }).eq('id', docRecord.id);
+        console.error('[Upload] No text extracted');
         results.push({ fileName, status: 'failed', error: 'No text content', chunks: 0 });
         continue;
       }
 
-      console.log('[Developer Upload] Preview:', extractedText.slice(0, 150).replace(/\s+/g, ' '));
-
-      // STEP 4: Chunk and Embed
+      // STEP 3: Chunk and Embed directly into document_sections
       const chunks = chunkText(extractedText);
-      console.log('[Developer Upload] Chunks:', chunks.length);
+      console.log(`[Upload] Created ${chunks.length} chunks`);
 
       let successCount = 0;
       for (let i = 0; i < chunks.length; i++) {
         try {
-          console.log(`[Developer Upload] Embedding ${i + 1}/${chunks.length}...`);
+          console.log(`[Upload] Embedding chunk ${i + 1}/${chunks.length}...`);
           const embedding = await generateEmbedding(chunks[i]);
 
           const { error: insertError } = await supabase
@@ -161,44 +122,30 @@ export async function POST(request: NextRequest) {
               content: chunks[i],
               embedding: embedding,
               metadata: {
-                document_id: docRecord.id,
-                source: fileName.replace(/\.[^/.]+$/, ''),
+                source: docName,
                 file_name: fileName,
                 file_url: fileUrl,
                 chunk_index: i,
                 total_chunks: chunks.length,
-                discipline: metadata.discipline || 'other',
               },
             });
 
           if (!insertError) {
             successCount++;
           } else {
-            console.error(`[Developer Upload] Insert error:`, insertError.message);
+            console.error(`[Upload] Insert error:`, insertError.message);
           }
         } catch (embError) {
-          console.error(`[Developer Upload] Embed error:`, embError);
+          console.error(`[Upload] Embed error:`, embError);
         }
       }
 
-      await supabase
-        .from('documents')
-        .update({ status: successCount > 0 ? 'completed' : 'failed' })
-        .eq('id', docRecord.id);
-
-      console.log(`[Developer Upload] SUCCESS: ${successCount}/${chunks.length} chunks`);
-
-      results.push({
-        fileName,
-        url: fileUrl,
-        status: successCount > 0 ? 'indexed' : 'failed',
-        chunks: successCount,
-        discipline: metadata.discipline || 'other',
-      });
+      console.log(`[Upload] SUCCESS: ${successCount}/${chunks.length} chunks embedded`);
+      results.push({ fileName, status: 'indexed', chunks: successCount });
     }
 
     console.log('\n============================================================');
-    console.log('[Developer Upload] ALL FILES COMPLETE');
+    console.log('[Upload] COMPLETE');
     console.log('============================================================\n');
 
     const totalChunks = results.reduce((sum, r) => sum + (r.chunks || 0), 0);
@@ -211,7 +158,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Developer Upload] Fatal error:', error);
+    console.error('[Upload] Fatal error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
