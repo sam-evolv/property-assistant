@@ -6,9 +6,10 @@ import type { Unit, UnitType, DocumentSection } from '@/types/database';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// CRITICAL: Use Service Role Key to bypass RLS and always fetch unit data
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 const openai = new OpenAI({
@@ -18,6 +19,8 @@ const openai = new OpenAI({
 interface ChatRequest {
   message: string;
   userId?: string;
+  unitId?: string;
+  houseId?: string;
 }
 
 interface ChatResponse {
@@ -25,8 +28,113 @@ interface ChatResponse {
   answer?: string;
   floorPlanUrl?: string;
   unitType?: Partial<UnitType>;
-  source: 'floor_plan' | 'vector_search' | 'fallback';
+  source: 'floor_plan' | 'vector_search' | 'unit_context' | 'fallback';
   chunksUsed?: number;
+}
+
+interface UnitContext {
+  address: string;
+  purchaserName: string;
+  houseType: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  propertyType: string | null;
+  totalArea: number | null;
+  projectId: string | null;
+  floorPlanUrl: string | null;
+  specs: Record<string, any> | null;
+}
+
+// Fetch rich unit data from Supabase
+async function getUnitContext(unitId: string): Promise<UnitContext | null> {
+  console.log('[Chat] Fetching unit context for:', unitId);
+  
+  const { data: unit, error } = await supabase
+    .from('units')
+    .select(`
+      id,
+      address,
+      purchaser_name,
+      project_id,
+      unit_types (
+        name,
+        specification_json,
+        floor_plan_pdf_url
+      )
+    `)
+    .eq('id', unitId)
+    .single();
+
+  if (error || !unit) {
+    console.log('[Chat] No unit found:', error?.message);
+    return null;
+  }
+
+  // Handle unit_types (may be array or object)
+  const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
+  const specs = unitType?.specification_json || {};
+
+  const context: UnitContext = {
+    address: unit.address || 'Not specified',
+    purchaserName: unit.purchaser_name || 'Homeowner',
+    houseType: unitType?.name || 'Standard',
+    bedrooms: specs.bedrooms || specs.Bedrooms || null,
+    bathrooms: specs.bathrooms || specs.Bathrooms || null,
+    propertyType: specs.property_type || specs.propertyType || null,
+    totalArea: specs.total_area_sqm || specs.totalArea || null,
+    projectId: unit.project_id,
+    floorPlanUrl: unitType?.floor_plan_pdf_url || null,
+    specs: specs,
+  };
+
+  console.log('[Chat] Unit context loaded:', {
+    address: context.address,
+    purchaser: context.purchaserName,
+    type: context.houseType,
+    bedrooms: context.bedrooms,
+    bathrooms: context.bathrooms,
+  });
+
+  return context;
+}
+
+// Build system context from unit data
+function buildUnitSystemContext(context: UnitContext): string {
+  const lines = [
+    '=== CURRENT UNIT CONTEXT (AUTHORITATIVE DATA) ===',
+    `Address: ${context.address}`,
+    `Owner: ${context.purchaserName}`,
+    `House Type: ${context.houseType}`,
+  ];
+
+  if (context.bedrooms !== null) {
+    lines.push(`Bedrooms: ${context.bedrooms}`);
+  }
+  if (context.bathrooms !== null) {
+    lines.push(`Bathrooms: ${context.bathrooms}`);
+  }
+  if (context.propertyType) {
+    lines.push(`Property Type: ${context.propertyType}`);
+  }
+  if (context.totalArea) {
+    lines.push(`Total Area: ${context.totalArea} sqm`);
+  }
+
+  // Include any additional specs
+  if (context.specs && Object.keys(context.specs).length > 0) {
+    lines.push('\nAdditional Specifications:');
+    for (const [key, value] of Object.entries(context.specs)) {
+      if (value && !['bedrooms', 'bathrooms', 'property_type', 'total_area_sqm'].includes(key.toLowerCase())) {
+        lines.push(`- ${key}: ${value}`);
+      }
+    }
+  }
+
+  lines.push('\n=== INSTRUCTIONS ===');
+  lines.push('ALWAYS use the above unit context data to answer questions about this home.');
+  lines.push('This data is authoritative - do not say "I don\'t know" if the answer is in the context above.');
+
+  return lines.join('\n');
 }
 
 function isMeasurementQuestion(message: string): boolean {
@@ -41,45 +149,14 @@ function isMeasurementQuestion(message: string): boolean {
     /sqm|sqft|m²|ft²/i,
     /area/i,
     /layout/i,
-    /bedroom.*size/i,
-    /living.*room.*size/i,
-    /kitchen.*size/i,
-    /total.*area/i,
-    /room.*dimension/i,
+    /bedroom/i,
+    /bathroom/i,
+    /living.*room/i,
+    /kitchen/i,
+    /how\s+many/i,
   ];
 
   return measurementPatterns.some(pattern => pattern.test(messageLower));
-}
-
-async function getFloorPlanForUser(userId: string): Promise<{ unit: Unit | null; unitType: UnitType | null }> {
-  const { data: unit, error: unitError } = await supabase
-    .from('units')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (unitError || !unit) {
-    console.log('[Chat] No unit found for user:', userId);
-    return { unit: null, unitType: null };
-  }
-
-  if (!unit.unit_type_id) {
-    console.log('[Chat] Unit has no unit_type_id:', unit.id);
-    return { unit, unitType: null };
-  }
-
-  const { data: unitType, error: typeError } = await supabase
-    .from('unit_types')
-    .select('*')
-    .eq('id', unit.unit_type_id)
-    .single();
-
-  if (typeError || !unitType) {
-    console.log('[Chat] No unit type found for id:', unit.unit_type_id);
-    return { unit, unitType: null };
-  }
-
-  return { unit, unitType };
 }
 
 async function getEmbedding(text: string): Promise<number[]> {
@@ -113,20 +190,24 @@ async function searchDocumentSections(
   return data || [];
 }
 
-async function generateAnswer(query: string, context: string): Promise<string> {
+async function generateAnswer(query: string, unitContext: string, documentContext: string): Promise<string> {
+  const systemPrompt = `You are a helpful property assistant for homeowners.
+
+${unitContext}
+
+Answer questions helpfully and accurately using the unit data and any document context provided.
+If asked about bedrooms, bathrooms, house type, or address - use the UNIT CONTEXT above.
+Keep answers concise, friendly, and helpful.`;
+
+  const userPrompt = documentContext 
+    ? `Document Context:\n${documentContext}\n\nUser Question: ${query}`
+    : `User Question: ${query}`;
+
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
-      {
-        role: 'system',
-        content: `You are a helpful property assistant. Answer questions based on the provided context. 
-If the context doesn't contain relevant information, say so honestly.
-Keep answers concise and helpful.`,
-      },
-      {
-        role: 'user',
-        content: `Context:\n${context}\n\nQuestion: ${query}`,
-      },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
     ],
     temperature: 0.3,
     max_tokens: 500,
@@ -138,101 +219,89 @@ Keep answers concise and helpful.`,
 export async function POST(request: NextRequest) {
   try {
     const body: ChatRequest = await request.json();
-    const { message, userId } = body;
+    const { message, userId, unitId, houseId } = body;
 
     if (!message) {
-      return NextResponse.json(
-        { error: 'message is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
+
+    // Determine the unit ID from various sources
+    const resolvedUnitId = unitId || houseId || userId;
 
     console.log('\n' + '='.repeat(60));
-    console.log('[Chat] HYBRID RETRIEVAL - Router Pattern');
+    console.log('[Chat] CONTEXT-AWARE CHAT');
     console.log('='.repeat(60));
     console.log(`Query: ${message}`);
-    console.log(`UserId: ${userId || 'anonymous'}`);
+    console.log(`Unit ID: ${resolvedUnitId || 'none'}`);
 
-    const isMeasurement = isMeasurementQuestion(message);
-    console.log(`Is measurement question: ${isMeasurement}`);
+    // Step 1: Fetch rich unit context from Supabase
+    let unitContext: UnitContext | null = null;
+    let unitSystemContext = '';
 
-    if (isMeasurement && userId) {
-      console.log('[Chat] Step B: Fetching floor plan from structured data...');
-      const { unit, unitType } = await getFloorPlanForUser(userId);
-
-      if (unitType?.floor_plan_pdf_url) {
-        console.log('[Chat] Found floor plan URL:', unitType.floor_plan_pdf_url);
-
-        const response: ChatResponse = {
-          success: true,
-          answer: `Here is your floor plan for your ${unitType.type_name || 'home'}. This ${unitType.bedrooms || 0}-bedroom, ${unitType.bathrooms || 0}-bathroom home has a total area of ${unitType.total_area_sqm || 'N/A'} square meters.`,
-          floorPlanUrl: unitType.floor_plan_pdf_url,
-          unitType: {
-            id: unitType.id,
-            type_name: unitType.type_name,
-            total_area_sqm: unitType.total_area_sqm,
-            bedrooms: unitType.bedrooms,
-            bathrooms: unitType.bathrooms,
-          },
-          source: 'floor_plan',
-        };
-
-        console.log('[Chat] Returning structured floor plan response');
-        console.log('='.repeat(60) + '\n');
-
-        return NextResponse.json(response);
-      } else {
-        console.log('[Chat] No floor plan found, falling through to vector search');
+    if (resolvedUnitId) {
+      unitContext = await getUnitContext(resolvedUnitId);
+      if (unitContext) {
+        unitSystemContext = buildUnitSystemContext(unitContext);
+        console.log('[Chat] Unit context loaded successfully');
       }
     }
 
-    console.log('[Chat] Step C: Performing vector search on document_sections...');
-
-    let projectId: string | undefined;
-    if (userId) {
-      const { data: unit } = await supabase
-        .from('units')
-        .select('project_id')
-        .eq('user_id', userId)
-        .single();
-
-      if (unit?.project_id) {
-        projectId = unit.project_id;
-        console.log('[Chat] Scoping search to project:', projectId);
+    // Step 2: Check if this is a direct unit question (bedrooms, bathrooms, etc.)
+    const isMeasurement = isMeasurementQuestion(message);
+    
+    if (isMeasurement && unitContext) {
+      console.log('[Chat] Measurement question - answering from unit context');
+      
+      // If we have a floor plan, include it
+      if (unitContext.floorPlanUrl) {
+        const response: ChatResponse = {
+          success: true,
+          answer: await generateAnswer(message, unitSystemContext, ''),
+          floorPlanUrl: unitContext.floorPlanUrl,
+          source: 'unit_context',
+        };
+        console.log('='.repeat(60) + '\n');
+        return NextResponse.json(response);
       }
+
+      // Answer from context without floor plan
+      const answer = await generateAnswer(message, unitSystemContext, '');
+      const response: ChatResponse = {
+        success: true,
+        answer,
+        source: 'unit_context',
+      };
+      console.log('='.repeat(60) + '\n');
+      return NextResponse.json(response);
+    }
+
+    // Step 3: Perform vector search for document-based questions
+    console.log('[Chat] Performing vector search on document_sections...');
+
+    const projectId = unitContext?.projectId || undefined;
+    if (projectId) {
+      console.log('[Chat] Scoping search to project:', projectId);
     }
 
     const chunks = await searchDocumentSections(message, projectId, 5);
     console.log(`[Chat] Found ${chunks.length} relevant document sections`);
 
-    if (chunks.length === 0) {
-      const response: ChatResponse = {
-        success: true,
-        answer: "I don't have specific information about that in the documents. Would you like to ask about something else, or should I connect you with support?",
-        source: 'fallback',
-        chunksUsed: 0,
-      };
+    // Build document context
+    const documentContext = chunks.length > 0
+      ? chunks.map((chunk, i) => `[${i + 1}] ${chunk.section_title || 'Section'}: ${chunk.content}`).join('\n\n')
+      : '';
 
-      console.log('[Chat] No relevant chunks found, returning fallback');
-      console.log('='.repeat(60) + '\n');
-
-      return NextResponse.json(response);
-    }
-
-    const context = chunks
-      .map((chunk, i) => `[${i + 1}] ${chunk.section_title || 'Section'}: ${chunk.content}`)
-      .join('\n\n');
-
-    const answer = await generateAnswer(message, context);
+    // Generate answer with both unit context and document context
+    const answer = await generateAnswer(message, unitSystemContext, documentContext);
 
     const response: ChatResponse = {
       success: true,
       answer,
-      source: 'vector_search',
+      source: chunks.length > 0 ? 'vector_search' : (unitContext ? 'unit_context' : 'fallback'),
       chunksUsed: chunks.length,
     };
 
-    console.log('[Chat] Generated answer from vector search');
+    console.log('[Chat] Generated answer');
     console.log('='.repeat(60) + '\n');
 
     return NextResponse.json(response);
