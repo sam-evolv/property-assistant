@@ -37,6 +37,7 @@ const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electri
 /**
  * Fetches discipline summaries with file counts for the archive grid
  * NOW READS FROM SUPABASE document_sections
+ * ALWAYS uses hardcoded Launch ID - ignores developmentId param
  */
 export async function fetchArchiveDisciplines({
   tenantId,
@@ -46,8 +47,9 @@ export async function fetchArchiveDisciplines({
   developmentId?: string | null;
 }): Promise<DisciplineSummary[]> {
   try {
-    // Use hardcoded project ID for Supabase
-    const projectId = developmentId || PROJECT_ID;
+    // ALWAYS use hardcoded Launch project ID for Supabase
+    const projectId = PROJECT_ID;
+    console.log('[Archive] Fetching disciplines from Supabase project:', projectId);
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -156,7 +158,8 @@ export async function fetchDocumentsByDiscipline({
   searchQuery?: string;
 }): Promise<FetchDocumentsResult> {
   try {
-    const projectId = developmentId || PROJECT_ID;
+    // ALWAYS use hardcoded Launch project ID
+    const projectId = PROJECT_ID;
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -227,7 +230,8 @@ export async function countArchiveDocuments({
   developmentId?: string | null;
 }): Promise<{ total: number; indexed: number; errors: number }> {
   try {
-    const projectId = developmentId || PROJECT_ID;
+    // ALWAYS use hardcoded Launch project ID
+    const projectId = PROJECT_ID;
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -330,7 +334,8 @@ export async function searchArchiveDocuments({
   limit?: number;
 }): Promise<FetchDocumentsResult> {
   try {
-    const projectId = developmentId || PROJECT_ID;
+    // ALWAYS use hardcoded Launch project ID
+    const projectId = PROJECT_ID;
     
     const { data: sections, error } = await supabase
       .from('document_sections')
