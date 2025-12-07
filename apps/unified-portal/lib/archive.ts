@@ -31,8 +31,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// SINGLE SOURCE OF TRUTH - hardcoded Launch project ID
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape'];
+const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape', 'other'];
 
 /**
  * Fetches discipline summaries with file counts for the archive grid
@@ -49,7 +50,7 @@ export async function fetchArchiveDisciplines({
   try {
     // ALWAYS use hardcoded Launch project ID for Supabase
     const projectId = PROJECT_ID;
-    console.log('[Archive] Fetching disciplines from Supabase project:', projectId);
+    console.log('🔥 [Archive] Fetching disciplines for PROJECT_ID:', projectId);
     
     const { data: sections, error } = await supabase
       .from('document_sections')
