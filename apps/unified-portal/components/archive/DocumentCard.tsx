@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { 
   FileText, 
   FileImage, 
@@ -40,7 +39,6 @@ function getFileColor(mimeType: string | null) {
 
 export function DocumentCard({ document }: DocumentCardProps) {
   const [isViewing, setIsViewing] = useState(false);
-  const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [isLoadingView, setIsLoadingView] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
   
@@ -51,62 +49,65 @@ export function DocumentCard({ document }: DocumentCardProps) {
     ai_classified?: boolean;
   };
 
+  const getFileUrl = (): string | null => {
+    if (document.file_url) return document.file_url;
+    if (document.storage_url) return document.storage_url;
+    return null;
+  };
+
+  const handleOpenPdf = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const url = getFileUrl();
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      setViewError('File URL not available');
+      setTimeout(() => setViewError(null), 3000);
+    }
+  };
+
   const handleQuickView = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    setIsLoadingView(true);
-    setViewError(null);
-    
-    try {
-      const res = await fetch(`/api/documents/${document.id}/view`);
-      const data = await res.json();
-      
-      if (data.url) {
-        setViewUrl(data.url);
-        setIsViewing(true);
-      } else if (data.error) {
-        setViewError(data.error);
-      }
-    } catch (error) {
-      console.error('Failed to get document URL:', error);
-      setViewError('Failed to load document');
-    } finally {
-      setIsLoadingView(false);
-    }
-  };
-
-  const handleOpenExternal = () => {
-    if (viewUrl) {
-      window.open(viewUrl, '_blank');
+    const url = getFileUrl();
+    if (url) {
+      setIsViewing(true);
+    } else {
+      setViewError('File URL not available');
+      setTimeout(() => setViewError(null), 3000);
     }
   };
 
   const handleDownload = async () => {
-    if (viewUrl) {
+    const url = getFileUrl();
+    if (url) {
       try {
-        const response = await fetch(viewUrl);
+        const response = await fetch(url);
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const blobUrl = window.URL.createObjectURL(blob);
         const a = window.document.createElement('a');
-        a.href = url;
+        a.href = blobUrl;
         a.download = document.file_name || 'document';
         window.document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(blobUrl);
         window.document.body.removeChild(a);
       } catch (error) {
         console.error('Download failed:', error);
-        window.open(viewUrl, '_blank');
+        window.open(url, '_blank');
       }
     }
   };
 
   const closeViewer = () => {
     setIsViewing(false);
-    setViewUrl(null);
     setViewError(null);
   };
+
+  const viewUrl = getFileUrl();
   
   return (
     <>
@@ -149,9 +150,9 @@ export function DocumentCard({ document }: DocumentCardProps) {
           )}
         </button>
 
-        <Link 
-          href={`/developer/archive/document/${document.id}`}
-          className="block p-4"
+        <button 
+          onClick={handleOpenPdf}
+          className="block w-full p-4 text-left"
         >
           <h3 className="font-medium text-white truncate group-hover:text-gold-400 transition-colors text-sm">
             {document.title}
@@ -172,7 +173,7 @@ export function DocumentCard({ document }: DocumentCardProps) {
               </span>
             )}
           </div>
-        </Link>
+        </button>
       </div>
 
       {isViewing && viewUrl && (
@@ -197,7 +198,7 @@ export function DocumentCard({ document }: DocumentCardProps) {
                 <span>Download</span>
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); handleOpenExternal(); }}
+                onClick={(e) => { e.stopPropagation(); window.open(viewUrl, '_blank'); }}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -235,7 +236,7 @@ export function DocumentCard({ document }: DocumentCardProps) {
                 <FileIcon className={`w-24 h-24 ${fileColor} mb-4`} />
                 <p className="text-gray-400 mb-4">Preview not available for this file type</p>
                 <button
-                  onClick={handleOpenExternal}
+                  onClick={() => window.open(viewUrl, '_blank')}
                   className="px-6 py-3 rounded-lg bg-gold-500 text-black font-semibold hover:bg-gold-400 transition-colors"
                 >
                   Download File
