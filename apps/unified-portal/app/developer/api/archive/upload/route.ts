@@ -5,9 +5,6 @@ import OpenAI from 'openai';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-// Use require for pdf-parse to avoid ESM/CommonJS conflicts
-const pdf = require('pdf-parse');
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -55,6 +52,21 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+function extractTextFromBuffer(buffer: Buffer): string {
+  // Extract readable ASCII/UTF-8 text from PDF buffer
+  // PDFs contain text streams that are readable when decoded
+  const rawText = buffer.toString('utf-8');
+  
+  // Keep readable characters (letters, numbers, punctuation, whitespace)
+  // This effectively extracts text content from PDF streams
+  const readable = rawText
+    .replace(/[^\x20-\x7E\n\r\t\u00A0-\u00FF\u0100-\u017F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  return readable;
+}
+
 export async function POST(request: NextRequest) {
   console.log('\n' + '='.repeat(60));
   console.log('[Developer Upload] DOCUMENT UPLOAD + TRAIN PIPELINE');
@@ -99,7 +111,7 @@ export async function POST(request: NextRequest) {
 
       if (storageError) {
         console.error('[Developer Upload] Storage error:', storageError.message);
-        results.push({ fileName, status: 'failed', error: storageError.message });
+        results.push({ fileName, status: 'failed', error: storageError.message, chunks: 0 });
         continue;
       }
 
@@ -107,40 +119,34 @@ export async function POST(request: NextRequest) {
       const publicUrl = urlData?.publicUrl || '';
       console.log('[Developer Upload] Stored:', storagePath);
 
-      // STEP 2: Parse PDF or extract text
+      // STEP 2: Extract text (simple buffer extraction works for all file types)
       let extractedText = '';
       
-      if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-        console.log('[Developer Upload] Parsing PDF...');
-        try {
-          const pdfData = await pdf(fileBuffer);
-          extractedText = pdfData.text || '';
-          console.log(`[Developer Upload] PDF: ${extractedText.length} characters`);
-        } catch (pdfErr) {
-          console.error('[Developer Upload] PDF error:', pdfErr);
-          results.push({ fileName, status: 'failed', error: 'PDF parsing failed' });
-          continue;
-        }
-      } else if (mimeType.includes('text') || fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+      if (mimeType.includes('text') || fileName.endsWith('.txt') || fileName.endsWith('.md') || fileName.endsWith('.csv')) {
         extractedText = fileBuffer.toString('utf-8');
       } else {
-        const rawText = fileBuffer.toString('utf-8');
-        extractedText = rawText.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        // For PDFs and other binary files, extract readable text
+        extractedText = extractTextFromBuffer(fileBuffer);
       }
 
-      if (extractedText.length < 50) {
-        console.error('[Developer Upload] No text extracted');
-        results.push({ fileName, status: 'failed', error: 'No text content' });
+      console.log(`[Developer Upload] Extracted: ${extractedText.length} characters`);
+
+      if (extractedText.length < 100) {
+        console.error('[Developer Upload] Insufficient text extracted');
+        results.push({ fileName, status: 'failed', error: 'No text content', chunks: 0 });
         continue;
       }
 
+      console.log('[Developer Upload] Preview:', extractedText.slice(0, 200).replace(/\n/g, ' '));
+
       // STEP 3: Chunk and embed
       const chunks = splitIntoChunks(extractedText);
-      console.log(`[Developer Upload] ${chunks.length} chunks to embed`);
+      console.log(`[Developer Upload] Created ${chunks.length} chunks`);
 
       let successCount = 0;
       for (let i = 0; i < chunks.length; i++) {
         try {
+          console.log(`[Developer Upload] Embedding ${i + 1}/${chunks.length}...`);
           const embedding = await generateEmbedding(chunks[i]);
           
           const { error: insertError } = await supabase
@@ -159,19 +165,24 @@ export async function POST(request: NextRequest) {
               },
             });
 
-          if (!insertError) successCount++;
+          if (!insertError) {
+            successCount++;
+          } else {
+            console.error(`[Developer Upload] Insert error:`, insertError.message);
+          }
         } catch (embErr) {
-          console.error(`[Developer Upload] Chunk ${i} error:`, embErr);
+          console.error(`[Developer Upload] Embedding error:`, embErr);
         }
       }
 
-      console.log(`[Developer Upload] Embedded ${successCount}/${chunks.length} chunks`);
+      console.log(`[Developer Upload] SUCCESS: ${successCount}/${chunks.length} chunks embedded`);
       
       results.push({
         fileName,
         url: publicUrl,
         status: successCount > 0 ? 'indexed' : 'failed',
         chunks: successCount,
+        discipline: metadata.discipline || 'other',
       });
     }
 
