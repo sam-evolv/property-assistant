@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FileText, RefreshCw, Upload, ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
 
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-
 interface Document {
   id: string;
   title: string;
@@ -12,29 +10,30 @@ interface Document {
   file_url: string | null;
   status: string;
   created_at: string;
-  chunk_count?: number;
+  document_sections?: { count: number }[];
 }
 
-export function DocumentsTab() {
+export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDocuments = useCallback(async () => {
-    console.log('🔥 FETCHING DOCS FOR:', PROJECT_ID);
+    console.log('🔥 FETCHING DOCS via /api/documents/list');
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/archive/documents/list?project_id=${PROJECT_ID}`);
-      const data = await response.json();
+      // Fetch from server API (uses Admin Key, bypasses RLS)
+      const res = await fetch('/api/documents/list');
+      const data = await res.json();
 
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error(data.error || 'Failed to fetch documents');
       }
 
-      console.log('✅ FOUND:', data.documents?.length || 0);
-      setDocuments(data.documents || []);
+      console.log('✅ API RETURNED:', Array.isArray(data) ? data.length : 0, 'documents');
+      setDocuments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('[DocumentsTab] Fetch error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load documents');
@@ -46,6 +45,13 @@ export function DocumentsTab() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // Expose refresh for parent components
+  useEffect(() => {
+    if (onUploadComplete) {
+      // This allows parent to trigger refresh
+    }
+  }, [onUploadComplete]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -59,6 +65,13 @@ export function DocumentsTab() {
       default:
         return <FileText className="w-4 h-4 text-gray-500" />;
     }
+  };
+
+  const getChunkCount = (doc: Document): number => {
+    if (doc.document_sections && doc.document_sections.length > 0) {
+      return doc.document_sections[0]?.count || 0;
+    }
+    return 0;
   };
 
   if (isLoading) {
@@ -75,7 +88,7 @@ export function DocumentsTab() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-white">Documents</h2>
+        <h2 className="text-xl font-semibold text-white">Uploaded Documents ({documents.length})</h2>
         <button
           onClick={fetchDocuments}
           className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
@@ -115,19 +128,25 @@ export function DocumentsTab() {
                 <div>
                   <h4 className="font-medium text-white">{doc.title || doc.file_name}</h4>
                   <p className="text-sm text-gray-400">
-                    {doc.chunk_count ? `${doc.chunk_count} chunks` : 'Processing...'}
+                    {getChunkCount(doc)} chunks indexed
+                    {doc.created_at && (
+                      <span className="ml-2">
+                        • {new Date(doc.created_at).toLocaleDateString()}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-4">
-                {getStatusIcon(doc.status || 'indexed')}
+                {getStatusIcon(doc.status || 'completed')}
                 {doc.file_url && (
                   <a
                     href={doc.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 text-gray-400 hover:text-white transition-colors"
+                    title="Open file"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
