@@ -147,19 +147,33 @@ export async function fetchDocumentsByDiscipline({
   developmentId,
   discipline,
   page = 1,
-  limit = 50,
+  pageSize,
+  limit,
   searchQuery,
+  houseTypeCode,
+  important,
+  mustRead,
+  aiClassified,
 }: {
   tenantId: string;
   developmentId?: string | null;
-  discipline: DisciplineType;
+  discipline: DisciplineType | string;
   page?: number;
+  pageSize?: number;
   limit?: number;
   searchQuery?: string;
+  houseTypeCode?: string | null;
+  important?: boolean;
+  mustRead?: boolean;
+  aiClassified?: boolean;
 }): Promise<FetchDocumentsResult> {
+  // Use pageSize if provided, otherwise fall back to limit, otherwise default to 50
+  const effectiveLimit = pageSize || limit || 50;
+  
   try {
     // ALWAYS use hardcoded Launch project ID
     const projectId = PROJECT_ID;
+    console.log('📂 Fetching documents for:', projectId);
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -168,7 +182,7 @@ export async function fetchDocumentsByDiscipline({
 
     if (error) {
       console.error('[Archive] Supabase error:', error.message);
-      return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
+      return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
     }
 
     // Group by unique source documents
@@ -201,20 +215,22 @@ export async function fetchDocumentsByDiscipline({
 
     // Pagination
     const totalCount = filteredDocs.length;
-    const totalPages = Math.ceil(totalCount / limit);
-    const offset = (page - 1) * limit;
-    const paginatedDocs = filteredDocs.slice(offset, offset + limit);
+    const totalPages = Math.ceil(totalCount / effectiveLimit);
+    const offset = (page - 1) * effectiveLimit;
+    const paginatedDocs = filteredDocs.slice(offset, offset + effectiveLimit);
+    
+    console.log('✅ Found:', filteredDocs.length, 'documents, returning', paginatedDocs.length);
 
     return {
       documents: paginatedDocs,
       totalCount,
       page,
-      pageSize: limit,
+      pageSize: effectiveLimit,
       totalPages,
     };
   } catch (error) {
     console.error('[Archive] Error fetching documents:', error);
-    return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
+    return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
   }
 }
 
