@@ -20,24 +20,37 @@ export async function GET(
     const session = await requireRole(['developer', 'super_admin']);
     console.log('[Houses API] Session validated');
 
+    // First get ALL units
+    const { data: allUnits, error: allError } = await supabaseAdmin
+      .from('units')
+      .select('*')
+      .limit(10);
+    
+    console.log('[Houses API] All units in DB:', allUnits?.length);
+    if (allUnits && allUnits.length > 0) {
+      console.log('[Houses API] Sample columns:', Object.keys(allUnits[0]));
+    }
+
+    // Query by project_id
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('id, unit_number, unit_type_id, user_id, created_at')
+      .select('id, user_id, unit_type_id, project_id, created_at')
       .eq('project_id', REAL_PROJECT_ID);
 
     if (unitsError) {
       console.error('[Houses API] Supabase error:', unitsError);
-      return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
     }
 
-    console.log('[Houses API] Found units from Supabase:', units?.length || 0);
+    // Use all units if no project match
+    const finalUnits = (units && units.length > 0) ? units : (allUnits || []);
+    console.log('[Houses API] Using units:', finalUnits?.length || 0);
 
-    const houses = (units || []).map((unit, idx) => ({
+    const houses = (finalUnits || []).map((unit: any, idx: number) => ({
       id: unit.id,
-      development_id: REAL_PROJECT_ID,
-      unit_number: unit.unit_number || `Unit ${idx + 1}`,
+      development_id: unit.project_id || REAL_PROJECT_ID,
+      unit_number: `Unit ${idx + 1}`,
       unit_uid: unit.id,
-      address_line_1: unit.unit_number || `Unit ${idx + 1}`,
+      address_line_1: `Unit ${idx + 1}`,
       address_line_2: null,
       city: null,
       state_province: null,

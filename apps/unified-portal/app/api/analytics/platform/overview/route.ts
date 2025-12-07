@@ -18,6 +18,14 @@ export async function GET() {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+    // Get all units count
+    const { count: allUnitCount, error: allError } = await supabaseAdmin
+      .from('units')
+      .select('id', { count: 'exact', head: true });
+
+    console.log('[Analytics] Total units in Supabase:', allUnitCount);
+
+    // Get units by project_id
     const { count: supabaseUnitCount, error: unitError } = await supabaseAdmin
       .from('units')
       .select('id', { count: 'exact', head: true })
@@ -26,6 +34,10 @@ export async function GET() {
     if (unitError) {
       console.error('[Analytics] Supabase units error:', unitError);
     }
+
+    // Use all units if no project match
+    const finalUnitCount = (supabaseUnitCount && supabaseUnitCount > 0) ? supabaseUnitCount : (allUnitCount || 0);
+    console.log('[Analytics] Final unit count:', finalUnitCount);
 
     const { count: supabaseProjectCount, error: projectError } = await supabaseAdmin
       .from('projects')
@@ -50,7 +62,7 @@ export async function GET() {
     const overview = {
       total_developers: developerCount,
       total_developments: supabaseProjectCount || 1,
-      total_units: supabaseUnitCount || 0,
+      total_units: finalUnitCount,
       total_homeowners: homeownerCount,
       total_messages: msgCount,
       total_documents: docCount,

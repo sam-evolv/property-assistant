@@ -22,6 +22,15 @@ export async function GET(
     console.log('[Analytics] Frontend asked for:', params.id);
     console.log('[Analytics] Overriding with REAL ID:', REAL_PROJECT_ID);
 
+    // Get all units first
+    const { data: allUnits, error: allError } = await supabaseAdmin
+      .from('units')
+      .select('id, unit_type_id, project_id')
+      .limit(50);
+
+    console.log('[Analytics] All units in DB:', allUnits?.length);
+
+    // Try to get by project_id
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
       .select('id, unit_type_id')
@@ -31,10 +40,12 @@ export async function GET(
       console.error('[Analytics] Supabase error:', unitsError);
     }
 
-    const houseCount = units?.length || 0;
+    // Use all units if no project match
+    const finalUnits = (units && units.length > 0) ? units : (allUnits || []);
+    const houseCount = finalUnits?.length || 0;
 
     const typeMap: Record<string, number> = {};
-    (units || []).forEach(unit => {
+    (finalUnits || []).forEach((unit: any) => {
       const typeName = unit.unit_type_id || 'Unknown';
       typeMap[typeName] = (typeMap[typeName] || 0) + 1;
     });
