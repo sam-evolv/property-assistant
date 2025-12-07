@@ -1,0 +1,69 @@
+The issue is a Permissions Block (RLS).
+
+Here is exactly what is happening:
+
+Upload (Server Side): You are uploading using the Super Admin Key. It works perfectly. The file goes into the database.
+
+View (Client Side): Your dashboard tries to read the list using your User Session. Supabase's security rules say: "Hey, this User didn't create these files (the Admin did), so hide them."
+
+So the files are there, but your user is blind to them.
+
+We need to create a "Tunnel" API for the list view. Instead of the frontend asking the database directly (and getting blocked), it will ask the server (which has the Admin Key) to get the list for it.
+
+Copy this "Tunnel Fix" prompt into your Replit Agent. This will force the list to appear.
+
+TASK: BYPASS RLS VISIBILITY BLOCK (THE "TUNNEL" FIX)
+
+The Problem: Uploads succeed (via Admin Key), but the Frontend List returns 0 documents because RLS is hiding the admin-created files from the frontend user session.
+
+The Fix: Stop fetching from Supabase directly in the frontend. Fetch via a new Server API that uses the Admin Key to bypass RLS.
+
+Directives (Execute ALL Steps):
+
+STEP 1: CREATE THE LIST API (app/api/documents/list/route.ts)
+
+Create this new file.
+
+Code Logic:
+
+Imports: createClient, NextResponse.
+
+Setup: const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!); (CRITICAL: Admin Access).
+
+Project ID: const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+
+Action:
+
+TypeScript
+
+export const dynamic = 'force-dynamic'; // No caching
+
+export async function GET() {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*, document_sections(count)')
+    .eq('project_id', PROJECT_ID)
+    .order('created_at', { ascending: false });
+
+  return NextResponse.json(data || []);
+}
+STEP 2: UPDATE THE FRONTEND (components/dashboard/DocumentsTab.tsx)
+
+Action: Rewrite the fetchDocuments function.
+
+New Logic:
+
+Delete: Any code that uses supabase.from('documents')...
+
+Replace with:
+
+TypeScript
+
+const res = await fetch('/api/documents/list');
+const data = await res.json();
+setDocuments(data);
+Debug: Keep the console logs: console.log("✅ API RETURNED:", data.length);
+
+STEP 3: REFRESH TRIGGER
+
+Ensure the <UploadModal> calls this new fetch logic upon success.
