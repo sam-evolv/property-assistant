@@ -65,6 +65,13 @@ const DISCIPLINE_KEYWORDS: Record<DisciplineType, string[]> = {
     'playground', 'lawn', 'tree', 'shrub', 'vegetation',
     '-dr-l-', 'lansdcape', 'tobermore'
   ],
+  handover: [
+    'handover', 'handover pack', 'handover documentation', 'completion',
+    'warranty', 'guarantee', 'certificate', 'user manual', 'operating manual',
+    'maintenance guide', 'appliance manual', 'boiler certificate', 'gas cert',
+    'electrical certificate', 'ber certificate', 'snag list', 'defects',
+    'keys', 'access codes', 'alarm codes', 'move in', 'moving in'
+  ],
   other: []
 };
 
@@ -91,6 +98,9 @@ const DOCUMENT_TYPE_PATTERNS: { pattern: RegExp; discipline: DisciplineType }[] 
   { pattern: /\b(waterproof|tanking|membrane)\b/i, discipline: 'other' },
   { pattern: /\b(insulation|thermal)\b/i, discipline: 'other' },
   { pattern: /\b(certificate|declaration|dop|datasheet|specification|spec)\b/i, discipline: 'other' },
+  { pattern: /\b(handover|completion\s*pack|warranty|guarantee)\b/i, discipline: 'handover' },
+  { pattern: /\b(user\s*manual|operating\s*manual|maintenance\s*guide)\b/i, discipline: 'handover' },
+  { pattern: /\b(ber\s*cert|gas\s*cert|electrical\s*cert)\b/i, discipline: 'handover' },
 ];
 
 const HOUSE_TYPE_PATTERN = /\b(BD|BS|BT|BZ)\d{2}\b/gi;
@@ -120,6 +130,7 @@ export function classifyByKeywords(text: string): { discipline: DisciplineType; 
     plumbing: 0,
     civil: 0,
     landscape: 0,
+    handover: 0,
     other: 0
   };
 

@@ -13,6 +13,7 @@ export type DisciplineType =
   | 'plumbing'
   | 'civil'
   | 'landscape'
+  | 'handover'
   | 'other';
 
 export interface DisciplineSummary {
@@ -57,6 +58,7 @@ export const DISCIPLINES: Record<DisciplineType, { label: string; description: s
   plumbing: { label: 'Plumbing', description: 'Water supply, drainage, sanitary systems', icon: 'Droplet', color: '#06b6d4' },
   civil: { label: 'Civil', description: 'Site works, roads, drainage, earthworks', icon: 'Mountain', color: '#a16207' },
   landscape: { label: 'Landscape', description: 'Landscaping plans, planting, hardscape', icon: 'Trees', color: '#10b981' },
+  handover: { label: 'Handover Documentation', description: 'Handover packs, certificates, warranties, manuals', icon: 'ClipboardCheck', color: '#8b5cf6' },
   other: { label: 'Other', description: 'Other documents and uncategorized files', icon: 'Files', color: '#6b7280' },
 };
 

@@ -10,6 +10,7 @@ import {
   Mountain,
   Trees,
   Files,
+  ClipboardCheck,
   ChevronRight
 } from 'lucide-react';
 import type { DisciplineType, DisciplineSummary } from '@/lib/archive-constants';
@@ -22,6 +23,7 @@ const disciplineIcons: Record<DisciplineType, typeof Building2> = {
   plumbing: Droplet,
   civil: Mountain,
   landscape: Trees,
+  handover: ClipboardCheck,
   other: Files,
 };
 
@@ -33,6 +35,7 @@ const disciplineColors: Record<DisciplineType, { bg: string; icon: string; borde
   plumbing: { bg: 'bg-cyan-500/10', icon: 'text-cyan-400', border: 'border-cyan-500/20' },
   civil: { bg: 'bg-amber-500/10', icon: 'text-amber-400', border: 'border-amber-500/20' },
   landscape: { bg: 'bg-emerald-500/10', icon: 'text-emerald-400', border: 'border-emerald-500/20' },
+  handover: { bg: 'bg-violet-500/10', icon: 'text-violet-400', border: 'border-violet-500/20' },
   other: { bg: 'bg-gray-500/10', icon: 'text-gray-400', border: 'border-gray-500/20' },
 };
 
