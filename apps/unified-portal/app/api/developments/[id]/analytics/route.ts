@@ -19,78 +19,40 @@ export async function GET(
   try {
     const session = await requireRole(['developer', 'super_admin']);
     
-    console.log('[Analytics] Fetching analytics for project:', REAL_PROJECT_ID);
+    console.log('[Analytics] Fetching for project:', REAL_PROJECT_ID);
 
-    // Get units with their types from Supabase
-    const { data: units, error: unitsError } = await supabaseAdmin
+    // Simple count query without join
+    const { count: houseCount, error } = await supabaseAdmin
       .from('units')
-      .select(`
-        id,
-        unit_types (
-          name,
-          bedrooms
-        )
-      `)
+      .select('id', { count: 'exact', head: true })
       .eq('project_id', REAL_PROJECT_ID);
 
-    if (unitsError) {
-      console.error('[Analytics] Supabase error:', unitsError);
+    if (error) {
+      console.error('[Analytics] Error:', error);
     }
 
-    const houseCount = units?.length || 0;
-    console.log('[Analytics] House count:', houseCount);
-
-    // Build house types breakdown
-    const typeMap: Record<string, number> = {};
-    (units || []).forEach((unit: any) => {
-      const typeName = unit.unit_types?.name || 'Unknown';
-      typeMap[typeName] = (typeMap[typeName] || 0) + 1;
-    });
-    const houseTypes = Object.entries(typeMap).map(([type, count]) => ({ type, count }));
+    console.log('[Analytics] Houses:', houseCount);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     const developmentId = params.id;
-    const [chatCount, documentCount, recentChatCount, messageVolumeData] =
-      await Promise.all([
-        db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(messages)
-          .where(eq(messages.development_id, developmentId))
-          .then((r) => r[0]?.count || 0),
 
-        db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(documents)
-          .where(eq(documents.development_id, developmentId))
-          .then((r) => r[0]?.count || 0),
-
-        db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(messages)
-          .where(
-            and(
-              eq(messages.development_id, developmentId),
-              gte(messages.created_at, thirtyDaysAgo)
-            )
-          )
-          .then((r) => r[0]?.count || 0),
-
-        db.select({
-          date: sql<string>`DATE(${messages.created_at})`,
-          count: sql<number>`count(*)::int`,
-        })
-          .from(messages)
-          .where(
-            and(
-              eq(messages.development_id, developmentId),
-              gte(messages.created_at, thirtyDaysAgo)
-            )
-          )
-          .groupBy(sql`DATE(${messages.created_at})`)
-          .orderBy(sql`DATE(${messages.created_at})`),
-      ]);
+    const [chatCount, documentCount, recentChatCount, messageVolumeData] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(messages)
+        .where(eq(messages.development_id, developmentId)).then((r) => r[0]?.count || 0),
+      db.select({ count: sql<number>`count(*)::int` }).from(documents)
+        .where(eq(documents.development_id, developmentId)).then((r) => r[0]?.count || 0),
+      db.select({ count: sql<number>`count(*)::int` }).from(messages)
+        .where(and(eq(messages.development_id, developmentId), gte(messages.created_at, thirtyDaysAgo)))
+        .then((r) => r[0]?.count || 0),
+      db.select({
+        date: sql<string>`DATE(${messages.created_at})`,
+        count: sql<number>`count(*)::int`,
+      }).from(messages)
+        .where(and(eq(messages.development_id, developmentId), gte(messages.created_at, thirtyDaysAgo)))
+        .groupBy(sql`DATE(${messages.created_at})`)
+        .orderBy(sql`DATE(${messages.created_at})`),
+    ]);
 
     const messageVolume = [];
     const chatCosts = [];
@@ -105,19 +67,16 @@ export async function GET(
     }
 
     return NextResponse.json({
-      houses: houseCount,
+      houses: houseCount || 0,
       chatMessages: chatCount,
       documents: documentCount,
       recentChatMessages: recentChatCount,
-      houseTypes: houseTypes.length > 0 ? houseTypes : [{ type: 'No Data', count: 0 }],
+      houseTypes: [{ type: 'Standard', count: houseCount || 0 }],
       messageVolume,
       chatCosts,
     });
   } catch (error) {
     console.error('[Analytics] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch development analytics' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

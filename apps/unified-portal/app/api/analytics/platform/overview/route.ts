@@ -19,24 +19,24 @@ export async function GET() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     // Get units count for the real project
-    const { count: supabaseUnitCount, error: unitError } = await supabaseAdmin
+    const { count: unitCount, error: unitError } = await supabaseAdmin
       .from('units')
       .select('id', { count: 'exact', head: true })
       .eq('project_id', REAL_PROJECT_ID);
 
     if (unitError) {
-      console.error('[Analytics] Supabase units error:', unitError);
+      console.error('[Overview] Units error:', unitError);
     }
-
-    console.log('[Analytics] Units count for project:', supabaseUnitCount);
+    
+    console.log('[Overview] Units count:', unitCount);
 
     // Get projects count
-    const { count: supabaseProjectCount, error: projectError } = await supabaseAdmin
+    const { count: projectCount, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id', { count: 'exact', head: true });
 
     if (projectError) {
-      console.error('[Analytics] Supabase projects error:', projectError);
+      console.error('[Overview] Projects error:', projectError);
     }
 
     const [msgCount, activeUsers, homeownerCount, docCount, developerCount] = await Promise.all([
@@ -51,24 +51,17 @@ export async function GET() {
       db.select({ count: sql<number>`COUNT(DISTINCT tenant_id)::int` }).from(admins).then(r => r[0]?.count || 0),
     ]);
 
-    const overview = {
+    return NextResponse.json({
       total_developers: developerCount,
-      total_developments: supabaseProjectCount || 1,
-      total_units: supabaseUnitCount || 0,
+      total_developments: projectCount || 1,
+      total_units: unitCount || 0,
       total_homeowners: homeownerCount,
       total_messages: msgCount,
       total_documents: docCount,
       active_homeowners_7d: activeUsers,
-    };
-
-    console.log('[Analytics] Platform overview:', overview);
-
-    return NextResponse.json(overview);
+    });
   } catch (error) {
-    console.error('[API] /api/analytics/platform/overview error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch platform overview' },
-      { status: 500 }
-    );
+    console.error('[Overview] Error:', error);
+    return NextResponse.json({ error: 'Failed to fetch overview' }, { status: 500 });
   }
 }

@@ -1,58 +1,46 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// CRITICAL: Use Service Role Key so we can find the unit BEFORE login
+// CRITICAL: Use Service Role Key to bypass RLS for public QR scans
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! 
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: Request) {
   try {
-    const { token } = await req.json(); // The token is just the Unit ID now
+    const { token } = await req.json();
 
     if (!token) {
       return NextResponse.json({ error: "No token provided" }, { status: 400 });
     }
 
-    console.log("Resolving Unit ID:", token);
+    console.log("[Resolve] Looking up unit:", token);
 
-    // Fetch the unit and its type details
+    // Simple query without join
     const { data: unit, error } = await supabase
       .from('units')
-      .select(`
-        id,
-        address,
-        purchaser_name,
-        project_id,
-        unit_types (
-          name,
-          floor_plan_pdf_url,
-          specification_json
-        )
-      `)
+      .select('id, address, purchaser_name, unit_type_id')
       .eq('id', token)
       .single();
 
     if (error || !unit) {
-      console.error("Resolution Error:", error?.message);
+      console.error("[Resolve] Error:", error?.message);
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
-    // Return the data needed for the Welcome Screen
-    // Handle unit_types which may be an array or object
-    const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
-    
+    console.log("[Resolve] Found unit:", unit.id, "Purchaser:", unit.purchaser_name);
+
     return NextResponse.json({
       unitId: unit.id,
       address: unit.address,
       purchaserName: unit.purchaser_name,
-      floorPlanUrl: unitType?.floor_plan_pdf_url,
-      specs: unitType?.specification_json
+      floorPlanUrl: null,
+      specs: null
     });
 
   } catch (err: any) {
-    console.error("Server Error:", err);
+    console.error("[Resolve] Server Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
