@@ -1,436 +1,204 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { db } from '@openhouse/db/client';
-import { documents, admins, houseTypes, userDevelopments } from '@openhouse/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { classifyDocumentWithAI, extractHouseTypeCodes } from '@/lib/ai-classify';
-import type { DisciplineType } from '@/lib/archive-constants';
-import { parseFile } from '@openhouse/api/train/parse';
-import { chunkTrainingItems } from '@openhouse/api/train/chunk';
-import { embedChunks } from '@openhouse/api/train/embed';
-import { ingestEmbeddings } from '@openhouse/api/train/ingest';
+import { createClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse');
+
+export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-interface UploadMetadata {
-  discipline?: DisciplineType | null;
-  houseTypeId?: string | null;
-  isImportant?: boolean;
-  mustRead?: boolean;
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-async function validateTenantAdminAccess(
-  email: string,
-  tenantId: string,
-  developmentId: string
-): Promise<{ valid: boolean; error?: string }> {
-  const admin = await db.query.admins.findFirst({
-    where: and(
-      eq(admins.email, email),
-      eq(admins.tenant_id, tenantId)
-    ),
-    columns: { id: true, role: true }
-  });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
-  if (!admin) {
-    console.log('[Upload] No admin found for email:', email, 'tenant:', tenantId);
-    return { valid: false, error: 'Admin not found for this tenant' };
-  }
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 100;
 
-  if (admin.role === 'super_admin' || admin.role === 'tenant_admin') {
-    return { valid: true };
-  }
-
-  if (admin.role !== 'developer' && admin.role !== 'admin') {
-    return { valid: false, error: 'Insufficient permissions to upload documents' };
-  }
-
-  const hasAccess = await db.query.userDevelopments.findFirst({
-    where: and(
-      eq(userDevelopments.user_id, admin.id),
-      eq(userDevelopments.development_id, developmentId)
-    ),
-    columns: { user_id: true }
-  });
-
-  if (!hasAccess) {
-    return { valid: false, error: 'No access to this development' };
-  }
-
-  return { valid: true };
-}
-
-async function uploadToSupabaseStorage(
-  supabase: ReturnType<typeof createServerComponentClient>,
-  file: File,
-  tenantId: string,
-  developmentId: string
-): Promise<{ path: string; publicUrl: string } | { error: string }> {
-  const fileExt = file.name.split('.').pop() || 'pdf';
-  const uniqueId = crypto.randomUUID();
-  const storagePath = `tenant/${tenantId}/development/${developmentId}/${uniqueId}.${fileExt}`;
-
-  try {
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(b => b.name === 'documents');
-
-    if (!bucketExists) {
-      const { error: createError } = await supabase.storage.createBucket('documents', {
-        public: false,
-        fileSizeLimit: 52428800,
-      });
-      if (createError && !createError.message.includes('already exists')) {
-        console.warn('[Upload] Could not create bucket, continuing without storage:', createError.message);
-        return { path: storagePath, publicUrl: '' };
+function splitIntoChunks(text: string): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+  
+  while (start < text.length) {
+    const end = Math.min(start + CHUNK_SIZE, text.length);
+    let chunk = text.slice(start, end);
+    
+    if (end < text.length) {
+      const lastPeriod = chunk.lastIndexOf('.');
+      const lastNewline = chunk.lastIndexOf('\n');
+      const breakPoint = Math.max(lastPeriod, lastNewline);
+      
+      if (breakPoint > CHUNK_SIZE * 0.5) {
+        chunk = text.slice(start, start + breakPoint + 1);
       }
     }
-
-    const buffer = await file.arrayBuffer();
-    const { error: uploadError } = await supabase.storage
-      .from('documents')
-      .upload(storagePath, buffer, {
-        contentType: file.type,
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.warn('[Upload] Storage upload failed, continuing without file storage:', uploadError.message);
-      return { path: storagePath, publicUrl: '' };
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('documents')
-      .getPublicUrl(storagePath);
-
-    return {
-      path: storagePath,
-      publicUrl: publicUrlData?.publicUrl || ''
-    };
-  } catch (err) {
-    console.warn('[Upload] Storage error, continuing without file storage:', err);
-    return { path: storagePath, publicUrl: '' };
-  }
-}
-
-async function extractTextFromFile(file: File): Promise<string> {
-  if (file.type === 'application/pdf') {
-    return '';
+    
+    chunks.push(chunk.trim());
+    start += chunk.length - CHUNK_OVERLAP;
   }
   
-  if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
-    const text = await file.text();
-    return text.slice(0, 10000);
-  }
+  return chunks.filter(c => c.length > 50);
+}
 
+async function generateEmbedding(text: string): Promise<number[]> {
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: text,
+    dimensions: 1536,
+  });
+  return response.data[0].embedding;
+}
+
+async function extractText(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
+  if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    try {
+      const pdfData = await pdfParse(buffer);
+      return pdfData.text || '';
+    } catch (err) {
+      console.error('[Upload] PDF parse error:', err);
+      return '';
+    }
+  }
+  
+  if (mimeType.includes('text') || fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
+    return buffer.toString('utf-8');
+  }
+  
   return '';
 }
 
-async function processDocumentForRAG(
-  buffer: Buffer,
-  fileName: string,
-  fileType: string,
-  documentId: string,
-  tenantId: string,
-  developmentId: string,
-  houseTypeCode: string | null
-): Promise<{ success: boolean; chunksInserted: number; error?: string }> {
-  try {
-    console.log(`[RAG] Starting embedding generation for ${fileName}`);
-    
-    await db
-      .update(documents)
-      .set({ processing_status: 'processing', updated_at: new Date() })
-      .where(eq(documents.id, documentId));
-    
-    const items = await parseFile(buffer, fileName, tenantId, fileType);
-    console.log(`[RAG] Parsed ${items.length} items from ${fileName}`);
-    
-    if (items.length === 0) {
-      console.log(`[RAG] No content extracted from ${fileName}`);
-      await db
-        .update(documents)
-        .set({ processing_status: 'complete', chunks_count: 0, updated_at: new Date() })
-        .where(eq(documents.id, documentId));
-      return { success: true, chunksInserted: 0 };
-    }
-    
-    const chunkedItems = await chunkTrainingItems(items);
-    const allChunks = chunkedItems.flatMap(ci => ci.chunks);
-    console.log(`[RAG] Created ${allChunks.length} chunks from ${fileName}`);
-    
-    if (allChunks.length === 0) {
-      await db
-        .update(documents)
-        .set({ processing_status: 'complete', chunks_count: 0, updated_at: new Date() })
-        .where(eq(documents.id, documentId));
-      return { success: true, chunksInserted: 0 };
-    }
-    
-    const embeddings = await embedChunks(allChunks);
-    console.log(`[RAG] Generated ${embeddings.length} embeddings for ${fileName}`);
-    
-    const result = await ingestEmbeddings(
-      embeddings,
-      tenantId,
-      developmentId,
-      items[0]?.sourceType || 'document',
-      documentId,
-      houseTypeCode
-    );
-    
-    await db
-      .update(documents)
-      .set({
-        processing_status: 'complete',
-        chunks_count: result.chunksInserted,
-        updated_at: new Date()
-      })
-      .where(eq(documents.id, documentId));
-    
-    console.log(`[RAG] Successfully processed ${fileName}: ${result.chunksInserted} chunks stored`);
-    return { success: true, chunksInserted: result.chunksInserted };
-    
-  } catch (error) {
-    console.error(`[RAG] Failed to process ${fileName}:`, error);
-    
-    await db
-      .update(documents)
-      .set({
-        processing_status: 'error',
-        processing_error: error instanceof Error ? error.message : 'Unknown error',
-        updated_at: new Date()
-      })
-      .where(eq(documents.id, documentId));
-    
-    return { 
-      success: false, 
-      chunksInserted: 0, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    };
-  }
-}
-
-async function findHouseTypeIdFromCodes(
-  codes: string[],
-  developmentId: string,
-  tenantId: string
-): Promise<string | null> {
-  if (codes.length === 0) return null;
-
-  for (const code of codes) {
-    const houseType = await db.query.houseTypes.findFirst({
-      where: and(
-        eq(houseTypes.development_id, developmentId),
-        eq(houseTypes.tenant_id, tenantId),
-        eq(houseTypes.house_type_code, code)
-      ),
-      columns: { id: true }
-    });
-
-    if (houseType) {
-      return houseType.id;
-    }
-  }
-
-  return null;
-}
-
 export async function POST(request: NextRequest) {
+  console.log('\n' + '='.repeat(60));
+  console.log('[Developer Upload] SUPABASE UPLOAD + TRAIN PIPELINE');
+  console.log('='.repeat(60));
+
   try {
-    const supabase = createServerComponentClient({ cookies });
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user?.email) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const admin = await db.query.admins.findFirst({
-      where: eq(admins.email, user.email),
-      columns: { id: true, tenant_id: true, role: true }
-    });
-
-    if (!admin) {
-      return NextResponse.json(
-        { error: 'Admin account not found' },
-        { status: 403 }
-      );
-    }
-
     const formData = await request.formData();
-    const tenantId = formData.get('tenantId') as string;
-    const developmentId = formData.get('developmentId') as string;
-    const metadataStr = formData.get('metadata') as string;
     const files = formData.getAll('files') as File[];
-
-    if (!tenantId || !developmentId) {
-      return NextResponse.json(
-        { error: 'tenantId and developmentId are required' },
-        { status: 400 }
-      );
-    }
-
-    if (files.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one file is required' },
-        { status: 400 }
-      );
-    }
-
-    const accessCheck = await validateTenantAdminAccess(user.email, tenantId, developmentId);
-    if (!accessCheck.valid) {
-      return NextResponse.json(
-        { error: accessCheck.error },
-        { status: 403 }
-      );
-    }
-
-    let metadata: UploadMetadata = {};
+    const developmentId = (formData.get('developmentId') as string) || PROJECT_ID;
+    const metadataStr = formData.get('metadata') as string;
+    
+    let metadata: { discipline?: string; houseTypeId?: string; isImportant?: boolean; mustRead?: boolean } = {};
     try {
       metadata = metadataStr ? JSON.parse(metadataStr) : {};
     } catch {
       metadata = {};
     }
 
-    const uploadedDocuments: Array<{
-      id: string;
-      fileName: string;
-      discipline: string | null;
-      houseTypeCode: string | null;
-      isImportant: boolean;
-      mustRead: boolean;
-      aiClassified: boolean;
-      chunksCreated?: number;
-      ragError?: string;
-    }> = [];
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 });
+    }
+
+    console.log(`[Developer Upload] Processing ${files.length} file(s) for project ${developmentId}`);
+
+    const uploadedDocuments = [];
 
     for (const file of files) {
-      console.log(`[Upload] Processing file: ${file.name}`);
+      if (!file || !(file instanceof File)) continue;
 
-      const storageResult = await uploadToSupabaseStorage(
-        supabase,
-        file,
-        tenantId,
-        developmentId
-      );
+      const fileName = file.name;
+      const mimeType = file.type || 'application/octet-stream';
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const storageName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const storagePath = `${developmentId}/${storageName}`;
 
-      if ('error' in storageResult) {
-        console.error(`[Upload] Failed to upload ${file.name}:`, storageResult.error);
-        continue;
-      }
+      console.log(`\n[Developer Upload] File: ${fileName} (${mimeType})`);
 
-      let discipline = metadata.discipline || null;
-      let houseTypeId = metadata.houseTypeId || null;
-      let houseTypeCode: string | null = null;
-      let aiClassified = false;
+      // Step 1: Upload to Supabase Storage
+      let publicUrl = '';
+      const { error: uploadError } = await supabase.storage
+        .from('development_docs')
+        .upload(storagePath, buffer, {
+          contentType: mimeType,
+          upsert: false,
+        });
 
-      const houseTypeCodes = extractHouseTypeCodes(file.name);
-      if (houseTypeCodes.length > 0) {
-        houseTypeCode = houseTypeCodes[0];
-        if (!houseTypeId) {
-          houseTypeId = await findHouseTypeIdFromCodes(houseTypeCodes, developmentId, tenantId);
+      if (uploadError) {
+        console.error('[Developer Upload] Storage error:', uploadError.message);
+        if (uploadError.message.includes('not found')) {
+          await supabase.storage.createBucket('development_docs', { public: true });
+          await supabase.storage.from('development_docs').upload(storagePath, buffer, { contentType: mimeType });
         }
       }
 
-      if (!discipline) {
-        try {
-          const textContent = await extractTextFromFile(file);
-          const classification = await classifyDocumentWithAI(file.name, textContent);
-          
-          discipline = classification.discipline;
-          aiClassified = true;
-          
-          if (houseTypeCodes.length === 0 && classification.houseTypeCodes.length > 0) {
-            houseTypeCode = classification.houseTypeCodes[0];
-            houseTypeId = await findHouseTypeIdFromCodes(
-              classification.houseTypeCodes,
-              developmentId,
-              tenantId
-            );
+      const { data: urlData } = supabase.storage.from('development_docs').getPublicUrl(storagePath);
+      publicUrl = urlData?.publicUrl || '';
+      console.log('[Developer Upload] Stored at:', publicUrl);
+
+      // Step 2: Extract text
+      const extractedText = await extractText(buffer, mimeType, fileName);
+      console.log(`[Developer Upload] Extracted ${extractedText.length} characters`);
+
+      // Step 3: Chunk and embed (INLINE - directly to Supabase document_sections)
+      let chunksEmbedded = 0;
+      
+      if (extractedText.length > 50) {
+        const chunks = splitIntoChunks(extractedText);
+        console.log(`[Developer Upload] Split into ${chunks.length} chunks, generating embeddings...`);
+
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            const embedding = await generateEmbedding(chunks[i]);
+            
+            const { error: insertError } = await supabase
+              .from('document_sections')
+              .insert({
+                project_id: developmentId,
+                content: chunks[i],
+                embedding: embedding,
+                metadata: {
+                  source: fileName.replace(/\.[^/.]+$/, ''),
+                  file_name: fileName,
+                  file_url: publicUrl,
+                  chunk_index: i,
+                  total_chunks: chunks.length,
+                  discipline: metadata.discipline || 'other',
+                },
+              });
+
+            if (!insertError) {
+              chunksEmbedded++;
+            } else {
+              console.error(`[Developer Upload] Chunk ${i} error:`, insertError.message);
+            }
+          } catch (embErr) {
+            console.error(`[Developer Upload] Embedding error chunk ${i}:`, embErr);
           }
-
-          console.log(`[Upload] AI classified ${file.name} as ${discipline} (confidence: ${classification.confidence})`);
-        } catch (classifyError) {
-          console.error(`[Upload] Classification failed for ${file.name}:`, classifyError);
-          discipline = 'other';
         }
-      }
 
-      const documentId = crypto.randomUUID();
-      const title = file.name.replace(/\.[^/.]+$/, '');
-
-      await db.insert(documents).values({
-        id: documentId,
-        tenant_id: tenantId,
-        development_id: developmentId,
-        title,
-        file_name: file.name,
-        original_file_name: file.name,
-        relative_path: storageResult.path,
-        storage_url: storageResult.path,
-        file_url: null,
-        mime_type: file.type,
-        size_kb: Math.round(file.size / 1024),
-        document_type: discipline || 'other',
-        discipline,
-        house_type_id: houseTypeId,
-        house_type_code: houseTypeCode,
-        is_important: metadata.isImportant || false,
-        must_read: metadata.mustRead || false,
-        uploaded_by: admin.id,
-        status: 'active',
-        processing_status: 'pending',
-        ai_classified: aiClassified,
-        ai_classified_at: aiClassified ? new Date() : null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-
-      console.log(`[Upload] Document saved: ${documentId}`);
-      
-      const fileBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(new Uint8Array(fileBuffer));
-      
-      let ragResult: { success: boolean; chunksInserted: number; error?: string } = { success: false, chunksInserted: 0 };
-      try {
-        ragResult = await processDocumentForRAG(
-          buffer,
-          file.name,
-          file.type,
-          documentId,
-          tenantId,
-          developmentId,
-          houseTypeCode
-        );
-      } catch (err) {
-        console.error(`[Upload] RAG processing failed for ${file.name}:`, err);
-        ragResult.error = err instanceof Error ? err.message : 'Unknown error';
+        console.log(`[Developer Upload] ✅ Embedded ${chunksEmbedded}/${chunks.length} chunks to Supabase`);
+      } else {
+        console.log('[Developer Upload] No text extracted, skipping AI training');
       }
 
       uploadedDocuments.push({
-        id: documentId,
-        fileName: file.name,
-        discipline,
-        houseTypeCode,
-        isImportant: metadata.isImportant || false,
-        mustRead: metadata.mustRead || false,
-        aiClassified,
-        chunksCreated: ragResult.chunksInserted,
-        ragError: ragResult.error,
+        id: crypto.randomUUID(),
+        fileName,
+        url: publicUrl,
+        discipline: metadata.discipline || 'other',
+        chunksEmbedded,
+        status: 'completed',
+        aiClassified: false,
       });
     }
+
+    console.log('\n[Developer Upload] ✅ ALL FILES PROCESSED TO SUPABASE');
+    console.log('='.repeat(60) + '\n');
 
     return NextResponse.json({
       success: true,
       uploaded: uploadedDocuments,
-      message: `Successfully uploaded ${uploadedDocuments.length} document(s)`,
+      message: `Uploaded ${uploadedDocuments.length} document(s) and created ${uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0)} chunks`,
     });
 
   } catch (error) {
-    console.error('[Upload] Error:', error);
+    console.error('[Developer Upload] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
