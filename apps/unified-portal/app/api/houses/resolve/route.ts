@@ -8,7 +8,13 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    let body;
+    try {
+      const text = await req.text();
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      body = {};
+    }
     const token = body.token || body.unitId || body.unit_id;
 
     if (!token) {
