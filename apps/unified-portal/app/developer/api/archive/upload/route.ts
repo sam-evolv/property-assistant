@@ -46,7 +46,7 @@ function splitIntoChunks(text: string): string[] {
 async function generateEmbedding(text: string): Promise<number[]> {
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-small',
-    input: text,
+    input: text.slice(0, 8000),
     dimensions: 1536,
   });
   return response.data[0].embedding;
@@ -54,55 +54,52 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
+    // Use pdfjs-dist for reliable PDF text extraction
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParseModule = require('pdf-parse');
-    const PDFParse = pdfParseModule.PDFParse;
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
     
-    console.log('[Upload] Using pdf-parse v2.x PDFParse class');
+    console.log('[Upload] Using pdfjs-dist for PDF extraction');
     
-    // v2.x API: Create parser with options object containing data
-    const parser = new PDFParse({
-      data: new Uint8Array(buffer),
-      verbosity: 0,
-    });
+    // Load the PDF document
+    const data = new Uint8Array(buffer);
+    const loadingTask = pdfjsLib.getDocument({ data, useSystemFonts: true });
+    const pdfDoc = await loadingTask.promise;
     
-    // Parse and extract text
-    const doc = await parser.parse();
-    let text = '';
+    console.log(`[Upload] PDF loaded: ${pdfDoc.numPages} pages`);
     
-    // Get all pages and join text
-    const numPages = doc.numPages || 0;
-    console.log(`[Upload] PDF has ${numPages} pages`);
+    let fullText = '';
     
-    for (let i = 1; i <= numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items.map((item: { str?: string }) => item.str || '').join(' ');
-      text += pageText + '\n';
+    // Extract text from each page
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: { str?: string }) => item.str || '')
+        .join(' ');
+      fullText += pageText + '\n';
     }
     
-    text = text.trim();
-    console.log(`[Upload] PDF parsed: ${text.length} characters`);
+    fullText = fullText.trim();
+    console.log(`[Upload] Extracted ${fullText.length} characters from PDF`);
     
-    if (text.length > 0) {
-      console.log('[Upload] Text preview:', text.slice(0, 200).replace(/\n/g, ' '));
-      return text;
+    if (fullText.length > 0) {
+      console.log('[Upload] Preview:', fullText.slice(0, 200).replace(/\n/g, ' '));
     }
     
-    throw new Error('No text extracted from PDF');
+    return fullText;
   } catch (err) {
-    console.error('[Upload] PDF parse error:', err);
+    console.error('[Upload] PDF extraction error:', err);
     
-    // Fallback: try to extract any readable text from buffer
+    // Fallback: extract readable ASCII from buffer
     try {
       const rawText = buffer.toString('utf-8');
       const readable = rawText.replace(/[^\x20-\x7E\n\r]/g, '').trim();
       if (readable.length > 100) {
-        console.log('[Upload] Fallback: extracted', readable.length, 'chars from raw buffer');
+        console.log('[Upload] Fallback: extracted', readable.length, 'chars');
         return readable;
       }
     } catch {
-      // Ignore fallback error
+      // Ignore
     }
     
     return '';
@@ -123,7 +120,7 @@ async function extractText(buffer: Buffer, mimeType: string, fileName: string): 
 
 export async function POST(request: NextRequest) {
   console.log('\n' + '='.repeat(60));
-  console.log('[Developer Upload] SUPABASE UPLOAD + TRAIN PIPELINE');
+  console.log('[Developer Upload] DOCUMENT UPLOAD + TRAIN PIPELINE');
   console.log('='.repeat(60));
 
   try {
@@ -193,6 +190,7 @@ export async function POST(request: NextRequest) {
 
         for (let i = 0; i < chunks.length; i++) {
           try {
+            console.log(`[Developer Upload] Embedding chunk ${i + 1}/${chunks.length}...`);
             const embedding = await generateEmbedding(chunks[i]);
             
             const { error: insertError } = await supabase
@@ -213,51 +211,43 @@ export async function POST(request: NextRequest) {
 
             if (!insertError) {
               chunksEmbedded++;
+              console.log(`[Developer Upload] Chunk ${i + 1} embedded successfully`);
             } else {
               console.error(`[Developer Upload] Chunk ${i} DB error:`, insertError.message);
-              return NextResponse.json(
-                { error: `Database insert failed: ${insertError.message}` },
-                { status: 500 }
-              );
             }
           } catch (embErr) {
             console.error(`[Developer Upload] Embedding error chunk ${i}:`, embErr);
-            return NextResponse.json(
-              { error: `Embedding generation failed: ${embErr instanceof Error ? embErr.message : 'Unknown error'}` },
-              { status: 500 }
-            );
           }
         }
 
-        console.log(`[Developer Upload] Embedded ${chunksEmbedded}/${chunks.length} chunks to Supabase`);
+        console.log(`[Developer Upload] Embedded ${chunksEmbedded}/${chunks.length} chunks`);
       } else {
         console.log('[Developer Upload] No text extracted, storing metadata only');
-        const embedding = await generateEmbedding(`Document: ${fileName}`);
-        const { error: insertError } = await supabase
-          .from('document_sections')
-          .insert({
-            project_id: projectId,
-            content: `Document: ${fileName}`,
-            embedding: embedding,
-            metadata: {
-              source: fileName.replace(/\.[^/.]+$/, ''),
-              file_name: fileName,
-              file_url: publicUrl,
-              chunk_index: 0,
-              total_chunks: 1,
-              discipline: metadata.discipline || 'other',
-              no_text_content: true,
-            },
-          });
-        
-        if (insertError) {
-          console.error('[Developer Upload] Metadata insert error:', insertError.message);
-          return NextResponse.json(
-            { error: `Database insert failed: ${insertError.message}` },
-            { status: 500 }
-          );
+        try {
+          const embedding = await generateEmbedding(`Document: ${fileName}`);
+          const { error: insertError } = await supabase
+            .from('document_sections')
+            .insert({
+              project_id: projectId,
+              content: `Document: ${fileName}`,
+              embedding: embedding,
+              metadata: {
+                source: fileName.replace(/\.[^/.]+$/, ''),
+                file_name: fileName,
+                file_url: publicUrl,
+                chunk_index: 0,
+                total_chunks: 1,
+                discipline: metadata.discipline || 'other',
+                no_text_content: true,
+              },
+            });
+          
+          if (!insertError) {
+            chunksEmbedded = 1;
+          }
+        } catch (err) {
+          console.error('[Developer Upload] Fallback embedding error:', err);
         }
-        chunksEmbedded = 1;
       }
 
       uploadedDocuments.push({
@@ -266,18 +256,20 @@ export async function POST(request: NextRequest) {
         url: publicUrl,
         discipline: metadata.discipline || 'other',
         chunksEmbedded,
-        status: 'indexed',
+        status: chunksEmbedded > 0 ? 'indexed' : 'failed',
       });
     }
 
-    console.log('\n[Developer Upload] ALL FILES PROCESSED TO SUPABASE');
+    console.log('\n[Developer Upload] ALL FILES PROCESSED');
     console.log('='.repeat(60) + '\n');
 
+    const totalChunks = uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0);
+    
     return NextResponse.json({
-      success: true,
-      count: uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0),
+      success: totalChunks > 0,
+      count: totalChunks,
       uploaded: uploadedDocuments,
-      message: `Uploaded ${uploadedDocuments.length} document(s) with ${uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0)} chunks`,
+      message: `Uploaded ${uploadedDocuments.length} document(s) with ${totalChunks} chunks embedded`,
     });
 
   } catch (error) {
