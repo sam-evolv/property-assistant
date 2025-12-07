@@ -54,12 +54,38 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
+    // Defensive import - handle both default and named exports
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse');
+    const pdfParseModule = require('pdf-parse');
+    const pdfParse = pdfParseModule.default || pdfParseModule;
+    
+    console.log('[Upload] pdf-parse module type:', typeof pdfParse);
+    
     const pdfData = await pdfParse(buffer);
-    return pdfData.text || '';
+    const text = pdfData.text || '';
+    console.log(`[Upload] PDF parsed successfully: ${text.length} characters`);
+    
+    // Log first 200 chars for debugging
+    if (text.length > 0) {
+      console.log('[Upload] Text preview:', text.slice(0, 200).replace(/\n/g, ' '));
+    }
+    
+    return text;
   } catch (err) {
     console.error('[Upload] PDF parse error:', err);
+    
+    // Fallback: try to extract any readable text from buffer
+    try {
+      const rawText = buffer.toString('utf-8');
+      const readable = rawText.replace(/[^\x20-\x7E\n\r]/g, '').trim();
+      if (readable.length > 100) {
+        console.log('[Upload] Fallback: extracted', readable.length, 'chars from raw buffer');
+        return readable;
+      }
+    } catch {
+      // Ignore fallback error
+    }
+    
     return '';
   }
 }
