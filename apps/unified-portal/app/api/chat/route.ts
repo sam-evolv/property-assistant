@@ -28,6 +28,7 @@ interface DocumentMatch {
   content: string;
   metadata: Record<string, unknown>;
   similarity: number;
+  project_id?: string;
 }
 
 async function generateEmbedding(text: string): Promise<number[]> {
@@ -44,19 +45,74 @@ async function searchDocuments(query: string): Promise<DocumentMatch[]> {
     console.log('[Chat] Generating embedding for query...');
     const queryEmbedding = await generateEmbedding(query);
     
-    console.log('[Chat] Calling match_documents RPC...');
     console.log('[Chat] Embedding dimensions:', queryEmbedding.length);
+    console.log('[Chat] Filtering by PROJECT_ID:', PROJECT_ID);
     
-    const { data, error } = await supabase.rpc('match_documents', {
+    // Try RPC first with project_id filter
+    const { data, error } = await supabase.rpc('match_documents_by_project', {
       query_embedding: queryEmbedding,
       match_threshold: 0.3,
       match_count: 5,
+      target_project_id: PROJECT_ID,
     });
 
     if (error) {
-      console.error('[Chat] Vector search RPC error:', error.message);
-      console.error('[Chat] Full error:', JSON.stringify(error));
-      return [];
+      // Fallback: Use regular match_documents then manually filter
+      console.log('[Chat] Falling back to unfiltered RPC + post-filter...');
+      
+      const { data: allData, error: fallbackError } = await supabase.rpc('match_documents', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.3,
+        match_count: 20,
+      });
+      
+      if (fallbackError) {
+        console.error('[Chat] Vector search RPC error:', fallbackError.message);
+        return [];
+      }
+      
+      // Get the IDs and fetch project_id from document_sections
+      const ids = (allData || []).map((m: { id: string }) => m.id);
+      if (ids.length === 0) {
+        console.log('[Chat] No matches found');
+        return [];
+      }
+      
+      // Fetch sections with project_id filter
+      const { data: sections, error: sectionsError } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata, project_id')
+        .in('id', ids)
+        .eq('project_id', PROJECT_ID);
+      
+      if (sectionsError) {
+        console.error('[Chat] Sections fetch error:', sectionsError.message);
+        return [];
+      }
+      
+      // Map back similarity scores
+      const similarityMap = new Map<string, number>((allData || []).map((m: { id: string; similarity: number }) => [m.id, m.similarity]));
+      const results: DocumentMatch[] = (sections || []).map((s: { id: string; content: string; metadata: Record<string, unknown>; project_id: string }) => ({
+        id: s.id,
+        content: s.content,
+        metadata: s.metadata || {},
+        similarity: similarityMap.get(s.id) ?? 0,
+        project_id: s.project_id,
+      }));
+      
+      // Sort by similarity
+      results.sort((a, b) => b.similarity - a.similarity);
+      
+      console.log(`[Chat] RAG RESULTS: ${results.length} chunks from Launch development`);
+      results.slice(0, 5).forEach((match, i) => {
+        console.log(`[Chat] Match ${i + 1}:`, {
+          similarity: match.similarity?.toFixed(3),
+          source: match.metadata?.file_name || match.metadata?.source,
+          contentPreview: match.content?.slice(0, 100),
+        });
+      });
+      
+      return results.slice(0, 5);
     }
 
     console.log(`[Chat] RAG RESULTS: Found ${data?.length || 0} matching document chunks`);
