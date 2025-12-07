@@ -98,46 +98,68 @@ export default function HomeResidentPage() {
     const fetchHouse = async () => {
       try {
         const tokenKey = `house_token_${unitUid}`;
-        let validToken = token;
+        // Use token from query param, sessionStorage, or the unitUid itself (new QR flow)
+        let validToken = token || sessionStorage.getItem(tokenKey) || unitUid;
 
-        if (!validToken) {
-          validToken = sessionStorage.getItem(tokenKey);
-        }
-
-        if (validToken) {
-          const validateRes = await fetch(
-            `/api/houses/resolve?code=${unitUid}&token=${encodeURIComponent(validToken)}`
-          );
-          
-          if (!validateRes.ok) {
-            sessionStorage.removeItem(tokenKey);
-            sessionStorage.removeItem(`intro_seen_${unitUid}`);
-            setError('Invalid or expired QR code. Please scan again.');
-            setLoading(false);
-            return;
-          }
-
-          const data = await validateRes.json();
-
-          if (data.house_id) {
-            sessionStorage.setItem(tokenKey, validToken);
-            setValidatedToken(validToken);
-            setHouse(data);
-
-            // Check important docs consent status
-            checkImportantDocsConsent(data.house_id, validToken);
-
-            const hasSeenIntro = sessionStorage.getItem(`intro_seen_${unitUid}`);
-            if (!hasSeenIntro) {
-              setShowIntro(true);
-            }
-          } else {
-            setError('Home not found.');
-          }
-        } else {
-          setError('Please scan your QR code to access your home.');
+        // Call resolve endpoint with POST body (new simplified flow)
+        const validateRes = await fetch('/api/houses/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: validToken }),
+        });
+        
+        if (!validateRes.ok) {
+          sessionStorage.removeItem(tokenKey);
+          sessionStorage.removeItem(`intro_seen_${unitUid}`);
+          setError('Invalid or expired QR code. Please scan again.');
           setLoading(false);
           return;
+        }
+
+        const data = await validateRes.json();
+
+        // Handle both old format (house_id) and new format (unitId)
+        const houseId = data.house_id || data.unitId;
+        
+        if (houseId) {
+          sessionStorage.setItem(tokenKey, validToken);
+          setValidatedToken(validToken);
+          
+          // Map new response format to expected HouseContext
+          const houseData: HouseContext = {
+            house_id: houseId,
+            development_id: data.development_id || data.project_id || '',
+            development_code: data.development_code || '',
+            development_name: data.development_name || 'Longview Park',
+            development_logo_url: data.development_logo_url,
+            development_system_instructions: data.development_system_instructions || '',
+            purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',
+            house_type: data.house_type || '',
+            bedrooms: data.bedrooms || 0,
+            address: data.address || '',
+            eircode: data.eircode || '',
+            mrpn: data.mrpn || '',
+            electricity_account: data.electricity_account || '',
+            esb_eirgrid_number: data.esb_eirgrid_number || '',
+            latitude: data.latitude || null,
+            longitude: data.longitude || null,
+            tenant_id: data.tenant_id || '',
+            user_id: data.user_id,
+            project_id: data.project_id,
+            floor_plan_pdf_url: data.floorPlanUrl || data.floor_plan_pdf_url,
+          };
+          
+          setHouse(houseData);
+
+          // Check important docs consent status
+          checkImportantDocsConsent(houseId, validToken);
+
+          const hasSeenIntro = sessionStorage.getItem(`intro_seen_${unitUid}`);
+          if (!hasSeenIntro) {
+            setShowIntro(true);
+          }
+        } else {
+          setError('Home not found.');
         }
       } catch (error) {
         console.error('Failed to fetch house:', error);
