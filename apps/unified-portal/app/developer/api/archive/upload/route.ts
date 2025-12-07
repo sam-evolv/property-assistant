@@ -54,23 +54,42 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
-    // Defensive import - handle both default and named exports
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfParseModule = require('pdf-parse');
-    const pdfParse = pdfParseModule.default || pdfParseModule;
+    const PDFParse = pdfParseModule.PDFParse;
     
-    console.log('[Upload] pdf-parse module type:', typeof pdfParse);
+    console.log('[Upload] Using pdf-parse v2.x PDFParse class');
     
-    const pdfData = await pdfParse(buffer);
-    const text = pdfData.text || '';
-    console.log(`[Upload] PDF parsed successfully: ${text.length} characters`);
+    // v2.x API: Create parser with options object containing data
+    const parser = new PDFParse({
+      data: new Uint8Array(buffer),
+      verbosity: 0,
+    });
     
-    // Log first 200 chars for debugging
-    if (text.length > 0) {
-      console.log('[Upload] Text preview:', text.slice(0, 200).replace(/\n/g, ' '));
+    // Parse and extract text
+    const doc = await parser.parse();
+    let text = '';
+    
+    // Get all pages and join text
+    const numPages = doc.numPages || 0;
+    console.log(`[Upload] PDF has ${numPages} pages`);
+    
+    for (let i = 1; i <= numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item: { str?: string }) => item.str || '').join(' ');
+      text += pageText + '\n';
     }
     
-    return text;
+    text = text.trim();
+    console.log(`[Upload] PDF parsed: ${text.length} characters`);
+    
+    if (text.length > 0) {
+      console.log('[Upload] Text preview:', text.slice(0, 200).replace(/\n/g, ' '));
+      return text;
+    }
+    
+    throw new Error('No text extracted from PDF');
   } catch (err) {
     console.error('[Upload] PDF parse error:', err);
     
