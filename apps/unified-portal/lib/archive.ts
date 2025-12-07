@@ -4,13 +4,10 @@
  * Provides functions for fetching and organizing documents by discipline
  * for the developer dashboard Smart Archive feature.
  * 
- * NOTE: This file uses server-only dependencies.
- * For client components, import from './archive-constants' instead.
+ * MIGRATED TO SUPABASE - Now reads from document_sections table
  */
 
-import { db } from '@openhouse/db/client';
-import { documents } from '@openhouse/db/schema';
-import { eq, and, desc, sql, or, isNull, notInArray, ilike, count } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 import { 
   DISCIPLINES, 
   type DisciplineType, 
@@ -29,10 +26,17 @@ export {
   type FetchDocumentsResult 
 } from './archive-constants';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape'];
 
 /**
  * Fetches discipline summaries with file counts for the archive grid
+ * NOW READS FROM SUPABASE document_sections
  */
 export async function fetchArchiveDisciplines({
   tenantId,
@@ -42,45 +46,44 @@ export async function fetchArchiveDisciplines({
   developmentId?: string | null;
 }): Promise<DisciplineSummary[]> {
   try {
-    const conditions = [
-      eq(documents.tenant_id, tenantId),
-      eq(documents.status, 'active')
-    ];
+    // Use hardcoded project ID for Supabase
+    const projectId = developmentId || PROJECT_ID;
     
-    if (developmentId) {
-      conditions.push(eq(documents.development_id, developmentId));
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('[Archive] Supabase error:', error.message);
+      return [];
     }
+
+    // Group by unique source documents
+    const documentMap = new Map<string, { source: string; discipline: string }>();
     
-    const docs = await db
-      .select({
-        discipline: documents.discipline,
-        created_at: documents.created_at
-      })
-      .from(documents)
-      .where(and(...conditions));
-    
-    console.log('[Archive] Fetched docs count:', docs.length, 'for tenant:', tenantId, 'development:', developmentId);
-    
-    // Group documents by discipline
-    const disciplineMap = new Map<string, { count: number; lastUpdated: Date | null }>();
-    
+    for (const section of sections || []) {
+      const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
+      if (!documentMap.has(source)) {
+        // Try to infer discipline from metadata or default to 'other'
+        const discipline = section.metadata?.discipline?.toLowerCase() || 'other';
+        documentMap.set(source, { source, discipline });
+      }
+    }
+
+    console.log('[Archive] Found', documentMap.size, 'unique documents from Supabase');
+
     // Initialize all disciplines with 0 count
+    const disciplineMap = new Map<string, { count: number; lastUpdated: Date | null }>();
     Object.keys(DISCIPLINES).forEach(disc => {
       disciplineMap.set(disc, { count: 0, lastUpdated: null });
     });
     
     // Count documents per discipline
-    docs.forEach(doc => {
-      const disc = doc.discipline?.toLowerCase() || 'other';
-      const key = VALID_DISCIPLINES.includes(disc) ? disc : 'other';
-      
+    documentMap.forEach(doc => {
+      const key = VALID_DISCIPLINES.includes(doc.discipline) ? doc.discipline : 'other';
       const current = disciplineMap.get(key) || { count: 0, lastUpdated: null };
       current.count++;
-      
-      if (!current.lastUpdated || (doc.created_at && doc.created_at > current.lastUpdated)) {
-        current.lastUpdated = doc.created_at;
-      }
-      
       disciplineMap.set(key, current);
     });
     
@@ -107,166 +110,271 @@ export async function fetchArchiveDisciplines({
     return summaries;
   } catch (error) {
     console.error('[Archive] Error fetching disciplines:', error);
-    throw error;
+    return [];
   }
 }
 
+function createArchiveDocument(section: any, projectId: string): ArchiveDocument {
+  const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
+  return {
+    id: section.id,
+    title: source,
+    file_name: section.metadata?.file_name || source,
+    file_url: section.metadata?.file_url || null,
+    storage_url: section.metadata?.file_url || null,
+    discipline: section.metadata?.discipline || 'other',
+    revision_code: null,
+    doc_kind: section.metadata?.doc_kind || 'specification',
+    house_type_code: null,
+    is_important: false,
+    must_read: false,
+    ai_classified: false,
+    mime_type: 'application/pdf',
+    size_kb: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /**
- * Fetches documents for a specific discipline with pagination and filters
+ * Fetches documents for a specific discipline
+ * NOW READS FROM SUPABASE document_sections
  */
 export async function fetchDocumentsByDiscipline({
   tenantId,
   developmentId,
   discipline,
   page = 1,
-  pageSize = 20,
-  houseTypeCode,
-  important,
-  mustRead,
-  aiClassified,
+  limit = 50,
+  searchQuery,
 }: {
   tenantId: string;
   developmentId?: string | null;
-  discipline: string;
+  discipline: DisciplineType;
   page?: number;
-  pageSize?: number;
-  houseTypeCode?: string | null;
-  important?: boolean;
-  mustRead?: boolean;
-  aiClassified?: boolean;
+  limit?: number;
+  searchQuery?: string;
 }): Promise<FetchDocumentsResult> {
   try {
-    const offset = (page - 1) * pageSize;
+    const projectId = developmentId || PROJECT_ID;
     
-    const conditions = [
-      eq(documents.tenant_id, tenantId),
-      eq(documents.status, 'active')
-    ];
-    
-    if (developmentId) {
-      conditions.push(eq(documents.development_id, developmentId));
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata, content')
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('[Archive] Supabase error:', error.message);
+      return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
     }
+
+    // Group by unique source documents
+    const documentMap = new Map<string, ArchiveDocument>();
     
-    // Handle discipline filtering
-    if (discipline === 'other') {
-      conditions.push(
-        or(
-          isNull(documents.discipline),
-          notInArray(sql`lower(${documents.discipline})`, VALID_DISCIPLINES)
-        )!
+    for (const section of sections || []) {
+      const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
+      
+      if (!documentMap.has(source)) {
+        documentMap.set(source, createArchiveDocument(section, projectId));
+      }
+    }
+
+    // Filter by discipline
+    const targetDiscipline = discipline === 'other' ? 'other' : discipline;
+    let filteredDocs = Array.from(documentMap.values()).filter(doc => {
+      const docDisc = doc.discipline ? 
+        (VALID_DISCIPLINES.includes(doc.discipline) ? doc.discipline : 'other') : 'other';
+      return docDisc === targetDiscipline;
+    });
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredDocs = filteredDocs.filter(doc => 
+        doc.title.toLowerCase().includes(query) ||
+        doc.file_name.toLowerCase().includes(query)
       );
-    } else {
-      conditions.push(ilike(documents.discipline, discipline));
     }
-    
-    // Apply additional filters
-    if (houseTypeCode) {
-      conditions.push(eq(documents.house_type_code, houseTypeCode));
-    }
-    if (important) {
-      conditions.push(eq(documents.is_important, true));
-    }
-    if (mustRead) {
-      conditions.push(eq(documents.must_read, true));
-    }
-    if (aiClassified) {
-      conditions.push(eq(documents.ai_classified, true));
-    }
-    
-    // Get count first
-    const [countResult] = await db
-      .select({ count: count() })
-      .from(documents)
-      .where(and(...conditions));
-    
-    const totalCount = countResult?.count || 0;
-    const totalPages = Math.ceil(totalCount / pageSize);
-    
-    // Get documents
-    const docs = await db
-      .select({
-        id: documents.id,
-        title: documents.title,
-        file_name: documents.file_name,
-        file_url: documents.file_url,
-        storage_url: documents.storage_url,
-        discipline: documents.discipline,
-        revision_code: documents.revision_code,
-        doc_kind: documents.doc_kind,
-        house_type_code: documents.house_type_code,
-        is_important: documents.is_important,
-        must_read: documents.must_read,
-        ai_classified: documents.ai_classified,
-        mime_type: documents.mime_type,
-        size_kb: documents.size_kb,
-        created_at: documents.created_at,
-        updated_at: documents.updated_at
-      })
-      .from(documents)
-      .where(and(...conditions))
-      .orderBy(desc(documents.created_at))
-      .limit(pageSize)
-      .offset(offset);
-    
-    const processedDocs: ArchiveDocument[] = docs.map(doc => ({
-      id: doc.id,
-      title: doc.title || '',
-      file_name: doc.file_name || '',
-      file_url: doc.file_url || doc.storage_url || null,
-      storage_url: doc.storage_url || null,
-      discipline: doc.discipline || null,
-      revision_code: doc.revision_code || null,
-      doc_kind: doc.doc_kind || null,
-      house_type_code: doc.house_type_code || null,
-      is_important: doc.is_important || false,
-      must_read: doc.must_read || false,
-      ai_classified: doc.ai_classified || false,
-      mime_type: doc.mime_type || null,
-      size_kb: doc.size_kb || null,
-      created_at: doc.created_at?.toISOString() || null,
-      updated_at: doc.updated_at?.toISOString() || null
-    }));
-    
+
+    // Pagination
+    const totalCount = filteredDocs.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const offset = (page - 1) * limit;
+    const paginatedDocs = filteredDocs.slice(offset, offset + limit);
+
     return {
-      documents: processedDocs,
+      documents: paginatedDocs,
       totalCount,
       page,
-      pageSize,
+      pageSize: limit,
       totalPages,
     };
   } catch (error) {
     console.error('[Archive] Error fetching documents:', error);
-    throw error;
+    return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
   }
 }
 
 /**
- * Updates a document's discipline
+ * Counts total documents in the archive
+ * NOW READS FROM SUPABASE document_sections
  */
-export async function updateDocumentDiscipline({
-  documentId,
-  discipline,
+export async function countArchiveDocuments({
   tenantId,
+  developmentId,
 }: {
-  documentId: string;
-  discipline: DisciplineType;
   tenantId: string;
-}): Promise<void> {
+  developmentId?: string | null;
+}): Promise<{ total: number; indexed: number; errors: number }> {
   try {
-    await db
-      .update(documents)
-      .set({ 
-        discipline, 
-        updated_at: new Date() 
-      })
-      .where(
-        and(
-          eq(documents.id, documentId),
-          eq(documents.tenant_id, tenantId)
-        )
-      );
+    const projectId = developmentId || PROJECT_ID;
+    
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('[Archive] Supabase error:', error.message);
+      return { total: 0, indexed: 0, errors: 0 };
+    }
+
+    // Count unique documents
+    const uniqueDocs = new Set<string>();
+    for (const section of sections || []) {
+      const source = section.metadata?.source || section.metadata?.file_name;
+      if (source) uniqueDocs.add(source);
+    }
+
+    const total = uniqueDocs.size;
+    
+    console.log('[Archive] Count from Supabase:', total, 'documents');
+    
+    return { 
+      total, 
+      indexed: total,  // All documents in Supabase are indexed
+      errors: 0 
+    };
   } catch (error) {
-    console.error('[Archive] Error updating discipline:', error);
-    throw error;
+    console.error('[Archive] Error counting documents:', error);
+    return { total: 0, indexed: 0, errors: 0 };
+  }
+}
+
+/**
+ * Fetches a single document by ID
+ */
+export async function fetchDocumentById({
+  tenantId,
+  documentId,
+}: {
+  tenantId: string;
+  documentId: string;
+}): Promise<ArchiveDocument | null> {
+  try {
+    const { data: section, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata, content')
+      .eq('id', documentId)
+      .single();
+
+    if (error || !section) {
+      console.error('[Archive] Document not found:', documentId);
+      return null;
+    }
+
+    return createArchiveDocument(section, PROJECT_ID);
+  } catch (error) {
+    console.error('[Archive] Error fetching document:', error);
+    return null;
+  }
+}
+
+/**
+ * Updates document metadata (discipline, tags, etc.)
+ */
+export async function updateDocumentMetadata({
+  tenantId,
+  documentId,
+  updates,
+}: {
+  tenantId: string;
+  documentId: string;
+  updates: {
+    discipline?: DisciplineType;
+    doc_kind?: string;
+    tags?: string[];
+    needs_review?: boolean;
+  };
+}): Promise<boolean> {
+  // For now, Supabase document_sections don't have editable metadata
+  // This would need to update all sections with matching source
+  console.log('[Archive] Update metadata not yet implemented for Supabase');
+  return false;
+}
+
+/**
+ * Searches documents across all disciplines
+ */
+export async function searchArchiveDocuments({
+  tenantId,
+  developmentId,
+  query,
+  page = 1,
+  limit = 50,
+}: {
+  tenantId: string;
+  developmentId?: string | null;
+  query: string;
+  page?: number;
+  limit?: number;
+}): Promise<FetchDocumentsResult> {
+  try {
+    const projectId = developmentId || PROJECT_ID;
+    
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata, content')
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('[Archive] Supabase error:', error.message);
+      return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
+    }
+
+    // Group by unique source documents
+    const documentMap = new Map<string, ArchiveDocument>();
+    
+    for (const section of sections || []) {
+      const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
+      
+      if (!documentMap.has(source)) {
+        documentMap.set(source, createArchiveDocument(section, projectId));
+      }
+    }
+
+    // Filter by search query
+    const searchLower = query.toLowerCase();
+    let filteredDocs = Array.from(documentMap.values()).filter(doc => 
+      doc.title.toLowerCase().includes(searchLower) ||
+      doc.file_name.toLowerCase().includes(searchLower)
+    );
+
+    // Pagination
+    const totalCount = filteredDocs.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const offset = (page - 1) * limit;
+    const paginatedDocs = filteredDocs.slice(offset, offset + limit);
+
+    return {
+      documents: paginatedDocs,
+      totalCount,
+      page,
+      pageSize: limit,
+      totalPages,
+    };
+  } catch (error) {
+    console.error('[Archive] Error searching documents:', error);
+    return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
   }
 }
