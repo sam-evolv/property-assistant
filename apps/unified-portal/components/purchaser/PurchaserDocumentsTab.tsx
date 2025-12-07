@@ -13,6 +13,7 @@ interface Document {
   is_house_specific?: boolean;
   is_important?: boolean;
   important_rank?: number | null;
+  source?: 'drizzle' | 'supabase';
 }
 
 interface PurchaserDocumentsTabProps {
@@ -83,15 +84,22 @@ export default function PurchaserDocumentsTab({
     }
   };
 
-  const handleDownload = async (docId: string, title: string) => {
+  const handleDownload = async (doc: Document) => {
     try {
+      // For Supabase documents with direct file_url, open in new tab
+      if (doc.source === 'supabase' && doc.file_url) {
+        window.open(doc.file_url, '_blank');
+        return;
+      }
+      
+      // For Drizzle documents, use the download API
       const token = sessionStorage.getItem(`house_token_${unitUid}`);
       if (!token) {
         alert('Session expired. Please refresh and try again.');
         return;
       }
 
-      const downloadUrl = `/api/purchaser/documents/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${docId}`;
+      const downloadUrl = `/api/purchaser/documents/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       
       // First check if the download will succeed
       const response = await fetch(downloadUrl);
@@ -109,7 +117,7 @@ export default function PurchaserDocumentsTab({
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = title;
+      link.download = doc.title;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -263,7 +271,7 @@ export default function PurchaserDocumentsTab({
               <div
                 key={doc.id}
                 className={`${doc.is_important ? (isDarkMode ? 'bg-gold-900/10 border-gold-500/30' : 'bg-gold-50 border-gold-200') : cardBg} border rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group relative`}
-                onClick={() => handleDownload(doc.id, doc.title)}
+                onClick={() => handleDownload(doc)}
               >
                 {doc.is_important && (
                   <div className="absolute top-2 right-2">
@@ -290,7 +298,7 @@ export default function PurchaserDocumentsTab({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDownload(doc.id, doc.title);
+                      handleDownload(doc);
                     }}
                     className="p-2 rounded-lg bg-gradient-to-r from-gold-500 to-gold-600 text-white hover:from-gold-600 hover:to-gold-700 transition-all"
                   >
