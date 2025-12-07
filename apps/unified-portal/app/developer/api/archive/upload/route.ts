@@ -48,12 +48,25 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
+    
+    // Get discipline from multiple sources: direct field, category field, or metadata JSON
+    let discipline = (formData.get('discipline') as string) || (formData.get('category') as string) || '';
+    const metadataStr = formData.get('metadata') as string;
+    if (!discipline && metadataStr) {
+      try {
+        const metadata = JSON.parse(metadataStr);
+        discipline = metadata.discipline || metadata.category || '';
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+    discipline = discipline || 'other';
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    console.log(`[Upload] Processing ${files.length} file(s)`);
+    console.log(`[Upload] Processing ${files.length} file(s) with discipline: ${discipline}`);
     const results = [];
 
     for (const file of files) {
@@ -125,6 +138,7 @@ export async function POST(request: NextRequest) {
                 source: docName,
                 file_name: fileName,
                 file_url: fileUrl,
+                discipline: discipline.toLowerCase(),
                 chunk_index: i,
                 total_chunks: chunks.length,
               },
