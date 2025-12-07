@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
-import type { Unit, UnitType, DocumentSection } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// CRITICAL: Use Service Role Key to bypass RLS and always fetch unit data
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -16,6 +14,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+
 interface ChatRequest {
   message: string;
   userId?: string;
@@ -23,124 +23,14 @@ interface ChatRequest {
   houseId?: string;
 }
 
-interface ChatResponse {
-  success: boolean;
-  answer?: string;
-  floorPlanUrl?: string;
-  unitType?: Partial<UnitType>;
-  source: 'floor_plan' | 'vector_search' | 'unit_context' | 'fallback';
-  chunksUsed?: number;
+interface DocumentMatch {
+  id: string;
+  content: string;
+  metadata: Record<string, any>;
+  similarity: number;
 }
 
-interface UnitContext {
-  address: string;
-  purchaserName: string;
-  houseType: string;
-  bedrooms: number | null;
-  bathrooms: number | null;
-  propertyType: string | null;
-  totalArea: number | null;
-  projectId: string | null;
-  floorPlanUrl: string | null;
-  specs: Record<string, any> | null;
-}
-
-// Fetch rich unit data from Supabase
-async function getUnitContext(unitId: string): Promise<UnitContext | null> {
-  console.log('[Chat] Fetching unit context for:', unitId);
-  
-  const { data: unit, error } = await supabase
-    .from('units')
-    .select(`
-      id,
-      address,
-      purchaser_name,
-      project_id,
-      unit_types (
-        name,
-        specification_json,
-        floor_plan_pdf_url
-      )
-    `)
-    .eq('id', unitId)
-    .single();
-
-  if (error || !unit) {
-    console.log('[Chat] No unit found:', error?.message);
-    return null;
-  }
-
-  // Handle unit_types (may be array or object)
-  const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
-  const specs = unitType?.specification_json || {};
-
-  const context: UnitContext = {
-    address: unit.address || 'Not specified',
-    purchaserName: unit.purchaser_name || 'Homeowner',
-    houseType: unitType?.name || 'Standard',
-    bedrooms: specs.bedrooms || specs.Bedrooms || null,
-    bathrooms: specs.bathrooms || specs.Bathrooms || null,
-    propertyType: specs.property_type || specs.propertyType || null,
-    totalArea: specs.total_area_sqm || specs.totalArea || null,
-    projectId: unit.project_id,
-    floorPlanUrl: unitType?.floor_plan_pdf_url || null,
-    specs: specs,
-  };
-
-  // VERIFICATION LOG - Print specs to confirm data was retrieved
-  console.log('✅ FACTS FOUND:', specs);
-  console.log('[Chat] Unit context loaded:', {
-    address: context.address,
-    purchaser: context.purchaserName,
-    type: context.houseType,
-    bedrooms: context.bedrooms,
-    bathrooms: context.bathrooms,
-  });
-
-  return context;
-}
-
-// Build system context from unit data - CRITICAL DATA INJECTION
-function buildUnitSystemContext(context: UnitContext): string {
-  return `CRITICAL DATA - DO NOT IGNORE:
-- Owner: ${context.purchaserName}
-- Bedrooms: ${context.bedrooms}
-- Bathrooms: ${context.bathrooms}
-- Type: ${context.houseType}
-- Property Type: ${context.propertyType || 'House'}
-- Designation: ${context.specs?.designation || 'N/A'}
-
-INSTRUCTIONS:
-1. You are the digital home assistant for ${context.address}.
-2. When asked about room counts, you MUST use the data above.
-3. If the data says ${context.bathrooms}, you say ${context.bathrooms}. Do not guess.
-4. If the data says ${context.bedrooms}, you say ${context.bedrooms}. Do not guess.
-5. Never make up numbers. Only use the CRITICAL DATA above.`;
-}
-
-function isMeasurementQuestion(message: string): boolean {
-  const messageLower = message.toLowerCase();
-  const measurementPatterns = [
-    /floor\s*plan/i,
-    /measurement/i,
-    /dimension/i,
-    /size/i,
-    /how\s+big/i,
-    /square\s*(feet|footage|meters?|metres?|m)/i,
-    /sqm|sqft|m²|ft²/i,
-    /area/i,
-    /layout/i,
-    /bedroom/i,
-    /bathroom/i,
-    /living.*room/i,
-    /kitchen/i,
-    /how\s+many/i,
-  ];
-
-  return measurementPatterns.some(pattern => pattern.test(messageLower));
-}
-
-async function getEmbedding(text: string): Promise<number[]> {
+async function generateEmbedding(text: string): Promise<number[]> {
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-small',
     input: text,
@@ -149,18 +39,15 @@ async function getEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-async function searchDocumentSections(
-  query: string,
-  projectId?: string,
-  limit: number = 5
-): Promise<DocumentSection[]> {
-  const embedding = await getEmbedding(query);
-
-  const { data, error } = await supabase.rpc('match_document_sections', {
-    query_embedding: embedding,
-    match_threshold: 0.7,
-    match_count: limit,
-    filter_project_id: projectId || null,
+async function searchDocuments(query: string): Promise<DocumentMatch[]> {
+  console.log('[Chat] Generating embedding for query...');
+  const queryEmbedding = await generateEmbedding(query);
+  
+  console.log('[Chat] Calling match_documents RPC...');
+  const { data, error } = await supabase.rpc('match_documents', {
+    query_embedding: queryEmbedding,
+    match_threshold: 0.5,
+    match_count: 5,
   });
 
   if (error) {
@@ -168,124 +55,86 @@ async function searchDocumentSections(
     return [];
   }
 
+  console.log(`[Chat] Found ${data?.length || 0} matching documents`);
   return data || [];
-}
-
-async function generateAnswer(query: string, unitContext: string, documentContext: string): Promise<string> {
-  const systemPrompt = `You are a helpful property assistant for homeowners.
-
-${unitContext}
-
-Answer questions helpfully and accurately using the unit data and any document context provided.
-If asked about bedrooms, bathrooms, house type, or address - use the UNIT CONTEXT above.
-Keep answers concise, friendly, and helpful.`;
-
-  const userPrompt = documentContext 
-    ? `Document Context:\n${documentContext}\n\nUser Question: ${query}`
-    : `User Question: ${query}`;
-
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.3,
-    max_tokens: 500,
-  });
-
-  return response.choices[0]?.message?.content || "I couldn't generate a response.";
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: ChatRequest = await request.json();
-    const { message, userId, unitId, houseId } = body;
+    const { message } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
-    // Determine the unit ID from various sources
-    const resolvedUnitId = unitId || houseId || userId;
-
     console.log('\n' + '='.repeat(60));
-    console.log('[Chat] CONTEXT-AWARE CHAT');
+    console.log('[Chat] RAG CHAT WITH VECTOR SEARCH');
     console.log('='.repeat(60));
     console.log(`Query: ${message}`);
-    console.log(`Unit ID: ${resolvedUnitId || 'none'}`);
 
-    // Step 1: Fetch rich unit context from Supabase
-    let unitContext: UnitContext | null = null;
-    let unitSystemContext = '';
+    // Step 1: Embed the question and search for relevant documents
+    const matches = await searchDocuments(message);
 
-    if (resolvedUnitId) {
-      unitContext = await getUnitContext(resolvedUnitId);
-      if (unitContext) {
-        unitSystemContext = buildUnitSystemContext(unitContext);
-        console.log('[Chat] Unit context loaded successfully');
-      }
-    }
-
-    // Step 2: Check if this is a direct unit question (bedrooms, bathrooms, etc.)
-    const isMeasurement = isMeasurementQuestion(message);
-    
-    if (isMeasurement && unitContext) {
-      console.log('[Chat] Measurement question - answering from unit context');
+    // Step 2: Build context from matches
+    let contextBlock = '';
+    if (matches.length > 0) {
+      const facts = matches.map((match, i) => {
+        const source = match.metadata?.file_name || match.metadata?.source || 'Document';
+        return `[${i + 1}] From "${source}":\n${match.content}`;
+      }).join('\n\n');
       
-      // If we have a floor plan, include it
-      if (unitContext.floorPlanUrl) {
-        const response: ChatResponse = {
-          success: true,
-          answer: await generateAnswer(message, unitSystemContext, ''),
-          floorPlanUrl: unitContext.floorPlanUrl,
-          source: 'unit_context',
-        };
-        console.log('='.repeat(60) + '\n');
-        return NextResponse.json(response);
-      }
-
-      // Answer from context without floor plan
-      const answer = await generateAnswer(message, unitSystemContext, '');
-      const response: ChatResponse = {
-        success: true,
-        answer,
-        source: 'unit_context',
-      };
-      console.log('='.repeat(60) + '\n');
-      return NextResponse.json(response);
+      contextBlock = `FACTS FROM DOCUMENTS:\n${facts}`;
+      console.log('[Chat] Context block created from', matches.length, 'documents');
+    } else {
+      console.log('[Chat] No matching documents found');
     }
 
-    // Step 3: Perform vector search for document-based questions
-    console.log('[Chat] Performing vector search on document_sections...');
+    // Step 3: Build system prompt with context
+    const systemPrompt = contextBlock
+      ? `You are a helpful property assistant for the Launch development.
 
-    const projectId = unitContext?.projectId || undefined;
-    if (projectId) {
-      console.log('[Chat] Scoping search to project:', projectId);
-    }
+${contextBlock}
 
-    const chunks = await searchDocumentSections(message, projectId, 5);
-    console.log(`[Chat] Found ${chunks.length} relevant document sections`);
+INSTRUCTIONS:
+1. Answer the user's question using ONLY the facts above.
+2. If the facts contain the answer, provide it clearly and cite which document it came from.
+3. If the facts do not contain the answer, say "I don't have information about that in the uploaded documents."
+4. Do NOT make up information. Only use the facts provided above.
+5. Be concise, friendly, and helpful.`
+      : `You are a helpful property assistant for the Launch development.
 
-    // Build document context
-    const documentContext = chunks.length > 0
-      ? chunks.map((chunk, i) => `[${i + 1}] ${chunk.section_title || 'Section'}: ${chunk.content}`).join('\n\n')
-      : '';
+The user is asking a question but no relevant documents were found.
+Politely let them know you don't have information about their question in the uploaded documents.
+Suggest they ask about topics covered in the property documentation.`;
 
-    // Generate answer with both unit context and document context
-    const answer = await generateAnswer(message, unitSystemContext, documentContext);
+    // Step 4: Generate response
+    console.log('[Chat] Generating AI response...');
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message },
+      ],
+      temperature: 0.3,
+      max_tokens: 500,
+    });
 
-    const response: ChatResponse = {
-      success: true,
-      answer,
-      source: chunks.length > 0 ? 'vector_search' : (unitContext ? 'unit_context' : 'fallback'),
-      chunksUsed: chunks.length,
-    };
+    const answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
 
-    console.log('[Chat] Generated answer');
+    console.log('[Chat] Response generated successfully');
     console.log('='.repeat(60) + '\n');
 
-    return NextResponse.json(response);
+    return NextResponse.json({
+      success: true,
+      answer,
+      source: matches.length > 0 ? 'vector_search' : 'fallback',
+      chunksUsed: matches.length,
+      documents: matches.map(m => ({
+        source: m.metadata?.file_name || m.metadata?.source,
+        similarity: m.similarity,
+      })),
+    });
 
   } catch (error) {
     console.error('[Chat] Error:', error);
