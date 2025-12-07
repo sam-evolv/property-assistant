@@ -1,0 +1,80 @@
+Context: The "Upload Document" feature is failing silently, and the Chat Assistant cannot retrieve answers. Root Causes:
+
+pdf-parse is crashing the API route because of import conflicts (ESM vs CommonJS).
+
+Database writes are being blocked by RLS permissions.
+
+The Chat API is not correctly querying the vector store.
+
+The Frontend List is looking at a different Project ID than the Upload API.
+
+Target Project ID: '57dc3919-2725-4575-8046-9179075ac88e'
+
+Directives (Execute ALL steps):
+
+STEP 1: REWRITE THE UPLOAD API (app/api/documents/upload/route.ts)
+
+Action: Delete the file and rewrite it completely.
+
+Configuration:
+
+export const runtime = 'nodejs'; (CRITICAL: Required for PDF parsing).
+
+Code Structure:
+
+Imports:
+
+TypeScript
+
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
+// Fix PDF Import Crash
+const pdf = require('pdf-parse'); 
+Setup:
+
+TypeScript
+
+// Initialize with Service Role to bypass RLS
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+Logic Flow (Sequential & Awaited):
+
+Upload: Save file to development_docs bucket.
+
+Record: Insert metadata into documents table (project_id: PROJECT_ID).
+
+Parse: let data = await pdf(fileBuffer); (Wrap in try/catch. If empty text, throw 500).
+
+Embed: Chunk text (1000 chars) -> OpenAI Embeddings -> Insert into document_sections.
+
+Return: { success: true, count: chunkCount }.
+
+STEP 2: REWRITE THE DOCUMENT LIST (components/dashboard/DocumentsTab.tsx)
+
+Action: Hardcode the fetch logic to match the upload.
+
+Logic:
+
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+
+Query: await supabase.from('documents').select('*, document_sections(count)').eq('project_id', PROJECT_ID).order('created_at', { ascending: false });
+
+Debug: Add console.log("🔥 FETCHING DOCS FOR:", PROJECT_ID) to verify connection.
+
+STEP 3: REWRITE THE CHAT API (app/api/chat/route.ts)
+
+Action: Ensure Retrieval Augmented Generation (RAG) is active.
+
+Logic:
+
+Embed User Query: Convert user's last message to a vector.
+
+Search: Call supabase.rpc('match_documents', { query_embedding, match_threshold: 0.5, match_count: 5 }).
+
+Inject: If matches found, prepend a system message: "REFERENCE DATA: ...[content]... INSTRUCTIONS: Answer the user's question using ONLY the reference data above."
+
+STEP 4: SQL REPAIR (Agent to Execute)
+
+Ensure the match_documents function exists. If not, create it via SQL execution.

@@ -16,13 +16,6 @@ const openai = new OpenAI({
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
-interface DocumentMatch {
-  id: string;
-  content: string;
-  metadata: Record<string, unknown>;
-  similarity: number;
-}
-
 async function generateEmbedding(text: string): Promise<number[]> {
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-small',
@@ -32,72 +25,12 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-async function searchDocuments(query: string): Promise<DocumentMatch[]> {
-  try {
-    console.log('[Chat] Generating query embedding...');
-    const queryEmbedding = await generateEmbedding(query);
-    
-    // Call match_documents RPC
-    const { data, error } = await supabase.rpc('match_documents', {
-      query_embedding: queryEmbedding,
-      match_threshold: 0.5,
-      match_count: 5,
-    });
-
-    if (error) {
-      console.error('[Chat] RPC error:', error.message);
-      return [];
-    }
-
-    if (!data || data.length === 0) {
-      console.log('[Chat] No matches found');
-      return [];
-    }
-
-    // Filter by project_id (post-filter since RPC doesn't filter by project)
-    const matchIds = data.map((m: { id: string }) => m.id);
-    
-    const { data: sections, error: sectionsError } = await supabase
-      .from('document_sections')
-      .select('id, content, metadata, project_id')
-      .in('id', matchIds)
-      .eq('project_id', PROJECT_ID);
-
-    if (sectionsError) {
-      console.error('[Chat] Sections query error:', sectionsError.message);
-      return [];
-    }
-
-    // Build similarity map
-    const similarityMap = new Map<string, number>();
-    for (const m of data) {
-      similarityMap.set(m.id, m.similarity);
-    }
-
-    // Map results with similarity scores
-    const results: DocumentMatch[] = (sections || []).map((s: { id: string; content: string; metadata: Record<string, unknown> }) => ({
-      id: s.id,
-      content: s.content,
-      metadata: s.metadata || {},
-      similarity: similarityMap.get(s.id) || 0,
-    }));
-
-    // Sort by similarity descending
-    results.sort((a, b) => b.similarity - a.similarity);
-
-    console.log(`[Chat] Found ${results.length} relevant chunks from project`);
-    results.forEach((m, i) => {
-      console.log(`[Chat] Match ${i + 1}: similarity=${m.similarity.toFixed(3)}, source=${m.metadata?.file_name || 'unknown'}`);
-    });
-
-    return results;
-  } catch (err) {
-    console.error('[Chat] Search error:', err);
-    return [];
-  }
-}
-
 export async function POST(request: NextRequest) {
+  console.log('\n============================================================');
+  console.log('[Chat] RAG CHAT API');
+  console.log('[Chat] PROJECT_ID:', PROJECT_ID);
+  console.log('============================================================');
+
   try {
     const body = await request.json();
     const { message } = body;
@@ -106,47 +39,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
-    console.log('\n' + '='.repeat(60));
-    console.log('[Chat] RAG CHAT REQUEST');
-    console.log('='.repeat(60));
-    console.log(`[Chat] Query: "${message}"`);
+    console.log('[Chat] User query:', message);
 
-    // STEP 1: Search for relevant documents
-    const matches = await searchDocuments(message);
+    // STEP 1: Embed User Query
+    console.log('[Chat] Generating query embedding...');
+    const queryEmbedding = await generateEmbedding(message);
 
-    // STEP 2: Build context block
-    let referenceData = '';
-    if (matches.length > 0) {
-      const facts = matches.map((m, i) => {
-        const source = m.metadata?.file_name || m.metadata?.source || 'Document';
-        return `[Source ${i + 1}: ${source}]\n${m.content}`;
-      }).join('\n\n---\n\n');
-      
-      referenceData = facts;
-      console.log(`[Chat] Context: ${matches.length} chunks, ${referenceData.length} chars`);
-    } else {
-      console.log('[Chat] No matching documents found');
+    // STEP 2: Search with match_documents RPC
+    console.log('[Chat] Searching documents...');
+    const { data: matches, error: rpcError } = await supabase.rpc('match_documents', {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.5,
+      match_count: 5,
+    });
+
+    if (rpcError) {
+      console.error('[Chat] RPC error:', rpcError.message);
     }
 
-    // STEP 3: Build system message with RAG injection
-    let systemMessage: string;
+    // Filter by PROJECT_ID (post-filter since RPC doesn't support it)
+    let relevantMatches: Array<{ id: string; content: string; metadata: Record<string, unknown>; similarity: number }> = [];
     
-    if (referenceData) {
+    if (matches && matches.length > 0) {
+      const matchIds = matches.map((m: { id: string }) => m.id);
+      
+      const { data: sections } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata, project_id')
+        .in('id', matchIds)
+        .eq('project_id', PROJECT_ID);
+
+      if (sections) {
+        const similarityMap = new Map(matches.map((m: { id: string; similarity: number }) => [m.id, m.similarity]));
+        relevantMatches = sections.map(s => ({
+          id: s.id,
+          content: s.content,
+          metadata: s.metadata || {},
+          similarity: (similarityMap.get(s.id) as number) || 0,
+        }));
+        relevantMatches.sort((a, b) => b.similarity - a.similarity);
+      }
+    }
+
+    console.log('[Chat] Relevant matches:', relevantMatches.length);
+
+    // STEP 3: Inject Reference Data
+    let systemMessage: string;
+
+    if (relevantMatches.length > 0) {
+      const referenceData = relevantMatches
+        .map((m, i) => {
+          const source = m.metadata?.file_name || m.metadata?.source || 'Document';
+          return `[${i + 1}] Source: ${source}\n${m.content}`;
+        })
+        .join('\n\n---\n\n');
+
       systemMessage = `REFERENCE DATA:
 ${referenceData}
 
 INSTRUCTIONS:
 - Answer the user's question using ONLY the reference data above.
-- If the reference data contains the answer, provide it clearly and cite which source it came from.
-- If the reference data does NOT contain the answer, say "I don't have information about that in the uploaded documents."
-- Do NOT make up information or use knowledge outside the reference data.
+- If the answer is in the reference data, cite which source it came from.
+- If the answer is NOT in the reference data, say "I don't have information about that in the uploaded documents."
+- Do NOT make up information.
 - Be concise and helpful.`;
+
+      console.log('[Chat] Context injected from', relevantMatches.length, 'documents');
     } else {
-      systemMessage = `You are a helpful property assistant. Unfortunately, no relevant documents were found in the knowledge base for this question. Let the user know politely that you don't have information about their specific question and suggest they upload relevant documents.`;
+      systemMessage = `You are a helpful property assistant. No relevant documents were found for this question. Let the user know politely that you don't have information about their specific question in the uploaded documents.`;
+      console.log('[Chat] No matching documents found');
     }
 
-    // STEP 4: Generate response with OpenAI
-    console.log('[Chat] Calling GPT-4o-mini...');
+    // STEP 4: Generate Response
+    console.log('[Chat] Generating response...');
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -159,15 +124,15 @@ INSTRUCTIONS:
 
     const answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
 
-    console.log('[Chat] Response:', answer.slice(0, 150) + '...');
-    console.log('='.repeat(60) + '\n');
+    console.log('[Chat] Answer:', answer.slice(0, 100) + '...');
+    console.log('============================================================\n');
 
     return NextResponse.json({
       success: true,
       answer,
-      source: matches.length > 0 ? 'vector_search' : 'no_context',
-      chunksUsed: matches.length,
-      documents: matches.map(m => ({
+      source: relevantMatches.length > 0 ? 'vector_search' : 'no_context',
+      chunksUsed: relevantMatches.length,
+      documents: relevantMatches.map(m => ({
         source: m.metadata?.file_name || m.metadata?.source,
         similarity: m.similarity,
       })),
