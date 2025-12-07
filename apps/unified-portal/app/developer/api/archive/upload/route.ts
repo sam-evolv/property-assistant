@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
-
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
@@ -55,15 +52,21 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse/lib/pdf-parse');
+    const pdfData = await pdfParse(buffer);
+    return pdfData.text || '';
+  } catch (err) {
+    console.error('[Upload] PDF parse error:', err);
+    return '';
+  }
+}
+
 async function extractText(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
-  if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    try {
-      const pdfData = await pdfParse(buffer);
-      return pdfData.text || '';
-    } catch (err) {
-      console.error('[Upload] PDF parse error:', err);
-      return '';
-    }
+  if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+    return await extractTextFromPdf(buffer);
   }
   
   if (mimeType.includes('text') || fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
@@ -81,8 +84,10 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
-    const developmentId = (formData.get('developmentId') as string) || PROJECT_ID;
     const metadataStr = formData.get('metadata') as string;
+    
+    // ALWAYS use hardcoded project ID
+    const projectId = PROJECT_ID;
     
     let metadata: { discipline?: string; houseTypeId?: string; isImportant?: boolean; mustRead?: boolean } = {};
     try {
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    console.log(`[Developer Upload] Processing ${files.length} file(s) for project ${developmentId}`);
+    console.log(`[Developer Upload] Processing ${files.length} file(s) for project ${projectId}`);
 
     const uploadedDocuments = [];
 
@@ -106,7 +111,7 @@ export async function POST(request: NextRequest) {
       const mimeType = file.type || 'application/octet-stream';
       const buffer = Buffer.from(await file.arrayBuffer());
       const storageName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const storagePath = `${developmentId}/${storageName}`;
+      const storagePath = `${projectId}/${storageName}`;
 
       console.log(`\n[Developer Upload] File: ${fileName} (${mimeType})`);
 
@@ -116,14 +121,19 @@ export async function POST(request: NextRequest) {
         .from('development_docs')
         .upload(storagePath, buffer, {
           contentType: mimeType,
-          upsert: false,
+          upsert: true,
         });
 
       if (uploadError) {
         console.error('[Developer Upload] Storage error:', uploadError.message);
-        if (uploadError.message.includes('not found')) {
-          await supabase.storage.createBucket('development_docs', { public: true });
-          await supabase.storage.from('development_docs').upload(storagePath, buffer, { contentType: mimeType });
+        // Try to create bucket if it doesn't exist
+        if (uploadError.message.includes('not found') || uploadError.message.includes('Bucket')) {
+          try {
+            await supabase.storage.createBucket('development_docs', { public: true });
+            await supabase.storage.from('development_docs').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+          } catch (bucketErr) {
+            console.error('[Developer Upload] Bucket creation failed:', bucketErr);
+          }
         }
       }
 
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
             const { error: insertError } = await supabase
               .from('document_sections')
               .insert({
-                project_id: developmentId,
+                project_id: projectId,
                 content: chunks[i],
                 embedding: embedding,
                 metadata: {
@@ -174,7 +184,28 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Developer Upload] ✅ Embedded ${chunksEmbedded}/${chunks.length} chunks to Supabase`);
       } else {
-        console.log('[Developer Upload] No text extracted, skipping AI training');
+        console.log('[Developer Upload] No text extracted, storing metadata only');
+        // Still insert a record so the document appears in the list
+        const { error: insertError } = await supabase
+          .from('document_sections')
+          .insert({
+            project_id: projectId,
+            content: `Document: ${fileName}`,
+            embedding: await generateEmbedding(`Document: ${fileName}`),
+            metadata: {
+              source: fileName.replace(/\.[^/.]+$/, ''),
+              file_name: fileName,
+              file_url: publicUrl,
+              chunk_index: 0,
+              total_chunks: 1,
+              discipline: metadata.discipline || 'other',
+              no_text_content: true,
+            },
+          });
+        
+        if (!insertError) {
+          chunksEmbedded = 1;
+        }
       }
 
       uploadedDocuments.push({
@@ -194,7 +225,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       uploaded: uploadedDocuments,
-      message: `Uploaded ${uploadedDocuments.length} document(s) and created ${uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0)} chunks`,
+      message: `Uploaded ${uploadedDocuments.length} document(s) with ${uploadedDocuments.reduce((sum, r) => sum + r.chunksEmbedded, 0)} chunks`,
     });
 
   } catch (error) {
