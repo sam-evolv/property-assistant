@@ -87,6 +87,8 @@ async function getUnitContext(unitId: string): Promise<UnitContext | null> {
     specs: specs,
   };
 
+  // VERIFICATION LOG - Print specs to confirm data was retrieved
+  console.log('✅ FACTS FOUND:', specs);
   console.log('[Chat] Unit context loaded:', {
     address: context.address,
     purchaser: context.purchaserName,
@@ -98,40 +100,22 @@ async function getUnitContext(unitId: string): Promise<UnitContext | null> {
   return context;
 }
 
-// Build system context from unit data
+// Build system context from unit data - CRITICAL DATA INJECTION
 function buildUnitSystemContext(context: UnitContext): string {
-  const lines = [
-    '========================================',
-    'OFFICIAL FACTS (DO NOT GUESS - USE THESE):',
-    '========================================',
-    `Address: ${context.address}`,
-    `Owner: ${context.purchaserName}`,
-    `House Type: ${context.houseType}`,
-  ];
+  return `CRITICAL DATA - DO NOT IGNORE:
+- Owner: ${context.purchaserName}
+- Bedrooms: ${context.bedrooms}
+- Bathrooms: ${context.bathrooms}
+- Type: ${context.houseType}
+- Property Type: ${context.propertyType || 'House'}
+- Designation: ${context.specs?.designation || 'N/A'}
 
-  if (context.bedrooms !== null) {
-    lines.push(`The house has ${context.bedrooms}.`);
-  }
-  if (context.bathrooms !== null) {
-    lines.push(`The house has ${context.bathrooms}.`);
-  }
-  if (context.propertyType) {
-    lines.push(`Property Type: ${context.propertyType}`);
-  }
-  if (context.specs?.designation) {
-    lines.push(`Designation: ${context.specs.designation}`);
-  }
-  if (context.totalArea) {
-    lines.push(`Total Area: ${context.totalArea} sqm`);
-  }
-
-  lines.push('========================================');
-  lines.push('INSTRUCTION: You are the home assistant for this property.');
-  lines.push('When asked about bedrooms, bathrooms, or room counts, you MUST use the OFFICIAL FACTS above.');
-  lines.push('Do NOT guess or make up numbers. The data above is the ONLY truth.');
-  lines.push('========================================');
-
-  return lines.join('\n');
+INSTRUCTIONS:
+1. You are the digital home assistant for ${context.address}.
+2. When asked about room counts, you MUST use the data above.
+3. If the data says ${context.bathrooms}, you say ${context.bathrooms}. Do not guess.
+4. If the data says ${context.bedrooms}, you say ${context.bedrooms}. Do not guess.
+5. Never make up numbers. Only use the CRITICAL DATA above.`;
 }
 
 function isMeasurementQuestion(message: string): boolean {

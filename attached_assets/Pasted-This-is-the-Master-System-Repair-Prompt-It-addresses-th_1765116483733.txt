@@ -1,0 +1,63 @@
+This is the Master System Repair Prompt. It addresses the two specific failures you are seeing:
+
+The AI Hallucination: It forces the Chat API to read the "3 Bathrooms" fact from the database and inject it as a "System Command" so the AI cannot ignore it.
+
+The Dashboard Lie: It hardcodes the correct Project ID into the dashboard so it finally sees 77 units instead of 2.
+
+Copy and paste this entire block into your Replit Agent.
+
+TASK: CRITICAL SYSTEM REPAIR - DATA INJECTION & DASHBOARD ALIGNMENT
+
+Context: We have a split-brain issue.
+
+Chat Hallucination: The database correctly lists "3 Bathrooms" for Unit 3, but the AI Assistant claims "2 Bathrooms" because it is ignoring or not receiving the metadata.
+
+Dashboard Data: The Dashboard shows "2 Houses" because it is querying a legacy Project ID, while the real data (77 units) is in Project ID 57dc3919-2725-4575-8046-9179075ac88e.
+
+Directives (Execute Sequentially):
+
+1. FIX CHAT HALLUCINATIONS (The "Truth Injection")
+
+Target: apps/unified-portal/app/api/chat/route.ts (or app/api/assistant/chat/route.ts).
+
+Action: Rewrite the POST handler entirely.
+
+Logic Requirements:
+
+Initialize: Use process.env.SUPABASE_SERVICE_ROLE_KEY to bypass RLS.
+
+Fetch: Query units by unitId. Select address, purchaser_name, unit_types(name, specification_json, floor_plan_pdf_url).
+
+Construct System Prompt: Create a string called systemContext. It MUST contain:
+
+Plaintext
+
+"CRITICAL DATA - DO NOT IGNORE:
+ - Owner: ${unit.purchaser_name}
+ - Bedrooms: ${specs.bedrooms}
+ - Bathrooms: ${specs.bathrooms}
+ - Type: ${unit.unit_types.name}
+
+ INSTRUCTIONS:
+ 1. You are the digital home assistant for ${unit.address}.
+ 2. When asked about room counts, you MUST use the data above.
+ 3. If the data says 3 Bathrooms, you say 3 Bathrooms. Do not guess."
+Inject: Prepend this systemContext to the messages array sent to OpenAI.
+
+2. FIX DASHBOARD "2 HOUSES" BUG (The "Hard Link")
+
+Target: apps/unified-portal/components/dashboard/OverviewTab.tsx.
+
+Action: Override the dynamic Project ID.
+
+Code Change:
+
+Inside the component, define: const FORCE_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+
+Update the useEffect hook to query Supabase using FORCE_PROJECT_ID instead of the projectId prop.
+
+Ensure the "Houses" card displays this fetched count (should be 77).
+
+3. VERIFICATION
+
+Print console.log("✅ FACTS FOUND:", specs) in the Chat API so we can see in the logs that "3 Bathrooms" was retrieved.
