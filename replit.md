@@ -11,7 +11,7 @@ OpenHouse AI is a comprehensive multi-tenant SaaS platform that provides AI-powe
 - **Documents:** 98 property documents
 - **Doc Chunks:** 366 text chunks with 1536-dim embeddings
 - **Embedding Cache:** 484 cached OpenAI embeddings
-- **Messages:** 40 chat interactions
+- **Messages:** 44+ chat interactions (live count, auto-updates with each chat)
 - **Tenants:** 6 organizations
 - **Admins:** 7 admin users
 
