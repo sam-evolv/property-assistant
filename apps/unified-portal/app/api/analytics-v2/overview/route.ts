@@ -10,7 +10,6 @@ import {
   safeString,
   calculateStartDate
 } from '@/lib/analytics-validation';
-import { analyticsCache, createCacheKey } from '@/lib/analytics-cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,13 +17,6 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = validateAnalyticsQuery(searchParams);
-    
-    // Check cache first
-    const cacheKey = createCacheKey('overview', query);
-    const cached = analyticsCache.get(cacheKey);
-    if (cached) {
-      return safeAnalyticsResponse(cached, overviewResponseSchema);
-    }
     
     const startDate = calculateStartDate(query.days);
 
@@ -89,9 +81,6 @@ export async function GET(request: Request) {
       topDevelopment: topDev,
       embeddingChunks: chunkCount,
     };
-
-    // Cache the result
-    analyticsCache.set(cacheKey, overview);
 
     return safeAnalyticsResponse(overview, overviewResponseSchema);
   } catch (error) {

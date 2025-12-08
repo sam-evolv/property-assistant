@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
+import { db } from '@openhouse/db';
+import { messages } from '@openhouse/db/schema';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,6 +17,8 @@ const openai = new OpenAI({
 });
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
+const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 
 export async function POST(request: NextRequest) {
   console.log('\n============================================================');
@@ -22,9 +26,11 @@ export async function POST(request: NextRequest) {
   console.log('[Chat] PROJECT_ID:', PROJECT_ID);
   console.log('============================================================');
 
+  const startTime = Date.now();
+
   try {
     const body = await request.json();
-    const { message } = body;
+    const { message, unitUid, userId } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
@@ -92,8 +98,39 @@ INSTRUCTIONS:
     });
 
     const answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
+    const latencyMs = Date.now() - startTime;
+    const tokensUsed = response.usage?.total_tokens || 0;
+    const costUsd = (tokensUsed / 1000) * 0.00015;
 
     console.log('[Chat] Answer:', answer.slice(0, 100) + '...');
+    console.log('[Chat] Latency:', latencyMs, 'ms, Tokens:', tokensUsed);
+
+    try {
+      await db.insert(messages).values({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: userId || unitUid || 'anonymous',
+        content: message,
+        user_message: message,
+        ai_message: answer,
+        sender: 'conversation',
+        source: 'purchaser_portal',
+        token_count: tokensUsed,
+        cost_usd: String(costUsd),
+        latency_ms: latencyMs,
+        metadata: {
+          unitUid: unitUid || null,
+          chunksUsed: allChunks?.length || 0,
+          model: 'gpt-4o-mini',
+          token_cost: costUsd,
+          latency_ms: latencyMs,
+        },
+      });
+      console.log('[Chat] Message saved to database');
+    } catch (dbError) {
+      console.error('[Chat] Failed to save message:', dbError);
+    }
+
     console.log('============================================================\n');
 
     return NextResponse.json({
