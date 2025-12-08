@@ -5,6 +5,13 @@ import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
+function formatTopicAsLabel(topic: string): string {
+  return topic
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,17 +21,27 @@ export async function GET(request: Request) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const result = await db.select({
-      question: sql<string>`SUBSTRING(${messages.user_message} FROM 1 FOR 100)`,
-      count: sql<number>`COUNT(*)::int`,
-    })
-      .from(messages)
-      .where(sql`${messages.created_at} >= ${startDate} AND ${messages.user_message} IS NOT NULL`)
-      .groupBy(sql`SUBSTRING(${messages.user_message} FROM 1 FOR 100)`)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(limit);
+    const result = await db.execute(sql`
+      SELECT 
+        COALESCE(question_topic, 'general_inquiry') as topic,
+        COUNT(*)::int as count,
+        MIN(user_message) as sample_question
+      FROM messages
+      WHERE created_at >= ${startDate} 
+        AND user_message IS NOT NULL
+      GROUP BY COALESCE(question_topic, 'general_inquiry')
+      ORDER BY COUNT(*) DESC
+      LIMIT ${limit}
+    `);
 
-    return NextResponse.json({ topQuestions: result });
+    const topQuestions = (result.rows || []).map((row: any) => ({
+      topic: row.topic,
+      question: formatTopicAsLabel(row.topic || 'General Inquiry'),
+      sample: row.sample_question,
+      count: row.count,
+    }));
+
+    return NextResponse.json({ topQuestions });
   } catch (error) {
     console.error('[API] /api/analytics-v2/top-questions error:', error);
     return NextResponse.json(

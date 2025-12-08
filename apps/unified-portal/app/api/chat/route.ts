@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
+import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -105,6 +106,9 @@ INSTRUCTIONS:
     console.log('[Chat] Answer:', answer.slice(0, 100) + '...');
     console.log('[Chat] Latency:', latencyMs, 'ms, Tokens:', tokensUsed);
 
+    const questionTopic = await extractQuestionTopic(message);
+    console.log('[Chat] Question topic:', questionTopic);
+
     try {
       await db.insert(messages).values({
         tenant_id: DEFAULT_TENANT_ID,
@@ -113,6 +117,7 @@ INSTRUCTIONS:
         content: message,
         user_message: message,
         ai_message: answer,
+        question_topic: questionTopic,
         sender: 'conversation',
         source: 'purchaser_portal',
         token_count: tokensUsed,
