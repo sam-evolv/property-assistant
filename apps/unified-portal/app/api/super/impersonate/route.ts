@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { signQRToken } from '@openhouse/api/qr-tokens';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,14 +81,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Generate simple URL
-    const url = `${BASE_URL}/homes/${unit.id}`;
+    // Generate signed QR token for drawing access
+    const projectId = unit.project_id || PROJECT_ID;
+    const tokenResult = signQRToken({
+      supabaseUnitId: unit.id,
+      projectId: projectId,
+    }, 24); // 24 hours expiry for demo
 
     console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);
-    console.log(`[Super Admin Impersonation] URL:`, url);
+    console.log(`[Super Admin Impersonation] URL:`, tokenResult.url);
     
     return NextResponse.json({ 
-      url,
+      url: tokenResult.url,
       unitId: unit.id,
       address: unit.address,
       purchaserName: unit.purchaser_name,

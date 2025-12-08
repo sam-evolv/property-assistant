@@ -27,21 +27,37 @@ export interface DrawingResolverResult {
 
 export async function getUnitHouseType(unitId: string): Promise<string | null> {
   try {
-    const { data: unit, error } = await supabase
+    // First, get the unit with its unit_type_id
+    const { data: unit, error: unitError } = await supabase
       .from('units')
-      .select('unit_type_id, unit_types(name)')
+      .select('unit_type_id')
       .eq('id', unitId)
       .single();
     
-    if (error || !unit) {
-      console.log('[DrawingResolver] Unit not found in Supabase:', unitId);
+    if (unitError || !unit) {
+      console.log('[DrawingResolver] Unit not found in Supabase:', unitId, unitError?.message);
       return null;
     }
     
-    const unitTypes = unit.unit_types as any;
-    const houseTypeCode = unitTypes?.name || null;
-    console.log('[DrawingResolver] Found house type:', houseTypeCode, 'for unit:', unitId);
-    return houseTypeCode;
+    if (!unit.unit_type_id) {
+      console.log('[DrawingResolver] Unit has no unit_type_id:', unitId);
+      return null;
+    }
+    
+    // Then, fetch the unit type name
+    const { data: unitType, error: typeError } = await supabase
+      .from('unit_types')
+      .select('name')
+      .eq('id', unit.unit_type_id)
+      .single();
+    
+    if (typeError || !unitType) {
+      console.log('[DrawingResolver] Unit type not found:', unit.unit_type_id, typeError?.message);
+      return null;
+    }
+    
+    console.log('[DrawingResolver] Found house type:', unitType.name, 'for unit:', unitId);
+    return unitType.name;
   } catch (error) {
     console.error('[DrawingResolver] Error fetching unit house type:', error);
     return null;
