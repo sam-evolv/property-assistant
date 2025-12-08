@@ -100,7 +100,14 @@ INSTRUCTIONS:
    search through ALL the text above for relevant sections.
 4. Be thorough - the answer may be in any part of the document.
 5. If the answer is NOT in the data, say "I don't have that specific detail in the uploaded documents."
-6. Be concise but complete in your answer.`;
+6. Be concise but complete in your answer.
+
+CRITICAL - ROOM DIMENSIONS:
+- NEVER provide specific room dimensions, measurements, or sizes (in meters, feet, or any unit).
+- If asked about room sizes, dimensions, floor area, or measurements, respond with:
+  "I've attached the floor plan for your house type below. Please check the drawing for accurate room dimensions."
+- Do NOT quote any measurements from the documents - always direct users to check the official drawings themselves.
+- This is a liability requirement - we cannot guarantee text-extracted measurements are accurate.`;
 
       console.log('[Chat] Full context loaded:', referenceData.length, 'chars from', allChunks.length, 'chunks');
     } else {
@@ -120,7 +127,7 @@ INSTRUCTIONS:
       max_tokens: 800,
     });
 
-    const answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
+    let answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
     const latencyMs = Date.now() - startTime;
     const tokensUsed = response.usage?.total_tokens || 0;
     const costUsd = (tokensUsed / 1000) * 0.00015;
@@ -146,6 +153,17 @@ INSTRUCTIONS:
       } catch (drawingError) {
         console.error('[Chat] Error finding drawing:', drawingError);
       }
+    }
+    
+    // Server-side enforcement: If a room_sizes drawing is attached, 
+    // ensure the answer doesn't contain specific measurements (liability protection)
+    const isDimensionQuestion = questionTopic === 'room_sizes' || 
+      /\b(dimension|size|measurement|square\s*(feet|meters|m2|ft2)|how\s*(big|large)|floor\s*area)\b/i.test(message);
+    
+    if (isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes') {
+      // Override any AI response that might contain measurements
+      answer = "I've attached the floor plan for your house type below. Please check the drawing for accurate room dimensions - this ensures you have the correct official measurements.";
+      console.log('[Chat] Dimension question detected - enforced floor plan response for liability');
     }
 
     try {

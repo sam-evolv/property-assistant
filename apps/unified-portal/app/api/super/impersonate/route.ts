@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { signQRToken } from '@openhouse/api/qr-tokens';
+import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,10 +35,10 @@ export async function GET(req: NextRequest) {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(unitUid);
     
     if (isUUID) {
-      // Direct ID lookup
+      // Direct ID lookup - include project relation to get tenant/development IDs
       const result = await supabase
         .from('units')
-        .select('id, address, purchaser_name, project_id')
+        .select('id, address, purchaser_name, project_id, projects(id, tenant_id, development_id)')
         .eq('id', unitUid)
         .single();
       unit = result.data;
@@ -50,10 +50,10 @@ export async function GET(req: NextRequest) {
       const numMatch = unitUid.match(/(\d+)/);
       const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
 
-      // Get units for the project
+      // Get units for the project - include project relation
       const { data: units, error: listError } = await supabase
         .from('units')
-        .select('id, address, purchaser_name, project_id')
+        .select('id, address, purchaser_name, project_id, projects(id, tenant_id, development_id)')
         .eq('project_id', PROJECT_ID)
         .limit(200);
 
@@ -81,14 +81,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Generate signed QR token for drawing access
+    // Generate signed QR token and store in database for drawing access
+    // Use tenant/development from project relation, fallback to defaults
     const projectId = unit.project_id || PROJECT_ID;
-    const tokenResult = signQRToken({
-      supabaseUnitId: unit.id,
-      projectId: projectId,
-    }, 24); // 24 hours expiry for demo
+    const project = unit.projects as { id: string; tenant_id: string | null; development_id: string | null } | null;
+    const tenantId = project?.tenant_id || 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
+    const developmentId = project?.development_id || '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+    
+    console.log(`[Super Admin Impersonation] Using tenant: ${tenantId}, development: ${developmentId}`);
+    
+    const tokenResult = await generateQRTokenForUnit(
+      unit.id,
+      projectId,
+      tenantId,
+      developmentId
+    );
 
     console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);
+    console.log(`[Super Admin Impersonation] Token stored in database`);
     console.log(`[Super Admin Impersonation] URL:`, tokenResult.url);
     
     return NextResponse.json({ 
