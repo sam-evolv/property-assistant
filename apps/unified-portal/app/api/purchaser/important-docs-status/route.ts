@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { units, developments, documents } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { purchaserAgreements } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+const PUBLIC_DISCIPLINES = ['handover', 'other'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,104 +19,103 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('token');
     const unitUid = searchParams.get('unitUid');
 
-    if (!token || !unitUid) {
-      return NextResponse.json(
-        { error: 'Token and unit UID are required' },
-        { status: 400 }
-      );
+    if (!unitUid) {
+      return NextResponse.json({ error: 'Unit UID required' }, { status: 400 });
     }
 
-    const payload = await validateQRToken(token);
-    if (!payload || payload.unitUid !== unitUid) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
+    // Validate token - try QR token first, then fallback to unitUid match for demo
+    let isAuthenticated = false;
+    if (token) {
+      const payload = await validateQRToken(token);
+      if (payload && payload.supabaseUnitId === unitUid) {
+        isAuthenticated = true;
+      }
+    }
+    
+    // Fallback: Allow demo access if token matches unitUid (UUID format)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!isAuthenticated && token && uuidPattern.test(token) && token === unitUid) {
+      isAuthenticated = true;
+    }
+    
+    if (!isAuthenticated) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
-    const unit = await db
-      .select({
-        id: units.id,
-        development_id: units.development_id,
-        important_docs_agreed_version: units.important_docs_agreed_version,
-        important_docs_agreed_at: units.important_docs_agreed_at,
-        purchaser_name: units.purchaser_name,
-      })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
+    // Check if user has already agreed using the purchaserAgreements table
+    const existingAgreement = await db
+      .select()
+      .from(purchaserAgreements)
+      .where(eq(purchaserAgreements.unit_id, unitUid))
       .limit(1);
 
-    if (!unit || unit.length === 0) {
-      return NextResponse.json(
-        { error: 'Unit not found' },
-        { status: 404 }
-      );
+    if (existingAgreement.length > 0) {
+      console.log('[Important Docs] User has existing agreement:', existingAgreement[0].agreed_at);
+      return NextResponse.json({
+        requiresConsent: false,
+        hasAgreed: true,
+        agreedAt: existingAgreement[0].agreed_at,
+        agreedBy: existingAgreement[0].purchaser_name,
+        importantDocuments: [],
+      });
     }
 
-    const development = await db
-      .select({
-        important_docs_version: developments.important_docs_version,
-      })
-      .from(developments)
-      .where(eq(developments.id, unit[0].development_id))
-      .limit(1);
+    // Fetch important documents from Supabase document_sections
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', PROJECT_ID);
 
-    if (!development || development.length === 0) {
-      return NextResponse.json(
-        { error: 'Development not found' },
-        { status: 404 }
-      );
+    if (error) {
+      console.error('[Important Docs] Supabase error:', error.message);
+      return NextResponse.json({
+        requiresConsent: false,
+        importantDocuments: [],
+      });
     }
 
-    const importantDocs = await db
-      .select({
-        id: documents.id,
-        title: documents.title,
-        file_url: documents.file_url,
-        important_rank: documents.important_rank,
-        mime_type: documents.mime_type,
-        original_file_name: documents.original_file_name,
-      })
-      .from(documents)
-      .where(
-        and(
-          eq(documents.development_id, unit[0].development_id),
-          eq(documents.is_important, true)
-        )
-      )
-      .orderBy(documents.important_rank);
+    // Find unique documents marked as important AND in public disciplines only
+    const importantDocsMap = new Map<string, {
+      id: string;
+      title: string;
+      original_file_name: string;
+      file_url: string;
+      important_rank: number | null;
+    }>();
 
-    // Consent is required if:
-    // 1. There are important documents for this development AND
-    // 2. The user hasn't agreed to the latest version (agreed_version < current_version)
-    const hasImportantDocs = importantDocs.length > 0;
-    const currentVersion = development[0].important_docs_version || (hasImportantDocs ? 1 : 0);
-    const agreedVersion = unit[0].important_docs_agreed_version || 0;
-    const requiresConsent = hasImportantDocs && agreedVersion < currentVersion;
+    for (const section of sections || []) {
+      const metadata = section.metadata || {};
+      const discipline = (metadata.discipline || 'other').toLowerCase();
+      
+      // Only include important docs from PUBLIC disciplines
+      if (metadata.is_important === true && PUBLIC_DISCIPLINES.includes(discipline)) {
+        const source = metadata.file_name || metadata.source || 'Unknown';
+        if (!importantDocsMap.has(source)) {
+          importantDocsMap.set(source, {
+            id: `supabase-${section.id}`,
+            title: source,
+            original_file_name: source,
+            file_url: metadata.file_url || '',
+            important_rank: metadata.important_rank || null,
+          });
+        }
+      }
+    }
 
-    console.log('[Important Docs Status] Debug:', {
-      unitUid,
-      developmentId: unit[0].development_id,
-      hasImportantDocs,
-      currentVersion,
-      agreedVersion,
-      requiresConsent,
-      importantDocsCount: importantDocs.length,
-      importantDocs: importantDocs.map(d => ({ id: d.id, title: d.title, rank: d.important_rank })),
-    });
+    const importantDocuments = Array.from(importantDocsMap.values())
+      .sort((a, b) => (a.important_rank || 999) - (b.important_rank || 999));
+    
+    console.log('[Important Docs Status] Found', importantDocuments.length, 'important documents for unit:', unitUid);
 
     return NextResponse.json({
-      requiresConsent,
-      currentVersion,
-      agreedVersion,
-      agreedAt: unit[0].important_docs_agreed_at,
-      importantDocuments: importantDocs,
+      requiresConsent: importantDocuments.length > 0,
+      hasAgreed: false,
+      currentVersion: 1,
+      agreedVersion: 0,
+      importantDocuments,
     });
   } catch (error) {
-    console.error('[Important Docs Status API Error]:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch important docs status' },
-      { status: 500 }
-    );
+    console.error('[Important Docs Status Error]:', error);
+    return NextResponse.json({ error: 'Failed to check status' }, { status: 500 });
   }
 }

@@ -1087,3 +1087,22 @@ export const userDevelopmentsRelations = relations(userDevelopments, ({ one }) =
     references: [developments.id],
   }),
 }));
+
+// Purchaser document agreements - tracks when purchasers acknowledge must-read documents
+export const purchaserAgreements = pgTable('purchaser_agreements', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  unit_id: uuid('unit_id').notNull(),
+  development_id: uuid('development_id').references(() => developments.id),
+  purchaser_name: text('purchaser_name'),
+  purchaser_email: text('purchaser_email'),
+  agreed_at: timestamp('agreed_at', { withTimezone: true }).defaultNow().notNull(),
+  ip_address: text('ip_address'),
+  user_agent: text('user_agent'),
+  important_docs_acknowledged: jsonb('important_docs_acknowledged').default(sql`'[]'::jsonb`),
+  docs_version: integer('docs_version').default(1),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  unitIdx: index('purchaser_agreements_unit_idx').on(table.unit_id),
+  developmentIdx: index('purchaser_agreements_development_idx').on(table.development_id),
+  agreedAtIdx: index('purchaser_agreements_agreed_at_idx').on(table.agreed_at),
+}));
