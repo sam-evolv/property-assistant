@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
-import { notice_comments, units, noticeboard_posts } from '@openhouse/db/schema';
+import { notice_comments, noticeboard_posts, tenants } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(
   request: NextRequest,
@@ -29,30 +35,32 @@ export async function GET(
       );
     }
 
-    const unit = await db
-      .select({
-        tenant_id: units.tenant_id,
-        development_id: units.development_id,
-      })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
-      .limit(1);
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address, project_id')
+      .eq('id', unitUid)
+      .single();
 
-    if (!unit || unit.length === 0) {
+    if (unitError || !unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const { tenant_id, development_id } = unit[0];
+    const tenantResult = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .limit(1);
 
-    if (!development_id) {
+    if (!tenantResult || tenantResult.length === 0) {
       return NextResponse.json(
-        { error: 'Unit is not associated with a development' },
-        { status: 400 }
+        { error: 'No tenant configured' },
+        { status: 500 }
       );
     }
+
+    const tenantId = tenantResult[0].id;
 
     const notice = await db
       .select({ id: noticeboard_posts.id })
@@ -60,7 +68,7 @@ export async function GET(
       .where(
         and(
           eq(noticeboard_posts.id, noticeId),
-          eq(noticeboard_posts.tenant_id, tenant_id)
+          eq(noticeboard_posts.tenant_id, tenantId)
         )
       )
       .limit(1);
@@ -76,6 +84,7 @@ export async function GET(
       .select({
         id: notice_comments.id,
         author_name: notice_comments.author_name,
+        author_unit: notice_comments.author_unit,
         body: notice_comments.body,
         created_at: notice_comments.created_at,
         unit_id: notice_comments.unit_id,
@@ -84,9 +93,8 @@ export async function GET(
       .where(
         and(
           eq(notice_comments.notice_id, noticeId),
-          eq(notice_comments.tenant_id, tenant_id),
-          eq(notice_comments.is_deleted, false),
-          eq(notice_comments.development_id, development_id)
+          eq(notice_comments.tenant_id, tenantId),
+          eq(notice_comments.is_deleted, false)
         )
       )
       .orderBy(desc(notice_comments.created_at))
@@ -127,32 +135,32 @@ export async function POST(
       );
     }
 
-    const unit = await db
-      .select({
-        id: units.id,
-        tenant_id: units.tenant_id,
-        development_id: units.development_id,
-        unit_number: units.unit_number,
-      })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
-      .limit(1);
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address, project_id')
+      .eq('id', unitUid)
+      .single();
 
-    if (!unit || unit.length === 0) {
+    if (unitError || !unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const { id: unit_id, tenant_id, development_id, unit_number } = unit[0];
+    const tenantResult = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .limit(1);
 
-    if (!development_id) {
+    if (!tenantResult || tenantResult.length === 0) {
       return NextResponse.json(
-        { error: 'Unit is not associated with a development' },
-        { status: 400 }
+        { error: 'No tenant configured' },
+        { status: 500 }
       );
     }
+
+    const tenantId = tenantResult[0].id;
 
     const notice = await db
       .select({ id: noticeboard_posts.id })
@@ -160,7 +168,7 @@ export async function POST(
       .where(
         and(
           eq(noticeboard_posts.id, noticeId),
-          eq(noticeboard_posts.tenant_id, tenant_id)
+          eq(noticeboard_posts.tenant_id, tenantId)
         )
       )
       .limit(1);
@@ -189,25 +197,29 @@ export async function POST(
       );
     }
 
-    const displayName = authorName?.trim() || `Unit ${unit_number}` || 'Anonymous';
+    const unitAddress = unit.address || 'Unknown Unit';
+    const displayName = authorName?.trim() || 'Resident';
 
     const [comment] = await db
       .insert(notice_comments)
       .values({
         notice_id: noticeId,
-        tenant_id,
-        development_id,
-        unit_id,
+        tenant_id: tenantId,
+        unit_id: unitUid,
         author_name: displayName,
+        author_unit: unitAddress,
         body: text.trim(),
       })
       .returning();
+
+    console.log('[Comments] Created comment:', comment.id, 'by unit:', unitAddress);
 
     return NextResponse.json({
       success: true,
       comment: {
         id: comment.id,
         author_name: comment.author_name,
+        author_unit: comment.author_unit,
         body: comment.body,
         created_at: comment.created_at,
       },
@@ -247,31 +259,32 @@ export async function DELETE(
       );
     }
 
-    const unit = await db
-      .select({
-        id: units.id,
-        tenant_id: units.tenant_id,
-        development_id: units.development_id,
-      })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
-      .limit(1);
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address, project_id')
+      .eq('id', unitUid)
+      .single();
 
-    if (!unit || unit.length === 0) {
+    if (unitError || !unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const { id: unit_id, tenant_id, development_id } = unit[0];
+    const tenantResult = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .limit(1);
 
-    if (!development_id) {
+    if (!tenantResult || tenantResult.length === 0) {
       return NextResponse.json(
-        { error: 'Unit is not associated with a development' },
-        { status: 400 }
+        { error: 'No tenant configured' },
+        { status: 500 }
       );
     }
+
+    const tenantId = tenantResult[0].id;
 
     const comment = await db
       .select({
@@ -283,8 +296,7 @@ export async function DELETE(
         and(
           eq(notice_comments.id, commentId),
           eq(notice_comments.notice_id, noticeId),
-          eq(notice_comments.tenant_id, tenant_id),
-          eq(notice_comments.development_id, development_id),
+          eq(notice_comments.tenant_id, tenantId),
           eq(notice_comments.is_deleted, false)
         )
       )
@@ -297,7 +309,7 @@ export async function DELETE(
       );
     }
 
-    if (comment[0].unit_id !== unit_id) {
+    if (comment[0].unit_id !== unitUid) {
       return NextResponse.json(
         { error: 'You can only delete your own comments' },
         { status: 403 }

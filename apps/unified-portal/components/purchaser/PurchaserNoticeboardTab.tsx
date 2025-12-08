@@ -17,6 +17,7 @@ interface Notice {
 interface Comment {
   id: string;
   author_name: string;
+  author_unit?: string;
   body: string;
   created_at: string;
   unit_id?: string;
@@ -700,10 +701,15 @@ export default function PurchaserNoticeboardTab({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className={`font-medium ${textColor}`}>{comment.author_name}</span>
+                          {comment.author_unit && (
+                            <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                              ({comment.author_unit})
+                            </span>
+                          )}
                           <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {formatCommentDate(comment.created_at)}
+                            • {formatCommentDate(comment.created_at)}
                           </span>
                         </div>
                         <p className={`${subtextColor} text-sm whitespace-pre-wrap break-words`}>
