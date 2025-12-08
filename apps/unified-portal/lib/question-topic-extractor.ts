@@ -4,27 +4,43 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const COMMON_TOPICS: Record<string, string[]> = {
-  'living_room_size': ['living room', 'lounge', 'sitting room', 'size', 'dimensions', 'area', 'square', 'how big'],
-  'kitchen_size': ['kitchen', 'size', 'dimensions', 'area', 'square', 'how big'],
-  'bedroom_size': ['bedroom', 'master bedroom', 'size', 'dimensions', 'area', 'square', 'how big'],
-  'bathroom_size': ['bathroom', 'ensuite', 'toilet', 'size', 'dimensions', 'area'],
-  'garden_size': ['garden', 'back garden', 'front garden', 'outdoor', 'size', 'dimensions', 'area'],
-  'heating_system': ['heating', 'heat pump', 'boiler', 'radiator', 'thermostat', 'temperature', 'warm', 'hot water'],
-  'waste_collection': ['bin', 'bins', 'waste', 'rubbish', 'recycling', 'collection', 'garbage', 'refuse'],
-  'parking': ['parking', 'car park', 'driveway', 'garage', 'car space'],
-  'broadband_internet': ['broadband', 'internet', 'wifi', 'wi-fi', 'fibre', 'connection'],
-  'electric_car_charging': ['ev', 'charger', 'electric car', 'charging', 'epod', 'ohme'],
-  'appliances': ['appliances', 'oven', 'hob', 'dishwasher', 'washing machine', 'dryer', 'fridge'],
-  'kitchen_cabinets': ['kitchen', 'cabinets', 'cupboards', 'drawers', 'wardrobe', 'storage'],
-  'flooring': ['flooring', 'floor', 'tiles', 'carpet', 'laminate', 'wood floor'],
-  'windows_doors': ['window', 'windows', 'door', 'doors', 'glass', 'locks', 'keys'],
-  'paint_decoration': ['paint', 'colour', 'color', 'walls', 'decoration', 'finish'],
-  'moving_in': ['moving', 'move in', 'completion', 'handover', 'keys', 'snag'],
-  'warranty_guarantee': ['warranty', 'guarantee', 'defect', 'repair', 'maintenance'],
-  'floor_plan': ['floor plan', 'layout', 'blueprint', 'drawing', 'plans'],
-  'property_management': ['management', 'service charge', 'fees', 'maintenance charge'],
-  'contact_developer': ['contact', 'developer', 'builder', 'phone', 'email', 'reach', 'speak to'],
+const EXACT_MATCH_TOPICS: Record<string, string[]> = {
+  'heat_pump': ['heat pump', 'heatpump', 'daikin', 'altherma'],
+  'solar_panels': ['solar', 'pv panel', 'photovoltaic'],
+  'aquabox': ['aquabox', 'aqua box', 'water tank', 'rainwater'],
+  'waste_collection': ['waste', 'bin', 'bins', 'rubbish', 'recycling', 'garbage', 'refuse'],
+  'broadband_internet': ['broadband', 'internet', 'wifi', 'wi-fi', 'fibre', 'siro'],
+  'electric_car_charging': ['ev charger', 'electric car', 'epod', 'ohme', 'car charging'],
+  'landscaping': ['landscaping', 'garden', 'planting', 'trees', 'shrubs', 'lawn'],
+  'local_schools': ['school', 'schools', 'education', 'kids', 'children'],
+  'local_amenities': ['amenities', 'shops', 'supermarket', 'transport', 'bus', 'train'],
+  'planning_report': ['planning', 'planning report', 'permission'],
+  'warranty_guarantee': ['warranty', 'guarantee', 'defect', 'snag', 'snagging'],
+};
+
+const ROOM_SIZE_PATTERNS: Record<string, RegExp[]> = {
+  'living_room_size': [/living\s*room/, /lounge/, /sitting\s*room/],
+  'kitchen_size': [/kitchen/, /dining/],
+  'bedroom_size': [/bedroom/, /master\s*bedroom/],
+  'bathroom_size': [/bathroom/, /ensuite/, /en-suite/, /toilet/, /wc/],
+  'garden_size': [/garden/, /back\s*garden/, /front\s*garden/],
+  'floor_area': [/floor\s*area/, /total\s*area/, /square\s*(feet|meters|metres|footage)/],
+};
+
+const SIZE_KEYWORDS = ['size', 'dimensions', 'how big', 'how large', 'square', 'area', 'sqm', 'sq ft', 'measure'];
+
+const TOPIC_PATTERNS: Record<string, RegExp> = {
+  'bedroom_count': /how\s*many\s*bedroom/i,
+  'bathroom_count': /how\s*many\s*bathroom/i,
+  'house_details': /basic\s*detail|about\s*my\s*house|property\s*detail/i,
+  'kitchen_options': /kitchen\s*option|kitchen\s*upgrade|kitchen\s*choice/i,
+  'flooring': /floor|flooring|tiles|carpet|laminate/i,
+  'windows_doors': /window|door|glass|locks|keys/i,
+  'paint_decoration': /paint|colour|color|walls|decoration/i,
+  'moving_in': /move\s*in|moving|completion|handover/i,
+  'contact_developer': /contact|developer|builder|phone|email|reach|speak\s*to/i,
+  'parking': /parking|car\s*park|driveway|garage/i,
+  'appliances': /appliance|oven|hob|dishwasher|washing\s*machine|dryer|fridge/i,
 };
 
 function normalizeText(text: string): string {
@@ -32,16 +48,33 @@ function normalizeText(text: string): string {
 }
 
 function tryLocalTopicMatch(question: string): string | null {
+  if (!question || question.trim().length === 0) {
+    return null;
+  }
+  
   const normalized = normalizeText(question);
   
-  for (const [topic, keywords] of Object.entries(COMMON_TOPICS)) {
-    let matchCount = 0;
+  for (const [topic, keywords] of Object.entries(EXACT_MATCH_TOPICS)) {
     for (const keyword of keywords) {
       if (normalized.includes(keyword.toLowerCase())) {
-        matchCount++;
+        return topic;
       }
     }
-    if (matchCount >= 2) {
+  }
+  
+  const hasSizeKeyword = SIZE_KEYWORDS.some(kw => normalized.includes(kw));
+  if (hasSizeKeyword) {
+    for (const [topic, patterns] of Object.entries(ROOM_SIZE_PATTERNS)) {
+      for (const pattern of patterns) {
+        if (pattern.test(normalized)) {
+          return topic;
+        }
+      }
+    }
+  }
+  
+  for (const [topic, pattern] of Object.entries(TOPIC_PATTERNS)) {
+    if (pattern.test(normalized)) {
       return topic;
     }
   }
