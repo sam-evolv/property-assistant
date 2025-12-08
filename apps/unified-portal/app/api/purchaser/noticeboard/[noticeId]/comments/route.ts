@@ -22,7 +22,7 @@ export async function GET(
     }
 
     const payload = await validateQRToken(token);
-    if (!payload || payload.unitUid !== unitUid) {
+    if (!payload || payload.supabaseUnitId !== unitUid) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -120,7 +120,7 @@ export async function POST(
     }
 
     const payload = await validateQRToken(token);
-    if (!payload || payload.unitUid !== unitUid) {
+    if (!payload || payload.supabaseUnitId !== unitUid) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -240,7 +240,7 @@ export async function DELETE(
     }
 
     const payload = await validateQRToken(token);
-    if (!payload || payload.unitUid !== unitUid) {
+    if (!payload || payload.supabaseUnitId !== unitUid) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }

@@ -28,7 +28,7 @@ export async function GET(
     } else if (token && unitUid) {
       // Purchaser access via QR token
       const payload = await validateQRToken(token);
-      if (!payload || payload.unitUid !== unitUid) {
+      if (!payload || payload.supabaseUnitId !== unitUid) {
         return NextResponse.json(
           { error: 'Invalid or expired token' },
           { status: 401 }

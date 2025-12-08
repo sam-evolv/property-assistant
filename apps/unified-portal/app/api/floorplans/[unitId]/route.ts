@@ -25,7 +25,7 @@ export async function GET(
       authorizedTenantId = session.tenantId;
     } else if (token && unitUid) {
       const payload = await validateQRToken(token);
-      if (!payload || payload.unitUid !== unitUid) {
+      if (!payload || payload.supabaseUnitId !== unitUid) {
         return NextResponse.json(
           { error: 'Invalid or expired token' },
           { status: 401 }
