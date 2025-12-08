@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut, Ruler, FolderArchive } from 'lucide-react';
+import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut, Ruler, FolderArchive, MessageSquare } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 
 interface SidebarMenuProps {
@@ -36,11 +36,17 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Communication',
+    items: [
+      { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
+    ],
+  },
+  {
     title: 'Insights',
     items: [
       { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
       { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
-      { label: 'Knowledge Base', href: '/developer/noticeboard', icon: BookOpen },
+      { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
     ],
   },
 ];
