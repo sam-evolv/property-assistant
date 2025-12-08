@@ -198,6 +198,7 @@ export const messages = pgTable('messages', {
   content: text('content').notNull(),
   user_message: text('user_message'),
   ai_message: text('ai_message'),
+  question_topic: varchar('question_topic', { length: 100 }),
   source: varchar('source', { length: 50 }).default('chat').notNull(),
   metadata: jsonb('metadata'),
   token_count: integer('token_count').default(0),
@@ -213,6 +214,7 @@ export const messages = pgTable('messages', {
   userIdx: index('messages_user_idx').on(table.user_id),
   sourceIdx: index('messages_source_idx').on(table.source),
   tenantDevIdx: index('messages_tenant_dev_idx').on(table.tenant_id, table.development_id),
+  questionTopicIdx: index('messages_question_topic_idx').on(table.question_topic),
 }));
 
 export const analytics_daily = pgTable('analytics_daily', {
