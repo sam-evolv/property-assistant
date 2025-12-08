@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 import { db } from '@openhouse/db/client';
 import { qr_tokens } from '@openhouse/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, or, lt, isNull, isNotNull } from 'drizzle-orm';
 
 const SECRET: string = process.env.SESSION_SECRET || process.env.SUPABASE_JWT_SECRET || '';
 
@@ -100,6 +100,7 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
 
 /**
  * Generate a QR token for a unit and store it in the database
+ * Allows multiple valid tokens per unit to handle race conditions
  * Uses Supabase units.id (UUID) as the primary identifier
  */
 export async function generateQRTokenForUnit(
@@ -108,10 +109,19 @@ export async function generateQRTokenForUnit(
   tenantId: string,  // Required for foreign key constraint
   developmentId: string  // For development tracking
 ): Promise<GeneratedToken> {
-  // Delete any existing tokens for this unit first
+  // Only delete expired/used tokens, keep valid ones
+  const now = new Date();
   await db
     .delete(qr_tokens)
-    .where(eq(qr_tokens.unit_id, supabaseUnitId));
+    .where(
+      and(
+        eq(qr_tokens.unit_id, supabaseUnitId),
+        or(
+          lt(qr_tokens.expires_at, now),
+          isNotNull(qr_tokens.used_at)
+        )
+      )
+    );
   
   // Generate new token with fresh nonce and timestamp
   const generated = signQRToken({ supabaseUnitId, projectId });
