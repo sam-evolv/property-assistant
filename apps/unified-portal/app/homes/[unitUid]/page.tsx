@@ -156,7 +156,7 @@ export default function HomeResidentPage() {
           setHouse(houseData);
 
           // Check important docs consent status
-          checkImportantDocsConsent(houseId, validToken);
+          checkImportantDocsConsent(houseId, qrToken || unitUid);
 
           const hasSeenIntro = sessionStorage.getItem(`intro_seen_${unitUid}`);
           if (!hasSeenIntro) {
