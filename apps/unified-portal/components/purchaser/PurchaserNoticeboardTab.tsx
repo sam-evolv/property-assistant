@@ -803,24 +803,15 @@ export default function PurchaserNoticeboardTab({
                           {notice.message}
                         </p>
 
-                        <div className={`flex flex-col gap-2 text-xs pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                          <div className={`flex items-center justify-between ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5" />
-                              <span>{formatDate(notice.created_at)}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-gold-500">
-                              <MessageCircle className="w-3.5 h-3.5" />
-                              <span>{t.viewComments}</span>
-                            </div>
+                        <div className={`flex items-center justify-between text-xs pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>{formatDate(notice.created_at)}</span>
                           </div>
-                          {(notice.author_name || notice.author_unit) && (
-                            <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                              <span className="font-medium text-gold-500 text-xs">{t.postedBy}:</span>
-                              <span>{notice.author_name}</span>
-                              {notice.author_unit && <span>• Unit {notice.author_unit}</span>}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1 text-gold-500">
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>{t.viewComments}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
