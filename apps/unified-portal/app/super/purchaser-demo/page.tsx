@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function PurchaserDemoPage() {
@@ -8,8 +8,13 @@ export default function PurchaserDemoPage() {
   const searchParams = useSearchParams();
   const unitUid = searchParams.get('unitUid') || 'LV-PARK-003';
   const [error, setError] = useState<string | null>(null);
+  const hasCalledRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate calls (React Strict Mode calls useEffect twice in dev)
+    if (hasCalledRef.current) return;
+    hasCalledRef.current = true;
+    
     const generateTokenAndRedirect = async () => {
       try {
         // Call impersonation API to get a valid token
