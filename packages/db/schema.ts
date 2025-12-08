@@ -336,7 +336,8 @@ export const homeowners = pgTable('homeowners', {
 
 export const qr_tokens = pgTable('qr_tokens', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  unit_id: uuid('unit_id').references(() => units.id).notNull(),
+  // unit_id references Supabase units, NOT local PostgreSQL units - no FK constraint
+  unit_id: uuid('unit_id').notNull(),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
   development_id: uuid('development_id').references(() => developments.id).notNull(),
   token: text('token'),
@@ -775,10 +776,8 @@ export const homeownersRelations = relations(homeowners, ({ one }) => ({
 }));
 
 export const qrTokensRelations = relations(qr_tokens, ({ one }) => ({
-  unit: one(units, {
-    fields: [qr_tokens.unit_id],
-    references: [units.id],
-  }),
+  // Note: unit_id references Supabase units, not local PostgreSQL units
+  // so we don't define a Drizzle relation for it
   tenant: one(tenants, {
     fields: [qr_tokens.tenant_id],
     references: [tenants.id],
