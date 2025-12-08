@@ -98,14 +98,15 @@ export default function HomeResidentPage() {
     const fetchHouse = async () => {
       try {
         const tokenKey = `house_token_${unitUid}`;
-        // Use token from query param, sessionStorage, or the unitUid itself (new QR flow)
-        let validToken = token || sessionStorage.getItem(tokenKey) || unitUid;
+        // Get the QR token from query param or sessionStorage (for drawing access)
+        const qrToken = token || sessionStorage.getItem(tokenKey);
 
-        // Call resolve endpoint with POST body (new simplified flow)
+        // Call resolve endpoint with the unitUid from URL path
+        // The resolve endpoint needs just the UUID, not the full token
         const validateRes = await fetch('/api/houses/resolve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: validToken }),
+          body: JSON.stringify({ token: unitUid }),
         });
         
         if (!validateRes.ok) {
@@ -122,8 +123,11 @@ export default function HomeResidentPage() {
         const houseId = data.house_id || data.unitId;
         
         if (houseId) {
-          sessionStorage.setItem(tokenKey, validToken);
-          setValidatedToken(validToken);
+          // Store the full QR token for drawing access
+          if (qrToken) {
+            sessionStorage.setItem(tokenKey, qrToken);
+            setValidatedToken(qrToken);
+          }
           
           // Map new response format to expected HouseContext
           const houseData: HouseContext = {
