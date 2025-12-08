@@ -1108,3 +1108,25 @@ export const purchaserAgreements = pgTable('purchaser_agreements', {
   developmentIdx: index('purchaser_agreements_development_idx').on(table.development_id),
   agreedAtIdx: index('purchaser_agreements_agreed_at_idx').on(table.agreed_at),
 }));
+
+export const faqEntries = pgTable('faq_entries', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  topic: varchar('topic', { length: 100 }),
+  tags: jsonb('tags').default(sql`'[]'::jsonb`),
+  priority: integer('priority').default(0),
+  status: varchar('status', { length: 20 }).default('published').notNull(),
+  created_by: uuid('created_by').references(() => admins.id),
+  updated_by: uuid('updated_by').references(() => admins.id),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('faq_entries_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('faq_entries_development_idx').on(table.development_id),
+  statusIdx: index('faq_entries_status_idx').on(table.status),
+  topicIdx: index('faq_entries_topic_idx').on(table.topic),
+  tenantDevStatusIdx: index('faq_entries_tenant_dev_status_idx').on(table.tenant_id, table.development_id, table.status),
+}));

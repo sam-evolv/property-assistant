@@ -5,100 +5,95 @@ import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { 
   BookOpen, 
-  Brain, 
-  FileText, 
   MessageSquare, 
   TrendingUp, 
-  Upload,
   CheckCircle,
   Clock,
-  AlertCircle,
-  RefreshCw,
   Search,
-  Filter,
-  Download,
   Trash2,
   Eye,
   Plus,
   ChevronRight,
-  Zap,
-  Database,
-  BarChart3,
   HelpCircle,
   Lightbulb,
-  Settings,
-  X
+  X,
+  Edit3,
+  FolderArchive,
+  BarChart3,
+  Tag
 } from 'lucide-react';
 import { SkeletonCard } from '@/components/ui/SkeletonLoader';
+import { useCurrentContext } from '@/contexts/CurrentContext';
 
-interface TrainingDocument {
+interface FAQEntry {
   id: string;
-  name: string;
-  file_url: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  chunks_count: number;
+  question: string;
+  answer: string;
+  topic: string;
+  tags: string[];
+  priority: number;
+  status: 'draft' | 'published';
   created_at: string;
-  discipline?: string;
+  updated_at: string;
 }
 
-interface CommonQuestion {
+interface QuestionInsight {
   question: string;
   count: number;
   topic: string;
   last_asked: string;
 }
 
-interface KnowledgeStats {
-  total_documents: number;
-  total_chunks: number;
-  processed_documents: number;
-  pending_documents: number;
-  total_questions_answered: number;
-  avg_response_time: number;
-  knowledge_coverage: number;
-}
+type TabType = 'faqs' | 'insights' | 'gaps';
 
-type TabType = 'overview' | 'documents' | 'questions' | 'training' | 'settings';
+const TOPIC_OPTIONS = [
+  'general',
+  'floor_plans',
+  'room_dimensions',
+  'amenities',
+  'parking',
+  'utilities',
+  'maintenance',
+  'local_area',
+  'transport',
+  'documents',
+  'construction',
+  'warranty',
+  'other'
+];
 
 export default function KnowledgeBasePage() {
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [stats, setStats] = useState<KnowledgeStats | null>(null);
-  const [documents, setDocuments] = useState<TrainingDocument[]>([]);
-  const [questions, setQuestions] = useState<CommonQuestion[]>([]);
+  const { developmentId } = useCurrentContext();
+  const [activeTab, setActiveTab] = useState<TabType>('faqs');
+  const [faqs, setFaqs] = useState<FAQEntry[]>([]);
+  const [questions, setQuestions] = useState<QuestionInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingFaq, setEditingFaq] = useState<FAQEntry | null>(null);
+  const [formData, setFormData] = useState({
+    question: '',
+    answer: '',
+    topic: 'general',
+    priority: 0,
+    status: 'published' as 'draft' | 'published',
+  });
 
   useEffect(() => {
-    fetchKnowledgeData();
-  }, []);
+    fetchData();
+  }, [developmentId]);
 
-  const fetchKnowledgeData = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const [statsRes, docsRes, questionsRes] = await Promise.all([
-        fetch('/api/knowledge-base/stats').catch(() => null),
-        fetch('/api/knowledge-base/documents').catch(() => null),
+      const [faqsRes, questionsRes] = await Promise.all([
+        fetch(`/api/developer/faq${developmentId ? `?developmentId=${developmentId}` : ''}`).catch(() => null),
         fetch('/api/analytics/platform/top-questions?days=30').catch(() => null),
       ]);
 
-      if (statsRes?.ok) {
-        const data = await statsRes.json();
-        setStats(data);
-      } else {
-        setStats({
-          total_documents: 14,
-          total_chunks: 136,
-          processed_documents: 14,
-          pending_documents: 0,
-          total_questions_answered: 247,
-          avg_response_time: 2.3,
-          knowledge_coverage: 87,
-        });
-      }
-
-      if (docsRes?.ok) {
-        const data = await docsRes.json();
-        setDocuments(data.documents || []);
+      if (faqsRes?.ok) {
+        const data = await faqsRes.json();
+        setFaqs(data.faqs || []);
       }
 
       if (questionsRes?.ok) {
@@ -111,48 +106,102 @@ export default function KnowledgeBasePage() {
         })) || []);
       }
     } catch (error) {
-      console.error('Failed to fetch knowledge data:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'processing':
-        return <RefreshCw className="w-4 h-4 text-gold-500 animate-spin" />;
-      case 'pending':
-        return <Clock className="w-4 h-4 text-gray-400" />;
-      case 'failed':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const url = editingFaq ? `/api/developer/faq/${editingFaq.id}` : '/api/developer/faq';
+      const method = editingFaq ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          developmentId: developmentId,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to save FAQ');
+
+      toast.success(editingFaq ? 'FAQ updated successfully' : 'FAQ created successfully');
+      setShowModal(false);
+      setEditingFaq(null);
+      resetForm();
+      fetchData();
+    } catch (error) {
+      console.error('Failed to save FAQ:', error);
+      toast.error('Failed to save FAQ');
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Trained';
-      case 'processing':
-        return 'Processing';
-      case 'pending':
-        return 'Pending';
-      case 'failed':
-        return 'Failed';
-      default:
-        return 'Unknown';
+  const handleDelete = async (faqId: string) => {
+    if (!confirm('Are you sure you want to delete this FAQ?')) return;
+
+    try {
+      const res = await fetch(`/api/developer/faq/${faqId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete FAQ');
+
+      toast.success('FAQ deleted successfully');
+      fetchData();
+    } catch (error) {
+      console.error('Failed to delete FAQ:', error);
+      toast.error('Failed to delete FAQ');
     }
   };
+
+  const handleEdit = (faq: FAQEntry) => {
+    setEditingFaq(faq);
+    setFormData({
+      question: faq.question,
+      answer: faq.answer,
+      topic: faq.topic || 'general',
+      priority: faq.priority,
+      status: faq.status,
+    });
+    setShowModal(true);
+  };
+
+  const handleCreateFromInsight = (insight: QuestionInsight) => {
+    setEditingFaq(null);
+    setFormData({
+      question: insight.question,
+      answer: '',
+      topic: insight.topic || 'general',
+      priority: 0,
+      status: 'draft',
+    });
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      question: '',
+      answer: '',
+      topic: 'general',
+      priority: 0,
+      status: 'published',
+    });
+  };
+
+  const filteredFaqs = faqs.filter(faq => 
+    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const faqTopics = new Set(faqs.map(f => f.topic));
+  const unansweredQuestions = questions.filter(q => !faqTopics.has(q.topic));
 
   const tabs = [
-    { id: 'overview' as TabType, label: 'Overview', icon: BarChart3 },
-    { id: 'documents' as TabType, label: 'Training Documents', icon: FileText },
-    { id: 'questions' as TabType, label: 'Common Questions', icon: MessageSquare },
-    { id: 'training' as TabType, label: 'AI Training', icon: Brain },
-    { id: 'settings' as TabType, label: 'Settings', icon: Settings },
+    { id: 'faqs' as TabType, label: 'Manual FAQs', icon: HelpCircle, count: faqs.length },
+    { id: 'insights' as TabType, label: 'Question Insights', icon: TrendingUp, count: questions.length },
+    { id: 'gaps' as TabType, label: 'Knowledge Gaps', icon: Lightbulb, count: unansweredQuestions.length },
   ];
 
   if (loading) {
@@ -186,17 +235,54 @@ export default function KnowledgeBasePage() {
                 Knowledge Base
               </h1>
               <p className="text-gray-600 mt-1">
-                Manage AI training, documents, and knowledge for your development
+                Add custom FAQs and see what purchasers are asking about
               </p>
             </div>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-sm"
-            >
-              <Upload className="w-4 h-4" />
-              Upload Document
-            </button>
+            <div className="flex gap-3">
+              <Link
+                href="/developer/archive"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+              >
+                <FolderArchive className="w-4 h-4" />
+                Smart Archive
+              </Link>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setEditingFaq(null);
+                  setShowModal(true);
+                }}
+                className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Add FAQ
+              </button>
+            </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <StatCard
+            title="Manual FAQs"
+            value={faqs.length}
+            icon={<HelpCircle className="w-5 h-5" />}
+            color="gold"
+            subtitle="Custom Q&As you've added"
+          />
+          <StatCard
+            title="Questions Asked"
+            value={questions.reduce((acc, q) => acc + q.count, 0)}
+            icon={<MessageSquare className="w-5 h-5" />}
+            color="blue"
+            subtitle="Last 30 days"
+          />
+          <StatCard
+            title="Knowledge Gaps"
+            value={unansweredQuestions.length}
+            icon={<Lightbulb className="w-5 h-5" />}
+            color="purple"
+            subtitle="Topics needing FAQs"
+          />
         </div>
 
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -214,469 +300,308 @@ export default function KnowledgeBasePage() {
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}
+                {tab.count > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                title="Total Documents"
-                value={stats?.total_documents || 0}
-                icon={<FileText className="w-5 h-5" />}
-                color="gold"
-                subtitle="Uploaded to knowledge base"
-              />
-              <StatCard
-                title="Knowledge Chunks"
-                value={stats?.total_chunks || 0}
-                icon={<Database className="w-5 h-5" />}
-                color="blue"
-                subtitle="Searchable text segments"
-              />
-              <StatCard
-                title="Questions Answered"
-                value={stats?.total_questions_answered || 0}
-                icon={<MessageSquare className="w-5 h-5" />}
-                color="green"
-                subtitle="Total AI responses"
-              />
-              <StatCard
-                title="Avg Response Time"
-                value={`${stats?.avg_response_time || 0}s`}
-                icon={<Zap className="w-5 h-5" />}
-                color="purple"
-                subtitle="AI answer latency"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Knowledge Coverage</h3>
-                  <span className="text-2xl font-bold text-gold-600">{stats?.knowledge_coverage || 0}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-                  <div
-                    className="bg-gradient-to-r from-gold-400 to-gold-600 h-3 rounded-full transition-all"
-                    style={{ width: `${stats?.knowledge_coverage || 0}%` }}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{stats?.processed_documents || 0}</p>
-                    <p className="text-xs text-green-700">Processed</p>
-                  </div>
-                  <div className="p-3 bg-yellow-50 rounded-lg">
-                    <p className="text-2xl font-bold text-yellow-600">{stats?.pending_documents || 0}</p>
-                    <p className="text-xs text-yellow-700">Pending</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-600">{stats?.total_chunks || 0}</p>
-                    <p className="text-xs text-gray-600">Chunks</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <QuickActionButton
-                    icon={<Upload className="w-5 h-5" />}
-                    label="Upload Documents"
-                    onClick={() => setShowUploadModal(true)}
-                  />
-                  <QuickActionButton
-                    icon={<Brain className="w-5 h-5" />}
-                    label="Retrain AI"
-                    onClick={() => toast.success('Retraining initiated')}
-                  />
-                  <QuickActionButton
-                    icon={<HelpCircle className="w-5 h-5" />}
-                    label="Add FAQ"
-                    onClick={() => setActiveTab('questions')}
-                  />
-                  <QuickActionButton
-                    icon={<Download className="w-5 h-5" />}
-                    label="Export Data"
-                    onClick={() => toast.success('Export started')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Top Questions This Month</h3>
-                <button
-                  onClick={() => setActiveTab('questions')}
-                  className="text-gold-500 hover:text-gold-600 text-sm font-medium flex items-center gap-1"
-                >
-                  View All <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                {questions.slice(0, 5).map((q, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 bg-gold-100 text-gold-600 rounded-full flex items-center justify-center text-xs font-bold">
-                        {idx + 1}
-                      </span>
-                      <span className="text-gray-800 text-sm">{q.question}</span>
-                    </div>
-                    <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">{q.count} asks</span>
-                  </div>
-                ))}
-                {questions.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>No questions recorded yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'documents' && (
+        {activeTab === 'faqs' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-3 justify-between">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search documents..."
+                  placeholder="Search FAQs..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
                 />
               </div>
-              <div className="flex gap-2">
-                <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm">
-                  <Filter className="w-4 h-4" />
-                  Filter
-                </button>
+            </div>
+
+            {filteredFaqs.length === 0 ? (
+              <div className="p-12 text-center">
+                <HelpCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No FAQs Yet</h3>
+                <p className="text-gray-500 mb-4">Add custom questions and answers to supplement your AI knowledge</p>
                 <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 flex items-center gap-2 text-sm"
+                  onClick={() => { resetForm(); setEditingFaq(null); setShowModal(true); }}
+                  className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add Document
+                  Add Your First FAQ
                 </button>
               </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chunks</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {documents.length > 0 ? documents.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-gold-500" />
-                          <span className="font-medium text-gray-900">{doc.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(doc.status)}
-                          <span className="text-sm text-gray-600">{getStatusLabel(doc.status)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{doc.chunks_count}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                          {doc.discipline || 'General'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {new Date(doc.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 hover:bg-gray-100 rounded-lg" title="View">
-                            <Eye className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <button className="p-2 hover:bg-red-50 rounded-lg" title="Delete">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
-                        <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                        <p className="text-gray-500 font-medium">No documents uploaded yet</p>
-                        <p className="text-gray-400 text-sm mt-1">Upload documents to train your AI assistant</p>
-                        <button
-                          onClick={() => setShowUploadModal(true)}
-                          className="mt-4 px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600"
-                        >
-                          Upload First Document
-                        </button>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'questions' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Frequently Asked Questions</h3>
-              <p className="text-gray-600 text-sm mb-6">
-                These are the most common questions homeowners ask. Use this data to improve your documentation.
-              </p>
-              
-              <div className="space-y-4">
-                {questions.map((q, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:border-gold-300 transition">
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {filteredFaqs.map((faq) => (
+                  <div key={faq.id} className="p-4 hover:bg-gray-50 transition">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900 mb-2">{q.question}</p>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="px-2 py-1 bg-gold-50 text-gold-700 rounded text-xs font-medium">
-                            {q.topic}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                            faq.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {faq.status === 'published' ? 'Published' : 'Draft'}
                           </span>
-                          <span className="text-gray-500">Asked {q.count} times</span>
+                          <span className="px-2 py-0.5 text-xs bg-gold-50 text-gold-700 rounded">
+                            {faq.topic}
+                          </span>
                         </div>
+                        <h4 className="font-medium text-gray-900 mb-1">{faq.question}</h4>
+                        <p className="text-gray-600 text-sm line-clamp-2">{faq.answer}</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Updated {new Date(faq.updated_at).toLocaleDateString()}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button className="p-2 hover:bg-gray-100 rounded-lg" title="Add to FAQ">
-                          <Plus className="w-4 h-4 text-gray-500" />
+                        <button
+                          onClick={() => handleEdit(faq)}
+                          className="p-2 hover:bg-gray-100 rounded-lg"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4 text-gray-500" />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg" title="View Details">
-                          <Eye className="w-4 h-4 text-gray-500" />
+                        <button
+                          onClick={() => handleDelete(faq.id)}
+                          className="p-2 hover:bg-red-50 rounded-lg"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
                     </div>
                   </div>
                 ))}
-                {questions.length === 0 && (
-                  <div className="text-center py-12">
-                    <HelpCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-gray-500 font-medium">No questions recorded yet</p>
-                    <p className="text-gray-400 text-sm mt-1">Questions from homeowners will appear here</p>
-                  </div>
-                )}
               </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-gold-50 to-amber-50 rounded-xl border border-gold-200 p-6">
-              <div className="flex items-start gap-4">
-                <Lightbulb className="w-8 h-8 text-gold-500 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Improve Your Knowledge Base</h4>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Based on the questions above, consider adding documentation about these topics to improve AI responses.
-                  </p>
-                  <button className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 text-sm font-medium">
-                    Generate Suggestions
-                  </button>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'training' && (
+        {activeTab === 'insights' && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-gold-500" />
+                Top Questions (Last 30 Days)
+              </h3>
+              <p className="text-gray-600 text-sm mb-6">
+                These are the most common questions purchasers are asking the AI assistant.
+              </p>
+              
+              {questions.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500 font-medium">No questions recorded yet</p>
+                  <p className="text-gray-400 text-sm mt-1">Questions from purchasers will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {questions.map((q, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                      <div className="flex items-center gap-4 flex-1">
+                        <span className="w-8 h-8 bg-gold-100 text-gold-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{q.question}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="px-2 py-0.5 text-xs bg-gold-50 text-gold-700 rounded">{q.topic}</span>
+                            <span className="text-xs text-gray-500">{q.count} times</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleCreateFromInsight(q)}
+                        className="px-3 py-1.5 text-sm text-gold-600 hover:bg-gold-50 rounded-lg flex items-center gap-1"
+                        title="Create FAQ from this question"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add FAQ
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'gaps' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200 p-6">
+              <div className="flex items-start gap-4">
+                <Lightbulb className="w-8 h-8 text-purple-500 flex-shrink-0" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">AI Training Status</h3>
-                  <p className="text-gray-600 text-sm mt-1">Monitor and manage your AI assistant's training</p>
-                </div>
-                <button
-                  onClick={() => toast.success('Training process initiated')}
-                  className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 flex items-center gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Retrain Model
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-3 mb-2">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="font-medium text-green-800">Model Status</span>
-                  </div>
-                  <p className="text-2xl font-bold text-green-600">Active</p>
-                  <p className="text-xs text-green-600 mt-1">Last updated: Today</p>
-                </div>
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Database className="w-5 h-5 text-blue-500" />
-                    <span className="font-medium text-blue-800">Vector Store</span>
-                  </div>
-                  <p className="text-2xl font-bold text-blue-600">{stats?.total_chunks || 0} vectors</p>
-                  <p className="text-xs text-blue-600 mt-1">1536 dimensions</p>
-                </div>
-                <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Zap className="w-5 h-5 text-purple-500" />
-                    <span className="font-medium text-purple-800">Accuracy</span>
-                  </div>
-                  <p className="text-2xl font-bold text-purple-600">{stats?.knowledge_coverage || 0}%</p>
-                  <p className="text-xs text-purple-600 mt-1">Based on user feedback</p>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="font-semibold text-gray-900 mb-4">Training Configuration</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Embedding Model</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500">
-                      <option>text-embedding-3-small (1536 dims)</option>
-                      <option>text-embedding-3-large (3072 dims)</option>
-                    </select>
-                  </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Response Model</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500">
-                      <option>GPT-4.1-mini (Fast)</option>
-                      <option>GPT-4.1 (Advanced)</option>
-                    </select>
-                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Knowledge Gaps Detected</h4>
+                  <p className="text-gray-600 text-sm mb-4">
+                    These topics are frequently asked about but don't have dedicated FAQs. 
+                    Adding FAQs for these topics will improve AI responses.
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Training History</h3>
-              <div className="space-y-3">
-                <TrainingHistoryItem
-                  date="Today, 10:30 AM"
-                  action="Document processed"
-                  details="Longview Park Handbook.pdf - 45 chunks created"
-                  status="success"
-                />
-                <TrainingHistoryItem
-                  date="Yesterday, 3:15 PM"
-                  action="Model retrained"
-                  details="Full retraining completed with 136 chunks"
-                  status="success"
-                />
-                <TrainingHistoryItem
-                  date="Dec 5, 2025"
-                  action="Document uploaded"
-                  details="Fire Safety Guidelines.pdf added to knowledge base"
-                  status="success"
-                />
-              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Topics Needing Attention</h3>
+              
+              {unansweredQuestions.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+                  <p className="text-gray-500 font-medium">Great job! No knowledge gaps detected</p>
+                  <p className="text-gray-400 text-sm mt-1">Your FAQs cover all common question topics</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {unansweredQuestions.map((q, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{q.question}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Tag className="w-3 h-3 text-purple-500" />
+                          <span className="text-xs text-purple-600">{q.topic}</span>
+                          <span className="text-xs text-gray-500">Asked {q.count} times</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleCreateFromInsight(q)}
+                        className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create FAQ
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {activeTab === 'settings' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Knowledge Base Settings</h3>
-            
-            <div className="space-y-6">
-              <div className="pb-6 border-b border-gray-200">
-                <h4 className="font-medium text-gray-900 mb-4">AI Response Behavior</h4>
-                <div className="space-y-4">
-                  <label className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-800">Strict Mode</p>
-                      <p className="text-sm text-gray-500">Only answer questions from uploaded documents</p>
-                    </div>
-                    <input type="checkbox" defaultChecked className="w-5 h-5 text-gold-500 rounded focus:ring-gold-500" />
-                  </label>
-                  <label className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-800">Include Citations</p>
-                      <p className="text-sm text-gray-500">Show source documents in responses</p>
-                    </div>
-                    <input type="checkbox" defaultChecked className="w-5 h-5 text-gold-500 rounded focus:ring-gold-500" />
-                  </label>
-                  <label className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-800 text-red-600">Block Dimension Questions</p>
-                      <p className="text-sm text-gray-500">Never provide specific room measurements (liability protection)</p>
-                    </div>
-                    <input type="checkbox" defaultChecked className="w-5 h-5 text-gold-500 rounded focus:ring-gold-500" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="pb-6 border-b border-gray-200">
-                <h4 className="font-medium text-gray-900 mb-4">Auto-Training</h4>
-                <div className="space-y-4">
-                  <label className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-800">Auto-process new documents</p>
-                      <p className="text-sm text-gray-500">Automatically create embeddings when documents are uploaded</p>
-                    </div>
-                    <input type="checkbox" defaultChecked className="w-5 h-5 text-gold-500 rounded focus:ring-gold-500" />
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Danger Zone</h4>
-                <button className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition">
-                  Clear All Training Data
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showUploadModal && (
+        {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Upload Training Document</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingFaq ? 'Edit FAQ' : 'Add New FAQ'}
+                </h2>
                 <button
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => { setShowModal(false); setEditingFaq(null); resetForm(); }}
                   className="p-2 hover:bg-gray-100 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-6">
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gold-400 transition cursor-pointer">
-                  <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600 mb-2">Drag and drop files here, or click to browse</p>
-                  <p className="text-sm text-gray-400">Supports PDF, DOCX, TXT, CSV</p>
+
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Question *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.question}
+                    onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                    placeholder="e.g., What time is garbage collection?"
+                  />
                 </div>
-                <div className="mt-6 flex justify-end gap-3">
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Answer *
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={formData.answer}
+                    onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                    placeholder="Provide a detailed answer that the AI can use to respond to purchasers..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Topic
+                    </label>
+                    <select
+                      value={formData.topic}
+                      onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                    >
+                      {TOPIC_OPTIONS.map(topic => (
+                        <option key={topic} value={topic}>
+                          {topic.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Priority
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Higher priority FAQs appear first</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="status"
+                      checked={formData.status === 'published'}
+                      onChange={() => setFormData({ ...formData, status: 'published' })}
+                      className="text-gold-500 focus:ring-gold-500"
+                    />
+                    <span className="text-sm text-gray-700">Published</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="status"
+                      checked={formData.status === 'draft'}
+                      onChange={() => setFormData({ ...formData, status: 'draft' })}
+                      className="text-gold-500 focus:ring-gold-500"
+                    />
+                    <span className="text-sm text-gray-700">Draft</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                   <button
-                    onClick={() => setShowUploadModal(false)}
+                    type="button"
+                    onClick={() => { setShowModal(false); setEditingFaq(null); resetForm(); }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      toast.success('Upload functionality coming soon');
-                      setShowUploadModal(false);
-                    }}
-                    className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600"
+                    type="submit"
+                    className="px-6 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600"
                   >
-                    Upload
+                    {editingFaq ? 'Update FAQ' : 'Create FAQ'}
                   </button>
                 </div>
-              </div>
+              </form>
             </div>
           </div>
         )}
@@ -707,44 +632,6 @@ function StatCard({ title, value, icon, color, subtitle }: {
       </div>
       <p className="text-3xl font-bold">{value}</p>
       <p className="text-xs mt-1 opacity-75">{subtitle}</p>
-    </div>
-  );
-}
-
-function QuickActionButton({ icon, label, onClick }: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition border border-gray-200"
-    >
-      <div className="text-gold-500">{icon}</div>
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-    </button>
-  );
-}
-
-function TrainingHistoryItem({ date, action, details, status }: {
-  date: string;
-  action: string;
-  details: string;
-  status: 'success' | 'pending' | 'failed';
-}) {
-  return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-      {status === 'success' && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />}
-      {status === 'pending' && <Clock className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />}
-      {status === 'failed' && <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />}
-      <div className="flex-1">
-        <div className="flex items-center justify-between">
-          <p className="font-medium text-gray-900">{action}</p>
-          <span className="text-xs text-gray-500">{date}</span>
-        </div>
-        <p className="text-sm text-gray-600 mt-1">{details}</p>
-      </div>
     </div>
   );
 }
