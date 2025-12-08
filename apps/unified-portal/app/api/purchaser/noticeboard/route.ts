@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
-import { noticeboard_posts, units } from '@openhouse/db/schema';
+import { noticeboard_posts, tenants } from '@openhouse/db/schema';
 import { eq, desc, and, lte, gte, or, isNull } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +23,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate token
     const payload = await validateQRToken(token);
     if (!payload || payload.supabaseUnitId !== unitUid) {
       return NextResponse.json(
@@ -26,25 +31,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get unit to verify tenant
-    const unit = await db
-      .select({ tenant_id: units.tenant_id })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
-      .limit(1);
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address, project_id')
+      .eq('id', unitUid)
+      .single();
 
-    if (!unit || unit.length === 0) {
+    if (unitError || !unit) {
+      console.error('[Noticeboard] Unit not found in Supabase:', unitError);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const tenantId = unit[0].tenant_id;
+    const tenantResult = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .limit(1);
 
+    if (!tenantResult || tenantResult.length === 0) {
+      return NextResponse.json(
+        { error: 'No tenant configured' },
+        { status: 500 }
+      );
+    }
+
+    const tenantId = tenantResult[0].id;
     const now = new Date();
 
-    // Fetch active posts for this tenant
     const posts = await db
       .select({
         id: noticeboard_posts.id,
@@ -73,7 +88,6 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(noticeboard_posts.priority), desc(noticeboard_posts.created_at))
       .limit(50);
 
-    // Map to simpler format for purchasers
     const notices = posts.map((post) => ({
       id: post.id,
       title: post.title,
@@ -108,7 +122,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate token
     const payload = await validateQRToken(token);
     if (!payload || payload.supabaseUnitId !== unitUid) {
       return NextResponse.json(
@@ -117,21 +130,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get unit to verify tenant
-    const unit = await db
-      .select({ tenant_id: units.tenant_id, unit_number: units.unit_number })
-      .from(units)
-      .where(eq(units.unit_uid, unitUid))
-      .limit(1);
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address, project_id')
+      .eq('id', unitUid)
+      .single();
 
-    if (!unit || unit.length === 0) {
+    if (unitError || !unit) {
+      console.error('[Noticeboard] Unit not found in Supabase:', unitError);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const tenantId = unit[0].tenant_id;
+    const tenantResult = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .limit(1);
+
+    if (!tenantResult || tenantResult.length === 0) {
+      return NextResponse.json(
+        { error: 'No tenant configured' },
+        { status: 500 }
+      );
+    }
+
+    const tenantId = tenantResult[0].id;
     const body = await request.json();
     const { title, message, category, priority, authorName } = body;
 
@@ -142,13 +167,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map priority to numeric value
     let priorityValue = 0;
     if (priority === 'high') priorityValue = 3;
     else if (priority === 'medium') priorityValue = 2;
     else if (priority === 'low') priorityValue = 1;
 
-    // Create notice visible to all tenants in the development
+    const unitAddress = unit.address || 'Unknown Unit';
+
     const [post] = await db
       .insert(noticeboard_posts)
       .values({
@@ -158,9 +183,11 @@ export async function POST(request: NextRequest) {
         priority: priorityValue,
         active: true,
         author_name: authorName?.trim() || 'Resident',
-        author_unit: unit[0].unit_number,
+        author_unit: unitAddress,
       })
       .returning();
+
+    console.log('[Noticeboard] Created post:', post.id, 'by unit:', unitAddress);
 
     return NextResponse.json({
       success: true,
@@ -171,6 +198,7 @@ export async function POST(request: NextRequest) {
         created_at: post.created_at,
         priority: priority || 'low',
         category: category || 'general',
+        author_unit: unitAddress,
       },
     });
   } catch (error) {
