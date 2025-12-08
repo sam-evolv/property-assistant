@@ -1,7 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { db } from '@openhouse/db/client';
-import { units } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
 import { DrawingType, getDrawingTypeForQuestion } from './drawing-classifier';
 
 const supabase = createClient(
@@ -28,13 +25,23 @@ export interface DrawingResolverResult {
   explanation: string;
 }
 
-export async function getUnitHouseType(unitUid: string): Promise<string | null> {
+export async function getUnitHouseType(unitId: string): Promise<string | null> {
   try {
-    const unit = await db.query.units.findFirst({
-      where: eq(units.unit_uid, unitUid),
-      columns: { house_type_code: true },
-    });
-    return unit?.house_type_code || null;
+    const { data: unit, error } = await supabase
+      .from('units')
+      .select('unit_type_id, unit_types(name)')
+      .eq('id', unitId)
+      .single();
+    
+    if (error || !unit) {
+      console.log('[DrawingResolver] Unit not found in Supabase:', unitId);
+      return null;
+    }
+    
+    const unitTypes = unit.unit_types as any;
+    const houseTypeCode = unitTypes?.name || null;
+    console.log('[DrawingResolver] Found house type:', houseTypeCode, 'for unit:', unitId);
+    return houseTypeCode;
   } catch (error) {
     console.error('[DrawingResolver] Error fetching unit house type:', error);
     return null;
