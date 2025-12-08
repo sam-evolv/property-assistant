@@ -49,22 +49,30 @@ export async function GET(req: NextRequest) {
       const numMatch = unitUid.match(/(\d+)/);
       const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
 
-      // Get units for the project, ordered by address
+      // Get units for the project
       const { data: units, error: listError } = await supabase
         .from('units')
         .select('id, address, purchaser_name, project_id')
         .eq('project_id', PROJECT_ID)
-        .order('address', { ascending: true })
-        .limit(100);
+        .limit(200);
 
       if (listError || !units || units.length === 0) {
         console.error('[Super Admin Impersonation] No units found:', listError?.message);
         return NextResponse.json({ error: 'No units found for project' }, { status: 404 });
       }
 
-      // Try to find by unit number, otherwise use first unit
-      const targetIndex = Math.min(unitNum - 1, units.length - 1);
-      unit = units[targetIndex >= 0 ? targetIndex : 0];
+      // Find unit by matching address number (e.g., "3 Longview Park" for unit 3)
+      const exactMatch = units.find(u => {
+        const addrMatch = u.address?.match(/^(\d+)\s/);
+        return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+      });
+      
+      if (exactMatch) {
+        unit = exactMatch;
+      } else {
+        // Fallback to first unit
+        unit = units[0];
+      }
     }
 
     if (!unit) {
