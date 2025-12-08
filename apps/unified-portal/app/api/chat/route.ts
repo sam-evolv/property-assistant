@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
-import { messages } from '@openhouse/db/schema';
+import { messages, units } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
+import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
+import { validateQRToken } from '@openhouse/api/qr-tokens';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -31,10 +34,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { message, unitUid, userId } = body;
+    const { message, unitUid: clientUnitUid, userId } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
+    }
+
+    const token = request.headers.get('x-qr-token');
+    let validatedUnitUid: string | null = null;
+
+    if (token) {
+      try {
+        const payload = await validateQRToken(token);
+        if (payload && payload.supabaseUnitId) {
+          validatedUnitUid = payload.supabaseUnitId;
+          console.log('[Chat] Token validated, unit derived from token:', validatedUnitUid);
+        } else {
+          console.log('[Chat] Token validation failed - drawings will not be accessible');
+        }
+      } catch (tokenError) {
+        console.log('[Chat] Token validation error - drawings will not be accessible:', tokenError);
+      }
+    } else {
+      console.log('[Chat] No token provided - drawings will not be accessible for security');
     }
 
     console.log('🔍 Search Query:', message);
@@ -109,11 +131,28 @@ INSTRUCTIONS:
     const questionTopic = await extractQuestionTopic(message);
     console.log('[Chat] Question topic:', questionTopic);
 
+    let drawing: ResolvedDrawing | null = null;
+    let drawingExplanation = '';
+    
+    if (validatedUnitUid) {
+      try {
+        console.log('[Chat] Checking for relevant drawings...');
+        const drawingResult = await findDrawingForQuestion(validatedUnitUid, questionTopic);
+        if (drawingResult.found && drawingResult.drawing) {
+          drawing = drawingResult.drawing;
+          drawingExplanation = drawingResult.explanation;
+          console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
+        }
+      } catch (drawingError) {
+        console.error('[Chat] Error finding drawing:', drawingError);
+      }
+    }
+
     try {
       await db.insert(messages).values({
         tenant_id: DEFAULT_TENANT_ID,
         development_id: DEFAULT_DEVELOPMENT_ID,
-        user_id: userId || unitUid || 'anonymous',
+        user_id: userId || validatedUnitUid || 'anonymous',
         content: message,
         user_message: message,
         ai_message: answer,
@@ -124,7 +163,7 @@ INSTRUCTIONS:
         cost_usd: String(costUsd),
         latency_ms: latencyMs,
         metadata: {
-          unitUid: unitUid || null,
+          unitUid: validatedUnitUid || null,
           chunksUsed: allChunks?.length || 0,
           model: 'gpt-4o-mini',
           token_cost: costUsd,
@@ -138,13 +177,27 @@ INSTRUCTIONS:
 
     console.log('============================================================\n');
 
-    return NextResponse.json({
+    const responseData: any = {
       success: true,
       answer,
       source: allChunks && allChunks.length > 0 ? 'full_context' : 'no_documents',
       chunksUsed: allChunks?.length || 0,
       documents: Array.from(new Set(allChunks?.map(c => c.metadata?.file_name || c.metadata?.source) || [])),
-    });
+    };
+
+    if (drawing) {
+      responseData.drawing = {
+        fileName: drawing.fileName,
+        drawingType: drawing.drawingType,
+        drawingDescription: drawing.drawingDescription,
+        houseTypeCode: drawing.houseTypeCode,
+        previewUrl: drawing.signedUrl,
+        downloadUrl: drawing.downloadUrl,
+        explanation: drawingExplanation,
+      };
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('[Chat] Error:', error);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Home, Mic, Send } from 'lucide-react';
+import { Home, Mic, Send, FileText, Download, Eye } from 'lucide-react';
 
 // Animation styles for typing indicator and logo hover
 const ANIMATION_STYLES = `
@@ -64,10 +64,21 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   </div>
 );
 
+interface DrawingData {
+  fileName: string;
+  drawingType: string;
+  drawingDescription: string;
+  houseTypeCode: string;
+  previewUrl: string;
+  downloadUrl: string;
+  explanation: string;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   floorPlanUrl?: string | null;
+  drawing?: DrawingData | null;
 }
 
 interface PurchaserChatTabProps {
@@ -341,6 +352,7 @@ export default function PurchaserChatTab({
           developmentId,
           message: textToSend,
           userId: userId || undefined,
+          unitUid: unitUid,
         }),
       });
 
@@ -353,6 +365,7 @@ export default function PurchaserChatTab({
             role: 'assistant', 
             content: data.answer,
             floorPlanUrl: data.floorPlanUrl || null,
+            drawing: data.drawing || null,
           },
         ]);
       } else if (data.error) {
@@ -534,7 +547,63 @@ export default function PurchaserChatTab({
                     }`}
                   >
                     <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
-                    {msg.floorPlanUrl && (
+                    
+                    {msg.drawing && (
+                      <div className={`mt-3 rounded-xl border overflow-hidden ${
+                        isDarkMode 
+                          ? 'border-gray-700 bg-gray-800/50' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <div className="flex items-center gap-2">
+                            <FileText className={`h-4 w-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                            <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {msg.drawing.drawingType === 'room_sizes' ? 'Room Sizes' :
+                               msg.drawing.drawingType === 'floor_plan' ? 'Floor Plan' :
+                               msg.drawing.drawingType === 'elevation' ? 'Elevations' : 'Drawing'}
+                            </span>
+                            <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                              ({msg.drawing.houseTypeCode})
+                            </span>
+                          </div>
+                          {msg.drawing.explanation && (
+                            <p className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {msg.drawing.explanation}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex">
+                          <a
+                            href={msg.drawing.previewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition border-r ${
+                              isDarkMode
+                                ? 'border-gray-700 text-gold-400 hover:bg-gray-700/50'
+                                : 'border-gray-200 text-gold-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            <Eye className="h-4 w-4" />
+                            Preview
+                          </a>
+                          <a
+                            href={msg.drawing.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
+                              isDarkMode
+                                ? 'text-gold-400 hover:bg-gray-700/50'
+                                : 'text-gold-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            <Download className="h-4 w-4" />
+                            Download
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {msg.floorPlanUrl && !msg.drawing && (
                       <a
                         href={msg.floorPlanUrl}
                         target="_blank"

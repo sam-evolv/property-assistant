@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { classifyDrawing, DrawingClassification } from '@/lib/drawing-classifier';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -118,7 +119,23 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // STEP 3: Chunk and Embed directly into document_sections
+      // STEP 3: Classify drawing (for architectural documents)
+      let drawingClassification: DrawingClassification | null = null;
+      if (discipline === 'architectural' || discipline === 'other') {
+        try {
+          console.log('[Upload] Classifying drawing...');
+          drawingClassification = await classifyDrawing(fileName, docName, extractedText);
+          console.log('[Upload] Drawing classification:', {
+            houseTypeCode: drawingClassification.houseTypeCode,
+            drawingType: drawingClassification.drawingType,
+            confidence: drawingClassification.confidence,
+          });
+        } catch (classifyError) {
+          console.error('[Upload] Classification error:', classifyError);
+        }
+      }
+
+      // STEP 4: Chunk and Embed directly into document_sections
       const chunks = chunkText(extractedText);
       console.log(`[Upload] Created ${chunks.length} chunks`);
 
@@ -141,6 +158,11 @@ export async function POST(request: NextRequest) {
                 discipline: discipline.toLowerCase(),
                 chunk_index: i,
                 total_chunks: chunks.length,
+                ...(drawingClassification && {
+                  house_type_code: drawingClassification.houseTypeCode,
+                  drawing_type: drawingClassification.drawingType,
+                  drawing_description: drawingClassification.drawingDescription,
+                }),
               },
             });
 
