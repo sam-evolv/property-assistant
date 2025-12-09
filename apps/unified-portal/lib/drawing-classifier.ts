@@ -174,23 +174,25 @@ function generateDescription(drawingType: DrawingType, houseTypeCode: string | n
 }
 
 export function getDrawingTypeForQuestion(questionTopic: string): DrawingType[] {
-  const internalTopics = [
+  // ONLY show drawings for dimension/size questions - NOT for general product questions
+  const dimensionTopics = [
     'living_room_size', 'kitchen_size', 'bedroom_size', 'bathroom_size',
-    'floor_area', 'room_sizes', 'bedroom_count', 'bathroom_count',
-    'kitchen_options', 'flooring', 'house_details',
+    'floor_area', 'room_sizes', 'room_dimensions', 'house_layout',
   ];
   
-  const externalTopics = [
-    'windows_doors', 'solar_panels', 'paint_decoration', 'landscaping',
+  // External appearance questions that benefit from elevation drawings
+  const externalAppearanceTopics = [
+    'house_exterior', 'external_appearance',
   ];
   
-  if (internalTopics.includes(questionTopic)) {
+  if (dimensionTopics.includes(questionTopic)) {
     return ['room_sizes', 'floor_plan'];
   }
   
-  if (externalTopics.includes(questionTopic)) {
+  if (externalAppearanceTopics.includes(questionTopic)) {
     return ['elevation'];
   }
   
+  // For all other topics (materials, products, features), don't show drawings
   return [];
 }
