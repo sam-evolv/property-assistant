@@ -3,10 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
 import { messages, units } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+
+const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -72,6 +74,84 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// Check if message is a follow-up that needs context (must have pronouns/anaphora)
+function isFollowUpQuestion(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  const wordCount = trimmed.split(/\s+/).length;
+  
+  // STRICT: Only treat as follow-up if it has anaphoric pronouns (referring to previous topic)
+  const hasAnaphoricPronouns = /\b(them|they|it|its|those|these|the same)\b/i.test(trimmed);
+  
+  // Short messages with anaphoric pronouns definitely need context
+  const isShort = wordCount <= 8;
+  
+  // Explicit follow-up patterns (not just any question)
+  const followUpPatterns = [
+    /^(and|but|also|what about|how about|tell me more|more info|more details)/i,
+    /^(who|what|where|when|how|why)\s+(makes?|is|are|does|do|about)\s+(them|it|those|these)\b/i,
+  ];
+  
+  const matchesExplicitPattern = followUpPatterns.some(p => p.test(trimmed));
+  
+  // Only return true if there are anaphoric pronouns or explicit follow-up patterns
+  return (isShort && hasAnaphoricPronouns) || matchesExplicitPattern;
+}
+
+// Load recent conversation history for a user (only if properly identified)
+async function loadConversationHistory(userId: string, tenantId: string, developmentId: string): Promise<{ userMessage: string; aiMessage: string }[]> {
+  // SECURITY: Never load history for anonymous or unidentified users to prevent cross-session leakage
+  if (!userId || userId === 'anonymous' || userId.length < 10) {
+    console.log('[Chat] Skipping history load - user not properly identified');
+    return [];
+  }
+  
+  try {
+    // Scope history to specific user within tenant/development for isolation
+    const recentMessages = await db
+      .select({
+        userMessage: messages.user_message,
+        aiMessage: messages.ai_message,
+        createdAt: messages.created_at,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.user_id, userId),
+          eq(messages.tenant_id, tenantId),
+          eq(messages.development_id, developmentId)
+        )
+      )
+      .orderBy(desc(messages.created_at))
+      .limit(CONVERSATION_HISTORY_LIMIT);
+    
+    // Reverse to get chronological order (oldest first)
+    return recentMessages
+      .filter(m => m.userMessage && m.aiMessage)
+      .reverse()
+      .map(m => ({
+        userMessage: m.userMessage || '',
+        aiMessage: m.aiMessage || '',
+      }));
+  } catch (error) {
+    console.error('[Chat] Error loading conversation history:', error);
+    return [];
+  }
+}
+
+// Expand a follow-up query with context from previous messages
+function expandQueryWithContext(currentMessage: string, history: { userMessage: string; aiMessage: string }[]): string {
+  if (history.length === 0) return currentMessage;
+  
+  // Get the most recent exchange for context
+  const lastExchange = history[history.length - 1];
+  
+  // Build a context-aware query for semantic search
+  const contextQuery = `Previous topic: ${lastExchange.userMessage}\nCurrent question: ${currentMessage}`;
+  
+  console.log('[Chat] Expanded query for semantic search:', contextQuery.slice(0, 100) + '...');
+  return contextQuery;
+}
+
 export async function POST(request: NextRequest) {
   console.log('\n============================================================');
   console.log('[Chat] RAG CHAT API - SEMANTIC SEARCH MODE');
@@ -109,11 +189,27 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Search Query:', message);
 
-    // STEP 1: Generate embedding for the user's question
+    // STEP 0: Load conversation history for context-aware responses
+    // Use validated unit UID (from QR token) as the primary user identifier for session isolation
+    const conversationUserId = validatedUnitUid || userId || '';
+    const conversationHistory = await loadConversationHistory(conversationUserId, DEFAULT_TENANT_ID, DEFAULT_DEVELOPMENT_ID);
+    console.log('[Chat] Loaded', conversationHistory.length, 'previous exchanges for context');
+    
+    // Check if this is a follow-up question that needs context expansion
+    const needsContext = isFollowUpQuestion(message) && conversationHistory.length > 0;
+    const searchQuery = needsContext 
+      ? expandQueryWithContext(message, conversationHistory)
+      : message;
+    
+    if (needsContext) {
+      console.log('[Chat] Follow-up detected, using expanded query for semantic search');
+    }
+
+    // STEP 1: Generate embedding for the search query (may be expanded with context)
     console.log('[Chat] Generating query embedding...');
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
-      input: message,
+      input: searchQuery,
       dimensions: 1536,
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
@@ -230,14 +326,29 @@ CRITICAL - ROOM DIMENSIONS:
       console.log('[Chat] No relevant documents found for this query');
     }
 
-    // STEP 3: Generate Response
+    // STEP 4: Generate Response with conversation history for context
     console.log('[Chat] Generating response with GPT-4o-mini...');
+    
+    // Build messages array with conversation history for context
+    const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: systemMessage },
+    ];
+    
+    // Add recent conversation history so the AI understands follow-up questions
+    if (conversationHistory.length > 0) {
+      console.log('[Chat] Including', conversationHistory.length, 'previous exchanges in context');
+      for (const exchange of conversationHistory) {
+        chatMessages.push({ role: 'user', content: exchange.userMessage });
+        chatMessages.push({ role: 'assistant', content: exchange.aiMessage });
+      }
+    }
+    
+    // Add the current user message
+    chatMessages.push({ role: 'user', content: message });
+    
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: message },
-      ],
+      messages: chatMessages,
       temperature: 0.3,
       max_tokens: 800,
     });
@@ -282,10 +393,12 @@ CRITICAL - ROOM DIMENSIONS:
     }
 
     try {
+      // Use the SAME conversationUserId for persistence as was used for history loading
+      // This ensures history loading and saving use consistent identifiers
       await db.insert(messages).values({
         tenant_id: DEFAULT_TENANT_ID,
         development_id: DEFAULT_DEVELOPMENT_ID,
-        user_id: userId || validatedUnitUid || 'anonymous',
+        user_id: conversationUserId || 'anonymous',
         content: message,
         user_message: message,
         ai_message: answer,
@@ -297,13 +410,14 @@ CRITICAL - ROOM DIMENSIONS:
         latency_ms: latencyMs,
         metadata: {
           unitUid: validatedUnitUid || null,
+          userId: userId || null,
           chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
           token_cost: costUsd,
           latency_ms: latencyMs,
         },
       });
-      console.log('[Chat] Message saved to database');
+      console.log('[Chat] Message saved to database for user:', conversationUserId || 'anonymous');
     } catch (dbError) {
       console.error('[Chat] Failed to save message:', dbError);
     }
