@@ -107,6 +107,11 @@ export default function DisciplineDetailPage() {
     return extractHouseTypeFromFilename(doc.file_name || '');
   };
 
+  const shouldShowFolders = useCallback((): boolean => {
+    const docsWithHouseType = allDocuments.filter(doc => getDocumentHouseType(doc) !== null);
+    return docsWithHouseType.length > 0 && docsWithHouseType.length >= allDocuments.length * 0.3;
+  }, [allDocuments]);
+
   const groupedByHouseType = useCallback((): HouseTypeGroup[] => {
     const groups: Record<string, ArchiveDocument[]> = {};
     
@@ -165,6 +170,7 @@ export default function DisciplineDetailPage() {
   const selectedGroup = selectedHouseType 
     ? groups.find(g => g.houseTypeCode === selectedHouseType)
     : null;
+  const showFolderView = shouldShowFolders() && groups.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
@@ -210,7 +216,9 @@ export default function DisciplineDetailPage() {
                   <p className="text-gray-400 mt-0.5">
                     {selectedHouseType 
                       ? `${currentDocs.length} document${currentDocs.length !== 1 ? 's' : ''}`
-                      : `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''} in ${groups.length} folder${groups.length !== 1 ? 's' : ''}`}
+                      : showFolderView 
+                        ? `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''} in ${groups.length} folder${groups.length !== 1 ? 's' : ''}`
+                        : `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''}`}
                     {disciplineInfo && !selectedHouseType && ` • ${disciplineInfo.description}`}
                   </p>
                 </div>
@@ -262,7 +270,7 @@ export default function DisciplineDetailPage() {
             </div>
           </div>
 
-          {(selectedHouseType || viewMode === 'list') && (
+          {(selectedHouseType || viewMode === 'list' || !showFolderView) && allDocuments.length > 0 && (
             <div className="mt-4 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
@@ -294,7 +302,7 @@ export default function DisciplineDetailPage() {
               <div key={i} className="h-32 bg-gray-800/50 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : viewMode === 'folders' && !selectedHouseType ? (
+        ) : showFolderView && viewMode === 'folders' && !selectedHouseType ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {groups.map((group) => (
               <button
@@ -317,9 +325,20 @@ export default function DisciplineDetailPage() {
                 </p>
               </button>
             ))}
-            
-            {groups.length === 0 && (
-              <div className="col-span-full text-center py-16">
+          </div>
+        ) : (
+          <>
+            {selectedHouseType && showFolderView && (
+              <button
+                onClick={() => setSelectedHouseType(null)}
+                className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to folders
+              </button>
+            )}
+            {allDocuments.length === 0 ? (
+              <div className="text-center py-16">
                 <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
                   <FolderOpen className="w-8 h-8 text-gray-600" />
                 </div>
@@ -333,28 +352,17 @@ export default function DisciplineDetailPage() {
                   Upload Document
                 </button>
               </div>
+            ) : (
+              <DocumentGrid
+                documents={currentDocs}
+                isLoading={false}
+                page={1}
+                totalPages={1}
+                totalCount={currentDocs.length}
+                onPageChange={() => {}}
+                onDocumentDeleted={loadDocuments}
+              />
             )}
-          </div>
-        ) : (
-          <>
-            {selectedHouseType && (
-              <button
-                onClick={() => setSelectedHouseType(null)}
-                className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to folders
-              </button>
-            )}
-            <DocumentGrid
-              documents={currentDocs}
-              isLoading={false}
-              page={1}
-              totalPages={1}
-              totalCount={currentDocs.length}
-              onPageChange={() => {}}
-              onDocumentDeleted={loadDocuments}
-            />
           </>
         )}
       </div>
