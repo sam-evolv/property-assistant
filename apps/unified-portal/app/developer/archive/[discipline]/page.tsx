@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search } from 'lucide-react';
+import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle } from 'lucide-react';
 import { DocumentGrid, UploadModal } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
@@ -33,6 +33,8 @@ export default function DisciplineDetailPage() {
   const [selectedHouseType, setSelectedHouseType] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'folders' | 'list'>('folders');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterImportant, setFilterImportant] = useState(false);
+  const [filterMustRead, setFilterMustRead] = useState(false);
 
   const displayName = getDisciplineDisplayName(discipline);
   const disciplineInfo = DISCIPLINES[discipline as DisciplineType];
@@ -154,6 +156,15 @@ export default function DisciplineDetailPage() {
       docs = docs.filter(d => getDocumentHouseType(d) === selectedHouseType);
     }
     
+    if (filterImportant) {
+      docs = docs.filter(d => d.is_important === true);
+    }
+    
+    if (filterMustRead) {
+      const extDocs = docs as (ArchiveDocument & { must_read?: boolean })[];
+      docs = extDocs.filter(d => d.must_read === true);
+    }
+    
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       docs = docs.filter(d => 
@@ -163,7 +174,10 @@ export default function DisciplineDetailPage() {
     }
     
     return docs.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-  }, [allDocuments, selectedHouseType, searchQuery]);
+  }, [allDocuments, selectedHouseType, searchQuery, filterImportant, filterMustRead]);
+
+  const importantCount = allDocuments.filter(d => d.is_important === true).length;
+  const mustReadCount = allDocuments.filter(d => (d as ArchiveDocument & { must_read?: boolean }).must_read === true).length;
 
   const groups = groupedByHouseType();
   const currentDocs = filteredDocuments();
@@ -270,16 +284,60 @@ export default function DisciplineDetailPage() {
             </div>
           </div>
 
-          {(selectedHouseType || viewMode === 'list' || !showFolderView) && allDocuments.length > 0 && (
-            <div className="mt-4 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full max-w-md pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
-              />
+          {allDocuments.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {(selectedHouseType || viewMode === 'list' || !showFolderView) && (
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search documents..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
+                  />
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFilterImportant(!filterImportant)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                    filterImportant 
+                      ? 'bg-gold-500/20 border-gold-500/50 text-gold-400' 
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                  }`}
+                >
+                  <Star className={`w-4 h-4 ${filterImportant ? 'fill-gold-400' : ''}`} />
+                  <span className="text-sm font-medium">Important</span>
+                  {importantCount > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                      filterImportant ? 'bg-gold-500/30 text-gold-300' : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {importantCount}
+                    </span>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => setFilterMustRead(!filterMustRead)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                    filterMustRead 
+                      ? 'bg-red-500/20 border-red-500/50 text-red-400' 
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                  }`}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Must Read</span>
+                  {mustReadCount > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                      filterMustRead ? 'bg-red-500/30 text-red-300' : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {mustReadCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>
