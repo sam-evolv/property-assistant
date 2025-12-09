@@ -135,6 +135,26 @@ export const document_versions = pgTable('document_versions', {
   tenantIdx: index('doc_versions_tenant_idx').on(table.tenant_id),
 }));
 
+export const archive_folders = pgTable('archive_folders', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  discipline: text('discipline').notNull(),
+  parent_folder_id: uuid('parent_folder_id'),
+  name: text('name').notNull(),
+  color: text('color'),
+  icon: text('icon'),
+  sort_order: integer('sort_order').default(0).notNull(),
+  created_by: uuid('created_by').references(() => admins.id),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('archive_folders_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('archive_folders_development_idx').on(table.development_id),
+  parentIdx: index('archive_folders_parent_idx').on(table.parent_folder_id),
+  disciplineIdx: index('archive_folders_discipline_idx').on(table.tenant_id, table.development_id, table.discipline),
+}));
+
 export const noticeboard_posts = pgTable('noticeboard_posts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
