@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Home, AlertTriangle, CheckCircle, XCircle, FileText, User } from 'lucide-react';
+import { Home, AlertTriangle, CheckCircle, XCircle, FileText, User, MapPin, Phone, Mail, Download } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
@@ -11,12 +11,15 @@ interface Unit {
   id: string;
   unit_number: string;
   unit_uid: string;
-  address_line_1: string;
+  address: string;
   house_type_code: string;
+  property_type: string | null;
+  bedrooms: number | null;
   development_name: string;
   purchaser_name: string | null;
   purchaser_email: string | null;
-  homeowner: { name: string; email: string } | null;
+  purchaser_phone: string | null;
+  homeowner: { name: string; email: string; onboarded: boolean } | null;
   has_floor_plan: boolean;
   has_elevations: boolean;
   missing_docs: boolean;
@@ -41,6 +44,32 @@ export function UnitsExplorer() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const exportToCSV = () => {
+    const headers = ['Unit Number', 'Address', 'Type', 'Bedrooms', 'Development', 'Purchaser Name', 'Purchaser Email', 'Purchaser Phone', 'Onboarded'];
+    const rows = units.map(u => [
+      u.unit_number,
+      u.address,
+      u.house_type_code,
+      u.bedrooms || '',
+      u.development_name,
+      u.purchaser_name || '',
+      u.purchaser_email || '',
+      u.purchaser_phone || '',
+      u.homeowner?.onboarded ? 'Yes' : 'No'
+    ]);
+    
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `units_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.click();
+  };
 
   if (loading) {
     return (
@@ -80,7 +109,10 @@ export function UnitsExplorer() {
       render: (item) => (
         <div>
           <p className="font-semibold text-gray-900">{item.unit_number}</p>
-          <p className="text-xs text-gray-500">{item.address_line_1}</p>
+          <p className="text-xs text-gray-500 flex items-center gap-1">
+            <MapPin className="w-3 h-3" />
+            {item.address}
+          </p>
         </div>
       ),
     },
@@ -89,16 +121,21 @@ export function UnitsExplorer() {
       label: 'Type',
       sortable: true,
       render: (item) => (
-        <span className="px-2 py-1 bg-gold-100 text-gold-700 rounded text-xs font-medium">
-          {item.house_type_code}
-        </span>
+        <div>
+          <span className="px-2 py-1 bg-gold-100 text-gold-700 rounded text-xs font-medium">
+            {item.house_type_code}
+          </span>
+          {item.bedrooms && (
+            <p className="text-xs text-gray-500 mt-1">{item.bedrooms} bed</p>
+          )}
+        </div>
       ),
     },
     {
       key: 'development_name',
       label: 'Development',
       sortable: true,
-      render: (item) => <span className="text-gray-700">{item.development_name}</span>,
+      render: (item) => <span className="text-gray-700 font-medium">{item.development_name}</span>,
     },
     {
       key: 'homeowner',
@@ -106,23 +143,33 @@ export function UnitsExplorer() {
       sortable: false,
       render: (item) =>
         item.homeowner ? (
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-green-600" />
+          <div className="flex items-start gap-2">
+            <div className={`p-1 rounded-full ${item.homeowner.onboarded ? 'bg-green-100' : 'bg-amber-100'}`}>
+              <User className={`w-4 h-4 ${item.homeowner.onboarded ? 'text-green-600' : 'text-amber-600'}`} />
+            </div>
             <div>
               <p className="text-sm font-medium text-gray-900">{item.homeowner.name}</p>
-              <p className="text-xs text-gray-500">{item.homeowner.email}</p>
-            </div>
-          </div>
-        ) : item.purchaser_name ? (
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-orange-500" />
-            <div>
-              <p className="text-sm font-medium text-orange-700">{item.purchaser_name}</p>
-              <p className="text-xs text-orange-500">Pending</p>
+              <p className="text-xs text-gray-500 flex items-center gap-1">
+                <Mail className="w-3 h-3" />
+                {item.homeowner.email}
+              </p>
+              {item.purchaser_phone && (
+                <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {item.purchaser_phone}
+                </p>
+              )}
+              <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${
+                item.homeowner.onboarded 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {item.homeowner.onboarded ? 'Onboarded' : 'Pending'}
+              </span>
             </div>
           </div>
         ) : (
-          <span className="text-gray-400 text-sm">Unassigned</span>
+          <span className="text-gray-400 text-sm italic">No purchaser assigned</span>
         ),
     },
     {
@@ -203,38 +250,48 @@ export function UnitsExplorer() {
         />
       </div>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium shadow-sm ${
+              filter === 'all'
+                ? 'bg-gold-500 text-white shadow-md'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
+            }`}
+          >
+            All Units ({units.length})
+          </button>
+          <button
+            onClick={() => setFilter('has_homeowner')}
+            className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
+              filter === 'has_homeowner'
+                ? 'bg-gold-600 text-white shadow-md'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            With Homeowner ({withHomeownerCount})
+          </button>
+          <button
+            onClick={() => setFilter('missing_docs')}
+            className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
+              filter === 'missing_docs'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Missing Docs ({missingDocsCount})
+          </button>
+        </div>
+        
         <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium shadow-sm ${
-            filter === 'all'
-              ? 'bg-gold-500 text-white shadow-md'
-              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
-          }`}
+          onClick={exportToCSV}
+          className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
         >
-          All Units ({units.length})
-        </button>
-        <button
-          onClick={() => setFilter('has_homeowner')}
-          className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
-            filter === 'has_homeowner'
-              ? 'bg-gold-600 text-white shadow-md'
-              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
-          }`}
-        >
-          <User className="w-4 h-4" />
-          With Homeowner ({withHomeownerCount})
-        </button>
-        <button
-          onClick={() => setFilter('missing_docs')}
-          className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
-            filter === 'missing_docs'
-              ? 'bg-red-600 text-white shadow-md'
-              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          Missing Docs ({missingDocsCount})
+          <Download className="w-4 h-4" />
+          Export CSV
         </button>
       </div>
 
