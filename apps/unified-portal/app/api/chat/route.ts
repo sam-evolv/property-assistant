@@ -23,7 +23,22 @@ const openai = new OpenAI({
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-const MAX_CHUNKS = 15; // Limit context to top 15 most relevant chunks
+const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
+const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
+
+// Calculate cosine similarity between two vectors
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
 
 export async function POST(request: NextRequest) {
   console.log('\n============================================================');
@@ -72,57 +87,75 @@ export async function POST(request: NextRequest) {
     const queryEmbedding = embeddingResponse.data[0].embedding;
     console.log('[Chat] Query embedding generated');
 
-    // STEP 2: Semantic search for relevant chunks using vector similarity
-    console.log('[Chat] Searching for relevant chunks...');
-    const { data: relevantChunks, error: searchError } = await supabase.rpc(
-      'match_document_sections',
-      {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.3,
-        match_count: MAX_CHUNKS,
-        p_project_id: PROJECT_ID,
-      }
-    );
+    // STEP 2: Semantic search using cosine similarity on ALL chunks
+    // Fetch ALL chunks with embeddings for proper semantic search
+    console.log('[Chat] Loading all document chunks with embeddings...');
+    const { data: allChunks, error: fetchError } = await supabase
+      .from('document_sections')
+      .select('id, content, metadata, embedding')
+      .eq('project_id', PROJECT_ID);
 
-    // Fallback: If RPC doesn't exist or fails, use simple text search
+    if (fetchError) {
+      console.error('[Chat] Error fetching chunks:', fetchError.message);
+      throw new Error('Failed to load documents');
+    }
+
+    console.log('[Chat] Loaded', allChunks?.length || 0, 'total chunks');
+
+    // Calculate similarity scores for ALL chunks
     let chunks: any[] = [];
-    if (searchError || !relevantChunks || relevantChunks.length === 0) {
-      console.log('[Chat] Vector search unavailable, using keyword fallback...');
+    if (allChunks && allChunks.length > 0) {
+      console.log('[Chat] Computing semantic similarity scores...');
       
-      // Simple keyword-based search fallback
-      const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-      const { data: fallbackChunks } = await supabase
-        .from('document_sections')
-        .select('id, content, metadata')
-        .eq('project_id', PROJECT_ID)
-        .limit(50);
-      
-      if (fallbackChunks) {
-        // Score chunks by keyword matches
-        const scoredChunks = fallbackChunks.map(chunk => {
-          const contentLower = chunk.content.toLowerCase();
-          let score = 0;
-          keywords.forEach((kw: string) => {
-            if (contentLower.includes(kw)) score++;
-          });
-          return { ...chunk, score };
+      const scoredChunks = allChunks.map(chunk => {
+        // Semantic similarity using embeddings
+        let similarity = 0;
+        if (chunk.embedding && Array.isArray(chunk.embedding)) {
+          similarity = cosineSimilarity(queryEmbedding, chunk.embedding);
+        }
+        
+        // Boost score for keyword matches (hybrid search)
+        const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+        const contentLower = (chunk.content || '').toLowerCase();
+        const metadataStr = JSON.stringify(chunk.metadata || {}).toLowerCase();
+        
+        let keywordBoost = 0;
+        keywords.forEach((kw: string) => {
+          if (contentLower.includes(kw)) keywordBoost += 0.05;
+          if (metadataStr.includes(kw)) keywordBoost += 0.03;
         });
         
-        // Sort by score and take top chunks
-        chunks = scoredChunks
-          .filter(c => c.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, MAX_CHUNKS);
+        // Combined score: semantic similarity + keyword boost
+        const finalScore = similarity + keywordBoost;
         
-        // If no keyword matches, take first few chunks
-        if (chunks.length === 0) {
-          chunks = fallbackChunks.slice(0, MAX_CHUNKS);
-        }
+        return {
+          id: chunk.id,
+          content: chunk.content,
+          metadata: chunk.metadata,
+          similarity,
+          keywordBoost,
+          score: finalScore,
+        };
+      });
+      
+      // Sort by score and take top chunks
+      scoredChunks.sort((a, b) => b.score - a.score);
+      
+      // Take top chunks that fit within context limit
+      let totalChars = 0;
+      for (const chunk of scoredChunks) {
+        if (chunks.length >= MAX_CHUNKS) break;
+        if (totalChars + chunk.content.length > MAX_CONTEXT_CHARS) break;
+        chunks.push(chunk);
+        totalChars += chunk.content.length;
       }
-      console.log('[Chat] Keyword fallback found', chunks.length, 'relevant chunks');
-    } else {
-      chunks = relevantChunks;
-      console.log('[Chat] Vector search found', chunks.length, 'relevant chunks');
+      
+      console.log('[Chat] Selected', chunks.length, 'most relevant chunks');
+      console.log('[Chat] Top chunk scores:', chunks.slice(0, 3).map(c => ({
+        score: c.score.toFixed(3),
+        similarity: c.similarity.toFixed(3),
+        source: c.metadata?.file_name || 'unknown'
+      })));
     }
 
     // STEP 3: Build System Message with relevant context only
