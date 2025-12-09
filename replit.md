@@ -3858,8 +3858,13 @@ npm run db:studio      # Open Drizzle Studio
 ## 🎯 User Preferences
 - **Super Admin**: sam@evolvai.ie (tenant: Evolv AI)
 - **Primary Use Case**: Real estate development property assistance
-- **Optimization Focus**: Performance, scalability, production readiness
-- **Architecture**: Multi-tenant SaaS with centralized shared packages
+- **Optimisation Focus**: Performance, scalability, production readiness
+- **Architecture**: Multi-tenant SaaS with centralised shared packages
+- **Language**: UK/Ireland English spellings required (organise, customise, colour, favourite, etc.)
+  - Use 's' instead of 'z' in words like organise, customise, categorise
+  - Use 'colour' instead of 'color' in user-facing text
+  - Use 'favourite' instead of 'favorite' in user-facing text
+  - Code variable names can remain in US English for convention
 
 ## 📈 Performance Targets (Phase 1 - Completed)
 - ✅ Database indexes for all critical queries
@@ -3871,7 +3876,7 @@ npm run db:studio      # Open Drizzle Studio
 - ✅ Structured logging with performance timing
 
 ## 🗂️ Smart Archive System
-The Smart Archive organizes construction documents by discipline for easy navigation:
+The Smart Archive organises construction documents by discipline for easy navigation:
 
 ### Discipline Categories (8 total)
 - **Architectural**: Floor plans, elevations, sections, details

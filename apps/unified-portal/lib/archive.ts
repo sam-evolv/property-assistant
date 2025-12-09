@@ -1,7 +1,7 @@
 /**
  * Smart Archive Backend Helpers (Server-only)
  * 
- * Provides functions for fetching and organizing documents by discipline
+ * Provides functions for fetching and organising documents by discipline
  * for the developer dashboard Smart Archive feature.
  * 
  * MIGRATED TO SUPABASE - Now reads from document_sections table

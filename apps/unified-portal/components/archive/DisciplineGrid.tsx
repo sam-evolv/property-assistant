@@ -63,7 +63,7 @@ export function DisciplineGrid({
         </div>
         <h3 className="text-xl font-semibold text-white mb-2">No documents yet</h3>
         <p className="text-gray-400 max-w-md mx-auto">
-          Upload documents to this development to organize them in the Smart Archive.
+          Upload documents to this development to organise them in the Smart Archive.
         </p>
       </div>
     );

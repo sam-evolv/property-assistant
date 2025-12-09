@@ -53,7 +53,7 @@ export default async function ThemeConfigPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Theme Configuration</h1>
         <p className="text-gray-600 mt-2">
-          Customize your tenant portal's branding and appearance
+          Customise your tenant portal's branding and appearance
         </p>
       </div>
 

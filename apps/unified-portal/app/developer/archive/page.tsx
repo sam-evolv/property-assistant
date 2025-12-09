@@ -301,7 +301,7 @@ export default function SmartArchivePage() {
                 <h1 className="text-2xl font-bold text-white">Smart Archive</h1>
                 <p className="text-gray-400 mt-0.5">
                   {developmentId 
-                    ? `${totalDocuments} documents organized by discipline`
+                    ? `${totalDocuments} documents organised by discipline`
                     : 'Select a development to view documents'
                   }
                 </p>
@@ -375,7 +375,7 @@ export default function SmartArchivePage() {
                   {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
                 </p>
                 <p className="text-gray-400 text-sm">
-                  Use AI to automatically organize documents into disciplines
+                  Use AI to automatically organise documents into disciplines
                 </p>
               </div>
             </div>

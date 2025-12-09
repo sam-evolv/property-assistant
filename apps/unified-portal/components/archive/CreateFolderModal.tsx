@@ -126,7 +126,7 @@ export function CreateFolderModal({
                 {isEditing ? 'Rename Folder' : 'Create New Folder'}
               </h2>
               <p className="text-sm text-gray-400">
-                {isEditing ? 'Update the folder name and color' : 'Organize your documents into folders'}
+                {isEditing ? 'Update the folder name and colour' : 'Organise your documents into folders'}
               </p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function CreateFolderModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-3">
-              Folder Color
+              Folder Colour
             </label>
             <div className="flex flex-wrap gap-3">
               {FOLDER_COLORS.map((colorOption) => (

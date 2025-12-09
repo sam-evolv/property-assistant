@@ -2,7 +2,7 @@
  * AI Document Classification Helper
  * 
  * Uses OpenAI to classify documents by discipline and extract house type codes.
- * Integrates with the Smart Archive feature for automatic document organization.
+ * Integrates with the Smart Archive feature for automatic document organisation.
  */
 
 import OpenAI from 'openai';

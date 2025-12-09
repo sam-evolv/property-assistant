@@ -342,7 +342,7 @@ export default function PurchaserMapsTab({
                   <div style="font-weight: 600; font-size: 15px; color: #1f2937;">
                     ${fav.name}
                   </div>
-                  <span style="color: #EF4444; font-size: 12px;">❤️ Favorite</span>
+                  <span style="color: #EF4444; font-size: 12px;">❤️ Favourite</span>
                 </div>
                 <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
                   ${fav.address}
@@ -608,7 +608,7 @@ export default function PurchaserMapsTab({
             svg.setAttribute('fill', 'none');
             svg.setAttribute('stroke', '#9CA3AF');
           }
-          buttonElement.title = 'Add to favorites';
+          buttonElement.title = 'Add to favourites';
         }
       } else {
         addToFavorites({ place_id: placeId, name, address, lat, lng });
@@ -618,7 +618,7 @@ export default function PurchaserMapsTab({
             svg.setAttribute('fill', '#EF4444');
             svg.setAttribute('stroke', '#EF4444');
           }
-          buttonElement.title = 'Remove from favorites';
+          buttonElement.title = 'Remove from favourites';
         }
       }
     };
@@ -680,7 +680,7 @@ export default function PurchaserMapsTab({
                 </div>
                 <button onclick="window.toggleMapFavorite('${placeId}', '${escapedName}', '${escapedAddress}', ${lat}, ${lng}, this);"
                   style="background: none; border: none; cursor: pointer; padding: 4px; margin-left: 8px;"
-                  title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">
+                  title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="${isFav ? '#EF4444' : 'none'}" stroke="${isFav ? '#EF4444' : '#9CA3AF'}" stroke-width="2">
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                   </svg>
@@ -778,13 +778,13 @@ export default function PurchaserMapsTab({
           </div>
         </div>
 
-        {/* Favorites Section */}
+        {/* Favourites Section */}
         {favorites.length > 0 && (
           <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
             <div className="flex items-center gap-2 mb-3">
               <Heart className="w-4 h-4 text-red-500 fill-red-500" />
               <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Favorites ({favorites.length})
+                Favourites ({favorites.length})
               </h3>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -816,7 +816,7 @@ export default function PurchaserMapsTab({
                       removeFromFavorites(fav.place_id);
                     }}
                     className={`p-1 rounded hover:bg-red-100 ${isDarkMode ? 'hover:bg-red-900/30' : ''}`}
-                    title="Remove from favorites"
+                    title="Remove from favourites"
                   >
                     <X className="w-3 h-3 text-red-500" />
                   </button>
