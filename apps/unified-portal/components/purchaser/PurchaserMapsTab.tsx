@@ -267,55 +267,72 @@ export default function PurchaserMapsTab({
         return;
       }
 
-      console.log('[Maps] Creating new map instance...');
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat, lng },
-        zoom: 15,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
-        styles: isDarkMode ? [
-          { elementType: 'geometry', stylers: [{ color: '#1f2937' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#1f2937' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
-          {
-            featureType: 'water',
-            elementType: 'geometry',
-            stylers: [{ color: '#374151' }]
-          }
-        ] : [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'simplified' }]
-          }
-        ]
-      });
+      // Check if Google Maps API is fully loaded
+      if (!window.google?.maps?.Map) {
+        console.error('[Maps] Google Maps API not fully loaded');
+        setMapError(true);
+        return;
+      }
 
-      // Premium gold pin marker for home location
-      new window.google.maps.Marker({
-        position: { lat, lng },
-        map: map,
-        title: developmentName,
-        icon: {
-          path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-          fillColor: '#F59E0B',
-          fillOpacity: 1,
-          strokeColor: '#FFFFFF',
-          strokeWeight: 2,
-          scale: 2,
-          anchor: new window.google.maps.Point(12, 22),
-        },
-        animation: window.google.maps.Animation.DROP,
-      });
+      try {
+        console.log('[Maps] Creating new map instance...');
+        const map = new window.google.maps.Map(mapRef.current, {
+          center: { lat, lng },
+          zoom: 15,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+          zoomControl: true,
+          styles: isDarkMode ? [
+            { elementType: 'geometry', stylers: [{ color: '#1f2937' }] },
+            { elementType: 'labels.text.stroke', stylers: [{ color: '#1f2937' }] },
+            { elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
+            {
+              featureType: 'water',
+              elementType: 'geometry',
+              stylers: [{ color: '#374151' }]
+            }
+          ] : [
+            {
+              featureType: 'poi',
+              elementType: 'labels',
+              stylers: [{ visibility: 'simplified' }]
+            }
+          ]
+        });
 
-      // Initialize Places Service and Autocomplete Service
-      placesServiceRef.current = new window.google.maps.places.PlacesService(map);
-      autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
-      mapInstanceRef.current = map;
-      console.log('[Maps] Map created successfully, setting mapLoaded to true');
-      setMapLoaded(true);
+        // Listen for map errors
+        map.addListener('error', (error: any) => {
+          console.error('[Maps] Map error event:', error);
+        });
+
+        // Premium gold pin marker for home location
+        new window.google.maps.Marker({
+          position: { lat, lng },
+          map: map,
+          title: developmentName,
+          icon: {
+            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+            fillColor: '#F59E0B',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2,
+            scale: 2,
+            anchor: new window.google.maps.Point(12, 22),
+          },
+          animation: window.google.maps.Animation.DROP,
+        });
+
+        // Initialize Places Service and Autocomplete Service
+        placesServiceRef.current = new window.google.maps.places.PlacesService(map);
+        autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+        mapInstanceRef.current = map;
+        console.log('[Maps] Map created successfully, setting mapLoaded to true');
+        setMapLoaded(true);
+      } catch (error) {
+        console.error('[Maps] Error creating map instance:', error);
+        setMapError(true);
+      }
     };
 
     initMap();
