@@ -26,9 +26,40 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
+// Parse embedding from Supabase (may be string, array, or object)
+function parseEmbedding(emb: any): number[] | null {
+  if (!emb) return null;
+  
+  // Already an array
+  if (Array.isArray(emb)) return emb;
+  
+  // String format: "[0.1, 0.2, ...]" or "0.1,0.2,..."
+  if (typeof emb === 'string') {
+    try {
+      // Try JSON parse first
+      const parsed = JSON.parse(emb);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Try comma-separated format
+      const cleaned = emb.replace(/[\[\]]/g, '').trim();
+      if (cleaned) {
+        const nums = cleaned.split(',').map(s => parseFloat(s.trim()));
+        if (nums.length > 0 && !isNaN(nums[0])) return nums;
+      }
+    }
+  }
+  
+  // Object with values property
+  if (typeof emb === 'object' && emb.values) {
+    return Array.isArray(emb.values) ? emb.values : null;
+  }
+  
+  return null;
+}
+
 // Calculate cosine similarity between two vectors
 function cosineSimilarity(a: number[], b: number[]): number {
-  if (!a || !b || a.length !== b.length) return 0;
+  if (!a || !b || a.length !== b.length || a.length === 0) return 0;
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
@@ -37,6 +68,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
     normA += a[i] * a[i];
     normB += b[i] * b[i];
   }
+  if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
@@ -108,10 +140,11 @@ export async function POST(request: NextRequest) {
       console.log('[Chat] Computing semantic similarity scores...');
       
       const scoredChunks = allChunks.map(chunk => {
-        // Semantic similarity using embeddings
+        // Parse and calculate semantic similarity using embeddings
         let similarity = 0;
-        if (chunk.embedding && Array.isArray(chunk.embedding)) {
-          similarity = cosineSimilarity(queryEmbedding, chunk.embedding);
+        const parsedEmbedding = parseEmbedding(chunk.embedding);
+        if (parsedEmbedding) {
+          similarity = cosineSimilarity(queryEmbedding, parsedEmbedding);
         }
         
         // Boost score for keyword matches (hybrid search)
