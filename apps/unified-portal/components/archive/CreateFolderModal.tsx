@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { X, Folder, Loader2 } from 'lucide-react';
 import type { ArchiveFolder } from './FolderCard';
 
+interface EditFolderData {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
 interface CreateFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,7 +18,7 @@ interface CreateFolderModalProps {
   developmentId: string;
   discipline: string;
   parentFolderId?: string | null;
-  editFolder?: ArchiveFolder | null;
+  editFolder?: EditFolderData | null;
 }
 
 const FOLDER_COLORS = [

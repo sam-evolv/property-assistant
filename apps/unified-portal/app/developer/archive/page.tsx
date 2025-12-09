@@ -5,8 +5,10 @@ import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, D
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
+import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import type { DisciplineSummary } from '@/lib/archive-constants';
+import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
 
 interface HouseType {
   id: string;
@@ -28,9 +30,12 @@ type TabType = 'archive' | 'insights';
 export default function SmartArchivePage() {
   const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
   const [disciplines, setDisciplines] = useState<DisciplineSummary[]>([]);
+  const [customFolders, setCustomFolders] = useState<CustomDisciplineFolder[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<CustomDisciplineFolder | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('archive');
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
   const [isClassifying, setIsClassifying] = useState(false);
@@ -114,6 +119,25 @@ export default function SmartArchivePage() {
     }
   }, [tenantId, developmentId]);
 
+  const loadCustomFolders = useCallback(async () => {
+    if (!tenantId || !developmentId) return;
+    
+    try {
+      const params = new URLSearchParams();
+      params.set('tenantId', tenantId);
+      params.set('developmentId', developmentId);
+      params.set('discipline', '__root__');
+      
+      const response = await fetch(`/api/archive/folders?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCustomFolders(data.folders || []);
+      }
+    } catch (error) {
+      console.error('[Archive] Failed to load custom folders:', error);
+    }
+  }, [tenantId, developmentId]);
+
   const handleReprocessAll = async () => {
     if (!tenantId || !developmentId || isReprocessing) return;
     
@@ -159,7 +183,8 @@ export default function SmartArchivePage() {
     loadHouseTypes();
     checkUnclassified();
     loadEmbeddingStats();
-  }, [tenantId, developmentId, isHydrated, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats]);
+    loadCustomFolders();
+  }, [tenantId, developmentId, isHydrated, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats, loadCustomFolders]);
 
   const handleUploadComplete = () => {
     loadDisciplines();
@@ -173,6 +198,50 @@ export default function SmartArchivePage() {
     loadHouseTypes();
     checkUnclassified();
     loadEmbeddingStats();
+    loadCustomFolders();
+  };
+
+  const handleCreateFolder = () => {
+    setEditingFolder(null);
+    setShowCreateFolderModal(true);
+  };
+
+  const handleEditFolder = (folder: CustomDisciplineFolder) => {
+    setEditingFolder(folder);
+    setShowCreateFolderModal(true);
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    const folder = customFolders.find(f => f.id === folderId);
+    if (!folder || !tenantId || !developmentId) return;
+    
+    try {
+      const response = await fetch('/api/archive/folders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: folderId,
+          tenantId,
+          developmentId,
+          discipline: '__root__',
+        }),
+      });
+      
+      if (response.ok) {
+        setCustomFolders(prev => prev.filter(f => f.id !== folderId));
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete category');
+      }
+    } catch (error) {
+      console.error('[Archive] Failed to delete folder:', error);
+    }
+  };
+
+  const handleFolderCreated = () => {
+    setShowCreateFolderModal(false);
+    setEditingFolder(null);
+    loadCustomFolders();
   };
 
   const handleBulkClassify = async () => {
@@ -400,7 +469,15 @@ export default function SmartArchivePage() {
               </p>
             </div>
           ) : (
-            <DisciplineGrid disciplines={disciplines} isLoading={isLoading} />
+            <DisciplineGrid 
+              disciplines={disciplines} 
+              customFolders={customFolders}
+              isLoading={isLoading}
+              showNewFolderButton={true}
+              onCreateFolder={handleCreateFolder}
+              onEditFolder={handleEditFolder}
+              onDeleteFolder={handleDeleteFolder}
+            />
           )
         ) : (
           <InsightsTab />
@@ -415,6 +492,25 @@ export default function SmartArchivePage() {
           tenantId={tenantId}
           developmentId={developmentId}
           houseTypes={houseTypes}
+        />
+      )}
+
+      {tenantId && developmentId && (
+        <CreateFolderModal
+          isOpen={showCreateFolderModal}
+          onClose={() => {
+            setShowCreateFolderModal(false);
+            setEditingFolder(null);
+          }}
+          onFolderCreated={handleFolderCreated}
+          tenantId={tenantId}
+          developmentId={developmentId}
+          discipline="__root__"
+          editFolder={editingFolder ? {
+            id: editingFolder.id,
+            name: editingFolder.name,
+            color: editingFolder.color,
+          } : undefined}
         />
       )}
     </div>

@@ -148,6 +148,7 @@ export async function fetchDocumentsByDiscipline({
   tenantId,
   developmentId,
   discipline,
+  folderId,
   page = 1,
   pageSize,
   limit,
@@ -159,7 +160,8 @@ export async function fetchDocumentsByDiscipline({
 }: {
   tenantId: string;
   developmentId?: string | null;
-  discipline: DisciplineType | string;
+  discipline?: DisciplineType | string;
+  folderId?: string;
   page?: number;
   pageSize?: number;
   limit?: number;
@@ -198,13 +200,21 @@ export async function fetchDocumentsByDiscipline({
       }
     }
 
-    // Filter by discipline
-    const targetDiscipline = discipline === 'other' ? 'other' : discipline;
-    let filteredDocs = Array.from(documentMap.values()).filter(doc => {
-      const docDisc = doc.discipline ? 
-        (VALID_DISCIPLINES.includes(doc.discipline) ? doc.discipline : 'other') : 'other';
-      return docDisc === targetDiscipline;
-    });
+    // Filter by discipline or folderId
+    let filteredDocs: ArchiveDocument[];
+    
+    if (folderId) {
+      filteredDocs = Array.from(documentMap.values()).filter(doc => doc.folder_id === folderId);
+    } else if (discipline) {
+      const targetDiscipline = discipline === 'other' ? 'other' : discipline;
+      filteredDocs = Array.from(documentMap.values()).filter(doc => {
+        const docDisc = doc.discipline ? 
+          (VALID_DISCIPLINES.includes(doc.discipline) ? doc.discipline : 'other') : 'other';
+        return docDisc === targetDiscipline;
+      });
+    } else {
+      filteredDocs = Array.from(documentMap.values());
+    }
 
     // Apply search filter
     if (searchQuery) {
