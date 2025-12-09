@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, FileText, Grid, List, Search } from 'lucide-react';
+import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search } from 'lucide-react';
 import { DocumentGrid, UploadModal } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
@@ -92,18 +92,31 @@ export default function DisciplineDetailPage() {
     loadDocuments();
   };
 
+  const extractHouseTypeFromFilename = (filename: string): string | null => {
+    const match = filename.match(/[_-](B[DS]\d{2})[_-]/i);
+    if (match) return match[1].toUpperCase();
+    const altMatch = filename.match(/(B[DS]\d{2})/i);
+    if (altMatch) return altMatch[1].toUpperCase();
+    return null;
+  };
+
+  const getDocumentHouseType = (doc: ArchiveDocument): string | null => {
+    if (doc.house_type_code) return doc.house_type_code;
+    const fromTitle = extractHouseTypeFromFilename(doc.title || '');
+    if (fromTitle) return fromTitle;
+    return extractHouseTypeFromFilename(doc.file_name || '');
+  };
+
   const groupedByHouseType = useCallback((): HouseTypeGroup[] => {
     const groups: Record<string, ArchiveDocument[]> = {};
-    const noHouseType: ArchiveDocument[] = [];
     
     allDocuments.forEach(doc => {
-      if (doc.house_type_code) {
-        if (!groups[doc.house_type_code]) {
-          groups[doc.house_type_code] = [];
+      const houseType = getDocumentHouseType(doc);
+      if (houseType) {
+        if (!groups[houseType]) {
+          groups[houseType] = [];
         }
-        groups[doc.house_type_code].push(doc);
-      } else {
-        noHouseType.push(doc);
+        groups[houseType].push(doc);
       }
     });
 
@@ -117,16 +130,14 @@ export default function DisciplineDetailPage() {
           documents: docs.sort((a, b) => (a.title || '').localeCompare(b.title || '')),
         };
       })
-      .sort((a, b) => a.houseTypeCode.localeCompare(b.houseTypeCode));
-
-    if (noHouseType.length > 0) {
-      result.push({
-        houseTypeCode: 'general',
-        houseTypeName: 'General Documents',
-        documentCount: noHouseType.length,
-        documents: noHouseType.sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+      .sort((a, b) => {
+        const aPrefix = a.houseTypeCode.substring(0, 2);
+        const bPrefix = b.houseTypeCode.substring(0, 2);
+        if (aPrefix !== bPrefix) return aPrefix.localeCompare(bPrefix);
+        const aNum = parseInt(a.houseTypeCode.substring(2)) || 0;
+        const bNum = parseInt(b.houseTypeCode.substring(2)) || 0;
+        return aNum - bNum;
       });
-    }
 
     return result;
   }, [allDocuments, houseTypes]);
@@ -135,11 +146,7 @@ export default function DisciplineDetailPage() {
     let docs = allDocuments;
     
     if (selectedHouseType) {
-      if (selectedHouseType === 'general') {
-        docs = docs.filter(d => !d.house_type_code);
-      } else {
-        docs = docs.filter(d => d.house_type_code === selectedHouseType);
-      }
+      docs = docs.filter(d => getDocumentHouseType(d) === selectedHouseType);
     }
     
     if (searchQuery.trim()) {
@@ -183,11 +190,7 @@ export default function DisciplineDetailPage() {
                       {displayName}
                     </button>
                     <ChevronRight className="w-3 h-3" />
-                    <span className="text-white">
-                      {selectedGroup?.houseTypeCode === 'general' 
-                        ? 'General Documents' 
-                        : selectedGroup?.houseTypeCode}
-                    </span>
+                    <span className="text-white">{selectedGroup?.houseTypeCode}</span>
                   </>
                 ) : (
                   <span className="text-white">{displayName}</span>
@@ -201,9 +204,7 @@ export default function DisciplineDetailPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-white">
                     {selectedHouseType 
-                      ? (selectedGroup?.houseTypeCode === 'general' 
-                          ? 'General Documents' 
-                          : `${selectedGroup?.houseTypeCode}${selectedGroup?.houseTypeName ? ` - ${selectedGroup.houseTypeName}` : ''}`)
+                      ? `${selectedGroup?.houseTypeCode}${selectedGroup?.houseTypeName ? ` - ${selectedGroup.houseTypeName}` : ''}`
                       : displayName}
                   </h1>
                   <p className="text-gray-400 mt-0.5">
@@ -303,18 +304,12 @@ export default function DisciplineDetailPage() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500/20 to-gold-600/10 flex items-center justify-center group-hover:from-gold-500/30 group-hover:to-gold-600/20 transition-colors">
-                    {group.houseTypeCode === 'general' ? (
-                      <FileText className="w-6 h-6 text-gold-400" />
-                    ) : (
-                      <Home className="w-6 h-6 text-gold-400" />
-                    )}
+                    <Home className="w-6 h-6 text-gold-400" />
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gold-400 transition-colors" />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-1">
-                  {group.houseTypeCode === 'general' ? 'General' : group.houseTypeCode}
-                </h3>
-                {group.houseTypeName && group.houseTypeCode !== 'general' && (
+                <h3 className="text-lg font-semibold text-white mb-1">{group.houseTypeCode}</h3>
+                {group.houseTypeName && (
                   <p className="text-sm text-gray-400 mb-2 truncate">{group.houseTypeName}</p>
                 )}
                 <p className="text-sm text-gray-500">
