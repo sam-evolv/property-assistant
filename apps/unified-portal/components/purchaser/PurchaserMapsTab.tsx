@@ -214,13 +214,23 @@ export default function PurchaserMapsTab({
         const mapLat = latitude || 51.926500;
         const mapLng = longitude || -8.453200;
 
+        // DEBUG: Check API key status (without exposing the key itself)
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        console.log('🗺️ MAPS DEBUG:');
+        console.log('- Key Exists?', !!apiKey);
+        console.log('- Key Length:', apiKey ? apiKey.length : 0);
         console.log('[Maps] Coordinates:', { mapLat, mapLng });
-        console.log('[Maps] API Key exists:', !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
+
+        // If no API key, show error state
+        if (!apiKey || apiKey.length < 10) {
+          console.error('[Maps] Google Maps API key is missing or invalid');
+          setMapError(true);
+          return;
+        }
 
         if (!window.google) {
           console.log('[Maps] Google Maps not loaded, loading script...');
           const script = document.createElement('script');
-          const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
           script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
           script.async = true;
           script.defer = true;
@@ -730,9 +740,16 @@ export default function PurchaserMapsTab({
         <div className="text-center p-6">
           <div className="text-4xl mb-4">🗺️</div>
           <h3 className="text-lg font-semibold mb-2">Map Loading Error</h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-4">
             Unable to load Google Maps. Please check your connection.
           </p>
+          {/* Visible error box for API key issues */}
+          <div className="bg-red-100 border-2 border-red-500 text-red-700 px-4 py-3 rounded-lg max-w-md mx-auto">
+            <p className="font-bold text-sm">⚠️ Configuration Required</p>
+            <p className="text-xs mt-1">
+              Google Maps API Key may be missing. Please ensure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set in Replit Secrets.
+            </p>
+          </div>
         </div>
       </div>
     );
