@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import * as Tabs from '@radix-ui/react-tabs';
 import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun } from 'lucide-react';
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
+import MobileTabBar from '@/components/mobile/MobileTabBar';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -467,7 +468,7 @@ export default function HomeResidentPage() {
   // Only render app if consent not required or no important docs
   return (
     <>
-      <div className={`flex flex-col h-screen ${bgColor}`}>
+      <div className={`flex flex-col h-screen md:h-screen min-h-[100dvh] md:min-h-screen ${bgColor}`}>
         {/* Premium Top Bar with Blur - Logo Left, Language/Theme Right */}
         <header className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between ${
         isDarkMode 
@@ -548,7 +549,7 @@ export default function HomeResidentPage() {
         onValueChange={setActiveTab}
         className="flex-1 flex flex-col overflow-hidden"
       >
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden pb-20 md:pb-0">
           <Tabs.Content value="chat" className="h-full">
             <PurchaserChatTab
               houseId={house.house_id}
@@ -594,8 +595,8 @@ export default function HomeResidentPage() {
           </Tabs.Content>
         </div>
 
-        {/* Bottom Tab Navigation - Clean Minimal Style */}
-        <Tabs.List className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t shadow-lg`}>
+        {/* Desktop Tab Navigation - Hidden on Mobile */}
+        <Tabs.List className={`hidden md:block ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t shadow-lg`}>
           <div className="grid grid-cols-4 gap-0">
             <Tabs.Trigger
               value="chat"
@@ -647,6 +648,13 @@ export default function HomeResidentPage() {
           </div>
         </Tabs.List>
       </Tabs.Root>
+
+      {/* Mobile Bottom Tab Bar - Frosted Glass Native Feel */}
+      <MobileTabBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isDarkMode={isDarkMode}
+      />
       </div>
     </>
   );

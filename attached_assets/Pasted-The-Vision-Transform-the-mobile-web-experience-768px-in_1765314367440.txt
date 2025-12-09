@@ -1,0 +1,87 @@
+The Vision: Transform the mobile web experience (< 768px) into a high-fidelity, "Native App" interface. It must feel substantial, fluid, and intentional—not just a shrunken desktop site.
+
+Directives (Execute in Order):
+
+PHASE 1: THE "APP SHELL" (NAVIGATION)
+
+Target: components/Layout.tsx (and Sidebar.tsx).
+
+Logic:
+
+Desktop: Keep the existing Sidebar.
+
+Mobile: HIDE Sidebar completely. RENDER a MobileTabBar component.
+
+Component: MobileTabBar:
+
+Position: fixed bottom-0 left-0 right-0 z-50.
+
+Styling:
+
+Background: bg-white/90 (Light) or bg-[#1A1A1A]/90 (Dark) with backdrop-blur-xl (Apple-style frosted glass).
+
+Border: 1px solid top (border-white/10 or border-black/5).
+
+Safe Area: Add padding-bottom: env(safe-area-inset-bottom) to account for the iPhone Home Bar.
+
+Items: Show 4-5 core tabs (Home, Docs, Chat, Map, Profile).
+
+Active State: When active, the icon should turn the Brand Gold color. No background pills; keep it clean.
+
+PHASE 2: THE "NATIVE TOUCH" (INTERACTION DESIGN)
+
+Global CSS (app/globals.css):
+
+Disable Zoom: Ensure Input fields are at least 16px font-size to prevent iOS from zooming in when tapped.
+
+Disable Selection: Add .no-select { user-select: none; -webkit-user-select: none; } to UI elements (buttons, navs) so they don't highlight text like a document.
+
+Remove Tap Color: * { -webkit-tap-highlight-color: transparent; }.
+
+Button Feel: Add an active state to all clickable cards/buttons: active:scale-95 transition-transform duration-100 (Subtle shrink effect on tap).
+
+PHASE 3: THE "SHEET" PATTERN (MODALS)
+
+Objective: On mobile, center modals feel clunky. We want "Bottom Sheets."
+
+Logic:
+
+In your Modal or Dialog component:
+
+Desktop: Keep centered positioning (items-center justify-center).
+
+Mobile: Change to items-end justify-center with bottom-0.
+
+Animation: On mobile, slide up from bottom (translate-y-full -> translate-y-0).
+
+Handle: Add a small gray "grab handle" pill at the top of the mobile sheet content.
+
+PHASE 4: THE VIEWPORT FIX (CHAT & INPUTS)
+
+Target: Chat Interface.
+
+Height Logic: Replace all h-screen classes with h-[100dvh] (Dynamic Viewport Height). This fixes the "floating URL bar" issue on mobile browsers.
+
+Sticky Inputs: Ensure the chat input bar is position: sticky to the bottom and respects env(safe-area-inset-bottom).
+
+PHASE 5: INSTALLABILITY (PWA MANIFEST)
+
+Create/Update public/manifest.json:
+
+display: "standalone" (Removes browser URL bar).
+
+background_color: "#1A1A1A" (Matches splash screen).
+
+start_url: "/".
+
+Meta Tags (app/layout.tsx):
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" /> (Allows content to flow behind the notch).
+
+PHASE 6: DATA PRESENTATION (CARDS VS TABLES)
+
+Logic: If any tables exist (e.g., Documents List), force them to render as Cards on mobile.
+
+Refinement: Ensure text doesn't truncate awkwardly. Use 2 lines max with line-clamp-2.

@@ -628,8 +628,10 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* iMessage-Style Input Bar - Fixed at Bottom */}
-          <div className={`flex-shrink-0 border-t px-4 pb-4 pt-3 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          {/* iMessage-Style Input Bar - Fixed at Bottom with Mobile Safe Area */}
+          <div 
+            className={`flex-shrink-0 border-t px-4 pt-3 pb-4 md:pb-4 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}
+          >
             <div className="mx-auto flex max-w-3xl items-center gap-2">
               {/* Home Button */}
               <button
