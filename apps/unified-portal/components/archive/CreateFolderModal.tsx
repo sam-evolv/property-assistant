@@ -56,7 +56,14 @@ export function CreateFolderModal({
       const url = '/api/archive/folders';
       const method = isEditing ? 'PATCH' : 'POST';
       const body = isEditing
-        ? { id: editFolder.id, name: name.trim(), color: selectedColor }
+        ? { 
+            id: editFolder.id, 
+            tenantId,
+            developmentId,
+            discipline,
+            name: name.trim(), 
+            color: selectedColor 
+          }
         : {
             tenantId,
             developmentId,

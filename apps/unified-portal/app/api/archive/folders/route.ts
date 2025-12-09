@@ -98,11 +98,11 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, color, icon, parentFolderId, sortOrder } = body;
+    const { id, tenantId, developmentId, discipline, name, color, icon, parentFolderId, sortOrder } = body;
 
-    if (!id) {
+    if (!id || !tenantId || !developmentId || !discipline) {
       return NextResponse.json(
-        { error: 'Folder id is required' },
+        { error: 'id, tenantId, developmentId, and discipline are required' },
         { status: 400 }
       );
     }
@@ -120,7 +120,14 @@ export async function PATCH(request: NextRequest) {
     const [folder] = await db
       .update(archive_folders)
       .set(updateData)
-      .where(eq(archive_folders.id, id))
+      .where(
+        and(
+          eq(archive_folders.id, id),
+          eq(archive_folders.tenant_id, tenantId),
+          eq(archive_folders.development_id, developmentId),
+          eq(archive_folders.discipline, discipline)
+        )
+      )
       .returning();
 
     if (!folder) {
@@ -143,11 +150,11 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id } = body;
+    const { id, tenantId, developmentId, discipline } = body;
 
-    if (!id) {
+    if (!id || !tenantId || !developmentId || !discipline) {
       return NextResponse.json(
-        { error: 'Folder id is required' },
+        { error: 'id, tenantId, developmentId, and discipline are required' },
         { status: 400 }
       );
     }
@@ -155,7 +162,13 @@ export async function DELETE(request: NextRequest) {
     const childFolders = await db
       .select()
       .from(archive_folders)
-      .where(eq(archive_folders.parent_folder_id, id));
+      .where(
+        and(
+          eq(archive_folders.parent_folder_id, id),
+          eq(archive_folders.tenant_id, tenantId),
+          eq(archive_folders.development_id, developmentId)
+        )
+      );
 
     if (childFolders.length > 0) {
       return NextResponse.json(
@@ -166,7 +179,14 @@ export async function DELETE(request: NextRequest) {
 
     const [deleted] = await db
       .delete(archive_folders)
-      .where(eq(archive_folders.id, id))
+      .where(
+        and(
+          eq(archive_folders.id, id),
+          eq(archive_folders.tenant_id, tenantId),
+          eq(archive_folders.development_id, developmentId),
+          eq(archive_folders.discipline, discipline)
+        )
+      )
       .returning();
 
     if (!deleted) {

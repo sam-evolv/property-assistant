@@ -61,7 +61,12 @@ export function FolderCard({ folder, documentCount = 0, onClick, onEdit, onDelet
       const response = await fetch('/api/archive/folders', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: folder.id }),
+        body: JSON.stringify({ 
+          id: folder.id,
+          tenantId: folder.tenant_id,
+          developmentId: folder.development_id,
+          discipline: folder.discipline,
+        }),
       });
 
       if (response.ok) {

@@ -13,6 +13,7 @@ interface DocumentGridProps {
   totalCount: number;
   onPageChange: (page: number) => void;
   onDocumentDeleted?: () => void;
+  onMoveToFolder?: (document: ArchiveDocument) => void;
   viewMode?: 'grid' | 'list';
 }
 
@@ -24,6 +25,7 @@ export function DocumentGrid({
   totalCount,
   onPageChange,
   onDocumentDeleted,
+  onMoveToFolder,
   viewMode = 'grid'
 }: DocumentGridProps) {
   if (isLoading) {
@@ -77,13 +79,13 @@ export function DocumentGrid({
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {documents.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} />
+            <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} onMoveToFolder={onMoveToFolder} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => (
-            <DocumentListItem key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} />
+            <DocumentListItem key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} onMoveToFolder={onMoveToFolder} />
           ))}
         </div>
       )}

@@ -12,7 +12,8 @@ import {
   ExternalLink,
   Trash2,
   Loader2,
-  MoreVertical
+  MoreVertical,
+  FolderInput
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
@@ -20,6 +21,7 @@ interface DocumentCardProps {
   document: ArchiveDocument;
   onDelete?: (fileName: string) => void;
   onUpdate?: () => void;
+  onMoveToFolder?: (document: ArchiveDocument) => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -38,7 +40,7 @@ function getFileColor(mimeType: string | null) {
   return 'text-gray-400';
 }
 
-export function DocumentCard({ document, onDelete, onUpdate }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: DocumentCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -183,6 +185,15 @@ export function DocumentCard({ document, onDelete, onUpdate }: DocumentCardProps
                 <AlertTriangle className={`w-4 h-4 ${extendedDoc.must_read ? 'text-red-400' : 'text-gray-400'}`} />
                 <span className="text-gray-200">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
               </button>
+              {onMoveToFolder && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(false); onMoveToFolder(document); }}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                >
+                  <FolderInput className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-200">Move to Folder</span>
+                </button>
+              )}
               <div className="border-t border-gray-700 my-1" />
               <button
                 onClick={handleDelete}

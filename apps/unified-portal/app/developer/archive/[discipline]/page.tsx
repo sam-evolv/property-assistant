@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle, FolderPlus } from 'lucide-react';
-import { DocumentGrid, UploadModal, FolderCard, CreateFolderModal, type ArchiveFolder } from '@/components/archive';
+import { DocumentGrid, UploadModal, FolderCard, CreateFolderModal, MoveToFolderModal, type ArchiveFolder } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
 
@@ -32,6 +32,8 @@ export default function DisciplineDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [movingDocument, setMovingDocument] = useState<ArchiveDocument | null>(null);
   const [editingFolder, setEditingFolder] = useState<ArchiveFolder | null>(null);
   const [selectedHouseType, setSelectedHouseType] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<ArchiveFolder | null>(null);
@@ -154,6 +156,37 @@ export default function DisciplineDetailPage() {
       setSelectedFolder(null);
     }
     loadCustomFolders();
+  };
+
+  const handleMoveToFolder = (document: ArchiveDocument) => {
+    setMovingDocument(document);
+    setShowMoveModal(true);
+  };
+
+  const handleMoveConfirm = async (folderId: string | null) => {
+    if (!movingDocument) return;
+    
+    try {
+      const response = await fetch('/api/archive/documents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: movingDocument.file_name || movingDocument.title,
+          folderId,
+        }),
+      });
+      
+      if (response.ok) {
+        loadDocuments();
+      } else {
+        console.error('Failed to move document');
+      }
+    } catch (error) {
+      console.error('Error moving document:', error);
+    } finally {
+      setMovingDocument(null);
+      setShowMoveModal(false);
+    }
   };
 
   const extractHouseTypeFromFilename = (filename: string): string | null => {
@@ -516,6 +549,7 @@ export default function DisciplineDetailPage() {
                 totalCount={currentDocs.length}
                 onPageChange={() => {}}
                 onDocumentDeleted={loadDocuments}
+                onMoveToFolder={handleMoveToFolder}
                 viewMode="grid"
               />
             )}
@@ -561,6 +595,7 @@ export default function DisciplineDetailPage() {
                 totalCount={currentDocs.length}
                 onPageChange={() => {}}
                 onDocumentDeleted={loadDocuments}
+                onMoveToFolder={handleMoveToFolder}
                 viewMode={viewMode === 'list' ? 'list' : 'grid'}
               />
             )}
@@ -588,6 +623,18 @@ export default function DisciplineDetailPage() {
             parentFolderId={selectedFolder?.id}
             editFolder={editingFolder}
           />
+          {movingDocument && (
+            <MoveToFolderModal
+              isOpen={showMoveModal}
+              onClose={() => { setShowMoveModal(false); setMovingDocument(null); }}
+              onMove={handleMoveConfirm}
+              documentName={movingDocument.file_name || movingDocument.title}
+              currentFolderId={movingDocument.folder_id || null}
+              tenantId={tenantId}
+              developmentId={developmentId}
+              discipline={discipline}
+            />
+          )}
         </>
       )}
     </div>

@@ -6,4 +6,5 @@ export { DocumentGrid } from './DocumentGrid';
 export { UploadModal } from './UploadModal';
 export { FolderCard } from './FolderCard';
 export { CreateFolderModal } from './CreateFolderModal';
+export { MoveToFolderModal } from './MoveToFolderModal';
 export type { ArchiveFolder } from './FolderCard';
