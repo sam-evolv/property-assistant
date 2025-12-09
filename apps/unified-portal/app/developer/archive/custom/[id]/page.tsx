@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Folder, Upload, RefreshCw, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Folder, FolderPlus, Upload, RefreshCw, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { DocumentGrid, UploadModal, DocumentListItem } from '@/components/archive';
+import { DocumentGrid, UploadModal, DocumentListItem, CreateFolderModal } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
@@ -30,11 +30,13 @@ export default function CustomFolderPage() {
   const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
   
   const [folder, setFolder] = useState<CustomFolder | null>(null);
+  const [subFolders, setSubFolders] = useState<CustomFolder[]>([]);
   const [documents, setDocuments] = useState<ArchiveDocument[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFolderLoading, setIsFolderLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -96,6 +98,25 @@ export default function CustomFolderPage() {
     }
   }, [developmentId]);
 
+  const loadSubFolders = useCallback(async () => {
+    if (!tenantId || !developmentId || !folderId) return;
+    
+    try {
+      const params = new URLSearchParams();
+      params.set('tenantId', tenantId);
+      params.set('developmentId', developmentId);
+      params.set('parentFolderId', folderId);
+      
+      const response = await fetch(`/api/archive/folders?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubFolders(data.folders || []);
+      }
+    } catch (error) {
+      console.error('[CustomFolder] Failed to load sub-folders:', error);
+    }
+  }, [tenantId, developmentId, folderId]);
+
   useEffect(() => {
     if (!isHydrated || !tenantId || !developmentId) return;
     loadFolder();
@@ -105,11 +126,18 @@ export default function CustomFolderPage() {
     if (!isHydrated || !tenantId) return;
     loadDocuments();
     loadHouseTypes();
-  }, [isHydrated, tenantId, developmentId, loadDocuments, loadHouseTypes]);
+    loadSubFolders();
+  }, [isHydrated, tenantId, developmentId, loadDocuments, loadHouseTypes, loadSubFolders]);
 
   const handleRefresh = () => {
     loadFolder();
     loadDocuments();
+    loadSubFolders();
+  };
+
+  const handleFolderCreated = () => {
+    loadSubFolders();
+    setShowCreateFolderModal(false);
   };
 
   const handleUploadComplete = () => {
@@ -211,6 +239,13 @@ export default function CustomFolderPage() {
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
               <button
+                onClick={() => setShowCreateFolderModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 transition-colors"
+              >
+                <FolderPlus className="w-5 h-5" />
+                <span>New Folder</span>
+              </button>
+              <button
                 onClick={() => setShowUploadModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
               >
@@ -223,24 +258,62 @@ export default function CustomFolderPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {subFolders.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">Folders</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {subFolders.map((subFolder) => (
+                <Link
+                  key={subFolder.id}
+                  href={`/developer/archive/custom/${subFolder.id}`}
+                  className="group p-4 rounded-xl bg-gray-800/50 border border-gray-700/50 hover:border-gold-500/30 hover:bg-gray-800 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ backgroundColor: `${subFolder.color || '#6b7280'}20` }}
+                    >
+                      <Folder className="w-6 h-6" style={{ color: subFolder.color || '#6b7280' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-white group-hover:text-gold-400 transition-colors truncate">
+                        {subFolder.name}
+                      </h3>
+                      <p className="text-sm text-gray-400">Sub-folder</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-gold-400 animate-spin" />
           </div>
         ) : filteredDocuments.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-              <Folder className="w-10 h-10 text-gray-600" />
+          searchQuery ? (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-10 h-10 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">No matching documents</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                Try adjusting your search query.
+              </p>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">
-              {searchQuery ? 'No matching documents' : 'No documents yet'}
-            </h3>
-            <p className="text-gray-400 max-w-md mx-auto">
-              {searchQuery 
-                ? 'Try adjusting your search query.' 
-                : 'Upload documents to this category or move existing documents here.'}
-            </p>
-          </div>
+          ) : subFolders.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <Folder className="w-10 h-10 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">No documents yet</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                Upload documents to this category, create sub-folders, or move existing documents here.
+              </p>
+            </div>
+          ) : null
         ) : viewMode === 'grid' ? (
           <DocumentGrid 
             documents={filteredDocuments}
@@ -262,15 +335,26 @@ export default function CustomFolderPage() {
       </div>
 
       {tenantId && developmentId && (
-        <UploadModal
-          isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          onUploadComplete={handleUploadComplete}
-          tenantId={tenantId}
-          developmentId={developmentId}
-          houseTypes={houseTypes}
-          defaultFolderId={folderId}
-        />
+        <>
+          <UploadModal
+            isOpen={showUploadModal}
+            onClose={() => setShowUploadModal(false)}
+            onUploadComplete={handleUploadComplete}
+            tenantId={tenantId}
+            developmentId={developmentId}
+            houseTypes={houseTypes}
+            defaultFolderId={folderId}
+          />
+          <CreateFolderModal
+            isOpen={showCreateFolderModal}
+            onClose={() => setShowCreateFolderModal(false)}
+            onFolderCreated={handleFolderCreated}
+            tenantId={tenantId}
+            developmentId={developmentId}
+            discipline={folder?.name || 'Custom'}
+            parentFolderId={folderId}
+          />
+        </>
       )}
     </div>
   );
