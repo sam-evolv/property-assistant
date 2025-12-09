@@ -463,18 +463,26 @@ export async function updateDocumentFlags({
     const projectId = PROJECT_ID;
     console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, projectId });
 
-    const { data: sections, error: fetchError } = await supabase
+    // Fetch all sections for this project then filter in JS (handles special characters)
+    const { data: allSections, error: fetchError } = await supabase
       .from('document_sections')
       .select('id, metadata')
-      .eq('project_id', projectId)
-      .or(`metadata->>source.eq.${fileName},metadata->>file_name.eq.${fileName}`);
+      .eq('project_id', projectId);
 
     if (fetchError) {
       console.error('[Archive] Supabase fetch error:', fetchError.message);
       return { success: false, updatedCount: 0, error: fetchError.message };
     }
 
-    if (!sections || sections.length === 0) {
+    // Filter matching sections in JavaScript to handle special characters
+    const sections = (allSections || []).filter(section => {
+      const source = section.metadata?.source;
+      const file_name = section.metadata?.file_name;
+      return source === fileName || file_name === fileName;
+    });
+
+    if (sections.length === 0) {
+      console.log('[Archive] No matching sections found for:', fileName);
       return { success: false, updatedCount: 0, error: 'Document not found' };
     }
 
