@@ -1111,10 +1111,11 @@ export const userDevelopmentsRelations = relations(userDevelopments, ({ one }) =
 }));
 
 // Purchaser document agreements - tracks when purchasers acknowledge must-read documents
+// Note: unit_id and development_id reference Supabase tables, not local tables
 export const purchaserAgreements = pgTable('purchaser_agreements', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   unit_id: uuid('unit_id').notNull(),
-  development_id: uuid('development_id').references(() => developments.id),
+  development_id: uuid('development_id'), // References Supabase projects, no FK constraint
   purchaser_name: text('purchaser_name'),
   purchaser_email: text('purchaser_email'),
   agreed_at: timestamp('agreed_at', { withTimezone: true }).defaultNow().notNull(),
