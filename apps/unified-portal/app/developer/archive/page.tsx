@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star } from 'lucide-react';
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
+import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import type { DisciplineSummary } from '@/lib/archive-constants';
@@ -25,7 +26,7 @@ interface EmbeddingStats {
   errors: number;
 }
 
-type TabType = 'archive' | 'insights';
+type TabType = 'archive' | 'important' | 'insights';
 
 export default function SmartArchivePage() {
   const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
@@ -349,6 +350,17 @@ export default function SmartArchivePage() {
               <span>Documents</span>
             </button>
             <button
+              onClick={() => setActiveTab('important')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'important'
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              }`}
+            >
+              <Star className="w-4 h-4" />
+              <span>Must-Read</span>
+            </button>
+            <button
               onClick={() => setActiveTab('insights')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'insights'
@@ -479,6 +491,8 @@ export default function SmartArchivePage() {
               onDeleteFolder={handleDeleteFolder}
             />
           )
+        ) : activeTab === 'important' ? (
+          <ImportantDocsTab onRefresh={handleRefresh} />
         ) : (
           <InsightsTab />
         )}

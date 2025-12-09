@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart3, Users, BarChart4, Lightbulb, FileText, BookOpen, Settings, Menu, X, Home, LogOut, Ruler, FolderArchive, MessageSquare } from 'lucide-react';
+import { BarChart3, Users, Lightbulb, BookOpen, Settings, Menu, X, Home, Ruler, FolderArchive, MessageSquare } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 
 interface SidebarMenuProps {
@@ -30,7 +30,6 @@ const navSections: NavSection[] = [
     title: 'Management',
     items: [
       { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
-      { label: 'Documents', href: '/developer/documents', icon: FileText },
       { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
       { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
     ],
