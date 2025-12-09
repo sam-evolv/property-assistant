@@ -36,6 +36,7 @@ export interface ArchiveDocument {
   is_important: boolean;
   must_read?: boolean;
   ai_classified?: boolean;
+  folder_id?: string | null;
   mime_type: string | null;
   size_kb: number | null;
   created_at: string | null;

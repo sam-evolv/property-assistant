@@ -132,6 +132,7 @@ function createArchiveDocument(section: any, projectId: string): ArchiveDocument
     is_important: section.metadata?.is_important === true,
     must_read: section.metadata?.must_read === true,
     ai_classified: section.metadata?.ai_classified === true,
+    folder_id: section.metadata?.folder_id || null,
     mime_type: 'application/pdf',
     size_kb: null,
     created_at: new Date().toISOString(),
@@ -509,5 +510,65 @@ export async function updateDocumentFlags({
   } catch (error) {
     console.error('[Archive] Error updating document:', error);
     return { success: false, updatedCount: 0, error: 'Failed to update document' };
+  }
+}
+
+/**
+ * Assigns a document to a folder by updating metadata
+ */
+export async function assignDocumentToFolder({
+  fileName,
+  folderId,
+}: {
+  fileName: string;
+  folderId: string | null;
+}): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  try {
+    const projectId = PROJECT_ID;
+    console.log('[Archive] Assigning document to folder:', { fileName, folderId, projectId });
+
+    const { data: allSections, error: fetchError } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', projectId);
+
+    if (fetchError) {
+      console.error('[Archive] Supabase fetch error:', fetchError.message);
+      return { success: false, updatedCount: 0, error: fetchError.message };
+    }
+
+    const sections = (allSections || []).filter(section => {
+      const source = section.metadata?.source;
+      const file_name = section.metadata?.file_name;
+      return source === fileName || file_name === fileName;
+    });
+
+    if (sections.length === 0) {
+      console.log('[Archive] No matching sections found for:', fileName);
+      return { success: false, updatedCount: 0, error: 'Document not found' };
+    }
+
+    let updatedCount = 0;
+    for (const section of sections) {
+      const newMetadata = {
+        ...section.metadata,
+        folder_id: folderId,
+      };
+
+      const { error: updateError } = await supabase
+        .from('document_sections')
+        .update({ metadata: newMetadata })
+        .eq('id', section.id);
+
+      if (!updateError) {
+        updatedCount++;
+      }
+    }
+
+    console.log('[Archive] Updated', updatedCount, 'document sections');
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error('[Archive] Error assigning document to folder:', error);
+    return { success: false, updatedCount: 0, error: 'Failed to assign document to folder' };
   }
 }
