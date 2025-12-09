@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle } from 'lucide-react';
-import { DocumentGrid, UploadModal } from '@/components/archive';
+import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle, FolderPlus } from 'lucide-react';
+import { DocumentGrid, UploadModal, FolderCard, CreateFolderModal, type ArchiveFolder } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
 
@@ -28,9 +28,13 @@ export default function DisciplineDetailPage() {
   
   const [allDocuments, setAllDocuments] = useState<ArchiveDocument[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
+  const [customFolders, setCustomFolders] = useState<ArchiveFolder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<ArchiveFolder | null>(null);
   const [selectedHouseType, setSelectedHouseType] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<ArchiveFolder | null>(null);
   const [viewMode, setViewMode] = useState<'folders' | 'list'>('folders');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterImportant, setFilterImportant] = useState(false);
@@ -79,11 +83,34 @@ export default function DisciplineDetailPage() {
     }
   }, [tenantId, developmentId]);
 
+  const loadCustomFolders = useCallback(async () => {
+    if (!tenantId || !developmentId) return;
+    
+    try {
+      const urlParams = new URLSearchParams();
+      urlParams.set('tenantId', tenantId);
+      urlParams.set('developmentId', developmentId);
+      urlParams.set('discipline', discipline);
+      if (selectedFolder) {
+        urlParams.set('parentFolderId', selectedFolder.id);
+      }
+      
+      const response = await fetch(`/api/archive/folders?${urlParams}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCustomFolders(data.folders || []);
+      }
+    } catch (error) {
+      console.error('[Archive] Failed to load folders:', error);
+    }
+  }, [tenantId, developmentId, discipline, selectedFolder]);
+
   useEffect(() => {
     if (!isHydrated || !tenantId) return;
     loadDocuments();
     loadHouseTypes();
-  }, [isHydrated, tenantId, developmentId, loadDocuments, loadHouseTypes]);
+    loadCustomFolders();
+  }, [isHydrated, tenantId, developmentId, loadDocuments, loadHouseTypes, loadCustomFolders]);
 
   const handleUploadComplete = () => {
     loadDocuments();
@@ -92,6 +119,41 @@ export default function DisciplineDetailPage() {
 
   const handleRefresh = () => {
     loadDocuments();
+    loadCustomFolders();
+  };
+
+  const handleFolderCreated = (folder: ArchiveFolder) => {
+    if (editingFolder) {
+      setCustomFolders(prev => prev.map(f => f.id === folder.id ? folder : f));
+    } else {
+      setCustomFolders(prev => [...prev, folder]);
+    }
+    setEditingFolder(null);
+    setShowFolderModal(false);
+  };
+
+  const handleFolderClick = (folder: ArchiveFolder) => {
+    setSelectedFolder(folder);
+    setSelectedHouseType(null);
+  };
+
+  const handleFolderEdit = (folder: ArchiveFolder) => {
+    setEditingFolder(folder);
+    setShowFolderModal(true);
+  };
+
+  const handleFolderDelete = (folderId: string) => {
+    setCustomFolders(prev => prev.filter(f => f.id !== folderId));
+  };
+
+  const handleBackFromFolder = () => {
+    if (selectedFolder?.parent_folder_id) {
+      const parentFolder = customFolders.find(f => f.id === selectedFolder.parent_folder_id);
+      setSelectedFolder(parentFolder || null);
+    } else {
+      setSelectedFolder(null);
+    }
+    loadCustomFolders();
   };
 
   const extractHouseTypeFromFilename = (filename: string): string | null => {
@@ -156,6 +218,12 @@ export default function DisciplineDetailPage() {
       docs = docs.filter(d => getDocumentHouseType(d) === selectedHouseType);
     }
     
+    if (selectedFolder) {
+      docs = docs.filter(d => d.folder_id === selectedFolder.id);
+    } else if (!selectedHouseType && customFolders.length > 0) {
+      docs = docs.filter(d => !d.folder_id);
+    }
+    
     if (filterImportant) {
       docs = docs.filter(d => d.is_important === true);
     }
@@ -174,7 +242,11 @@ export default function DisciplineDetailPage() {
     }
     
     return docs.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-  }, [allDocuments, selectedHouseType, searchQuery, filterImportant, filterMustRead]);
+  }, [allDocuments, selectedHouseType, selectedFolder, customFolders.length, searchQuery, filterImportant, filterMustRead]);
+
+  const getDocumentCountForFolder = (folderId: string): number => {
+    return allDocuments.filter(d => d.folder_id === folderId).length;
+  };
 
   const importantCount = allDocuments.filter(d => d.is_important === true).length;
   const mustReadCount = allDocuments.filter(d => (d as ArchiveDocument & { must_read?: boolean }).must_read === true).length;
@@ -212,6 +284,17 @@ export default function DisciplineDetailPage() {
                     <ChevronRight className="w-3 h-3" />
                     <span className="text-white">{selectedGroup?.houseTypeCode}</span>
                   </>
+                ) : selectedFolder ? (
+                  <>
+                    <button
+                      onClick={() => setSelectedFolder(null)}
+                      className="hover:text-white transition-colors"
+                    >
+                      {displayName}
+                    </button>
+                    <ChevronRight className="w-3 h-3" />
+                    <span className="text-white">{selectedFolder.name}</span>
+                  </>
                 ) : (
                   <span className="text-white">{displayName}</span>
                 )}
@@ -225,15 +308,19 @@ export default function DisciplineDetailPage() {
                   <h1 className="text-2xl font-bold text-white">
                     {selectedHouseType 
                       ? `${selectedGroup?.houseTypeCode}${selectedGroup?.houseTypeName ? ` - ${selectedGroup.houseTypeName}` : ''}`
-                      : displayName}
+                      : selectedFolder
+                        ? selectedFolder.name
+                        : displayName}
                   </h1>
                   <p className="text-gray-400 mt-0.5">
                     {selectedHouseType 
                       ? `${currentDocs.length} document${currentDocs.length !== 1 ? 's' : ''}`
-                      : showFolderView 
-                        ? `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''} in ${groups.length} folder${groups.length !== 1 ? 's' : ''}`
-                        : `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''}`}
-                    {disciplineInfo && !selectedHouseType && ` • ${disciplineInfo.description}`}
+                      : selectedFolder
+                        ? `${currentDocs.length} document${currentDocs.length !== 1 ? 's' : ''}`
+                        : showFolderView 
+                          ? `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''} in ${groups.length} folder${groups.length !== 1 ? 's' : ''}`
+                          : `${allDocuments.length} document${allDocuments.length !== 1 ? 's' : ''}`}
+                    {disciplineInfo && !selectedHouseType && !selectedFolder && ` • ${disciplineInfo.description}`}
                   </p>
                 </div>
               </div>
@@ -273,13 +360,22 @@ export default function DisciplineDetailPage() {
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
               {developmentId && (
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Upload</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => { setEditingFolder(null); setShowFolderModal(true); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-gray-300 font-medium hover:bg-gray-700 hover:text-white transition-all"
+                  >
+                    <FolderPlus className="w-5 h-5" />
+                    <span>New Folder</span>
+                  </button>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>Upload</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -360,39 +456,85 @@ export default function DisciplineDetailPage() {
               <div key={i} className="h-32 bg-gray-800/50 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : showFolderView && viewMode === 'folders' && !selectedHouseType ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {groups.map((group) => (
-              <button
-                key={group.houseTypeCode}
-                onClick={() => setSelectedHouseType(group.houseTypeCode)}
-                className="group p-6 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gold-500/30 rounded-xl text-left transition-all"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500/20 to-gold-600/10 flex items-center justify-center group-hover:from-gold-500/30 group-hover:to-gold-600/20 transition-colors">
-                    <Home className="w-6 h-6 text-gold-400" />
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gold-400 transition-colors" />
+        ) : viewMode === 'folders' && !selectedHouseType && !selectedFolder ? (
+          <div className="space-y-6">
+            {customFolders.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Custom Folders</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {customFolders.map((folder) => (
+                    <FolderCard
+                      key={folder.id}
+                      folder={folder}
+                      documentCount={getDocumentCountForFolder(folder.id)}
+                      onClick={() => handleFolderClick(folder)}
+                      onEdit={handleFolderEdit}
+                      onDelete={handleFolderDelete}
+                    />
+                  ))}
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-1">{group.houseTypeCode}</h3>
-                {group.houseTypeName && (
-                  <p className="text-sm text-gray-400 mb-2 truncate">{group.houseTypeName}</p>
-                )}
-                <p className="text-sm text-gray-500">
-                  {group.documentCount} document{group.documentCount !== 1 ? 's' : ''}
-                </p>
-              </button>
-            ))}
+              </div>
+            )}
+            
+            {showFolderView && groups.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
+                  {customFolders.length > 0 ? 'Auto-Detected House Types' : 'House Types'}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {groups.map((group) => (
+                    <button
+                      key={group.houseTypeCode}
+                      onClick={() => setSelectedHouseType(group.houseTypeCode)}
+                      className="group p-6 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gold-500/30 rounded-xl text-left transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500/20 to-gold-600/10 flex items-center justify-center group-hover:from-gold-500/30 group-hover:to-gold-600/20 transition-colors">
+                          <Home className="w-6 h-6 text-gold-400" />
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gold-400 transition-colors" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-1">{group.houseTypeCode}</h3>
+                      {group.houseTypeName && (
+                        <p className="text-sm text-gray-400 mb-2 truncate">{group.houseTypeName}</p>
+                      )}
+                      <p className="text-sm text-gray-500">
+                        {group.documentCount} document{group.documentCount !== 1 ? 's' : ''}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {!showFolderView && customFolders.length === 0 && (
+              <DocumentGrid
+                documents={currentDocs}
+                isLoading={false}
+                page={1}
+                totalPages={1}
+                totalCount={currentDocs.length}
+                onPageChange={() => {}}
+                onDocumentDeleted={loadDocuments}
+                viewMode="grid"
+              />
+            )}
           </div>
         ) : (
           <>
-            {selectedHouseType && showFolderView && (
+            {(selectedHouseType || selectedFolder) && (
               <button
-                onClick={() => setSelectedHouseType(null)}
+                onClick={() => {
+                  if (selectedFolder) {
+                    handleBackFromFolder();
+                  } else {
+                    setSelectedHouseType(null);
+                  }
+                }}
                 className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Back to folders
+                {selectedFolder ? 'Back' : 'Back to folders'}
               </button>
             )}
             {allDocuments.length === 0 ? (
@@ -427,14 +569,26 @@ export default function DisciplineDetailPage() {
       </div>
 
       {tenantId && developmentId && (
-        <UploadModal
-          isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          onUploadComplete={handleUploadComplete}
-          tenantId={tenantId}
-          developmentId={developmentId}
-          houseTypes={houseTypes}
-        />
+        <>
+          <UploadModal
+            isOpen={showUploadModal}
+            onClose={() => setShowUploadModal(false)}
+            onUploadComplete={handleUploadComplete}
+            tenantId={tenantId}
+            developmentId={developmentId}
+            houseTypes={houseTypes}
+          />
+          <CreateFolderModal
+            isOpen={showFolderModal}
+            onClose={() => { setShowFolderModal(false); setEditingFolder(null); }}
+            onFolderCreated={handleFolderCreated}
+            tenantId={tenantId}
+            developmentId={developmentId}
+            discipline={discipline}
+            parentFolderId={selectedFolder?.id}
+            editFolder={editingFolder}
+          />
+        </>
       )}
     </div>
   );

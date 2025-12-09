@@ -4,3 +4,6 @@ export { DocumentCard } from './DocumentCard';
 export { DocumentListItem } from './DocumentListItem';
 export { DocumentGrid } from './DocumentGrid';
 export { UploadModal } from './UploadModal';
+export { FolderCard } from './FolderCard';
+export { CreateFolderModal } from './CreateFolderModal';
+export type { ArchiveFolder } from './FolderCard';
