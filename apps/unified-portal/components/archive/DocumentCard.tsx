@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { 
   FileText, 
   FileImage, 
@@ -8,12 +9,15 @@ import {
   Star,
   Sparkles,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
+  onDelete?: (fileName: string) => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -32,12 +36,48 @@ function getFileColor(mimeType: string | null) {
   return 'text-gray-400';
 }
 
-export function DocumentCard({ document }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete }: DocumentCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const FileIcon = getFileIcon(document.mime_type);
   const fileColor = getFileColor(document.mime_type);
   const extendedDoc = document as ArchiveDocument & { 
     must_read?: boolean; 
     ai_classified?: boolean;
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDeleting(true);
+    try {
+      const response = await fetch('/api/archive/documents', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: document.file_name || document.title }),
+      });
+      
+      if (response.ok) {
+        onDelete?.(document.file_name || document.title);
+      } else {
+        console.error('Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const cancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(false);
   };
 
   const handleOpen = () => {
@@ -83,7 +123,48 @@ export function DocumentCard({ document }: DocumentCardProps) {
             <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
         )}
+        <button
+          onClick={handleDelete}
+          className="w-6 h-6 rounded-full bg-gray-700 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+          title="Delete document"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-gray-300 hover:text-white" />
+        </button>
       </div>
+
+      {showDeleteConfirm && (
+        <div 
+          className="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center p-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Trash2 className="w-8 h-8 text-red-400 mb-3" />
+          <p className="text-white text-sm font-medium text-center mb-1">Delete this document?</p>
+          <p className="text-gray-400 text-xs text-center mb-4">This will remove it from the archive and AI assistant</p>
+          <div className="flex gap-2">
+            <button
+              onClick={cancelDelete}
+              disabled={isDeleting}
+              className="px-3 py-1.5 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="px-3 py-1.5 text-sm bg-red-500 text-white rounded-lg hover:bg-red-400 transition-colors flex items-center gap-1.5"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="w-full h-32 bg-gray-800/50 flex items-center justify-center relative group/preview">
         <FileIcon className={`w-16 h-16 ${fileColor} opacity-60`} />

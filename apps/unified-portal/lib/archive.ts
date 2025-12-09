@@ -400,3 +400,48 @@ export async function searchArchiveDocuments({
     return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
   }
 }
+
+/**
+ * Deletes a document and all its sections from the archive
+ * Removes from Supabase document_sections table
+ */
+export async function deleteDocument({
+  documentId,
+  fileName,
+}: {
+  documentId?: string;
+  fileName?: string;
+}): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  try {
+    const projectId = PROJECT_ID;
+    console.log('[Archive] Deleting document:', { documentId, fileName, projectId });
+
+    if (!documentId && !fileName) {
+      return { success: false, deletedCount: 0, error: 'Either documentId or fileName is required' };
+    }
+
+    let query = supabase
+      .from('document_sections')
+      .delete()
+      .eq('project_id', projectId);
+
+    if (fileName) {
+      query = query.or(`metadata->>source.eq.${fileName},metadata->>file_name.eq.${fileName}`);
+    }
+
+    const { data, error } = await query.select('id');
+
+    if (error) {
+      console.error('[Archive] Supabase delete error:', error.message);
+      return { success: false, deletedCount: 0, error: error.message };
+    }
+
+    const deletedCount = data?.length || 0;
+    console.log('[Archive] Deleted', deletedCount, 'document sections');
+
+    return { success: true, deletedCount };
+  } catch (error) {
+    console.error('[Archive] Error deleting document:', error);
+    return { success: false, deletedCount: 0, error: 'Failed to delete document' };
+  }
+}

@@ -353,6 +353,7 @@ export default function DisciplineDetailPage() {
               totalPages={1}
               totalCount={currentDocs.length}
               onPageChange={() => {}}
+              onDocumentDeleted={loadDocuments}
             />
           </>
         )}
