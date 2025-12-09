@@ -445,3 +445,61 @@ export async function deleteDocument({
     return { success: false, deletedCount: 0, error: 'Failed to delete document' };
   }
 }
+
+/**
+ * Updates document metadata (important, must_read flags)
+ * Updates all sections with matching source filename
+ */
+export async function updateDocumentFlags({
+  fileName,
+  isImportant,
+  mustRead,
+}: {
+  fileName: string;
+  isImportant?: boolean;
+  mustRead?: boolean;
+}): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  try {
+    const projectId = PROJECT_ID;
+    console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, projectId });
+
+    const { data: sections, error: fetchError } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', projectId)
+      .or(`metadata->>source.eq.${fileName},metadata->>file_name.eq.${fileName}`);
+
+    if (fetchError) {
+      console.error('[Archive] Supabase fetch error:', fetchError.message);
+      return { success: false, updatedCount: 0, error: fetchError.message };
+    }
+
+    if (!sections || sections.length === 0) {
+      return { success: false, updatedCount: 0, error: 'Document not found' };
+    }
+
+    let updatedCount = 0;
+    for (const section of sections) {
+      const newMetadata = {
+        ...section.metadata,
+        is_important: isImportant !== undefined ? isImportant : section.metadata?.is_important,
+        must_read: mustRead !== undefined ? mustRead : section.metadata?.must_read,
+      };
+
+      const { error: updateError } = await supabase
+        .from('document_sections')
+        .update({ metadata: newMetadata })
+        .eq('id', section.id);
+
+      if (!updateError) {
+        updatedCount++;
+      }
+    }
+
+    console.log('[Archive] Updated', updatedCount, 'document sections');
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error('[Archive] Error updating document:', error);
+    return { success: false, updatedCount: 0, error: 'Failed to update document' };
+  }
+}

@@ -77,13 +77,13 @@ export function DocumentGrid({
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {documents.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} />
+            <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => (
-            <DocumentListItem key={doc.id} document={doc} onDelete={onDocumentDeleted} />
+            <DocumentListItem key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} />
           ))}
         </div>
       )}

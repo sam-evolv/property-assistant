@@ -11,13 +11,15 @@ import {
   AlertTriangle,
   ExternalLink,
   Trash2,
-  Loader2
+  Loader2,
+  MoreVertical
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
   onDelete?: (fileName: string) => void;
+  onUpdate?: () => void;
 }
 
 function getFileIcon(mimeType: string | null) {
@@ -36,15 +38,44 @@ function getFileColor(mimeType: string | null) {
   return 'text-gray-400';
 }
 
-export function DocumentCard({ document, onDelete }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete, onUpdate }: DocumentCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   
   const FileIcon = getFileIcon(document.mime_type);
   const fileColor = getFileColor(document.mime_type);
   const extendedDoc = document as ArchiveDocument & { 
     must_read?: boolean; 
     ai_classified?: boolean;
+  };
+
+  const handleToggleFlag = async (e: React.MouseEvent, flag: 'isImportant' | 'mustRead') => {
+    e.stopPropagation();
+    setIsUpdating(true);
+    try {
+      const currentValue = flag === 'isImportant' ? document.is_important : extendedDoc.must_read;
+      const response = await fetch('/api/archive/documents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: document.file_name || document.title,
+          [flag]: !currentValue,
+        }),
+      });
+      
+      if (response.ok) {
+        onUpdate?.();
+      } else {
+        console.error('Failed to update document');
+      }
+    } catch (error) {
+      console.error('Error updating document:', error);
+    } finally {
+      setIsUpdating(false);
+      setShowMenu(false);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -123,13 +154,46 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
             <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
         )}
-        <button
-          onClick={handleDelete}
-          className="w-6 h-6 rounded-full bg-gray-700 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-          title="Delete document"
-        >
-          <Trash2 className="w-3.5 h-3.5 text-gray-300 hover:text-white" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+            className="w-6 h-6 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+            title="More options"
+          >
+            <MoreVertical className="w-3.5 h-3.5 text-gray-300" />
+          </button>
+          {showMenu && (
+            <div 
+              className="absolute right-0 top-8 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 z-30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={(e) => handleToggleFlag(e, 'isImportant')}
+                disabled={isUpdating}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+              >
+                <Star className={`w-4 h-4 ${document.is_important ? 'text-gold-400 fill-gold-400' : 'text-gray-400'}`} />
+                <span className="text-gray-200">{document.is_important ? 'Unmark Important' : 'Mark Important'}</span>
+              </button>
+              <button
+                onClick={(e) => handleToggleFlag(e, 'mustRead')}
+                disabled={isUpdating}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+              >
+                <AlertTriangle className={`w-4 h-4 ${extendedDoc.must_read ? 'text-red-400' : 'text-gray-400'}`} />
+                <span className="text-gray-200">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
+              </button>
+              <div className="border-t border-gray-700 my-1" />
+              <button
+                onClick={handleDelete}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-red-500/20 flex items-center gap-2 text-red-400 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Document</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {showDeleteConfirm && (
