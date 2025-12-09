@@ -23,10 +23,11 @@ const openai = new OpenAI({
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+const MAX_CHUNKS = 15; // Limit context to top 15 most relevant chunks
 
 export async function POST(request: NextRequest) {
   console.log('\n============================================================');
-  console.log('[Chat] RAG CHAT API - FULL CONTEXT MODE');
+  console.log('[Chat] RAG CHAT API - SEMANTIC SEARCH MODE');
   console.log('[Chat] PROJECT_ID:', PROJECT_ID);
   console.log('============================================================');
 
@@ -61,33 +62,81 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Search Query:', message);
 
-    // STEP 1: Load ALL chunks for this project (small dataset optimization)
-    console.log('[Chat] Loading all document chunks...');
-    const { data: allChunks, error: chunksError } = await supabase
-      .from('document_sections')
-      .select('id, content, metadata')
-      .eq('project_id', PROJECT_ID)
-      .order('id');
+    // STEP 1: Generate embedding for the user's question
+    console.log('[Chat] Generating query embedding...');
+    const embeddingResponse = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: message,
+      dimensions: 1536,
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    console.log('[Chat] Query embedding generated');
 
-    if (chunksError) {
-      console.error('[Chat] Error loading chunks:', chunksError.message);
-      throw new Error('Failed to load documents');
+    // STEP 2: Semantic search for relevant chunks using vector similarity
+    console.log('[Chat] Searching for relevant chunks...');
+    const { data: relevantChunks, error: searchError } = await supabase.rpc(
+      'match_document_sections',
+      {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.3,
+        match_count: MAX_CHUNKS,
+        p_project_id: PROJECT_ID,
+      }
+    );
+
+    // Fallback: If RPC doesn't exist or fails, use simple text search
+    let chunks: any[] = [];
+    if (searchError || !relevantChunks || relevantChunks.length === 0) {
+      console.log('[Chat] Vector search unavailable, using keyword fallback...');
+      
+      // Simple keyword-based search fallback
+      const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+      const { data: fallbackChunks } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata')
+        .eq('project_id', PROJECT_ID)
+        .limit(50);
+      
+      if (fallbackChunks) {
+        // Score chunks by keyword matches
+        const scoredChunks = fallbackChunks.map(chunk => {
+          const contentLower = chunk.content.toLowerCase();
+          let score = 0;
+          keywords.forEach((kw: string) => {
+            if (contentLower.includes(kw)) score++;
+          });
+          return { ...chunk, score };
+        });
+        
+        // Sort by score and take top chunks
+        chunks = scoredChunks
+          .filter(c => c.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, MAX_CHUNKS);
+        
+        // If no keyword matches, take first few chunks
+        if (chunks.length === 0) {
+          chunks = fallbackChunks.slice(0, MAX_CHUNKS);
+        }
+      }
+      console.log('[Chat] Keyword fallback found', chunks.length, 'relevant chunks');
+    } else {
+      chunks = relevantChunks;
+      console.log('[Chat] Vector search found', chunks.length, 'relevant chunks');
     }
 
-    console.log('✅ Loaded', allChunks?.length || 0, 'chunks');
-
-    // STEP 2: Build System Message with ALL context
+    // STEP 3: Build System Message with relevant context only
     let systemMessage: string;
 
-    if (allChunks && allChunks.length > 0) {
-      const referenceData = allChunks
-        .map((chunk) => chunk.content)
+    if (chunks && chunks.length > 0) {
+      const referenceData = chunks
+        .map((chunk: any) => chunk.content)
         .join('\n---\n');
 
-      const sources = Array.from(new Set(allChunks.map(c => c.metadata?.file_name || c.metadata?.source || 'Document')));
+      const sources = Array.from(new Set(chunks.map((c: any) => c.metadata?.file_name || c.metadata?.source || 'Document')));
 
       systemMessage = `You are an expert AI Assistant for OpenHouse property information.
-Below is the COMPLETE project documentation retrieved from: ${sources.join(', ')}
+Below is relevant project documentation retrieved from: ${sources.join(', ')}
 
 --- BEGIN REFERENCE DATA ---
 ${referenceData}
@@ -109,10 +158,10 @@ CRITICAL - ROOM DIMENSIONS:
 - Do NOT quote any measurements from the documents - always direct users to check the official drawings themselves.
 - This is a liability requirement - we cannot guarantee text-extracted measurements are accurate.`;
 
-      console.log('[Chat] Full context loaded:', referenceData.length, 'chars from', allChunks.length, 'chunks');
+      console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
     } else {
       systemMessage = `You are a helpful property assistant. No documents have been uploaded yet. Let the user know they need to upload project documents first.`;
-      console.log('[Chat] No documents found for this project');
+      console.log('[Chat] No relevant documents found for this query');
     }
 
     // STEP 3: Generate Response
@@ -182,7 +231,7 @@ CRITICAL - ROOM DIMENSIONS:
         latency_ms: latencyMs,
         metadata: {
           unitUid: validatedUnitUid || null,
-          chunksUsed: allChunks?.length || 0,
+          chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
           token_cost: costUsd,
           latency_ms: latencyMs,
@@ -198,9 +247,9 @@ CRITICAL - ROOM DIMENSIONS:
     const responseData: any = {
       success: true,
       answer,
-      source: allChunks && allChunks.length > 0 ? 'full_context' : 'no_documents',
-      chunksUsed: allChunks?.length || 0,
-      documents: Array.from(new Set(allChunks?.map(c => c.metadata?.file_name || c.metadata?.source) || [])),
+      source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
+      chunksUsed: chunks?.length || 0,
+      documents: Array.from(new Set(chunks?.map((c: any) => c.metadata?.file_name || c.metadata?.source) || [])),
     };
 
     if (drawing) {
