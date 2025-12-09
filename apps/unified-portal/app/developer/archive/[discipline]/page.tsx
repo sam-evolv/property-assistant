@@ -361,6 +361,7 @@ export default function DisciplineDetailPage() {
                 totalCount={currentDocs.length}
                 onPageChange={() => {}}
                 onDocumentDeleted={loadDocuments}
+                viewMode={viewMode === 'list' ? 'list' : 'grid'}
               />
             )}
           </>

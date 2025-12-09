@@ -1,6 +1,7 @@
 'use client';
 
 import { DocumentCard } from './DocumentCard';
+import { DocumentListItem } from './DocumentListItem';
 import { ChevronLeft, ChevronRight, FileX } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
@@ -12,6 +13,7 @@ interface DocumentGridProps {
   totalCount: number;
   onPageChange: (page: number) => void;
   onDocumentDeleted?: () => void;
+  viewMode?: 'grid' | 'list';
 }
 
 export function DocumentGrid({ 
@@ -21,7 +23,8 @@ export function DocumentGrid({
   totalPages,
   totalCount,
   onPageChange,
-  onDocumentDeleted
+  onDocumentDeleted,
+  viewMode = 'grid'
 }: DocumentGridProps) {
   if (isLoading) {
     return (
@@ -71,11 +74,19 @@ export function DocumentGrid({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {documents.map((doc) => (
-          <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} />
-        ))}
-      </div>
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {documents.map((doc) => (
+            <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {documents.map((doc) => (
+            <DocumentListItem key={doc.id} document={doc} onDelete={onDocumentDeleted} />
+          ))}
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-6">
