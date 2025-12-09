@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { units, developments, qr_tokens } from '@openhouse/db/schema';
-import { eq, sql, and, isNotNull } from 'drizzle-orm';
+import { eq, sql, max, asc } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,12 +20,30 @@ export async function GET(request: NextRequest) {
         purchaser_name: units.purchaser_name,
         purchaser_email: units.purchaser_email,
         purchaser_phone: units.purchaser_phone,
-        token_used: qr_tokens.used_at,
+        token_used: max(qr_tokens.used_at),
       })
       .from(units)
       .leftJoin(developments, eq(units.development_id, developments.id))
       .leftJoin(qr_tokens, eq(units.id, qr_tokens.unit_id))
-      .orderBy(developments.name, units.unit_number);
+      .groupBy(
+        units.id,
+        units.unit_number,
+        units.unit_uid,
+        units.address_line_1,
+        units.address_line_2,
+        units.city,
+        units.house_type_code,
+        units.property_type,
+        units.bedrooms,
+        developments.name,
+        units.purchaser_name,
+        units.purchaser_email,
+        units.purchaser_phone
+      )
+      .orderBy(
+        asc(developments.name),
+        sql`CAST(${units.unit_number} AS INTEGER)`
+      );
 
     const formattedUnits = unitsData.map(unit => {
       const fullAddress = [unit.address_line_1, unit.address_line_2, unit.city]
