@@ -38,10 +38,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('tenantId', tenantId);
       params.set('developmentId', developmentId);
       
-      const response = await fetch(`/api/documents?${params}`);
+      const response = await fetch(`/api/important-docs?${params}`);
       if (response.ok) {
         const data = await response.json();
         const docs = data.documents || [];
