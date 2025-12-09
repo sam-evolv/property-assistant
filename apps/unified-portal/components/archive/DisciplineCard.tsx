@@ -47,8 +47,10 @@ export function DisciplineCard({ discipline }: DisciplineCardProps) {
   const Icon = disciplineIcons[discipline.discipline] || Files;
   const colors = disciplineColors[discipline.discipline] || disciplineColors.other;
   
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'No files yet';
+  const formatDate = (dateStr: string | null, hasFiles: boolean) => {
+    if (!dateStr) {
+      return hasFiles ? '' : 'No files yet';
+    }
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-IE', { 
       day: 'numeric',
@@ -88,7 +90,7 @@ export function DisciplineCard({ discipline }: DisciplineCardProps) {
             {discipline.fileCount} {discipline.fileCount === 1 ? 'file' : 'files'}
           </span>
           <span className="text-gray-500 text-xs">
-            {formatDate(discipline.lastUpdated)}
+            {formatDate(discipline.lastUpdated, discipline.fileCount > 0)}
           </span>
         </div>
       </div>
