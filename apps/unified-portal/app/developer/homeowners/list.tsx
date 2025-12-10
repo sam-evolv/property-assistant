@@ -1,18 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Copy, Eye, EyeOff, Edit2, Users, Mail } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity } from 'lucide-react';
 
 interface Unit {
   id: string;
   unit_number: string | null;
   resident_name: string | null;
-  resident_email: string | null;
   address: string | null;
   purchaser_name: string | null;
-  purchaser_email: string | null;
   development_id: string;
   created_at: string;
   important_docs_agreed_version: number;
@@ -47,151 +45,265 @@ export function HomeownersList({
   development?: any;
   developmentId?: string;
 }) {
-  const [revealedTokens, setRevealedTokens] = useState<Set<string>>(new Set());
-  const [copied, setCopied] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'acknowledged' | 'pending'>('all');
+  const [sortBy, setSortBy] = useState<'house' | 'name' | 'date' | 'activity'>('house');
+  const [showFilters, setShowFilters] = useState(false);
 
-  function toggleTokenVisibility(id: string) {
-    setRevealedTokens((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+  const currentVersion = development?.important_docs_version || 0;
+
+  const filteredAndSorted = useMemo(() => {
+    let result = [...homeowners];
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(unit => {
+        const name = (unit.purchaser_name || unit.resident_name || unit.name || '').toLowerCase();
+        const address = (unit.address || '').toLowerCase();
+        const unitNum = (unit.unit_number || '').toLowerCase();
+        return name.includes(query) || address.includes(query) || unitNum.includes(query);
+      });
+    }
+
+    if (filterStatus !== 'all') {
+      result = result.filter(unit => {
+        const agreedVersion = unit.important_docs_agreed_version || 0;
+        const hasAgreed = agreedVersion >= currentVersion && currentVersion > 0;
+        return filterStatus === 'acknowledged' ? hasAgreed : !hasAgreed;
+      });
+    }
+
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'house':
+          return extractHouseNumber(a.address, a.unit_number) - extractHouseNumber(b.address, b.unit_number);
+        case 'name':
+          const nameA = (a.purchaser_name || a.resident_name || a.name || '').toLowerCase();
+          const nameB = (b.purchaser_name || b.resident_name || b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        case 'date':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'activity':
+          const actA = a.important_docs_agreed_at ? new Date(a.important_docs_agreed_at).getTime() : 0;
+          const actB = b.important_docs_agreed_at ? new Date(b.important_docs_agreed_at).getTime() : 0;
+          return actB - actA;
+        default:
+          return 0;
       }
-      return next;
     });
-  }
 
-  function copyQRLink(homeownerId: string) {
-    const tenantPortalUrl = process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || 'http://localhost:5000';
-    navigator.clipboard.writeText(`${tenantPortalUrl}/developer/homeowners/${homeownerId}`);
-    setCopied(homeownerId);
-    setTimeout(() => setCopied(null), 2000);
-  }
+    return result;
+  }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion]);
 
-  // Sort units by house number
-  const sortedUnits = [...homeowners].sort((a, b) => {
-    const aNum = extractHouseNumber(a.address, a.unit_number);
-    const bNum = extractHouseNumber(b.address, b.unit_number);
-    return aNum - bNum;
-  });
+  const stats = useMemo(() => {
+    const acknowledged = homeowners.filter(u => {
+      const agreedVersion = u.important_docs_agreed_version || 0;
+      return agreedVersion >= currentVersion && currentVersion > 0;
+    }).length;
+    
+    return {
+      total: homeowners.length,
+      acknowledged,
+      pending: currentVersion > 0 ? homeowners.length - acknowledged : 0
+    };
+  }, [homeowners, currentVersion]);
 
   return (
     <div className="min-h-full bg-gradient-to-br from-white via-grey-50 to-white flex flex-col">
-      {/* Header */}
       <div className="border-b border-gold-200/30 px-8 py-6 backdrop-blur-sm bg-white/50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <Link href="/developer" className="text-gold-500 hover:text-gold-600 flex items-center gap-1 mb-2">
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm">Back to Dashboard</span>
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <Link href="/developer" className="text-gold-500 hover:text-gold-600 flex items-center gap-1 mb-2">
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm">Back to Dashboard</span>
+              </Link>
+              <h1 className="text-3xl font-bold text-grey-900">Homeowners</h1>
+              <p className="text-grey-600 text-sm mt-1">
+                {development?.name || 'All Developments'} - {homeowners.length} residents
+              </p>
+            </div>
+            <Link
+              href="/developer/homeowners/new"
+              className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-md"
+            >
+              <span>+ Add Homeowner</span>
             </Link>
-            <h1 className="text-3xl font-bold text-grey-900">Homeowners</h1>
-            <p className="text-grey-600 text-sm mt-1">Longview Estates - {homeowners.length} residents</p>
           </div>
-          <Link
-            href="/developer/homeowners/new"
-            className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-md"
-          >
-            <span>+ Add Homeowner</span>
-          </Link>
+
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-xl border border-gold-200/30 p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gold-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-gold-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-grey-900">{stats.total}</p>
+                  <p className="text-sm text-grey-600">Total Residents</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-green-200/50 p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-grey-900">{stats.acknowledged}</p>
+                  <p className="text-sm text-grey-600">Acknowledged</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-amber-200/50 p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-grey-900">{stats.pending}</p>
+                  <p className="text-sm text-grey-600">Pending</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-grey-400" />
+              <input
+                type="text"
+                placeholder="Search by name, address, or unit number..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gold-200/50 bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-400 text-grey-900 placeholder-grey-400"
+              />
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition ${
+                showFilters ? 'border-gold-400 bg-gold-50 text-gold-700' : 'border-gold-200/50 bg-white text-grey-600 hover:border-gold-300'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              <span>Filters</span>
+              <ChevronDown className={`w-4 h-4 transition ${showFilters ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {showFilters && (
+            <div className="mt-4 flex items-center gap-4 p-4 bg-white/80 rounded-lg border border-gold-200/30">
+              <div>
+                <label className="text-xs font-medium text-grey-500 mb-1 block">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="px-3 py-2 rounded-lg border border-gold-200/50 bg-white text-grey-900 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/20"
+                >
+                  <option value="all">All</option>
+                  <option value="acknowledged">Acknowledged</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-grey-500 mb-1 block">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="px-3 py-2 rounded-lg border border-gold-200/50 bg-white text-grey-900 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/20"
+                >
+                  <option value="house">House Number</option>
+                  <option value="name">Name</option>
+                  <option value="date">Date Added</option>
+                  <option value="activity">Last Activity</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="px-8 py-8 flex-1">
-        <div className="max-w-4xl mx-auto">
-          {homeowners.length === 0 ? (
+        <div className="max-w-7xl mx-auto">
+          {filteredAndSorted.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed border-gold-200/50 p-12 text-center">
               <Users className="w-12 h-12 text-gold-300 mx-auto mb-3" />
-              <p className="text-lg font-medium text-grey-900 mb-1">No residents found</p>
-              <p className="text-sm text-grey-600">Units will appear here as they are created.</p>
+              <p className="text-lg font-medium text-grey-900 mb-1">
+                {searchQuery || filterStatus !== 'all' ? 'No residents match your filters' : 'No residents found'}
+              </p>
+              <p className="text-sm text-grey-600">
+                {searchQuery || filterStatus !== 'all' ? 'Try adjusting your search or filters.' : 'Add your first homeowner to get started.'}
+              </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {sortedUnits.map((unit) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredAndSorted.map((unit) => {
                 const houseNum = extractHouseNumber(unit.address, unit.unit_number);
                 const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
                 const residentName = unit.purchaser_name || unit.resident_name || unit.name || 'Unassigned';
-                const email = unit.purchaser_email || unit.resident_email || unit.email;
                 
-                // Important docs agreement status - ALWAYS use unit's own development version
-                const currentVersion = unit.development?.important_docs_version || 0;
                 const agreedVersion = unit.important_docs_agreed_version || 0;
                 const hasAgreed = agreedVersion >= currentVersion && currentVersion > 0;
-                const needsConsent = !hasAgreed && currentVersion > 0;
+                const developmentName = unit.development?.name || 'Unknown';
                 
                 return (
-                  <div key={unit.id} className="rounded-lg border border-gold-200/30 backdrop-blur-sm bg-white/80 hover:shadow-md hover:border-gold-300/50 transition overflow-hidden">
-                    {/* Row Content */}
-                    <div className="px-6 py-4">
+                  <Link
+                    key={unit.id}
+                    href={`/developer/homeowners/${unit.id}`}
+                    className="group rounded-xl border border-gold-200/30 backdrop-blur-sm bg-white hover:shadow-lg hover:border-gold-300/50 transition-all overflow-hidden"
+                  >
+                    <div className="p-5">
                       <div className="flex items-start gap-4">
-                        {/* House Number */}
                         <div className="flex-shrink-0">
-                          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-bold text-lg shadow-md group-hover:scale-105 transition">
                             {displayNum}
                           </div>
                         </div>
 
-                        {/* Main Info */}
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-grey-900">{residentName}</h3>
-                          <div className="mt-2 space-y-1">
-                            {email && (
-                              <div className="flex items-center gap-2 text-sm text-grey-600">
-                                <Mail className="w-4 h-4 text-gold-500" />
-                                <a href={`mailto:${email}`} className="hover:text-gold-600 transition">
-                                  {email}
-                                </a>
-                              </div>
-                            )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-grey-900 truncate group-hover:text-gold-600 transition">
+                            {residentName}
+                          </h3>
+                          
+                          <div className="mt-1 space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs text-grey-500">
+                              <Home className="w-3.5 h-3.5" />
+                              <span className="truncate">{developmentName}</span>
+                            </div>
                             {unit.address && (
-                              <p className="text-sm text-grey-600">{unit.address}</p>
-                            )}
-                            <p className="text-xs text-grey-500">
-                              Added {new Date(unit.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </p>
-                            
-                            {/* Important Docs Agreement Status */}
-                            {currentVersion > 0 && (
-                              <div className="mt-2 pt-2 border-t border-gold-100">
-                                {hasAgreed ? (
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-700 font-medium">
-                                      ✓ Docs Agreed
-                                    </span>
-                                    <span className="text-grey-500">
-                                      v{agreedVersion} • {unit.important_docs_agreed_at ? new Date(unit.important_docs_agreed_at).toLocaleDateString() : 'N/A'}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-gold-100 text-gold-700 font-medium">
-                                      ⚠ Consent Required
-                                    </span>
-                                    <span className="text-grey-500">
-                                      Needs v{currentVersion} agreement
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                              <p className="text-xs text-grey-500 truncate">{unit.address}</p>
                             )}
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/developer/homeowners/${unit.id}/edit`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gold-500 hover:bg-gold-50 transition"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit
-                          </Link>
+                        {currentVersion > 0 && (
+                          <div className="flex-shrink-0">
+                            {hasAgreed ? (
+                              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center" title="Documents acknowledged">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center" title="Pending acknowledgement">
+                                <Clock className="w-4 h-4 text-amber-600" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-gold-100 flex items-center justify-between text-xs text-grey-500">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>Added {new Date(unit.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </div>
+                        {unit.important_docs_agreed_at && (
+                          <div className="flex items-center gap-1">
+                            <Activity className="w-3.5 h-3.5" />
+                            <span>Active</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
