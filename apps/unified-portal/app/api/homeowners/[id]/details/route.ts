@@ -46,15 +46,15 @@ export async function GET(
       db.execute(sql`
         SELECT 
           COUNT(*)::int as total_messages,
-          COUNT(CASE WHEN role = 'user' THEN 1 END)::int as user_messages,
-          COUNT(CASE WHEN role = 'assistant' THEN 1 END)::int as assistant_messages,
+          COUNT(CASE WHEN sender = 'user' THEN 1 END)::int as user_messages,
+          COUNT(CASE WHEN sender = 'assistant' THEN 1 END)::int as assistant_messages,
           MIN(created_at) as first_message,
           MAX(created_at) as last_message
         FROM messages
         WHERE user_id = ${id}
       `),
       db.execute(sql`
-        SELECT id, content, role, created_at
+        SELECT id, content, sender, created_at
         FROM messages
         WHERE user_id = ${id}
         ORDER BY created_at DESC
@@ -131,7 +131,7 @@ export async function GET(
         recent_messages: recentMessages.map((m: any) => ({
           id: m.id,
           content: m.content?.substring(0, 150) + (m.content && m.content.length > 150 ? '...' : ''),
-          role: m.role,
+          role: m.sender,
           created_at: m.created_at,
         })),
       },
