@@ -8,10 +8,10 @@ const supabase = createClient(
 
 // Known Irish location coordinates for fallback
 const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
-  // Specific developments
-  'longview': { lat: 51.9165, lng: -8.4756 }, // Longview Park, Ballyvolane, Cork
-  'ballyvolane': { lat: 51.9165, lng: -8.4756 },
-  'ballyhooly': { lat: 51.9165, lng: -8.4756 },
+  // Specific developments - exact coordinates provided by client
+  'longview': { lat: 51.9265, lng: -8.4532 }, // Longview Park entrance, Ballyvolane, Cork (51°55'35.3"N 8°27'11.6"W)
+  'ballyvolane': { lat: 51.9265, lng: -8.4532 },
+  'ballyhooly': { lat: 51.9265, lng: -8.4532 },
   // Cities
   'cork': { lat: 51.8985, lng: -8.4756 },
   'dublin': { lat: 53.3498, lng: -6.2603 },
