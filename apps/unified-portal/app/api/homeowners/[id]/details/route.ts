@@ -17,12 +17,12 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
 
-    // Use raw SQL to fetch unit with development - avoids Drizzle relations issue
     const unitResult = await db.execute(sql`
       SELECT 
-        u.id, u.unit_number, u.resident_name, u.address, u.purchaser_name,
+        u.id, u.unit_number, u.purchaser_name, u.purchaser_email,
+        u.address_line_1, u.address_line_2, u.city, u.eircode,
         u.development_id, u.created_at, u.important_docs_agreed_version,
-        u.important_docs_agreed_at,
+        u.important_docs_agreed_at, u.house_type_code,
         d.id as dev_id, d.name as dev_name, d.address as dev_address,
         d.important_docs_version as dev_docs_version
       FROM units u
@@ -97,14 +97,17 @@ export async function GET(
       engagementLevel = 'low';
     }
 
-    const residentName = unitRow.purchaser_name || unitRow.resident_name || 'Unassigned';
+    const residentName = unitRow.purchaser_name || 'Unassigned';
+    const fullAddress = [unitRow.address_line_1, unitRow.address_line_2, unitRow.city, unitRow.eircode]
+      .filter(Boolean)
+      .join(', ');
 
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
         name: residentName,
-        house_type: unitRow.unit_number,
-        address: unitRow.address,
+        house_type: unitRow.house_type_code || unitRow.unit_number,
+        address: fullAddress || null,
         unique_qr_token: unitRow.id,
         development_id: unitRow.development_id,
         created_at: unitRow.created_at,
