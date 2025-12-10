@@ -1,0 +1,42 @@
+You are working in my Longview Property Assistant repo in Replit.
+
+Goal:
+In the Purchaser portal Documents section, when the user clicks into the “All Documents” tab, we want the ordering to be:
+1. Must read documents at the top.
+2. Important documents next.
+3. All remaining documents after that.
+Within each group, a sensible secondary sort such as newest first.
+
+Scope:
+- Purchaser portal Documents view only.
+- Do not break any existing filters or search.
+- Do not change the meaning of must read or important flags, only the ordering.
+
+Tasks:
+
+1. Locate the Documents data fetching logic:
+   - Identify the API route or direct Supabase query that powers the “All Documents” tab in the Purchaser portal.
+   - Confirm which field or fields are used to mark documents as “must read” and “important”. For example, columns like `is_must_read`, `is_important`, `category`, or similar.
+
+2. Implement explicit ordering:
+   - Modify the query so the base ordering is:
+     - `is_must_read` descending,
+     - then `is_important` descending,
+     - then `created_at` or `uploaded_at` descending.
+   - If the app uses a different naming scheme, adapt accordingly.
+   - Ensure this ordering is applied only to the All Documents tab, not to any dedicated “Must read” filter route that might already exist.
+
+3. Front end display:
+   - Make sure it is visually obvious which documents are must read and which are important.
+   - Add clear badges or labels such as “Must read” and “Important” next to the document title.
+   - Keep the styling consistent with the rest of the Purchaser portal and avoid clutter.
+
+4. Test:
+   - Seed or create documents with all three categories: must read, important, and normal.
+   - Verify in the All Documents tab that:
+     - All must read entries are at the very top.
+     - All important entries follow.
+     - All others appear after.
+   - Confirm that filters like “Must read only” or “Important only” still work if they exist.
+
+Do not alter any access control, tenant logic, or RLS policies. Only adjust the sorting and visual cues in the All Documents view.

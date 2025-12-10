@@ -14,7 +14,7 @@ const PurchaserChatTab = dynamic(
 );
 
 const PurchaserMapsTab = dynamic(
-  () => import('@/components/purchaser/PurchaserMapsTab'),
+  () => import('@/components/purchaser/OptimizedMapsTab'),
   { ssr: false, loading: () => <div className="h-48 md:h-96 flex items-center justify-center bg-gray-100 rounded-lg"><div className="animate-pulse text-gray-400">Loading map...</div></div> }
 );
 

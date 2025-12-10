@@ -1,0 +1,43 @@
+You are working in my Longview Property Assistant repo in Replit.
+
+Goal:
+The Maps feature in the Purchaser portal currently takes 20 to 25 seconds to appear on first load. This is unacceptable. We need to dramatically reduce perceived load time and actual load time.
+
+Scope:
+- Purchaser portal Maps tab only.
+- Do not change Developer or Admin maps, if any.
+- Do not change database schema.
+
+Tasks:
+
+1. Locate the Purchaser Maps implementation:
+   - Find the React or Next.js components that render the estate map for purchasers.
+   - Find any data fetching (Supabase, external APIs, tiles, markers) that powers this map.
+
+2. Profile and simplify initial load:
+   - Identify which operations are blocking render on first load.
+   - Split the map into:
+     - A lightweight skeleton or placeholder that renders instantly.
+     - A heavier interactive map that can load shortly after.
+
+3. Optimise data fetching:
+   - If you are fetching a large amount of data upfront, introduce pagination or smaller initial payloads where possible.
+   - Cache static map metadata for the estate and avoid re-fetching it on every visit.
+   - If markers are based on static POIs (schools, shops, etc) stored in Supabase, use a single efficient query and reuse the result during the session.
+
+4. Front end optimisation:
+   - Use dynamic import with `ssr: false` for any heavy map library so it does not block the initial page load.
+   - Ensure that the map container renders quickly with a loading state while the map library initialises.
+   - Keep the map within a reasonable viewport size, and avoid unnecessary re-renders.
+
+5. UX behaviour:
+   - On first visit to the Purchaser portal, the user should see the app layout and a “Loading map” skeleton within one second.
+   - The actual interactive map should appear as fast as possible after that, with a hard target well under 5 seconds on a typical connection.
+
+6. Test:
+   - Run the app as a purchaser and time how long it takes for:
+     - The layout and placeholder to appear.
+     - The map to become interactive.
+   - Confirm that switching between tabs does not re-initialise the map unnecessarily if it is already loaded.
+
+Do not remove any features, only optimise load time and perceived responsiveness.

@@ -1,0 +1,42 @@
+You are working in my Longview Property Assistant repo in Replit.
+
+Goal:
+The Noticeboard currently functions correctly but feels cheap, like a basic comment section. We want it to feel more like a modern, lightweight social feed inside an estate app, while using the same data model.
+
+Scope:
+- Purchaser portal Noticeboard only.
+- Do not change Supabase schema or back end logic unless absolutely required.
+- No changes to Developer or Admin dashboards.
+
+Tasks:
+
+1. Find the Noticeboard components:
+   - Locate the React or Next.js page and components that render the notices and comments for the Purchaser portal.
+
+2. Redesign the UI styling at component level:
+   - Implement a card style layout for each notice.
+     - Clear title, body, timestamp, and author.
+     - Subtle shadow and rounded corners.
+   - Display comments in a nested thread style with indentation, smaller font, and subtle dividers.
+   - Ensure spacing, padding, and line height are generous enough to feel premium.
+
+3. Visual polish:
+   - Use consistent typography with the rest of the Purchaser portal, not something that looks like a default forum.
+   - Add small touches like:
+     - A clean header row for each card with author name and timestamp.
+     - Optional initial avatar circle with the first letter of the poster’s name.
+   - Modern but understated, not flashy.
+
+4. Interaction:
+   - Make sure posting a new notice or comment feels smooth, with clear input fields and buttons.
+   - Ensure loading and empty states look intentional and designed, not just plain text.
+
+5. Responsiveness:
+   - Optimise for mobile first. It should look excellent on a phone, since that is how residents will use it.
+   - Cards should stack nicely, with no horizontal scroll.
+
+6. Test:
+   - Populate the Noticeboard with several dummy notices and comments.
+   - Confirm the layout is readable, visually coherent, and feels like a high quality product, not a cheap forum.
+
+Do not change any API routes or database structures, only the front end layout and styling of the Purchaser Noticeboard.
