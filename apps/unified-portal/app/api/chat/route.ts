@@ -75,6 +75,19 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// Clean markdown formatting from AI responses (remove asterisks, keep clean text)
+function cleanMarkdownFormatting(text: string): string {
+  return text
+    // Remove bold/italic markdown: **text** or *text* -> text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    // Remove any remaining standalone asterisks used for bullets (replace with dash)
+    .replace(/^\s*\*\s+/gm, '- ')
+    // Clean up any double asterisks that might be left
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '');
+}
+
 // Check if message is a follow-up that needs context (must have pronouns/anaphora)
 function isFollowUpQuestion(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
@@ -478,10 +491,12 @@ CRITICAL - ROOM DIMENSIONS (LIABILITY REQUIREMENT):
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
 
-          // Stream the AI response
+          // Stream the AI response (clean asterisks from each chunk)
           for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
+            const rawContent = chunk.choices[0]?.delta?.content || '';
+            if (rawContent) {
+              // Clean markdown formatting from streamed content
+              const content = cleanMarkdownFormatting(rawContent);
               fullAnswer += content;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content })}\n\n`));
             }
