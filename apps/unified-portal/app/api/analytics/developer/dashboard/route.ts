@@ -58,24 +58,42 @@ export async function GET(request: NextRequest) {
         .where(and(eq(homeowners.tenant_id, tenantId), homeownerDevFilter)),
       
       // Count active users by user_id (which contains unit UUID for purchaser chats)
-      db.execute(sql`
-        SELECT COUNT(DISTINCT COALESCE(m.user_id, m.house_id))::int as count
-        FROM messages m
-        WHERE m.tenant_id = ${tenantId}
-          AND m.created_at >= ${sevenDaysAgo} 
-          AND (m.user_id IS NOT NULL OR m.house_id IS NOT NULL)
-          ${devFilter}
-      `),
+      // Note: user_id stores the unit UID for purchaser portal chats
+      developmentId 
+        ? db.execute(sql`
+            SELECT COUNT(DISTINCT m.user_id)::int as count
+            FROM messages m
+            WHERE m.tenant_id = ${tenantId}
+              AND m.development_id = ${developmentId}
+              AND m.created_at >= ${sevenDaysAgo} 
+              AND m.user_id IS NOT NULL
+          `)
+        : db.execute(sql`
+            SELECT COUNT(DISTINCT m.user_id)::int as count
+            FROM messages m
+            WHERE m.tenant_id = ${tenantId}
+              AND m.created_at >= ${sevenDaysAgo} 
+              AND m.user_id IS NOT NULL
+          `),
       
-      db.execute(sql`
-        SELECT COUNT(DISTINCT COALESCE(m.user_id, m.house_id))::int as count
-        FROM messages m
-        WHERE m.tenant_id = ${tenantId}
-          AND m.created_at >= ${previousStartDate} 
-          AND m.created_at < ${sevenDaysAgo}
-          AND (m.user_id IS NOT NULL OR m.house_id IS NOT NULL)
-          ${devFilter}
-      `),
+      developmentId 
+        ? db.execute(sql`
+            SELECT COUNT(DISTINCT m.user_id)::int as count
+            FROM messages m
+            WHERE m.tenant_id = ${tenantId}
+              AND m.development_id = ${developmentId}
+              AND m.created_at >= ${previousStartDate} 
+              AND m.created_at < ${sevenDaysAgo}
+              AND m.user_id IS NOT NULL
+          `)
+        : db.execute(sql`
+            SELECT COUNT(DISTINCT m.user_id)::int as count
+            FROM messages m
+            WHERE m.tenant_id = ${tenantId}
+              AND m.created_at >= ${previousStartDate} 
+              AND m.created_at < ${sevenDaysAgo}
+              AND m.user_id IS NOT NULL
+          `),
       
       db.select({ count: count() })
         .from(messages)
