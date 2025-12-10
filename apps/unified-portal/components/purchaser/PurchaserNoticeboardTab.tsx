@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Calendar, AlertCircle, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
+import { Bell, Calendar, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
 
 interface Notice {
   id: string;
@@ -33,326 +33,416 @@ const TRANSLATIONS: Record<string, any> = {
   en: {
     header: 'Community Noticeboard',
     subtitle: 'Important updates and announcements',
-    noNotices: 'No Notices Yet',
-    noNoticesDesc: 'Important announcements and updates from your development will appear here.',
-    loading: 'Loading notices...',
-    createButton: 'Create Post',
-    createTitle: 'Submit a Notice',
+    noNotices: 'No Posts Yet',
+    noNoticesDesc: 'Be the first to share something with your community.',
+    loading: 'Loading...',
+    createButton: 'New Post',
+    createTitle: 'Create a Post',
     formTitle: 'Title',
-    formMessage: 'Message',
+    formMessage: 'What would you like to share?',
     formCategory: 'Category',
     formPriority: 'Priority',
-    formAuthorName: 'Your Name (optional)',
+    formAuthorName: 'Your Name',
     low: 'Low',
     medium: 'Medium',
-    high: 'High',
+    high: 'Urgent',
     cancel: 'Cancel',
-    submit: 'Submit Notice',
-    submitting: 'Submitting...',
+    submit: 'Post',
+    submitting: 'Posting...',
     all: 'All',
     event: 'Event',
     alert: 'Alert',
     lostFound: 'Lost & Found',
     general: 'General',
     sessionExpired: 'Session expired. Please scan your QR code again.',
-    submitFailed: 'Failed to submit notice. Please try again.',
+    submitFailed: 'Failed to submit. Please try again.',
     comments: 'Comments',
     noComments: 'No comments yet',
-    beFirstComment: 'Be the first to comment on this post.',
-    writeComment: 'Write a comment...',
+    beFirstComment: 'Start the conversation...',
+    writeComment: 'Add a comment...',
     postComment: 'Post',
     deleteComment: 'Delete',
-    yourName: 'Your name (optional)',
+    yourName: 'Your name',
     back: 'Back',
     commentPosted: 'Comment posted!',
     commentDeleted: 'Comment deleted',
-    commentFailed: 'Failed to post comment. Please try again.',
+    commentFailed: 'Failed to post comment.',
     viewComments: 'View comments',
     postedBy: 'Posted by',
+    anonymous: 'Community Member',
+    resident: 'Resident',
   },
   pl: {
     header: 'Tablica Społeczności',
     subtitle: 'Ważne aktualizacje i ogłoszenia',
-    noNotices: 'Brak Ogłoszeń',
-    noNoticesDesc: 'Ważne ogłoszenia i aktualizacje z Twojego rozwoju pojawią się tutaj.',
-    loading: 'Ładowanie ogłoszeń...',
-    createButton: 'Utwórz Post',
-    createTitle: 'Prześlij Ogłoszenie',
+    noNotices: 'Brak Postów',
+    noNoticesDesc: 'Bądź pierwszy, który podzieli się czymś ze społecznością.',
+    loading: 'Ładowanie...',
+    createButton: 'Nowy Post',
+    createTitle: 'Utwórz Post',
     formTitle: 'Tytuł',
-    formMessage: 'Wiadomość',
+    formMessage: 'Czym chciałbyś się podzielić?',
     formCategory: 'Kategoria',
     formPriority: 'Priorytet',
-    formAuthorName: 'Twoje Imię (opcjonalnie)',
+    formAuthorName: 'Twoje Imię',
     low: 'Niski',
     medium: 'Średni',
-    high: 'Wysoki',
+    high: 'Pilny',
     cancel: 'Anuluj',
-    submit: 'Prześlij',
-    submitting: 'Przesyłanie...',
+    submit: 'Opublikuj',
+    submitting: 'Publikowanie...',
     all: 'Wszystkie',
     event: 'Wydarzenie',
     alert: 'Ostrzeżenie',
-    lostFound: 'Zgubiono i Znaleziono',
+    lostFound: 'Zgubione',
     general: 'Ogólne',
     sessionExpired: 'Sesja wygasła. Zeskanuj ponownie kod QR.',
-    submitFailed: 'Nie udało się przesłać ogłoszenia. Spróbuj ponownie.',
+    submitFailed: 'Nie udało się przesłać. Spróbuj ponownie.',
     comments: 'Komentarze',
     noComments: 'Brak komentarzy',
-    beFirstComment: 'Bądź pierwszym, który skomentuje ten post.',
-    writeComment: 'Napisz komentarz...',
+    beFirstComment: 'Rozpocznij rozmowę...',
+    writeComment: 'Dodaj komentarz...',
     postComment: 'Opublikuj',
     deleteComment: 'Usuń',
-    yourName: 'Twoje imię (opcjonalnie)',
+    yourName: 'Twoje imię',
     back: 'Wstecz',
     commentPosted: 'Komentarz opublikowany!',
     commentDeleted: 'Komentarz usunięty',
-    commentFailed: 'Nie udało się opublikować komentarza. Spróbuj ponownie.',
+    commentFailed: 'Nie udało się opublikować.',
     viewComments: 'Zobacz komentarze',
     postedBy: 'Opublikowane przez',
+    anonymous: 'Członek Społeczności',
+    resident: 'Mieszkaniec',
   },
   es: {
     header: 'Tablón de la Comunidad',
     subtitle: 'Actualizaciones y anuncios importantes',
-    noNotices: 'Sin Avisos',
-    noNoticesDesc: 'Los anuncios y actualizaciones importantes de su desarrollo aparecerán aquí.',
-    loading: 'Cargando avisos...',
-    createButton: 'Crear Publicación',
-    createTitle: 'Enviar un Aviso',
+    noNotices: 'Sin Publicaciones',
+    noNoticesDesc: 'Sé el primero en compartir algo con tu comunidad.',
+    loading: 'Cargando...',
+    createButton: 'Nueva Publicación',
+    createTitle: 'Crear Publicación',
     formTitle: 'Título',
-    formMessage: 'Mensaje',
+    formMessage: '¿Qué te gustaría compartir?',
     formCategory: 'Categoría',
     formPriority: 'Prioridad',
-    formAuthorName: 'Tu Nombre (opcional)',
+    formAuthorName: 'Tu Nombre',
     low: 'Baja',
     medium: 'Media',
-    high: 'Alta',
+    high: 'Urgente',
     cancel: 'Cancelar',
-    submit: 'Enviar',
-    submitting: 'Enviando...',
+    submit: 'Publicar',
+    submitting: 'Publicando...',
     all: 'Todos',
     event: 'Evento',
     alert: 'Alerta',
-    lostFound: 'Perdidos y Encontrados',
+    lostFound: 'Perdidos',
     general: 'General',
     sessionExpired: 'Sesión expirada. Escanee su código QR nuevamente.',
-    submitFailed: 'No se pudo enviar el aviso. Inténtelo de nuevo.',
+    submitFailed: 'No se pudo enviar. Inténtelo de nuevo.',
     comments: 'Comentarios',
-    noComments: 'Sin comentarios aún',
-    beFirstComment: 'Sé el primero en comentar esta publicación.',
-    writeComment: 'Escribe un comentario...',
+    noComments: 'Sin comentarios',
+    beFirstComment: 'Inicia la conversación...',
+    writeComment: 'Añadir comentario...',
     postComment: 'Publicar',
     deleteComment: 'Eliminar',
-    yourName: 'Tu nombre (opcional)',
+    yourName: 'Tu nombre',
     back: 'Volver',
     commentPosted: '¡Comentario publicado!',
     commentDeleted: 'Comentario eliminado',
-    commentFailed: 'No se pudo publicar el comentario. Inténtelo de nuevo.',
+    commentFailed: 'No se pudo publicar.',
     viewComments: 'Ver comentarios',
     postedBy: 'Publicado por',
+    anonymous: 'Miembro de la Comunidad',
+    resident: 'Residente',
   },
   ru: {
     header: 'Доска Объявлений',
     subtitle: 'Важные обновления и объявления',
-    noNotices: 'Пока нет объявлений',
-    noNoticesDesc: 'Здесь будут появляться важные объявления и обновления от вашей разработки.',
-    loading: 'Загрузка объявлений...',
-    createButton: 'Создать Пост',
-    createTitle: 'Отправить Объявление',
+    noNotices: 'Нет Публикаций',
+    noNoticesDesc: 'Будьте первым, кто поделится чем-то с сообществом.',
+    loading: 'Загрузка...',
+    createButton: 'Новый Пост',
+    createTitle: 'Создать Публикацию',
     formTitle: 'Заголовок',
-    formMessage: 'Сообщение',
+    formMessage: 'Чем хотите поделиться?',
     formCategory: 'Категория',
     formPriority: 'Приоритет',
-    formAuthorName: 'Ваше Имя (необязательно)',
+    formAuthorName: 'Ваше Имя',
     low: 'Низкий',
     medium: 'Средний',
-    high: 'Высокий',
+    high: 'Срочный',
     cancel: 'Отмена',
-    submit: 'Отправить',
-    submitting: 'Отправка...',
+    submit: 'Опубликовать',
+    submitting: 'Публикация...',
     all: 'Все',
     event: 'Событие',
     alert: 'Предупреждение',
-    lostFound: 'Потеряно и Найдено',
+    lostFound: 'Потеряно',
     general: 'Общее',
     sessionExpired: 'Сеанс истек. Отсканируйте QR-код еще раз.',
-    submitFailed: 'Не удалось отправить объявление. Попробуйте еще раз.',
+    submitFailed: 'Не удалось отправить. Попробуйте еще раз.',
     comments: 'Комментарии',
-    noComments: 'Комментариев пока нет',
-    beFirstComment: 'Будьте первым, кто прокомментирует эту публикацию.',
-    writeComment: 'Напишите комментарий...',
+    noComments: 'Нет комментариев',
+    beFirstComment: 'Начните разговор...',
+    writeComment: 'Добавить комментарий...',
     postComment: 'Опубликовать',
     deleteComment: 'Удалить',
-    yourName: 'Ваше имя (необязательно)',
+    yourName: 'Ваше имя',
     back: 'Назад',
     commentPosted: 'Комментарий опубликован!',
     commentDeleted: 'Комментарий удален',
-    commentFailed: 'Не удалось опубликовать комментарий. Попробуйте еще раз.',
+    commentFailed: 'Не удалось опубликовать.',
     viewComments: 'Посмотреть комментарии',
     postedBy: 'Опубликовано',
+    anonymous: 'Член Сообщества',
+    resident: 'Житель',
   },
   pt: {
     header: 'Quadro da Comunidade',
     subtitle: 'Atualizações e anúncios importantes',
-    noNotices: 'Sem Avisos',
-    noNoticesDesc: 'Anúncios e atualizações importantes do seu desenvolvimento aparecerão aqui.',
-    loading: 'Carregando avisos...',
-    createButton: 'Criar Publicação',
-    createTitle: 'Enviar um Aviso',
+    noNotices: 'Sem Publicações',
+    noNoticesDesc: 'Seja o primeiro a compartilhar algo com sua comunidade.',
+    loading: 'Carregando...',
+    createButton: 'Nova Publicação',
+    createTitle: 'Criar Publicação',
     formTitle: 'Título',
-    formMessage: 'Mensagem',
+    formMessage: 'O que você gostaria de compartilhar?',
     formCategory: 'Categoria',
     formPriority: 'Prioridade',
-    formAuthorName: 'Seu Nome (opcional)',
+    formAuthorName: 'Seu Nome',
     low: 'Baixa',
     medium: 'Média',
-    high: 'Alta',
+    high: 'Urgente',
     cancel: 'Cancelar',
-    submit: 'Enviar',
-    submitting: 'Enviando...',
+    submit: 'Publicar',
+    submitting: 'Publicando...',
     all: 'Todos',
     event: 'Evento',
     alert: 'Alerta',
-    lostFound: 'Perdidos e Achados',
+    lostFound: 'Perdidos',
     general: 'Geral',
     sessionExpired: 'Sessão expirada. Escaneie seu código QR novamente.',
-    submitFailed: 'Falha ao enviar aviso. Tente novamente.',
+    submitFailed: 'Falha ao enviar. Tente novamente.',
     comments: 'Comentários',
-    noComments: 'Sem comentários ainda',
-    beFirstComment: 'Seja o primeiro a comentar esta publicação.',
-    writeComment: 'Escreva um comentário...',
+    noComments: 'Sem comentários',
+    beFirstComment: 'Inicie a conversa...',
+    writeComment: 'Adicionar comentário...',
     postComment: 'Publicar',
     deleteComment: 'Excluir',
-    yourName: 'Seu nome (opcional)',
+    yourName: 'Seu nome',
     back: 'Voltar',
     commentPosted: 'Comentário publicado!',
     commentDeleted: 'Comentário excluído',
-    commentFailed: 'Falha ao publicar comentário. Tente novamente.',
+    commentFailed: 'Falha ao publicar.',
     viewComments: 'Ver comentários',
     postedBy: 'Postado por',
+    anonymous: 'Membro da Comunidade',
+    resident: 'Morador',
   },
   lv: {
     header: 'Kopienas Ziņojumu Dēlis',
     subtitle: 'Svarīgi atjauninājumi un paziņojumi',
-    noNotices: 'Nav Paziņojumu',
-    noNoticesDesc: 'Svarīgi paziņojumi un atjauninājumi no jūsu attīstības parādīsies šeit.',
-    loading: 'Ielādē paziņojumus...',
-    createButton: 'Izveidot Ierakstu',
-    createTitle: 'Iesniegt Paziņojumu',
+    noNotices: 'Nav Ierakstu',
+    noNoticesDesc: 'Esi pirmais, kas dalās ar kaut ko kopienā.',
+    loading: 'Ielādē...',
+    createButton: 'Jauns Ieraksts',
+    createTitle: 'Izveidot Ierakstu',
     formTitle: 'Nosaukums',
-    formMessage: 'Ziņojums',
+    formMessage: 'Ko vēlaties dalīties?',
     formCategory: 'Kategorija',
     formPriority: 'Prioritāte',
-    formAuthorName: 'Jūsu Vārds (nav obligāts)',
+    formAuthorName: 'Jūsu Vārds',
     low: 'Zema',
     medium: 'Vidēja',
-    high: 'Augsta',
+    high: 'Steidzami',
     cancel: 'Atcelt',
-    submit: 'Iesniegt',
-    submitting: 'Iesniedz...',
+    submit: 'Publicēt',
+    submitting: 'Publicē...',
     all: 'Visi',
     event: 'Notikums',
     alert: 'Brīdinājums',
-    lostFound: 'Pazaudēts un Atrasts',
+    lostFound: 'Pazaudēts',
     general: 'Vispārīgi',
     sessionExpired: 'Sesija beigusies. Lūdzu, skenējiet QR kodu vēlreiz.',
-    submitFailed: 'Neizdevās iesniegt paziņojumu. Lūdzu, mēģiniet vēlreiz.',
+    submitFailed: 'Neizdevās iesniegt. Mēģiniet vēlreiz.',
     comments: 'Komentāri',
-    noComments: 'Vēl nav komentāru',
-    beFirstComment: 'Esi pirmais, kas komentē šo ierakstu.',
-    writeComment: 'Rakstīt komentāru...',
+    noComments: 'Nav komentāru',
+    beFirstComment: 'Sāciet sarunu...',
+    writeComment: 'Pievienot komentāru...',
     postComment: 'Publicēt',
     deleteComment: 'Dzēst',
-    yourName: 'Jūsu vārds (nav obligāts)',
+    yourName: 'Jūsu vārds',
     back: 'Atpakaļ',
     commentPosted: 'Komentārs publicēts!',
     commentDeleted: 'Komentārs dzēsts',
-    commentFailed: 'Neizdevās publicēt komentāru. Mēģiniet vēlreiz.',
+    commentFailed: 'Neizdevās publicēt.',
     viewComments: 'Skatīt komentārus',
     postedBy: 'Publicējis',
+    anonymous: 'Kopienas Loceklis',
+    resident: 'Iedzīvotājs',
   },
   lt: {
     header: 'Bendruomenės Skelbimų Lenta',
     subtitle: 'Svarbūs atnaujinimai ir pranešimai',
-    noNotices: 'Pranešimų nėra',
-    noNoticesDesc: 'Svarbūs pranešimai ir atnaujinimai iš jūsų plėtros atsiras čia.',
-    loading: 'Įkeliami pranešimai...',
-    createButton: 'Kurti įrašą',
-    createTitle: 'Pateikti Pranešimą',
+    noNotices: 'Nėra Įrašų',
+    noNoticesDesc: 'Būkite pirmas, kuris pasidalins kažkuo su bendruomene.',
+    loading: 'Įkeliama...',
+    createButton: 'Naujas Įrašas',
+    createTitle: 'Sukurti Įrašą',
     formTitle: 'Pavadinimas',
-    formMessage: 'Žinutė',
+    formMessage: 'Kuo norėtumėte pasidalinti?',
     formCategory: 'Kategorija',
     formPriority: 'Prioritetas',
-    formAuthorName: 'Jūsų Vardas (neprivalu)',
+    formAuthorName: 'Jūsų Vardas',
     low: 'Žemas',
     medium: 'Vidutinis',
-    high: 'Aukštas',
+    high: 'Skubus',
     cancel: 'Atšaukti',
-    submit: 'Pateikti',
-    submitting: 'Pateikiama...',
+    submit: 'Paskelbti',
+    submitting: 'Skelbiama...',
     all: 'Visi',
     event: 'Įvykis',
     alert: 'Įspėjimas',
-    lostFound: 'Pamesta ir Rasta',
+    lostFound: 'Pamesta',
     general: 'Bendra',
     sessionExpired: 'Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.',
-    submitFailed: 'Nepavyko pateikti pranešimo. Bandykite dar kartą.',
+    submitFailed: 'Nepavyko pateikti. Bandykite dar kartą.',
     comments: 'Komentarai',
-    noComments: 'Komentarų dar nėra',
-    beFirstComment: 'Būkite pirmas, kuris pakomentuos šį įrašą.',
-    writeComment: 'Parašykite komentarą...',
+    noComments: 'Nėra komentarų',
+    beFirstComment: 'Pradėkite pokalbį...',
+    writeComment: 'Pridėti komentarą...',
     postComment: 'Paskelbti',
     deleteComment: 'Ištrinti',
-    yourName: 'Jūsų vardas (neprivaloma)',
+    yourName: 'Jūsų vardas',
     back: 'Atgal',
     commentPosted: 'Komentaras paskelbtas!',
     commentDeleted: 'Komentaras ištrintas',
-    commentFailed: 'Nepavyko paskelbti komentaro. Bandykite dar kartą.',
+    commentFailed: 'Nepavyko paskelbti.',
     viewComments: 'Žiūrėti komentarus',
     postedBy: 'Paskelbė',
+    anonymous: 'Bendruomenės Narys',
+    resident: 'Gyventojas',
   },
   ro: {
     header: 'Panou Comunitate',
     subtitle: 'Actualizări și anunțuri importante',
-    noNotices: 'Fără Anunțuri',
-    noNoticesDesc: 'Anunțurile și actualizările importante din dezvoltarea dvs. vor apărea aici.',
-    loading: 'Se încarcă anunțurile...',
-    createButton: 'Creați Postare',
-    createTitle: 'Trimite un Anunț',
+    noNotices: 'Fără Postări',
+    noNoticesDesc: 'Fii primul care împărtășește ceva cu comunitatea.',
+    loading: 'Se încarcă...',
+    createButton: 'Postare Nouă',
+    createTitle: 'Creează Postare',
     formTitle: 'Titlu',
-    formMessage: 'Mesaj',
+    formMessage: 'Ce ai vrea să împărtășești?',
     formCategory: 'Categorie',
     formPriority: 'Prioritate',
-    formAuthorName: 'Numele Tău (opțional)',
+    formAuthorName: 'Numele Tău',
     low: 'Scăzută',
     medium: 'Medie',
-    high: 'Ridicată',
+    high: 'Urgent',
     cancel: 'Anulare',
-    submit: 'Trimite',
-    submitting: 'Se trimite...',
+    submit: 'Postează',
+    submitting: 'Se postează...',
     all: 'Toate',
     event: 'Eveniment',
     alert: 'Alertă',
-    lostFound: 'Pierdut și Găsit',
+    lostFound: 'Pierdut',
     general: 'General',
-    sessionExpired: 'Sesiunea a expirat. Vă rugăm să scanați codul QR din nou.',
-    submitFailed: 'Nu s-a putut trimite anunțul. Vă rugăm să încercați din nou.',
+    sessionExpired: 'Sesiunea a expirat. Scanați codul QR din nou.',
+    submitFailed: 'Nu s-a putut trimite. Încercați din nou.',
     comments: 'Comentarii',
-    noComments: 'Încă nu există comentarii',
-    beFirstComment: 'Fii primul care comentează această postare.',
-    writeComment: 'Scrie un comentariu...',
+    noComments: 'Fără comentarii',
+    beFirstComment: 'Începe conversația...',
+    writeComment: 'Adaugă comentariu...',
     postComment: 'Postează',
     deleteComment: 'Șterge',
-    yourName: 'Numele tău (opțional)',
+    yourName: 'Numele tău',
     back: 'Înapoi',
     commentPosted: 'Comentariu postat!',
     commentDeleted: 'Comentariu șters',
-    commentFailed: 'Nu s-a putut posta comentariul. Încercați din nou.',
+    commentFailed: 'Nu s-a putut posta.',
     viewComments: 'Vezi comentariile',
     postedBy: 'Postat de',
+    anonymous: 'Membru al Comunității',
+    resident: 'Rezident',
   }
 };
 
 const CATEGORIES = ['all', 'event', 'alert', 'lostFound', 'general'];
+
+function Avatar({ name, size = 'md', isDarkMode }: { name?: string; size?: 'sm' | 'md' | 'lg'; isDarkMode: boolean }) {
+  const initial = name ? name.charAt(0).toUpperCase() : '?';
+  const colors = [
+    'from-amber-400 to-orange-500',
+    'from-emerald-400 to-teal-500',
+    'from-blue-400 to-indigo-500',
+    'from-purple-400 to-pink-500',
+    'from-rose-400 to-red-500',
+  ];
+  const colorIndex = name ? name.charCodeAt(0) % colors.length : 0;
+  
+  const sizeClasses = {
+    sm: 'w-8 h-8 text-xs',
+    md: 'w-10 h-10 text-sm',
+    lg: 'w-12 h-12 text-base',
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br ${colors[colorIndex]} flex items-center justify-center text-white font-semibold shadow-sm flex-shrink-0`}>
+      {initial}
+    </div>
+  );
+}
+
+function CategoryBadge({ category, t, isDarkMode }: { category?: string; t: any; isDarkMode: boolean }) {
+  const config: Record<string, { bg: string; text: string; icon: string }> = {
+    event: { 
+      bg: isDarkMode ? 'bg-amber-900/40' : 'bg-amber-50', 
+      text: isDarkMode ? 'text-amber-300' : 'text-amber-700',
+      icon: '📅'
+    },
+    alert: { 
+      bg: isDarkMode ? 'bg-red-900/40' : 'bg-red-50', 
+      text: isDarkMode ? 'text-red-300' : 'text-red-600',
+      icon: '⚠️'
+    },
+    lostFound: { 
+      bg: isDarkMode ? 'bg-purple-900/40' : 'bg-purple-50', 
+      text: isDarkMode ? 'text-purple-300' : 'text-purple-600',
+      icon: '🔍'
+    },
+    general: { 
+      bg: isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100', 
+      text: isDarkMode ? 'text-gray-300' : 'text-gray-600',
+      icon: '💬'
+    },
+  };
+  
+  const { bg, text, icon } = config[category || 'general'] || config.general;
+  const label = t[category || 'general'] || t.general;
+  
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>
+      <span>{icon}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function PriorityIndicator({ priority, isDarkMode }: { priority: string; isDarkMode: boolean }) {
+  if (priority === 'low') return null;
+  
+  const isHigh = priority === 'high';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+      isHigh 
+        ? isDarkMode ? 'bg-red-900/40 text-red-300' : 'bg-red-100 text-red-600'
+        : isDarkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-600'
+    }`}>
+      {isHigh ? '🔴 Urgent' : '🟡 Important'}
+    </span>
+  );
+}
 
 export default function PurchaserNoticeboardTab({
   unitUid,
@@ -379,6 +469,8 @@ export default function PurchaserNoticeboardTab({
   const [submittingComment, setSubmittingComment] = useState(false);
   const [noticeAuthorName, setNoticeAuthorName] = useState('');
 
+  const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
+
   useEffect(() => {
     fetchNotices();
   }, [unitUid]);
@@ -393,7 +485,6 @@ export default function PurchaserNoticeboardTab({
     try {
       const token = sessionStorage.getItem(`house_token_${unitUid}`);
       if (!token) {
-        console.error('No token found for noticeboard');
         setLoading(false);
         return;
       }
@@ -529,45 +620,7 @@ export default function PurchaserNoticeboardTab({
     }
   };
 
-  const getCategoryColor = (category?: string) => {
-    switch (category) {
-      case 'event':
-        return { barBg: 'bg-gold-500', tagBg: isDarkMode ? 'bg-blue-900/30 text-blue-300' : 'bg-gold-50 text-gold-600', label: t.event };
-      case 'alert':
-        return { barBg: 'bg-red-500', tagBg: isDarkMode ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-700', label: t.alert };
-      case 'lostFound':
-        return { barBg: 'bg-purple-500', tagBg: isDarkMode ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700', label: t.lostFound };
-      default:
-        return { barBg: 'bg-gray-500', tagBg: isDarkMode ? 'bg-gray-700/50 text-gray-300' : 'bg-gray-200 text-gray-700', label: t.general };
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return isDarkMode ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-700';
-      case 'medium':
-        return isDarkMode ? 'bg-gold-900/30 text-gold-300' : 'bg-gold-100 text-gold-700';
-      default:
-        return isDarkMode ? 'bg-gray-700/50 text-gray-300' : 'bg-gray-100 text-gray-700';
-    }
-  };
-
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-    
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return date.toLocaleDateString(selectedLanguage === 'en' ? 'en-US' : 'en-GB', { 
-      month: 'short', 
-      day: 'numeric',
-      year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-    });
-  };
-
-  const formatCommentDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -576,155 +629,173 @@ export default function PurchaserNoticeboardTab({
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   };
-
-  const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
   const filteredNotices = selectedCategory === 'all' 
     ? notices 
     : notices.filter(n => n.category === selectedCategory);
 
-  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
+  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-gray-50';
+  const cardBg = isDarkMode ? 'bg-gray-800' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
-  const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
+  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
+  const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
 
   if (selectedNotice) {
-    const categoryInfo = getCategoryColor(selectedNotice.category);
     return (
       <div className={`flex flex-col h-full ${bgColor}`}>
-        <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3`}>
+        <div className={`${cardBg} border-b ${borderColor} px-4 py-3 sticky top-0 z-10`}>
           <button
             onClick={() => {
               setSelectedNotice(null);
               setComments([]);
               setCommentText('');
             }}
-            className={`flex items-center gap-2 ${subtextColor} hover:text-gold-500 transition-colors`}
+            className={`flex items-center gap-2 ${subtextColor} hover:text-gold-500 transition-colors font-medium`}
           >
             <ChevronLeft className="w-5 h-5" />
-            <span className="font-medium">{t.back}</span>
+            <span>{t.back}</span>
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} p-6`}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${categoryInfo.tagBg}`}>
-                {categoryInfo.label}
-              </span>
-              {selectedNotice.priority !== 'low' && (
-                <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getPriorityColor(selectedNotice.priority)}`}>
-                  {selectedNotice.priority === 'high' ? '🔴 High' : '🟡 Medium'}
-                </span>
-              )}
-            </div>
-            <h1 className={`text-2xl font-bold ${textColor} mb-3`}>{selectedNotice.title}</h1>
-            <p className={`${subtextColor} mb-4 whitespace-pre-wrap`}>{selectedNotice.message}</p>
-            <div className={`flex flex-col gap-2 text-sm`}>
-              <div className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                <Calendar className="w-4 h-4" />
-                <span>{formatDate(selectedNotice.created_at)}</span>
-              </div>
-              {(selectedNotice.author_name || selectedNotice.author_unit) && (
-                <div className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <span className="font-medium text-gold-500">{t.postedBy}:</span>
-                  <span>{selectedNotice.author_name}</span>
-                  {selectedNotice.author_unit && <span className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>• Unit {selectedNotice.author_unit}</span>}
+          <div className={`${cardBg} border-b ${borderColor}`}>
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <Avatar 
+                  name={selectedNotice.author_name || t.anonymous} 
+                  size="lg" 
+                  isDarkMode={isDarkMode} 
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-semibold ${textColor}`}>
+                      {selectedNotice.author_name || t.anonymous}
+                    </span>
+                    {selectedNotice.author_unit && (
+                      <span className={`text-sm ${subtextColor}`}>
+                        · Unit {selectedNotice.author_unit}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-sm ${subtextColor}`}>
+                    {formatDate(selectedNotice.created_at)}
+                  </span>
                 </div>
-              )}
+              </div>
+
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <CategoryBadge category={selectedNotice.category} t={t} isDarkMode={isDarkMode} />
+                <PriorityIndicator priority={selectedNotice.priority} isDarkMode={isDarkMode} />
+              </div>
+
+              <h1 className={`text-xl font-bold ${textColor} mb-3`}>
+                {selectedNotice.title}
+              </h1>
+              
+              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} whitespace-pre-wrap leading-relaxed`}>
+                {selectedNotice.message}
+              </p>
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-4">
               <MessageCircle className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-              <h2 className={`text-lg font-semibold ${textColor}`}>
+              <h2 className={`font-semibold ${textColor}`}>
                 {t.comments} ({comments.length})
               </h2>
             </div>
 
-            <form onSubmit={handleSubmitComment} className="mb-6">
-              <div className="mb-3">
-                <input
-                  type="text"
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder={t.yourName}
-                  maxLength={50}
-                  className={`w-full px-4 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
-                />
+            <div className={`${cardBg} rounded-2xl border ${borderColor} p-4 mb-6`}>
+              <div className="flex items-start gap-3">
+                <Avatar name={authorName || '?'} size="sm" isDarkMode={isDarkMode} />
+                <form onSubmit={handleSubmitComment} className="flex-1 space-y-3">
+                  <input
+                    type="text"
+                    value={authorName}
+                    onChange={(e) => setAuthorName(e.target.value)}
+                    placeholder={t.yourName}
+                    maxLength={50}
+                    className={`w-full px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                  />
+                  <div className="flex gap-2">
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder={t.writeComment}
+                      maxLength={2000}
+                      rows={2}
+                      className={`flex-1 px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 resize-none transition-all`}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!commentText.trim() || submittingComment}
+                      className="self-end px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-xl font-medium hover:from-gold-600 hover:to-gold-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      {submittingComment ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-              <div className="flex gap-2">
-                <textarea
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={t.writeComment}
-                  maxLength={2000}
-                  rows={2}
-                  className={`flex-1 px-4 py-3 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 resize-none`}
-                />
-                <button
-                  type="submit"
-                  disabled={!commentText.trim() || submittingComment}
-                  className="px-4 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg font-medium hover:from-gold-600 hover:to-gold-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submittingComment ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </form>
+            </div>
 
             {loadingComments ? (
-              <div className={`text-center py-8 ${subtextColor}`}>
-                <div className="animate-pulse">Loading comments...</div>
+              <div className="flex flex-col items-center py-12">
+                <div className={`w-8 h-8 border-3 border-gold-500 border-t-transparent rounded-full animate-spin mb-3`} />
+                <span className={subtextColor}>{t.loading}</span>
               </div>
             ) : comments.length === 0 ? (
-              <div className={`text-center py-8 ${subtextColor}`}>
-                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <div className={`text-center py-12 ${subtextColor}`}>
+                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
                 <p className="font-medium">{t.noComments}</p>
-                <p className="text-sm mt-1">{t.beFirstComment}</p>
+                <p className="text-sm mt-1 opacity-75">{t.beFirstComment}</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-1">
                 {comments.map((comment) => (
                   <div
                     key={comment.id}
-                    className={`${cardBg} border rounded-lg p-4`}
+                    className={`${cardBg} rounded-2xl p-4 group`}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      <Avatar name={comment.author_name} size="sm" isDarkMode={isDarkMode} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className={`font-medium ${textColor}`}>{comment.author_name}</span>
-                          {comment.author_unit && (
-                            <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                              ({comment.author_unit})
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-medium text-sm ${textColor}`}>
+                              {comment.author_name}
                             </span>
+                            {comment.author_unit && (
+                              <span className={`text-xs ${subtextColor}`}>
+                                · {comment.author_unit}
+                              </span>
+                            )}
+                            <span className={`text-xs ${subtextColor}`}>
+                              · {formatDate(comment.created_at)}
+                            </span>
+                          </div>
+                          {comment.unit_id && (
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 ${isDarkMode ? 'hover:bg-gray-700 text-gray-500 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'} transition-all`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           )}
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            • {formatCommentDate(comment.created_at)}
-                          </span>
                         </div>
-                        <p className={`${subtextColor} text-sm whitespace-pre-wrap break-words`}>
+                        <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} whitespace-pre-wrap break-words leading-relaxed`}>
                           {comment.body}
                         </p>
                       </div>
-                      {comment.unit_id && (
-                        <button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          className={`p-1.5 rounded-lg ${isDarkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'} transition-colors`}
-                          title={t.deleteComment}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -739,7 +810,7 @@ export default function PurchaserNoticeboardTab({
   return (
     <>
       <div className={`flex flex-col h-full ${bgColor}`}>
-        <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3 overflow-x-auto`}>
+        <div className={`${cardBg} border-b ${borderColor} px-4 py-3 overflow-x-auto sticky top-0 z-10`}>
           <div className="flex gap-2 min-w-max">
             {CATEGORIES.map(cat => (
               <button
@@ -749,8 +820,8 @@ export default function PurchaserNoticeboardTab({
                   selectedCategory === cat
                     ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
                     : isDarkMode
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {t[cat]}
@@ -760,78 +831,84 @@ export default function PurchaserNoticeboardTab({
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center flex-1">
-            <div className={`animate-pulse ${subtextColor}`}>{t.loading}</div>
+          <div className="flex flex-col items-center justify-center flex-1 py-12">
+            <div className={`w-10 h-10 border-3 border-gold-500 border-t-transparent rounded-full animate-spin mb-4`} />
+            <span className={subtextColor}>{t.loading}</span>
           </div>
         ) : filteredNotices.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
-            <div className="p-4 bg-gradient-to-br from-gold-100 to-gold-200 rounded-full mb-4">
-              <Bell className="w-8 h-8 text-gold-700" />
+            <div className={`p-6 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg mb-6`}>
+              <Bell className={`w-12 h-12 ${isDarkMode ? 'text-gold-400' : 'text-gold-500'}`} />
             </div>
-            <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
+            <h3 className={`text-xl font-bold ${textColor} mb-2`}>
               {t.noNotices}
             </h3>
-            <p className={`${subtextColor} max-w-md text-sm`}>
+            <p className={`${subtextColor} max-w-sm`}>
               {t.noNoticesDesc}
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredNotices.map((notice) => {
-                  const categoryInfo = getCategoryColor(notice.category);
-                  return (
-                    <div
-                      key={notice.id}
-                      onClick={() => setSelectedNotice(notice)}
-                      className={`${cardBg} border rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col group cursor-pointer`}
-                    >
-                      <div className={`h-1 ${categoryInfo.barBg}`} />
-
-                      <div className="p-4 flex flex-col flex-1">
-                        <div className="flex items-start justify-between gap-2 mb-3">
-                          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${categoryInfo.tagBg} whitespace-nowrap`}>
-                            {categoryInfo.label}
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-2xl mx-auto py-4 px-4 space-y-4">
+              {filteredNotices.map((notice) => (
+                <article
+                  key={notice.id}
+                  onClick={() => setSelectedNotice(notice)}
+                  className={`${cardBg} rounded-2xl border ${borderColor} overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg active:scale-[0.99] group`}
+                >
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3 mb-3">
+                      <Avatar 
+                        name={notice.author_name || t.anonymous} 
+                        isDarkMode={isDarkMode} 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold ${textColor} truncate`}>
+                            {notice.author_name || t.anonymous}
                           </span>
-                          {notice.priority !== 'low' && (
-                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getPriorityColor(notice.priority)} whitespace-nowrap`}>
-                              {notice.priority === 'high' ? '🔴 High' : '🟡 Medium'}
+                          {notice.author_unit && (
+                            <span className={`text-sm ${subtextColor} hidden sm:inline`}>
+                              · Unit {notice.author_unit}
                             </span>
                           )}
                         </div>
-
-                        <h3 className={`text-base font-semibold ${textColor} mb-2 line-clamp-2 group-hover:text-gold-500 transition-colors`}>
-                          {notice.title}
-                        </h3>
-
-                        <p className={`${subtextColor} text-sm mb-4 line-clamp-3 flex-1`}>
-                          {notice.message}
-                        </p>
-
-                        <div className={`flex items-center justify-between text-xs pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>{formatDate(notice.created_at)}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-gold-500">
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>{t.viewComments}</span>
-                          </div>
-                        </div>
+                        <span className={`text-sm ${subtextColor}`}>
+                          {formatDate(notice.created_at)}
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <CategoryBadge category={notice.category} t={t} isDarkMode={isDarkMode} />
+                      <PriorityIndicator priority={notice.priority} isDarkMode={isDarkMode} />
+                    </div>
+
+                    <h2 className={`text-lg font-bold ${textColor} mb-2 group-hover:text-gold-500 transition-colors line-clamp-2`}>
+                      {notice.title}
+                    </h2>
+
+                    <p className={`${subtextColor} text-sm line-clamp-3 leading-relaxed`}>
+                      {notice.message}
+                    </p>
+
+                    <div className={`flex items-center gap-4 mt-4 pt-3 border-t ${borderColor}`}>
+                      <button className={`flex items-center gap-1.5 text-sm ${subtextColor} hover:text-gold-500 transition-colors`}>
+                        <MessageCircle className="w-4 h-4" />
+                        <span>{t.viewComments}</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         )}
 
-        <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t p-4 flex justify-center`}>
+        <div className={`${cardBg} border-t ${borderColor} p-4 flex justify-center sticky bottom-0`}>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-full font-semibold shadow-lg hover:from-gold-600 hover:to-gold-700 transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl hover:from-gold-600 hover:to-gold-700 transition-all active:scale-95"
           >
             <Plus className="w-5 h-5" />
             {t.createButton}
@@ -840,47 +917,21 @@ export default function PurchaserNoticeboardTab({
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-lg w-full p-6`}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={`text-xl font-bold ${textColor}`}>{t.createTitle}</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className={`${cardBg} w-full sm:max-w-lg sm:rounded-2xl rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto`}>
+            <div className={`sticky top-0 ${cardBg} border-b ${borderColor} px-5 py-4 flex items-center justify-between`}>
+              <h2 className={`text-lg font-bold ${textColor}`}>{t.createTitle}</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNotice} className="space-y-4">
+            <form onSubmit={handleCreateNotice} className="p-5 space-y-4">
               <div>
-                <label className={`block text-sm font-medium ${textColor} mb-1`}>
-                  {t.formTitle}
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full px-3 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${textColor} mb-1`}>
-                  {t.formMessage}
-                </label>
-                <textarea
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  rows={4}
-                  className={`w-full px-3 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${textColor} mb-1`}>
+                <label className={`block text-sm font-medium ${textColor} mb-2`}>
                   {t.formAuthorName}
                 </label>
                 <input
@@ -888,21 +939,46 @@ export default function PurchaserNoticeboardTab({
                   value={noticeAuthorName}
                   onChange={(e) => setNoticeAuthorName(e.target.value)}
                   maxLength={100}
-                  placeholder="e.g., John Smith"
-                  autoComplete="name"
-                  className={`w-full px-3 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
+                  placeholder={t.anonymous}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${textColor} mb-2`}>
+                  {t.formTitle}
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${textColor} mb-2`}>
+                  {t.formMessage}
+                </label>
+                <textarea
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  rows={4}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 resize-none transition-all`}
+                  required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-medium ${textColor} mb-1`}>
+                  <label className={`block text-sm font-medium ${textColor} mb-2`}>
                     {t.formCategory}
                   </label>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className={`w-full px-3 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
+                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
                   >
                     <option value="general">{t.general}</option>
                     <option value="event">{t.event}</option>
@@ -912,13 +988,13 @@ export default function PurchaserNoticeboardTab({
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-medium ${textColor} mb-1`}>
+                  <label className={`block text-sm font-medium ${textColor} mb-2`}>
                     {t.formPriority}
                   </label>
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                    className={`w-full px-3 py-2 border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500`}
+                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
                   >
                     <option value="low">{t.low}</option>
                     <option value="medium">{t.medium}</option>
@@ -931,14 +1007,14 @@ export default function PurchaserNoticeboardTab({
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className={`flex-1 px-4 py-2 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textColor} rounded-lg font-medium transition-colors`}
+                  className={`flex-1 px-4 py-3 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textColor} rounded-xl font-medium transition-all`}
                 >
                   {t.cancel}
                 </button>
                 <button
                   type="submit"
-                  disabled={creating}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg font-medium hover:from-gold-600 hover:to-gold-700 transition-all disabled:opacity-50"
+                  disabled={creating || !formData.title.trim() || !formData.message.trim()}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-xl font-medium hover:from-gold-600 hover:to-gold-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
                 >
                   {creating ? t.submitting : t.submit}
                 </button>
