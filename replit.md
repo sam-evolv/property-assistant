@@ -57,6 +57,32 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Developer Dashboard Analytics Redesign (December 2025)
+
+**Complete overhaul of the developer dashboard with actionable, real-time analytics:**
+
+**New KPIs (calculated from real data):**
+- Onboarding Rate - % of units with registered homeowners
+- Engagement Rate - % of homeowners active in last 7 days (with week-over-week growth)
+- Document Coverage - % of house types with uploaded documents
+- Must-Read Compliance - % of units that acknowledged important documents
+
+**New Visualisations:**
+- Top Question Topics - horizontal bar chart showing what homeowners ask about most
+- Onboarding Funnel - visual progression from Units → Registered → Active
+- Chat Activity - area chart showing message volume over time
+- Knowledge Gaps - table of questions the AI couldn't fully answer
+
+**Contextual Quick Actions:**
+- Highlights units awaiting registration with direct action links
+- Links to document management with document counts
+- Links to AI insights for deeper analytics
+
+**API Endpoint:** `/api/analytics/developer/dashboard`
+- Fully tenant-scoped (no cross-tenant data leakage)
+- Optional development filtering
+- All metrics calculated in real-time from database
+
 ### Hybrid Retrieval Architecture Pivot (December 2025) - IN PROGRESS 🔄
 
 **Major refactor from Naive RAG (vector-only) to Hybrid Retrieval (Structured SQL + Vector):**
