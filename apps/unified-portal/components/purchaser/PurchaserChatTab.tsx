@@ -356,30 +356,113 @@ export default function PurchaserChatTab({
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
 
-      if (data.answer) {
-        setMessages((prev) => [
-          ...prev,
-          { 
-            role: 'assistant', 
-            content: data.answer,
-            floorPlanUrl: data.floorPlanUrl || null,
-            drawing: data.drawing || null,
-          },
-        ]);
-      } else if (data.error) {
-        const errorMessage = res.status === 401 || res.status === 403 
-          ? t.sessionExpired 
-          : t.errorOccurred;
-        
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: errorMessage,
-          },
-        ]);
+      // Handle streaming response (Server-Sent Events)
+      if (contentType.includes('text/event-stream')) {
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No reader available');
+
+        const decoder = new TextDecoder();
+        let streamedContent = '';
+        let drawing: DrawingData | null = null;
+        let assistantMessageIndex = -1;
+
+        // Add placeholder assistant message immediately
+        setMessages((prev) => {
+          assistantMessageIndex = prev.length;
+          return [...prev, { role: 'assistant', content: '', drawing: null }];
+        });
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.type === 'metadata') {
+                  // Received metadata with drawing info
+                  if (data.drawing) {
+                    drawing = data.drawing;
+                  }
+                } else if (data.type === 'text') {
+                  // Streaming text content
+                  streamedContent += data.content;
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                      updated[assistantMessageIndex] = {
+                        ...updated[assistantMessageIndex],
+                        content: streamedContent,
+                        drawing: drawing,
+                      };
+                    }
+                    return updated;
+                  });
+                } else if (data.type === 'done') {
+                  // Streaming complete - ensure final state
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                      updated[assistantMessageIndex] = {
+                        ...updated[assistantMessageIndex],
+                        content: streamedContent,
+                        drawing: drawing,
+                      };
+                    }
+                    return updated;
+                  });
+                } else if (data.type === 'error') {
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                      updated[assistantMessageIndex] = {
+                        ...updated[assistantMessageIndex],
+                        content: t.errorOccurred,
+                      };
+                    }
+                    return updated;
+                  });
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete chunks
+              }
+            }
+          }
+        }
+      } else {
+        // Handle non-streaming JSON response (liability override, errors)
+        const data = await res.json();
+
+        if (data.answer) {
+          setMessages((prev) => [
+            ...prev,
+            { 
+              role: 'assistant', 
+              content: data.answer,
+              floorPlanUrl: data.floorPlanUrl || null,
+              drawing: data.drawing || null,
+            },
+          ]);
+        } else if (data.error) {
+          const errorMessage = res.status === 401 || res.status === 403 
+            ? t.sessionExpired 
+            : t.errorOccurred;
+          
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: errorMessage,
+            },
+          ]);
+        }
       }
     } catch (error) {
       console.error('Failed to send message:', error);

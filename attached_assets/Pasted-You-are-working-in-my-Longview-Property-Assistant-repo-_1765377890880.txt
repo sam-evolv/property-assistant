@@ -1,0 +1,42 @@
+You are working in my Longview Property Assistant repo in Replit.
+
+Goal:
+Make the purchaser assistant feel noticeably faster and more responsive, without changing the core behaviour or data sources.
+
+Scope:
+- Purchaser assistant chat only.
+- No changes to Developer Dashboard or Admin logic.
+- No changes to Supabase schema.
+
+Tasks:
+
+1. Identify performance bottlenecks:
+   - Find the front end chat component for the purchaser assistant.
+   - Find the API route that handles chat requests.
+   - Add lightweight logging or comments to understand the sequence of steps per message.
+
+2. Implement streaming if not already enabled:
+   - Ensure the model responses are streamed to the client so text appears progressively.
+   - Confirm the front end is wired for streaming. If it is not, implement a standard streaming handler for Next.js or the current stack.
+   - The user should see the answer start within a second or two, even if the full answer takes longer to complete.
+
+3. Reduce unnecessary work per message:
+   - Make sure we are not re-fetching static metadata (estate details, house type info, school lists, etc) on every user message. Cache any stable data in memory on the server or client, or load it once and reuse it.
+   - If the system is performing a full embed plus RAG pipeline on every single short question, see if we can reuse the last loaded context when the user is still in the same session and asking follow ups on the same topic.
+   - Confirm that embeddings are NOT being recomputed on every question, only on new or updated documents.
+
+4. Model and token optimisation:
+   - Use a fast model for conversational answers where possible, as long as it preserves quality.
+   - Trim the conversation history so that only the relevant last few turns are sent, instead of the entire chat backlog.
+   - Ensure the system is not sending large documents directly as raw text when the RAG layer already exists.
+
+5. UX improvements:
+   - Make sure the typing indicator appears instantly when the user hits send.
+   - Make sure the send button disables appropriately to avoid multiple duplicate requests.
+
+6. Test:
+   - Run the Purchaser portal, ask several questions in sequence.
+   - Target: perceived response start time under 2 seconds for typical queries once the app is warmed up.
+   - Confirm no regressions in answer quality.
+
+Do not change any business logic, only performance and UX of the assistant responses.

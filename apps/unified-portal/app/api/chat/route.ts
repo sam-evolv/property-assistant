@@ -12,6 +12,7 @@ const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -335,8 +336,41 @@ CRITICAL - ROOM DIMENSIONS (LIABILITY REQUIREMENT):
       console.log('[Chat] No relevant documents found for this query');
     }
 
-    // STEP 4: Generate Response with conversation history for context
-    console.log('[Chat] Generating response with GPT-4o-mini...');
+    // STEP 4: Extract question topic and find drawing BEFORE streaming (parallel with RAG)
+    const questionTopicPromise = extractQuestionTopic(message);
+    
+    let drawing: ResolvedDrawing | null = null;
+    let drawingExplanation = '';
+    
+    // Start drawing lookup in parallel with topic extraction
+    const drawingPromise = validatedUnitUid 
+      ? findDrawingForQuestion(validatedUnitUid, await questionTopicPromise).catch(err => {
+          console.error('[Chat] Error finding drawing:', err);
+          return { found: false, drawing: null, explanation: '' };
+        })
+      : Promise.resolve({ found: false, drawing: null, explanation: '' });
+
+    const [questionTopic, drawingResult] = await Promise.all([
+      questionTopicPromise,
+      drawingPromise
+    ]);
+
+    console.log('[Chat] Question topic:', questionTopic);
+
+    if (drawingResult.found && drawingResult.drawing) {
+      drawing = drawingResult.drawing;
+      drawingExplanation = drawingResult.explanation;
+      console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
+    }
+
+    // Check for dimension question BEFORE streaming - may need to override response
+    const isDimensionQuestion = questionTopic === 'room_sizes' || 
+      /\b(dimension|size|measurement|square\s*(feet|meters|m2|ft2)|how\s*(big|large)|floor\s*area)\b/i.test(message);
+    
+    const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
+
+    // STEP 5: Generate Response with STREAMING
+    console.log('[Chat] Generating streaming response with GPT-4o-mini...');
     
     // Build messages array with conversation history for context
     const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
@@ -354,106 +388,149 @@ CRITICAL - ROOM DIMENSIONS (LIABILITY REQUIREMENT):
     
     // Add the current user message
     chatMessages.push({ role: 'user', content: message });
-    
-    const response = await openai.chat.completions.create({
+
+    // If liability override needed, return immediately without streaming
+    if (shouldOverrideForLiability) {
+      const liabilityAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.";
+      console.log('[Chat] Dimension question detected - enforced floor plan response for liability');
+      
+      // Save to database
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: liabilityAnswer,
+          question_topic: questionTopic,
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            unitUid: validatedUnitUid || null,
+            userId: userId || null,
+            chunksUsed: chunks?.length || 0,
+            model: 'gpt-4o-mini',
+            liabilityOverride: true,
+          },
+        });
+      } catch (dbError) {
+        console.error('[Chat] Failed to save message:', dbError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        answer: liabilityAnswer,
+        source: 'liability_override',
+        chunksUsed: chunks?.length || 0,
+        drawing: drawing ? {
+          fileName: drawing.fileName,
+          drawingType: drawing.drawingType,
+          drawingDescription: drawing.drawingDescription,
+          houseTypeCode: drawing.houseTypeCode,
+          previewUrl: drawing.signedUrl,
+          downloadUrl: drawing.downloadUrl,
+          explanation: drawingExplanation,
+        } : undefined,
+      });
+    }
+
+    // Create streaming response
+    const stream = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: chatMessages,
       temperature: 0.3,
       max_tokens: 800,
+      stream: true,
     });
 
-    let answer = response.choices[0]?.message?.content || "I couldn't generate a response.";
-    const latencyMs = Date.now() - startTime;
-    const tokensUsed = response.usage?.total_tokens || 0;
-    const costUsd = (tokensUsed / 1000) * 0.00015;
+    // Create a TransformStream for the response
+    const encoder = new TextEncoder();
+    let fullAnswer = '';
 
-    console.log('[Chat] Answer:', answer.slice(0, 100) + '...');
-    console.log('[Chat] Latency:', latencyMs, 'ms, Tokens:', tokensUsed);
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          // Send initial metadata as first chunk
+          const metadata = {
+            type: 'metadata',
+            source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
+            chunksUsed: chunks?.length || 0,
+            drawing: drawing ? {
+              fileName: drawing.fileName,
+              drawingType: drawing.drawingType,
+              drawingDescription: drawing.drawingDescription,
+              houseTypeCode: drawing.houseTypeCode,
+              previewUrl: drawing.signedUrl,
+              downloadUrl: drawing.downloadUrl,
+              explanation: drawingExplanation,
+            } : null,
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
 
-    const questionTopic = await extractQuestionTopic(message);
-    console.log('[Chat] Question topic:', questionTopic);
+          // Stream the AI response
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              fullAnswer += content;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content })}\n\n`));
+            }
+          }
 
-    let drawing: ResolvedDrawing | null = null;
-    let drawingExplanation = '';
-    
-    if (validatedUnitUid) {
-      try {
-        console.log('[Chat] Checking for relevant drawings...');
-        const drawingResult = await findDrawingForQuestion(validatedUnitUid, questionTopic);
-        if (drawingResult.found && drawingResult.drawing) {
-          drawing = drawingResult.drawing;
-          drawingExplanation = drawingResult.explanation;
-          console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
+          // Send completion signal
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+          controller.close();
+
+          // Save to database after streaming completes
+          const latencyMs = Date.now() - startTime;
+          console.log('[Chat] Streaming complete. Answer length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
+
+          try {
+            await db.insert(messages).values({
+              tenant_id: DEFAULT_TENANT_ID,
+              development_id: DEFAULT_DEVELOPMENT_ID,
+              user_id: conversationUserId || 'anonymous',
+              content: message,
+              user_message: message,
+              ai_message: fullAnswer,
+              question_topic: questionTopic,
+              sender: 'conversation',
+              source: 'purchaser_portal',
+              token_count: 0, // Not available in streaming mode
+              cost_usd: '0',
+              latency_ms: latencyMs,
+              metadata: {
+                unitUid: validatedUnitUid || null,
+                userId: userId || null,
+                chunksUsed: chunks?.length || 0,
+                model: 'gpt-4o-mini',
+                streaming: true,
+              },
+            });
+            console.log('[Chat] Message saved to database');
+          } catch (dbError) {
+            console.error('[Chat] Failed to save message:', dbError);
+          }
+        } catch (error) {
+          console.error('[Chat] Streaming error:', error);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Streaming failed' })}\n\n`));
+          controller.close();
         }
-      } catch (drawingError) {
-        console.error('[Chat] Error finding drawing:', drawingError);
-      }
-    }
-    
-    // Server-side enforcement: If a room_sizes drawing is attached, 
-    // ensure the answer doesn't contain specific measurements (liability protection)
-    const isDimensionQuestion = questionTopic === 'room_sizes' || 
-      /\b(dimension|size|measurement|square\s*(feet|meters|m2|ft2)|how\s*(big|large)|floor\s*area)\b/i.test(message);
-    
-    if (isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes') {
-      // Override any AI response that might contain measurements
-      answer = "I've attached the floor plan for your house type below. Please check the drawing for accurate room dimensions - this ensures you have the correct official measurements.";
-      console.log('[Chat] Dimension question detected - enforced floor plan response for liability');
-    }
-
-    try {
-      // Use the SAME conversationUserId for persistence as was used for history loading
-      // This ensures history loading and saving use consistent identifiers
-      await db.insert(messages).values({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
-        user_id: conversationUserId || 'anonymous',
-        content: message,
-        user_message: message,
-        ai_message: answer,
-        question_topic: questionTopic,
-        sender: 'conversation',
-        source: 'purchaser_portal',
-        token_count: tokensUsed,
-        cost_usd: String(costUsd),
-        latency_ms: latencyMs,
-        metadata: {
-          unitUid: validatedUnitUid || null,
-          userId: userId || null,
-          chunksUsed: chunks?.length || 0,
-          model: 'gpt-4o-mini',
-          token_cost: costUsd,
-          latency_ms: latencyMs,
-        },
-      });
-      console.log('[Chat] Message saved to database for user:', conversationUserId || 'anonymous');
-    } catch (dbError) {
-      console.error('[Chat] Failed to save message:', dbError);
-    }
+      },
+    });
 
     console.log('============================================================\n');
 
-    const responseData: any = {
-      success: true,
-      answer,
-      source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
-      chunksUsed: chunks?.length || 0,
-      documents: Array.from(new Set(chunks?.map((c: any) => c.metadata?.file_name || c.metadata?.source) || [])),
-    };
-
-    if (drawing) {
-      responseData.drawing = {
-        fileName: drawing.fileName,
-        drawingType: drawing.drawingType,
-        drawingDescription: drawing.drawingDescription,
-        houseTypeCode: drawing.houseTypeCode,
-        previewUrl: drawing.signedUrl,
-        downloadUrl: drawing.downloadUrl,
-        explanation: drawingExplanation,
-      };
-    }
-
-    return NextResponse.json(responseData);
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+      },
+    });
 
   } catch (error) {
     console.error('[Chat] Error:', error);
