@@ -57,22 +57,23 @@ export async function GET(request: NextRequest) {
         .from(homeowners)
         .where(and(eq(homeowners.tenant_id, tenantId), homeownerDevFilter)),
       
+      // Count active users by user_id (which contains unit UUID for purchaser chats)
       db.execute(sql`
-        SELECT COUNT(DISTINCT m.house_id)::int as count
+        SELECT COUNT(DISTINCT COALESCE(m.user_id, m.house_id))::int as count
         FROM messages m
         WHERE m.tenant_id = ${tenantId}
           AND m.created_at >= ${sevenDaysAgo} 
-          AND m.house_id IS NOT NULL
+          AND (m.user_id IS NOT NULL OR m.house_id IS NOT NULL)
           ${devFilter}
       `),
       
       db.execute(sql`
-        SELECT COUNT(DISTINCT m.house_id)::int as count
+        SELECT COUNT(DISTINCT COALESCE(m.user_id, m.house_id))::int as count
         FROM messages m
         WHERE m.tenant_id = ${tenantId}
           AND m.created_at >= ${previousStartDate} 
           AND m.created_at < ${sevenDaysAgo}
-          AND m.house_id IS NOT NULL
+          AND (m.user_id IS NOT NULL OR m.house_id IS NOT NULL)
           ${devFilter}
       `),
       
@@ -153,14 +154,14 @@ export async function GET(request: NextRequest) {
         ORDER BY DATE(created_at) ASC
       `),
       
+      // Use user_id (unit UUID) for house type engagement
       db.execute(sql`
         SELECT 
           u.house_type_code,
-          COUNT(DISTINCT m.house_id)::int as active_users,
+          COUNT(DISTINCT m.user_id)::int as active_users,
           COUNT(m.id)::int as message_count
         FROM units u
-        LEFT JOIN homeowners h ON h.development_id = u.development_id AND h.tenant_id = u.tenant_id
-        LEFT JOIN messages m ON m.house_id = h.id AND m.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
+        LEFT JOIN messages m ON m.user_id = u.unit_uid AND m.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
         WHERE u.tenant_id = ${tenantId}
           AND u.house_type_code IS NOT NULL
           ${devFilter}
