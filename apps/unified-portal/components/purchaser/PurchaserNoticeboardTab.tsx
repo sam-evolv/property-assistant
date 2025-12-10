@@ -848,59 +848,56 @@ export default function PurchaserNoticeboardTab({
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto py-4 px-4 space-y-4">
-              {filteredNotices.map((notice) => (
-                <article
-                  key={notice.id}
-                  onClick={() => setSelectedNotice(notice)}
-                  className={`${cardBg} rounded-2xl border ${borderColor} overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg active:scale-[0.99] group`}
-                >
-                  <div className="p-4 sm:p-5">
-                    <div className="flex items-start gap-3 mb-3">
-                      <Avatar 
-                        name={notice.author_name || t.anonymous} 
-                        isDarkMode={isDarkMode} 
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${textColor} truncate`}>
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredNotices.map((notice) => (
+                  <article
+                    key={notice.id}
+                    onClick={() => setSelectedNotice(notice)}
+                    className={`${cardBg} rounded-xl border ${borderColor} overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg group flex flex-col`}
+                  >
+                    <div className="p-4 flex flex-col flex-1">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Avatar 
+                          name={notice.author_name || t.anonymous} 
+                          size="sm"
+                          isDarkMode={isDarkMode} 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className={`font-medium text-sm ${textColor} truncate block`}>
                             {notice.author_name || t.anonymous}
                           </span>
-                          {notice.author_unit && (
-                            <span className={`text-sm ${subtextColor} hidden sm:inline`}>
-                              · Unit {notice.author_unit}
-                            </span>
-                          )}
+                          <span className={`text-xs ${subtextColor}`}>
+                            {formatDate(notice.created_at)}
+                            {notice.author_unit && ` · Unit ${notice.author_unit}`}
+                          </span>
                         </div>
-                        <span className={`text-sm ${subtextColor}`}>
-                          {formatDate(notice.created_at)}
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <CategoryBadge category={notice.category} t={t} isDarkMode={isDarkMode} />
+                        <PriorityIndicator priority={notice.priority} isDarkMode={isDarkMode} />
+                      </div>
+
+                      <h2 className={`text-base font-semibold ${textColor} mb-2 group-hover:text-gold-500 transition-colors line-clamp-2`}>
+                        {notice.title}
+                      </h2>
+
+                      <p className={`${subtextColor} text-sm line-clamp-3 leading-relaxed flex-1`}>
+                        {notice.message}
+                      </p>
+
+                      <div className={`flex items-center gap-4 mt-3 pt-3 border-t ${borderColor}`}>
+                        <span className={`flex items-center gap-1.5 text-sm ${subtextColor} group-hover:text-gold-500 transition-colors`}>
+                          <MessageCircle className="w-4 h-4" />
+                          <span>{t.viewComments}</span>
                         </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <CategoryBadge category={notice.category} t={t} isDarkMode={isDarkMode} />
-                      <PriorityIndicator priority={notice.priority} isDarkMode={isDarkMode} />
-                    </div>
-
-                    <h2 className={`text-lg font-bold ${textColor} mb-2 group-hover:text-gold-500 transition-colors line-clamp-2`}>
-                      {notice.title}
-                    </h2>
-
-                    <p className={`${subtextColor} text-sm line-clamp-3 leading-relaxed`}>
-                      {notice.message}
-                    </p>
-
-                    <div className={`flex items-center gap-4 mt-4 pt-3 border-t ${borderColor}`}>
-                      <button className={`flex items-center gap-1.5 text-sm ${subtextColor} hover:text-gold-500 transition-colors`}>
-                        <MessageCircle className="w-4 h-4" />
-                        <span>{t.viewComments}</span>
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         )}
