@@ -6,13 +6,62 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Geocode an address using Google Geocoding API
+// Known Irish location coordinates for fallback
+const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
+  // Specific developments
+  'longview': { lat: 51.9165, lng: -8.4756 }, // Longview Park, Ballyvolane, Cork
+  'ballyvolane': { lat: 51.9165, lng: -8.4756 },
+  'ballyhooly': { lat: 51.9165, lng: -8.4756 },
+  // Cities
+  'cork': { lat: 51.8985, lng: -8.4756 },
+  'dublin': { lat: 53.3498, lng: -6.2603 },
+  'galway': { lat: 53.2707, lng: -9.0568 },
+  'limerick': { lat: 52.6638, lng: -8.6267 },
+  'waterford': { lat: 52.2593, lng: -7.1101 },
+  'kilkenny': { lat: 52.6541, lng: -7.2448 },
+  'drogheda': { lat: 53.7189, lng: -6.3478 },
+  'dundalk': { lat: 54.0027, lng: -6.4016 },
+  'sligo': { lat: 54.2766, lng: -8.4761 },
+  'athlone': { lat: 53.4229, lng: -7.9407 },
+  'wexford': { lat: 52.3369, lng: -6.4633 },
+  'carlow': { lat: 52.8408, lng: -6.9261 },
+  'tralee': { lat: 52.2711, lng: -9.6868 },
+  'killarney': { lat: 52.0599, lng: -9.5044 },
+  'ennis': { lat: 52.8463, lng: -8.9811 },
+  'letterkenny': { lat: 54.9558, lng: -7.7342 },
+};
+
+// Get coordinates from address using known locations
+function getCoordinatesFromAddress(address: string): { lat: number; lng: number } | null {
+  if (!address) return null;
+  
+  const lowerAddress = address.toLowerCase();
+  
+  // Check for known location keywords in the address
+  for (const [keyword, coords] of Object.entries(IRISH_LOCATIONS)) {
+    if (lowerAddress.includes(keyword)) {
+      console.log("[Resolve] Matched location keyword:", keyword, "->", coords);
+      return coords;
+    }
+  }
+  
+  return null;
+}
+
+// Geocode an address using Google Geocoding API with fallback
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  // First try known locations fallback (faster and doesn't require API)
+  const knownCoords = getCoordinatesFromAddress(address);
+  if (knownCoords) {
+    console.log("[Resolve] Using known coordinates for:", address);
+    return knownCoords;
+  }
+  
+  // Try Google Geocoding API
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!apiKey || !address) return null;
   
   try {
-    // Add Ireland to ensure accurate results for Irish addresses
     const searchAddress = address.includes('Ireland') ? address : `${address}, Ireland`;
     const encodedAddress = encodeURIComponent(searchAddress);
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
