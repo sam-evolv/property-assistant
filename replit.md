@@ -57,6 +57,31 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Purchaser Chat Concierge Personality (December 2025)
+
+**Redesigned the purchaser chat assistant to feel like a friendly on-site concierge:**
+
+**Tone & Personality:**
+- Warm, conversational Irish/UK English (favour, colour, centre, etc.)
+- Like a helpful neighbour who knows the estate inside out
+- No corporate jargon or over-the-top enthusiasm
+- Honest when unsure, suggests next steps
+
+**Greeting Behaviour:**
+- First message: Brief warm welcome (one sentence) + direct answer
+- Follow-up messages: No greeting repetition, straight to the answer
+- Uses `isFirstMessage` detection based on conversation history
+
+**Answering Style:**
+- Concise 2-5 paragraphs maximum
+- Answers the question first, then adds helpful context
+- Bullet points only when genuinely helpful
+- References house type/development only when useful
+
+**Liability Protection Preserved:**
+- Room dimensions always redirect to official floor plans
+- Uses UK English phrasing: "I've popped the floor plan below for you"
+
 ### Developer Dashboard Analytics Redesign (December 2025)
 
 **Complete overhaul of the developer dashboard with actionable, real-time analytics:**
