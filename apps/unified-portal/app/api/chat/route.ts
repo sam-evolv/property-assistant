@@ -319,6 +319,13 @@ ANSWERING STYLE:
 - Reference the homeowner's house type or development context when it's clearly useful, but don't repeat their full address every time
 - If information isn't in the documents, be upfront: "I don't have that specific detail to hand, but you could try..."
 
+FORMATTING RULES (CRITICAL):
+- NEVER use asterisks (*) or markdown formatting in your responses
+- For section headings, just use the title followed by a colon on its own line (e.g. "Walls:" not "**Walls:**")
+- For emphasis, use plain language rather than bold or italics
+- Use simple dashes (-) for bullet points, not asterisks
+- Keep formatting clean and professional - no special characters for styling
+
 REFERENCE DATA (from: ${sources.join(', ')}):
 --- BEGIN REFERENCE DATA ---
 ${referenceData}
