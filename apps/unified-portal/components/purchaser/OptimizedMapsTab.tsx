@@ -278,31 +278,45 @@ export default function OptimizedMapsTab({
     });
   }, [favorites, mapLoaded]);
 
-  const searchNearbyPlaces = useCallback((category: FilterCategory) => {
-    if (!mapInstanceRef.current || !placesServiceRef.current) return;
+  const searchNearbyPlaces = useCallback((category: FilterCategory, filterId: string) => {
+    if (!mapInstanceRef.current || !placesServiceRef.current) {
+      console.log('[Maps] Search skipped - no map or places service');
+      return;
+    }
 
+    // Clear old markers immediately
     placeMarkersRef.current.forEach(marker => marker.setMap(null));
     placeMarkersRef.current = [];
+    setLocations([]); // Clear list while searching
 
-    const mapLat = latitude || 51.926500;
-    const mapLng = longitude || -8.453200;
+    const mapLat = latitude || 53.2707;
+    const mapLng = longitude || -6.2728;
+
+    console.log('[Maps] Searching for', category.placeType, 'near', mapLat, mapLng);
 
     const request = {
       location: new window.google.maps.LatLng(mapLat, mapLng),
-      radius: 2000,
+      radius: 3000,
       type: category.placeType,
     };
 
     placesServiceRef.current.nearbySearch(request, (results: any[], status: any) => {
+      console.log('[Maps] Search results:', status, results?.length || 0, 'places');
+      
+      // Only update if this filter is still selected (prevent race conditions)
       if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
         const newLocations = results.map(place => ({
           ...place,
           lat: place.geometry?.location?.lat(),
           lng: place.geometry?.location?.lng(),
+          categoryId: filterId, // Track which category these results belong to
         }));
+        
         setLocations(newLocations);
+        console.log('[Maps] Updated locations list with', newLocations.length, 'places for', filterId);
 
-        results.forEach(place => {
+        // Create gold markers for each result
+        results.forEach((place, index) => {
           if (place.geometry?.location) {
             const marker = new window.google.maps.Marker({
               position: place.geometry.location,
@@ -310,13 +324,15 @@ export default function OptimizedMapsTab({
               title: place.name,
               icon: {
                 path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-                fillColor: '#D97706',
+                fillColor: '#F59E0B',
                 fillOpacity: 1,
-                strokeColor: '#FFFFFF',
-                strokeWeight: 1.5,
-                scale: 1.2,
+                strokeColor: '#92400E',
+                strokeWeight: 2,
+                scale: 1.5,
                 anchor: new window.google.maps.Point(12, 22),
               },
+              animation: index < 5 ? window.google.maps.Animation.DROP : undefined,
+              zIndex: 1000 + index,
             });
 
             marker.addListener('click', () => {
@@ -343,19 +359,26 @@ export default function OptimizedMapsTab({
             placeMarkersRef.current.push(marker);
           }
         });
+        
+        console.log('[Maps] Created', placeMarkersRef.current.length, 'gold markers');
+      } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+        console.log('[Maps] No results found for', category.placeType);
+        setLocations([]);
       }
     });
   }, [latitude, longitude]);
 
   const handleFilterClick = useCallback((category: FilterCategory) => {
     if (selectedFilter === category.id) {
+      // Deselect - clear everything
       setSelectedFilter(null);
       placeMarkersRef.current.forEach(marker => marker.setMap(null));
       placeMarkersRef.current = [];
       setLocations([]);
     } else {
+      // Select new filter
       setSelectedFilter(category.id);
-      searchNearbyPlaces(category);
+      searchNearbyPlaces(category, category.id);
     }
   }, [selectedFilter, searchNearbyPlaces]);
 
