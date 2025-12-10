@@ -13,6 +13,7 @@ interface Document {
   is_house_specific?: boolean;
   is_important?: boolean;
   important_rank?: number | null;
+  must_read?: boolean;
   source?: 'drizzle' | 'supabase';
 }
 
@@ -32,6 +33,7 @@ interface CategoryInfo {
 
 const CATEGORIES: CategoryInfo[] = [
   { id: 'all', label: 'All', icon: <Folder className="w-5 h-5" />, keywords: [] },
+  { id: 'mustread', label: 'Must Read', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
   { id: 'important', label: 'Important', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
   { id: 'floorplans', label: 'Floorplans', icon: <FileImage className="w-5 h-5" />, keywords: [] },
   { id: 'fire', label: 'Fire Safety', icon: <Flame className="w-5 h-5" />, keywords: [] },
@@ -152,17 +154,31 @@ export default function PurchaserDocumentsTab({
     }
 
     // Category filter
-    if (selectedCategory === 'important') {
-      // Filter for important documents
+    if (selectedCategory === 'mustread') {
+      filtered = filtered.filter(doc => doc.must_read);
+    } else if (selectedCategory === 'important') {
       filtered = filtered.filter(doc => doc.is_important);
     } else if (selectedCategory !== 'all') {
-      // Use metadata.category field for other categories
       filtered = filtered.filter(doc => {
         const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
         const categoryLabel = CATEGORIES.find(c => c.id === selectedCategory)?.label.toLowerCase() || '';
         return docCategory === categoryLabel;
       });
     }
+
+    // Sort: must_read first, then is_important, then by created_at (newest first)
+    filtered = [...filtered].sort((a, b) => {
+      // Must read documents first
+      if (a.must_read && !b.must_read) return -1;
+      if (!a.must_read && b.must_read) return 1;
+      
+      // Then important documents
+      if (a.is_important && !b.is_important) return -1;
+      if (!a.is_important && b.is_important) return 1;
+      
+      // Then by created_at (newest first)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
     return filtered;
   };
@@ -186,6 +202,7 @@ export default function PurchaserDocumentsTab({
   // Get document counts per category
   const getCategoryCount = (categoryId: string) => {
     if (categoryId === 'all') return documents.length;
+    if (categoryId === 'mustread') return documents.filter(doc => doc.must_read).length;
     if (categoryId === 'important') return documents.filter(doc => doc.is_important).length;
     
     const categoryLabel = CATEGORIES.find(c => c.id === categoryId)?.label.toLowerCase() || '';
@@ -194,8 +211,6 @@ export default function PurchaserDocumentsTab({
       return docCategory === categoryLabel;
     }).length;
   };
-
-  const importantDocs = documents.filter(doc => doc.is_important).sort((a, b) => (a.important_rank || 999) - (b.important_rank || 999));
 
   return (
     <div className={`flex flex-col h-full ${bgColor}`}>
@@ -218,23 +233,33 @@ export default function PurchaserDocumentsTab({
         <div className="flex gap-2 min-w-max">
           {CATEGORIES.map(cat => {
             const count = getCategoryCount(cat.id);
+            const isMustRead = cat.id === 'mustread';
+            const isImportant = cat.id === 'important';
+            
+            let buttonStyle = '';
+            if (selectedCategory === cat.id) {
+              buttonStyle = isMustRead 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md'
+                : 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md';
+            } else if (isMustRead) {
+              buttonStyle = isDarkMode
+                ? 'bg-red-900/20 text-red-400 hover:bg-red-900/30 border border-red-500/30'
+                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200';
+            } else if (isImportant) {
+              buttonStyle = isDarkMode
+                ? 'bg-gold-900/20 text-gold-400 hover:bg-gold-900/30 border border-gold-500/30'
+                : 'bg-gold-50 text-gold-700 hover:bg-gold-100 border border-gold-200';
+            } else {
+              buttonStyle = isDarkMode
+                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+            }
+            
             return (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  cat.id === 'important'
-                    ? selectedCategory === cat.id
-                      ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
-                      : isDarkMode
-                        ? 'bg-gold-900/20 text-gold-400 hover:bg-gold-900/30 border border-gold-500/30'
-                        : 'bg-gold-50 text-gold-700 hover:bg-gold-100 border border-gold-200'
-                    : selectedCategory === cat.id
-                      ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
-                      : isDarkMode
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${buttonStyle}`}
               >
                 {cat.icon}
                 <span>{cat.label}</span>
@@ -267,46 +292,67 @@ export default function PurchaserDocumentsTab({
       ) : (
         <div className="flex-1 overflow-y-auto p-4">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDocs.map((doc) => (
-              <div
-                key={doc.id}
-                className={`${doc.is_important ? (isDarkMode ? 'bg-gold-900/10 border-gold-500/30' : 'bg-gold-50 border-gold-200') : cardBg} border rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group relative`}
-                onClick={() => handleDownload(doc)}
-              >
-                {doc.is_important && (
-                  <div className="absolute top-2 right-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gold-500 text-white shadow-sm">
-                      IMPORTANT
+            {filteredDocs.map((doc) => {
+              const hasBadge = doc.must_read || doc.is_important;
+              const cardStyle = doc.must_read 
+                ? (isDarkMode ? 'bg-red-900/10 border-red-500/30' : 'bg-red-50 border-red-200')
+                : doc.is_important 
+                  ? (isDarkMode ? 'bg-gold-900/10 border-gold-500/30' : 'bg-gold-50 border-gold-200')
+                  : cardBg;
+              const iconBg = doc.must_read
+                ? 'bg-gradient-to-br from-red-200 to-red-300'
+                : doc.is_important 
+                  ? 'bg-gradient-to-br from-gold-200 to-gold-300' 
+                  : 'bg-gradient-to-br from-gold-100 to-gold-200';
+              
+              return (
+                <div
+                  key={doc.id}
+                  className={`${cardStyle} border rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group relative`}
+                  onClick={() => handleDownload(doc)}
+                >
+                  {hasBadge && (
+                    <div className="absolute top-2 right-2 flex flex-col gap-1">
+                      {doc.must_read && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white shadow-sm">
+                          MUST READ
+                        </span>
+                      )}
+                      {doc.is_important && !doc.must_read && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gold-500 text-white shadow-sm">
+                          IMPORTANT
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`p-2 ${iconBg} rounded-lg flex-shrink-0`}>
+                      {getFileIcon(doc.file_type)}
+                    </div>
+                    <div className="flex-1 min-w-0 pr-20">
+                      <h3 className={`text-sm font-semibold ${textColor} line-clamp-2 group-hover:text-gold-600 transition-colors`}>
+                        {doc.title}
+                      </h3>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      {new Date(doc.created_at).toLocaleDateString()}
                     </span>
-                  </div>
-                )}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className={`p-2 ${doc.is_important ? 'bg-gradient-to-br from-gold-200 to-gold-300' : 'bg-gradient-to-br from-gold-100 to-gold-200'} rounded-lg flex-shrink-0`}>
-                    {getFileIcon(doc.file_type)}
-                  </div>
-                  <div className="flex-1 min-w-0 pr-20">
-                    <h3 className={`text-sm font-semibold ${textColor} line-clamp-2 ${doc.is_important ? 'group-hover:text-gold-600' : 'group-hover:text-gold-600'} transition-colors`}>
-                      {doc.title}
-                    </h3>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownload(doc);
+                      }}
+                      className="p-2 rounded-lg bg-gradient-to-r from-gold-500 to-gold-600 text-white hover:from-gold-600 hover:to-gold-700 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {new Date(doc.created_at).toLocaleDateString()}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(doc);
-                    }}
-                    className="p-2 rounded-lg bg-gradient-to-r from-gold-500 to-gold-600 text-white hover:from-gold-600 hover:to-gold-700 transition-all"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
