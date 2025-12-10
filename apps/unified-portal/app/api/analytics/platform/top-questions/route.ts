@@ -34,14 +34,14 @@ export async function GET(request: Request) {
       LIMIT ${limit}
     `);
 
-    const data = (result.rows || []).map((row: any) => ({
+    const topQuestions = (result.rows || []).map((row: any) => ({
       topic: row.topic,
-      question: formatTopicAsLabel(row.topic || 'General Inquiry'),
+      question: row.sample_question || formatTopicAsLabel(row.topic || 'General Inquiry'),
       sample: row.sample_question,
       count: row.count,
     }));
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ topQuestions });
   } catch (error) {
     console.error('[API] /api/analytics/platform/top-questions error:', error);
     return NextResponse.json(
