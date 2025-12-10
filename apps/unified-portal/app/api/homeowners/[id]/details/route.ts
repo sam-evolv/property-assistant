@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
-import { units } from '@openhouse/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 
@@ -18,25 +17,27 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
 
-    const unit = await db.query.units.findFirst({
-      where: eq(units.id, id),
-      with: {
-        development: {
-          columns: {
-            id: true,
-            name: true,
-            address: true,
-            important_docs_version: true,
-          },
-        },
-      },
-    });
+    // Use raw SQL to fetch unit with development - avoids Drizzle relations issue
+    const unitResult = await db.execute(sql`
+      SELECT 
+        u.id, u.unit_number, u.resident_name, u.address, u.purchaser_name,
+        u.development_id, u.created_at, u.important_docs_agreed_version,
+        u.important_docs_agreed_at,
+        d.id as dev_id, d.name as dev_name, d.address as dev_address,
+        d.important_docs_version as dev_docs_version
+      FROM units u
+      LEFT JOIN developments d ON u.development_id = d.id
+      WHERE u.id = ${id}
+      LIMIT 1
+    `);
 
-    if (!unit) {
+    const unitRow = unitResult.rows[0] as any;
+
+    if (!unitRow) {
       return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
     }
 
-    const hasAccess = await canAccessDevelopment(adminContext, unit.development_id);
+    const hasAccess = await canAccessDevelopment(adminContext, unitRow.development_id);
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
@@ -96,20 +97,25 @@ export async function GET(
       engagementLevel = 'low';
     }
 
-    const residentName = unit.purchaser_name || unit.resident_name || 'Unassigned';
+    const residentName = unitRow.purchaser_name || unitRow.resident_name || 'Unassigned';
 
     return NextResponse.json({
       homeowner: {
-        id: unit.id,
+        id: unitRow.id,
         name: residentName,
-        house_type: unit.unit_number,
-        address: unit.address,
-        unique_qr_token: unit.id,
-        development_id: unit.development_id,
-        created_at: unit.created_at,
-        important_docs_agreed_version: unit.important_docs_agreed_version,
-        important_docs_agreed_at: unit.important_docs_agreed_at,
-        development: unit.development,
+        house_type: unitRow.unit_number,
+        address: unitRow.address,
+        unique_qr_token: unitRow.id,
+        development_id: unitRow.development_id,
+        created_at: unitRow.created_at,
+        important_docs_agreed_version: unitRow.important_docs_agreed_version,
+        important_docs_agreed_at: unitRow.important_docs_agreed_at,
+        development: {
+          id: unitRow.dev_id,
+          name: unitRow.dev_name,
+          address: unitRow.dev_address,
+          important_docs_version: unitRow.dev_docs_version,
+        },
       },
       activity: {
         total_messages: messageStats.total_messages,
