@@ -195,6 +195,13 @@ export async function GET(request: NextRequest) {
     const previousActive = (previousActiveResult.rows[0] as any)?.count || 0;
     const totalMessages = totalMessagesResult[0]?.count || 0;
     const previousMessages = previousMessagesResult[0]?.count || 0;
+    
+    // Debug logging
+    console.log('[Dashboard Debug] developmentId:', developmentId);
+    console.log('[Dashboard Debug] tenantId:', tenantId);
+    console.log('[Dashboard Debug] sevenDaysAgo:', sevenDaysAgo);
+    console.log('[Dashboard Debug] activeHomeownersResult:', JSON.stringify(activeHomeownersResult.rows));
+    console.log('[Dashboard Debug] activeHomeowners count:', activeHomeowners);
 
     const onboardingRate = totalUnits > 0 
       ? Math.round((registeredHomeowners / totalUnits) * 100) 

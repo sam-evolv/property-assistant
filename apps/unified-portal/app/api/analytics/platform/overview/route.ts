@@ -61,11 +61,12 @@ export async function GET() {
 
     const [msgCount, activeUsers, homeownerCount, developerCount] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0),
+      // Use user_id which contains unit UUID for purchaser portal chats (house_id is null)
       db.execute(sql`
-        SELECT COUNT(DISTINCT house_id)::int as count
+        SELECT COUNT(DISTINCT user_id)::int as count
         FROM messages
-        WHERE created_at >= ${sevenDaysAgo} AND house_id IS NOT NULL
-      `).then(r => r.rows[0]?.count || 0),
+        WHERE created_at >= ${sevenDaysAgo} AND user_id IS NOT NULL
+      `).then(r => (r.rows[0] as any)?.count || 0),
       db.select({ count: sql<number>`COUNT(*)::int` }).from(homeowners).then(r => r[0]?.count || 0),
       db.select({ count: sql<number>`COUNT(DISTINCT tenant_id)::int` }).from(admins).then(r => r[0]?.count || 0),
     ]);
