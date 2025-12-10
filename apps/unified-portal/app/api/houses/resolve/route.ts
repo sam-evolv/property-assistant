@@ -8,14 +8,15 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    let body;
+    let body: any = {};
+    
     try {
-      const text = await req.text();
-      body = text ? JSON.parse(text) : {};
-    } catch {
-      body = {};
+      body = await req.json();
+    } catch (e) {
+      console.log("[Resolve] Failed to parse body:", e);
     }
-    const token = body.token || body.unitId || body.unit_id;
+    
+    const token = body?.token || body?.unitId || body?.unit_id;
 
     if (!token) {
       console.log("[Resolve] No token provided");
@@ -32,18 +33,28 @@ export async function POST(req: Request) {
     }
 
     // Query by ID only - no project filter (UUIDs are unique)
+    // Also get unit_type and project info
     const { data: unit, error } = await supabase
       .from('units')
       .select(`
         id, 
-        address, 
-        purchaser_name, 
         project_id,
         unit_type_id,
+        address,
+        user_id,
+        purchaser_name,
+        handover_date,
         unit_types (
           name,
           floor_plan_pdf_url,
           specification_json
+        ),
+        projects (
+          id,
+          name,
+          address,
+          image_url,
+          organization_id
         )
       `)
       .eq('id', token)
@@ -60,17 +71,31 @@ export async function POST(req: Request) {
     }
 
     const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
+    const project = Array.isArray(unit.projects) ? unit.projects[0] : unit.projects;
 
     console.log("[Resolve] Found unit:", unit.id, "Purchaser:", unit.purchaser_name);
 
     return NextResponse.json({
       success: true,
       unitId: unit.id,
-      address: unit.address || 'Your Home',
+      tenantId: project?.organization_id || null,
+      developmentId: unit.project_id,
+      development_id: unit.project_id,
+      development_name: project?.name || 'Your Development',
+      development_code: '',
+      development_logo_url: project?.image_url || null,
+      development_system_instructions: '',
+      address: unit.address || project?.address || 'Your Home',
+      eircode: '',
       purchaserName: unit.purchaser_name || 'Homeowner',
-      projectId: unit.project_id,
+      user_id: unit.user_id,
+      project_id: unit.project_id,
       houseType: unitType?.name || null,
+      house_type: unitType?.name || null,
       floorPlanUrl: unitType?.floor_plan_pdf_url || null,
+      floor_plan_pdf_url: unitType?.floor_plan_pdf_url || null,
+      latitude: null,
+      longitude: null,
       specs: unitType?.specification_json || null,
     });
 

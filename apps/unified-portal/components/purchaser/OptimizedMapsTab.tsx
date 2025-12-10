@@ -47,17 +47,25 @@ const loadGoogleMapsScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     const win = window as any;
     
-    if (win.googleMapsLoaded && win.google?.maps) {
+    // Check if already loaded
+    if (win.google?.maps) {
+      win.googleMapsLoaded = true;
+      win.googleMapsLoading = false;
       resolve();
       return;
     }
 
-    if (win.googleMapsLoading) {
+    // Check if script element already exists
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      // Script exists but Maps not ready - wait for it
       let timeoutId: NodeJS.Timeout;
       const checkLoaded = setInterval(() => {
-        if (win.googleMapsLoaded && win.google?.maps) {
+        if (win.google?.maps) {
           clearInterval(checkLoaded);
           clearTimeout(timeoutId);
+          win.googleMapsLoaded = true;
+          win.googleMapsLoading = false;
           resolve();
         }
       }, 100);
