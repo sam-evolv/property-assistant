@@ -1,0 +1,43 @@
+You are working in my Longview Property Assistant repo in Replit. 
+
+Goal:
+Make the PURCHASER assistant feel like a friendly concierge or neighbour, not a stiff chatbot. It should feel more human, colloquial and warm, but still accurate and grounded in the estate data and docs.
+
+Scope:
+- Purchaser portal chat only.
+- Do not change the Developer Dashboard or Super Admin experience.
+- Do not change the underlying RAG or Supabase logic, just how responses are shaped and the system prompt.
+
+Tasks:
+
+1. Find the system prompt and config used for the purchaser chat assistant.
+   - Search for the API route that sends messages to OpenAI or any LLM.
+   - Likely in something like `app/api/chat`, `api/assistant`, or similar.
+   - Confirm it is the route used by the purchaser interface, not internal tools.
+
+2. Rewrite the system prompt so that:
+   - It behaves like a helpful on site concierge for the specific development.
+   - Tone: friendly, calm, practical, clear Irish English, no over the top hype.
+   - It should answer like a human assistant who knows the estate and the home, not like a generic chatbot.
+   - It can use small colloquial touches and reassuring language, but must stay concise and to the point.
+   - It should always prioritise accuracy over personality. If it is unsure, it should say so and offer next best steps.
+
+3. Greet only once:
+   - The assistant should use a friendly greeting the first time the user opens the chat.
+   - It must not repeat the full “welcome” intro and address every single time the user sends a new message.
+   - Implement a simple mechanism so that for each browser session or conversation, the full welcome appears at most once, then subsequent replies are straight answers.
+   - If there is already state for “firstMessage” or similar, reuse it. If not, add simple local state in the front end chat component.
+
+4. Answering style:
+   - For direct questions, reply in 2 to 5 short paragraphs at most, not huge essays.
+   - It should reference the user’s house type, address, or estate context when clearly useful, but avoid repeating the full address in every answer.
+   - Make sure it naturally uses headings or short bullet points only when it genuinely improves clarity, not by default.
+
+5. Run and test:
+   - Run the dev server, open the Purchaser portal as if you were a homeowner.
+   - Confirm:
+     - The first message gets a friendly welcome.
+     - Subsequent messages get straight, concise answers without repeating the welcome.
+     - The answers feel more like a human concierge and less like a robot, while still being accurate.
+
+Do not break any existing error handling, Supabase queries, or RLS logic. Report back in code comments if you have to make any assumptions.
