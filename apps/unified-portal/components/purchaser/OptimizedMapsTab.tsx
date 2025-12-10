@@ -45,62 +45,52 @@ const FILTER_CATEGORIES: FilterCategory[] = [
 
 const loadGoogleMapsScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const win = window as any;
-    
-    // Check if already loaded
-    if (win.google?.maps) {
-      win.googleMapsLoaded = true;
-      win.googleMapsLoading = false;
+    // Already loaded?
+    if (window.google?.maps?.Map) {
       resolve();
       return;
     }
 
-    // Check if script element already exists
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      reject(new Error('Missing Google Maps API key'));
+      return;
+    }
+
+    // Check if script already exists
     const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existingScript) {
-      // Script exists but Maps not ready - wait for it
-      let timeoutId: NodeJS.Timeout;
-      const checkLoaded = setInterval(() => {
-        if (win.google?.maps) {
-          clearInterval(checkLoaded);
-          clearTimeout(timeoutId);
-          win.googleMapsLoaded = true;
-          win.googleMapsLoading = false;
+      // Wait for it to load
+      const checkInterval = setInterval(() => {
+        if (window.google?.maps?.Map) {
+          clearInterval(checkInterval);
           resolve();
         }
       }, 100);
       
-      timeoutId = setTimeout(() => {
-        clearInterval(checkLoaded);
-        win.googleMapsLoading = false;
-        reject(new Error('Google Maps load timeout'));
+      // Timeout after 15 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!window.google?.maps?.Map) {
+          reject(new Error('Google Maps timeout'));
+        }
       }, 15000);
-      
       return;
     }
 
-    win.googleMapsLoading = true;
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      win.googleMapsLoading = false;
-      reject(new Error('Missing API key'));
-      return;
-    }
-
-    win.googleMapsCallback = () => {
-      win.googleMapsLoaded = true;
-      win.googleMapsLoading = false;
+    // Create global callback
+    const callbackName = 'initGoogleMaps_' + Date.now();
+    (window as any)[callbackName] = () => {
+      delete (window as any)[callbackName];
       resolve();
     };
 
+    // Load script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=googleMapsCallback`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
     script.async = true;
-    script.onerror = () => {
-      win.googleMapsLoading = false;
-      reject(new Error('Failed to load Google Maps'));
-    };
+    script.defer = true;
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
     document.head.appendChild(script);
   });
 };
@@ -192,22 +182,29 @@ export default function OptimizedMapsTab({
 
   useEffect(() => {
     if (!scriptLoaded || !mapRef.current) return;
-
-    const mapLat = latitude || 51.926500;
-    const mapLng = longitude || -8.453200;
-
+    
+    // Already have a map? Just update it
     if (mapInstanceRef.current) {
+      const mapLat = latitude || 53.2707;
+      const mapLng = longitude || -6.2728;
       mapInstanceRef.current.setOptions({
         styles: isDarkMode ? getDarkStyles() : getLightStyles(),
       });
       mapInstanceRef.current.setCenter({ lat: mapLat, lng: mapLng });
-      
       if (homeMarkerRef.current) {
         homeMarkerRef.current.setPosition({ lat: mapLat, lng: mapLng });
-        homeMarkerRef.current.setTitle(developmentName);
       }
       return;
     }
+
+    // Create new map
+    if (!window.google?.maps?.Map) {
+      setMapError(true);
+      return;
+    }
+
+    const mapLat = latitude || 53.2707;  // Default: Dublin
+    const mapLng = longitude || -6.2728;
 
     try {
       const map = new window.google.maps.Map(mapRef.current, {
@@ -236,15 +233,16 @@ export default function OptimizedMapsTab({
         animation: window.google.maps.Animation.DROP,
       });
 
-      const placesService = new window.google.maps.places.PlacesService(map);
+      // Places service for nearby search
+      if (window.google.maps.places) {
+        placesServiceRef.current = new window.google.maps.places.PlacesService(map);
+      }
       
       mapInstanceRef.current = map;
-      placesServiceRef.current = placesService;
       homeMarkerRef.current = homeMarker;
-
       setMapLoaded(true);
     } catch (error) {
-      console.error('[Maps] Error creating map:', error);
+      console.error('[Maps] Error:', error);
       setMapError(true);
     }
   }, [scriptLoaded, latitude, longitude, developmentName, isDarkMode]);
@@ -377,14 +375,18 @@ export default function OptimizedMapsTab({
     );
   }
 
-  if (!mapLoaded) {
-    return <MapSkeleton isDarkMode={isDarkMode} />;
-  }
-
   return (
     <div className={`h-full flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       <div className="relative flex-1">
+        {/* Always render the map container so mapRef is available for the Google Maps initialization */}
         <div ref={mapRef} className="absolute inset-0" />
+        
+        {/* Show loading overlay while map is loading */}
+        {!mapLoaded && (
+          <div className="absolute inset-0 z-10">
+            <MapSkeleton isDarkMode={isDarkMode} />
+          </div>
+        )}
         
         <div className="absolute bottom-4 left-0 right-0 px-4 z-10">
           <div className="overflow-x-auto pb-2 -mb-2">
