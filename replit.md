@@ -57,6 +57,27 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Purchaser Chat Streaming & Performance (December 2025)
+
+**Streaming responses for perceived faster performance:**
+
+**Backend (api/chat/route.ts):**
+- Converted to Server-Sent Events (SSE) streaming
+- Text appears progressively as OpenAI generates it
+- Metadata (drawing info) sent first, then text chunks, then done signal
+- Parallel execution of question topic extraction + drawing lookup
+- Liability override returns instant JSON (non-streaming) for safety
+
+**Frontend (PurchaserChatTab.tsx):**
+- Detects streaming vs JSON by content-type header
+- Uses ReadableStream reader to process SSE chunks
+- Updates message content progressively as chunks arrive
+- Handles metadata, text, done, and error message types
+
+**Performance Target:**
+- First text visible within 1-2 seconds (was ~3-5 seconds waiting for full response)
+- Typing indicator appears instantly on send
+
 ### Purchaser Chat Concierge Personality (December 2025)
 
 **Redesigned the purchaser chat assistant to feel like a friendly on-site concierge:**
