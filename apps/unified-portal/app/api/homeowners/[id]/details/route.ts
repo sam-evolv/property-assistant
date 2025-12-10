@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
-import { units, messages } from '@openhouse/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { units } from '@openhouse/db/schema';
+import { eq, sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 
@@ -52,16 +52,13 @@ export async function GET(
         FROM messages
         WHERE user_id = ${id}
       `),
-      db.select({
-        id: messages.id,
-        content: messages.content,
-        role: messages.role,
-        created_at: messages.created_at,
-      })
-      .from(messages)
-      .where(eq(messages.user_id, id))
-      .orderBy(desc(messages.created_at))
-      .limit(5),
+      db.execute(sql`
+        SELECT id, content, role, created_at
+        FROM messages
+        WHERE user_id = ${id}
+        ORDER BY created_at DESC
+        LIMIT 5
+      `),
       db.execute(sql`
         SELECT 
           id, unit_id, purchaser_name, agreed_at, ip_address, user_agent, 
@@ -82,6 +79,7 @@ export async function GET(
       last_message: statsRow?.last_message || null,
     };
 
+    const recentMessages = (recentMsgsResult.rows || []) as any[];
     const latestAgreement = agreementsRes.rows[0] as any || null;
 
     const sevenDaysAgo = new Date();
@@ -121,7 +119,7 @@ export async function GET(
         last_message: messageStats.last_message,
         is_active_this_week: isActiveThisWeek,
         engagement_level: engagementLevel,
-        recent_messages: recentMsgsResult.map(m => ({
+        recent_messages: recentMessages.map((m: any) => ({
           id: m.id,
           content: m.content?.substring(0, 150) + (m.content && m.content.length > 150 ? '...' : ''),
           role: m.role,
