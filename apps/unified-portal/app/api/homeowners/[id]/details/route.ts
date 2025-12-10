@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
-import { units, messages, purchaserAgreements, developments } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { units, messages } from '@openhouse/db/schema';
+import { eq, desc, sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 
@@ -62,11 +62,15 @@ export async function GET(
       .where(eq(messages.user_id, id))
       .orderBy(desc(messages.created_at))
       .limit(5),
-      db.select()
-        .from(purchaserAgreements)
-        .where(eq(purchaserAgreements.unit_id, id))
-        .orderBy(desc(purchaserAgreements.agreed_at))
-        .limit(1),
+      db.execute(sql`
+        SELECT 
+          id, unit_id, purchaser_name, agreed_at, ip_address, user_agent, 
+          important_docs_acknowledged, docs_version
+        FROM purchaser_agreements
+        WHERE unit_id = ${id}
+        ORDER BY agreed_at DESC
+        LIMIT 1
+      `),
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
@@ -78,7 +82,7 @@ export async function GET(
       last_message: statsRow?.last_message || null,
     };
 
-    const latestAgreement = agreementsRes[0] || null;
+    const latestAgreement = agreementsRes.rows[0] as any || null;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
