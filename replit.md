@@ -57,6 +57,39 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Homeowners Grid Redesign (December 2025)
+
+**Developer Portal - Enhanced Homeowner Management:**
+
+**Grid Layout (`/developer/homeowners`):**
+- Replaced table with responsive card grid (3 cols desktop, 2 tablet, 1 mobile)
+- Each card shows: name, development, house type, address, message count, last activity
+- Visual status badges for document acknowledgement (green = acknowledged, amber = pending)
+- Stats cards showing: total homeowners, acknowledged, pending, active this week
+- Search by name/address/house type
+- Filter by development and acknowledgement status
+- Sort by name, date added, last activity, or message count
+
+**Homeowner Detail Page (`/developer/homeowners/[id]`):**
+- Profile section with inline editing (name, house type, address, development)
+- Chat activity panel: total messages, user questions, AI responses, engagement level
+- Recent conversation preview (last 5 messages)
+- Must-read acknowledgement status with audit info (date, IP, device, documents)
+- QR code management: portal URL copy, QR download, portal preview link
+- Danger zone for homeowner deletion
+
+**Data Mapping Fix:**
+- Extracts Supabase unit ID from homeowner email (format: `unit-{uuid}@temp.local`)
+- Uses extracted unit ID to join with messages and purchaser_agreements tables
+- Enables accurate activity tracking and acknowledgement status
+
+**GDPR Compliance:**
+- Email fields removed from all views (list, detail, new, edit forms)
+- No personal email addresses displayed or collected
+
+**UK/Ireland English:**
+- "Unauthorised", "Acknowledgement", date format "en-GB" used throughout
+
 ### Purchaser Chat Streaming & Performance (December 2025)
 
 **Streaming responses for perceived faster performance:**
