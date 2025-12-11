@@ -340,14 +340,24 @@ export default function OptimizedMapsTab({
               const lng = place.geometry.location.lng();
               const infoWindow = new window.google.maps.InfoWindow({
                 content: `
-                  <div style="padding: 12px; font-family: system-ui; max-width: 280px;">
-                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${place.name}</div>
-                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">${place.vicinity || ''}</div>
-                    ${place.rating ? `<div style="font-size: 12px; color: #F59E0B; margin-bottom: 8px;">⭐ ${place.rating}</div>` : ''}
+                  <div style="padding: 16px 18px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 300px; min-width: 220px;">
+                    <div style="font-weight: 700; font-size: 16px; color: #1f2937; margin-bottom: 6px; line-height: 1.3;">${place.name}</div>
+                    <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px; line-height: 1.4;">${place.vicinity || ''}</div>
+                    ${place.rating ? `
+                      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 14px;">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 4px;">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </span>
+                        <span style="font-size: 14px; font-weight: 600; color: #d97706;">${place.rating}</span>
+                      </div>
+                    ` : '<div style="margin-bottom: 14px;"></div>'}
                     <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" 
                        target="_blank" rel="noopener noreferrer"
-                       style="display: inline-block; padding: 8px 16px; background: linear-gradient(to right, #F59E0B, #D97706); 
-                              color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                       style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; 
+                              background: linear-gradient(135deg, #f59e0b, #d97706); 
+                              color: white; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+                              box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35); transition: all 0.2s; width: 100%; text-align: center;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
                       Navigate
                     </a>
                   </div>
@@ -436,32 +446,40 @@ export default function OptimizedMapsTab({
       </div>
 
       {locations.length > 0 && (
-        <div className={`max-h-48 overflow-y-auto border-t ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-          {locations.slice(0, 5).map((place, idx) => (
+        <div className={`max-h-56 overflow-y-auto border-t ${isDarkMode ? 'border-gray-700 bg-gray-800/95' : 'border-gray-200 bg-white/95'} backdrop-blur-sm`}>
+          {locations.slice(0, 8).map((place, idx) => (
             <a
               key={place.place_id || idx}
               href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center gap-3 p-3 border-b last:border-b-0 ${
-                isDarkMode ? 'border-gray-700 hover:bg-gray-700' : 'border-gray-100 hover:bg-gray-50'
+              className={`flex items-center gap-4 px-4 py-3.5 border-b last:border-b-0 transition-all duration-150 ${
+                isDarkMode 
+                  ? 'border-gray-700/60 hover:bg-gray-700/80 active:bg-gray-600' 
+                  : 'border-gray-100 hover:bg-gold-50/50 active:bg-gold-100/50'
               }`}
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                <MapPin className="w-5 h-5 text-gold-500" />
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${
+                isDarkMode 
+                  ? 'bg-gradient-to-br from-gold-500/20 to-gold-600/10 border border-gold-500/30' 
+                  : 'bg-gradient-to-br from-gold-50 to-gold-100 border border-gold-200'
+              }`}>
+                <MapPin className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`font-medium text-sm truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <p className={`font-semibold text-sm truncate leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   {place.name}
                 </p>
-                <p className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p className={`text-xs truncate mt-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   {place.vicinity}
                 </p>
               </div>
               {place.rating && (
-                <div className="flex items-center gap-1 text-xs text-gold-500">
-                  <Star className="w-3 h-3 fill-gold-500" />
-                  {place.rating}
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${
+                  isDarkMode ? 'bg-gold-500/20' : 'bg-gold-50 border border-gold-200'
+                }`}>
+                  <Star className={`w-3.5 h-3.5 ${isDarkMode ? 'text-gold-400 fill-gold-400' : 'text-gold-500 fill-gold-500'}`} />
+                  <span className={`text-xs font-semibold ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`}>{place.rating}</span>
                 </div>
               )}
             </a>
