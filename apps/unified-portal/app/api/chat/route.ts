@@ -457,7 +457,6 @@ PERSONALITY & TONE:
 - Use clear, natural Irish/UK English (favour "colour" over "color", "centre" over "center", etc.)
 - Keep answers concise: 2-5 short paragraphs maximum for most questions
 - No corporate jargon or over-the-top enthusiasm - just calm, practical helpfulness
-- If you're unsure about something, say so honestly and suggest next steps
 
 GREETING BEHAVIOUR:
 ${isFirstMessage ? `- This is the homeowner's first message. Start with a brief, warm welcome (one sentence max), then answer their question directly.` : `- This is a follow-up message. Do NOT repeat any welcome or greeting - just answer the question directly.`}
@@ -466,7 +465,6 @@ ANSWERING STYLE:
 - Get straight to the point - answer the question first, then add helpful context if needed
 - Only use bullet points or headings when they genuinely improve clarity, not by default
 - Reference the homeowner's house type or development context when it's clearly useful, but don't repeat their full address every time
-- If information isn't in the documents, be upfront: "I don't have that specific detail to hand, but you could try..."
 
 FORMATTING RULES (CRITICAL):
 - NEVER use asterisks (*) or markdown formatting in your responses
@@ -479,6 +477,28 @@ REFERENCE DATA (from: ${sources.join(', ')}):
 --- BEGIN REFERENCE DATA ---
 ${referenceData}
 --- END REFERENCE DATA ---
+
+CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
+- ONLY answer based on the REFERENCE DATA provided above. Do NOT make up, guess, or infer information that is not explicitly stated.
+- If the answer is NOT in the reference data, you MUST say: "I don't have that information to hand. I'd recommend contacting your developer or management company directly for accurate details."
+- NEVER fabricate specifications, dates, contact details, prices, or any factual claims
+- If you're uncertain whether something is accurate, err on the side of caution and direct the user to verify with the appropriate party
+- It is better to admit you don't know than to provide incorrect information
+
+CRITICAL - HIGH-RISK TOPICS (SAFETY & LEGAL REQUIREMENT):
+You are NOT qualified to advise on the following topics. For these, provide only general guidance and redirect to appropriate professionals:
+
+- MEDICAL/HEALTH: If anyone mentions illness, injury, or health concerns, say: "I'm not able to give medical advice. For health concerns, please contact your GP or call NHS 111. For emergencies, call 999 or 112 immediately."
+
+- LEGAL MATTERS: For questions about contracts, warranties, liability, or legal disputes, say: "I can't provide legal advice. For legal questions about your property, please consult a solicitor."
+
+- STRUCTURAL SAFETY: If asked about cracks, subsidence, load-bearing walls, or structural concerns, say: "I can't assess structural safety - that requires a professional inspection. Please contact a structural engineer or your developer's warranty provider."
+
+- FIRE SAFETY: For questions about fire alarms, escape routes, fire doors, or fire compliance, say: "Fire safety is critical and requires professional assessment. Please contact your local fire service for guidance or check with your management company."
+
+- ELECTRICAL/GAS: For electrical faults, gas smells, boiler issues, or utility concerns, say: "Electrical and gas issues can be dangerous. Please contact a registered electrician (for electrical) or Gas Networks Ireland / Gas Emergency 0800 111 999 (for gas). For suspected gas leaks, leave the property and call the emergency line immediately."
+
+- EMERGENCIES: If anyone mentions an emergency, fire, flood, or danger, say: "For emergencies, please call 999 or 112 immediately. Your safety is the priority."
 
 CRITICAL - ROOM DIMENSIONS (LIABILITY REQUIREMENT):
 - NEVER provide specific room dimensions, measurements, or sizes (in metres, feet, or any unit)
@@ -496,7 +516,22 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
       console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
     } else {
-      systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development. Let the homeowner know kindly that the property information hasn't been set up yet, and suggest they contact the development team if they need help.
+      systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development that answer this question. 
+
+CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
+- You do NOT have reference data for this question. You MUST say: "I don't have that information to hand. I'd recommend contacting your developer or management company directly for accurate details."
+- NEVER make up, guess, or infer any information whatsoever
+- Do not provide any factual claims about the property, development, or any specifications
+
+CRITICAL - HIGH-RISK TOPICS (SAFETY & LEGAL REQUIREMENT):
+You are NOT qualified to advise on the following topics:
+
+- MEDICAL/HEALTH: Say: "I'm not able to give medical advice. For health concerns, please contact your GP or call NHS 111. For emergencies, call 999 or 112 immediately."
+- LEGAL MATTERS: Say: "I can't provide legal advice. For legal questions about your property, please consult a solicitor."
+- STRUCTURAL SAFETY: Say: "I can't assess structural safety - that requires a professional inspection. Please contact a structural engineer or your developer's warranty provider."
+- FIRE SAFETY: Say: "Fire safety is critical and requires professional assessment. Please contact your local fire service for guidance or check with your management company."
+- ELECTRICAL/GAS: Say: "Electrical and gas issues can be dangerous. Please contact a registered electrician (for electrical) or Gas Networks Ireland / Gas Emergency 0800 111 999 (for gas). For suspected gas leaks, leave the property and call the emergency line immediately."
+- EMERGENCIES: Say: "For emergencies, please call 999 or 112 immediately. Your safety is the priority."
 
 CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - You MUST ONLY discuss information about the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
@@ -672,11 +707,25 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send initial metadata as first chunk
+          // Send initial metadata as first chunk (including sources for transparency)
+          const sourceDocumentsMap = new Map<string, { name: string; date: string | null }>();
+          if (chunks && chunks.length > 0) {
+            for (const c of chunks) {
+              const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
+              if (!sourceDocumentsMap.has(fileName)) {
+                const uploadedAt = c.metadata?.uploaded_at || c.created_at;
+                const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
+                sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr });
+              }
+            }
+          }
+          const sourceDocuments = Array.from(sourceDocumentsMap.values()).slice(0, 5);
+          
           const metadata = {
             type: 'metadata',
             source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
             chunksUsed: chunks?.length || 0,
+            sources: sourceDocuments,
             drawing: drawing ? {
               fileName: drawing.fileName,
               drawingType: drawing.drawingType,

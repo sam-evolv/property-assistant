@@ -1151,3 +1151,27 @@ export const faqEntries = pgTable('faq_entries', {
   topicIdx: index('faq_entries_topic_idx').on(table.topic),
   tenantDevStatusIdx: index('faq_entries_tenant_dev_status_idx').on(table.tenant_id, table.development_id, table.status),
 }));
+
+// Information requests - knowledge gap tickets submitted by homeowners when AI can't answer
+export const informationRequests = pgTable('information_requests', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  unit_id: uuid('unit_id'),
+  question: text('question').notNull(),
+  context: text('context'),
+  status: varchar('status', { length: 20 }).default('pending').notNull(),
+  response: text('response'),
+  responded_by: uuid('responded_by').references(() => admins.id),
+  topic: varchar('topic', { length: 100 }),
+  priority: varchar('priority', { length: 20 }).default('normal'),
+  resolved_at: timestamp('resolved_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('info_requests_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('info_requests_development_idx').on(table.development_id),
+  statusIdx: index('info_requests_status_idx').on(table.status),
+  tenantDevStatusIdx: index('info_requests_tenant_dev_status_idx').on(table.tenant_id, table.development_id, table.status),
+  createdAtIdx: index('info_requests_created_at_idx').on(table.created_at),
+}));

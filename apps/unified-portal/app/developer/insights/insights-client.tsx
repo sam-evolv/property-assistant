@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, TrendingUp, CheckCircle2, HelpCircle, Upload, Plus, ArrowLeft, MessageSquare, Eye } from 'lucide-react';
+import { AlertCircle, TrendingUp, CheckCircle2, HelpCircle, Upload, Plus, ArrowLeft, MessageSquare, Eye, Inbox, Send, X } from 'lucide-react';
 
 interface Question {
   question: string;
@@ -16,6 +16,17 @@ interface KnowledgeGap {
   suggestedAction: 'upload_manual' | 'add_faq' | 'document_process';
   category?: string;
   status?: 'pending' | 'in_progress' | 'resolved';
+}
+
+interface InfoRequest {
+  id: string;
+  question: string;
+  context: string | null;
+  status: string;
+  response: string | null;
+  topic: string | null;
+  created_at: string;
+  resolved_at: string | null;
 }
 
 interface InsightsData {
@@ -38,7 +49,13 @@ interface InsightsClientProps {
 export default function InsightsClient({ tenantId }: InsightsClientProps) {
   const [data, setData] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'faq' | 'gaps'>('faq');
+  const [activeTab, setActiveTab] = useState<'faq' | 'gaps' | 'requests'>('requests');
+  const [infoRequests, setInfoRequests] = useState<InfoRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<InfoRequest | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [addToKnowledge, setAddToKnowledge] = useState(true);
 
   useEffect(() => {
     const loadInsights = async () => {
@@ -93,6 +110,67 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
 
     loadInsights();
   }, [tenantId]);
+
+  // Fetch information requests
+  useEffect(() => {
+    const loadInfoRequests = async () => {
+      try {
+        setRequestsLoading(true);
+        const res = await fetch('/api/information-requests');
+        if (res.ok) {
+          const data = await res.json();
+          setInfoRequests(data.requests || []);
+        }
+      } catch (error) {
+        console.error('Failed to load information requests:', error);
+      } finally {
+        setRequestsLoading(false);
+      }
+    };
+
+    loadInfoRequests();
+  }, []);
+
+  // Refresh requests after closing modal
+  const refreshRequests = async () => {
+    try {
+      const res = await fetch('/api/information-requests');
+      if (res.ok) {
+        const data = await res.json();
+        setInfoRequests(data.requests || []);
+      }
+    } catch (error) {
+      console.error('Failed to refresh requests:', error);
+    }
+  };
+
+  // Submit response and optionally add to knowledge base
+  const handleSubmitResponse = async () => {
+    if (!selectedRequest || !responseText.trim()) return;
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/information-requests/${selectedRequest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          response: responseText.trim(),
+          status: 'resolved',
+          addToKnowledgeBase: addToKnowledge,
+        }),
+      });
+
+      if (res.ok) {
+        setSelectedRequest(null);
+        setResponseText('');
+        await refreshRequests();
+      }
+    } catch (error) {
+      console.error('Failed to submit response:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const getSuggestedActionIcon = (action: string) => {
     switch (action) {
@@ -247,6 +325,24 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
                 Knowledge Gaps
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`px-4 py-3 font-medium border-b-2 transition ${
+                activeTab === 'requests'
+                  ? 'border-gold-500 text-gold-500'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Inbox className="w-4 h-4" />
+                Information Requests
+                {infoRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                    {infoRequests.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
+              </div>
+            </button>
           </div>
 
           {/* FAQ Tab: Top Recurring Questions */}
@@ -345,12 +441,163 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
             </div>
           )}
 
+          {/* Information Requests Tab */}
+          {activeTab === 'requests' && (
+            <div className="space-y-4">
+              <p className={`${secondaryText} text-sm`}>
+                Questions submitted by homeowners when the AI couldn&apos;t find an answer. 
+                Add responses here to help future residents and improve the knowledge base.
+              </p>
+              
+              {requestsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : infoRequests.length > 0 ? (
+                <div className="space-y-4">
+                  {infoRequests.map((req) => (
+                    <div 
+                      key={req.id} 
+                      className={`rounded-lg border p-6 backdrop-blur-sm transition hover:shadow-md ${
+                        req.status === 'resolved' 
+                          ? 'bg-green-50 border-green-200' 
+                          : 'bg-white border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              req.status === 'resolved' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {req.status === 'resolved' ? 'Resolved' : 'Pending'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(req.created_at).toLocaleDateString('en-GB', { 
+                                day: 'numeric', 
+                                month: 'short', 
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <h3 className={`text-sm font-semibold ${textColor} mb-2`}>{req.question}</h3>
+                          {req.response && (
+                            <div className="mt-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
+                              <p className="text-xs font-medium text-gray-500 mb-1">Response:</p>
+                              <p className="text-sm text-gray-700">{req.response}</p>
+                            </div>
+                          )}
+                        </div>
+                        {req.status !== 'resolved' && (
+                          <button
+                            onClick={() => {
+                              setSelectedRequest(req);
+                              setResponseText('');
+                              setAddToKnowledge(true);
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-white hover:bg-gold-600 transition font-medium text-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add Answer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
+                  <Inbox className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className={`font-semibold ${textColor}`}>No information requests yet</p>
+                  <p className={`${secondaryText} text-sm mt-1`}>When homeowners ask questions the AI can&apos;t answer, they&apos;ll appear here</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Info Notice */}
           <div className={`rounded-lg border p-4 bg-gold-50/50 border-gold-200 text-xs text-gold-600`}>
-            <span className="font-semibold">💡 Tip:</span> Use this data to identify content gaps and improve your knowledge base. Upload FAQs, manuals, or documentation to reduce unanswered questions.
+            <span className="font-semibold">Tip:</span> Use this data to identify content gaps and improve your knowledge base. Upload FAQs, manuals, or documentation to reduce unanswered questions.
           </div>
         </div>
       </div>
+
+      {/* Add Answer Modal */}
+      {selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Add Answer</h3>
+              <button
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setResponseText('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Question</label>
+                <p className="p-3 rounded-lg bg-gray-50 text-sm text-gray-800">{selectedRequest.question}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Your Answer</label>
+                <textarea
+                  value={responseText}
+                  onChange={(e) => setResponseText(e.target.value)}
+                  placeholder="Type your answer here..."
+                  rows={5}
+                  className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
+                />
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="addToKnowledge"
+                  checked={addToKnowledge}
+                  onChange={(e) => setAddToKnowledge(e.target.checked)}
+                  className="w-4 h-4 text-gold-500 rounded border-gray-300 focus:ring-gold-500"
+                />
+                <label htmlFor="addToKnowledge" className="text-sm text-gray-700">
+                  Add this answer to the AI knowledge base so it can answer similar questions automatically
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setResponseText('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitResponse}
+                disabled={!responseText.trim() || submitting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-white hover:bg-gold-600 transition font-medium text-sm disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                {submitting ? 'Saving...' : 'Save Answer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Home, Mic, Send, FileText, Download, Eye } from 'lucide-react';
+import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
 // Animation styles for typing indicator and logo hover
 const ANIMATION_STYLES = `
@@ -64,6 +64,129 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   </div>
 );
 
+const SourcesDropdown = ({ 
+  sources, 
+  isDarkMode 
+}: { 
+  sources: SourceDocument[]; 
+  isDarkMode: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  if (!sources || sources.length === 0) return null;
+  
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-1 text-xs transition-colors ${
+          isDarkMode 
+            ? 'text-gray-500 hover:text-gray-400' 
+            : 'text-gray-400 hover:text-gray-600'
+        }`}
+      >
+        <Info className="h-3 w-3" />
+        <span>Sources</span>
+        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+      
+      {isOpen && (
+        <div className={`mt-2 rounded-lg border p-2 text-xs ${
+          isDarkMode 
+            ? 'border-gray-700 bg-gray-800/50' 
+            : 'border-gray-200 bg-gray-50'
+        }`}>
+          <p className={`mb-1 font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Based on:
+          </p>
+          <ul className="space-y-1">
+            {sources.map((source, idx) => (
+              <li key={idx} className={`flex items-start gap-1.5 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <FileText className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                <span>
+                  {source.name}
+                  {source.date && <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}> ({source.date})</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RequestInfoButton = ({ 
+  question,
+  unitId,
+  isDarkMode,
+  onSubmitted,
+}: { 
+  question: string;
+  unitId: string;
+  isDarkMode: boolean;
+  onSubmitted: () => void;
+}) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  
+  const handleSubmit = async () => {
+    if (submitting || submitted) return;
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/information-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          unitId,
+          context: 'Submitted from chat when AI could not answer',
+        }),
+      });
+      
+      if (res.ok) {
+        setSubmitted(true);
+        onSubmitted();
+      }
+    } catch (error) {
+      console.error('Failed to submit request:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  if (submitted) {
+    return (
+      <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+        isDarkMode 
+          ? 'bg-green-900/30 text-green-400' 
+          : 'bg-green-50 text-green-700'
+      }`}>
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+        <span>Request submitted - the team will add this info</span>
+      </div>
+    );
+  }
+  
+  return (
+    <button
+      onClick={handleSubmit}
+      disabled={submitting}
+      className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+        isDarkMode
+          ? 'bg-gold-600/20 text-gold-400 hover:bg-gold-600/30'
+          : 'bg-gold-100 text-gold-700 hover:bg-gold-200'
+      } disabled:opacity-50`}
+    >
+      <AlertCircle className="h-4 w-4" />
+      <span>{submitting ? 'Submitting...' : 'Request this information'}</span>
+    </button>
+  );
+};
+
 interface DrawingData {
   fileName: string;
   drawingType: string;
@@ -85,12 +208,19 @@ interface ClarificationData {
   options: ClarificationOption[];
 }
 
+interface SourceDocument {
+  name: string;
+  date: string | null;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   floorPlanUrl?: string | null;
   drawing?: DrawingData | null;
   clarification?: ClarificationData | null;
+  sources?: SourceDocument[] | null;
+  isNoInfo?: boolean;
 }
 
 interface PurchaserChatTabProps {
@@ -378,12 +508,13 @@ export default function PurchaserChatTab({
         const decoder = new TextDecoder();
         let streamedContent = '';
         let drawing: DrawingData | null = null;
+        let sources: SourceDocument[] | null = null;
         let assistantMessageIndex = -1;
 
         // Add placeholder assistant message immediately
         setMessages((prev) => {
           assistantMessageIndex = prev.length;
-          return [...prev, { role: 'assistant', content: '', drawing: null }];
+          return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
         });
 
         while (true) {
@@ -399,9 +530,12 @@ export default function PurchaserChatTab({
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'metadata') {
-                  // Received metadata with drawing info
+                  // Received metadata with drawing and source info
                   if (data.drawing) {
                     drawing = data.drawing;
+                  }
+                  if (data.sources && data.sources.length > 0) {
+                    sources = data.sources;
                   }
                 } else if (data.type === 'text') {
                   // Streaming text content
@@ -413,12 +547,17 @@ export default function PurchaserChatTab({
                         ...updated[assistantMessageIndex],
                         content: streamedContent,
                         drawing: drawing,
+                        sources: sources,
                       };
                     }
                     return updated;
                   });
                 } else if (data.type === 'done') {
-                  // Streaming complete - ensure final state
+                  // Streaming complete - detect if this is a "no info" response
+                  const isNoInfoResponse = streamedContent.toLowerCase().includes("i don't have that information") ||
+                    streamedContent.toLowerCase().includes("i don't have that specific detail") ||
+                    streamedContent.toLowerCase().includes("i'd recommend contacting your developer");
+                  
                   setMessages((prev) => {
                     const updated = [...prev];
                     if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
@@ -426,6 +565,8 @@ export default function PurchaserChatTab({
                         ...updated[assistantMessageIndex],
                         content: streamedContent,
                         drawing: drawing,
+                        sources: sources,
+                        isNoInfo: isNoInfoResponse,
                       };
                     }
                     return updated;
@@ -743,6 +884,21 @@ export default function PurchaserChatTab({
                           </button>
                         ))}
                       </div>
+                    )}
+                    
+                    {/* Sources dropdown for transparency */}
+                    {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                      <SourcesDropdown sources={msg.sources} isDarkMode={isDarkMode} />
+                    )}
+                    
+                    {/* Request info button when AI doesn't have the answer */}
+                    {msg.role === 'assistant' && msg.isNoInfo && idx > 0 && messages[idx - 1]?.role === 'user' && (
+                      <RequestInfoButton 
+                        question={messages[idx - 1].content}
+                        unitId={unitUid}
+                        isDarkMode={isDarkMode}
+                        onSubmitted={() => {}}
+                      />
                     )}
                   </div>
                 </div>
