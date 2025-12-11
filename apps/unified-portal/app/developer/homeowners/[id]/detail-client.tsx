@@ -199,8 +199,8 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
   }
 
   function getQRPortalUrl() {
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/homes/${homeownerId}`;
+    if (typeof window !== 'undefined' && data?.homeowner.unique_qr_token) {
+      return `${window.location.origin}/homes/${data.homeowner.unique_qr_token}`;
     }
     return '';
   }
