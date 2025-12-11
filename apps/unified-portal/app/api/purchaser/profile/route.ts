@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
         u.city,
         u.eircode,
         u.floor_area_m2,
-        u.bedrooms as unit_bedrooms,
-        u.bathrooms as unit_bathrooms,
+        u.bedrooms,
+        u.bathrooms,
         u.development_id,
         u.purchaser_name as unit_purchaser_name,
         d.name as development_name,
@@ -45,8 +45,6 @@ export async function GET(request: NextRequest) {
         h.address as homeowner_address,
         h.id as homeowner_id,
         ht.name as house_type_name,
-        ht.bedrooms as ht_bedrooms,
-        ht.bathrooms as ht_bathrooms,
         ht.total_floor_area_sqm as house_type_floor_area
       FROM units u
       LEFT JOIN developments d ON u.development_id = d.id
@@ -137,9 +135,9 @@ export async function GET(request: NextRequest) {
     // Get purchaser name - prefer homeowner record, then unit record
     const purchaserName = unit.homeowner_name || unit.unit_purchaser_name || 'Homeowner';
 
-    // Get bedrooms/bathrooms - prefer unit, then house type
-    const bedrooms = unit.unit_bedrooms || unit.ht_bedrooms;
-    const bathrooms = unit.unit_bathrooms || unit.ht_bathrooms;
+    // Get bedrooms/bathrooms from unit
+    const bedrooms = unit.bedrooms;
+    const bathrooms = unit.bathrooms;
 
     // Build response
     const profile = {
