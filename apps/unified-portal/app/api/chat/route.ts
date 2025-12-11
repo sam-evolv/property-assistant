@@ -285,9 +285,13 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Search Query:', message);
 
+    // Establish effective unit UID with fallback chain for drawing lookup
+    const effectiveUnitUid = validatedUnitUid || clientUnitUid || null;
+    console.log('[Chat] Effective unit UID for drawings:', effectiveUnitUid || 'none');
+
     // GDPR PROTECTION: Fetch user's unit details and check for questions about other units
-    const userUnitDetails = validatedUnitUid 
-      ? await getUserUnitDetails(validatedUnitUid)
+    const userUnitDetails = effectiveUnitUid 
+      ? await getUserUnitDetails(effectiveUnitUid)
       : { address: null, houseType: null };
     
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
@@ -508,9 +512,13 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     let drawing: ResolvedDrawing | null = null;
     let drawingExplanation = '';
     
+    // Check if this is an ambiguous dimension question that needs clarification
+    const isAmbiguousSizeQuestion = /\b(how\s*(big|large)|size|dimensions?)\s*(of|is)?\s*(my|the)?\s*(house|home|property)\b/i.test(message) ||
+      /\b(what|how)\s+.*(house|home|property)\s*.*(size|dimensions?|big|large)\b/i.test(message);
+    
     // Start drawing lookup in parallel with topic extraction
-    const drawingPromise = validatedUnitUid 
-      ? findDrawingForQuestion(validatedUnitUid, await questionTopicPromise).catch(err => {
+    const drawingPromise = effectiveUnitUid 
+      ? findDrawingForQuestion(effectiveUnitUid, await questionTopicPromise).catch(err => {
           console.error('[Chat] Error finding drawing:', err);
           return { found: false, drawing: null, explanation: '' };
         })
@@ -522,6 +530,50 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     ]);
 
     console.log('[Chat] Question topic:', questionTopic);
+    
+    // If question is ambiguous about internal vs external, offer clarification
+    if (isAmbiguousSizeQuestion && effectiveUnitUid) {
+      console.log('[Chat] Ambiguous size question detected - offering clarification');
+      
+      const clarificationResponse = "Would you like to see the internal floor plans (showing room layouts and dimensions) or the external elevations (showing the outside appearance of your home)?";
+      
+      // Save clarification interaction
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: clarificationResponse,
+          question_topic: 'clarification_needed',
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            unitUid: effectiveUnitUid,
+            clarificationType: 'drawing_type',
+          },
+        });
+      } catch (dbError) {
+        console.error('[Chat] Failed to save clarification message:', dbError);
+      }
+      
+      return NextResponse.json({
+        success: true,
+        answer: clarificationResponse,
+        source: 'clarification',
+        clarification: {
+          type: 'drawing_type',
+          options: [
+            { id: 'internal', label: 'Internal Floor Plans', description: 'Room layouts and dimensions' },
+            { id: 'external', label: 'External Elevations', description: 'Outside appearance of your home' },
+          ],
+        },
+      });
+    }
 
     if (drawingResult.found && drawingResult.drawing) {
       drawing = drawingResult.drawing;

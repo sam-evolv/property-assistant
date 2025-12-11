@@ -178,11 +178,12 @@ export function getDrawingTypeForQuestion(questionTopic: string): DrawingType[] 
   const dimensionTopics = [
     'living_room_size', 'kitchen_size', 'bedroom_size', 'bathroom_size',
     'floor_area', 'room_sizes', 'room_dimensions', 'house_layout',
+    'internal_floor_plans', 'floor_plans',
   ];
   
   // External appearance questions that benefit from elevation drawings
   const externalAppearanceTopics = [
-    'house_exterior', 'external_appearance',
+    'house_exterior', 'external_appearance', 'external_elevations', 'elevations',
   ];
   
   if (dimensionTopics.includes(questionTopic)) {

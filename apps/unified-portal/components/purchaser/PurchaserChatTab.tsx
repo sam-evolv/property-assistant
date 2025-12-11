@@ -74,11 +74,23 @@ interface DrawingData {
   explanation: string;
 }
 
+interface ClarificationOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+interface ClarificationData {
+  type: string;
+  options: ClarificationOption[];
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   floorPlanUrl?: string | null;
   drawing?: DrawingData | null;
+  clarification?: ClarificationData | null;
 }
 
 interface PurchaserChatTabProps {
@@ -437,7 +449,7 @@ export default function PurchaserChatTab({
           }
         }
       } else {
-        // Handle non-streaming JSON response (liability override, errors)
+        // Handle non-streaming JSON response (liability override, clarification, errors)
         const data = await res.json();
 
         if (data.answer) {
@@ -448,6 +460,7 @@ export default function PurchaserChatTab({
               content: data.answer,
               floorPlanUrl: data.floorPlanUrl || null,
               drawing: data.drawing || null,
+              clarification: data.clarification || null,
             },
           ]);
         } else if (data.error) {
@@ -702,6 +715,34 @@ export default function PurchaserChatTab({
                         </svg>
                         View Floor Plan (PDF)
                       </a>
+                    )}
+                    
+                    {msg.clarification && msg.clarification.options && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {msg.clarification.options.map((option) => (
+                          <button
+                            key={option.id}
+                            onClick={() => {
+                              const followUp = option.id === 'internal' 
+                                ? 'Show me the internal floor plans please'
+                                : 'Show me the external elevations please';
+                              sendMessage(followUp);
+                            }}
+                            className={`flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-all ${
+                              isDarkMode
+                                ? 'border-gray-700 bg-gray-800/70 hover:border-gold-500 hover:bg-gray-800'
+                                : 'border-gray-200 bg-white hover:border-gold-400 hover:bg-gold-50'
+                            }`}
+                          >
+                            <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {option.label}
+                            </span>
+                            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {option.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

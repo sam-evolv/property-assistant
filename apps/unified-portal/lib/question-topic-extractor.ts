@@ -16,6 +16,8 @@ const EXACT_MATCH_TOPICS: Record<string, string[]> = {
   'local_amenities': ['amenities', 'shops', 'supermarket', 'transport', 'bus', 'train'],
   'planning_report': ['planning', 'planning report', 'permission'],
   'warranty_guarantee': ['warranty', 'guarantee', 'defect', 'snag', 'snagging'],
+  'internal_floor_plans': ['internal floor plan', 'floor plans please', 'internal layout', 'room layout'],
+  'external_elevations': ['external elevation', 'elevations please', 'outside appearance', 'external appearance', 'exterior view'],
 };
 
 const ROOM_SIZE_PATTERNS: Record<string, RegExp[]> = {
