@@ -779,7 +779,7 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col pb-16 md:pb-0">
           {/* USER MESSAGES - Pinned at top, not scrollable */}
           <div className={`shrink-0 px-4 pt-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
             <div className="mx-auto max-w-3xl flex flex-col gap-2">
@@ -932,9 +932,9 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* iMessage-Style Input Bar - Fixed at Bottom with Mobile Safe Area */}
+          {/* iMessage-Style Input Bar - Fixed at Bottom, above mobile nav */}
           <div 
-            className={`flex-shrink-0 border-t px-4 pt-3 pb-4 md:pb-4 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}
+            className={`shrink-0 border-t px-4 pt-3 pb-2 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}
           >
             <div className="mx-auto flex max-w-3xl items-center gap-2">
               {/* Home Button */}
@@ -1002,14 +1002,6 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
-            
-            {/* Safety Disclaimer */}
-            <p className={`mx-auto mt-2 max-w-3xl text-center text-[11px] leading-tight ${
-              isDarkMode ? 'text-gray-500' : 'text-gray-400'
-            }`}>
-              General guidance only, not professional safety or structural advice.
-              Always consult qualified professionals for electrical, gas, structural, or fire-related issues.
-            </p>
           </div>
         </div>
       )}
