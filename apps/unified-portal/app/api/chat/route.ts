@@ -752,26 +752,29 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         try {
           // Send initial metadata as first chunk (including sources for transparency)
           // IMPORTANT: Don't show sources for high-risk topics (safety redirects don't use documents)
-          // Also filter by similarity threshold to only show relevant sources
-          // Note: text-embedding-3-small typically returns lower raw similarities (0.3-0.6 range)
-          const SIMILARITY_THRESHOLD = 0.38; // Minimum similarity score to be considered relevant
-          const sourceDocumentsMap = new Map<string, { name: string; date: string | null }>();
+          // For normal queries, show the top 3 most relevant unique document sources
+          const sourceDocumentsMap = new Map<string, { name: string; date: string | null; similarity: number }>();
           
           // Skip sources entirely for high-risk safety topics (AI gives a redirect, not document-based answer)
           if (!highRiskCheck.isHighRisk && chunks && chunks.length > 0) {
+            // Only include chunks from the top sources - take unique documents from the top-scoring chunks
             for (const c of chunks) {
-              // Only include chunks above the similarity threshold
-              if (c.similarity && c.similarity >= SIMILARITY_THRESHOLD) {
-                const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
-                if (!sourceDocumentsMap.has(fileName)) {
-                  const uploadedAt = c.metadata?.uploaded_at || c.created_at;
-                  const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
-                  sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr });
-                }
+              const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
+              // Only add if we haven't seen this document, or if this chunk has higher similarity
+              if (!sourceDocumentsMap.has(fileName) || (c.similarity > sourceDocumentsMap.get(fileName)!.similarity)) {
+                const uploadedAt = c.metadata?.uploaded_at || c.created_at;
+                const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
+                sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr, similarity: c.similarity || 0 });
               }
+              // Stop after collecting from top chunks to avoid irrelevant sources
+              if (sourceDocumentsMap.size >= 3) break;
             }
           }
-          const sourceDocuments = Array.from(sourceDocumentsMap.values()).slice(0, 5);
+          // Sort by similarity and take top 3, removing the similarity field before sending
+          const sourceDocuments = Array.from(sourceDocumentsMap.values())
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 3)
+            .map(({ name, date }) => ({ name, date }));
           
           const metadata = {
             type: 'metadata',
