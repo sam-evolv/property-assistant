@@ -671,24 +671,24 @@ export default function PurchaserChatTab({
     <div className={`h-full flex flex-col ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
       {/* ChatGPT-Style Home Screen - No Scroll Layout */}
       {showHome && messages.length === 0 ? (
-        <div className="flex h-full flex-col">
-          {/* MAIN CONTENT (hero + pills) - Centered, Compact for Mobile */}
-          <div className="flex flex-1 flex-col items-center justify-center px-4 py-4 md:px-6 md:pb-6">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+          {/* MAIN CONTENT - Fixed layout, no scroll */}
+          <div className="flex flex-1 flex-col items-center justify-center px-5 pt-4 pb-2 min-h-0">
             {/* Premium Logo Section - Compact */}
             <style>{ANIMATION_STYLES}</style>
-            <div className="mb-4 md:mb-6 flex flex-col items-center">
-              {/* Logo Container with Elegant Shadow & Hover Float */}
-              <div className={`logo-container relative ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)] hover:drop-shadow-[0_0_50px_rgba(245,158,11,0.4)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:drop-shadow-[0_16px_48px_rgba(0,0,0,0.2)]'}`}>
+            <div className="mb-3 flex flex-col items-center">
+              {/* Logo Container with Elegant Shadow */}
+              <div className={`logo-container relative ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
                 <img 
                   src="/longview-logo.png" 
                   alt="Longview Estates" 
-                  className={`h-12 md:h-16 w-auto object-contain transition-all duration-300 ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                  className={`h-10 md:h-14 w-auto object-contain transition-all duration-300 ${isDarkMode ? 'brightness-0 invert' : ''}`}
                 />
               </div>
             </div>
 
-            {/* Welcome Headline - Slightly smaller on mobile */}
-            <h1 className={`text-center text-[18px] md:text-[20px] font-semibold leading-snug tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+            {/* Welcome Headline - Compact */}
+            <h1 className={`text-center text-[17px] md:text-[20px] font-semibold leading-tight tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
               {t.welcome.includes('or community') ? (
                 <>
                   {t.welcome.split('or community')[0]}
@@ -700,20 +700,20 @@ export default function PurchaserChatTab({
             </h1>
 
             {/* Subtitle */}
-            <p className={`mt-1.5 md:mt-2 text-center text-[12px] md:text-[13px] leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+            <p className={`mt-1 text-center text-[11px] md:text-[13px] leading-relaxed max-w-xs ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               {t.subtitle}
             </p>
 
-            {/* 2x2 Compact Pill Grid (No Emojis) - Tighter spacing on mobile */}
-            <div className="mt-4 md:mt-6 grid w-full max-w-md grid-cols-2 gap-2 md:gap-3">
+            {/* 2x2 Compact Pill Grid - Tight spacing */}
+            <div className="mt-3 grid w-full max-w-sm grid-cols-2 gap-2">
               {t.prompts.map((prompt: string, i: number) => (
                 <button
                   key={i}
                   onClick={() => handleQuickPrompt(prompt)}
-                  className={`flex items-center justify-center rounded-full px-2.5 py-1.5 md:px-3 md:py-2 text-[12px] md:text-[13px] font-medium transition-all duration-200 ${
+                  className={`flex items-center justify-center rounded-full px-2 py-2 text-[12px] font-medium transition-all duration-200 ${
                     isDarkMode 
-                      ? 'border border-gray-700 bg-gray-800/80 text-gray-200 shadow-[0_4px_10px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 hover:border-gold-400 hover:shadow-[0_10px_24px_rgba(0,0,0,0.3)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(0,0,0,0.25)]'
-                      : 'border border-slate-200 bg-white/80 text-slate-800 shadow-[0_4px_10px_rgba(15,23,42,0.06)] hover:-translate-y-0.5 hover:border-gold-400 hover:shadow-[0_10px_24px_rgba(15,23,42,0.16)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(15,23,42,0.14)]'
+                      ? 'border border-gray-700 bg-gray-800/80 text-gray-200 shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm'
                   }`}
                 >
                   {prompt}
@@ -722,8 +722,8 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* INPUT BAR - Fixed at Bottom (iMessage Style) - Compact on mobile */}
-          <div className={`flex-shrink-0 border-t px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-3 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          {/* INPUT BAR - Fixed at Bottom, safe area padding */}
+          <div className={`flex-shrink-0 border-t px-3 pt-2 pb-3 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
                 ? 'border-gray-700 bg-gray-900'
