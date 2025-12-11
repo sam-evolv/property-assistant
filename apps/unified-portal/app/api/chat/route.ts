@@ -757,6 +757,55 @@ export async function POST(request: NextRequest) {
     
     // Check if this is the first message in the conversation (for greeting logic)
     const isFirstMessage = conversationHistory.length === 0;
+    
+    // CAPABILITY EVALUATOR: Determine support level based on RAG quality
+    // This prevents the AI from offering follow-up help it cannot deliver
+    type SupportLevel = 'full' | 'partial' | 'none';
+    
+    const evaluateSupportLevel = (): SupportLevel => {
+      if (!chunks || chunks.length === 0) return 'none';
+      
+      const topSimilarity = chunks[0]?.similarity || 0;
+      const avgSimilarity = chunks.reduce((sum, c) => sum + (c.similarity || 0), 0) / chunks.length;
+      
+      // Full support: high confidence in top chunk AND good average
+      if (topSimilarity >= 0.45 && avgSimilarity >= 0.35) return 'full';
+      
+      // Partial support: some relevant info but not comprehensive
+      if (topSimilarity >= 0.30 && chunks.length >= 2) return 'partial';
+      
+      // Low support: marginal relevance
+      return 'none';
+    };
+    
+    const supportLevel = evaluateSupportLevel();
+    console.log('[Chat] Support level:', supportLevel, '(top similarity:', (chunks[0]?.similarity || 0).toFixed(3), ')');
+    
+    // Build capability-aware follow-up instruction
+    const getFollowUpInstruction = (): string => {
+      switch (supportLevel) {
+        case 'full':
+          return `FOLLOW-UP OFFERS:
+- You may offer to provide more specific details if you have comprehensive information in the reference data
+- Only offer follow-up help for topics where you have actual data to share
+- Example: "If you'd like more details about [specific topic from reference data], just ask!"`;
+        
+        case 'partial':
+          return `FOLLOW-UP OFFERS (LIMITED):
+- You have limited information on this topic
+- Do NOT offer to provide "specific recommendations", "detailed directions", or "particular suggestions" - you don't have that level of detail
+- If you cannot fully answer the question, acknowledge the limitation honestly
+- You may suggest the user contact the developer or management company for more details`;
+        
+        case 'none':
+        default:
+          return `FOLLOW-UP OFFERS (RESTRICTED):
+- You do NOT have sufficient information to offer any follow-up assistance on this topic
+- NEVER say phrases like "feel free to ask", "if you need specific recommendations", "just ask for more details"
+- State honestly that you don't have detailed information and redirect to developer/management company
+- Do not invite further questions about topics you cannot answer`;
+      }
+    };
 
     if (chunks && chunks.length > 0) {
       const referenceData = chunks
@@ -780,6 +829,8 @@ ANSWERING STYLE:
 - Get straight to the point - answer the question first, then add helpful context if needed
 - Only use bullet points or headings when they genuinely improve clarity, not by default
 - Reference the homeowner's house type or development context when it's clearly useful, but don't repeat their full address every time
+
+${getFollowUpInstruction()}
 
 FORMATTING RULES (CRITICAL):
 - NEVER use asterisks (*) or markdown formatting in your responses
@@ -871,6 +922,12 @@ CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - You do NOT have reference data for this question. You MUST say: "I don't have that information to hand. I'd recommend contacting your developer or management company directly for accurate details."
 - NEVER make up, guess, or infer any information whatsoever
 - Do not provide any factual claims about the property, development, or any specifications
+
+FOLLOW-UP OFFERS (STRICTLY FORBIDDEN):
+- You do NOT have information on this topic
+- NEVER say phrases like "feel free to ask", "if you need specific recommendations", "just ask for more details", or "I can help with..."
+- Do NOT invite further questions about topics you cannot answer
+- Simply acknowledge you don't have the information and redirect to the developer/management company
 
 CRITICAL - HIGH-RISK TOPICS (SAFETY & LEGAL REQUIREMENT):
 You are NOT qualified to advise on the following topics:
