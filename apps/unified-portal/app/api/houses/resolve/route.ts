@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { db } from '@openhouse/db';
+import { sql } from 'drizzle-orm';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -108,76 +110,139 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid unit identifier" }, { status: 400 });
     }
 
-    // Query by ID only - no project filter (UUIDs are unique)
-    // Also get unit_type and project info
-    const { data: unit, error } = await supabase
-      .from('units')
-      .select(`
-        id, 
-        project_id,
-        unit_type_id,
-        address,
-        user_id,
-        purchaser_name,
-        handover_date,
-        unit_types (
-          name,
-          floor_plan_pdf_url,
-          specification_json
-        ),
-        projects (
-          id,
-          name,
-          address,
-          image_url,
-          organization_id
-        )
-      `)
-      .eq('id', token)
-      .single();
+    // First try: Query units table by ID using Drizzle
+    const unitResult = await db.execute(sql`
+      SELECT 
+        u.id,
+        u.development_id,
+        u.house_type_code,
+        u.address_line_1,
+        u.address_line_2,
+        u.city,
+        u.eircode,
+        u.purchaser_name,
+        u.tenant_id,
+        u.latitude,
+        u.longitude,
+        d.id as dev_id,
+        d.name as dev_name,
+        d.address as dev_address,
+        d.logo_url as dev_logo_url
+      FROM units u
+      LEFT JOIN developments d ON u.development_id = d.id
+      WHERE u.id = ${token}::uuid
+      LIMIT 1
+    `);
 
-    if (error) {
-      console.error("[Resolve] Database error:", error.message);
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    const unit = unitResult.rows[0] as any;
+
+    if (unit) {
+      // Found in units table
+      const fullAddress = unit.address_line_1 || unit.dev_address || '';
+
+      console.log("[Resolve] Found unit:", unit.id, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
+
+      const coordinates = fullAddress ? await geocodeAddress(fullAddress) : 
+        (unit.latitude && unit.longitude ? { lat: unit.latitude, lng: unit.longitude } : null);
+
+      return NextResponse.json({
+        success: true,
+        unitId: unit.id,
+        house_id: unit.id,
+        tenantId: unit.tenant_id || null,
+        tenant_id: unit.tenant_id || null,
+        developmentId: unit.development_id,
+        development_id: unit.development_id,
+        development_name: unit.dev_name || 'Your Development',
+        development_code: '',
+        development_logo_url: unit.dev_logo_url || null,
+        development_system_instructions: '',
+        address: fullAddress || 'Your Home',
+        eircode: unit.eircode || '',
+        purchaserName: unit.purchaser_name || 'Homeowner',
+        purchaser_name: unit.purchaser_name || 'Homeowner',
+        user_id: null,
+        project_id: unit.development_id,
+        houseType: unit.house_type_code || null,
+        house_type: unit.house_type_code || null,
+        floorPlanUrl: null,
+        floor_plan_pdf_url: null,
+        latitude: coordinates?.lat || null,
+        longitude: coordinates?.lng || null,
+        specs: null,
+      });
     }
 
-    if (!unit) {
-      console.log("[Resolve] No unit found for:", token);
+    // Second try: Check homeowners table by unique_qr_token OR id using Drizzle
+    console.log("[Resolve] Not found in units, checking homeowners table...");
+    
+    try {
+      const homeownerResult = await db.execute(sql`
+        SELECT 
+          h.id,
+          h.name,
+          h.email,
+          h.house_type,
+          h.address,
+          h.unique_qr_token,
+          h.development_id,
+          h.tenant_id,
+          d.id as dev_id,
+          d.name as dev_name,
+          d.address as dev_address,
+          d.logo_url as dev_logo_url
+        FROM homeowners h
+        LEFT JOIN developments d ON h.development_id = d.id
+        WHERE h.id = ${token}::uuid 
+           OR h.unique_qr_token = ${token}
+        LIMIT 1
+      `);
+
+      const homeowner = homeownerResult.rows[0] as any;
+
+      if (!homeowner) {
+        console.log("[Resolve] No unit or homeowner found for:", token);
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+
+      // Found in homeowners table
+      const fullAddress = homeowner.address || homeowner.dev_address || '';
+
+      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress);
+
+      // Geocode the address to get coordinates for the map
+      const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+
+      return NextResponse.json({
+        success: true,
+        unitId: homeowner.id,
+        house_id: homeowner.id,
+        tenantId: homeowner.tenant_id || null,
+        tenant_id: homeowner.tenant_id || null,
+        developmentId: homeowner.development_id,
+        development_id: homeowner.development_id,
+        development_name: homeowner.dev_name || 'Your Development',
+        development_code: '',
+        development_logo_url: homeowner.dev_logo_url || null,
+        development_system_instructions: '',
+        address: fullAddress || 'Your Home',
+        eircode: '',
+        purchaserName: homeowner.name || 'Homeowner',
+        purchaser_name: homeowner.name || 'Homeowner',
+        user_id: null,
+        project_id: homeowner.development_id,
+        houseType: homeowner.house_type || null,
+        house_type: homeowner.house_type || null,
+        floorPlanUrl: null,
+        floor_plan_pdf_url: null,
+        latitude: coordinates?.lat || null,
+        longitude: coordinates?.lng || null,
+        specs: null,
+      });
+    } catch (homeownerErr: any) {
+      console.error("[Resolve] Homeowner lookup error:", homeownerErr.message);
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
-
-    const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
-    const project = Array.isArray(unit.projects) ? unit.projects[0] : unit.projects;
-    const fullAddress = unit.address || project?.address || '';
-
-    console.log("[Resolve] Found unit:", unit.id, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
-
-    // Geocode the address to get coordinates for the map
-    const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
-
-    return NextResponse.json({
-      success: true,
-      unitId: unit.id,
-      tenantId: project?.organization_id || null,
-      developmentId: unit.project_id,
-      development_id: unit.project_id,
-      development_name: project?.name || 'Your Development',
-      development_code: '',
-      development_logo_url: project?.image_url || null,
-      development_system_instructions: '',
-      address: fullAddress || 'Your Home',
-      eircode: '',
-      purchaserName: unit.purchaser_name || 'Homeowner',
-      user_id: unit.user_id,
-      project_id: unit.project_id,
-      houseType: unitType?.name || null,
-      house_type: unitType?.name || null,
-      floorPlanUrl: unitType?.floor_plan_pdf_url || null,
-      floor_plan_pdf_url: unitType?.floor_plan_pdf_url || null,
-      latitude: coordinates?.lat || null,
-      longitude: coordinates?.lng || null,
-      specs: unitType?.specification_json || null,
-    });
 
   } catch (err: any) {
     console.error("[Resolve] Server Error:", err);
