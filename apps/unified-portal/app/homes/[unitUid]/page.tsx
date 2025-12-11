@@ -4,9 +4,10 @@ import { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import * as Tabs from '@radix-ui/react-tabs';
-import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun } from 'lucide-react';
+import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User } from 'lucide-react';
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
+import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -77,6 +78,7 @@ export default function HomeResidentPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
 
   const [validatedToken, setValidatedToken] = useState<string | null>(null);
   
@@ -541,6 +543,17 @@ export default function HomeResidentPage() {
           >
             {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
+
+          {/* Profile Button */}
+          <button
+            onClick={() => setShowProfilePanel(true)}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition
+              bg-gradient-to-br from-gold-400 to-gold-600 border-gold-500 text-white
+              hover:from-gold-500 hover:to-gold-700 hover:shadow-md hover:shadow-gold-500/30`}
+            aria-label="View profile"
+          >
+            <User className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -656,6 +669,14 @@ export default function HomeResidentPage() {
         isDarkMode={isDarkMode}
       />
       </div>
+
+      {/* Profile Panel */}
+      <PurchaserProfilePanel
+        isOpen={showProfilePanel}
+        onClose={() => setShowProfilePanel(false)}
+        unitUid={unitUid}
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 }
