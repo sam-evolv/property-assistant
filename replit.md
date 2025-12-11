@@ -57,6 +57,38 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### AI Safety Guardrails & Knowledge Gap System (December 2025)
+
+**No-Guessing Rule:**
+- AI must say "I don't know" when information isn't in the knowledge base
+- Redirects users to developer or management company for missing info
+- Never fabricates or hallucinates answers
+
+**High-Risk Topic Protection:**
+- Medical/health questions → Redirect to healthcare professionals
+- Legal advice → Redirect to solicitors/legal professionals
+- Structural/building safety → Redirect to chartered surveyors/engineers
+- Fire safety → Redirect to fire safety officers
+- Electrical/gas → Redirect to qualified electricians/Gas Networks Ireland
+- Emergencies → Explicit 999/112 guidance
+
+**Source Transparency:**
+- Discrete source icon in chat bubbles
+- Expands to show document references (name, date)
+- AI references specific documents in responses
+
+**Information Requests System:**
+- Database table: `information_requests` tracks questions AI couldn't answer
+- Chat UI: "Request this info" button when AI says it doesn't know
+- Developer Dashboard: New "Information Requests" tab in Insights
+- Quick-add flow: Developers can respond AND add answers to knowledge base simultaneously
+- Answers added to `doc_chunks` with embeddings for future AI reference
+
+**API Endpoints:**
+- `POST /api/information-requests` - Submit new ticket from chat
+- `GET /api/information-requests` - List all tickets (with status filter)
+- `PATCH /api/information-requests/[id]` - Update ticket, optionally add to knowledge base
+
 ### GDPR Privacy Protection - AI Chat (December 2025)
 
 **Critical Legal Requirement - EU GDPR Compliance:**
