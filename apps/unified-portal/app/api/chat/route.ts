@@ -29,6 +29,43 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
+// HIGH-RISK TOPIC DETECTION: Detect safety/emergency questions that should not show document sources
+function detectHighRiskTopic(message: string): { isHighRisk: boolean; category: string | null } {
+  const messageLower = message.toLowerCase();
+  
+  // Emergency patterns - immediate danger
+  if (/\b(emergency|ambulance|fire|choking|heart attack|can't breathe|bleeding|unconscious|999|112|help.*immediately)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'emergency' };
+  }
+  
+  // Medical/health patterns
+  if (/\b(hospital|doctor|gp|nhs|health|illness|sick|injured|injury|medical|symptoms?|diagnosis|prescription|medicine)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'medical' };
+  }
+  
+  // Legal patterns
+  if (/\b(solicitor|lawyer|legal|lawsuit|sue|court|contract dispute|liability|compensation|claim)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'legal' };
+  }
+  
+  // Structural safety patterns
+  if (/\b(crack|subsidence|structural|load.?bearing|foundation|collapse|dangerous.*building)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'structural' };
+  }
+  
+  // Fire safety patterns  
+  if (/\b(fire.*escape|fire.*alarm|smoke.*detector|fire.*door|fire.*safety|fire.*extinguisher)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'fire_safety' };
+  }
+  
+  // Electrical/Gas safety patterns
+  if (/\b(gas.*leak|gas.*smell|electric.*shock|electrical.*fault|boiler.*problem|carbon.*monoxide)\b/i.test(messageLower)) {
+    return { isHighRisk: true, category: 'electrical_gas' };
+  }
+  
+  return { isHighRisk: false, category: null };
+}
+
 // GDPR PROTECTION: Detect questions about other residents' homes/units
 function detectOtherUnitQuestion(message: string, userUnitAddress: string | null): { isAboutOtherUnit: boolean; mentionedUnit: string | null } {
   const messageLower = message.toLowerCase();
@@ -297,6 +334,12 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
     
     const gdprCheck = detectOtherUnitQuestion(message, userUnitDetails.address);
+    
+    // HIGH-RISK TOPIC DETECTION: Check if this is a safety/emergency question
+    const highRiskCheck = detectHighRiskTopic(message);
+    if (highRiskCheck.isHighRisk) {
+      console.log('[Chat] HIGH-RISK TOPIC detected:', highRiskCheck.category);
+    }
     
     if (gdprCheck.isAboutOtherUnit) {
       console.log('[Chat] GDPR BLOCK: Question about other unit detected:', gdprCheck.mentionedUnit);
@@ -708,14 +751,22 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       async start(controller) {
         try {
           // Send initial metadata as first chunk (including sources for transparency)
+          // IMPORTANT: Don't show sources for high-risk topics (safety redirects don't use documents)
+          // Also filter by similarity threshold to only show relevant sources
+          const SIMILARITY_THRESHOLD = 0.72; // Minimum similarity score to be considered relevant
           const sourceDocumentsMap = new Map<string, { name: string; date: string | null }>();
-          if (chunks && chunks.length > 0) {
+          
+          // Skip sources entirely for high-risk safety topics (AI gives a redirect, not document-based answer)
+          if (!highRiskCheck.isHighRisk && chunks && chunks.length > 0) {
             for (const c of chunks) {
-              const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
-              if (!sourceDocumentsMap.has(fileName)) {
-                const uploadedAt = c.metadata?.uploaded_at || c.created_at;
-                const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
-                sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr });
+              // Only include chunks above the similarity threshold
+              if (c.similarity && c.similarity >= SIMILARITY_THRESHOLD) {
+                const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
+                if (!sourceDocumentsMap.has(fileName)) {
+                  const uploadedAt = c.metadata?.uploaded_at || c.created_at;
+                  const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
+                  sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr });
+                }
               }
             }
           }
