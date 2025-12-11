@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
+import { sql } from 'drizzle-orm';
 import { messages, units } from '@openhouse/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
@@ -409,6 +410,22 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] Query embedding generated');
 
     // STEP 2: Semantic search using cosine similarity on ALL chunks
+    // First, get list of superseded document IDs to filter out from RAG
+    let supersededDocIds = new Set<string>();
+    try {
+      const { rows: superseded } = await db.execute(sql`
+        SELECT id FROM documents 
+        WHERE tenant_id = ${DEFAULT_TENANT_ID}::uuid 
+        AND is_superseded = true
+      `);
+      supersededDocIds = new Set((superseded as any[]).map(r => r.id));
+      if (supersededDocIds.size > 0) {
+        console.log('[Chat] Filtering out', supersededDocIds.size, 'superseded documents from RAG');
+      }
+    } catch (e) {
+      console.log('[Chat] Could not check superseded docs:', e);
+    }
+    
     // Fetch ALL chunks with embeddings for proper semantic search
     console.log('[Chat] Loading all document chunks with embeddings...');
     const { data: allChunks, error: fetchError } = await supabase
@@ -428,7 +445,20 @@ export async function POST(request: NextRequest) {
     if (allChunks && allChunks.length > 0) {
       console.log('[Chat] Computing semantic similarity scores...');
       
-      const scoredChunks = allChunks.map(chunk => {
+      // Filter out superseded documents before scoring
+      const activeChunks = allChunks.filter(chunk => {
+        const docId = chunk.metadata?.document_id;
+        if (docId && supersededDocIds.has(docId)) {
+          return false; // Exclude chunks from superseded documents
+        }
+        return true;
+      });
+      
+      if (activeChunks.length < allChunks.length) {
+        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded docs');
+      }
+      
+      const scoredChunks = activeChunks.map(chunk => {
         // Parse and calculate semantic similarity using embeddings
         let similarity = 0;
         const parsedEmbedding = parseEmbedding(chunk.embedding);
@@ -463,21 +493,34 @@ export async function POST(request: NextRequest) {
       // Sort by score and take top chunks
       scoredChunks.sort((a, b) => b.score - a.score);
       
-      // Take top chunks that fit within context limit
-      let totalChars = 0;
-      for (const chunk of scoredChunks) {
-        if (chunks.length >= MAX_CHUNKS) break;
-        if (totalChars + chunk.content.length > MAX_CONTEXT_CHARS) break;
-        chunks.push(chunk);
-        totalChars += chunk.content.length;
+      // MINIMUM RELEVANCE THRESHOLD - if top chunks aren't relevant enough, treat as "no info"
+      // This prevents forcing irrelevant context into the prompt
+      const MIN_RELEVANCE_SIMILARITY = 0.25; // Raw cosine similarity threshold
+      const topChunkSimilarity = scoredChunks[0]?.similarity || 0;
+      
+      if (topChunkSimilarity < MIN_RELEVANCE_SIMILARITY) {
+        console.log('[Chat] Top chunk similarity', topChunkSimilarity.toFixed(3), 'below threshold', MIN_RELEVANCE_SIMILARITY);
+        console.log('[Chat] Treating as "no relevant information found"');
+        // Don't add any chunks - this will trigger the "no documents" prompt
+      } else {
+        // Take top chunks that fit within context limit
+        let totalChars = 0;
+        for (const chunk of scoredChunks) {
+          if (chunks.length >= MAX_CHUNKS) break;
+          if (totalChars + chunk.content.length > MAX_CONTEXT_CHARS) break;
+          chunks.push(chunk);
+          totalChars += chunk.content.length;
+        }
       }
       
       console.log('[Chat] Selected', chunks.length, 'most relevant chunks');
-      console.log('[Chat] Top chunk scores:', chunks.slice(0, 3).map(c => ({
-        score: c.score.toFixed(3),
-        similarity: c.similarity.toFixed(3),
-        source: c.metadata?.file_name || 'unknown'
-      })));
+      if (chunks.length > 0) {
+        console.log('[Chat] Top chunk scores:', chunks.slice(0, 3).map(c => ({
+          score: c.score.toFixed(3),
+          similarity: c.similarity.toFixed(3),
+          source: c.metadata?.file_name || 'unknown'
+        })));
+      }
     }
 
     // STEP 3: Build System Message with relevant context only

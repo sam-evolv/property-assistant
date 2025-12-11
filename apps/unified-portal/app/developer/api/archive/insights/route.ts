@@ -48,6 +48,25 @@ interface GapPrediction {
   expected_count: number;
 }
 
+interface EmbeddingHealth {
+  total_documents: number;
+  documents_with_chunks: number;
+  documents_without_chunks: number;
+  total_chunks: number;
+  documents_pending: number;
+  documents_processing: number;
+  documents_error: number;
+  documents_complete: number;
+  unhealthy_documents: Array<{
+    id: string;
+    title: string;
+    file_name: string;
+    processing_status: string;
+    chunks_count: number;
+    created_at: string;
+  }>;
+}
+
 interface InsightsResponse {
   document_coverage: {
     by_discipline: DisciplineCoverage[];
@@ -59,6 +78,7 @@ interface InsightsResponse {
   currency: DocumentCurrency;
   keyword_trends: KeywordTrend[];
   predicted_gaps: GapPrediction[];
+  embedding_health: EmbeddingHealth;
 }
 
 const ALL_DISCIPLINES = [
@@ -142,7 +162,12 @@ export async function GET(request: NextRequest) {
         classification_quality: { total_documents: 0, ai_classified: 0, needs_review: 0, classification_rate: 0, avg_confidence: 0 },
         currency: { total_documents: 0, docs_older_than_year: 0, docs_last_30_days: 0, docs_last_90_days: 0 },
         keyword_trends: [],
-        predicted_gaps: []
+        predicted_gaps: [],
+        embedding_health: {
+          total_documents: 0, documents_with_chunks: 0, documents_without_chunks: 0,
+          total_chunks: 0, documents_pending: 0, documents_processing: 0,
+          documents_error: 0, documents_complete: 0, unhealthy_documents: []
+        }
       });
     }
 
@@ -285,6 +310,61 @@ export async function GET(request: NextRequest) {
         expected_count: Math.round(avgDisciplinesPerHouse)
       }));
 
+    // EMBEDDING HEALTH CHECK - Find documents with missing or incomplete embeddings
+    const embeddingHealthQuery = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_documents,
+        COUNT(*) FILTER (WHERE chunks_count > 0) as documents_with_chunks,
+        COUNT(*) FILTER (WHERE chunks_count = 0 OR chunks_count IS NULL) as documents_without_chunks,
+        COALESCE(SUM(chunks_count), 0) as total_chunks,
+        COUNT(*) FILTER (WHERE processing_status = 'pending') as documents_pending,
+        COUNT(*) FILTER (WHERE processing_status = 'processing') as documents_processing,
+        COUNT(*) FILTER (WHERE processing_status = 'error') as documents_error,
+        COUNT(*) FILTER (WHERE processing_status = 'complete') as documents_complete
+      FROM documents
+      WHERE tenant_id = '${tenantId}'::uuid
+        AND development_id IN (${devIdsStr})
+        AND status = 'active'
+    `));
+
+    const healthStats = embeddingHealthQuery.rows[0] as any;
+
+    // Get list of unhealthy documents (0 chunks but marked complete, or stuck in processing, or errors)
+    const unhealthyDocsQuery = await db.execute(sql.raw(`
+      SELECT id, title, file_name, processing_status, chunks_count, created_at
+      FROM documents
+      WHERE tenant_id = '${tenantId}'::uuid
+        AND development_id IN (${devIdsStr})
+        AND status = 'active'
+        AND (
+          (processing_status = 'complete' AND (chunks_count = 0 OR chunks_count IS NULL))
+          OR processing_status = 'error'
+          OR (processing_status = 'processing' AND updated_at < now() - interval '1 hour')
+          OR (processing_status = 'pending' AND created_at < now() - interval '1 hour')
+        )
+      ORDER BY created_at DESC
+      LIMIT 20
+    `));
+
+    const embeddingHealth: EmbeddingHealth = {
+      total_documents: parseInt(healthStats.total_documents || '0'),
+      documents_with_chunks: parseInt(healthStats.documents_with_chunks || '0'),
+      documents_without_chunks: parseInt(healthStats.documents_without_chunks || '0'),
+      total_chunks: parseInt(healthStats.total_chunks || '0'),
+      documents_pending: parseInt(healthStats.documents_pending || '0'),
+      documents_processing: parseInt(healthStats.documents_processing || '0'),
+      documents_error: parseInt(healthStats.documents_error || '0'),
+      documents_complete: parseInt(healthStats.documents_complete || '0'),
+      unhealthy_documents: (unhealthyDocsQuery.rows as any[]).map(row => ({
+        id: row.id,
+        title: row.title,
+        file_name: row.file_name,
+        processing_status: row.processing_status,
+        chunks_count: parseInt(row.chunks_count || '0'),
+        created_at: row.created_at
+      }))
+    };
+
     const response: InsightsResponse = {
       document_coverage: {
         by_discipline: byDiscipline,
@@ -295,7 +375,8 @@ export async function GET(request: NextRequest) {
       classification_quality: classificationQuality,
       currency,
       keyword_trends: keywordTrends,
-      predicted_gaps: predictedGaps
+      predicted_gaps: predictedGaps,
+      embedding_health: embeddingHealth
     };
 
     return NextResponse.json(response);
