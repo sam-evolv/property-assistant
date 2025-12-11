@@ -365,6 +365,22 @@ const TRANSLATIONS: Record<string, any> = {
     voiceNotSupported: 'Intrarea vocală nu este acceptată în browserul dvs. Vă rugăm să utilizați Chrome, Edge sau Safari.',
     sessionExpired: 'Sesiunea a expirat. Vă rugăm să scanați codul QR din nou.',
     errorOccurred: 'Ne pare rău, am întâlnit o eroare. Vă rugăm să încercați din nou.'
+  },
+  ga: {
+    welcome: 'Fiafraigh aon rud faoi do theach nó do phobal',
+    subtitle: 'Freagraí tapa don saol laethúil: pleananna urláir, áiseanna, seirbhísí áitiúla, agus tuilleadh.',
+    prompts: [
+      "Iompar Poiblí",
+      "Bailiú Dramhaíola",
+      "Rialacha Páirceála",
+      "An Ceantar Áitiúil"
+    ],
+    placeholder: 'Fiafraigh faoi do theach nó do phobal...',
+    askButton: 'Fiafraigh',
+    powered: 'Faoi chumhacht AI • Eolas le haghaidh tagartha amháin',
+    voiceNotSupported: 'Ní thacaítear le hionchur gutha i do bhrabhsálaí. Úsáid Chrome, Edge, nó Safari.',
+    sessionExpired: 'Seisiún imithe in éag. Scan do chód QR arís.',
+    errorOccurred: 'Tá brón orainn, tharla earráid. Bain triail eile as.'
   }
 };
 
@@ -414,7 +430,8 @@ export default function PurchaserChatTab({
                           selectedLanguage === 'pt' ? 'pt-PT' :
                           selectedLanguage === 'lv' ? 'lv-LV' :
                           selectedLanguage === 'lt' ? 'lt-LT' :
-                          selectedLanguage === 'ro' ? 'ro-RO' : 'en-US';
+                          selectedLanguage === 'ro' ? 'ro-RO' :
+                          selectedLanguage === 'ga' ? 'ga-IE' : 'en-US';
 
         recognition.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
