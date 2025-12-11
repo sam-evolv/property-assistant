@@ -35,159 +35,142 @@ export async function GET(request: NextRequest) {
     const docDevFilter = developmentId ? eq(documents.development_id, developmentId) : sql`1=1`;
     const homeownerDevFilter = developmentId ? eq(homeowners.development_id, developmentId) : sql`1=1`;
 
-    const [
-      totalUnitsResult,
-      registeredHomeownersResult,
-      activeHomeownersResult,
-      previousActiveResult,
-      totalMessagesResult,
-      previousMessagesResult,
-      questionTopicsResult,
-      documentCoverageResult,
-      mustReadComplianceResult,
-      recentQuestionsResult,
-      chatActivityResult,
-      houseTypeEngagementResult,
-    ] = await Promise.all([
-      db.select({ count: count() })
-        .from(units)
-        .where(and(eq(units.tenant_id, tenantId), devFilterDrizzle)),
-      
-      db.select({ count: count() })
-        .from(homeowners)
-        .where(and(eq(homeowners.tenant_id, tenantId), homeownerDevFilter)),
-      
-      // Count active users by user_id (which contains unit UUID for purchaser chats)
-      // Note: user_id stores the unit UID for purchaser portal chats
-      developmentId 
-        ? db.execute(sql`
-            SELECT COUNT(DISTINCT m.user_id)::int as count
-            FROM messages m
-            WHERE m.tenant_id = ${tenantId}
-              AND m.development_id = ${developmentId}
-              AND m.created_at >= ${sevenDaysAgo} 
-              AND m.user_id IS NOT NULL
-          `)
-        : db.execute(sql`
-            SELECT COUNT(DISTINCT m.user_id)::int as count
-            FROM messages m
-            WHERE m.tenant_id = ${tenantId}
-              AND m.created_at >= ${sevenDaysAgo} 
-              AND m.user_id IS NOT NULL
-          `),
-      
-      developmentId 
-        ? db.execute(sql`
-            SELECT COUNT(DISTINCT m.user_id)::int as count
-            FROM messages m
-            WHERE m.tenant_id = ${tenantId}
-              AND m.development_id = ${developmentId}
-              AND m.created_at >= ${previousStartDate} 
-              AND m.created_at < ${sevenDaysAgo}
-              AND m.user_id IS NOT NULL
-          `)
-        : db.execute(sql`
-            SELECT COUNT(DISTINCT m.user_id)::int as count
-            FROM messages m
-            WHERE m.tenant_id = ${tenantId}
-              AND m.created_at >= ${previousStartDate} 
-              AND m.created_at < ${sevenDaysAgo}
-              AND m.user_id IS NOT NULL
-          `),
-      
-      db.select({ count: count() })
-        .from(messages)
-        .where(and(
-          eq(messages.tenant_id, tenantId),
-          gte(messages.created_at, startDate),
-          msgDevFilter
-        )),
-      
-      db.select({ count: count() })
-        .from(messages)
-        .where(and(
-          eq(messages.tenant_id, tenantId),
-          gte(messages.created_at, previousStartDate),
-          sql`created_at < ${startDate}`,
-          msgDevFilter
-        )),
-      
-      db.execute(sql`
-        SELECT 
-          COALESCE(question_topic, 'general') as topic,
-          COUNT(*)::int as count
-        FROM messages
-        WHERE tenant_id = ${tenantId}
-          AND created_at >= ${startDate}
-          AND user_message IS NOT NULL
-          ${devFilter}
-        GROUP BY COALESCE(question_topic, 'general')
-        ORDER BY COUNT(*) DESC
-        LIMIT 8
-      `),
-      
-      db.execute(sql`
-        SELECT 
-          COUNT(DISTINCT d.id)::int as total_docs,
-          COUNT(DISTINCT d.house_type_code)::int as covered_house_types,
-          (SELECT COUNT(DISTINCT house_type_code)::int FROM units WHERE tenant_id = ${tenantId} ${devFilter}) as total_house_types
-        FROM documents d
-        WHERE d.tenant_id = ${tenantId}
-          ${developmentId ? sql`AND d.development_id = ${developmentId}` : sql``}
-      `),
-      
-      db.execute(sql`
-        SELECT 
-          COUNT(*)::int as total_units,
-          COUNT(CASE WHEN important_docs_agreed_at IS NOT NULL THEN 1 END)::int as acknowledged
-        FROM units
-        WHERE tenant_id = ${tenantId}
-          ${devFilter}
-      `),
-      
-      db.execute(sql`
-        SELECT 
-          user_message,
-          question_topic,
-          created_at,
-          metadata
-        FROM messages
-        WHERE tenant_id = ${tenantId}
-          AND user_message IS NOT NULL
-          AND created_at >= ${startDate}
-          ${devFilter}
-        ORDER BY created_at DESC
-        LIMIT 20
-      `),
-      
-      db.execute(sql`
-        SELECT 
-          DATE(created_at) as date,
-          COUNT(*)::int as count
-        FROM messages
-        WHERE tenant_id = ${tenantId}
-          AND created_at >= ${startDate}
-          ${devFilter}
-        GROUP BY DATE(created_at)
-        ORDER BY DATE(created_at) ASC
-      `),
-      
-      // Use user_id (unit UUID) for house type engagement
-      db.execute(sql`
-        SELECT 
-          u.house_type_code,
-          COUNT(DISTINCT m.user_id)::int as active_users,
-          COUNT(m.id)::int as message_count
-        FROM units u
-        LEFT JOIN messages m ON m.user_id = u.unit_uid AND m.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
-        WHERE u.tenant_id = ${tenantId}
-          AND u.house_type_code IS NOT NULL
-          ${devFilter}
-        GROUP BY u.house_type_code
-        ORDER BY message_count DESC
-        LIMIT 10
-      `),
-    ]);
+    // Run queries sequentially to avoid connection pool exhaustion
+    const totalUnitsResult = await db.select({ count: count() })
+      .from(units)
+      .where(and(eq(units.tenant_id, tenantId), devFilterDrizzle));
+    
+    const registeredHomeownersResult = await db.select({ count: count() })
+      .from(homeowners)
+      .where(and(eq(homeowners.tenant_id, tenantId), homeownerDevFilter));
+    
+    const activeHomeownersResult = await (developmentId 
+      ? db.execute(sql`
+          SELECT COUNT(DISTINCT m.user_id)::int as count
+          FROM messages m
+          WHERE m.tenant_id = ${tenantId}
+            AND m.development_id = ${developmentId}
+            AND m.created_at >= ${sevenDaysAgo} 
+            AND m.user_id IS NOT NULL
+        `)
+      : db.execute(sql`
+          SELECT COUNT(DISTINCT m.user_id)::int as count
+          FROM messages m
+          WHERE m.tenant_id = ${tenantId}
+            AND m.created_at >= ${sevenDaysAgo} 
+            AND m.user_id IS NOT NULL
+        `));
+    
+    const previousActiveResult = await (developmentId 
+      ? db.execute(sql`
+          SELECT COUNT(DISTINCT m.user_id)::int as count
+          FROM messages m
+          WHERE m.tenant_id = ${tenantId}
+            AND m.development_id = ${developmentId}
+            AND m.created_at >= ${previousStartDate} 
+            AND m.created_at < ${sevenDaysAgo}
+            AND m.user_id IS NOT NULL
+        `)
+      : db.execute(sql`
+          SELECT COUNT(DISTINCT m.user_id)::int as count
+          FROM messages m
+          WHERE m.tenant_id = ${tenantId}
+            AND m.created_at >= ${previousStartDate} 
+            AND m.created_at < ${sevenDaysAgo}
+            AND m.user_id IS NOT NULL
+        `));
+    
+    const totalMessagesResult = await db.select({ count: count() })
+      .from(messages)
+      .where(and(
+        eq(messages.tenant_id, tenantId),
+        gte(messages.created_at, startDate),
+        msgDevFilter
+      ));
+    
+    const previousMessagesResult = await db.select({ count: count() })
+      .from(messages)
+      .where(and(
+        eq(messages.tenant_id, tenantId),
+        gte(messages.created_at, previousStartDate),
+        sql`created_at < ${startDate}`,
+        msgDevFilter
+      ));
+    
+    const questionTopicsResult = await db.execute(sql`
+      SELECT 
+        COALESCE(question_topic, 'general') as topic,
+        COUNT(*)::int as count
+      FROM messages
+      WHERE tenant_id = ${tenantId}
+        AND created_at >= ${startDate}
+        AND user_message IS NOT NULL
+        ${devFilter}
+      GROUP BY COALESCE(question_topic, 'general')
+      ORDER BY COUNT(*) DESC
+      LIMIT 8
+    `);
+    
+    const documentCoverageResult = await db.execute(sql`
+      SELECT 
+        COUNT(DISTINCT d.id)::int as total_docs,
+        COUNT(DISTINCT d.house_type_code)::int as covered_house_types,
+        (SELECT COUNT(DISTINCT house_type_code)::int FROM units WHERE tenant_id = ${tenantId} ${devFilter}) as total_house_types
+      FROM documents d
+      WHERE d.tenant_id = ${tenantId}
+        ${developmentId ? sql`AND d.development_id = ${developmentId}` : sql``}
+    `);
+    
+    const mustReadComplianceResult = await db.execute(sql`
+      SELECT 
+        COUNT(*)::int as total_units,
+        COUNT(CASE WHEN important_docs_agreed_at IS NOT NULL THEN 1 END)::int as acknowledged
+      FROM units
+      WHERE tenant_id = ${tenantId}
+        ${devFilter}
+    `);
+    
+    const recentQuestionsResult = await db.execute(sql`
+      SELECT 
+        user_message,
+        question_topic,
+        created_at,
+        metadata
+      FROM messages
+      WHERE tenant_id = ${tenantId}
+        AND user_message IS NOT NULL
+        AND created_at >= ${startDate}
+        ${devFilter}
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    
+    const chatActivityResult = await db.execute(sql`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*)::int as count
+      FROM messages
+      WHERE tenant_id = ${tenantId}
+        AND created_at >= ${startDate}
+        ${devFilter}
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC
+    `);
+    
+    const houseTypeEngagementResult = await db.execute(sql`
+      SELECT 
+        u.house_type_code,
+        COUNT(DISTINCT m.user_id)::int as active_users,
+        COUNT(m.id)::int as message_count
+      FROM units u
+      LEFT JOIN messages m ON m.user_id = u.unit_uid AND m.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
+      WHERE u.tenant_id = ${tenantId}
+        AND u.house_type_code IS NOT NULL
+        ${devFilter}
+      GROUP BY u.house_type_code
+      ORDER BY message_count DESC
+      LIMIT 10
+    `);
 
     const totalUnits = totalUnitsResult[0]?.count || 0;
     const registeredHomeowners = registeredHomeownersResult[0]?.count || 0;
