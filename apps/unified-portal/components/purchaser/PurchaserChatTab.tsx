@@ -780,10 +780,10 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        <>
-          {/* iMessage-Style Chat Messages View */}
-          <div className={`flex-1 overflow-y-auto px-4 py-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-            <div className="mx-auto max-w-3xl space-y-3">
+        <div className="flex h-full min-h-0 flex-col">
+          {/* iMessage-Style Chat Messages View - Scrollable */}
+          <div className={`flex-1 min-h-0 overflow-y-auto px-4 py-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+            <div className="mx-auto max-w-3xl flex flex-col gap-3">
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
@@ -1004,7 +1004,7 @@ export default function PurchaserChatTab({
               Always consult qualified professionals for electrical, gas, structural, or fire-related issues.
             </p>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
