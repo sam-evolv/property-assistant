@@ -400,19 +400,21 @@ export default function PurchaserChatTab({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [hasGreeted, setHasGreeted] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Scroll to top of messages so user sees their question first
+  const scrollToTop = () => {
+    messagesContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, sending]);
+    // When messages change, scroll to top to show user's message
+    scrollToTop();
+  }, [messages]);
 
   useEffect(() => {
     // Initialize Web Speech API
@@ -779,7 +781,10 @@ export default function PurchaserChatTab({
       ) : (
         <div className="flex h-full min-h-0 flex-col">
           {/* iMessage-Style Chat Messages View - Scrollable */}
-          <div className={`flex-1 min-h-0 overflow-y-auto px-4 py-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+          <div 
+            ref={messagesContainerRef}
+            className={`flex-1 min-h-0 overflow-y-auto px-4 py-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+          >
             <div className="mx-auto max-w-3xl flex flex-col gap-3">
               {messages.map((msg, idx) => (
                 <div
@@ -918,7 +923,6 @@ export default function PurchaserChatTab({
                 </div>
               ))}
               {sending && <TypingIndicator isDarkMode={isDarkMode} />}
-              <div ref={messagesEndRef} />
             </div>
           </div>
 
