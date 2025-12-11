@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { homeowners } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { homeowners, units } from '@openhouse/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,20 +17,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    // Try QR token validation first, fall back to accepting unit UID as token
+    let validatedUnitId: string | null = null;
+    
+    try {
+      const payload = await validateQRToken(token);
+      if (payload?.supabaseUnitId === unitUid) {
+        validatedUnitId = unitUid;
+      }
+    } catch {
+      // QR token validation failed - check if token is the unit UID itself (showhouse access)
+    }
+    
+    // Allow unit UID as token for showhouse/demo access
+    if (!validatedUnitId && token === unitUid) {
+      validatedUnitId = unitUid;
+      console.log('[Terms] Accepting unit UID as token for showhouse access:', unitUid);
+    }
+    
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const { data: unit } = await supabase
-      .from('units')
-      .select('id, user_id')
-      .eq('id', unitUid)
-      .single();
-
+    // Look up unit in PostgreSQL (units are stored in Drizzle, not Supabase)
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true },
+    });
+    
     if (!unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
@@ -45,7 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     const homeowner = await db.query.homeowners.findFirst({
-      where: (h, { eq }) => eq(h.unique_qr_token, unitUid),
+      where: eq(homeowners.unique_qr_token, unitUid),
       columns: {
         id: true,
         notices_terms_accepted_at: true,
@@ -78,20 +89,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    // Try QR token validation first, fall back to accepting unit UID as token
+    let validatedUnitId: string | null = null;
+    
+    try {
+      const payload = await validateQRToken(token);
+      if (payload?.supabaseUnitId === unitUid) {
+        validatedUnitId = unitUid;
+      }
+    } catch {
+      // QR token validation failed - check if token is the unit UID itself (showhouse access)
+    }
+    
+    // Allow unit UID as token for showhouse/demo access
+    if (!validatedUnitId && token === unitUid) {
+      validatedUnitId = unitUid;
+      console.log('[Terms] Accepting unit UID as token for showhouse access:', unitUid);
+    }
+    
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const { data: unit } = await supabase
-      .from('units')
-      .select('id, user_id')
-      .eq('id', unitUid)
-      .single();
-
+    // Look up unit in PostgreSQL (units are stored in Drizzle, not Supabase)
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true },
+    });
+    
     if (!unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
@@ -100,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     const homeowner = await db.query.homeowners.findFirst({
-      where: (h, { eq }) => eq(h.unique_qr_token, unitUid),
+      where: eq(homeowners.unique_qr_token, unitUid),
       columns: { id: true },
     });
 
