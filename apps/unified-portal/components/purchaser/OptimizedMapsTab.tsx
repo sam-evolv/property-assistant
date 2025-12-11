@@ -410,7 +410,8 @@ export default function OptimizedMapsTab({
 
   return (
     <div className={`h-full flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-      <div className="relative flex-1">
+      {/* Map container - takes remaining space */}
+      <div className="relative flex-1 min-h-0">
         {/* Always render the map container so mapRef is available for the Google Maps initialization */}
         <div ref={mapRef} className="absolute inset-0" />
         
@@ -420,27 +421,28 @@ export default function OptimizedMapsTab({
             <MapSkeleton isDarkMode={isDarkMode} />
           </div>
         )}
-        
-        <div className="absolute bottom-4 left-0 right-0 px-4 z-10">
-          <div className="overflow-x-auto pb-2 -mb-2">
-            <div className="flex gap-2 w-max">
-              {FILTER_CATEGORIES.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => handleFilterClick(category)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap shadow-lg ${
-                    selectedFilter === category.id
-                      ? 'bg-gold-500 text-white'
-                      : isDarkMode
-                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-                  }`}
-                >
-                  {category.icon}
-                  {category.label}
-                </button>
-              ))}
-            </div>
+      </div>
+      
+      {/* Filter bar - Fixed at bottom, always visible */}
+      <div className={`flex-shrink-0 border-t ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} px-3 py-2`}>
+        <div className="overflow-x-auto pb-1 -mb-1">
+          <div className="flex gap-2 w-max">
+            {FILTER_CATEGORIES.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => handleFilterClick(category)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap shadow-sm ${
+                  selectedFilter === category.id
+                    ? 'bg-gold-500 text-white shadow-gold-500/30'
+                    : isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                }`}
+              >
+                {category.icon}
+                {category.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
