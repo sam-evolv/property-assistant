@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
-import { noticeboard_posts, tenants, notice_audit_log } from '@openhouse/db/schema';
+import { noticeboard_posts, tenants, notice_audit_log, units } from '@openhouse/db/schema';
 import { eq, desc, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const POSTS_PER_HOUR_LIMIT = 5;
 const EDIT_WINDOW_MINUTES = 10;
@@ -36,31 +30,6 @@ async function checkRateLimit(unitId: string, tenantId: string): Promise<{ allow
   };
 }
 
-async function getDevelopmentFromUnit(projectId: string, tenantId: string): Promise<{ developmentId: string | null; address: string }> {
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', projectId)
-    .single();
-  
-  if (!project) {
-    return { developmentId: null, address: 'Unknown Unit' };
-  }
-  
-  const development = await db.query.developments.findFirst({
-    where: (dev, { eq, and }) => and(
-      eq(dev.tenant_id, tenantId),
-      eq(dev.name, project.name)
-    ),
-    columns: { id: true },
-  });
-  
-  return {
-    developmentId: development?.id || null,
-    address: project.name || 'Unknown Unit',
-  };
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -74,42 +43,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address, project_id')
-      .eq('id', unitUid)
-      .single();
+    // Look up unit in Drizzle PostgreSQL (not Supabase)
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
+    });
 
-    if (unitError || !unit) {
-      console.error('[Noticeboard] Unit not found in Supabase:', unitError);
+    if (!unit) {
+      console.error('[Noticeboard] Unit not found:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    if (!tenantResult || tenantResult.length === 0) {
-      return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
-      );
-    }
-
-    const tenantId = tenantResult[0].id;
+    // Use tenant from unit directly
+    const tenantId = unit.tenant_id;
     const now = new Date();
+    
+    console.log('[Noticeboard GET] Fetching posts for tenant:', tenantId, 'unit:', unitUid);
 
     const posts = await db
       .select({
@@ -142,6 +111,8 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(noticeboard_posts.priority), desc(noticeboard_posts.created_at))
       .limit(50);
 
+    console.log('[Noticeboard GET] Found', posts.length, 'posts');
+    
     const notices = posts.map((post) => {
       const createdAt = new Date(post.created_at);
       const editWindowEnd = new Date(createdAt.getTime() + EDIT_WINDOW_MINUTES * 60 * 1000);
@@ -188,41 +159,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address, project_id')
-      .eq('id', unitUid)
-      .single();
+    // Look up unit in Drizzle PostgreSQL (not Supabase)
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
+    });
 
-    if (unitError || !unit) {
-      console.error('[Noticeboard] Unit not found in Supabase:', unitError);
+    if (!unit) {
+      console.error('[Noticeboard POST] Unit not found:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    if (!tenantResult || tenantResult.length === 0) {
-      return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
-      );
-    }
-
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
+    const developmentId = unit.development_id;
+    const unitAddress = unit.address_line_1 || 'Unknown Unit';
     
     const rateLimit = await checkRateLimit(unitUid, tenantId);
     if (!rateLimit.allowed) {
@@ -231,9 +201,6 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { 'X-RateLimit-Remaining': '0' } }
       );
     }
-
-    const { developmentId, address: resolvedAddress } = await getDevelopmentFromUnit(unit.project_id, tenantId);
-    const unitAddress = unit.address || resolvedAddress;
 
     const body = await request.json();
     const { title, message, category, priority, termsAccepted } = body;
@@ -329,27 +296,36 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
+    // Look up unit in Drizzle PostgreSQL
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true, tenant_id: true },
+    });
 
-    if (!tenantResult || tenantResult.length === 0) {
+    if (!unit) {
       return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
+        { error: 'Unit not found' },
+        { status: 404 }
       );
     }
 
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
 
     const existingPost = await db
       .select()
@@ -441,27 +417,36 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
+    // Look up unit in Drizzle PostgreSQL
+    const unit = await db.query.units.findFirst({
+      where: eq(units.id, unitUid),
+      columns: { id: true, tenant_id: true },
+    });
 
-    if (!tenantResult || tenantResult.length === 0) {
+    if (!unit) {
       return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
+        { error: 'Unit not found' },
+        { status: 404 }
       );
     }
 
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
 
     const existingPost = await db
       .select()
