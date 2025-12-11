@@ -753,7 +753,8 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           // Send initial metadata as first chunk (including sources for transparency)
           // IMPORTANT: Don't show sources for high-risk topics (safety redirects don't use documents)
           // Also filter by similarity threshold to only show relevant sources
-          const SIMILARITY_THRESHOLD = 0.72; // Minimum similarity score to be considered relevant
+          // Note: text-embedding-3-small typically returns lower raw similarities (0.3-0.6 range)
+          const SIMILARITY_THRESHOLD = 0.38; // Minimum similarity score to be considered relevant
           const sourceDocumentsMap = new Map<string, { name: string; date: string | null }>();
           
           // Skip sources entirely for high-risk safety topics (AI gives a redirect, not document-based answer)
