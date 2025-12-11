@@ -31,6 +31,105 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
+// SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM
+// Uses both exact keywords and regex patterns for robust matching
+function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedKeyword: string | null } {
+  const lower = message.toLowerCase().replace(/['']/g, "'");
+
+  const keywords = [
+    "load bearing", "load-bearing", "loadbearing",
+    "remove wall", "remove a wall", "remove the wall", "removing wall",
+    "knock wall", "knock this wall", "knock down wall", "knock out wall",
+    "tear down wall", "take out wall", "take down wall",
+    "is this wall safe", "is the wall safe", "wall safe to",
+    "safe to drill", "can i drill", "drill into wall", "drill into the wall", "drilling into",
+    "gas leak", "smell of gas", "smells like gas", "smell gas", "smelling gas", "gas smell",
+    "burning smell", "smell of burning", "smell smoke", "smells like burning", "something burning",
+    "smoke coming from", "smoke from socket", "smoke from plug", "smoke from outlet",
+    "burning wire", "wire burning", "cable burning",
+    "sparking", "sparks from", "electrical sparks", "arcing",
+    "electrical issue", "electrical problem", "electrical fault",
+    "fuse tripping", "fuse keeps tripping", "breaker tripping", "breaker keeps tripping", "trips the fuse",
+    "can i bypass", "bypass the", "bypass circuit",
+    "fire risk", "fire hazard", "fire safety", "fire danger",
+    "fire alarm", "smoke alarm", "smoke detector", "fire detector",
+    "alarm keeps", "alarm beeping", "alarm chirping", "alarm going off",
+    "mould", "mold", "black mould", "black mold", "mouldy", "moldy",
+    "asbestos", "asbesto",
+    "structural movement", "structural issue", "structural problem", "structural damage",
+    "crack in wall", "cracks in wall", "crack in ceiling", "cracks in ceiling", "wall crack", "ceiling crack",
+    "roof sagging", "sagging roof", "roof drooping", "ceiling sagging",
+    "leaking pipe", "pipe leaking", "burst pipe", "pipe burst",
+    "major leak", "big leak", "serious leak", "water everywhere",
+    "flooding", "flooded", "water flooding",
+    "boiler issue", "boiler problem", "boiler not working", "boiler broken",
+    "heating not working", "heating broken", "no heating", "no hot water",
+    "radiator leaking", "radiator leak",
+    "gas boiler", "gas appliance", "gas cooker", "gas hob", "gas fire",
+    "electrical socket", "plug socket", "power socket", "outlet problem",
+    "wiring problem", "wiring issue", "faulty wiring", "old wiring",
+    "is it safe", "is this safe", "is it dangerous", "dangerous",
+    "structural change", "structural work", "structural alteration",
+    "carbon monoxide", "co alarm", "co detector", "co2 alarm", "monoxide detector", "monoxide alarm",
+    "electrocuted", "electric shock", "got shocked", "zapped me",
+    "damp problem", "damp issue", "rising damp", "penetrating damp",
+    "water damage", "ceiling leak", "roof leak", "water coming through",
+    "party wall", "supporting wall", "can i remove", "can i knock",
+    "subsidence", "foundation", "foundations", "ground movement"
+  ];
+
+  const patterns = [
+    /\b(load[\s-]?bear|support(ing|ive)?\s+wall)\b/i,
+    /\b(knock|remove|tear|take)\s*(down|out|through)?\s*(a|the|this)?\s*wall\b/i,
+    /\bwall\s*(safe|ok|okay)\s*(to|for)\b/i,
+    /\bdrill\s*(into|through|in)\b/i,
+    /\b(smell|smelling|smells?)\s*(of\s*)?(gas|burning|smoke)\b/i,
+    /\b(gas|smoke|burning)\s*smell\b/i,
+    /\bsmoke\s*(coming|from|out)\b/i,
+    /\bspark(s|ing)?\s*(from|coming)\b/i,
+    /\b(fuse|breaker|circuit)\s*(keep|keeps)?\s*trip(ping|s)?\b/i,
+    /\bbypass\s*(the|a)?\s*(fuse|breaker|circuit|safety)\b/i,
+    /\b(fire|smoke|co|carbon\s*monoxide)\s*(alarm|detector)\b/i,
+    /\balarm\s*(keep|keeps)?\s*(beep|chirp|sound|go)/i,
+    /\b(mould|mold|mouldy|moldy)\b/i,
+    /\bcracks?\s*(in|on)\s*(the\s*)?(wall|ceiling|floor)\b/i,
+    /\b(wall|ceiling|floor)\s*cracks?\b/i,
+    /\b(roof|ceiling)\s*(sag|droop|bend|bow)/i,
+    /\bpipe\s*(leak|burst|broke)\b/i,
+    /\b(burst|broken|leaking)\s*pipe\b/i,
+    /\bboiler\s*(not|isn't|isnt|won't|wont|broken|issue|problem)\b/i,
+    /\b(no\s+)?(hot\s+water|heating)\s*(not\s+)?work/i,
+    /\belectric(al)?\s*(shock|socket|issue|problem|fault)\b/i,
+    /\bstructur(al|e)\s*(change|work|alteration|issue|problem|damage)\b/i,
+    /\bcarbon\s*monoxide\b/i,
+    /\bco\s*(alarm|detector|leak)\b/i,
+    /\bsubsidence\b/i,
+    /\bfoundation(s)?\s*(issue|problem|crack|damage)\b/i,
+    /\b(is\s+)?(it|this|that)\s+(safe|dangerous|ok|okay)\b/i,
+    /\bsafe\s+to\s+(drill|remove|knock|alter|change|modify)\b/i
+  ];
+
+  const matchedKeyword = keywords.find((kw) => lower.includes(kw));
+  if (matchedKeyword) {
+    return { isCritical: true, matchedKeyword };
+  }
+
+  for (const pattern of patterns) {
+    if (pattern.test(message)) {
+      return { isCritical: true, matchedKeyword: `pattern:${pattern.source.slice(0, 30)}` };
+    }
+  }
+
+  return { isCritical: false, matchedKeyword: null };
+}
+
+// Standard safe response for safety-critical queries (bypasses LLM entirely)
+const SAFETY_INTERCEPT_RESPONSE = `Thanks for flagging that, and I'm glad you asked. I cannot safely assess structural, electrical, gas, fire, or health risks from here. For anything that might affect safety or the structure of your home, you should contact a qualified professional such as your builder, management company, electrician, plumber, or relevant contractor.
+
+If you believe there is any immediate risk to health, safety, or property (for example smells of gas, burning, sparking, major leak, or structural movement), please contact emergency services immediately on 999 or 112. Do not rely on this assistant for emergency guidance.
+
+For non-urgent concerns, your homeowner manual includes contact details for reporting defects and maintenance issues. I'm happy to help you find that information if you'd like.`;
+
 // HIGH-RISK TOPIC DETECTION: Detect safety/emergency questions that should not show document sources
 function detectHighRiskTopic(message: string): { isHighRisk: boolean; category: string | null } {
   const messageLower = message.toLowerCase();
@@ -303,6 +402,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
+    // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM or RAG
+    const safetyCheck = isSafetyCriticalQuery(message);
+    if (safetyCheck.isCritical) {
+      console.log('[Chat] SAFETY INTERCEPT: Query blocked by pre-filter, matched keyword:', safetyCheck.matchedKeyword);
+      
+      // Log the safety intercept for analytics/monitoring
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: userId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: SAFETY_INTERCEPT_RESPONSE,
+          question_topic: 'safety_intercept',
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            safetyIntercept: true,
+            matchedKeyword: safetyCheck.matchedKeyword,
+            unitUid: clientUnitUid || null,
+            userId: userId || null,
+          },
+        });
+        console.log('[Chat] Safety intercept logged to database');
+      } catch (logError) {
+        console.error('[Chat] Failed to log safety intercept:', logError);
+      }
+      
+      // Return standard safe response WITHOUT calling RAG or LLM
+      return NextResponse.json({
+        success: true,
+        answer: SAFETY_INTERCEPT_RESPONSE,
+        source: 'safety_intercept',
+        safetyIntercept: true,
+        isNoInfo: false,
+      });
+    }
+
     const token = request.headers.get('x-qr-token');
     let validatedUnitUid: string | null = null;
 
@@ -447,16 +588,51 @@ export async function POST(request: NextRequest) {
       console.log('[Chat] Computing semantic similarity scores...');
       
       // Filter out superseded documents before scoring
+      // Also filter out technical/engineering documents that are NOT homeowner-facing
+      const EXCLUDED_DISCIPLINES = [
+        'structural', 'engineering', 'electrical', 'mechanical', 'plumbing',
+        'mep', 'hvac', 'fire_strategy', 'fire_engineering', 'gas', 'construction',
+        'as_built', 'detailed_design', 'technical', 'contractor'
+      ];
+      
+      const EXCLUDED_FILENAME_PATTERNS = [
+        /structural/i, /engineer/i, /\bSE\b/, /\bMEP\b/, /electrical.*schematic/i,
+        /gas.*schematic/i, /fire.*strategy/i, /construction.*issue/i, /as.?built/i,
+        /detailed.*design/i, /contractor.*manual/i, /internal.*spec/i,
+        /load.*calc/i, /beam.*calc/i, /foundation/i, /reinforcement/i
+      ];
+      
       const activeChunks = allChunks.filter(chunk => {
         const docId = chunk.metadata?.document_id;
+        const discipline = (chunk.metadata?.discipline || '').toLowerCase();
+        const fileName = (chunk.metadata?.file_name || chunk.metadata?.source || '').toLowerCase();
+        
+        // Exclude superseded documents
         if (docId && supersededDocIds.has(docId)) {
-          return false; // Exclude chunks from superseded documents
+          return false;
         }
+        
+        // Exclude technical/engineering disciplines
+        if (EXCLUDED_DISCIPLINES.some(d => discipline.includes(d))) {
+          return false;
+        }
+        
+        // Exclude files with technical/engineering patterns in filename
+        if (EXCLUDED_FILENAME_PATTERNS.some(pattern => pattern.test(fileName))) {
+          return false;
+        }
+        
+        // Default to include if is_homeowner_facing is true or not set (assume safe)
+        // Only exclude if explicitly marked as not homeowner-facing
+        if (chunk.metadata?.is_homeowner_facing === false) {
+          return false;
+        }
+        
         return true;
       });
       
       if (activeChunks.length < allChunks.length) {
-        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded docs');
+        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded + technical docs (from', allChunks.length, ')');
       }
       
       const scoredChunks = activeChunks.map(chunk => {

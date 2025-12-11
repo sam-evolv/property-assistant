@@ -978,6 +978,14 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
+            
+            {/* Safety Disclaimer */}
+            <p className={`mx-auto mt-2 max-w-3xl text-center text-[11px] leading-tight ${
+              isDarkMode ? 'text-gray-500' : 'text-gray-400'
+            }`}>
+              General guidance only, not professional safety or structural advice.
+              Always consult qualified professionals for electrical, gas, structural, or fire-related issues.
+            </p>
           </div>
         </>
       )}
