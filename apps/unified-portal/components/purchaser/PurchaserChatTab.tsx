@@ -721,8 +721,8 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* INPUT BAR - Always at bottom */}
-          <div className={`shrink-0 border-t px-4 pt-3 pb-4 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          {/* INPUT BAR - Always at bottom with mobile tab bar spacer */}
+          <div className={`shrink-0 border-t px-4 pt-3 pb-2 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
                 ? 'border-gray-700 bg-gray-900'
@@ -776,6 +776,8 @@ export default function PurchaserChatTab({
             <p className={`mt-2 text-center text-[11px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
               {t.powered}
             </p>
+            {/* Mobile Tab Bar Spacer - h-16 matches MobileTabBar height */}
+            <div className="h-16 md:hidden" />
           </div>
         </div>
       ) : (
@@ -1002,6 +1004,8 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
+            {/* Mobile Tab Bar Spacer - h-16 matches MobileTabBar height */}
+            <div className="h-16 md:hidden" />
           </div>
         </div>
       )}
