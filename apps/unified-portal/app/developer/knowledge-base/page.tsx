@@ -20,7 +20,9 @@ import {
   Edit3,
   FolderArchive,
   BarChart3,
-  Tag
+  Tag,
+  Inbox,
+  Send
 } from 'lucide-react';
 import { SkeletonCard } from '@/components/ui/SkeletonLoader';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -44,7 +46,18 @@ interface QuestionInsight {
   last_asked: string;
 }
 
-type TabType = 'faqs' | 'insights' | 'gaps';
+interface InfoRequest {
+  id: string;
+  question: string;
+  context: string | null;
+  status: string;
+  response: string | null;
+  topic: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+type TabType = 'faqs' | 'insights' | 'gaps' | 'requests';
 
 const TOPIC_OPTIONS = [
   'general',
@@ -67,10 +80,14 @@ export default function KnowledgeBasePage() {
   const [activeTab, setActiveTab] = useState<TabType>('faqs');
   const [faqs, setFaqs] = useState<FAQEntry[]>([]);
   const [questions, setQuestions] = useState<QuestionInsight[]>([]);
+  const [infoRequests, setInfoRequests] = useState<InfoRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingFaq, setEditingFaq] = useState<FAQEntry | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<InfoRequest | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [submittingResponse, setSubmittingResponse] = useState(false);
   const [formData, setFormData] = useState({
     question: '',
     answer: '',
@@ -86,9 +103,10 @@ export default function KnowledgeBasePage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [faqsRes, questionsRes] = await Promise.all([
+      const [faqsRes, questionsRes, requestsRes] = await Promise.all([
         fetch(`/api/developer/faq${developmentId ? `?developmentId=${developmentId}` : ''}`).catch(() => null),
         fetch('/api/analytics/platform/top-questions?days=30').catch(() => null),
+        fetch('/api/information-requests').catch(() => null),
       ]);
 
       if (faqsRes?.ok) {
@@ -105,10 +123,46 @@ export default function KnowledgeBasePage() {
           last_asked: new Date().toISOString(),
         })) || []);
       }
+
+      if (requestsRes?.ok) {
+        const data = await requestsRes.json();
+        setInfoRequests(data.requests || []);
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRespondToRequest = async (requestId: string, response: string) => {
+    if (!response.trim()) {
+      toast.error('Please enter a response');
+      return;
+    }
+
+    setSubmittingResponse(true);
+    try {
+      const res = await fetch(`/api/information-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          response: response.trim(),
+          status: 'resolved',
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to respond');
+
+      toast.success('Response saved successfully');
+      setSelectedRequest(null);
+      setResponseText('');
+      fetchData();
+    } catch (error) {
+      console.error('Failed to respond:', error);
+      toast.error('Failed to save response');
+    } finally {
+      setSubmittingResponse(false);
     }
   };
 
@@ -198,10 +252,13 @@ export default function KnowledgeBasePage() {
   const faqTopics = new Set(faqs.map(f => f.topic));
   const unansweredQuestions = questions.filter(q => !faqTopics.has(q.topic));
 
+  const pendingRequests = infoRequests.filter(r => r.status === 'pending');
+  
   const tabs = [
     { id: 'faqs' as TabType, label: 'Manual FAQs', icon: HelpCircle, count: faqs.length },
     { id: 'insights' as TabType, label: 'Question Insights', icon: TrendingUp, count: questions.length },
     { id: 'gaps' as TabType, label: 'Knowledge Gaps', icon: Lightbulb, count: unansweredQuestions.length },
+    { id: 'requests' as TabType, label: 'Purchaser Requests', icon: Inbox, count: pendingRequests.length },
   ];
 
   if (loading) {
@@ -481,6 +538,145 @@ export default function KnowledgeBasePage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'requests' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-6">
+              <div className="flex items-start gap-4">
+                <Inbox className="w-8 h-8 text-amber-500 flex-shrink-0" />
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Purchaser Requests</h4>
+                  <p className="text-gray-600 text-sm">
+                    When the AI cannot answer a question, purchasers can submit a request for information.
+                    Respond to these requests and consider adding FAQs for common topics.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Requests ({pendingRequests.length})</h3>
+              
+              {infoRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+                  <p className="text-gray-500 font-medium">No pending requests</p>
+                  <p className="text-gray-400 text-sm mt-1">Purchaser requests for information will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {infoRequests.map((request) => (
+                    <div key={request.id} className={`p-4 rounded-lg border ${
+                      request.status === 'pending' 
+                        ? 'bg-amber-50 border-amber-200' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                              request.status === 'pending' 
+                                ? 'bg-amber-100 text-amber-700' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {request.status === 'pending' ? 'Pending' : 'Resolved'}
+                            </span>
+                            {request.topic && (
+                              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                                {request.topic}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-medium text-gray-900 mb-1">{request.question}</p>
+                          {request.context && (
+                            <p className="text-gray-500 text-sm mb-2">{request.context}</p>
+                          )}
+                          <p className="text-xs text-gray-400">
+                            Submitted {new Date(request.created_at).toLocaleDateString()}
+                          </p>
+                          {request.response && (
+                            <div className="mt-3 p-3 bg-white rounded border border-gray-200">
+                              <p className="text-sm text-gray-700">{request.response}</p>
+                            </div>
+                          )}
+                        </div>
+                        {request.status === 'pending' && (
+                          <button
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setResponseText('');
+                            }}
+                            className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm flex items-center gap-1"
+                          >
+                            <Send className="w-4 h-4" />
+                            Respond
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {selectedRequest && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Respond to Request</h2>
+                <button
+                  onClick={() => { setSelectedRequest(null); setResponseText(''); }}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 mb-1">Purchaser asked:</p>
+                  <p className="font-medium text-gray-900">{selectedRequest.question}</p>
+                  {selectedRequest.context && (
+                    <p className="text-sm text-gray-500 mt-2">{selectedRequest.context}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Your Response *
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={responseText}
+                    onChange={(e) => setResponseText(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    placeholder="Provide a helpful response..."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedRequest(null); setResponseText(''); }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleRespondToRequest(selectedRequest.id, responseText)}
+                    disabled={submittingResponse || !responseText.trim()}
+                    className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {submittingResponse ? 'Sending...' : 'Send Response'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

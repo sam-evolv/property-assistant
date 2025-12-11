@@ -3,7 +3,7 @@ import { db } from '@openhouse/db';
 import { informationRequests } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
-const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b9-93d9b5c88ee2';
+const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 
 export async function POST(request: NextRequest) {
