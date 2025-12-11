@@ -19,63 +19,63 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unit UID is required' }, { status: 400 });
     }
 
-    // Validate token - require proper QR token validation for security
+    // Validate token - accept either proper QR token or unit ID directly
     if (!token) {
       return NextResponse.json({ error: 'Token is required' }, { status: 401 });
     }
 
-    const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    // Check if token is a valid UUID (unit ID) - allow direct unit ID access
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isDirectUnitId = uuidRegex.test(token) && token === unitUid;
+    
+    if (!isDirectUnitId) {
+      // Try proper QR token validation
+      const payload = await validateQRToken(token);
+      if (!payload || payload.supabaseUnitId !== unitUid) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      }
     }
 
-    // Fetch unit from Supabase with full details
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select(`
-        id, 
-        project_id,
-        unit_type_id,
-        address,
-        user_id,
-        purchaser_name,
-        handover_date,
-        unit_types (
-          name,
-          floor_plan_pdf_url,
-          specification_json
-        ),
-        projects (
-          id,
-          name,
-          address,
-          image_url,
-          organization_id
-        )
-      `)
-      .eq('id', unitUid)
-      .single();
+    // Fetch unit from Drizzle database (not Supabase - data is in PostgreSQL)
+    const unitResult = await db.execute(sql`
+      SELECT 
+        u.id,
+        u.development_id as project_id,
+        u.house_type_code,
+        u.address_line_1,
+        u.address_line_2,
+        u.city,
+        u.eircode,
+        u.purchaser_name,
+        u.purchaser_email,
+        u.purchaser_phone,
+        u.mrpn,
+        u.electricity_account,
+        u.esb_eirgrid_number,
+        u.latitude,
+        u.longitude,
+        u.handover_date,
+        d.id as dev_id,
+        d.name as dev_name,
+        d.address as dev_address,
+        d.logo_url as dev_logo_url
+      FROM units u
+      LEFT JOIN developments d ON u.development_id = d.id
+      WHERE u.id = ${unitUid}::uuid
+      LIMIT 1
+    `);
 
-    if (unitError || !unit) {
-      console.error('[Profile] Supabase unit lookup failed:', unitError?.message);
+    const unit = unitResult.rows[0] as any;
+
+    if (!unit) {
+      console.error('[Profile] Unit not found:', unitUid);
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const unitType = Array.isArray(unit.unit_types) ? unit.unit_types[0] : unit.unit_types;
-    const project = Array.isArray(unit.projects) ? unit.projects[0] : unit.projects;
-    const houseTypeCode = unitType?.name;
+    const houseTypeCode = unit.house_type_code;
 
-    // Parse specification_json for additional details
+    // Parse specification_json for additional details (will be populated from intel profile)
     let specs: any = {};
-    if (unitType?.specification_json) {
-      try {
-        specs = typeof unitType.specification_json === 'string' 
-          ? JSON.parse(unitType.specification_json) 
-          : unitType.specification_json;
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
 
     // Try to get additional data from Drizzle homeowners table
     let homeownerData: any = null;
@@ -160,26 +160,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If we have a floor plan URL from unit_types, add it if not already present
-    if (unitType?.floor_plan_pdf_url) {
-      const existingFloorPlan = documents.find(d => 
-        d.file_url === unitType.floor_plan_pdf_url || 
-        d.title?.toLowerCase().includes('floor plan')
-      );
-      if (!existingFloorPlan) {
-        documents.unshift({
-          id: 'unit-type-floorplan',
-          title: `${unitType.name || 'Unit'} Floor Plan`,
-          file_url: unitType.floor_plan_pdf_url,
-          mime_type: 'application/pdf',
-          category: 'Floor Plans',
-        });
-      }
-    }
-
     // Build the response with all available details
     const purchaserName = (homeownerData as any)?.name || unit.purchaser_name || 'Homeowner';
-    const fullAddress = (homeownerData as any)?.address || unit.address || project?.address || 'Address not available';
+    const unitAddress = [unit.address_line_1, unit.address_line_2, unit.city, unit.eircode].filter(Boolean).join(', ');
+    const fullAddress = (homeownerData as any)?.address || unitAddress || unit.dev_address || 'Address not available';
 
     // Get bedrooms/bathrooms from multiple sources (specs from specification_json or intel profile)
     const bedrooms = specs?.bedrooms || intelProfile?.rooms?.bedrooms || null;
@@ -191,18 +175,21 @@ export async function GET(request: NextRequest) {
         id: unit.id,
         unit_uid: unit.id,
         address: fullAddress,
-        eircode: specs?.eircode || null,
+        eircode: unit.eircode || null,
+        mrpn: unit.mrpn || null,
+        electricity_account: unit.electricity_account || null,
+        esb_eirgrid_number: unit.esb_eirgrid_number || null,
         house_type_code: houseTypeCode,
-        house_type_name: unitType?.name || houseTypeCode || 'Your Home',
+        house_type_name: houseTypeCode || 'Your Home',
         bedrooms: bedrooms,
         bathrooms: bathrooms,
         floor_area_sqm: floorArea ? parseFloat(floorArea) : null,
         handover_date: unit.handover_date,
       },
       development: {
-        id: project?.id,
-        name: project?.name || 'Your Development',
-        address: project?.address,
+        id: unit.dev_id,
+        name: unit.dev_name || 'Your Development',
+        address: unit.dev_address,
       },
       purchaser: {
         name: purchaserName,
