@@ -57,6 +57,43 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### GDPR Privacy Protection - AI Chat (December 2025)
+
+**Critical Legal Requirement - EU GDPR Compliance:**
+
+The AI assistant has strict privacy enforcement to protect resident information:
+
+1. **Server-Side Detection (`apps/unified-portal/app/api/chat/route.ts`):**
+   - `detectOtherUnitQuestion()` function identifies when users ask about other units
+   - Detects patterns like: "number 1", "house 5", "neighbour's home", "who lives at..."
+   - Compares against logged-in user's unit address to allow questions about their OWN home
+   - Returns immediate polite refusal for questions about other residents' properties
+
+2. **User Unit Context:**
+   - `getUserUnitDetails()` fetches the logged-in user's address from their validated QR token
+   - Only allows discussion of: user's own unit, general development/community info, amenities
+
+3. **AI System Message Enforcement:**
+   - GDPR protection clause added to system prompt as backup layer
+   - Explicitly instructs AI to never discuss other residents' homes
+   - Specifies polite refusal response when asked about other units
+
+4. **Analytics Tracking:**
+   - GDPR-blocked queries saved with `question_topic: 'gdpr_blocked'`
+   - Metadata includes `mentionedUnit` for audit trail
+
+**Allowed Topics:**
+- User's own home/unit details
+- Development/estate general information
+- Community amenities and shared facilities
+- Local area information
+
+**Blocked Topics:**
+- Any other resident's home/unit
+- Neighbour's property details
+- "Who lives at..." questions
+- Floor plans/layouts of other units
+
 ### Homeowners Grid Redesign (December 2025)
 
 **Developer Portal - Enhanced Homeowner Management:**

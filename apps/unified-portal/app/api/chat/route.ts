@@ -29,6 +29,88 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
+// GDPR PROTECTION: Detect questions about other residents' homes/units
+function detectOtherUnitQuestion(message: string, userUnitAddress: string | null): { isAboutOtherUnit: boolean; mentionedUnit: string | null } {
+  const messageLower = message.toLowerCase();
+  
+  // Patterns that indicate asking about a specific unit/address
+  const unitPatterns = [
+    /(?:number|no\.?|#|unit|house|flat|apartment)\s*(\d+)/gi,
+    /(\d+)\s*(?:longview|park|street|road|avenue|lane|drive|close|way|court|gardens)/gi,
+    /(?:my\s+)?neighbour'?s?\s+(?:house|home|unit|place)/gi,
+    /(?:next\s+door|across\s+the\s+(?:road|street)|down\s+the\s+(?:road|street))/gi,
+    /(?:who\s+lives?\s+(?:at|in)|what'?s?\s+(?:at|in))\s+(?:number|no\.?|#)?\s*\d+/gi,
+    /(?:tell\s+me\s+about|information\s+(?:on|about))\s+(?:number|no\.?|#|unit|house)?\s*\d+/gi,
+  ];
+  
+  let mentionedUnit: string | null = null;
+  
+  for (const pattern of unitPatterns) {
+    const matches = message.match(pattern);
+    if (matches && matches.length > 0) {
+      mentionedUnit = matches[0];
+      
+      // If user has a known address, check if they're asking about their OWN unit
+      if (userUnitAddress) {
+        const userAddressLower = userUnitAddress.toLowerCase();
+        // Extract numbers from user's address
+        const userUnitNumbers: string[] = userAddressLower.match(/\d+/g) || [];
+        const mentionedNumbers: string[] = mentionedUnit.toLowerCase().match(/\d+/g) || [];
+        
+        // If the mentioned number matches the user's unit number, it's about THEIR home - allow it
+        if (mentionedNumbers.length > 0 && userUnitNumbers.length > 0) {
+          const firstMentioned = mentionedNumbers[0];
+          if (firstMentioned && userUnitNumbers.includes(firstMentioned)) {
+            return { isAboutOtherUnit: false, mentionedUnit: null };
+          }
+        }
+      }
+      
+      return { isAboutOtherUnit: true, mentionedUnit };
+    }
+  }
+  
+  // Check for neighbour-related questions
+  if (/\b(neighbour|neighbor|neighbours|neighbors|next\s*door|other\s+(unit|home|house|flat|apartment)s?)\b/i.test(messageLower)) {
+    // Allow general community questions
+    if (/\b(community|area|estate|development|scheme|facilities|amenities)\b/i.test(messageLower)) {
+      return { isAboutOtherUnit: false, mentionedUnit: null };
+    }
+    // But block specific questions about neighbours' homes
+    if (/\b(their|who|what|how\s+(big|large|many)|layout|floor\s*plan|bedrooms?|rooms?)\b/i.test(messageLower)) {
+      return { isAboutOtherUnit: true, mentionedUnit: 'neighbour' };
+    }
+  }
+  
+  return { isAboutOtherUnit: false, mentionedUnit: null };
+}
+
+// Fetch user's unit details for GDPR context
+async function getUserUnitDetails(unitUid: string): Promise<{ address: string | null; houseType: string | null }> {
+  if (!unitUid) return { address: null, houseType: null };
+  
+  try {
+    const { data, error } = await supabase
+      .from('units')
+      .select('address_line_1, house_type')
+      .eq('id', unitUid)
+      .single();
+    
+    if (error || !data) {
+      console.log('[Chat] Could not fetch unit details for GDPR context');
+      return { address: null, houseType: null };
+    }
+    
+    return {
+      address: data.address_line_1 || null,
+      houseType: data.house_type || null,
+    };
+  } catch (err) {
+    console.error('[Chat] Error fetching unit details:', err);
+    return { address: null, houseType: null };
+  }
+}
+
 // Parse embedding from Supabase (may be string, array, or object)
 function parseEmbedding(emb: any): number[] | null {
   if (!emb) return null;
@@ -203,6 +285,56 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Search Query:', message);
 
+    // GDPR PROTECTION: Fetch user's unit details and check for questions about other units
+    const userUnitDetails = validatedUnitUid 
+      ? await getUserUnitDetails(validatedUnitUid)
+      : { address: null, houseType: null };
+    
+    console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
+    
+    const gdprCheck = detectOtherUnitQuestion(message, userUnitDetails.address);
+    
+    if (gdprCheck.isAboutOtherUnit) {
+      console.log('[Chat] GDPR BLOCK: Question about other unit detected:', gdprCheck.mentionedUnit);
+      
+      const gdprResponse = userUnitDetails.address
+        ? `I'm afraid I can only provide information about your own home at ${userUnitDetails.address}, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes. Is there anything I can help you with regarding your own property or the development as a whole?`
+        : `I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes. Is there anything I can help you with regarding your own property or the development as a whole?`;
+      
+      // Save the GDPR-blocked interaction to database for analytics
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: validatedUnitUid || userId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: gdprResponse,
+          question_topic: 'gdpr_blocked',
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            unitUid: validatedUnitUid || null,
+            userId: userId || null,
+            gdprBlocked: true,
+            mentionedUnit: gdprCheck.mentionedUnit,
+          },
+        });
+      } catch (dbError) {
+        console.error('[Chat] Failed to save GDPR-blocked message:', dbError);
+      }
+      
+      return NextResponse.json({
+        success: true,
+        answer: gdprResponse,
+        source: 'gdpr_protection',
+        gdprBlocked: true,
+      });
+    }
+
     // STEP 0: Load conversation history for context-aware responses
     // Use validated unit UID (from QR token) as the primary user identifier for session isolation
     const conversationUserId = validatedUnitUid || userId || '';
@@ -348,11 +480,25 @@ CRITICAL - ROOM DIMENSIONS (LIABILITY REQUIREMENT):
 - NEVER provide specific room dimensions, measurements, or sizes (in metres, feet, or any unit)
 - If asked about room sizes, dimensions, floor area, or measurements, respond with:
   "I've popped the floor plan below for you - that'll have the accurate room dimensions."
-- Do NOT quote any measurements from the documents - always direct users to check the official drawings themselves`;
+- Do NOT quote any measurements from the documents - always direct users to check the official drawings themselves
+
+CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
+- You MUST ONLY discuss information about the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
+- NEVER provide any information about other residents' homes, units, or properties under any circumstances
+- If asked about another unit, neighbour's home, or any other resident's property, respond with:
+  "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."
+- You ARE allowed to discuss: general development/estate information, community amenities, shared facilities, local area information
+- You are NOT allowed to discuss: any specific unit that is not the logged-in user's home, other residents' details, neighbour's properties`;
 
       console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
     } else {
-      systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development. Let the homeowner know kindly that the property information hasn't been set up yet, and suggest they contact the development team if they need help.`;
+      systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development. Let the homeowner know kindly that the property information hasn't been set up yet, and suggest they contact the development team if they need help.
+
+CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
+- You MUST ONLY discuss information about the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
+- NEVER provide any information about other residents' homes, units, or properties under any circumstances
+- If asked about another unit, neighbour's home, or any other resident's property, respond with:
+  "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
       console.log('[Chat] No relevant documents found for this query');
     }
 
