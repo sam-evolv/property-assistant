@@ -1178,3 +1178,47 @@ export const informationRequests = pgTable('information_requests', {
   tenantDevStatusIdx: index('info_requests_tenant_dev_status_idx').on(table.tenant_id, table.development_id, table.status),
   createdAtIdx: index('info_requests_created_at_idx').on(table.created_at),
 }));
+
+// Error logs - structured error tracking for observability
+export const errorLogs = pgTable('error_logs', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id),
+  development_id: uuid('development_id').references(() => developments.id),
+  error_type: varchar('error_type', { length: 50 }).notNull(), // 'supabase', 'llm', 'timeout', 'validation', 'unknown'
+  error_code: varchar('error_code', { length: 100 }),
+  error_message: text('error_message').notNull(),
+  stack_trace: text('stack_trace'),
+  endpoint: varchar('endpoint', { length: 255 }), // API route that triggered error
+  request_context: jsonb('request_context').default(sql`'{}'::jsonb`), // Anonymised request info
+  severity: varchar('severity', { length: 20 }).default('error').notNull(), // 'warning', 'error', 'critical'
+  resolved: boolean('resolved').default(false).notNull(),
+  resolved_at: timestamp('resolved_at', { withTimezone: true }),
+  resolved_by: uuid('resolved_by').references(() => admins.id),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('error_logs_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('error_logs_development_idx').on(table.development_id),
+  errorTypeIdx: index('error_logs_error_type_idx').on(table.error_type),
+  severityIdx: index('error_logs_severity_idx').on(table.severity),
+  createdAtIdx: index('error_logs_created_at_idx').on(table.created_at),
+  unresolvedIdx: index('error_logs_unresolved_idx').on(table.resolved, table.created_at),
+}));
+
+// Anonymised analytics - aggregate data by development/house type for insights
+export const analyticsEvents = pgTable('analytics_events', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id),
+  house_type_code: varchar('house_type_code', { length: 50 }),
+  event_type: varchar('event_type', { length: 50 }).notNull(), // 'chat_question', 'document_view', 'search', 'unanswered'
+  event_category: varchar('event_category', { length: 100 }), // topic category
+  event_data: jsonb('event_data').default(sql`'{}'::jsonb`), // Anonymised event details (no PII)
+  session_hash: varchar('session_hash', { length: 64 }), // Hashed session ID for grouping, not tracking
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('analytics_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('analytics_development_idx').on(table.development_id),
+  eventTypeIdx: index('analytics_event_type_idx').on(table.event_type),
+  createdAtIdx: index('analytics_created_at_idx').on(table.created_at),
+  tenantEventDateIdx: index('analytics_tenant_event_date_idx').on(table.tenant_id, table.event_type, table.created_at),
+}));

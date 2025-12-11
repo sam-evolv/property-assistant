@@ -13,7 +13,8 @@ export * from './document-processor';
 
 // Export session function and re-exported rbac types/functions
 export { getAdminSession } from './session';
-export type { AdminRole, AdminContext, AdminSession } from './session';
+export type { AdminRole, AdminSession } from './session';
+export type { AdminContext } from './rbac';
 
 // Export rbac functions directly to avoid conflicts
 export { 
@@ -81,3 +82,9 @@ export {
   ensureFloorplansBucketExists,
 } from './floorplan-storage';
 export type { FloorplanUploadResult, FloorplanDimensions } from './floorplan-storage';
+
+// Error logging and analytics
+export { logError, createErrorLogger, getRecentErrors, getErrorStats } from './error-logger';
+export type { ErrorType, Severity } from './error-logger';
+export { logAnalyticsEvent, getAnalyticsSummary, getUnansweredReport } from './analytics-logger';
+export type { EventType } from './analytics-logger';

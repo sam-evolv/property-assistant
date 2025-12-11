@@ -8,6 +8,7 @@ import { eq, desc, and } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 
 const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
 
@@ -625,6 +626,16 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - If asked about another unit, neighbour's home, or any other resident's property, respond with:
   "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
       console.log('[Chat] No relevant documents found for this query');
+      
+      // Log unanswered event for "what couldn't be answered" insights
+      logAnalyticsEvent({
+        tenantId: DEFAULT_TENANT_ID,
+        developmentId: DEFAULT_DEVELOPMENT_ID,
+        eventType: 'unanswered',
+        eventCategory: 'no_relevant_docs',
+        eventData: { reason: 'low_similarity_or_no_chunks' },
+        sessionId: validatedUnitUid || userId,
+      }).catch(() => {}); // Don't fail chat if analytics fails
     }
 
     // STEP 4: Extract question topic and find drawing BEFORE streaming (parallel with RAG)
@@ -651,6 +662,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     ]);
 
     console.log('[Chat] Question topic:', questionTopic);
+    
+    // Log analytics event (anonymised - no PII)
+    logAnalyticsEvent({
+      tenantId: DEFAULT_TENANT_ID,
+      developmentId: DEFAULT_DEVELOPMENT_ID,
+      eventType: 'chat_question',
+      eventCategory: questionTopic || 'unknown',
+      eventData: {
+        hasContext: chunks.length > 0,
+        chunkCount: chunks.length,
+        topSimilarity: chunks[0]?.similarity?.toFixed(3) || 0,
+      },
+      sessionId: validatedUnitUid || conversationUserId,
+    }).catch(() => {}); // Don't fail chat if analytics fails
     
     // If question is ambiguous about internal vs external, offer clarification
     if (isAmbiguousSizeQuestion && effectiveUnitUid) {
@@ -927,6 +952,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
   } catch (error) {
     console.error('[Chat] Error:', error);
+    
+    // Log error to database for observability
+    const errorLogger = createErrorLogger('/api/chat', DEFAULT_TENANT_ID, DEFAULT_DEVELOPMENT_ID);
+    const isTimeout = error instanceof Error && error.message.includes('timeout');
+    const isLLM = error instanceof Error && (error.message.includes('OpenAI') || error.message.includes('rate limit'));
+    
+    if (isTimeout) {
+      await errorLogger.timeout(error instanceof Error ? error.message : 'Chat timeout');
+    } else if (isLLM) {
+      await errorLogger.llm(error instanceof Error ? error.message : 'LLM error', undefined, { endpoint: '/api/chat' });
+    } else {
+      await errorLogger.supabase(error instanceof Error ? error.message : 'Chat failed', undefined, { endpoint: '/api/chat' });
+    }
+    
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Chat failed' },
       { status: 500 }
