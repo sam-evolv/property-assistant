@@ -57,6 +57,44 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Noticeboard Abuse & Safety Controls (December 2025)
+
+**Server-side Stamping:**
+- `unit_id` and `development_id` columns added to noticeboard_posts
+- Address derived from Supabase via validated QR token, never from client
+- `author_name` always set to 'Resident' (not client-controlled)
+
+**Terms Acceptance:**
+- `notices_terms_accepted_at` field added to homeowners table
+- POST endpoints require `termsAccepted: true` in payload
+- Frontend must show community guidelines modal before first post
+
+**Report System:**
+- `notice_reports` table with status tracking (pending/resolved/dismissed)
+- Report API: `/api/purchaser/noticeboard/report`
+- Moderation page: `/developer/moderation` with hide/dismiss actions
+- Rate limited: 10 reports/hour per unit
+
+**Edit/Delete Policy:**
+- Users can delete own posts/comments anytime
+- Edits only allowed within 10-minute window (server-enforced)
+- PATCH endpoints check ownership and time window
+
+**Rate Limiting:**
+- 5 posts/hour per unit
+- 20 comments/hour per unit
+- Returns 429 when exceeded
+
+**Takedown Powers:**
+- `hidden_at`, `hidden_by`, `hidden_reason` fields on posts/comments
+- Takedown API: `/developer/api/moderation/takedown`
+- Hidden content excluded from resident-facing queries
+
+**Audit Log:**
+- `notice_audit_log` table records all moderation actions
+- Stores original content as JSONB
+- Tracks actor type (resident/admin) and ID
+
 ### RAG Quality Improvements (December 2025)
 
 **Embedding Health Check:**

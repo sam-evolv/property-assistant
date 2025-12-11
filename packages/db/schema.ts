@@ -161,6 +161,8 @@ export const archive_folders = pgTable('archive_folders', {
 export const noticeboard_posts = pgTable('noticeboard_posts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id),
+  unit_id: text('unit_id'),
   title: varchar('title', { length: 500 }).notNull(),
   content: text('content').notNull(),
   author_id: uuid('author_id').references(() => admins.id),
@@ -170,12 +172,17 @@ export const noticeboard_posts = pgTable('noticeboard_posts', {
   start_date: timestamp('start_date', { withTimezone: true }),
   end_date: timestamp('end_date', { withTimezone: true }),
   active: boolean('active').default(true).notNull(),
+  hidden_at: timestamp('hidden_at', { withTimezone: true }),
+  hidden_by: uuid('hidden_by').references(() => admins.id),
+  hidden_reason: text('hidden_reason'),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('noticeboard_tenant_idx').on(table.tenant_id),
   activeIdx: index('noticeboard_active_idx').on(table.active),
   datesIdx: index('noticeboard_dates_idx').on(table.start_date, table.end_date),
+  unitIdx: index('noticeboard_unit_idx').on(table.unit_id),
+  hiddenIdx: index('noticeboard_hidden_idx').on(table.hidden_at),
 }));
 
 export const notice_comments = pgTable('notice_comments', {
@@ -188,6 +195,9 @@ export const notice_comments = pgTable('notice_comments', {
   author_unit: text('author_unit'),
   body: text('body').notNull(),
   is_deleted: boolean('is_deleted').default(false).notNull(),
+  hidden_at: timestamp('hidden_at', { withTimezone: true }),
+  hidden_by: uuid('hidden_by').references(() => admins.id),
+  hidden_reason: text('hidden_reason'),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }),
 }, (table) => ({
@@ -196,6 +206,46 @@ export const notice_comments = pgTable('notice_comments', {
   tenantIdx: index('notice_comments_tenant_idx').on(table.tenant_id),
   developmentIdx: index('notice_comments_development_idx').on(table.development_id),
   unitIdx: index('notice_comments_unit_idx').on(table.unit_id),
+  hiddenIdx: index('notice_comments_hidden_idx').on(table.hidden_at),
+}));
+
+export const notice_reports = pgTable('notice_reports', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  notice_id: uuid('notice_id').references(() => noticeboard_posts.id, { onDelete: 'cascade' }),
+  comment_id: uuid('comment_id').references(() => notice_comments.id, { onDelete: 'cascade' }),
+  reporter_unit_id: text('reporter_unit_id').notNull(),
+  reason: text('reason').notNull(),
+  status: varchar('status', { length: 20 }).default('pending').notNull(),
+  reviewed_by: uuid('reviewed_by').references(() => admins.id),
+  reviewed_at: timestamp('reviewed_at', { withTimezone: true }),
+  resolution_notes: text('resolution_notes'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('notice_reports_tenant_idx').on(table.tenant_id),
+  noticeIdx: index('notice_reports_notice_idx').on(table.notice_id),
+  commentIdx: index('notice_reports_comment_idx').on(table.comment_id),
+  statusIdx: index('notice_reports_status_idx').on(table.status),
+}));
+
+export const notice_audit_log = pgTable('notice_audit_log', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  notice_id: uuid('notice_id'),
+  comment_id: uuid('comment_id'),
+  action: varchar('action', { length: 50 }).notNull(),
+  actor_type: varchar('actor_type', { length: 20 }).notNull(),
+  actor_id: text('actor_id'),
+  actor_name: text('actor_name'),
+  original_content: jsonb('original_content'),
+  reason: text('reason'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('notice_audit_tenant_idx').on(table.tenant_id),
+  noticeIdx: index('notice_audit_notice_idx').on(table.notice_id),
+  commentIdx: index('notice_audit_comment_idx').on(table.comment_id),
+  actionIdx: index('notice_audit_action_idx').on(table.action),
+  createdIdx: index('notice_audit_created_idx').on(table.created_at),
 }));
 
 export const pois = pgTable('pois', {
@@ -347,6 +397,7 @@ export const homeowners = pgTable('homeowners', {
   last_active: timestamp('last_active', { withTimezone: true }),
   total_chats: integer('total_chats').default(0),
   total_downloads: integer('total_downloads').default(0),
+  notices_terms_accepted_at: timestamp('notices_terms_accepted_at', { withTimezone: true }),
   metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
