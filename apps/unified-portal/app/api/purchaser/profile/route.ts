@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
         u.esb_eirgrid_number,
         u.latitude,
         u.longitude,
-        u.handover_date,
         d.id as dev_id,
         d.name as dev_name,
         d.address as dev_address,
@@ -184,7 +183,6 @@ export async function GET(request: NextRequest) {
         bedrooms: bedrooms,
         bathrooms: bathrooms,
         floor_area_sqm: floorArea ? parseFloat(floorArea) : null,
-        handover_date: unit.handover_date,
       },
       development: {
         id: unit.dev_id,
