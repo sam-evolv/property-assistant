@@ -68,10 +68,10 @@ export default function NoticeboardTermsModal({
         onClick={onClose}
       />
       
-      <div className={`relative z-[101] w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl ${
+      <div className={`relative z-[101] w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl ${
         isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white'
       }`}>
-        <div className={`sticky top-0 z-10 px-6 py-4 border-b ${
+        <div className={`flex-shrink-0 px-6 py-4 border-b ${
           isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
         }`}>
           <div className="flex items-center justify-between">
@@ -99,7 +99,7 @@ export default function NoticeboardTermsModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[calc(90vh-200px)] px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Welcome to the community noticeboard! To keep this a helpful and respectful space for all residents,
             please follow these guidelines:
@@ -143,7 +143,7 @@ export default function NoticeboardTermsModal({
           </div>
         </div>
 
-        <div className={`sticky bottom-0 px-6 py-4 border-t ${
+        <div className={`flex-shrink-0 px-6 py-4 border-t ${
           isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'
         }`}>
           <label className="flex items-start gap-3 cursor-pointer mb-4">
