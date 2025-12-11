@@ -1166,60 +1166,100 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       async start(controller) {
         try {
           // Send initial metadata as first chunk (including sources for transparency)
-          // IMPORTANT: Only show sources that are ACTUALLY RELEVANT to the question
-          // Skip sources for: high-risk topics, low similarity, irrelevant document types
+          // CRITICAL: Only show sources that are ACTUALLY RELEVANT to the question topic
           const sourceDocumentsMap = new Map<string, { name: string; date: string | null; similarity: number }>();
           
-          // MINIMUM SIMILARITY FOR SHOWING SOURCES - must be actually relevant
-          const MIN_SOURCE_SIMILARITY = 0.35; // Higher threshold than for RAG context
+          // MINIMUM SIMILARITY FOR SHOWING SOURCES - adaptive based on topic specificity
+          const MIN_SOURCE_SIMILARITY = 0.35; // Base threshold
+          const HIGH_SIMILARITY_BOOST = 0.42; // Higher threshold for topic-specific filtering
           
-          // Detect if question is about floor plans/drawings/elevations
-          const isDrawingQuestion = /\b(floor\s*plan|drawing|layout|dimensions?|room\s*size|measurements?|square\s*(feet|metres?|meters?)|elevation|elevations?|external\s*view|outside\s*appearance)\b/i.test(message);
-          
-          // Document types that should only appear for relevant questions
-          const isFloorPlanDocument = (fileName: string): boolean => {
-            const lowerName = fileName.toLowerCase();
-            return /\b(hd-rs|bd\d+|-\d+-[a-z]\.pdf|floor.*plan|elevation|section.*drawing|-dr-a-)/i.test(lowerName) ||
-                   /^\d+[a-z]*-.*-\d+-[a-z]\.pdf$/i.test(fileName);
+          // Map question topic (from extractQuestionTopic) to document categories
+          // This uses the already-extracted questionTopic for consistency
+          const topicToDocCategories: Record<string, string[]> = {
+            'ev_charger': ['ohme', 'epod', 'ev charger', 'electric vehicle', 'charging'],
+            'heat_pump': ['daikin', 'altherma', 'heat pump', 'heating', 'erga', 'hvac'],
+            'heating': ['daikin', 'altherma', 'heat pump', 'heating', 'boiler', 'radiator', 'erga'],
+            'solar': ['solar', 'pv', 'photovoltaic', 'panels'],
+            'ventilation': ['mvhr', 'ventilation', 'hrv', 'air quality', 'lunos'],
+            'security': ['alarm', 'security', 'sensor', 'intruder'],
+            'floor_plan': ['floor plan', 'elevation', 'drawing', '-dr-a-', 'layout'],
+            'room_sizes': ['floor plan', 'room sizes', 'dimensions', 'layout'],
+            'living_room_size': ['floor plan', 'room sizes', 'layout'],
+            'kitchen': ['kitchen', 'appliance', 'oven', 'hob', 'bosch', 'siemens'],
+            'parking': ['parking', 'car park', 'transport'],
+            'waste': ['bin', 'waste', 'recycling', 'rubbish'],
           };
           
-          const isTechnicalDatasheet = (fileName: string): boolean => {
-            const lowerName = fileName.toLowerCase();
-            return /\b(sds|datasheet|data.*sheet|bba.*cert|cert\b|technical.*spec|kpro|facade|floplast|pyroplex|kilsaran|ozeo|ecowatt|ohme|castleforma|raft|therm|render.*agreement|br_render)\b/i.test(lowerName);
+          // Documents that should be EXCLUDED when asking about specific topics
+          // Key = topic, Value = patterns to exclude (prevent cross-contamination)
+          const topicExclusions: Record<string, RegExp> = {
+            'ev_charger': /\b(daikin|altherma|erga|heat\s*pump|hvac|boiler|radiator)\b/i,
+            'heat_pump': /\b(ohme|epod|ev\s*charg|electric\s*vehicle)\b/i,
+            'heating': /\b(ohme|epod|ev\s*charg|electric\s*vehicle)\b/i,
           };
           
-          const isGenericFAQ = (fileName: string): boolean => {
-            const lowerName = fileName.toLowerCase();
-            return /\b(faq|faqs|general|info)\b/i.test(lowerName);
+          // Documents that are always excluded from sources (too technical/confusing)
+          const isExcludedDocument = (fileName: string): boolean => {
+            const lower = fileName.toLowerCase();
+            return /\b(sds|datasheet|bba.*cert|technical.*spec|castleforma|raft.*therm|render.*agreement|br_render|iso.*cert)\b/.test(lower);
           };
           
-          // Check if we have any chunks above the relevance threshold
+          // Check if document is relevant to the question topic
+          const isDocumentRelevantToTopic = (fileName: string, chunk: any, topic: string | null): boolean => {
+            const lower = fileName.toLowerCase();
+            const chunkContent = (chunk.content || '').toLowerCase();
+            const docCategory = (chunk.metadata?.category || '').toLowerCase();
+            const docDiscipline = (chunk.metadata?.discipline || '').toLowerCase();
+            
+            // First, check topic-specific exclusions (e.g., exclude heat pumps from EV charger questions)
+            if (topic && topicExclusions[topic]) {
+              if (topicExclusions[topic].test(lower)) {
+                return false; // Explicitly excluded for this topic
+              }
+            }
+            
+            // For specific topics, check if document matches
+            if (topic && topicToDocCategories[topic]) {
+              const relevantPatterns = topicToDocCategories[topic];
+              // Check filename, content, or metadata for relevance
+              const isRelevant = relevantPatterns.some(pattern => 
+                lower.includes(pattern) || 
+                chunkContent.includes(pattern) ||
+                docCategory.includes(pattern) ||
+                docDiscipline.includes(pattern)
+              );
+              return isRelevant;
+            }
+            
+            // For general/unknown topics, allow most documents except technical ones
+            return true;
+          };
+          
+          // Check if this is a topic with specific document requirements
+          const hasSpecificTopic = questionTopic && topicToDocCategories[questionTopic];
+          const effectiveThreshold = hasSpecificTopic ? HIGH_SIMILARITY_BOOST : MIN_SOURCE_SIMILARITY;
           const hasRelevantChunks = chunks && chunks.length > 0 && chunks[0]?.similarity >= MIN_SOURCE_SIMILARITY;
           
-          // Skip sources entirely for: high-risk topics, or when no chunks are actually relevant
+          // Skip sources for high-risk topics or when no chunks are relevant
           if (!highRiskCheck.isHighRisk && hasRelevantChunks) {
             for (const c of chunks) {
               const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
               const similarity = c.similarity || 0;
               
-              // STRICT: Only include sources above the relevance threshold
-              if (similarity < MIN_SOURCE_SIMILARITY) {
-                continue;
-              }
+              // Only include sources above the relevance threshold
+              if (similarity < MIN_SOURCE_SIMILARITY) continue;
               
-              // Filter out irrelevant document types based on question context
-              if (!isDrawingQuestion && isFloorPlanDocument(fileName)) {
-                continue;
-              }
+              // Always exclude confusing technical documents
+              if (isExcludedDocument(fileName)) continue;
               
-              // Always filter out technical datasheets - not useful to users
-              if (isTechnicalDatasheet(fileName)) {
-                continue;
-              }
-              
-              // For drawing questions, skip generic FAQs - show actual drawings
-              if (isDrawingQuestion && isGenericFAQ(fileName)) {
-                continue;
+              // For specific topics, check document relevance
+              if (hasSpecificTopic) {
+                const isRelevant = isDocumentRelevantToTopic(fileName, c, questionTopic);
+                if (!isRelevant) {
+                  // Allow FAQs/guides as fallback only if they have very high similarity
+                  const isFAQ = /\b(faq|guide|manual|homeowner)\b/.test(fileName.toLowerCase());
+                  if (!isFAQ || similarity < 0.48) continue;
+                }
               }
               
               if (!sourceDocumentsMap.has(fileName) || (similarity > sourceDocumentsMap.get(fileName)!.similarity)) {
