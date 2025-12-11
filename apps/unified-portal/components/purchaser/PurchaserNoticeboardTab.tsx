@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Bell, Calendar, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
+import NoticeboardTermsModal from './NoticeboardTermsModal';
 
 interface Notice {
   id: string;
@@ -468,11 +469,17 @@ export default function PurchaserNoticeboardTab({
   const [authorName, setAuthorName] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [noticeAuthorName, setNoticeAuthorName] = useState('');
+  
+  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [acceptingTerms, setAcceptingTerms] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'post' | 'comment' | null>(null);
 
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
   useEffect(() => {
     fetchNotices();
+    checkTermsStatus();
   }, [unitUid]);
 
   useEffect(() => {
@@ -480,6 +487,59 @@ export default function PurchaserNoticeboardTab({
       fetchComments(selectedNotice.id);
     }
   }, [selectedNotice?.id]);
+
+  const checkTermsStatus = async () => {
+    try {
+      const token = sessionStorage.getItem(`house_token_${unitUid}`);
+      if (!token) return;
+
+      const res = await fetch(
+        `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setTermsAccepted(data.termsAccepted);
+      }
+    } catch (error) {
+      console.error('Failed to check terms status:', error);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    setAcceptingTerms(true);
+    try {
+      const token = sessionStorage.getItem(`house_token_${unitUid}`);
+      if (!token) return;
+
+      const res = await fetch(
+        `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
+        { method: 'POST' }
+      );
+
+      if (res.ok) {
+        setTermsAccepted(true);
+        setShowTermsModal(false);
+        
+        if (pendingAction === 'post') {
+          setShowCreateModal(true);
+        }
+        setPendingAction(null);
+      }
+    } catch (error) {
+      console.error('Failed to accept terms:', error);
+    } finally {
+      setAcceptingTerms(false);
+    }
+  };
+
+  const handleCreateClick = () => {
+    if (!termsAccepted) {
+      setPendingAction('post');
+      setShowTermsModal(true);
+    } else {
+      setShowCreateModal(true);
+    }
+  };
 
   const fetchNotices = async () => {
     try {
@@ -527,6 +587,12 @@ export default function PurchaserNoticeboardTab({
     e.preventDefault();
     if (!commentText.trim() || !selectedNotice) return;
 
+    if (!termsAccepted) {
+      setPendingAction('comment');
+      setShowTermsModal(true);
+      return;
+    }
+
     setSubmittingComment(true);
     try {
       const token = sessionStorage.getItem(`house_token_${unitUid}`);
@@ -543,6 +609,7 @@ export default function PurchaserNoticeboardTab({
           body: JSON.stringify({
             text: commentText.trim(),
             authorName: authorName.trim() || undefined,
+            termsAccepted: true,
           }),
         }
       );
@@ -600,7 +667,8 @@ export default function PurchaserNoticeboardTab({
           message: formData.message,
           category: formData.category,
           priority: formData.priority,
-          authorName: noticeAuthorName.trim() || undefined
+          authorName: noticeAuthorName.trim() || undefined,
+          termsAccepted: true
         })
       });
 
@@ -904,7 +972,7 @@ export default function PurchaserNoticeboardTab({
 
         <div className={`${cardBg} border-t ${borderColor} p-4 flex justify-center sticky bottom-0`}>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleCreateClick}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl hover:from-gold-600 hover:to-gold-700 transition-all active:scale-95"
           >
             <Plus className="w-5 h-5" />
@@ -1020,6 +1088,17 @@ export default function PurchaserNoticeboardTab({
           </div>
         </div>
       )}
+
+      <NoticeboardTermsModal
+        isOpen={showTermsModal}
+        onAccept={handleAcceptTerms}
+        onClose={() => {
+          setShowTermsModal(false);
+          setPendingAction(null);
+        }}
+        isDarkMode={isDarkMode}
+        isSubmitting={acceptingTerms}
+      />
     </>
   );
 }

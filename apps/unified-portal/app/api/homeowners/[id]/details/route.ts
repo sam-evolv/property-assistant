@@ -42,7 +42,7 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const [msgStatsResult, recentMsgsResult, agreementsRes] = await Promise.all([
+    const [msgStatsResult, recentMsgsResult, agreementsRes, homeownerRes] = await Promise.all([
       db.execute(sql`
         SELECT 
           COUNT(*)::int as total_messages,
@@ -69,6 +69,12 @@ export async function GET(
         ORDER BY agreed_at DESC
         LIMIT 1
       `),
+      db.execute(sql`
+        SELECT notices_terms_accepted_at
+        FROM homeowners
+        WHERE unique_qr_token = ${id}
+        LIMIT 1
+      `),
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
@@ -82,6 +88,7 @@ export async function GET(
 
     const recentMessages = (recentMsgsResult.rows || []) as any[];
     const latestAgreement = agreementsRes.rows[0] as any || null;
+    const homeownerRow = homeownerRes.rows[0] as any || null;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -142,6 +149,9 @@ export async function GET(
         user_agent: latestAgreement.user_agent,
         docs_version: latestAgreement.docs_version,
         documents_acknowledged: latestAgreement.important_docs_acknowledged || [],
+      } : null,
+      noticeboard_terms: homeownerRow?.notices_terms_accepted_at ? {
+        accepted_at: homeownerRow.notices_terms_accepted_at,
       } : null,
     });
   } catch (error) {

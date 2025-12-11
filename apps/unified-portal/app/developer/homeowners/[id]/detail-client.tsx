@@ -69,6 +69,9 @@ interface HomeownerDetails {
     docs_version: number;
     documents_acknowledged: { id: string; title: string }[];
   } | null;
+  noticeboard_terms: {
+    accepted_at: string;
+  } | null;
 }
 
 interface EditFormData {
@@ -264,7 +267,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     );
   }
 
-  const { homeowner, activity, acknowledgement } = data;
+  const { homeowner, activity, acknowledgement, noticeboard_terms } = data;
   const engagement = getEngagementLabel(activity.engagement_level);
 
   return (
@@ -617,6 +620,48 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                 </div>
               </div>
             )}
+
+            {/* Community Noticeboard Terms */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-gray-100">
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-gold-500" />
+                  Community Noticeboard Terms
+                </h2>
+              </div>
+              {noticeboard_terms ? (
+                <div className="p-5">
+                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-800">Guidelines Accepted</p>
+                      <p className="text-sm text-green-600">
+                        Agreed on {new Date(noticeboard_terms.accepted_at).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5">
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <Clock className="w-6 h-6 text-gray-400" />
+                    <div>
+                      <p className="font-medium text-gray-700">Not Yet Accepted</p>
+                      <p className="text-sm text-gray-500">
+                        This homeowner has not yet accepted the community noticeboard guidelines.
+                        They will be prompted to do so before their first post.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Acknowledgement Details */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
