@@ -43,10 +43,7 @@ export async function GET(request: NextRequest) {
         unit_types (
           name,
           floor_plan_pdf_url,
-          specification_json,
-          bedrooms,
-          bathrooms,
-          floor_area
+          specification_json
         ),
         projects (
           id,
@@ -184,10 +181,10 @@ export async function GET(request: NextRequest) {
     const purchaserName = (homeownerData as any)?.name || unit.purchaser_name || 'Homeowner';
     const fullAddress = (homeownerData as any)?.address || unit.address || project?.address || 'Address not available';
 
-    // Get bedrooms/bathrooms from multiple sources
-    const bedrooms = unitType?.bedrooms || specs?.bedrooms || intelProfile?.rooms?.bedrooms || null;
-    const bathrooms = unitType?.bathrooms || specs?.bathrooms || intelProfile?.rooms?.bathrooms || null;
-    const floorArea = unitType?.floor_area || intelProfile?.floor_area_total_sqm || specs?.floor_area || null;
+    // Get bedrooms/bathrooms from multiple sources (specs from specification_json or intel profile)
+    const bedrooms = specs?.bedrooms || intelProfile?.rooms?.bedrooms || null;
+    const bathrooms = specs?.bathrooms || intelProfile?.rooms?.bathrooms || null;
+    const floorArea = intelProfile?.floor_area_total_sqm || specs?.floor_area || null;
 
     const profile = {
       unit: {
