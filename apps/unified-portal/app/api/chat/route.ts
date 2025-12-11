@@ -550,8 +550,9 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 0: Load conversation history for context-aware responses
-    // Use validated unit UID (from QR token) as the primary user identifier for session isolation
-    const conversationUserId = validatedUnitUid || userId || '';
+    // Use effective unit UID (validated token OR client-provided) as user identifier for session isolation
+    // This ensures conversation continuity even when QR token validation fails but client unit UID exists
+    const conversationUserId = effectiveUnitUid || userId || '';
     const conversationHistory = await loadConversationHistory(conversationUserId, DEFAULT_TENANT_ID, DEFAULT_DEVELOPMENT_ID);
     console.log('[Chat] Loaded', conversationHistory.length, 'previous exchanges for context');
     
