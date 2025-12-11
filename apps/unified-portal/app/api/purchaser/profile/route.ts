@@ -30,17 +30,23 @@ export async function GET(request: NextRequest) {
         u.unit_uid,
         u.unit_code,
         u.house_type_code,
-        u.address,
+        u.address_line_1,
+        u.address_line_2,
+        u.city,
         u.eircode,
         u.floor_area_m2,
+        u.bedrooms as unit_bedrooms,
+        u.bathrooms as unit_bathrooms,
         u.development_id,
+        u.purchaser_name as unit_purchaser_name,
         d.name as development_name,
         d.address as development_address,
-        h.name as purchaser_name,
+        h.name as homeowner_name,
+        h.address as homeowner_address,
         h.id as homeowner_id,
         ht.name as house_type_name,
-        ht.bedrooms,
-        ht.bathrooms,
+        ht.bedrooms as ht_bedrooms,
+        ht.bathrooms as ht_bathrooms,
         ht.total_floor_area_sqm as house_type_floor_area
       FROM units u
       LEFT JOIN developments d ON u.development_id = d.id
@@ -120,18 +126,33 @@ export async function GET(request: NextRequest) {
       || unit.house_type_floor_area
       || null;
 
+    // Build full address from components
+    const addressParts = [
+      unit.address_line_1,
+      unit.address_line_2,
+      unit.city
+    ].filter(Boolean);
+    const fullAddress = unit.homeowner_address || addressParts.join(', ') || 'Address not available';
+
+    // Get purchaser name - prefer homeowner record, then unit record
+    const purchaserName = unit.homeowner_name || unit.unit_purchaser_name || 'Homeowner';
+
+    // Get bedrooms/bathrooms - prefer unit, then house type
+    const bedrooms = unit.unit_bedrooms || unit.ht_bedrooms;
+    const bathrooms = unit.unit_bathrooms || unit.ht_bathrooms;
+
     // Build response
     const profile = {
       unit: {
         id: unit.id,
         unit_uid: unit.unit_uid,
         unit_code: unit.unit_code,
-        address: unit.address,
+        address: fullAddress,
         eircode: unit.eircode,
         house_type_code: unit.house_type_code,
         house_type_name: unit.house_type_name || unit.house_type_code,
-        bedrooms: unit.bedrooms,
-        bathrooms: unit.bathrooms,
+        bedrooms: bedrooms,
+        bathrooms: bathrooms,
         floor_area_sqm: floorArea ? parseFloat(floorArea) : null,
       },
       development: {
@@ -140,7 +161,7 @@ export async function GET(request: NextRequest) {
         address: unit.development_address,
       },
       purchaser: {
-        name: unit.purchaser_name || 'Homeowner',
+        name: purchaserName,
       },
       intel: intelProfile ? {
         ber_rating: intelProfile.ber_rating,
