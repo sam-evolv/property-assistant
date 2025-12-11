@@ -755,18 +755,44 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           // For normal queries, show the top 3 most relevant unique document sources
           const sourceDocumentsMap = new Map<string, { name: string; date: string | null; similarity: number }>();
           
+          // Detect if question is about floor plans/drawings
+          const isDrawingQuestion = /\b(floor\s*plan|drawing|layout|dimensions?|room\s*size|measurements?|square\s*(feet|metres?|meters?))\b/i.test(message);
+          
+          // Document types that should only appear for relevant questions
+          const isFloorPlanDocument = (fileName: string): boolean => {
+            const lowerName = fileName.toLowerCase();
+            // Floor plans have patterns like: HD-RS-BD, -01-A, drawing numbers, etc.
+            return /\b(hd-rs|bd\d+|-\d+-[a-z]\.pdf|floor.*plan|elevation|section.*drawing)/i.test(lowerName) ||
+                   /^\d+[a-z]*-.*-\d+-[a-z]\.pdf$/i.test(fileName);
+          };
+          
+          const isTechnicalDatasheet = (fileName: string): boolean => {
+            const lowerName = fileName.toLowerCase();
+            // Technical datasheets, certifications, spec sheets from manufacturers
+            return /\b(sds|datasheet|data.*sheet|bba.*cert|cert\b|technical.*spec|kpro|facade|floplast|pyroplex|kilsaran|ozeo|ecowatt|ohme)\b/i.test(lowerName);
+          };
+          
           // Skip sources entirely for high-risk safety topics (AI gives a redirect, not document-based answer)
           if (!highRiskCheck.isHighRisk && chunks && chunks.length > 0) {
             // Only include chunks from the top sources - take unique documents from the top-scoring chunks
             for (const c of chunks) {
               const fileName = c.metadata?.file_name || c.metadata?.source || 'Document';
+              
+              // Filter out irrelevant document types based on question context
+              if (!isDrawingQuestion && isFloorPlanDocument(fileName)) {
+                continue; // Skip floor plans for non-drawing questions
+              }
+              if (isTechnicalDatasheet(fileName)) {
+                continue; // Skip manufacturer datasheets - they're rarely what users want to see
+              }
+              
               // Only add if we haven't seen this document, or if this chunk has higher similarity
               if (!sourceDocumentsMap.has(fileName) || (c.similarity > sourceDocumentsMap.get(fileName)!.similarity)) {
                 const uploadedAt = c.metadata?.uploaded_at || c.created_at;
                 const dateStr = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : null;
                 sourceDocumentsMap.set(fileName, { name: fileName, date: dateStr, similarity: c.similarity || 0 });
               }
-              // Stop after collecting from top chunks to avoid irrelevant sources
+              // Stop after collecting 3 relevant unique sources
               if (sourceDocumentsMap.size >= 3) break;
             }
           }
