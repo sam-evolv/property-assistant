@@ -297,32 +297,55 @@ export default function PurchaserProfilePanel({
                   </div>
                   
                   {/* Quick Stats */}
-                  <div className="grid grid-cols-3 gap-3 mt-4">
-                    {profile.unit.bedrooms && (
-                      <div className={`text-center p-3 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-white'}`}>
-                        <Bed className={`w-5 h-5 mx-auto mb-1 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-                        <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {profile.unit.bedrooms}
-                        </p>
-                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Bedrooms</p>
-                      </div>
-                    )}
-                    {profile.unit.bathrooms && (
-                      <div className={`text-center p-3 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-white'}`}>
-                        <Bath className={`w-5 h-5 mx-auto mb-1 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-                        <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {profile.unit.bathrooms}
-                        </p>
-                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Bathrooms</p>
-                      </div>
-                    )}
+                  <div className="space-y-3 mt-4">
+                    {/* Bedrooms and Bathrooms Row */}
+                    <div className={`grid grid-cols-2 gap-3 ${profile.unit.floor_area_sqm ? 'mb-3' : ''}`}>
+                      {profile.unit.bedrooms && (
+                        <div className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all
+                          ${isDarkMode 
+                            ? 'bg-gray-800/30 border-gray-700 hover:border-gold-500/50' 
+                            : 'bg-white border-gray-200 hover:border-gold-300'
+                          }`}>
+                          <Bed className={`w-6 h-6 mb-2 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                          <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {profile.unit.bedrooms}
+                          </p>
+                          <p className={`text-xs font-medium uppercase tracking-wider mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Bedrooms
+                          </p>
+                        </div>
+                      )}
+                      {profile.unit.bathrooms && (
+                        <div className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all
+                          ${isDarkMode 
+                            ? 'bg-gray-800/30 border-gray-700 hover:border-gold-500/50' 
+                            : 'bg-white border-gray-200 hover:border-gold-300'
+                          }`}>
+                          <Bath className={`w-6 h-6 mb-2 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                          <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {profile.unit.bathrooms}
+                          </p>
+                          <p className={`text-xs font-medium uppercase tracking-wider mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Bathrooms
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Floor Area */}
                     {profile.unit.floor_area_sqm && (
-                      <div className={`text-center p-3 rounded-lg ${isDarkMode ? 'bg-gray-700/50' : 'bg-white'}`}>
-                        <Maximize2 className={`w-5 h-5 mx-auto mb-1 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-                        <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <div className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all
+                        ${isDarkMode 
+                          ? 'bg-gray-800/30 border-gray-700 hover:border-gold-500/50' 
+                          : 'bg-white border-gray-200 hover:border-gold-300'
+                        }`}>
+                        <Maximize2 className={`w-6 h-6 mb-2 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                        <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                           {Math.round(profile.unit.floor_area_sqm)}
                         </p>
-                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>sqm</p>
+                        <p className={`text-xs font-medium uppercase tracking-wider mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Square Metres
+                        </p>
                       </div>
                     )}
                   </div>
