@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { db } from '@openhouse/db';
+import { sql } from 'drizzle-orm';
 import { DrawingType, getDrawingTypeForQuestion } from './drawing-classifier';
 
 const supabase = createClient(
@@ -27,37 +29,20 @@ export interface DrawingResolverResult {
 
 export async function getUnitHouseType(unitId: string): Promise<string | null> {
   try {
-    // First, get the unit with its unit_type_id
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('unit_type_id')
-      .eq('id', unitId)
-      .single();
+    // Fetch house_type_code directly from units table in PostgreSQL (not Supabase)
+    const result = await db.execute(sql`
+      SELECT house_type_code FROM units WHERE id = ${unitId}::uuid LIMIT 1
+    `);
     
-    if (unitError || !unit) {
-      console.log('[DrawingResolver] Unit not found in Supabase:', unitId, unitError?.message);
+    const unit = result.rows[0] as any;
+    
+    if (!unit || !unit.house_type_code) {
+      console.log('[DrawingResolver] Unit not found or no house_type_code:', unitId);
       return null;
     }
     
-    if (!unit.unit_type_id) {
-      console.log('[DrawingResolver] Unit has no unit_type_id:', unitId);
-      return null;
-    }
-    
-    // Then, fetch the unit type name
-    const { data: unitType, error: typeError } = await supabase
-      .from('unit_types')
-      .select('name')
-      .eq('id', unit.unit_type_id)
-      .single();
-    
-    if (typeError || !unitType) {
-      console.log('[DrawingResolver] Unit type not found:', unit.unit_type_id, typeError?.message);
-      return null;
-    }
-    
-    console.log('[DrawingResolver] Found house type:', unitType.name, 'for unit:', unitId);
-    return unitType.name;
+    console.log('[DrawingResolver] Found house type:', unit.house_type_code, 'for unit:', unitId);
+    return unit.house_type_code;
   } catch (error) {
     console.error('[DrawingResolver] Error fetching unit house type:', error);
     return null;
