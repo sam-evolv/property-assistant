@@ -57,6 +57,26 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### RAG Quality Improvements (December 2025)
+
+**Embedding Health Check:**
+- Added to developer insights API (`/api/developer/archive/insights`)
+- Tracks: documents with/without chunks, processing status breakdown
+- Flags unhealthy documents: 0 chunks but marked complete, errors, stuck processing
+- Returns list of up to 20 problematic documents for review
+
+**Minimum Relevance Threshold:**
+- Added 0.25 cosine similarity threshold in chat route
+- If top chunk's similarity is below threshold, treats query as "no relevant info"
+- AI responds with "I don't have that information" instead of forcing irrelevant context
+- Prevents hallucination when documents don't contain relevant answers
+
+**Document Version Awareness:**
+- Added `is_superseded`, `superseded_by`, `superseded_at` fields to documents table
+- RAG query filters out chunks from superseded documents
+- Ensures only latest document versions are used in AI responses
+- Developers can mark old documents as superseded when uploading new versions
+
 ### AI Safety Guardrails & Knowledge Gap System (December 2025)
 
 **No-Guessing Rule:**
