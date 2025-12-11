@@ -780,28 +780,34 @@ export default function PurchaserChatTab({
         </div>
       ) : (
         <div className="flex h-full min-h-0 flex-col">
-          {/* iMessage-Style Chat Messages View - Scrollable */}
+          {/* USER MESSAGES - Pinned at top, not scrollable */}
+          <div className={`shrink-0 px-4 pt-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+            <div className="mx-auto max-w-3xl flex flex-col gap-2">
+              {messages.filter(m => m.role === 'user').map((msg, idx) => (
+                <div key={`user-${idx}`} className="flex justify-end">
+                  <div className={`max-w-[80%] rounded-[20px] px-4 py-2.5 ${
+                    isDarkMode
+                      ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white'
+                      : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white'
+                  }`}>
+                    <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ASSISTANT RESPONSES - Scrollable area */}
           <div 
             ref={messagesContainerRef}
-            className={`flex-1 min-h-0 overflow-y-auto px-4 py-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+            className={`flex-1 min-h-0 overflow-y-auto px-4 py-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
             <div className="mx-auto max-w-3xl flex flex-col gap-3">
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[75%] rounded-[20px] px-4 py-2.5 ${
-                      msg.role === 'user'
-                        ? isDarkMode
-                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white'
-                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white'
-                        : isDarkMode 
-                          ? 'bg-gray-900 text-white'
-                          : 'bg-gray-200 text-gray-900'
-                    }`}
-                  >
+              {messages.filter(m => m.role === 'assistant').map((msg, idx) => (
+                <div key={`asst-${idx}`} className="flex justify-start">
+                  <div className={`max-w-[85%] rounded-[20px] px-4 py-2.5 ${
+                    isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-900'
+                  }`}>
                     <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
                     
                     {msg.drawing && (
@@ -906,14 +912,14 @@ export default function PurchaserChatTab({
                     )}
                     
                     {/* Sources dropdown for transparency */}
-                    {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                    {msg.sources && msg.sources.length > 0 && (
                       <SourcesDropdown sources={msg.sources} isDarkMode={isDarkMode} />
                     )}
                     
                     {/* Request info button when AI doesn't have the answer */}
-                    {msg.role === 'assistant' && msg.isNoInfo && idx > 0 && messages[idx - 1]?.role === 'user' && (
+                    {msg.isNoInfo && messages.find(m => m.role === 'user') && (
                       <RequestInfoButton 
-                        question={messages[idx - 1].content}
+                        question={messages.filter(m => m.role === 'user').slice(-1)[0]?.content || ''}
                         unitId={unitUid}
                         isDarkMode={isDarkMode}
                         onSubmitted={() => {}}
