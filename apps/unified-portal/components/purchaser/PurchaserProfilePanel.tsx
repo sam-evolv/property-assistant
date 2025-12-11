@@ -14,26 +14,29 @@ import {
   Building2,
   User,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Flame
 } from 'lucide-react';
 
 interface ProfileData {
   unit: {
     id: string;
     unit_uid: string;
-    unit_code: string;
+    unit_code?: string;
     address: string;
-    eircode: string;
+    eircode?: string | null;
     house_type_code: string;
     house_type_name: string;
     bedrooms: number | null;
     bathrooms: number | null;
     floor_area_sqm: number | null;
+    handover_date?: string | null;
   };
   development: {
     id: string;
     name: string;
-    address: string;
+    address?: string;
   };
   purchaser: {
     name: string;
@@ -42,7 +45,10 @@ interface ProfileData {
     ber_rating: string | null;
     rooms: any;
     suppliers: any;
+    heating?: any;
+    hvac?: any;
   } | null;
+  specifications?: any;
   documents: {
     id: string;
     title: string;
@@ -343,6 +349,50 @@ export default function PurchaserProfilePanel({
                         className={`px-4 py-2 rounded-lg font-bold text-lg border-2 ${getBerStyle(profile.intel.ber_rating).bg} ${getBerStyle(profile.intel.ber_rating).text} ${getBerStyle(profile.intel.ber_rating).border}`}
                       >
                         {profile.intel.ber_rating.toUpperCase()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Handover Date Card */}
+                {profile.unit.handover_date && (
+                  <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                        <Calendar className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`text-xs uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Handover Date
+                        </p>
+                        <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {new Date(profile.unit.handover_date).toLocaleDateString('en-IE', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Heating Info Card */}
+                {profile.intel?.heating && (
+                  <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                        <Flame className={`w-5 h-5 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`text-xs uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Heating System
+                        </p>
+                        <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {typeof profile.intel.heating === 'string' 
+                            ? profile.intel.heating 
+                            : profile.intel.heating?.type || 'Heat Pump System'}
+                        </p>
                       </div>
                     </div>
                   </div>
