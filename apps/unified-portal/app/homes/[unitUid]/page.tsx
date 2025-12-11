@@ -127,10 +127,10 @@ export default function HomeResidentPage() {
         
         if (houseId) {
           // Store the full QR token for drawing access
-          if (qrToken) {
-            sessionStorage.setItem(tokenKey, qrToken);
-            setValidatedToken(qrToken);
-          }
+          // Use qrToken if available, otherwise use unitUid as fallback
+          const effectiveToken = qrToken || unitUid;
+          sessionStorage.setItem(tokenKey, effectiveToken);
+          setValidatedToken(effectiveToken);
           
           // Map new response format to expected HouseContext
           const houseData: HouseContext = {
@@ -288,7 +288,20 @@ export default function HomeResidentPage() {
     );
   }
 
-  // HARD GATE: Important Documents Consent - show BEFORE intro
+  // Show intro animation first if needed
+  if (showIntro && house) {
+    return (
+      <IntroAnimation
+        developmentName={house.development_name}
+        purchaserName={house.purchaser_name}
+        address={house.address}
+        logoUrl={house.development_logo_url}
+        onComplete={handleIntroComplete}
+      />
+    );
+  }
+
+  // HARD GATE: Important Documents Consent - show AFTER intro
   if (consentRequired && importantDocs.length > 0) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -365,17 +378,6 @@ export default function HomeResidentPage() {
             </div>
           </div>
         </div>
-    );
-  }
-
-  if (showIntro && house) {
-    return (
-      <IntroAnimation
-        developmentName={house.development_name}
-        purchaserName={house.purchaser_name}
-        address={house.address}
-        onComplete={handleIntroComplete}
-      />
     );
   }
 
@@ -387,87 +389,7 @@ export default function HomeResidentPage() {
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
   const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
 
-  // Hard gate: If consent is required, render ONLY the modal - no app access at all
-  if (consentRequired && importantDocs.length > 0) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-gold-500 to-gold-600 px-8 py-6 text-white">
-              <div className="flex items-center gap-3 mb-2">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h2 className="text-2xl font-bold">Important Documents Agreement Required</h2>
-              </div>
-              <p className="text-gold-50 text-sm">
-                Please review and agree to the following important documents before accessing your home portal.
-              </p>
-            </div>
-
-            {/* Document List */}
-            <div className="flex-1 overflow-y-auto px-8 py-6">
-              <p className="text-gray-700 mb-4 text-sm">
-                Your developer has marked the following documents as important must-reads. Please take a moment to review them:
-              </p>
-              
-              <div className="space-y-3">
-                {importantDocs.map((doc, index) => (
-                  <div key={doc.id} className="flex items-start gap-3 p-4 bg-gold-50 border border-gold-200 rounded-lg">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gold-500 text-white flex items-center justify-center font-bold text-sm">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{doc.title}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{doc.original_file_name}</p>
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-gold-600 hover:text-gold-700 font-medium mt-2 inline-flex items-center gap-1"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        View Document
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-gold-50 border border-gold-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-gold-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <p className="text-sm text-gold-800">
-                    <strong>Important:</strong> By clicking "I Agree" below, you acknowledge that you have read and understood these important documents. 
-                    This agreement is required to access your home portal.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Actions */}
-            <div className="border-t border-gray-200 px-8 py-4 bg-gray-50">
-              <button
-                onClick={handleAgreeToImportantDocs}
-                disabled={agreeingToDocs}
-                className="w-full bg-gold-500 hover:bg-gold-600 text-white font-semibold py-3 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {agreeingToDocs ? 'Recording Agreement...' : 'I Agree - Continue to Portal'}
-              </button>
-              <p className="text-center text-xs text-gray-500 mt-3">
-                You must agree to continue. If you have questions, please contact your developer.
-              </p>
-            </div>
-          </div>
-        </div>
-    );
-  }
-
-  // Only render app if consent not required or no important docs
+  // Main app render - consent already handled above
   return (
     <>
       <div className={`flex flex-col h-screen md:h-screen min-h-[100dvh] md:min-h-screen ${bgColor}`}>
