@@ -45,9 +45,12 @@ function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedK
     "safe to drill", "can i drill", "drill into wall", "drill into the wall", "drilling into",
     "gas leak", "smell of gas", "smells like gas", "smell gas", "smelling gas", "gas smell",
     "burning smell", "smell of burning", "smell smoke", "smells like burning", "something burning",
+    "smells like it's burning", "smells like its burning", "like burning",
     "smoke coming from", "smoke from socket", "smoke from plug", "smoke from outlet",
+    "smoke is coming", "smoke coming",
     "burning wire", "wire burning", "cable burning",
     "sparking", "sparks from", "electrical sparks", "arcing",
+    "sparks are coming", "sparks coming",
     "electrical issue", "electrical problem", "electrical fault",
     "fuse tripping", "fuse keeps tripping", "breaker tripping", "breaker keeps tripping", "trips the fuse",
     "can i bypass", "bypass the", "bypass circuit",
@@ -58,22 +61,29 @@ function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedK
     "asbestos", "asbesto",
     "structural movement", "structural issue", "structural problem", "structural damage",
     "crack in wall", "cracks in wall", "crack in ceiling", "cracks in ceiling", "wall crack", "ceiling crack",
+    "cracks appearing", "cracks in my ceiling", "ceiling cracks",
     "roof sagging", "sagging roof", "roof drooping", "ceiling sagging",
-    "leaking pipe", "pipe leaking", "burst pipe", "pipe burst",
+    "floor sagging", "floor seems to be sagging", "sagging floor",
+    "leaking pipe", "pipe leaking", "burst pipe", "pipe burst", "pipe has burst",
     "major leak", "big leak", "serious leak", "water everywhere",
-    "flooding", "flooded", "water flooding",
+    "flooding", "flooded", "water flooding", "flooding in",
     "boiler issue", "boiler problem", "boiler not working", "boiler broken",
     "heating not working", "heating broken", "no heating", "no hot water",
+    "heating won't work", "heating wont work", "radiators not working",
     "radiator leaking", "radiator leak",
     "gas boiler", "gas appliance", "gas cooker", "gas hob", "gas fire",
     "electrical socket", "plug socket", "power socket", "outlet problem",
     "wiring problem", "wiring issue", "faulty wiring", "old wiring",
+    "wiring looks old", "wiring in my attic",
     "is it safe", "is this safe", "is it dangerous", "dangerous",
     "structural change", "structural work", "structural alteration",
     "carbon monoxide", "co alarm", "co detector", "co2 alarm", "monoxide detector", "monoxide alarm",
     "electrocuted", "electric shock", "got shocked", "zapped me",
+    "got a shock", "got a shock from",
     "damp problem", "damp issue", "rising damp", "penetrating damp",
+    "damp coming through", "damp on the wall", "damp through the wall",
     "water damage", "ceiling leak", "roof leak", "water coming through",
+    "water is coming through", "leak in the ceiling",
     "party wall", "supporting wall", "can i remove", "can i knock",
     "subsidence", "foundation", "foundations", "ground movement"
   ];
@@ -85,28 +95,35 @@ function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedK
     /\bdrill\s*(into|through|in)\b/i,
     /\b(smell|smelling|smells?)\s*(of\s*)?(gas|burning|smoke)\b/i,
     /\b(gas|smoke|burning)\s*smell\b/i,
-    /\bsmoke\s*(coming|from|out)\b/i,
-    /\bspark(s|ing)?\s*(from|coming)\b/i,
+    /\bsmoke\s*(is\s*)?(coming|from|out)\b/i,
+    /\bspark(s|ing)?\s*(are\s*)?(from|coming)\b/i,
     /\b(fuse|breaker|circuit)\s*(keep|keeps)?\s*trip(ping|s)?\b/i,
     /\bbypass\s*(the|a)?\s*(fuse|breaker|circuit|safety)\b/i,
     /\b(fire|smoke|co|carbon\s*monoxide)\s*(alarm|detector)\b/i,
     /\balarm\s*(keep|keeps)?\s*(beep|chirp|sound|go)/i,
     /\b(mould|mold|mouldy|moldy)\b/i,
-    /\bcracks?\s*(in|on)\s*(the\s*)?(wall|ceiling|floor)\b/i,
+    /\bcracks?\s*(in|on|appearing)\s*(the\s*)?(my\s*)?(wall|ceiling|floor)\b/i,
     /\b(wall|ceiling|floor)\s*cracks?\b/i,
-    /\b(roof|ceiling)\s*(sag|droop|bend|bow)/i,
-    /\bpipe\s*(leak|burst|broke)\b/i,
+    /\b(roof|ceiling|floor)\s*(is\s*)?(sag|droop|bend|bow|seem)/i,
+    /\bpipe\s*(has\s*)?(leak|burst|broke)\b/i,
     /\b(burst|broken|leaking)\s*pipe\b/i,
     /\bboiler\s*(not|isn't|isnt|won't|wont|broken|issue|problem)\b/i,
-    /\b(no\s+)?(hot\s+water|heating)\s*(not\s+)?work/i,
+    /\b(no\s+)?(hot\s+water|heating)\s*(not\s+|won't\s+|wont\s+)?work/i,
+    /\bheating\s+won'?t\s+work/i,
     /\belectric(al)?\s*(shock|socket|issue|problem|fault)\b/i,
+    /\bgot\s+a\s+shock\s+from/i,
     /\bstructur(al|e)\s*(change|work|alteration|issue|problem|damage)\b/i,
     /\bcarbon\s*monoxide\b/i,
     /\bco\s*(alarm|detector|leak)\b/i,
     /\bsubsidence\b/i,
     /\bfoundation(s)?\s*(issue|problem|crack|damage)\b/i,
     /\b(is\s+)?(it|this|that)\s+(safe|dangerous|ok|okay)\b/i,
-    /\bsafe\s+to\s+(drill|remove|knock|alter|change|modify)\b/i
+    /\bsafe\s+to\s+(drill|remove|knock|alter|change|modify)\b/i,
+    /\bwiring\s*(in\s+my|looks?\s+old|is\s+old|frayed)\b/i,
+    /\bdamp\s*(is\s*)?(coming|through)\b/i,
+    /\bwater\s+is\s+coming\s+through\b/i,
+    /\bsmells?\s+like\s+(it'?s?\s+)?burning\b/i,
+    /\bsomething\s+smells?\s+like\b/i
   ];
 
   const matchedKeyword = keywords.find((kw) => lower.includes(kw));
@@ -393,6 +410,13 @@ export async function POST(request: NextRequest) {
   console.log('============================================================');
 
   const startTime = Date.now();
+  
+  // TEST MODE: Allow test harness to get JSON responses instead of streaming
+  const { searchParams } = new URL(request.url);
+  const testMode = searchParams.get('test_mode') === 'json';
+  if (testMode) {
+    console.log('[Chat] TEST MODE ENABLED - will return JSON instead of streaming');
+  }
 
   try {
     const body = await request.json();
@@ -1043,6 +1067,57 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           downloadUrl: drawing.downloadUrl,
           explanation: drawingExplanation,
         } : undefined,
+      });
+    }
+
+    // TEST MODE: Return JSON response instead of streaming for test harness
+    if (testMode) {
+      console.log('[Chat] TEST MODE: Generating non-streaming response...');
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: chatMessages,
+        temperature: 0.3,
+        max_tokens: 800,
+        stream: false,
+      });
+      
+      const fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
+      const latencyMs = Date.now() - startTime;
+      console.log('[Chat] TEST MODE: Response generated. Length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
+      
+      // Save to database
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: fullAnswer,
+          question_topic: questionTopic,
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: completion.usage?.total_tokens || 0,
+          cost_usd: '0',
+          latency_ms: latencyMs,
+          metadata: {
+            unitUid: validatedUnitUid || null,
+            userId: userId || null,
+            chunksUsed: chunks?.length || 0,
+            model: 'gpt-4o-mini',
+            testMode: true,
+          },
+        });
+      } catch (dbError) {
+        console.error('[Chat] Failed to save message:', dbError);
+      }
+      
+      return NextResponse.json({
+        success: true,
+        answer: fullAnswer,
+        source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
+        chunksUsed: chunks?.length || 0,
+        safetyIntercept: false,
       });
     }
 
