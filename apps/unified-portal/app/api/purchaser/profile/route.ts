@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
         user_id,
         purchaser_name,
         handover_date,
-        house_type,
         unit_types (
           name,
           floor_plan_pdf_url,
@@ -83,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     // Try to get intel profile for BER rating
     let intelProfile: any = null;
-    const houseTypeCode = unit.house_type || unitType?.name;
+    const houseTypeCode = unitType?.name;
     if (project?.id && houseTypeCode) {
       try {
         const { rows: intelRows } = await db.execute(sql`
