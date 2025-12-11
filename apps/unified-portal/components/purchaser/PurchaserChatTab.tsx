@@ -670,7 +670,7 @@ export default function PurchaserChatTab({
   const inputText = isDarkMode ? 'text-white' : 'text-gray-900';
 
   return (
-    <div className={`h-full flex flex-col min-h-0 overflow-hidden pb-14 md:pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+    <div className={`h-full flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
       {/* ChatGPT-Style Home Screen - No Scroll Layout */}
       {showHome && messages.length === 0 ? (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">

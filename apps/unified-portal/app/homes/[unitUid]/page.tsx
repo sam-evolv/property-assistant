@@ -484,7 +484,7 @@ export default function HomeResidentPage() {
         onValueChange={setActiveTab}
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
       >
-        <div className="flex-1 min-h-0 overflow-hidden pb-20 md:pb-0">
+        <div className="flex-1 min-h-0 overflow-hidden pb-16 md:pb-0">
           <Tabs.Content value="chat" className="h-full min-h-0">
             <PurchaserChatTab
               houseId={house.house_id}
