@@ -877,8 +877,8 @@ export default function PurchaserNoticeboardTab({
 
   return (
     <>
-      <div className={`flex flex-col h-full ${bgColor}`}>
-        <div className={`${cardBg} border-b ${borderColor} px-4 py-3 overflow-x-auto sticky top-0 z-10`}>
+      <div className={`flex flex-col h-full ${bgColor} pt-2`}>
+        <div className={`${cardBg} border-b ${borderColor} px-4 py-3 overflow-x-auto`}>
           <div className="flex gap-2 min-w-max">
             {CATEGORIES.map(cat => (
               <button
