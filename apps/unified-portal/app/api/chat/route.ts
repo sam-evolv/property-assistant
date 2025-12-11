@@ -611,6 +611,21 @@ export async function POST(request: NextRequest) {
     if (allChunks && allChunks.length > 0) {
       console.log('[Chat] Computing semantic similarity scores...');
       
+      // DRAWING INTENT DETECTION: Only include floor plans if question is about drawings/dimensions
+      const isDrawingRelatedQuestion = /\b(floor\s*plan|drawing|layout|dimensions?|room\s*size|measurements?|square\s*(feet|metres?|meters?|ft|m2)|how\s+(big|large)\s+(is|are)|what\s+size|internal\s+layout|elevation|section)\b/i.test(message);
+      console.log('[Chat] Drawing-related question:', isDrawingRelatedQuestion);
+      
+      // Patterns that identify floor plan/drawing documents (coded filenames like 2R1-MHL-BS04-ZZ-DR-A-0040)
+      const FLOOR_PLAN_PATTERNS = [
+        /\d+[a-z]*-[a-z]+-[a-z]+\d+-[a-z]+-[a-z]+-[a-z]+-\d+/i, // Coded drawing numbers like 2R1-MHL-BS04-ZZ-DR-A-0040
+        /house\s*type\s*[a-z]*\d+/i, // "House Type BS04"
+        /ground\s*floor|first\s*floor|second\s*floor/i,
+        /floor\s*plan/i,
+        /elevation/i,
+        /-DR-A-/i, // Common architectural drawing code
+        /rev\.?[a-z]\d+/i, // Revision codes like Rev.C06
+      ];
+      
       // Filter out superseded documents before scoring
       // Also filter out technical/engineering documents that are NOT homeowner-facing
       const EXCLUDED_DISCIPLINES = [
@@ -629,11 +644,24 @@ export async function POST(request: NextRequest) {
       const activeChunks = allChunks.filter(chunk => {
         const docId = chunk.metadata?.document_id;
         const discipline = (chunk.metadata?.discipline || '').toLowerCase();
-        const fileName = (chunk.metadata?.file_name || chunk.metadata?.source || '').toLowerCase();
+        const fileName = (chunk.metadata?.file_name || chunk.metadata?.source || '');
+        const fileNameLower = fileName.toLowerCase();
         
         // Exclude superseded documents
         if (docId && supersededDocIds.has(docId)) {
           return false;
+        }
+        
+        // CRITICAL: If question is NOT about drawings, exclude floor plan documents
+        if (!isDrawingRelatedQuestion) {
+          // Check if this is a floor plan/drawing document
+          if (FLOOR_PLAN_PATTERNS.some(pattern => pattern.test(fileName))) {
+            return false;
+          }
+          // Also exclude by discipline if marked as floorplans/elevations/drawings
+          if (['floorplans', 'floorplan', 'elevations', 'elevation', 'drawings', 'architectural'].includes(discipline)) {
+            return false;
+          }
         }
         
         // Exclude technical/engineering disciplines
@@ -642,7 +670,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Exclude files with technical/engineering patterns in filename
-        if (EXCLUDED_FILENAME_PATTERNS.some(pattern => pattern.test(fileName))) {
+        if (EXCLUDED_FILENAME_PATTERNS.some(pattern => pattern.test(fileNameLower))) {
           return false;
         }
         
