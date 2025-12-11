@@ -55,13 +55,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const homeowner = await db.query.homeowners.findFirst({
+    let homeowner = await db.query.homeowners.findFirst({
       where: eq(homeowners.unique_qr_token, unitUid),
       columns: {
         id: true,
         notices_terms_accepted_at: true,
       },
     });
+
+    // If no homeowner exists with this QR token, check if one was created for showhouse
+    if (!homeowner) {
+      // Return false - no terms accepted yet, but not an error
+      return NextResponse.json({
+        termsAccepted: false,
+        acceptedAt: null,
+      });
+    }
 
     return NextResponse.json({
       termsAccepted: homeowner?.notices_terms_accepted_at !== null,
@@ -127,19 +136,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const homeowner = await db.query.homeowners.findFirst({
+    let homeowner = await db.query.homeowners.findFirst({
       where: eq(homeowners.unique_qr_token, unitUid),
       columns: { id: true },
     });
 
+    const now = new Date();
+    
+    // If no homeowner exists, create one for this showhouse/demo user
     if (!homeowner) {
-      return NextResponse.json(
-        { error: 'Homeowner record not found' },
-        { status: 404 }
-      );
+      // Get the unit's tenant and development IDs
+      const unitDetails = await db.query.units.findFirst({
+        where: eq(units.id, unitUid),
+        columns: { tenant_id: true, development_id: true },
+      });
+      
+      if (!unitDetails?.tenant_id || !unitDetails?.development_id) {
+        return NextResponse.json(
+          { error: 'Could not determine tenant/development for unit' },
+          { status: 404 }
+        );
+      }
+      
+      // Create a new homeowner record linked to this unit
+      const [newHomeowner] = await db.insert(homeowners).values({
+        tenant_id: unitDetails.tenant_id,
+        development_id: unitDetails.development_id,
+        unique_qr_token: unitUid,
+        name: 'Showhouse User',
+        email: `showhouse-${unitUid.slice(0, 8)}@demo.local`,
+        notices_terms_accepted_at: now,
+      }).returning({ id: homeowners.id });
+      
+      console.log('[Terms] Created new homeowner', newHomeowner.id, 'for showhouse unit', unitUid);
+      
+      return NextResponse.json({
+        success: true,
+        acceptedAt: now.toISOString(),
+      });
     }
 
-    const now = new Date();
     await db
       .update(homeowners)
       .set({ notices_terms_accepted_at: now })
