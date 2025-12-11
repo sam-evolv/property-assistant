@@ -670,7 +670,7 @@ export default function PurchaserChatTab({
   const inputText = isDarkMode ? 'text-white' : 'text-gray-900';
 
   return (
-    <div className={`h-full flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+    <div className={`h-full flex flex-col min-h-0 overflow-hidden pb-20 md:pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
       {/* ChatGPT-Style Home Screen - No Scroll Layout */}
       {showHome && messages.length === 0 ? (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -779,7 +779,7 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 flex-col pb-16 md:pb-0">
+        <div className="flex h-full min-h-0 flex-col">
           {/* USER MESSAGES - Pinned at top, not scrollable */}
           <div className={`shrink-0 px-4 pt-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
             <div className="mx-auto max-w-3xl flex flex-col gap-2">
