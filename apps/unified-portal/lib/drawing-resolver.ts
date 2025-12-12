@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { db } from '@openhouse/db';
-import { sql } from 'drizzle-orm';
 import { DrawingType, getDrawingTypeForQuestion } from './drawing-classifier';
+import { getHouseTypeForUnit } from './unit-lookup';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,25 +27,7 @@ export interface DrawingResolverResult {
 }
 
 export async function getUnitHouseType(unitId: string): Promise<string | null> {
-  try {
-    // Fetch house_type_code directly from units table in PostgreSQL (not Supabase)
-    const result = await db.execute(sql`
-      SELECT house_type_code FROM units WHERE id = ${unitId}::uuid LIMIT 1
-    `);
-    
-    const unit = result.rows[0] as any;
-    
-    if (!unit || !unit.house_type_code) {
-      console.log('[DrawingResolver] Unit not found or no house_type_code:', unitId);
-      return null;
-    }
-    
-    console.log('[DrawingResolver] Found house type:', unit.house_type_code, 'for unit:', unitId);
-    return unit.house_type_code;
-  } catch (error) {
-    console.error('[DrawingResolver] Error fetching unit house type:', error);
-    return null;
-  }
+  return getHouseTypeForUnit(unitId);
 }
 
 export async function findDrawingForQuestion(

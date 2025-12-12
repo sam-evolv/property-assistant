@@ -9,6 +9,7 @@ import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
+import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
 
 const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
 
@@ -240,29 +241,33 @@ function detectOtherUnitQuestion(message: string, userUnitAddress: string | null
   return { isAboutOtherUnit: false, mentionedUnit: null };
 }
 
-// Fetch user's unit details for GDPR context
-async function getUserUnitDetails(unitUid: string): Promise<{ address: string | null; houseType: string | null }> {
-  if (!unitUid) return { address: null, houseType: null };
+// Fetch user's unit details using shared dual-database lookup
+async function getUserUnitDetails(unitUid: string): Promise<{ address: string | null; houseType: string | null; unitInfo: UnitInfo | null }> {
+  if (!unitUid) return { address: null, houseType: null, unitInfo: null };
   
   try {
-    const { data, error } = await supabase
-      .from('units')
-      .select('address_line_1, house_type')
-      .eq('id', unitUid)
-      .single();
+    const unitInfo = await getUnitInfo(unitUid);
     
-    if (error || !data) {
-      console.log('[Chat] Could not fetch unit details for GDPR context');
-      return { address: null, houseType: null };
+    if (!unitInfo) {
+      console.log('[Chat] Could not fetch unit details from either database');
+      return { address: null, houseType: null, unitInfo: null };
     }
     
+    console.log('[Chat] Unit info loaded:', {
+      id: unitInfo.id,
+      house_type_code: unitInfo.house_type_code,
+      development_id: unitInfo.development_id,
+      tenant_id: unitInfo.tenant_id,
+    });
+    
     return {
-      address: data.address_line_1 || null,
-      houseType: data.house_type || null,
+      address: unitInfo.address || null,
+      houseType: unitInfo.house_type_code || null,
+      unitInfo: unitInfo,
     };
   } catch (err) {
     console.error('[Chat] Error fetching unit details:', err);
-    return { address: null, houseType: null };
+    return { address: null, houseType: null, unitInfo: null };
   }
 }
 
@@ -494,11 +499,18 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] Effective unit UID for drawings:', effectiveUnitUid || 'none');
 
     // GDPR PROTECTION: Fetch user's unit details and check for questions about other units
+    // This also gets house_type_code for RAG filtering (CRITICAL for correct document retrieval)
     const userUnitDetails = effectiveUnitUid 
       ? await getUserUnitDetails(effectiveUnitUid)
-      : { address: null, houseType: null };
+      : { address: null, houseType: null, unitInfo: null };
+    
+    const userHouseTypeCode = userUnitDetails.unitInfo?.house_type_code || null;
+    const userTenantId = userUnitDetails.unitInfo?.tenant_id || DEFAULT_TENANT_ID;
+    const userDevelopmentId = userUnitDetails.unitInfo?.development_id || DEFAULT_DEVELOPMENT_ID;
     
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
+    console.log('[Chat] User house type code:', userHouseTypeCode || 'none (will use all house types)');
+    console.log('[Chat] User tenant/development:', userTenantId, '/', userDevelopmentId);
     
     const gdprCheck = detectOtherUnitQuestion(message, userUnitDetails.address);
     
@@ -647,10 +659,21 @@ export async function POST(request: NextRequest) {
         const discipline = (chunk.metadata?.discipline || '').toLowerCase();
         const fileName = (chunk.metadata?.file_name || chunk.metadata?.source || '');
         const fileNameLower = fileName.toLowerCase();
+        const chunkHouseTypeCode = chunk.metadata?.house_type_code;
         
         // Exclude superseded documents
         if (docId && supersededDocIds.has(docId)) {
           return false;
+        }
+        
+        // CRITICAL HOUSE TYPE FILTERING: When user has a known house type, 
+        // filter house-type-specific documents to ONLY their house type.
+        // This prevents returning floor plans/specs for BS02 when user has BD01.
+        if (userHouseTypeCode && chunkHouseTypeCode) {
+          // This document is house-type-specific - only include if it matches user's house type
+          if (chunkHouseTypeCode !== userHouseTypeCode) {
+            return false;
+          }
         }
         
         // CRITICAL: If question is NOT about drawings, exclude floor plan documents
@@ -685,7 +708,10 @@ export async function POST(request: NextRequest) {
       });
       
       if (activeChunks.length < allChunks.length) {
-        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded + technical docs (from', allChunks.length, ')');
+        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded + technical + wrong house type docs (from', allChunks.length, ')');
+        if (userHouseTypeCode) {
+          console.log('[Chat] House type filter active: only showing documents for', userHouseTypeCode);
+        }
       }
       
       const scoredChunks = activeChunks.map(chunk => {
