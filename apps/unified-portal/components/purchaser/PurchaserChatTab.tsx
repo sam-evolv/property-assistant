@@ -674,8 +674,8 @@ export default function PurchaserChatTab({
       {/* ChatGPT-Style Home Screen - No Scroll Layout */}
       {showHome && messages.length === 0 ? (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          {/* HERO CONTENT - Centered in available space */}
-          <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-5">
+          {/* HERO CONTENT - Centered in available space, no overflow */}
+          <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-5 overflow-hidden">
             <style>{ANIMATION_STYLES}</style>
             {/* Logo */}
             <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
@@ -721,7 +721,7 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* INPUT BAR - Always at bottom */}
+          {/* INPUT BAR - Always at bottom, above mobile nav */}
           <div className={`shrink-0 border-t px-4 pt-3 pb-4 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
