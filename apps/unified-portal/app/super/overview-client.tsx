@@ -265,7 +265,7 @@ export default function OverviewDashboard() {
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Questions</h3>
           <div className="space-y-2">
-            {chatData.top_questions_global.slice(0, 5).map((q, idx) => (
+            {(Array.isArray(chatData.top_questions_global) ? chatData.top_questions_global : []).slice(0, 5).map((q, idx) => (
               <div key={idx} className="flex items-start gap-3 pb-2 border-b border-gray-100 last:border-0">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gold-100 text-gold-700 text-xs font-bold flex items-center justify-center">
                   {idx + 1}
