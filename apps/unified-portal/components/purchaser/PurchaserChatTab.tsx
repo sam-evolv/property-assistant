@@ -780,37 +780,33 @@ export default function PurchaserChatTab({
         </div>
       ) : (
         <div className="flex h-full min-h-0 flex-col pb-16 md:pb-0">
-          {/* USER MESSAGES - Pinned at top, not scrollable */}
-          <div className={`shrink-0 px-4 pt-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-            <div className="mx-auto max-w-3xl flex flex-col gap-2">
-              {messages.filter(m => m.role === 'user').map((msg, idx) => (
-                <div key={`user-${idx}`} className="flex justify-end">
-                  <div className={`max-w-[80%] rounded-[20px] px-4 py-2.5 ${
-                    isDarkMode
-                      ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white'
-                      : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white'
-                  }`}>
-                    <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ASSISTANT RESPONSES - Scrollable area */}
+          {/* MESSAGES - Scrollable conversation view (alternating like iMessage) */}
           <div 
             ref={messagesContainerRef}
             className={`flex-1 min-h-0 overflow-y-auto px-4 py-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
             <div className="mx-auto max-w-3xl flex flex-col gap-3">
-              {messages.filter(m => m.role === 'assistant').map((msg, idx) => (
-                <div key={`asst-${idx}`} className="flex justify-start">
-                  <div className={`max-w-[85%] rounded-[20px] px-4 py-2.5 ${
-                    isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-900'
-                  }`}>
-                    <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
-                    
-                    {msg.drawing && (
+              {messages.map((msg, idx) => {
+                if (msg.role === 'user') {
+                  return (
+                    <div key={`msg-${idx}`} className="flex justify-end">
+                      <div className={`max-w-[80%] rounded-[20px] px-4 py-2.5 ${
+                        isDarkMode
+                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white'
+                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white'
+                      }`}>
+                        <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={`msg-${idx}`} className="flex justify-start">
+                    <div className={`max-w-[85%] rounded-[20px] px-4 py-2.5 ${
+                      isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-900'
+                    }`}>
+                      <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                      {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
                         isDarkMode 
                           ? 'border-gray-700 bg-gray-800/50' 
@@ -925,9 +921,10 @@ export default function PurchaserChatTab({
                         onSubmitted={() => {}}
                       />
                     )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {sending && <TypingIndicator isDarkMode={isDarkMode} />}
             </div>
           </div>
