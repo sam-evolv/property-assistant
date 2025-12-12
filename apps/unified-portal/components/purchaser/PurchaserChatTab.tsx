@@ -671,23 +671,24 @@ export default function PurchaserChatTab({
 
   return (
     <div className={`h-full flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-      {/* ChatGPT-Style Home Screen - No Scroll Layout */}
+      {/* ChatGPT-Style Home Screen - Fixed viewport, no scroll */}
       {showHome && messages.length === 0 ? (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          {/* HERO CONTENT - Centered in available space, no overflow */}
+        <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden">
+          <style>{ANIMATION_STYLES}</style>
+          
+          {/* HERO CONTENT - Centered in remaining space */}
           <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-5 overflow-hidden">
-            <style>{ANIMATION_STYLES}</style>
             {/* Logo */}
             <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
               <img 
                 src="/longview-logo.png" 
                 alt="Longview Estates" 
-                className={`h-12 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             </div>
 
             {/* Welcome Headline */}
-            <h1 className={`mt-4 text-center text-[18px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+            <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
               {t.welcome.includes('or community') ? (
                 <>
                   {t.welcome.split('or community')[0]}
@@ -699,17 +700,17 @@ export default function PurchaserChatTab({
             </h1>
 
             {/* Subtitle */}
-            <p className={`mt-2 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+            <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               {t.subtitle}
             </p>
 
-            {/* 2x2 Prompt Grid */}
-            <div className="mt-4 grid w-full max-w-[320px] grid-cols-2 gap-2">
+            {/* 2x2 Prompt Grid - Compact */}
+            <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
               {t.prompts.map((prompt: string, i: number) => (
                 <button
                   key={i}
                   onClick={() => handleQuickPrompt(prompt)}
-                  className={`flex items-center justify-center rounded-full px-3 py-2.5 text-[13px] font-medium transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
                     isDarkMode 
                       ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
@@ -721,8 +722,8 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* INPUT BAR - Always at bottom, above mobile nav */}
-          <div className={`shrink-0 border-t px-4 pt-3 pb-4 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          {/* INPUT BAR - Fixed at bottom, above mobile nav */}
+          <div className={`shrink-0 border-t px-4 pt-2 pb-2 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
                 ? 'border-gray-700 bg-gray-900'
