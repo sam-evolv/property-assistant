@@ -1,0 +1,55 @@
+You are modifying an in-progress SaaS product called OpenHouse / Property Assistant. It is already working for one live development (Longview Park) and is close to being rolled out to real homeowners who will access it via QR codes in their homes.
+
+The system has three main faces:
+
+Purchaser Portal – QR / link based, where homeowners chat with the assistant, view documents, maps, notices, etc.
+
+Developer Dashboard – where an individual developer sees their developments, documents, analytics.
+
+Super Admin / Internal Admin – used by Sam (the owner) to onboard developers and developments, manage data and pricing, and generally control the platform.
+
+Longview Park is currently set up and working. Rathard Park and future estates must be added without breaking Longview or any existing flows. This app is not a toy – it is close to production, so stability is more important than adding clever abstractions.
+
+The business model:
+
+Developers will eventually sign up from a marketing site and see their dashboard.
+
+However, initially Sam wants full control of onboarding. Only he (Super Admin) should be able to actually create and activate new developments.
+
+Developers should be able to log in, see their own developments, and submit a “Request New Development” form, but NOT create developments or bypass pricing/approval.
+
+Architectural principles you MUST respect:
+
+Single Supabase project with multi-tenant schema: developers (tenants), developments (projects/estates), units, homeowners, documents, notices, etc. Each is scoped by developer_id and development_id.
+
+No hard-coding of Longview Park. Everything should resolve via IDs and relationships, not magic constants.
+
+The QR/purchaser flow must continue to work exactly as it does now: QR token → unit → development → documents, notices, maps, assistant context. Do not change these URLs or tokens.
+
+Row Level Security policies are important. Do not weaken or remove RLS. If you must adjust RLS, do it minimally and carefully with clear comments.
+
+Safety and non-breaking changes:
+
+Do NOT rename existing tables or columns. If you need extra fields, add new columns and default values.
+
+Do NOT delete or truncate any existing data (especially for Longview Park).
+
+Do NOT change any purchaser-facing copy, styling or behaviour unless absolutely required for the new role logic. Focus on Developer and Super Admin flows.
+
+Prefer small, composable changes over large refactors.
+
+After each meaningful change, run the app and manually verify:
+
+Longview Park purchaser portal still loads and works from QR / unit tokens.
+
+Developer dashboard still loads existing data for Longview.
+
+Auth/login works end-to-end without the “Failed to fetch session” error.
+
+UX expectations:
+
+The “Create New Development” experience is now an internal admin tool, not something normal developers see. It should look professional, structured, and easy for Sam to use when onboarding a new estate.
+
+Normal developers should have a simple, clear dashboard: they see a list of their developments and a “Request New Development” button instead of an unrestricted “Create Development” button.
+
+If you are unsure between a risky refactor and a small extension, always choose the safer, smaller extension. Preserve the current working behaviour for Longview Park and QR flows at all costs.

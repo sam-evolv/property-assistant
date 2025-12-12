@@ -1,0 +1,231 @@
+You are working on the OpenHouse / Property Assistant codebase. We need to cleanly separate:
+
+Super Admin creation of developments
+
+Developer access to their developments
+
+Authentication and session handling
+
+The immediate goals are:
+
+Fix the “Unable to fetch session / Cannot read properties of null (reading 'session')” error on the Create New Development page.
+
+Move “Create New Development” into an admin-only flow, with a better form and richer metadata.
+
+Ensure developers see their developments but cannot create new ones directly. Instead they see a “Request New Development” flow.
+
+Work in small, well documented commits. Summarise every file you change.
+
+1. Standardise auth and fix the session error
+
+Search the repo for AuthContext, useAuth, and fetchSession. Identify:
+
+Where the session is fetched from Supabase or NextAuth.
+
+How the session is exposed to components.
+
+Update the AuthContext implementation so:
+
+It never calls .session on a null value.
+
+It exposes three states: { status: 'loading' | 'unauthenticated' | 'authenticated', session }.
+
+On any protected route (including the development creation page and dashboard):
+
+If status === 'loading', render a loading spinner or skeleton.
+
+If status === 'unauthenticated', redirect to /login (or the existing auth page).
+
+Only render the page content when status === 'authenticated' and session is not null.
+
+Confirm that:
+
+Navigating to the dashboard while logged out redirects you to login.
+
+After logging in, you can access the dashboard without the “Failed to fetch session” error.
+
+2. Introduce clear roles: Super Admin vs Developer
+
+In the database, confirm there is a way to model roles. For example:
+
+A users table with a role field ('super_admin' | 'developer').
+
+Or a join table developer_users linking users to a developer_id.
+
+If there is no explicit role, add one:
+
+Add a role column to the users table (default 'developer').
+
+Mark Sam’s user row as 'super_admin' for now.
+
+In the auth layer, add a simple helper:
+
+isSuperAdmin(session) returns true if the user has role = 'super_admin'.
+
+getCurrentDeveloperId(session) returns the developer id linked to that user.
+
+Use these helpers to:
+
+Gate any admin routes behind isSuperAdmin(session).
+
+Ensure normal developers can only see their own developer record and developments.
+
+3. Refactor “Create New Development” into an admin-only flow
+
+Locate the current “Create New Development” page. It might be under something like:
+
+apps/unified-portal/app/developments/new/page.tsx
+
+or a similar route.
+
+Move or wrap this page so it becomes an admin route only, for example:
+
+/admin/developments/new or /super-admin/developments/new.
+
+On this page:
+
+Require isSuperAdmin(session) or else redirect to a 404 or “Not authorised”.
+
+Redesign the form to capture a richer development profile. The form should include at minimum:
+
+Development Details:
+
+development_name (required)
+
+slug (auto generated from name, editable)
+
+description
+
+status (enum for now: 'draft' | 'live' | 'archived')
+
+Location:
+
+address_line_1
+
+address_line_2
+
+town
+
+county
+
+eircode
+
+Optional latitude and longitude for map centre
+
+Commercial / configuration:
+
+expected_unit_count (integer)
+
+phase or phase_name (text)
+
+is_demo (boolean)
+
+Branding:
+
+logo_url
+
+hero_image_url or hero_video_url
+
+Style the form to be significantly cleaner than the current version:
+
+Use a two-column card layout if the design system supports it.
+
+Use clear section headings such as “Development details”, “Location”, “Branding”.
+
+On submit:
+
+Validate required fields.
+
+Insert a new row into the developments table with all above data.
+
+Attach it to a specific developer_id selected by the admin:
+
+Add a dropdown or autocomplete for “Developer” populated from the developers table.
+
+Store the selected developer_id on the developments row.
+
+After successful creation:
+
+Redirect to an admin detail page for that development or to the admin list of developments.
+
+Show a toast or success message indicating the development is created and ready for unit import and document upload.
+
+4. Limit what normal developers can do in their dashboard
+
+In the Developer Dashboard UI:
+
+Remove any direct “Create Development” functionality.
+
+Instead, show:
+
+A list of developments that belong to the current developer_id.
+
+For each development, show status, unit count, and a “View development” button.
+
+Add a “Request New Development” call to action:
+
+This should open a modal or a simple form with fields:
+
+Proposed development name
+
+Location (county, approximate address)
+
+Estimated number of units
+
+Target go-live date
+
+Free text notes
+
+On submit, create a row in a new development_requests table with:
+
+developer_id
+
+The data above
+
+status defaulting to 'new'
+
+Optionally, send a notification or email to the super admin when a new request is created. For now, just ensure the data is stored so Sam can view it.
+
+In the Super Admin area:
+
+Add a simple “Requests” list page showing development_requests.
+
+From that page, provide a shortcut button “Create development from request” that pre-fills the admin “Create New Development” form with data from the request.
+
+5. Verification steps
+
+After implementing all of the above:
+
+As Super Admin:
+
+Log in.
+
+Visit the admin developments list and create a new development using the enhanced form.
+
+Confirm the new row in developments has the correct developer_id and metadata.
+
+As a Developer user:
+
+Log in.
+
+Confirm you only see your own developments in the dashboard.
+
+Confirm there is no direct “Create Development” button.
+
+Use “Request New Development” and verify that a development_requests row is created and visible in the admin view.
+
+Ensure that the previous “Create New Development” error no longer appears:
+
+No “Unable to fetch session” banner on authenticated admin routes.
+
+No Cannot read properties of null (reading 'session') in the console.
+
+Do not alter purchaser-facing UI or flows as part of this task. Focus on:
+
+Auth and role handling
+
+Admin development creation
+
+Developer dashboard read-only behaviour with a “Request” flow
+
+Fixing the session fetch error
