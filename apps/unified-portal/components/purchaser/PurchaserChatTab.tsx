@@ -671,8 +671,8 @@ export default function PurchaserChatTab({
 
   return (
     <div className={`flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={{ height: 'calc(100dvh - 56px - 64px - env(safe-area-inset-bottom, 0px))' }}>
-      {/* ChatGPT-Style Home Screen - Fixed viewport, no scroll, accounts for header (56px) and nav bar (64px + safe area) */}
+      style={{ height: 'calc(100dvh - 56px - 64px)' }}>
+      {/* ChatGPT-Style Home Screen - Fixed viewport, no scroll, accounts for header (56px) and nav bar (64px) */}
       {showHome && messages.length === 0 ? (
         <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden">
           <style>{ANIMATION_STYLES}</style>
