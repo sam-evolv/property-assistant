@@ -711,8 +711,8 @@ export default function PurchaserChatTab({
                   onClick={() => handleQuickPrompt(prompt)}
                   className={`flex items-center justify-center rounded-full px-3 py-2.5 text-[13px] font-medium transition-all duration-200 cursor-pointer ${
                     isDarkMode 
-                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-600 hover:shadow-md active:scale-95'
-                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow-md active:scale-95'
+                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-amber-500/60 hover:shadow-[0_0_12px_rgba(245,158,11,0.3)] active:scale-95'
+                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-amber-500/70 hover:shadow-[0_0_12px_rgba(245,158,11,0.25)] active:scale-95'
                   }`}
                 >
                   {prompt}
