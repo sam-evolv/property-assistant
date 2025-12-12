@@ -175,8 +175,62 @@ export async function POST(req: Request) {
       });
     }
 
-    // Second try: Check homeowners table by unique_qr_token OR id using Drizzle
-    console.log("[Resolve] Not found in units, checking homeowners table...");
+    // Second try: Check Supabase units table (legacy data source)
+    console.log("[Resolve] Not found in Drizzle units, checking Supabase units table...");
+    
+    try {
+      const { data: supabaseUnit, error: supabaseError } = await supabase
+        .from('units')
+        .select('id, address, purchaser_name, project_id')
+        .eq('id', token)
+        .single();
+      
+      if (supabaseUnit && !supabaseError) {
+        console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address);
+        
+        // Get development info from Supabase projects
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id, name, logo_url')
+          .eq('id', supabaseUnit.project_id)
+          .single();
+        
+        const fullAddress = supabaseUnit.address || '';
+        const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+        
+        return NextResponse.json({
+          success: true,
+          unitId: supabaseUnit.id,
+          house_id: supabaseUnit.id,
+          tenantId: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
+          tenant_id: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
+          developmentId: supabaseUnit.project_id,
+          development_id: supabaseUnit.project_id,
+          development_name: project?.name || 'Your Development',
+          development_code: '',
+          development_logo_url: project?.logo_url || null,
+          development_system_instructions: '',
+          address: fullAddress || 'Your Home',
+          eircode: '',
+          purchaserName: supabaseUnit.purchaser_name || 'Homeowner',
+          purchaser_name: supabaseUnit.purchaser_name || 'Homeowner',
+          user_id: null,
+          project_id: supabaseUnit.project_id,
+          houseType: null,
+          house_type: null,
+          floorPlanUrl: null,
+          floor_plan_pdf_url: null,
+          latitude: coordinates?.lat || null,
+          longitude: coordinates?.lng || null,
+          specs: null,
+        });
+      }
+    } catch (supabaseErr: any) {
+      console.log("[Resolve] Supabase lookup failed:", supabaseErr.message);
+    }
+
+    // Third try: Check homeowners table by unique_qr_token OR id using Drizzle
+    console.log("[Resolve] Not found in Supabase, checking homeowners table...");
     
     try {
       const homeownerResult = await db.execute(sql`
