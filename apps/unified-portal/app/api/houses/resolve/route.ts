@@ -110,10 +110,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid unit identifier" }, { status: 400 });
     }
 
-    // First try: Query units table by ID using Drizzle
+    // First try: Query units table by ID or unit_uid using Drizzle
     const unitResult = await db.execute(sql`
       SELECT 
         u.id,
+        u.unit_uid,
         u.development_id,
         u.house_type_code,
         u.address_line_1,
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
         d.logo_url as dev_logo_url
       FROM units u
       LEFT JOIN developments d ON u.development_id = d.id
-      WHERE u.id = ${token}::uuid
+      WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
       LIMIT 1
     `);
 
@@ -139,16 +140,17 @@ export async function POST(req: Request) {
     if (unit) {
       // Found in units table
       const fullAddress = unit.address_line_1 || unit.dev_address || '';
+      const unitIdentifier = unit.unit_uid || unit.id;
 
-      console.log("[Resolve] Found unit:", unit.id, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
+      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
 
       const coordinates = fullAddress ? await geocodeAddress(fullAddress) : 
         (unit.latitude && unit.longitude ? { lat: unit.latitude, lng: unit.longitude } : null);
 
       return NextResponse.json({
         success: true,
-        unitId: unit.id,
-        house_id: unit.id,
+        unitId: unitIdentifier,
+        house_id: unitIdentifier,
         tenantId: unit.tenant_id || null,
         tenant_id: unit.tenant_id || null,
         developmentId: unit.development_id,
