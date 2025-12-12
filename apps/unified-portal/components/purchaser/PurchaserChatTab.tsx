@@ -724,7 +724,7 @@ export default function PurchaserChatTab({
           </div>
 
           {/* INPUT BAR - Fixed at bottom, sits directly on mobile nav */}
-          <div className={`shrink-0 border-t px-4 pt-2 pb-0 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          <div className={`shrink-0 px-4 py-1.5 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
                 ? 'border-gray-700 bg-gray-900'
@@ -775,7 +775,7 @@ export default function PurchaserChatTab({
             </div>
 
             {/* Powered By AI Footer */}
-            <p className={`mt-1 mb-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
+            <p className={`mt-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
               {t.powered}
             </p>
           </div>
@@ -933,7 +933,7 @@ export default function PurchaserChatTab({
 
           {/* Input Bar - Compact, sits directly on bottom toolbar */}
           <div 
-            className={`shrink-0 px-4 pt-2 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+            className={`shrink-0 px-4 py-1.5 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
             <div className="mx-auto flex max-w-3xl items-center gap-2">
               <button
@@ -997,7 +997,7 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
-            <p className={`mt-1 mb-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+            <p className={`mt-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
               {t.powered}
             </p>
           </div>
