@@ -6,6 +6,7 @@ OpenHouse AI is a comprehensive multi-tenant SaaS platform that provides AI-powe
 ### Current Database State (December 2025 - Supabase Migration Complete)
 **Database:** Supabase PostgreSQL (migrated from Neon)
 - **Active Development:** Longview Park, Ballyhooly Road, Ballyvolane, Cork City
+- **Multi-Development Ready:** System supports multiple developments per tenant (Rathard Park ready to onboard)
 - **Units:** 75 houses
 - **Homeowners:** 16 registered residents
 - **Documents:** 98 property documents
