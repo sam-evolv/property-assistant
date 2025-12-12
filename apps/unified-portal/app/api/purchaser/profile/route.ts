@@ -81,23 +81,42 @@ export async function GET(request: NextRequest) {
         
         if (supabaseUnit && !error) {
           console.log('[Profile] Found in Supabase:', supabaseUnit.id);
-          // Get project info
-          const { data: project } = await supabase
-            .from('projects')
-            .select('id, name, logo_url')
-            .eq('id', supabaseUnit.project_id)
-            .single();
+          
+          // Use the known development ID for Longview Park (this is what the impersonate API uses)
+          const LONGVIEW_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+          
+          // Get development info from Drizzle (which has proper data)
+          const { rows: devRows } = await db.execute(sql`
+            SELECT id, name, address, logo_url 
+            FROM developments 
+            WHERE id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
+          `);
+          const development = devRows[0] as any;
+          
+          // Get the first house type for this development (for documents)
+          const { rows: houseTypeRows } = await db.execute(sql`
+            SELECT house_type_code, name 
+            FROM house_types 
+            WHERE development_id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
+            LIMIT 1
+          `);
+          const houseType = houseTypeRows[0] as any;
+          
+          console.log('[Profile] Using development:', development?.name, 'House type:', houseType?.house_type_code, houseType?.name);
           
           unit = {
             id: supabaseUnit.id,
             unit_uid: supabaseUnit.id,
-            project_id: supabaseUnit.project_id,
-            house_type_code: null,
+            project_id: LONGVIEW_DEVELOPMENT_ID,
+            development_id: LONGVIEW_DEVELOPMENT_ID,
+            house_type_code: houseType?.house_type_code || null,
+            house_type_name: houseType?.name || null,
             address_line_1: supabaseUnit.address,
             purchaser_name: supabaseUnit.purchaser_name,
-            dev_id: project?.id,
-            dev_name: project?.name,
-            dev_logo_url: project?.logo_url,
+            dev_id: development?.id || LONGVIEW_DEVELOPMENT_ID,
+            dev_name: development?.name || 'Longview Park',
+            dev_address: development?.address,
+            dev_logo_url: development?.logo_url,
           };
         }
       } catch (supabaseErr: any) {
@@ -157,12 +176,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get documents by house_type_code OR containing the house type code in title
+    // Get documents by house_type_code, development_id, or title pattern
     let documents: any[] = [];
-    if (houseTypeCode) {
-      try {
+    const developmentId = unit.development_id || unit.project_id || unit.dev_id;
+    
+    try {
+      let docRows: any[] = [];
+      
+      if (houseTypeCode) {
+        // First try by house_type_code
         const houseTypePattern = `%${houseTypeCode}%`;
-        const { rows: docRows } = await db.execute(sql`
+        const result = await db.execute(sql`
           SELECT 
             id,
             title,
@@ -186,16 +210,41 @@ export async function GET(request: NextRequest) {
             created_at DESC
           LIMIT 20
         `);
-        documents = (docRows || []).map((doc: any) => ({
-          id: doc.id,
-          title: doc.title,
-          file_url: doc.file_url,
-          mime_type: doc.mime_type || 'application/pdf',
-          category: getCategoryFromDoc(doc),
-        }));
-      } catch (e) {
-        console.error('[Profile] Error fetching documents:', e);
+        docRows = result.rows as any[];
       }
+      
+      // If no documents by house_type, try by development_id
+      if (docRows.length === 0 && developmentId) {
+        console.log('[Profile] No docs by house_type, trying development_id:', developmentId);
+        const result = await db.execute(sql`
+          SELECT 
+            id,
+            title,
+            file_url,
+            mime_type,
+            document_type,
+            discipline,
+            metadata
+          FROM documents
+          WHERE is_superseded = false
+            AND development_id = ${developmentId}::uuid
+          ORDER BY created_at DESC
+          LIMIT 20
+        `);
+        docRows = result.rows as any[];
+      }
+      
+      documents = (docRows || []).map((doc: any) => ({
+        id: doc.id,
+        title: doc.title,
+        file_url: doc.file_url,
+        mime_type: doc.mime_type || 'application/pdf',
+        category: getCategoryFromDoc(doc),
+      }));
+      
+      console.log('[Profile] Found', documents.length, 'documents');
+    } catch (e) {
+      console.error('[Profile] Error fetching documents:', e);
     }
 
     // Build the response with all available details
@@ -218,7 +267,7 @@ export async function GET(request: NextRequest) {
         electricity_account: unit.electricity_account || null,
         esb_eirgrid_number: unit.esb_eirgrid_number || null,
         house_type_code: houseTypeCode,
-        house_type_name: houseTypeCode || 'Your Home',
+        house_type_name: unit.house_type_name || houseTypeCode || 'Your Home',
         bedrooms: bedrooms,
         bathrooms: bathrooms,
         floor_area_sqm: floorArea ? parseFloat(floorArea) : null,
