@@ -724,7 +724,7 @@ export default function PurchaserChatTab({
           </div>
 
           {/* INPUT BAR - Fixed at bottom, above mobile nav */}
-          <div className={`shrink-0 border-t px-4 pt-2 pb-1 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
+          <div className={`shrink-0 border-t px-4 pt-2 pb-0 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
             <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
               isDarkMode
                 ? 'border-gray-700 bg-gray-900'
@@ -775,7 +775,7 @@ export default function PurchaserChatTab({
             </div>
 
             {/* Powered By AI Footer */}
-            <p className={`mt-2 text-center text-[11px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
+            <p className={`mt-0.5 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
               {t.powered}
             </p>
           </div>
