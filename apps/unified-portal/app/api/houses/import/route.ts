@@ -275,17 +275,11 @@ export async function POST(req: NextRequest) {
           )
           .limit(1);
         
-        // Determine address components
-        // For Longview Park, auto-fill the standard address if not provided
-        const isLongviewPark = development.name.toLowerCase().includes('longview');
-        const addressLine2 = getString(mappedRow.address_line_2) || 
-          (isLongviewPark ? 'Ballyhooly Road' : null);
-        const city = getString(mappedRow.city) || 
-          (isLongviewPark ? 'Ballyvolane' : null);
-        const stateProvince = getString(mappedRow.state_province) || 
-          (isLongviewPark ? 'Cork City' : null);
-        const country = getString(mappedRow.country) || 
-          (isLongviewPark ? 'Ireland' : null);
+        // Determine address components from CSV - no development-specific defaults
+        const addressLine2 = getString(mappedRow.address_line_2);
+        const city = getString(mappedRow.city);
+        const stateProvince = getString(mappedRow.state_province);
+        const country = getString(mappedRow.country);
 
         const unitData = {
           tenant_id: development.tenant_id,

@@ -198,15 +198,28 @@ export async function POST(req: Request) {
         const fullAddress = supabaseUnit.address || '';
         const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
         
+        // Resolve tenant_id from development
+        let resolvedTenantId = null;
+        let resolvedDevName = project?.name || 'Your Development';
+        if (supabaseUnit.project_id) {
+          const { rows: devRows } = await db.execute(sql`
+            SELECT tenant_id, name FROM developments WHERE id = ${supabaseUnit.project_id}::uuid
+          `);
+          if (devRows.length > 0) {
+            resolvedTenantId = (devRows[0] as any).tenant_id;
+            resolvedDevName = (devRows[0] as any).name;
+          }
+        }
+        
         return NextResponse.json({
           success: true,
           unitId: supabaseUnit.id,
           house_id: supabaseUnit.id,
-          tenantId: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
-          tenant_id: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
+          tenantId: resolvedTenantId,
+          tenant_id: resolvedTenantId,
           developmentId: supabaseUnit.project_id,
           development_id: supabaseUnit.project_id,
-          development_name: project?.name || 'Your Development',
+          development_name: resolvedDevName,
           development_code: '',
           development_logo_url: project?.logo_url || null,
           development_system_instructions: '',

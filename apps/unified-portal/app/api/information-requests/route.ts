@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { informationRequests } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { informationRequests, units } from '@openhouse/db/schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
-const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
-const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+// Helper to resolve tenant/development from unit
+async function resolveUnitContext(unitId: string | null): Promise<{ tenantId: string | null; developmentId: string | null }> {
+  if (!unitId) return { tenantId: null, developmentId: null };
+  
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT u.tenant_id, u.development_id 
+      FROM units u 
+      WHERE u.id = ${unitId}::uuid OR u.unit_uid = ${unitId}
+      LIMIT 1
+    `);
+    if (rows.length > 0) {
+      const unit = rows[0] as any;
+      return { tenantId: unit.tenant_id, developmentId: unit.development_id };
+    }
+  } catch (e) {
+    console.log('[InfoRequest] Could not resolve unit context:', e);
+  }
+  return { tenantId: null, developmentId: null };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,9 +36,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve tenant/development from unit - MUST succeed for proper isolation
+    const unitContext = await resolveUnitContext(unitId);
+    
+    if (!unitContext.tenantId || !unitContext.developmentId) {
+      console.error('[InfoRequest] FAIL: Could not resolve tenant/development for unit:', unitId);
+      return NextResponse.json(
+        { error: 'Could not resolve unit context. Please try again or contact support.' },
+        { status: 422 }
+      );
+    }
+
     const newRequest = await db.insert(informationRequests).values({
-      tenant_id: DEFAULT_TENANT_ID,
-      development_id: DEFAULT_DEVELOPMENT_ID,
+      tenant_id: unitContext.tenantId,
+      development_id: unitContext.developmentId,
       unit_id: unitId || null,
       question: question.trim(),
       context: context || null,
@@ -49,13 +78,19 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const developmentId = searchParams.get('developmentId');
+    const tenantId = searchParams.get('tenantId');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const conditions = [
-      eq(informationRequests.tenant_id, DEFAULT_TENANT_ID),
-      eq(informationRequests.development_id, DEFAULT_DEVELOPMENT_ID),
-    ];
-
+    // Build conditions dynamically based on provided filters
+    const conditions: any[] = [];
+    
+    if (tenantId) {
+      conditions.push(eq(informationRequests.tenant_id, tenantId));
+    }
+    if (developmentId) {
+      conditions.push(eq(informationRequests.development_id, developmentId));
+    }
     if (status) {
       conditions.push(eq(informationRequests.status, status));
     }
@@ -63,7 +98,7 @@ export async function GET(request: NextRequest) {
     const requests = await db
       .select()
       .from(informationRequests)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(informationRequests.created_at))
       .limit(limit);
 

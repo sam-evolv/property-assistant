@@ -8,8 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const LONGVIEW_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-const LONGVIEW_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
+// NO HARDCODED DEVELOPMENT IDS - All lookups derive from unit.development_id
 
 export interface UnitInfo {
   id: string;
@@ -71,19 +70,55 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
 
     console.log('[UnitLookup] Found in Supabase:', supabaseUnit.id);
 
-    // CRITICAL: Supabase project_id may be the old Supabase project ID (57dc3919...),
-    // not the Drizzle development ID (34316432...). We need to use the correct
-    // Drizzle development ID for house type lookups.
-    // For Longview units, always use the correct LONGVIEW_DEVELOPMENT_ID.
-    const isLongviewAddress = (supabaseUnit.address || '').toLowerCase().includes('longview');
-    const developmentId = isLongviewAddress ? LONGVIEW_DEVELOPMENT_ID : (supabaseUnit.project_id || LONGVIEW_DEVELOPMENT_ID);
+    // Supabase units may have project_id that needs to be resolved to a development
+    // Try to find the development by matching the project_id or by address pattern
+    let developmentId: string | null = null;
+    let tenantId: string | null = null;
 
-    // TODO: For multi-house-type developments, we need to map each Supabase unit
-    // to its specific house type. Options:
-    // 1. Add house_type column to Supabase units table
-    // 2. Create a mapping table unit_id -> house_type_code
-    // 3. Derive from unit address/name patterns
-    // For now, this works for Longview Park which has a single house type (BD01)
+    // First, try to find development by project_id (if it's a valid UUID)
+    if (supabaseUnit.project_id) {
+      const devByProjectId = await db.query.developments.findFirst({
+        where: eq(developments.id, supabaseUnit.project_id),
+        columns: { id: true, tenant_id: true, name: true },
+      });
+      if (devByProjectId) {
+        developmentId = devByProjectId.id;
+        tenantId = devByProjectId.tenant_id;
+        console.log('[UnitLookup] Matched development by project_id:', devByProjectId.name);
+      }
+    }
+
+    // If no match by project_id, try to find by address pattern
+    if (!developmentId && supabaseUnit.address) {
+      // Extract development name keywords from address (e.g., "Longview", "Rathard")
+      const addressLower = supabaseUnit.address.toLowerCase();
+      const allDevs = await db.query.developments.findMany({
+        columns: { id: true, tenant_id: true, name: true },
+      });
+      
+      for (const dev of allDevs) {
+        const devNameLower = dev.name.toLowerCase();
+        // Check if any significant word from dev name appears in address
+        const devWords = devNameLower.split(/\s+/).filter(w => w.length > 3);
+        for (const word of devWords) {
+          if (addressLower.includes(word)) {
+            developmentId = dev.id;
+            tenantId = dev.tenant_id;
+            console.log('[UnitLookup] Matched development by address pattern:', dev.name);
+            break;
+          }
+        }
+        if (developmentId) break;
+      }
+    }
+
+    if (!developmentId || !tenantId) {
+      console.log('[UnitLookup] WARNING: Could not resolve development for Supabase unit:', supabaseUnit.id);
+      return null;
+    }
+
+    // Get house type for this development
+    // TODO: For multi-house-type developments, we need unit-specific house type mapping
     const { rows: houseTypeRows } = await db.execute(sql`
       SELECT house_type_code, name 
       FROM house_types 
@@ -95,16 +130,6 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
     
     if (!houseType) {
       console.log('[UnitLookup] WARNING: No house types found for development:', developmentId);
-    }
-
-    // Use correct tenant ID for the development
-    let tenantId = LONGVIEW_TENANT_ID;
-    const dev = await db.query.developments.findFirst({
-      where: eq(developments.id, developmentId),
-      columns: { tenant_id: true },
-    });
-    if (dev) {
-      tenantId = dev.tenant_id;
     }
 
     const { rows: sampleUnitRows } = await db.execute(sql`

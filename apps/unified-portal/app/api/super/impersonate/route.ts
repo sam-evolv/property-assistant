@@ -82,16 +82,34 @@ export async function GET(req: NextRequest) {
     }
 
     // Generate signed QR token and store in database for drawing access
-    // Use default tenant/development for demo (Supabase projects table doesn't have these columns)
+    // Resolve tenant_id and development_id dynamically from unit's project_id
     const projectId = unit.project_id || PROJECT_ID;
-    const TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
-    const DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+    
+    // Import db for development lookup
+    const { db } = await import('@openhouse/db');
+    const { sql } = await import('drizzle-orm');
+    
+    // Look up the development to get tenant_id
+    const { rows: devRows } = await db.execute(sql`
+      SELECT id, tenant_id FROM developments WHERE id = ${projectId}::uuid
+    `);
+    
+    if (devRows.length === 0) {
+      console.error('[Super Admin Impersonation] FAIL: Could not resolve development for project_id:', projectId);
+      return NextResponse.json({ 
+        error: 'Development not found. Unit may not be properly configured for this environment.' 
+      }, { status: 404 });
+    }
+    
+    const tenantId = (devRows[0] as any).tenant_id;
+    const developmentId = (devRows[0] as any).id;
+    console.log('[Super Admin Impersonation] Resolved development:', developmentId, 'tenant:', tenantId);
     
     const tokenResult = await generateQRTokenForUnit(
       unit.id,
       projectId,
-      TENANT_ID,
-      DEVELOPMENT_ID
+      tenantId,
+      developmentId
     );
 
     console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);

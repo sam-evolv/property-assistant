@@ -8,8 +8,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b9-93d9b5c88ee2';
-const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+// REMOVED: Hardcoded tenant/development IDs - these are now derived from the request's existing data
 
 export async function PATCH(
   request: NextRequest,

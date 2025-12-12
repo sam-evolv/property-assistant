@@ -64,20 +64,27 @@ async function getUnitInfo(unitUid: string): Promise<{
     }
   }
 
-  // Try to match by address for Longview Park
-  if (supabaseUnit.address?.toLowerCase().includes('longview')) {
-    const longviewDev = await db.query.developments.findFirst({
-      where: sql`LOWER(${developments.name}) LIKE '%longview%'`,
-      columns: { id: true, tenant_id: true },
+  // Try to match by address pattern against all developments
+  if (supabaseUnit.address) {
+    const addressLower = supabaseUnit.address.toLowerCase();
+    const allDevs = await db.query.developments.findMany({
+      columns: { id: true, tenant_id: true, name: true },
     });
-
-    if (longviewDev) {
-      return {
-        id: supabaseUnit.id,
-        tenant_id: longviewDev.tenant_id,
-        development_id: longviewDev.id,
-        address: supabaseUnit.address || 'Unknown Unit',
-      };
+    
+    for (const dev of allDevs) {
+      const devNameLower = dev.name.toLowerCase();
+      const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
+      for (const word of devWords) {
+        if (addressLower.includes(word)) {
+          console.log('[Noticeboard] Matched development by address pattern:', dev.name);
+          return {
+            id: supabaseUnit.id,
+            tenant_id: dev.tenant_id,
+            development_id: dev.id,
+            address: supabaseUnit.address || 'Unknown Unit',
+          };
+        }
+      }
     }
   }
 

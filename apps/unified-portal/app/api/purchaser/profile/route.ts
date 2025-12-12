@@ -82,22 +82,52 @@ export async function GET(request: NextRequest) {
         if (supabaseUnit && !error) {
           console.log('[Profile] Found in Supabase:', supabaseUnit.id);
           
-          // Use the known development ID for Longview Park (this is what the impersonate API uses)
-          const LONGVIEW_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+          // Find development by project_id or address pattern matching
+          let development: any = null;
           
-          // Get development info from Drizzle (which has proper data)
-          const { rows: devRows } = await db.execute(sql`
-            SELECT id, name, address, logo_url 
-            FROM developments 
-            WHERE id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
-          `);
-          const development = devRows[0] as any;
+          // Try project_id first
+          if (supabaseUnit.project_id) {
+            const { rows: devRows } = await db.execute(sql`
+              SELECT id, name, address, logo_url, tenant_id
+              FROM developments 
+              WHERE id = ${supabaseUnit.project_id}::uuid
+            `);
+            if (devRows.length > 0) {
+              development = devRows[0];
+              console.log('[Profile] Matched development by project_id:', development.name);
+            }
+          }
+          
+          // Fallback: match by address pattern
+          if (!development && supabaseUnit.address) {
+            const addressLower = supabaseUnit.address.toLowerCase();
+            const { rows: allDevs } = await db.execute(sql`
+              SELECT id, name, address, logo_url, tenant_id FROM developments
+            `);
+            for (const dev of allDevs as any[]) {
+              const devNameLower = dev.name.toLowerCase();
+              const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
+              for (const word of devWords) {
+                if (addressLower.includes(word)) {
+                  development = dev;
+                  console.log('[Profile] Matched development by address pattern:', dev.name);
+                  break;
+                }
+              }
+              if (development) break;
+            }
+          }
+          
+          if (!development) {
+            console.log('[Profile] Could not resolve development for Supabase unit:', supabaseUnit.id);
+            return NextResponse.json({ error: 'Unit development not found' }, { status: 404 });
+          }
           
           // Get the first house type for this development (for documents)
           const { rows: houseTypeRows } = await db.execute(sql`
             SELECT house_type_code, name 
             FROM house_types 
-            WHERE development_id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
+            WHERE development_id = ${development.id}::uuid
             LIMIT 1
           `);
           const houseType = houseTypeRows[0] as any;
@@ -106,7 +136,7 @@ export async function GET(request: NextRequest) {
           const { rows: sampleUnitRows } = await db.execute(sql`
             SELECT bedrooms, bathrooms 
             FROM units 
-            WHERE development_id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
+            WHERE development_id = ${development.id}::uuid
               AND bedrooms IS NOT NULL
             LIMIT 1
           `);
@@ -117,16 +147,16 @@ export async function GET(request: NextRequest) {
           unit = {
             id: supabaseUnit.id,
             unit_uid: supabaseUnit.id,
-            project_id: LONGVIEW_DEVELOPMENT_ID,
-            development_id: LONGVIEW_DEVELOPMENT_ID,
+            project_id: development.id,
+            development_id: development.id,
             house_type_code: houseType?.house_type_code || null,
             house_type_name: houseType?.name || null,
             address_line_1: supabaseUnit.address,
             purchaser_name: supabaseUnit.purchaser_name,
-            dev_id: development?.id || LONGVIEW_DEVELOPMENT_ID,
-            dev_name: development?.name || 'Longview Park',
-            dev_address: development?.address,
-            dev_logo_url: development?.logo_url,
+            dev_id: development.id,
+            dev_name: development.name,
+            dev_address: development.address,
+            dev_logo_url: development.logo_url,
             bedrooms: sampleUnit?.bedrooms || null,
             bathrooms: sampleUnit?.bathrooms || null,
           };
