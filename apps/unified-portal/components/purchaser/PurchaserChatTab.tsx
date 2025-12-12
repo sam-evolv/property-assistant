@@ -948,7 +948,7 @@ export default function PurchaserChatTab({
                 <Home className="h-4 w-4" />
               </button>
 
-              <div className={`flex flex-1 items-center gap-1 rounded-[20px] border px-3 py-1 ${
+              <div className={`flex flex-1 items-center gap-1 rounded-[20px] border px-3 py-0 ${
                 isDarkMode
                   ? 'border-gray-700 bg-gray-900'
                   : 'border-gray-300 bg-gray-100'
@@ -965,7 +965,7 @@ export default function PurchaserChatTab({
                   }}
                   placeholder={t.placeholder}
                   disabled={sending}
-                  className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+                  className={`flex-1 border-none bg-transparent px-2 py-0 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                 />
                 
                 {speechSupported && (
