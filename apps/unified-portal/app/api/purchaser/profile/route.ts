@@ -70,32 +70,38 @@ export async function GET(request: NextRequest) {
     // Fallback to Supabase units table if not found in Drizzle
     if (!unit) {
       console.log('[Profile] Not found in Drizzle, checking Supabase...');
-      const { data: supabaseUnit, error } = await supabase
-        .from('units')
-        .select('id, address, purchaser_name, project_id, house_type')
-        .eq('id', unitUid)
-        .single();
-      
-      if (supabaseUnit && !error) {
-        console.log('[Profile] Found in Supabase:', supabaseUnit.id);
-        // Get project info
-        const { data: project } = await supabase
-          .from('projects')
-          .select('id, name, logo_url')
-          .eq('id', supabaseUnit.project_id)
+      try {
+        const { data: supabaseUnit, error } = await supabase
+          .from('units')
+          .select('id, address, purchaser_name, project_id')
+          .eq('id', unitUid)
           .single();
         
-        unit = {
-          id: supabaseUnit.id,
-          unit_uid: supabaseUnit.id,
-          project_id: supabaseUnit.project_id,
-          house_type_code: supabaseUnit.house_type,
-          address_line_1: supabaseUnit.address,
-          purchaser_name: supabaseUnit.purchaser_name,
-          dev_id: project?.id,
-          dev_name: project?.name,
-          dev_logo_url: project?.logo_url,
-        };
+        console.log('[Profile] Supabase query result:', supabaseUnit ? 'found' : 'not found', error ? `error: ${error.message}` : '');
+        
+        if (supabaseUnit && !error) {
+          console.log('[Profile] Found in Supabase:', supabaseUnit.id);
+          // Get project info
+          const { data: project } = await supabase
+            .from('projects')
+            .select('id, name, logo_url')
+            .eq('id', supabaseUnit.project_id)
+            .single();
+          
+          unit = {
+            id: supabaseUnit.id,
+            unit_uid: supabaseUnit.id,
+            project_id: supabaseUnit.project_id,
+            house_type_code: null,
+            address_line_1: supabaseUnit.address,
+            purchaser_name: supabaseUnit.purchaser_name,
+            dev_id: project?.id,
+            dev_name: project?.name,
+            dev_logo_url: project?.logo_url,
+          };
+        }
+      } catch (supabaseErr: any) {
+        console.error('[Profile] Supabase lookup error:', supabaseErr.message);
       }
     }
 
