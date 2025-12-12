@@ -102,7 +102,17 @@ export async function GET(request: NextRequest) {
           `);
           const houseType = houseTypeRows[0] as any;
           
-          console.log('[Profile] Using development:', development?.name, 'House type:', houseType?.house_type_code, houseType?.name);
+          // Get bedrooms/bathrooms from a sample unit in Drizzle for this development
+          const { rows: sampleUnitRows } = await db.execute(sql`
+            SELECT bedrooms, bathrooms 
+            FROM units 
+            WHERE development_id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
+              AND bedrooms IS NOT NULL
+            LIMIT 1
+          `);
+          const sampleUnit = sampleUnitRows[0] as any;
+          
+          console.log('[Profile] Using development:', development?.name, 'House type:', houseType?.house_type_code, 'Beds/Baths:', sampleUnit?.bedrooms, '/', sampleUnit?.bathrooms);
           
           unit = {
             id: supabaseUnit.id,
@@ -117,6 +127,8 @@ export async function GET(request: NextRequest) {
             dev_name: development?.name || 'Longview Park',
             dev_address: development?.address,
             dev_logo_url: development?.logo_url,
+            bedrooms: sampleUnit?.bedrooms || null,
+            bathrooms: sampleUnit?.bathrooms || null,
           };
         }
       } catch (supabaseErr: any) {
@@ -252,9 +264,9 @@ export async function GET(request: NextRequest) {
     const unitAddress = [unit.address_line_1, unit.address_line_2, unit.city, unit.eircode].filter(Boolean).join(', ');
     const fullAddress = (homeownerData as any)?.address || unitAddress || unit.dev_address || 'Address not available';
 
-    // Get bedrooms/bathrooms from multiple sources (specs from specification_json or intel profile)
-    const bedrooms = specs?.bedrooms || intelProfile?.rooms?.bedrooms || null;
-    const bathrooms = specs?.bathrooms || intelProfile?.rooms?.bathrooms || null;
+    // Get bedrooms/bathrooms from multiple sources (unit, specs, or intel profile)
+    const bedrooms = unit.bedrooms || specs?.bedrooms || intelProfile?.rooms?.bedrooms || null;
+    const bathrooms = unit.bathrooms || specs?.bathrooms || intelProfile?.rooms?.bathrooms || null;
     const floorArea = intelProfile?.floor_area_total_sqm || specs?.floor_area || null;
 
     const profile = {
