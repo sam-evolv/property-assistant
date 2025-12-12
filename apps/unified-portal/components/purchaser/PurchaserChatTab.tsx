@@ -933,22 +933,22 @@ export default function PurchaserChatTab({
 
           {/* Input Bar - Compact, sits just above bottom toolbar */}
           <div 
-            className={`shrink-0 px-4 pt-0 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+            className={`shrink-0 px-2 pt-0 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
-            <div className="mx-auto flex max-w-3xl items-center gap-2">
+            <div className="mx-auto flex max-w-3xl items-center gap-1">
               <button
                 onClick={handleHomeClick}
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition ${
+                className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition ${
                   isDarkMode 
                     ? 'text-gray-400 hover:bg-gray-900 hover:text-gray-300' 
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                 }`}
                 aria-label="Back to home"
               >
-                <Home className="h-5 w-5" />
+                <Home className="h-4 w-4" />
               </button>
 
-              <div className={`flex flex-1 items-center gap-2 rounded-[24px] border px-3 py-2 ${
+              <div className={`flex flex-1 items-center gap-1 rounded-[20px] border px-3 py-1 ${
                 isDarkMode
                   ? 'border-gray-700 bg-gray-900'
                   : 'border-gray-300 bg-gray-100'
@@ -997,7 +997,7 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
-            <p className={`mt-0 text-center text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+            <p className={`m-0 text-center text-[8px] leading-none ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
               {t.powered}
             </p>
           </div>
