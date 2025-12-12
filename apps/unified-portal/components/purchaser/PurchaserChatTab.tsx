@@ -933,7 +933,7 @@ export default function PurchaserChatTab({
 
           {/* Input Bar - Compact, sits just above bottom toolbar */}
           <div 
-            className={`shrink-0 px-4 pt-2 pb-1 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+            className={`shrink-0 px-4 pt-0 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
             <div className="mx-auto flex max-w-3xl items-center gap-2">
               <button
@@ -997,7 +997,7 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
-            <p className={`mt-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+            <p className={`mt-0 text-center text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
               {t.powered}
             </p>
           </div>
