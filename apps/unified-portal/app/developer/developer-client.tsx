@@ -2,7 +2,7 @@
 
 import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles } from 'lucide-react';
+import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send } from 'lucide-react';
 import Link from 'next/link';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 
@@ -148,6 +148,254 @@ function UnansweredQueriesCard({
         Consider uploading more documents on these topics
       </p>
     </div>
+  );
+}
+
+interface Development {
+  id: string;
+  name: string;
+  address: string | null;
+  is_active: boolean;
+}
+
+function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestForm, setRequestForm] = useState({
+    proposedName: '',
+    locationCounty: '',
+    locationAddress: '',
+    estimatedUnits: '',
+    targetGoLive: '',
+    notes: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState(false);
+
+  const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
+  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+  const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
+
+  useEffect(() => {
+    const fetchDevelopments = async () => {
+      try {
+        const response = await fetch('/api/developments');
+        if (response.ok) {
+          const data = await response.json();
+          setDevelopments(data.developments || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch developments:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDevelopments();
+  }, []);
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestForm.proposedName.trim()) return;
+    
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/development-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestForm),
+      });
+      
+      if (response.ok) {
+        setRequestSuccess(true);
+        setRequestForm({
+          proposedName: '',
+          locationCounty: '',
+          locationAddress: '',
+          estimatedUnits: '',
+          targetGoLive: '',
+          notes: '',
+        });
+        setTimeout(() => {
+          setShowRequestModal(false);
+          setRequestSuccess(false);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Failed to submit request:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-gold-500" />
+            <h2 className={`text-lg font-semibold ${textColor}`}>Your Developments</h2>
+          </div>
+          <button
+            onClick={() => setShowRequestModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gold-500/10 text-gold-500 rounded-lg hover:bg-gold-500/20 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Request New
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2].map(i => (
+              <div key={i} className="h-16 bg-gray-300/20 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : developments.length === 0 ? (
+          <div className="text-center py-8">
+            <Building2 className={`w-12 h-12 mx-auto mb-3 ${secondaryText}`} />
+            <p className={secondaryText}>No developments assigned yet</p>
+            <p className={`text-sm ${secondaryText} mt-1`}>Request a new development to get started</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {developments.map((dev) => (
+              <Link key={dev.id} href={`/developer/developments/${dev.id}`}>
+                <div className={`p-4 rounded-lg border ${isDarkMode ? 'border-gray-700 hover:border-gold-500/50' : 'border-gray-200 hover:border-gold-500/50'} transition-colors cursor-pointer`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={`font-medium ${textColor}`}>{dev.name}</h3>
+                      <p className={`text-sm ${secondaryText}`}>{dev.address || 'Address pending'}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      dev.is_active ? 'bg-green-900/30 text-green-400' : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {dev.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-lg rounded-xl p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+            {requestSuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileCheck className="w-8 h-8 text-green-500" />
+                </div>
+                <h2 className={`text-xl font-semibold ${textColor} mb-2`}>Request Submitted!</h2>
+                <p className={secondaryText}>We'll review your request and get back to you soon.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`text-xl font-semibold ${textColor}`}>Request New Development</h2>
+                  <button onClick={() => setShowRequestModal(false)} className={secondaryText}>
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitRequest} className="space-y-4">
+                  <div>
+                    <label className={`block text-sm font-medium ${secondaryText} mb-1`}>
+                      Proposed Development Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={requestForm.proposedName}
+                      onChange={(e) => setRequestForm({ ...requestForm, proposedName: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                      placeholder="e.g., Rathard Park"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium ${secondaryText} mb-1`}>County</label>
+                      <input
+                        type="text"
+                        value={requestForm.locationCounty}
+                        onChange={(e) => setRequestForm({ ...requestForm, locationCounty: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                        placeholder="e.g., Cork"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium ${secondaryText} mb-1`}>Estimated Units</label>
+                      <input
+                        type="number"
+                        value={requestForm.estimatedUnits}
+                        onChange={(e) => setRequestForm({ ...requestForm, estimatedUnits: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                        placeholder="e.g., 75"
+                        min="1"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${secondaryText} mb-1`}>Approximate Address</label>
+                    <input
+                      type="text"
+                      value={requestForm.locationAddress}
+                      onChange={(e) => setRequestForm({ ...requestForm, locationAddress: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                      placeholder="Street or area"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${secondaryText} mb-1`}>Target Go-Live Date</label>
+                    <input
+                      type="text"
+                      value={requestForm.targetGoLive}
+                      onChange={(e) => setRequestForm({ ...requestForm, targetGoLive: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                      placeholder="e.g., Q2 2025"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium ${secondaryText} mb-1`}>Additional Notes</label>
+                    <textarea
+                      value={requestForm.notes}
+                      onChange={(e) => setRequestForm({ ...requestForm, notes: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:ring-2 focus:ring-gold-500`}
+                      rows={3}
+                      placeholder="Any additional information..."
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={submitting || !requestForm.proposedName.trim()}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Send className="w-4 h-4" />
+                      {submitting ? 'Submitting...' : 'Submit Request'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRequestModal(false)}
+                      className={`px-4 py-2 rounded-lg border ${isDarkMode ? 'border-gray-700 text-gray-300' : 'border-gray-300 text-gray-700'}`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -390,7 +638,10 @@ export default function DeveloperDashboardClient({
             <UnansweredQueriesCard queries={data.unansweredQueries} isDarkMode={isDarkMode} />
           </div>
 
-          <QuickActionsCard summary={data.summary} isDarkMode={isDarkMode} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <DevelopmentsCard isDarkMode={isDarkMode} />
+            <QuickActionsCard summary={data.summary} isDarkMode={isDarkMode} />
+          </div>
         </div>
       </div>
     </div>

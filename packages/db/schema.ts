@@ -69,6 +69,27 @@ export const admins = pgTable('admins', {
   emailIdx: index('admins_email_idx').on(table.email),
 }));
 
+export const developmentRequests = pgTable('development_requests', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  developer_id: uuid('developer_id').references(() => admins.id).notNull(),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  proposed_name: text('proposed_name').notNull(),
+  location_county: text('location_county'),
+  location_address: text('location_address'),
+  estimated_units: integer('estimated_units'),
+  target_go_live: text('target_go_live'),
+  notes: text('notes'),
+  status: varchar('status', { length: 50 }).default('new').notNull(),
+  admin_notes: text('admin_notes'),
+  created_development_id: uuid('created_development_id').references(() => developments.id),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  developerIdx: index('dev_requests_developer_idx').on(table.developer_id),
+  tenantIdx: index('dev_requests_tenant_idx').on(table.tenant_id),
+  statusIdx: index('dev_requests_status_idx').on(table.status),
+}));
+
 export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
@@ -773,6 +794,22 @@ export const adminsRelations = relations(admins, ({ one, many }) => ({
   }),
   posts: many(noticeboard_posts),
   uploaded_versions: many(document_versions),
+  developmentRequests: many(developmentRequests),
+}));
+
+export const developmentRequestsRelations = relations(developmentRequests, ({ one }) => ({
+  developer: one(admins, {
+    fields: [developmentRequests.developer_id],
+    references: [admins.id],
+  }),
+  tenant: one(tenants, {
+    fields: [developmentRequests.tenant_id],
+    references: [tenants.id],
+  }),
+  createdDevelopment: one(developments, {
+    fields: [developmentRequests.created_development_id],
+    references: [developments.id],
+  }),
 }));
 
 export const documentsRelations = relations(documents, ({ one, many }) => ({
