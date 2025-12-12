@@ -1,8 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { noticeboard_posts, tenants, notice_audit_log, units } from '@openhouse/db/schema';
+import { noticeboard_posts, tenants, notice_audit_log, units, developments } from '@openhouse/db/schema';
 import { eq, desc, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client for legacy units lookup
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// Helper to get unit info from either database
+async function getUnitInfo(unitUid: string): Promise<{
+  id: string;
+  tenant_id: string;
+  development_id: string | null;
+  address: string;
+} | null> {
+  // First try Drizzle units table
+  const drizzleUnit = await db.query.units.findFirst({
+    where: eq(units.id, unitUid),
+    columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
+  });
+
+  if (drizzleUnit) {
+    return {
+      id: drizzleUnit.id,
+      tenant_id: drizzleUnit.tenant_id,
+      development_id: drizzleUnit.development_id,
+      address: drizzleUnit.address_line_1 || 'Unknown Unit',
+    };
+  }
+
+  // Fall back to Supabase units table
+  console.log('[Noticeboard] Unit not in Drizzle, checking Supabase...');
+  const { data: supabaseUnit, error } = await supabase
+    .from('units')
+    .select('id, address, project_id')
+    .eq('id', unitUid)
+    .single();
+
+  if (error || !supabaseUnit) {
+    return null;
+  }
+
+  console.log('[Noticeboard] Found in Supabase:', supabaseUnit.id);
+
+  // Get development info to find tenant_id
+  if (supabaseUnit.project_id) {
+    const dev = await db.query.developments.findFirst({
+      where: eq(developments.id, supabaseUnit.project_id),
+      columns: { id: true, tenant_id: true },
+    });
+
+    if (dev) {
+      return {
+        id: supabaseUnit.id,
+        tenant_id: dev.tenant_id,
+        development_id: dev.id,
+        address: supabaseUnit.address || 'Unknown Unit',
+      };
+    }
+  }
+
+  // Try to match by address for Longview Park
+  if (supabaseUnit.address?.toLowerCase().includes('longview')) {
+    const longviewDev = await db.query.developments.findFirst({
+      where: sql`LOWER(${developments.name}) LIKE '%longview%'`,
+      columns: { id: true, tenant_id: true },
+    });
+
+    if (longviewDev) {
+      return {
+        id: supabaseUnit.id,
+        tenant_id: longviewDev.tenant_id,
+        development_id: longviewDev.id,
+        address: supabaseUnit.address || 'Unknown Unit',
+      };
+    }
+  }
+
+  return null;
+}
 
 const POSTS_PER_HOUR_LIMIT = 5;
 const EDIT_WINDOW_MINUTES = 10;
@@ -60,14 +140,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Look up unit in Drizzle PostgreSQL (not Supabase)
-    const unit = await db.query.units.findFirst({
-      where: eq(units.id, unitUid),
-      columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
-    });
+    // Look up unit in both databases
+    const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
-      console.error('[Noticeboard] Unit not found:', unitUid);
+      console.error('[Noticeboard] Unit not found in any database:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -176,14 +253,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Look up unit in Drizzle PostgreSQL (not Supabase)
-    const unit = await db.query.units.findFirst({
-      where: eq(units.id, unitUid),
-      columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
-    });
+    // Look up unit in both databases
+    const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
-      console.error('[Noticeboard POST] Unit not found:', unitUid);
+      console.error('[Noticeboard POST] Unit not found in any database:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -192,7 +266,7 @@ export async function POST(request: NextRequest) {
 
     const tenantId = unit.tenant_id;
     const developmentId = unit.development_id;
-    const unitAddress = unit.address_line_1 || 'Unknown Unit';
+    const unitAddress = unit.address;
     
     const rateLimit = await checkRateLimit(unitUid, tenantId);
     if (!rateLimit.allowed) {
@@ -312,11 +386,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Look up unit in Drizzle PostgreSQL
-    const unit = await db.query.units.findFirst({
-      where: eq(units.id, unitUid),
-      columns: { id: true, tenant_id: true },
-    });
+    // Look up unit in both databases
+    const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
       return NextResponse.json(
@@ -433,11 +504,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Look up unit in Drizzle PostgreSQL
-    const unit = await db.query.units.findFirst({
-      where: eq(units.id, unitUid),
-      columns: { id: true, tenant_id: true },
-    });
+    // Look up unit in both databases
+    const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
       return NextResponse.json(
