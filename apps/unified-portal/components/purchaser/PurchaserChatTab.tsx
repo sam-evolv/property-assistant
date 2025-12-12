@@ -779,7 +779,7 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 flex-col pb-16 md:pb-0">
+        <div className="flex h-full min-h-0 flex-col">
           {/* MESSAGES - Scrollable conversation view (alternating like iMessage) */}
           <div 
             ref={messagesContainerRef}
@@ -929,12 +929,11 @@ export default function PurchaserChatTab({
             </div>
           </div>
 
-          {/* iMessage-Style Input Bar - Fixed at Bottom, above mobile nav */}
+          {/* Input Bar - Compact, sits just above bottom toolbar */}
           <div 
-            className={`shrink-0 border-t px-4 pt-3 pb-2 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}
+            className={`shrink-0 px-4 pt-2 pb-1 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
           >
             <div className="mx-auto flex max-w-3xl items-center gap-2">
-              {/* Home Button */}
               <button
                 onClick={handleHomeClick}
                 className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition ${
@@ -947,7 +946,6 @@ export default function PurchaserChatTab({
                 <Home className="h-5 w-5" />
               </button>
 
-              {/* Input Field - iMessage Style */}
               <div className={`flex flex-1 items-center gap-2 rounded-[24px] border px-3 py-2 ${
                 isDarkMode
                   ? 'border-gray-700 bg-gray-900'
@@ -968,7 +966,6 @@ export default function PurchaserChatTab({
                   className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                 />
                 
-                {/* Microphone Button */}
                 {speechSupported && (
                   <button
                     onClick={toggleVoiceInput}
@@ -986,7 +983,6 @@ export default function PurchaserChatTab({
                   </button>
                 )}
 
-                {/* Send Button - Only show when text entered */}
                 {input.trim() && (
                   <button
                     onClick={() => sendMessage()}
@@ -999,6 +995,9 @@ export default function PurchaserChatTab({
                 )}
               </div>
             </div>
+            <p className={`mt-1 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+              {t.powered}
+            </p>
           </div>
         </div>
       )}
