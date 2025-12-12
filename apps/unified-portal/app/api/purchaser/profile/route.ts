@@ -36,10 +36,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch unit from Drizzle database (not Supabase - data is in PostgreSQL)
+    // Fetch unit from Drizzle database (check both id and unit_uid)
     const unitResult = await db.execute(sql`
       SELECT 
         u.id,
+        u.unit_uid,
         u.development_id as project_id,
         u.house_type_code,
         u.address_line_1,
@@ -60,14 +61,46 @@ export async function GET(request: NextRequest) {
         d.logo_url as dev_logo_url
       FROM units u
       LEFT JOIN developments d ON u.development_id = d.id
-      WHERE u.id = ${unitUid}::uuid
+      WHERE u.id = ${unitUid}::uuid OR u.unit_uid = ${unitUid}
       LIMIT 1
     `);
 
-    const unit = unitResult.rows[0] as any;
+    let unit = unitResult.rows[0] as any;
+
+    // Fallback to Supabase units table if not found in Drizzle
+    if (!unit) {
+      console.log('[Profile] Not found in Drizzle, checking Supabase...');
+      const { data: supabaseUnit, error } = await supabase
+        .from('units')
+        .select('id, address, purchaser_name, project_id, house_type')
+        .eq('id', unitUid)
+        .single();
+      
+      if (supabaseUnit && !error) {
+        console.log('[Profile] Found in Supabase:', supabaseUnit.id);
+        // Get project info
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id, name, logo_url')
+          .eq('id', supabaseUnit.project_id)
+          .single();
+        
+        unit = {
+          id: supabaseUnit.id,
+          unit_uid: supabaseUnit.id,
+          project_id: supabaseUnit.project_id,
+          house_type_code: supabaseUnit.house_type,
+          address_line_1: supabaseUnit.address,
+          purchaser_name: supabaseUnit.purchaser_name,
+          dev_id: project?.id,
+          dev_name: project?.name,
+          dev_logo_url: project?.logo_url,
+        };
+      }
+    }
 
     if (!unit) {
-      console.error('[Profile] Unit not found:', unitUid);
+      console.error('[Profile] Unit not found in Drizzle or Supabase:', unitUid);
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 

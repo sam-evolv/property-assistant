@@ -15,6 +15,21 @@ OpenHouse AI is a comprehensive multi-tenant SaaS platform that provides AI-powe
 - **Tenants:** 6 organizations
 - **Admins:** 7 admin users
 
+**CRITICAL: Dual Units Table Architecture**
+There are TWO units tables with DIFFERENT IDs for the same properties:
+1. **Supabase `units` table** - Legacy data, used by Super Admin impersonation
+   - Has `id` column (UUID like `195dfa86-448c-4752-b09b-79e3c0e425b6`)
+   - Has `project_id` referencing Supabase `projects` table
+2. **Drizzle `units` table** - Primary data source
+   - Has `id` column (different UUID like `a1240b40-af53-4819-903b-eba7bc111847`)
+   - Has `unit_uid` column (code like `LV-PARK-003`)
+   - Has `development_id` referencing Drizzle `developments` table
+
+**All purchaser portal APIs MUST check BOTH sources:**
+- First try Drizzle by `id` OR `unit_uid`
+- Fallback to Supabase `units` table if not found
+- See `/api/houses/resolve` and `/api/purchaser/profile` for implementation pattern
+
 **Migration Details:**
 - Migrated 1,557 rows across 29 tables from Neon to Supabase
 - Uses UPSERT (ON CONFLICT DO UPDATE) for idempotent re-runs
