@@ -1,0 +1,199 @@
+Context
+
+Longview Park is already live and working.
+
+Rathard Park will be onboarded manually via the Developer Portal, exactly as a third-party developer would do.
+
+The Rathard Park CSV is already formatted identically to Longview Park, with one additional column: eircode.
+
+The developer (me) will:
+
+Create the Rathard Park development manually in the Developer Portal.
+
+Upload the Rathard Park CSV.
+
+Your responsibility is to ensure that once the CSV is uploaded, Rathard Park works perfectly with no manual fixes, no DB edits, and no Longview assumptions.
+
+A) Supabase schema change (required)
+Add eircode to units/houses table
+
+Add support for Irish Eircodes at unit level.
+
+ALTER TABLE public.units
+ADD COLUMN IF NOT EXISTS eircode text;
+
+CREATE INDEX IF NOT EXISTS idx_units_eircode ON public.units(eircode);
+
+
+Column must be nullable.
+
+No existing Longview data should break.
+
+If the table is named houses, apply the change there instead.
+
+If using Drizzle:
+
+Update the schema to include eircode.
+
+Regenerate types if required.
+
+B) Developer Portal CSV importer (critical)
+1. CSV compatibility rules
+
+The importer must continue to accept the existing Longview CSV unchanged.
+
+eircode must be treated as an optional column:
+
+If present, store it.
+
+If missing, do nothing and continue import.
+
+2. Column handling
+
+The importer must correctly process these columns (already used by Longview):
+
+development_code
+
+unit_number
+
+unit_uid
+
+purchaser_name
+
+address_line_1
+
+house_type_code
+
+property_designation
+
+property_type_raw
+
+bedrooms_raw
+
+bathrooms
+
+square_footage
+
+qr_url
+
+Plus new optional column:
+
+eircode
+
+3. Import behaviour (non-negotiable)
+
+Imported units must attach to the currently selected development in the Developer Portal.
+
+The CSV must not create or override developments.
+
+No fallback to Longview Park under any circumstances.
+
+development_code is metadata only and must not force an ID.
+
+4. Validation rules
+
+Hard-fail import if:
+
+unit_uid missing
+
+unit_number missing
+
+address_line_1 missing
+
+Soft-validate eircode:
+
+Trim whitespace
+
+Accept Irish format
+
+Warn on obvious invalid values, but do not block import
+
+C) Zero Longview assumptions (mandatory cleanup)
+1. Codebase audit
+
+Search and remove or refactor:
+
+Any hard-coded:
+
+Longview Park names
+
+Longview project IDs
+
+Default development fallbacks
+
+All logic must derive from:
+
+The development selected in the Developer Portal, or
+
+The resolved unit’s development_id (in purchaser flows)
+
+2. QR / purchaser resolver
+
+Ensure the QR resolver:
+
+Resolves unit from token
+
+Uses unit.development_id as the single source of truth
+
+Filters:
+
+Documents
+
+Notices
+
+Assistant RAG context
+
+Map data
+by that development only
+
+No project-specific branching.
+
+D) Behavioural guarantee for Rathard Park
+
+You must ensure the following works without any special handling once I upload the CSV:
+
+Rathard Park units appear only under Rathard Park in the dashboard.
+
+QR scans from Rathard Park:
+
+Show Rathard Park name and address
+
+Never reference Longview Park
+
+Documents uploaded to Rathard Park are invisible to Longview Park users.
+
+Assistant answers are scoped to Rathard Park documents and metadata only.
+
+Analytics, counts, and logs are isolated per development.
+
+E) Verification (do not skip)
+
+Add or run a verification script that checks:
+
+Units imported under Rathard Park > 0
+
+All imported units share the same development_id
+
+No Rathard unit references Longview development_id
+
+Sample units correctly return:
+
+address
+
+eircode
+
+QR URL
+
+Longview Park behaviour remains unchanged
+
+Print a clear PASS / FAIL summary.
+
+Constraints
+
+Do not create, seed, or auto-generate Rathard Park.
+
+Do not modify UI or copy.
+
+Do not rename Longview columns.
+
+Treat this as a real developer onboarding scenario.
