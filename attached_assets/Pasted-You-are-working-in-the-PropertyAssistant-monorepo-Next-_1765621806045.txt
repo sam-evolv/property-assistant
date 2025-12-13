@@ -1,0 +1,70 @@
+You are working in the PropertyAssistant monorepo (Next.js + Tailwind). Goal: eliminate all overlap/gaps between PurchaserChatTab input bar and the bottom nav across iOS/Android, including keyboard open/close, WITHOUT hardcoding nav height.
+
+Implement a dynamic bottom-nav height CSS variable and consume it in PurchaserChatTab.
+
+1) Update bottom nav component to publish its height:
+File: packages/ui/components/tenant-bottom-nav.tsx
+
+- Add useRef + useEffect + ResizeObserver to measure the rendered <nav> height.
+- Write the measured px value to a CSS variable on document.documentElement:
+  --tenant-bottom-nav-h: "<height>px"
+- Ensure it updates on resize/orientation changes and cleans up observer on unmount.
+- Keep existing styling and safe-area padding.
+
+Example logic (do not change visual design):
+- const navRef = useRef<HTMLElement | null>(null)
+- in useEffect: new ResizeObserver(entries => set CSS var with entry.contentRect.height)
+- observe navRef.current
+- also set initial value on mount.
+- attach ref={navRef} to the <nav>.
+
+2) Consume the CSS var in PurchaserChatTab so content never sits behind the bottom nav:
+File: apps/unified-portal/components/purchaser/PurchaserChatTab.tsx
+
+Apply these layout rules:
+A) Root container stays flex column, full height, overflow hidden:
+- className="h-full flex flex-col overflow-hidden"
+
+B) For BOTH views (home screen and messages view), ensure bottom padding accounts for:
+- bottom nav height (CSS var)
+- safe area inset bottom
+
+Use inline style OR Tailwind arbitrary values to apply:
+paddingBottom: "calc(var(--tenant-bottom-nav-h, 0px) + env(safe-area-inset-bottom))"
+
+Where to apply:
+- The scrollable messages container (the flex-1 overflow-y-auto region) should have paddingBottom as above PLUS a small extra buffer (e.g. + 12px) so last message is visible above the input bar.
+- The fixed input bar wrapper should have marginBottom or paddingBottom that accounts for the bottom nav height so it sits directly above it:
+  style={{ marginBottom: "calc(var(--tenant-bottom-nav-h, 0px) + env(safe-area-inset-bottom))" }}
+
+Important: do NOT hardcode 120px or any fixed navbar height.
+
+C) Ensure only message list scrolls:
+- messages container: flex-1 overflow-y-auto overscroll-none
+- input bar: flex-shrink-0
+
+D) Keyboard handling:
+- If VisualViewport logic already exists in this file, keep it.
+- Do not reintroduce a full-page scroll container (no h-[100dvh] overflow-y-auto root).
+- Ensure the input bar does not “float” when keyboard opens: it should remain attached to the bottom of the layout ABOVE the nav offset. If VisualViewport provides a keyboard offset, apply it as an additional translateY or bottom spacing, but keep the nav offset always included.
+
+3) Add a quick debug helper (temporary, behind a flag):
+- Log the computed CSS var value and nav height once on mount in dev mode.
+- Add a small optional dev-only badge in PurchaserChatTab showing:
+  "nav: Xpx" where X is getComputedStyle(document.documentElement).getPropertyValue('--tenant-bottom-nav-h')
+
+4) Acceptance criteria:
+- On mobile, input bar always sits immediately above bottom nav with no overlap.
+- Gap remains consistent across iOS safe area and Android.
+- When keyboard opens/closes, there is no jump that leaves a large empty gap or hides the input.
+- Last message is always visible above the input bar.
+- No hardcoded height values for bottom nav.
+
+After edits, run:
+- cd apps/unified-portal && npm run dev
+and test in mobile emulation and on a real device.
+
+Deliverables:
+- Updated tenant-bottom-nav.tsx publishing --tenant-bottom-nav-h
+- Updated PurchaserChatTab.tsx consuming --tenant-bottom-nav-h + safe-area inset
+- Remove any old calc(100dvh - 120px) hacks if present.
