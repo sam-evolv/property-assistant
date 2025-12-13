@@ -670,11 +670,14 @@ export default function PurchaserChatTab({
   }, [messages.length]);
 
   return (
-    <div className={`flex h-[100dvh] flex-col md:h-full ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+    <div 
+      ref={messagesContainerRef}
+      className={`h-[100dvh] overflow-y-auto ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+    >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        /* HOME SCREEN - Centered hero, non-scrollable on mobile */
-        <div className="flex flex-1 flex-col items-center justify-center px-4 md:overflow-y-auto md:justify-start md:pt-8">
+        /* HOME SCREEN - Centered hero */
+        <div className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center px-4">
           <style>{ANIMATION_STYLES}</style>
           
           {/* Logo */}
@@ -721,11 +724,8 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        /* MESSAGES AREA - Only this area scrolls */
-        <div 
-          ref={messagesContainerRef}
-          className={`flex-1 overflow-y-auto px-4 pt-3 pb-2 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-        >
+        /* MESSAGES AREA */
+        <div className="min-h-[calc(100dvh-120px)] px-4 pt-3 pb-2">
           <div className="mx-auto max-w-3xl flex flex-col gap-3">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
@@ -873,8 +873,8 @@ export default function PurchaserChatTab({
           </div>
       )}
 
-      {/* INPUT BAR - Always at bottom, fixed spacing, shared between home and chat */}
-      <div className={`shrink-0 px-4 pt-2 pb-[env(safe-area-inset-bottom)] ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+      {/* INPUT BAR - Sticky at bottom, constant gap with nav */}
+      <div className={`sticky bottom-0 z-10 px-4 pt-2 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {/* Home button - only show when in chat mode */}
           {messages.length > 0 && (
