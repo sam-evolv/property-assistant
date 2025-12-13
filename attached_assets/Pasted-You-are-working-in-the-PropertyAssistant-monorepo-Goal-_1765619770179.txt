@@ -1,0 +1,59 @@
+You are working in the PropertyAssistant monorepo. Goal: make Purchaser chat input and message area always sit correctly above the TenantBottomNav across ALL mobile browsers (iOS Safari, Chrome, Android Chrome) without hardcoding nav height.
+
+Problem: TenantBottomNav height is implicit (no fixed height) and varies by device and safe-area inset. Current chat layout relies on guessed spacing (ex: calc(100dvh-120px)) which breaks. Fix by measuring actual nav height at runtime and publishing it as a CSS variable, then use that variable to offset the chat input bar and content padding.
+
+Requirements:
+1) Do NOT hardcode navbar height.
+2) Measure TenantBottomNav rendered height (including safe-area padding) and expose it as CSS var: --tenant-bottom-nav-h.
+3) Update PurchaserChatTab so:
+   - messages scroll area has bottom padding equal to (input bar height + tenant bottom nav height + safe area).
+   - input bar is pinned above the bottom nav consistently, including when keyboard opens.
+4) Ensure solution works even if nav items count changes and on orientation change.
+
+Step A: Update TenantBottomNav to publish its height
+File: packages/ui/components/tenant-bottom-nav.tsx
+
+- Add a ref to the <nav>.
+- On mount, and whenever it resizes, set CSS variable on document.documentElement:
+  document.documentElement.style.setProperty('--tenant-bottom-nav-h', `${nav.offsetHeight}px`)
+- Use ResizeObserver for robustness; fallback to window resize if needed.
+- Cleanup observers/listeners on unmount.
+- Add data attribute for debugging: data-tenant-bottom-nav="true"
+
+Step B: Update PurchaserChatTab to respect the CSS variable and measure input bar height too
+File: apps/unified-portal/components/purchaser/PurchaserChatTab.tsx
+
+- Add a ref for the input bar wrapper (the bottom area that contains the input and disclaimer).
+- Measure its offsetHeight and set CSS var: --purchaser-inputbar-h on document.documentElement using ResizeObserver.
+- Replace any guessed min-h calc(100dvh-120px) logic with padding based on CSS vars.
+- Layout approach:
+  - Outer wrapper stays: h-[100dvh] flex flex-col (or the existing approach if already stable).
+  - Messages container gets:
+      style={{ paddingBottom: 'calc(var(--purchaser-inputbar-h, 0px) + var(--tenant-bottom-nav-h, 0px))' }}
+    so last message never sits behind the input or nav.
+  - Input bar wrapper should be positioned above the bottom nav:
+      className="sticky"
+      style={{ bottom: 'var(--tenant-bottom-nav-h, 0px)' }}
+    so it always sits directly on top of the nav.
+  - Keep safe-area handling inside the nav only (avoid double safe-area padding).
+- Keyboard handling:
+  - Add VisualViewport listener (if available) to toggle a CSS variable --vv-offset when keyboard opens:
+      const vv = window.visualViewport;
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      set --vv-offset to max(0, offset) px
+    Then apply it to input bar bottom:
+      bottom: calc(var(--tenant-bottom-nav-h, 0px) + var(--vv-offset, 0px))
+    This prevents the input bar from drifting when iOS Safari changes viewport height during keyboard open.
+  - Cleanup listeners.
+
+Step C: Verify and keep minimal UI changes
+- Do not change fonts, spacing, or styling beyond what is required for layout stability.
+- Ensure there is no extra white gap introduced.
+- Test criteria:
+  1) On initial load, input bar sits directly above bottom nav.
+  2) Open keyboard: input bar remains anchored above keyboard and still above bottom nav (no random jump).
+  3) Close keyboard: returns to the same position, no persistent gap.
+  4) Scroll chat: last message remains fully visible, not hidden under input/nav.
+  5) Rotate device: layout recalculates correctly.
+
+Implement changes now.

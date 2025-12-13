@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -20,6 +20,25 @@ interface TenantBottomNavProps {
 
 export function TenantBottomNav({ items, developmentId, className = '' }: TenantBottomNavProps) {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--tenant-bottom-nav-h', 
+        `${nav.offsetHeight}px`
+      );
+    };
+    
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(nav);
+    updateHeight();
+    
+    return () => ro.disconnect();
+  }, []);
   
   const isActive = (href: string) => {
     // Handle the base development URL
@@ -37,6 +56,8 @@ export function TenantBottomNav({ items, developmentId, className = '' }: Tenant
   
   return (
     <nav 
+      ref={navRef}
+      data-tenant-bottom-nav="true"
       className={`
         fixed bottom-0 left-0 right-0 bg-white border-t-2 border-grey-200 
         safe-area-bottom z-50 ${className}

@@ -405,6 +405,46 @@ export default function PurchaserChatTab({
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const inputBarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = inputBarRef.current;
+    if (!el) return;
+    
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--purchaser-inputbar-h',
+        `${el.offsetHeight}px`
+      );
+    };
+    
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(el);
+    updateHeight();
+    
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    
+    const onResize = () => {
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      document.documentElement.style.setProperty(
+        '--vv-offset',
+        `${Math.max(0, offset)}px`
+      );
+    };
+    
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
 
   useEffect(() => {
     // Initialize Web Speech API
@@ -677,7 +717,10 @@ export default function PurchaserChatTab({
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
         /* HOME SCREEN - Centered hero */
-        <div className="flex min-h-[calc(100dvh-120px)] flex-col items-center justify-center px-4">
+        <div 
+          className="flex flex-col items-center justify-center px-4"
+          style={{ minHeight: 'calc(100dvh - var(--purchaser-inputbar-h, 80px) - var(--tenant-bottom-nav-h, 64px) - 16px)' }}
+        >
           <style>{ANIMATION_STYLES}</style>
           
           {/* Logo */}
@@ -725,7 +768,10 @@ export default function PurchaserChatTab({
         </div>
       ) : (
         /* MESSAGES AREA */
-        <div className="min-h-[calc(100dvh-120px)] px-4 pt-3 pb-2">
+        <div 
+          className="px-4 pt-3"
+          style={{ paddingBottom: 'calc(var(--purchaser-inputbar-h, 80px) + var(--tenant-bottom-nav-h, 64px) + 8px)' }}
+        >
           <div className="mx-auto max-w-3xl flex flex-col gap-3">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
@@ -874,7 +920,11 @@ export default function PurchaserChatTab({
       )}
 
       {/* INPUT BAR - Sticky at bottom, constant gap with nav */}
-      <div className={`sticky bottom-0 z-10 px-4 pt-2 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+      <div 
+        ref={inputBarRef}
+        className={`sticky z-10 px-4 pt-2 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+        style={{ bottom: 'calc(var(--tenant-bottom-nav-h, 0px) + var(--vv-offset, 0px))' }}
+      >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {/* Home button - only show when in chat mode */}
           {messages.length > 0 && (
