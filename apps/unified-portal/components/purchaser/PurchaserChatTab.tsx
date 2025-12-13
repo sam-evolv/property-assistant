@@ -721,13 +721,13 @@ export default function PurchaserChatTab({
   return (
     <div 
       ref={messagesContainerRef}
-      className={`flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      className={`flex flex-col h-[var(--vvh,100dvh)] min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
         /* HOME SCREEN - Centered hero, scrollable with bottom padding */
         <div 
-          className="flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-none"
+          className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
           style={{
             paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
           }}
@@ -780,7 +780,7 @@ export default function PurchaserChatTab({
       ) : (
         /* MESSAGES AREA - This is the only scrollable region */
         <div 
-          className="flex-1 overflow-y-auto overscroll-none px-4 pt-3"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
             paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
           }}

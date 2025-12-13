@@ -1,0 +1,105 @@
+You are working in the PropertyAssistant monorepo (apps/unified-portal). Goal: Fix remaining mobile chat UI issues on iOS Chrome and remove any leftover debug UI (the red “nav: 0px” / red 0px artifact). Do this without regressing Safari behaviour.
+
+Context:
+
+* Safari is basically correct now, but a small red “0px” UI artifact still renders near the input area.
+* iOS Chrome has a functional issue: in an active chat, the message list scroll is intermittently blocked or “stops you”, so you cannot freely scroll back to older messages.
+* The target UI is: input bar always visible and fixed above the bottom tab bar, message list is the only scrollable region, and scrolling is smooth and unrestricted in iOS Safari and iOS Chrome.
+
+Non-negotiable acceptance criteria:
+
+1. No red debug badge, no “nav: 0px”, no “0px” overlays anywhere in production UI.
+2. Home screen: input bar is visible and clearly usable (no impression there is nowhere to type).
+3. Chat screen: only the message list scrolls. You can scroll up and down through the full history in iOS Chrome.
+4. Bottom tab bar stays fixed. Chat input never disappears behind it.
+5. Keyboard handling remains correct on iOS Safari and iOS Chrome (VisualViewport where available), with no layout jumping.
+6. Do not break other tabs (Map, News, Docs) or global navigation.
+
+Implementation plan (execute exactly, minimal surface area changes):
+
+A) Remove any debug UI and red “0px” artifacts
+
+1. Global search the codebase for:
+
+   * "nav:"
+   * "0px"
+   * "debugNav"
+   * "debug"
+   * "--tenant-bottom-nav-h" logs / badges
+   * any temporary diagnostic elements that render CSS variable values
+2. If you find any diagnostic badge or element rendering nav height, remove it entirely. Do not hide it conditionally. Delete it.
+
+Files to check first:
+
+* apps/unified-portal/components/purchaser/PurchaserChatTab.tsx
+* packages/ui/components/tenant-bottom-nav.tsx
+* apps/unified-portal/app/globals.css (or any global stylesheet)
+* any component that sets or displays CSS variables for nav height
+
+B) Fix iOS Chrome scroll blocking in the chat message list
+This is almost always caused by a flex container missing min-height constraints, an ancestor with overflow hidden stealing scroll, or missing WebKit momentum scrolling.
+
+In PurchaserChatTab.tsx:
+
+1. Ensure the layout hierarchy uses “min-h-0” on every flex parent between the root container and the scrollable message list.
+
+   * Root: must be a fixed-height viewport container (use 100dvh / CSS var) and must not allow body scrolling.
+   * The messages region: must be “flex-1 min-h-0 overflow-y-auto”.
+2. Add WebKit momentum scrolling to the messages scroller:
+
+   * Add Tailwind arbitrary style: "[-webkit-overflow-scrolling:touch]"
+3. Avoid overscroll-none on the scroller if it is preventing natural scroll. Prefer:
+
+   * “overscroll-contain” on the messages scroller (prevents rubber-band from affecting outer layout, but still allows normal scrolling).
+4. Make sure no ancestor wrapper above the scroller has “overflow-hidden” unless strictly required. If overflow-hidden is needed at the root, keep it only at the root and ensure the scroller is inside a min-h-0 flex child so it can actually scroll.
+
+Concrete expected structure:
+
+* Outer container: flex flex-col with a fixed viewport height (h-[var(--vvh,100dvh)]) and overflow-hidden.
+* Messages scroller: flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]
+* Fixed input bar: position fixed anchored above the bottom nav height variable, with transform using vv-offset for keyboard.
+
+C) Lock the input bar so it never disappears and never overlaps the bottom nav
+
+1. Ensure the input bar is fixed positioned in BOTH states:
+
+   * Home screen state
+   * Active chat state
+2. Bottom offset must be:
+   bottom: calc(env(safe-area-inset-bottom) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))
+3. Keyboard handling:
+   transform: translateY(calc(-1 * var(--vv-offset, 0px)))
+4. Ensure the content above has matching padding-bottom so the last message is not hidden behind the fixed input:
+
+   * Messages scroller: padding-bottom should include input height + safe area + nav height.
+   * Use a CSS variable if already present, otherwise add a small constant for the input height (for example 88px) plus the nav var.
+
+D) Verify bottom nav height variable publication is consistent
+In packages/ui/components/tenant-bottom-nav.tsx:
+
+1. Keep the ResizeObserver publishing BOTH:
+
+   * --tenant-bottom-nav-h
+   * --mobile-tab-bar-h
+2. Make sure values are pixel strings like “72px”, not numbers.
+
+E) Testing checklist (must pass before finishing)
+On iOS Safari:
+
+* Home screen: input visible, no red artifacts.
+* Chat: send message, input remains visible, messages scroll, no overlap with tab bar.
+* Keyboard open and close: no jumps, no disappearing input.
+
+On iOS Chrome:
+
+* Home screen: input visible, no red artifacts.
+* Chat: scroll up and down through the entire message history without getting stuck.
+* Keyboard open and close: input stays above keyboard, message list still scrolls.
+
+Deliverables:
+
+1. Implement code fixes in the appropriate files.
+2. Provide a short summary of what changed and why, referencing the exact files edited.
+3. Confirm the acceptance criteria above is met.
+
+Proceed now.
