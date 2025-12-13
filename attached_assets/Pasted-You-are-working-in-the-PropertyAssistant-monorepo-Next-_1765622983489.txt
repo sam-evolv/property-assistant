@@ -1,0 +1,133 @@
+You are working in the PropertyAssistant monorepo (Next.js + Tailwind).
+
+Goal:
+Fix the purchaser chat input positioning so it is ALWAYS visible and correctly placed above the bottom nav, on iOS Safari AND iOS Chrome, including:
+- Initial load (no keyboard)
+- When keyboard opens/closes
+- When address bar expands/collapses
+- No “disappearing” input bar
+- No overlap with bottom nav
+- No reliance on hardcoded nav height
+
+Key requirement:
+Do NOT hardcode bottom nav height. Use measured CSS variables + VisualViewport.
+
+Work in these files:
+1) packages/ui/components/tenant-bottom-nav.tsx
+2) apps/unified-portal/components/purchaser/PurchaserChatTab.tsx
+
+--------------------------------------------------------------------------------
+1) Ensure bottom nav ALWAYS publishes a height CSS variable (and unify naming)
+--------------------------------------------------------------------------------
+In packages/ui/components/tenant-bottom-nav.tsx:
+- Confirm there is a ResizeObserver measuring the <nav> element.
+- Publish BOTH CSS variables on document.documentElement:
+  --tenant-bottom-nav-h
+  --mobile-tab-bar-h
+This avoids route/component mismatches where one screen expects a different var name.
+
+Implementation details:
+- Attach a ref to the <nav>.
+- On mount and on resize, set:
+  document.documentElement.style.setProperty('--tenant-bottom-nav-h', `${height}px`)
+  document.documentElement.style.setProperty('--mobile-tab-bar-h', `${height}px`)
+- On unmount, do not clear them (keeping last known value is fine).
+
+--------------------------------------------------------------------------------
+2) Add a VisualViewport CSS-var publisher in PurchaserChatTab
+--------------------------------------------------------------------------------
+In apps/unified-portal/components/purchaser/PurchaserChatTab.tsx:
+Add a useEffect that subscribes to window.visualViewport (if available) and publishes:
+- --vvh  (visual viewport height in px)
+- --vv-offset (keyboard / viewport offset in px)
+
+Use this formula:
+const vv = window.visualViewport
+const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+
+Set:
+document.documentElement.style.setProperty('--vvh', `${vv.height}px`)
+document.documentElement.style.setProperty('--vv-offset', `${offset}px`)
+
+Listen to:
+vv.addEventListener('resize', handler)
+vv.addEventListener('scroll', handler)
+Also call handler() immediately.
+
+Fallback when visualViewport is not available:
+- Set --vvh to window.innerHeight
+- Set --vv-offset to 0
+and update on window resize.
+
+--------------------------------------------------------------------------------
+3) Remove the “two different layouts” for Home vs Chat input positioning
+--------------------------------------------------------------------------------
+Currently Home screen has its own bottom input layout and Messages view has another.
+This causes mismatched behavior on Chrome.
+
+Refactor PurchaserChatTab so:
+- There is ONE input bar rendered in one place, always.
+- It is positioned FIXED and anchored using nav height + visual viewport offset.
+
+Approach:
+- Keep the top content area as a flex column.
+- Make ONLY the message area scroll (or home content area scroll if needed).
+- Render input bar once, outside the scroll area, with fixed positioning.
+
+--------------------------------------------------------------------------------
+4) Implement the fixed input bar positioning using CSS vars (no hardcoding)
+--------------------------------------------------------------------------------
+Define:
+const NAV_H = 'var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px))'
+
+Input bar wrapper style must be:
+position: fixed;
+left: 0;
+right: 0;
+bottom: calc(env(safe-area-inset-bottom, 0px) + NAV_H);
+transform: translateY(calc(-1 * var(--vv-offset, 0px)));
+z-index: high (e.g. 60);
+
+This ensures:
+- When keyboard opens, vv-offset increases and the bar moves up.
+- When keyboard closes, vv-offset returns to 0.
+- It always sits above the bottom nav (NAV_H).
+
+--------------------------------------------------------------------------------
+5) Ensure scroll area has enough bottom padding for the fixed input bar + nav
+--------------------------------------------------------------------------------
+Measure the input bar height dynamically as well (no guessing).
+- Attach a ref to the input bar container
+- Use ResizeObserver to publish --purchaser-inputbar-h
+
+Then set the scroll container padding bottom to:
+padding-bottom: calc(
+  var(--purchaser-inputbar-h, 88px) +
+  NAV_H +
+  env(safe-area-inset-bottom, 0px) +
+  12px
+);
+
+Result:
+- Last message is never hidden behind the fixed input or nav.
+- Home screen pills never look “trapped” behind the input.
+
+--------------------------------------------------------------------------------
+6) Remove the red “nav: 0px” badge from UI
+--------------------------------------------------------------------------------
+If there is any dev badge rendering on-screen, remove it or gate it behind:
+- a query string flag (?debug=1), OR
+- localStorage flag
+Do NOT show it by default.
+
+--------------------------------------------------------------------------------
+7) Quick acceptance test (must pass on iOS Safari + iOS Chrome)
+--------------------------------------------------------------------------------
+- Initial load: input visible, positioned exactly like your desired 4th screenshot.
+- Tap input: keyboard opens, input stays visible, gap remains consistent.
+- Send message: input remains visible, does not disappear, messages scroll correctly.
+- Scroll chat: input remains fixed, bottom nav remains fixed.
+- Rotate device: layout recalculates correctly.
+
+Make the minimal changes required to achieve this. Do not redesign UI. Do not add new libraries.
+Commit changes with a message: "Fix chat input positioning across iOS Safari/Chrome"

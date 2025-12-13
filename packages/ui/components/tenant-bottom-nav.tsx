@@ -27,10 +27,9 @@ export function TenantBottomNav({ items, developmentId, className = '' }: Tenant
     if (!nav) return;
     
     const updateHeight = () => {
-      document.documentElement.style.setProperty(
-        '--tenant-bottom-nav-h', 
-        `${nav.offsetHeight}px`
-      );
+      const h = `${nav.offsetHeight}px`;
+      document.documentElement.style.setProperty('--tenant-bottom-nav-h', h);
+      document.documentElement.style.setProperty('--mobile-tab-bar-h', h);
     };
     
     const ro = new ResizeObserver(updateHeight);

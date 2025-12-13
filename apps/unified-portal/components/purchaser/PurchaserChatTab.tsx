@@ -406,7 +406,6 @@ export default function PurchaserChatTab({
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
-  const [debugNavHeight, setDebugNavHeight] = useState<string | null>(null);
 
   useEffect(() => {
     const el = inputBarRef.current;
@@ -427,36 +426,33 @@ export default function PurchaserChatTab({
   }, []);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      const timer = setTimeout(() => {
-        const navH = getComputedStyle(document.documentElement).getPropertyValue('--tenant-bottom-nav-h').trim();
-        const inputH = getComputedStyle(document.documentElement).getPropertyValue('--purchaser-inputbar-h').trim();
-        console.log('[PurchaserChatTab] CSS vars:', { navH, inputH });
-        setDebugNavHeight(navH || '0px');
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  useEffect(() => {
     if (typeof window === 'undefined') return;
     const vv = window.visualViewport;
-    if (!vv) return;
     
-    const onResize = () => {
-      const offset = window.innerHeight - vv.height - vv.offsetTop;
-      document.documentElement.style.setProperty(
-        '--vv-offset',
-        `${Math.max(0, offset)}px`
-      );
-    };
-    
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
-    return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
-    };
+    if (vv) {
+      const onResize = () => {
+        const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+        document.documentElement.style.setProperty('--vv-offset', `${offset}px`);
+      };
+      
+      vv.addEventListener('resize', onResize);
+      vv.addEventListener('scroll', onResize);
+      onResize();
+      
+      return () => {
+        vv.removeEventListener('resize', onResize);
+        vv.removeEventListener('scroll', onResize);
+      };
+    } else {
+      const fallback = () => {
+        document.documentElement.style.setProperty('--vvh', `${window.innerHeight}px`);
+        document.documentElement.style.setProperty('--vv-offset', '0px');
+      };
+      window.addEventListener('resize', fallback);
+      fallback();
+      return () => window.removeEventListener('resize', fallback);
+    }
   }, []);
 
   useEffect(() => {
@@ -729,9 +725,12 @@ export default function PurchaserChatTab({
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        /* HOME SCREEN - Centered hero, no scroll */
+        /* HOME SCREEN - Centered hero, scrollable with bottom padding */
         <div 
-          className="flex-1 flex flex-col items-center justify-center px-4 overflow-hidden"
+          className="flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-none"
+          style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
+          }}
         >
           <style>{ANIMATION_STYLES}</style>
           
@@ -783,7 +782,7 @@ export default function PurchaserChatTab({
         <div 
           className="flex-1 overflow-y-auto overscroll-none px-4 pt-3"
           style={{
-            paddingBottom: 'calc(var(--purchaser-inputbar-h, 80px) + var(--tenant-bottom-nav-h, 0px) + env(safe-area-inset-bottom, 0px) + 16px)'
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
           }}
         >
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
@@ -940,14 +939,14 @@ export default function PurchaserChatTab({
       {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`relative flex-shrink-0 z-10 px-4 pt-3 pb-2 ${
+        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
           isDarkMode 
             ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-          marginBottom: 'calc(var(--tenant-bottom-nav-h, 0px) + var(--vv-offset, 0px))'
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))',
+          transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
@@ -1019,11 +1018,6 @@ export default function PurchaserChatTab({
         <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
           {t.powered}
         </p>
-        {process.env.NODE_ENV === 'development' && debugNavHeight && (
-          <div className="absolute top-1 right-1 text-[9px] bg-red-500 text-white px-1 rounded opacity-50">
-            nav: {debugNavHeight}
-          </div>
-        )}
       </div>
     </div>
   );
