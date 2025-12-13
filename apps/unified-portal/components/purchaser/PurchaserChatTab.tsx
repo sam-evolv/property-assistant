@@ -49,10 +49,10 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   <div className={`flex justify-start`}>
     <style>{TYPING_STYLES}</style>
     <div
-      className={`rounded-[20px] px-4 py-2.5 ${
+      className={`rounded-[20px] rounded-bl-[6px] px-4 py-2.5 shadow-sm ${
         isDarkMode 
-          ? 'bg-gray-900' 
-          : 'bg-gray-200'
+          ? 'bg-[#1C1C1E] shadow-black/20' 
+          : 'bg-[#E9E9EB] shadow-black/5'
       }`}
     >
       <div className="flex items-center gap-1">

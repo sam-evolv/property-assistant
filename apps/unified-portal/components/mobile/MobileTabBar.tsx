@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { MessageCircle, Map, Bell, FileText, Home } from 'lucide-react';
 
 interface MobileTabBarProps {
@@ -16,8 +17,29 @@ const TABS = [
 ];
 
 export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBarProps) {
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--mobile-tab-bar-h',
+        `${el.offsetHeight}px`
+      );
+    };
+
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(el);
+    updateHeight();
+
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <nav 
+    <nav
+      ref={navRef} 
       className={`
         fixed bottom-0 left-0 right-0 z-50
         md:hidden
