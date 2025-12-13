@@ -43,10 +43,10 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
       className={`
         fixed bottom-0 left-0 right-0 z-50
         md:hidden
-        border-t
+        border-t overflow-hidden
         ${isDarkMode 
-          ? 'bg-[#1A1A1A]/90 border-white/10' 
-          : 'bg-white/90 border-black/5'
+          ? 'bg-[#1A1A1A] border-white/10' 
+          : 'bg-white border-black/5'
         }
         backdrop-blur-xl
         safe-area-bottom

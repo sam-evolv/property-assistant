@@ -939,10 +939,10 @@ export default function PurchaserChatTab({
       {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
+        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 overflow-hidden ${
           isDarkMode 
-            ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
-            : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
+            ? 'bg-black backdrop-blur-xl border-t border-white/5' 
+            : 'bg-white backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
           bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))',
