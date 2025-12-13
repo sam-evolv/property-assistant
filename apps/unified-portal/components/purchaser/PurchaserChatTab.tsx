@@ -669,125 +669,74 @@ export default function PurchaserChatTab({
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
   const inputText = isDarkMode ? 'text-white' : 'text-gray-900';
 
+  // Ref for scrolling to bottom of messages
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current && messages.length > 0) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages.length]);
+
   return (
-    <div className={`flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={{ height: 'calc(100dvh - 56px - 64px - env(safe-area-inset-bottom, 0px))' }}>
-      {/* ChatGPT-Style Home Screen - Fixed viewport, no scroll, accounts for header (56px) and nav bar (64px + safe area) */}
+    <div className={`flex h-full flex-col ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+      {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden">
+        /* HOME SCREEN - Centered hero, non-scrollable on mobile */
+        <div className="flex flex-1 flex-col items-center justify-center px-4 md:overflow-y-auto md:justify-start md:pt-8">
           <style>{ANIMATION_STYLES}</style>
           
-          {/* HERO CONTENT - Centered in remaining space */}
-          <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-5 overflow-hidden">
-            {/* Logo */}
-            <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
-              <img 
-                src="/longview-logo.png" 
-                alt="Longview Estates" 
-                className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            </div>
-
-            {/* Welcome Headline */}
-            <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              {t.welcome.includes('or community') ? (
-                <>
-                  {t.welcome.split('or community')[0]}
-                  <span className="block">or community</span>
-                </>
-              ) : (
-                t.welcome
-              )}
-            </h1>
-
-            {/* Subtitle */}
-            <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
-              {t.subtitle}
-            </p>
-
-            {/* 2x2 Prompt Grid - Compact */}
-            <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
-              {t.prompts.map((prompt: string, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => handleQuickPrompt(prompt)}
-                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
-                    isDarkMode 
-                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
-                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
-                  }`}
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+          {/* Logo */}
+          <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
+            <img 
+              src="/longview-logo.png" 
+              alt="Longview Estates" 
+              className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+            />
           </div>
 
-          {/* INPUT BAR - Fixed at bottom, above mobile nav */}
-          <div className={`shrink-0 border-t px-2 pt-0 pb-0 ${isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}`}>
-            <div className={`mx-auto flex max-w-md items-center gap-2 rounded-[24px] border px-3 py-2 ${
-              isDarkMode
-                ? 'border-gray-700 bg-gray-900'
-                : 'border-gray-300 bg-gray-100'
-            }`}>
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder={t.placeholder}
-                className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
-              />
-              
-              {/* Microphone Button */}
-              {speechSupported && (
-                <button
-                  onClick={toggleVoiceInput}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
-                    isListening 
-                      ? 'bg-gold-500 text-white' 
-                      : isDarkMode 
-                        ? 'text-gray-400 hover:text-gray-300'
-                        : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                  aria-label="Voice input"
-                >
-                  <Mic className="h-5 w-5" />
-                </button>
-              )}
+          {/* Welcome Headline */}
+          <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+            {t.welcome.includes('or community') ? (
+              <>
+                {t.welcome.split('or community')[0]}
+                <span className="block">or community</span>
+              </>
+            ) : (
+              t.welcome
+            )}
+          </h1>
 
-              {/* Send Button - Only show when text entered */}
-              {input.trim() && (
-                <button
-                  onClick={() => sendMessage()}
-                  disabled={sending}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white transition-all hover:brightness-110 disabled:opacity-50"
-                  aria-label="Send message"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+          {/* Subtitle */}
+          <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+            {t.subtitle}
+          </p>
 
-            {/* Powered By AI Footer */}
-            <p className={`mt-0 text-center text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-slate-400'}`}>
-              {t.powered}
-            </p>
+          {/* 2x2 Prompt Grid */}
+          <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
+            {t.prompts.map((prompt: string, i: number) => (
+              <button
+                key={i}
+                onClick={() => handleQuickPrompt(prompt)}
+                className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
+                  isDarkMode 
+                    ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                    : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
+                }`}
+              >
+                {prompt}
+              </button>
+            ))}
           </div>
         </div>
       ) : (
-        <div className="flex h-full min-h-0 flex-col">
-          {/* MESSAGES - Scrollable conversation view (alternating like iMessage) */}
-          <div 
-            ref={messagesContainerRef}
-            className={`flex-1 min-h-0 overflow-y-auto px-4 py-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-          >
-            <div className="mx-auto max-w-3xl flex flex-col gap-3">
+        /* MESSAGES AREA - Only this area scrolls */
+        <div 
+          ref={messagesContainerRef}
+          className={`flex-1 overflow-y-auto px-4 pt-3 pb-2 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+        >
+          <div className="mx-auto max-w-3xl flex flex-col gap-3">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
                   return (
@@ -928,81 +877,83 @@ export default function PurchaserChatTab({
                 );
               })}
               {sending && <TypingIndicator isDarkMode={isDarkMode} />}
+              {/* Scroll anchor */}
+              <div ref={messagesEndRef} />
             </div>
           </div>
+      )}
 
-          {/* Input Bar - Fixed gap maintained at all times */}
-          <div 
-            className={`shrink-0 px-4 pt-3 pb-3 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-          >
-            <div className="mx-auto flex max-w-3xl items-center gap-2">
+      {/* INPUT BAR - Always at bottom, fixed spacing, shared between home and chat */}
+      <div className={`shrink-0 px-4 pt-2 pb-[env(safe-area-inset-bottom)] ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          {/* Home button - only show when in chat mode */}
+          {messages.length > 0 && (
+            <button
+              onClick={handleHomeClick}
+              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition ${
+                isDarkMode 
+                  ? 'text-gray-400 hover:bg-gray-900 hover:text-gray-300' 
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+              aria-label="Back to home"
+            >
+              <Home className="h-5 w-5" />
+            </button>
+          )}
+
+          <div className={`flex flex-1 items-center gap-2 rounded-[24px] border px-4 py-2 ${
+            isDarkMode
+              ? 'border-gray-700 bg-gray-900'
+              : 'border-gray-300 bg-gray-100'
+          }`}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder={t.placeholder}
+              disabled={sending}
+              className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+            />
+            
+            {speechSupported && (
               <button
-                onClick={handleHomeClick}
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition ${
-                  isDarkMode 
-                    ? 'text-gray-400 hover:bg-gray-900 hover:text-gray-300' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-                aria-label="Back to home"
+                onClick={toggleVoiceInput}
+                disabled={sending}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                  isListening 
+                    ? 'bg-gold-500 text-white' 
+                    : isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-300'
+                      : 'text-gray-500 hover:text-gray-700'
+                } disabled:opacity-50`}
+                aria-label="Voice input"
               >
-                <Home className="h-5 w-5" />
+                <Mic className="h-5 w-5" />
               </button>
+            )}
 
-              <div className={`flex flex-1 items-center gap-2 rounded-[24px] border px-4 py-2 ${
-                isDarkMode
-                  ? 'border-gray-700 bg-gray-900'
-                  : 'border-gray-300 bg-gray-100'
-              }`}>
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  placeholder={t.placeholder}
-                  disabled={sending}
-                  className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
-                />
-                
-                {speechSupported && (
-                  <button
-                    onClick={toggleVoiceInput}
-                    disabled={sending}
-                    className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
-                      isListening 
-                        ? 'bg-gold-500 text-white' 
-                        : isDarkMode 
-                          ? 'text-gray-400 hover:text-gray-300'
-                          : 'text-gray-500 hover:text-gray-700'
-                    } disabled:opacity-50`}
-                    aria-label="Voice input"
-                  >
-                    <Mic className="h-5 w-5" />
-                  </button>
-                )}
-
-                {input.trim() && (
-                  <button
-                    onClick={() => sendMessage()}
-                    disabled={sending}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white transition-all hover:brightness-110 disabled:opacity-50"
-                    aria-label="Send message"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <p className={`mt-1.5 text-center text-[10px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-              {t.powered}
-            </p>
+            {input.trim() && (
+              <button
+                onClick={() => sendMessage()}
+                disabled={sending}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white transition-all hover:brightness-110 disabled:opacity-50"
+                aria-label="Send message"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
-      )}
+        <p className={`mt-1 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+          {t.powered}
+        </p>
+      </div>
     </div>
   );
 }

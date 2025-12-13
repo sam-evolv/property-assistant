@@ -1,0 +1,103 @@
+You are working in the **PropertyAssistant monorepo**, specifically the purchaser chat UI.
+
+Your task is to FIX ONE THING ONLY.
+
+---
+
+## GOAL
+
+Make the **vertical gap between the chat input box and the bottom navigation toolbar** be:
+
+* **Exactly the same at all times**
+* **Identical to the gap shown in the reference “correct” screenshot**
+* **Unaffected by keyboard open/close**
+* **Unaffected by focus state**
+* **Unaffected by chat vs home screen**
+* **Unaffected by message count**
+
+This gap must be **static, fixed, and visually constant**.
+
+---
+
+## NON-NEGOTIABLE RULES
+
+1. ❌ Do NOT dynamically calculate height based on:
+
+   * viewport height
+   * keyboard presence
+   * safe-area insets
+   * visualViewport
+   * focus state
+   * messages.length
+   * showHome
+   * any conditional logic
+
+2. ❌ Do NOT adjust padding, margin, or spacing conditionally.
+
+3. ❌ Do NOT introduce JavaScript layout math.
+
+4. ❌ Do NOT touch any other part of the UI.
+
+5. ❌ Do NOT “improve”, “optimize”, or “refactor”.
+
+---
+
+## WHAT TO DO INSTEAD
+
+Use **pure CSS layout rules** so that:
+
+* The bottom toolbar is position: fixed
+* The chat input container is position: fixed
+* The chat input container sits **directly above the toolbar**
+* The distance between them is a **hard-coded constant**
+* This spacing NEVER changes
+
+The keyboard opening MUST NOT introduce additional space.
+The keyboard closing MUST NOT remove space.
+The layout MUST NOT jump.
+
+---
+
+## EXPECTED STRUCTURE (HIGH LEVEL)
+
+BottomToolbar
+position: fixed
+bottom: 0
+
+ChatInputContainer
+position: fixed
+bottom: (toolbar height + fixed gap)
+
+MessagesContainer
+padding-bottom: (toolbar height + fixed gap + input height)
+
+---
+
+## DELIVERABLE
+
+1. Identify the ONE component responsible for:
+
+   * chat input
+   * bottom spacing
+
+2. Remove ALL dynamic spacing logic.
+
+3. Apply a **single, fixed CSS spacing rule**.
+
+4. Verify manually:
+
+   * fresh load
+   * with messages
+   * without messages
+   * keyboard open
+   * keyboard closed
+
+If the gap visually changes in ANY state, the task has FAILED.
+
+---
+
+## STOP CONDITION
+
+When the chat always looks like the “correct” screenshot
+and NEVER like the “incorrect” one,
+the task is complete.
