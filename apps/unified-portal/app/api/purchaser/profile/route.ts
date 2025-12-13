@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
         u.esb_eirgrid_number,
         u.latitude,
         u.longitude,
+        u.bedrooms,
+        u.bathrooms,
         d.id as dev_id,
         d.name as dev_name,
         d.address as dev_address,
