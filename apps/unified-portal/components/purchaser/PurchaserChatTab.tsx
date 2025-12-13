@@ -406,6 +406,7 @@ export default function PurchaserChatTab({
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
+  const [debugNavHeight, setDebugNavHeight] = useState<string | null>(null);
 
   useEffect(() => {
     const el = inputBarRef.current;
@@ -423,6 +424,18 @@ export default function PurchaserChatTab({
     updateHeight();
     
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const timer = setTimeout(() => {
+        const navH = getComputedStyle(document.documentElement).getPropertyValue('--tenant-bottom-nav-h').trim();
+        const inputH = getComputedStyle(document.documentElement).getPropertyValue('--purchaser-inputbar-h').trim();
+        console.log('[PurchaserChatTab] CSS vars:', { navH, inputH });
+        setDebugNavHeight(navH || '0px');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   useEffect(() => {
@@ -768,7 +781,10 @@ export default function PurchaserChatTab({
       ) : (
         /* MESSAGES AREA - This is the only scrollable region */
         <div 
-          className="flex-1 overflow-y-auto overscroll-none px-4 pt-3 pb-4"
+          className="flex-1 overflow-y-auto overscroll-none px-4 pt-3"
+          style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 80px) + var(--tenant-bottom-nav-h, 0px) + env(safe-area-inset-bottom, 0px) + 16px)'
+          }}
         >
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
               {messages.map((msg, idx) => {
@@ -924,14 +940,14 @@ export default function PurchaserChatTab({
       {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`flex-shrink-0 z-10 px-4 pt-3 pb-2 ${
+        className={`relative flex-shrink-0 z-10 px-4 pt-3 pb-2 ${
           isDarkMode 
             ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-          marginBottom: 'calc(var(--vv-offset, 0px))'
+          marginBottom: 'calc(var(--tenant-bottom-nav-h, 0px) + var(--vv-offset, 0px))'
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
@@ -1003,6 +1019,11 @@ export default function PurchaserChatTab({
         <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
           {t.powered}
         </p>
+        {process.env.NODE_ENV === 'development' && debugNavHeight && (
+          <div className="absolute top-1 right-1 text-[9px] bg-red-500 text-white px-1 rounded opacity-50">
+            nav: {debugNavHeight}
+          </div>
+        )}
       </div>
     </div>
   );
