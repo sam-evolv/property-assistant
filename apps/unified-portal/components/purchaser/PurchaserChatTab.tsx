@@ -406,16 +406,6 @@ export default function PurchaserChatTab({
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Scroll to top of messages so user sees their question first
-  const scrollToTop = () => {
-    messagesContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    // When messages change, scroll to top to show user's message
-    scrollToTop();
-  }, [messages]);
-
   useEffect(() => {
     // Initialize Web Speech API
     if (typeof window !== 'undefined') {
@@ -680,7 +670,7 @@ export default function PurchaserChatTab({
   }, [messages.length]);
 
   return (
-    <div className={`flex h-full flex-col ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+    <div className={`flex h-[100dvh] flex-col md:h-full ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
         /* HOME SCREEN - Centered hero, non-scrollable on mobile */
