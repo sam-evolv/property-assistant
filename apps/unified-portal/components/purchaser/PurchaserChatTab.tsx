@@ -712,14 +712,13 @@ export default function PurchaserChatTab({
   return (
     <div 
       ref={messagesContainerRef}
-      className={`h-[100dvh] overflow-y-auto ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      className={`flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        /* HOME SCREEN - Centered hero */
+        /* HOME SCREEN - Centered hero, no scroll */
         <div 
-          className="flex flex-col items-center justify-center px-4"
-          style={{ minHeight: 'calc(100dvh - var(--purchaser-inputbar-h, 80px) - var(--tenant-bottom-nav-h, 64px) - 16px)' }}
+          className="flex-1 flex flex-col items-center justify-center px-4 overflow-hidden"
         >
           <style>{ANIMATION_STYLES}</style>
           
@@ -767,32 +766,35 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        /* MESSAGES AREA */
+        /* MESSAGES AREA - This is the only scrollable region */
         <div 
-          className="px-4 pt-3"
-          style={{ paddingBottom: 'calc(var(--purchaser-inputbar-h, 80px) + var(--tenant-bottom-nav-h, 64px) + 8px)' }}
+          className="flex-1 overflow-y-auto overscroll-none px-4 pt-3 pb-4"
         >
-          <div className="mx-auto max-w-3xl flex flex-col gap-3">
+          <div className="mx-auto max-w-3xl flex flex-col gap-4">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
                   return (
                     <div key={`msg-${idx}`} className="flex justify-end">
-                      <div className={`max-w-[80%] rounded-[20px] px-4 py-2.5 ${
+                      {/* User bubble - iMessage inspired, asymmetric rounded */}
+                      <div className={`max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
                         isDarkMode
-                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white'
-                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white'
+                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
+                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
                       }`}>
-                        <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
                       </div>
                     </div>
                   );
                 }
                 return (
                   <div key={`msg-${idx}`} className="flex justify-start">
-                    <div className={`max-w-[85%] rounded-[20px] px-4 py-2.5 ${
-                      isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-900'
+                    {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
+                    <div className={`max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm ${
+                      isDarkMode 
+                        ? 'bg-[#1C1C1E] text-white shadow-black/20' 
+                        : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
-                      <p className="text-[15px] leading-[1.4] whitespace-pre-wrap break-words">{msg.content}</p>
+                      <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
                       {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
                         isDarkMode 
@@ -919,21 +921,28 @@ export default function PurchaserChatTab({
           </div>
       )}
 
-      {/* INPUT BAR - Sticky at bottom, constant gap with nav */}
+      {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`sticky z-10 px-4 pt-2 pb-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-        style={{ bottom: 'calc(var(--tenant-bottom-nav-h, 0px) + var(--vv-offset, 0px))' }}
+        className={`flex-shrink-0 z-10 px-4 pt-3 pb-2 ${
+          isDarkMode 
+            ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
+            : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
+        }`}
+        style={{ 
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+          marginBottom: 'calc(var(--vv-offset, 0px))'
+        }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {/* Home button - only show when in chat mode */}
           {messages.length > 0 && (
             <button
               onClick={handleHomeClick}
-              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition ${
+              className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
                 isDarkMode 
-                  ? 'text-gray-400 hover:bg-gray-900 hover:text-gray-300' 
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' 
+                  : 'text-gray-500 hover:bg-black/5 hover:text-gray-700'
               }`}
               aria-label="Back to home"
             >
@@ -941,10 +950,11 @@ export default function PurchaserChatTab({
             </button>
           )}
 
-          <div className={`flex flex-1 items-center gap-2 rounded-[24px] border px-4 py-2 ${
+          {/* Input pill container - iMessage inspired */}
+          <div className={`flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 transition-all duration-200 ${
             isDarkMode
-              ? 'border-gray-700 bg-gray-900'
-              : 'border-gray-300 bg-gray-100'
+              ? 'bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]'
+              : 'bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)]'
           }`}>
             <input
               type="text"
@@ -958,19 +968,19 @@ export default function PurchaserChatTab({
               }}
               placeholder={t.placeholder}
               disabled={sending}
-              className={`flex-1 border-none bg-transparent px-2 py-1 text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+              className={`flex-1 border-none bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
             />
             
             {speechSupported && (
               <button
                 onClick={toggleVoiceInput}
                 disabled={sending}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
                   isListening 
-                    ? 'bg-gold-500 text-white' 
+                    ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/30' 
                     : isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-300'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-black/5'
                 } disabled:opacity-50`}
                 aria-label="Voice input"
               >
@@ -982,7 +992,7 @@ export default function PurchaserChatTab({
               <button
                 onClick={() => sendMessage()}
                 disabled={sending}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white transition-all hover:brightness-110 disabled:opacity-50"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-lg shadow-gold-500/25 transition-all duration-150 hover:shadow-gold-500/40 active:scale-95 disabled:opacity-50"
                 aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
@@ -990,7 +1000,7 @@ export default function PurchaserChatTab({
             )}
           </div>
         </div>
-        <p className={`mt-1 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+        <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
           {t.powered}
         </p>
       </div>
