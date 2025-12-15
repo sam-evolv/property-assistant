@@ -75,6 +75,34 @@ OpenHouse AI/
 
 ### Multi-Project Support Enhancement (December 2025)
 
+**ProjectContext & URL Sync:**
+- `contexts/ProjectContext.tsx` - React context for project selection with URL param sync
+- Projects load from `/api/projects` (Supabase projects table)
+- Selected projectId persisted in URL query params for bookmark/sharing
+- `useProjectContext()`, `useSafeProjectContext()`, `useRequireProject()` hooks
+
+**ProjectSwitcher Component:**
+- `components/developer/ProjectSwitcher.tsx` - Dropdown for switching between projects
+- Displays project name and address
+- Integrated into Super Admin navigation
+
+**Project-Scoped API Endpoints:**
+- `GET /api/projects` - List all projects
+- `GET /api/projects/[projectId]/status` - Check project setup status (unit types, units count)
+- `GET /api/analytics/platform/overview?projectId=X` - Scoped overview metrics (Supabase data only)
+- `POST /api/projects/create` - Create new project with units
+- `POST /api/projects/parse-excel` - Parse Excel file for project wizard
+
+**Setup Required Panel:**
+- Dashboard shows amber alert when project has no unit types or units
+- Quick action buttons to Manage Unit Types or Import Units
+
+**Known Limitation:**
+- Drizzle-sourced analytics (messages, homeowners, developers) are NOT scoped by projectId
+- This is a data model gap - no FK relationship between Supabase projects and Drizzle tables
+- Scoped data: units, unit_types, documents (Supabase)
+- Global data: messages, homeowners, developments (Drizzle)
+
 **Development Dropdown Update:**
 - `/api/developments` now queries BOTH Drizzle (local) and Supabase projects tables
 - Merges results, deduplicates by ID
