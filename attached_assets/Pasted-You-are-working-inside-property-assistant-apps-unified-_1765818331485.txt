@@ -1,0 +1,198 @@
+You are working inside property-assistant/apps/unified-portal (OpenHouse AI).
+Multi-project onboarding is now live and project-scoped Supabase data (projects, units, unit_types, documents) works correctly.
+
+However, Drizzle-backed analytics data (messages, homeowners, activity) is still global and cannot be reliably scoped by project due to missing foreign key relationships.
+
+To avoid misleading dashboards and preserve trust, we must disable or clearly label Drizzle-backed analytics when a specific project is selected, while keeping them visible for the “All Schemes” view.
+
+This task implements Option A: honest UI guardrails, no schema changes, no migrations.
+
+NON-NEGOTIABLE RULES
+
+DO NOT change database schemas.
+
+DO NOT change auth logic.
+
+DO NOT break Longview Park.
+
+DO NOT change purchaser portal or QR flows.
+
+DO NOT add new libraries.
+
+DO NOT remove existing analytics permanently.
+
+DO NOT use em dashes in UI copy.
+
+PRIMARY GOAL
+
+When a specific project is selected (via ProjectContext):
+
+Supabase-backed metrics remain active.
+
+Drizzle-backed analytics are hidden, disabled, or clearly marked as unavailable.
+
+When All Schemes is selected, everything behaves exactly as it does today.
+
+TASK 1 – Identify Drizzle-backed analytics components
+
+Audit the admin dashboard and identify all components whose data originates from Drizzle (global tables), including but not limited to:
+
+Total Messages card
+
+Active Homeowners card
+
+Message Volume chart
+
+Top Developments by Messages chart
+
+Any other chart or stat derived from messages, conversations, homeowners, or activity logs not scoped by project_id
+
+Document which components are:
+
+Supabase-backed (project-safe)
+
+Drizzle-backed (global only)
+
+TASK 2 – Add project-scoped guard condition
+
+Using the existing ProjectContext:
+
+Detect when the selected scope is:
+
+All Schemes (no projectId)
+
+Specific Project (projectId present)
+
+Add a simple boolean helper:
+
+const isProjectScoped = Boolean(projectId)
+
+TASK 3 – Disable or relabel Drizzle-backed analytics when project-scoped
+
+For each Drizzle-backed analytics component:
+
+Behaviour when isProjectScoped === true
+
+Do NOT fetch Drizzle data.
+
+Do NOT render misleading values.
+
+Instead, render one of the following (consistent across the dashboard):
+
+Option A (preferred): Disabled card
+
+Greyed-out card or chart
+
+Icon stays visible
+
+Value replaced with —
+
+Subtext:
+
+Not available in project view
+
+
+Option B (acceptable): Informational placeholder
+
+Empty chart or card
+
+Message:
+
+This metric is only available in All Schemes view
+
+
+Pick one pattern and apply it consistently.
+
+TASK 4 – Preserve global analytics for “All Schemes”
+
+When All Schemes is selected:
+
+Drizzle-backed analytics must behave exactly as they do today.
+
+No UI regressions.
+
+No change to queries or API behaviour.
+
+This ensures:
+
+Enterprise overview still works
+
+Historical analytics remain accessible
+
+TASK 5 – Ensure Supabase-backed metrics remain active
+
+When a specific project is selected:
+
+These MUST continue to work normally:
+
+Total Units
+
+Unit Types count
+
+Documents completeness
+
+Missing docs
+
+Units Explorer table
+
+No guardrails should be applied to Supabase-backed metrics.
+
+TASK 6 – UX copy and consistency
+
+Use clear, neutral language only. Approved phrases:
+
+“Not available in project view”
+
+“Available in All Schemes view”
+
+“Project-scoped analytics coming soon”
+
+Do not:
+
+Mention Drizzle
+
+Mention technical limitations
+
+Mention databases
+
+This is a product decision, not an apology.
+
+TASK 7 – Verification checklist (must pass)
+
+After implementation, confirm:
+
+Selecting Rathard Park:
+
+Units and documents update correctly
+
+Drizzle-backed cards are disabled or labelled
+
+No Longview messages appear
+
+Selecting Longview Park:
+
+Same behaviour as Rathard
+
+No cross-project leakage
+
+Selecting All Schemes:
+
+Full analytics visible
+
+Charts and counts unchanged
+
+No console errors
+
+No broken layouts
+
+OUTPUT REQUIRED
+
+List all modified files
+
+For each file, state:
+
+Which analytics were guarded
+
+Which condition was used (isProjectScoped)
+
+Confirm no API changes were required
