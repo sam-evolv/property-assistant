@@ -17,9 +17,13 @@ import {
   BarChart3,
   Search,
   ChevronRight,
-  Smartphone
+  Smartphone,
+  FolderPlus,
+  Layers,
+  FileUp
 } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
+import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
 interface MenuItem {
   href: string;
@@ -34,6 +38,12 @@ const menuSections = [
     items: [
       { href: '/super', label: 'Overview', icon: LayoutDashboard },
       { href: '/super/analytics', label: 'Platform Analytics', icon: Activity },
+    ],
+  },
+  {
+    label: 'Project Setup',
+    items: [
+      { href: '/super/projects/new', label: 'New Project', icon: FolderPlus },
     ],
   },
   {
@@ -71,6 +81,9 @@ export function AdminEnterpriseNav() {
         <h1 className="text-xl font-bold text-gray-900">OpenHouse AI</h1>
         <p className="text-sm text-gray-500 mt-1">Enterprise Admin</p>
       </div>
+      
+      {/* Project Switcher */}
+      <ProjectSwitcher />
       
       {/* Development Switcher */}
       <DevelopmentSwitcher />

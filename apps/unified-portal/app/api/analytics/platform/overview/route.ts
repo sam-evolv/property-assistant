@@ -11,18 +11,23 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId');
+
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Get units count for the real project
-    const { count: unitCount, error: unitError } = await supabaseAdmin
+    let unitsQuery = supabaseAdmin
       .from('units')
-      .select('id', { count: 'exact', head: true })
-      .eq('project_id', REAL_PROJECT_ID);
+      .select('id', { count: 'exact', head: true });
+    
+    if (projectId) {
+      unitsQuery = unitsQuery.eq('project_id', projectId);
+    }
+
+    const { count: unitCount, error: unitError } = await unitsQuery;
 
     if (unitError) {
       console.error('[Overview] Units error:', unitError);
@@ -39,11 +44,15 @@ export async function GET() {
       console.error('[Overview] Projects error:', projectError);
     }
 
-    // Get document count from Supabase document_sections (grouped by source)
-    const { data: docSections, error: docError } = await supabaseAdmin
+    let docQuery = supabaseAdmin
       .from('document_sections')
-      .select('metadata')
-      .eq('project_id', REAL_PROJECT_ID);
+      .select('metadata');
+    
+    if (projectId) {
+      docQuery = docQuery.eq('project_id', projectId);
+    }
+
+    const { data: docSections, error: docError } = await docQuery;
 
     if (docError) {
       console.error('[Overview] Documents error:', docError);

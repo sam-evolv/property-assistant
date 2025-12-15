@@ -1,0 +1,272 @@
+Context: You are working inside property-assistant/apps/unified-portal (OpenHouse AI). Multi-project onboarding must be real, not cosmetic. Right now selecting Rathard Park in the dropdown still shows Longview data because dashboard queries are not scoped to the selected project_id. Also, there is no obvious UI entry point to upload the spreadsheet during onboarding, and creating a project does not offer an “upload Excel” step.
+
+NON-NEGOTIABLE RULES
+
+DO NOT change purchaser portal routing or QR token resolver behaviour.
+
+DO NOT break Longview Park.
+
+DO NOT introduce new libraries.
+
+DO NOT change auth logic.
+
+DO NOT change theme tokens/branding.
+
+DO NOT add em dashes in any UI copy.
+
+DO NOT change Supabase schema (no migrations).
+
+Use existing Supabase tables: projects, units, unit_types.
+
+projects columns: id, organization_id, name, address, image_url, created_at
+
+units columns: id, project_id, unit_type_id, address, user_id, handover_date, snag_list_url, created_at, purchaser_name
+
+unit_types columns: id, project_id, name, floor_plan_pdf_url, specification_json, created_at
+
+PRIMARY GOALS
+
+Selecting a project in the dropdown MUST scope all dashboard data (units list, counts, charts, “top developments”).
+
+Add a proper onboarding flow so a new project can be created and immediately onboarded:
+
+Step 1: Create Project (name, address, image)
+
+Step 2: Upload Excel/CSV for unit types and units (bulk)
+
+Step 3: Review validation summary
+
+Step 4: Commit import (all-or-nothing)
+
+Add clear UI navigation entry points for:
+
+Unit Types management
+
+Units import
+Both must be project-aware.
+
+Add empty-state “Setup required” panel when a project has zero unit types or zero units.
+
+DELIVERABLES
+
+Fix data scoping bug across the admin dashboard and unit explorer.
+
+Add “Create Project Wizard” with Excel upload and import.
+
+Ensure everything is reachable in UI and works end-to-end for Rathard Park.
+
+PHASE 0: Identify current project selection mechanism
+
+Locate DevelopmentSwitcher.tsx (or equivalent).
+
+Confirm it currently sets selected scheme in local component state only.
+
+Implement a single source of truth for selected project:
+
+Use URL query param ?projectId=... AND a React context provider (ProjectContext) that reads/writes to URL.
+
+On selection change: update URL and context.
+
+Persist across refresh and deep links.
+
+Ensure default projectId:
+
+If URL param exists, use it.
+
+Else, pick first available project returned by /api/developments (which currently aliases to projects).
+
+PHASE 1: Fix API scoping for all admin endpoints
+
+Audit all admin API routes used by:
+
+Overview cards (Total Units, Active Homeowners, Total Messages, etc.)
+
+Units Explorer table
+
+Charts (Message Volume, Top developments by messages)
+
+For every endpoint, add optional projectId param.
+
+If projectId is present, scope queries to that project.
+
+If not present, keep current global behaviour for “All Schemes” only.
+
+Do NOT hardcode Longview IDs.
+
+For scoping:
+
+Units: where units.project_id = projectId
+
+Unit types: where unit_types.project_id = projectId
+
+Messages/analytics: join through units (or whatever log table exists) and filter units.project_id = projectId
+
+Ensure endpoints return stable JSON with clear field names.
+
+PHASE 2: Fix UI scoping across all pages
+
+Propagate projectId from ProjectContext into all data-fetching hooks/components.
+
+Units page:
+
+When projectId selected, fetch /api/units?projectId=...
+
+Table must show only those units.
+
+Counts (Total Units, With Homeowner, Missing Docs) must be computed with the same filter.
+
+Overview page:
+
+All cards and charts must call their endpoints with projectId.
+
+“Top developments by messages” should behave as:
+
+If projectId selected: show a single bar for that project (or show “This view is project-scoped”).
+
+If All Schemes selected: show top N projects.
+
+Developments page:
+
+Show projects list, but allow selecting a project sets ProjectContext.
+
+PHASE 3: Add visible navigation and entry points for onboarding
+
+Add two project-aware buttons/links in the admin UI (without changing overall nav structure):
+
+“Unit Types” -> /super/projects/[projectId]/unit-types
+
+“Import Units” -> /super/projects/[projectId]/import-units
+
+Also add contextual buttons on the Development/Project detail page:
+
+“Manage Unit Types”
+
+“Import Units”
+
+Ensure these buttons are disabled with helpful text if no project is selected.
+
+PHASE 4: Create Project Wizard with Excel upload
+Create a new page: /super/projects/new
+It must be a multi-step wizard (single page with steps is fine).
+Step 1: Project Details
+
+Fields: name (required), address (required), image_url (optional)
+
+On submit: insert into projects with organization_id from the current user context.
+
+After creation: store new projectId in ProjectContext and proceed to Step 2.
+
+Step 2: Upload Excel/CSV (Single file upload)
+
+Accept .xlsx and .csv
+
+Parse server-side (preferred) via an API route: /api/projects/[projectId]/onboard/upload
+
+The file must contain two sheets OR two sections:
+A) Unit Types sheet/tab named unit_types
+
+Required columns: unit_type (maps to unit_types.name)
+
+Optional columns: floor_plan_pdf_url, specification_json (JSON string), anything else should be ignored
+B) Units sheet/tab named units
+
+Required columns: unit_number, unit_type
+
+Optional: purchaser_name, handover_date, snag_list_url, address
+
+Address rule:
+
+If address column exists, use it.
+
+Else generate address as: {unit_number} {project.name} (keep simple).
+
+Validation must be ALL-OR-NOTHING:
+
+Missing required sheets or columns => fail.
+
+Any unit row where unit_type does not match a unit type in the same file => fail.
+
+Any duplicate unit_number within the file for the same project => fail.
+
+Return a preview payload:
+
+unitTypesToCreate count + list
+
+unitsToCreate count + first 10 preview
+
+errors list (if any)
+
+Step 3: Review + Confirm
+
+Show summary and “Confirm Import” button.
+
+On confirm, call /api/projects/[projectId]/onboard/commit to:
+
+Upsert unit_types for project (by name):
+
+If exists, reuse id.
+
+Else insert new.
+
+Insert units for project using resolved unit_type_id.
+
+Commit as a single transaction. If any insert fails, rollback and return clear error.
+
+Step 4: Success
+
+Redirect to Units Explorer filtered to this project.
+
+Show success toast/banner: “Project onboarded. Units imported: X. Unit types: Y.”
+
+PHASE 5: Add “Setup required” empty state panel
+Wherever project-scoped views exist (Overview and Units):
+
+If selected project has 0 unit_types OR 0 units:
+
+Show a setup panel with two CTAs:
+
+“Create Unit Types”
+
+“Import Units”
+
+Also show a short checklist:
+
+Step 1 Create unit types
+
+Step 2 Import units spreadsheet
+
+Do not show Longview data or global metrics in this state.
+
+IMPLEMENTATION DETAILS
+
+Reuse existing import route logic if it exists, but update it to accept Excel during project creation as described.
+
+Do not require users to manually visit import routes; wizard must guide them.
+
+Use existing server utilities for file parsing; if none exist, use a lightweight approach in Node (already in repo) without adding new packages. If parsing XLSX requires an existing dependency, use it; if not available, support CSV in v1 and show message: “Upload CSV for now. XLSX support will follow.” Do not add new dependencies.
+
+VERIFICATION CHECKLIST (MUST PASS)
+
+Create Rathard Park via /super/projects/new, upload spreadsheet, confirm import. Units appear under Rathard only.
+
+Switching dropdown between Longview and Rathard changes Units list, counts, and charts correctly.
+
+“All Schemes” still shows global aggregated view.
+
+No cross-project data leakage:
+
+Units query always uses project_id when project selected.
+
+Unit types query always uses project_id when project selected.
+
+Longview Park data remains intact.
+
+No purchaser portal changes, no QR changes.
+
+OUTPUT REQUIRED
+
+List all files changed.
+
+Provide any new routes added.
+
+Provide a short note describing how to format the onboarding spreadsheet (sheet names + required columns).

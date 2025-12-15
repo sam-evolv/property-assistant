@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, Building2, Home, FileText, MessageSquare, TrendingUp, Activity, ArrowRight } from 'lucide-react';
+import { Users, Building2, Home, FileText, MessageSquare, TrendingUp, Activity, ArrowRight, AlertTriangle, Layers, FileUp } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { LoadingSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
 import { LineChart } from '@/components/admin-enterprise/charts/LineChart';
 import { BarChart } from '@/components/admin-enterprise/charts/BarChart';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
 interface PlatformMetrics {
   total_developers: number;
@@ -44,21 +45,44 @@ interface ChatMetrics {
   }>;
 }
 
+interface ProjectStatus {
+  unitTypesCount: number;
+  unitsCount: number;
+  setupRequired: boolean;
+}
+
 export default function OverviewDashboard() {
+  const { selectedProjectId, selectedProject, isLoading: projectLoading } = useProjectContext();
   const [platformData, setPlatformData] = useState<PlatformMetrics | null>(null);
   const [chatData, setChatData] = useState<ChatMetrics | null>(null);
+  const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
 
   const fetchDashboardData = async () => {
-    // Prevent concurrent requests
     if (isFetching) return;
     
     setIsFetching(true);
     try {
+      const projectParam = selectedProjectId ? `&projectId=${selectedProjectId}` : '';
+      
+      if (selectedProjectId) {
+        const statusRes = await fetch(`/api/projects/${selectedProjectId}/status`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setProjectStatus({
+            unitTypesCount: statusData.unitTypesCount || 0,
+            unitsCount: statusData.unitsCount || 0,
+            setupRequired: statusData.setupRequired || false,
+          });
+        }
+      } else {
+        setProjectStatus(null);
+      }
+      
       const [overview, usage, messageVolume, topQuestions, topDevelopments] = await Promise.all([
-        fetch('/api/analytics/platform/overview').then((res) => {
+        fetch(`/api/analytics/platform/overview?${projectParam}`).then((res) => {
           if (!res.ok) throw new Error('Failed to fetch platform metrics');
           return res.json();
         }),
@@ -113,17 +137,16 @@ export default function OverviewDashboard() {
   };
 
   useEffect(() => {
-    // Initial fetch
+    if (projectLoading) return;
+    
     fetchDashboardData();
 
-    // Auto-refresh every 5 seconds for real-time updates
     const intervalId = setInterval(() => {
       fetchDashboardData();
     }, 5000);
 
-    // Cleanup interval on unmount
     return () => clearInterval(intervalId);
-  }, []);
+  }, [selectedProjectId, projectLoading]);
 
   if (loading) {
     return (
@@ -165,8 +188,42 @@ export default function OverviewDashboard() {
     <div className="p-8 bg-gray-50 min-h-screen">
       <SectionHeader
         title="Overview Dashboard"
-        description="Enterprise control center for OpenHouse AI platform"
+        description={selectedProject ? `Viewing: ${selectedProject.name}` : 'Enterprise control center for OpenHouse AI platform'}
       />
+
+      {projectStatus?.setupRequired && selectedProjectId && (
+        <div className="mb-8 bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-100 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-amber-800 mb-2">Setup Required</h3>
+              <p className="text-amber-700 text-sm mb-4">
+                This project needs additional setup before it can be used. 
+                {projectStatus.unitTypesCount === 0 && ' No unit types defined.'}
+                {projectStatus.unitsCount === 0 && ' No units imported.'}
+              </p>
+              <div className="flex gap-3">
+                <Link
+                  href={`/super/projects/${selectedProjectId}/unit-types`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
+                >
+                  <Layers className="w-4 h-4" />
+                  Manage Unit Types
+                </Link>
+                <Link
+                  href={`/super/projects/${selectedProjectId}/import-units`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm font-medium"
+                >
+                  <FileUp className="w-4 h-4" />
+                  Import Units
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
