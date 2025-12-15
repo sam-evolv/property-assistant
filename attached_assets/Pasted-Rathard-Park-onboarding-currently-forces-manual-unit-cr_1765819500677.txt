@@ -1,0 +1,126 @@
+Rathard Park onboarding currently forces manual unit creation via the “Add Unit Type” modal. This is incorrect. Units must be onboarded primarily via Excel upload, consistent with Longview Park.
+
+Bulk unit import already exists at:
+/super/projects/[projectId]/import-units
+
+We need to surface and enforce the correct workflow.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No API changes
+
+No new libraries
+
+Do not alter branding, tokens, or layout system
+
+No em dashes in UI copy
+
+Keep Longview Park behaviour unchanged
+
+Do not remove manual unit creation, only demote it
+
+TASKS
+1. Fix the Unit Types empty state UX
+
+File:
+apps/unified-portal/app/super/projects/[projectId]/unit-types/page.tsx
+(or equivalent unit-types page component)
+
+When:
+
+Project has zero units
+
+Replace the current empty state with:
+
+Primary CTA
+
+“Upload Units via Excel”
+
+Button links to:
+/super/projects/[projectId]/import-units
+
+Secondary CTA
+
+“Add Unit Type Manually”
+
+Opens existing modal (unchanged)
+
+Copy
+
+“This project has no units yet. Upload an Excel file to create units in bulk, or add unit types manually.”
+
+2. Add a blocking onboarding guard (same pattern as Setup Required)
+
+When:
+
+Project has unit types
+
+Project has zero units
+
+Show an amber Setup Required panel at the top of:
+
+Units page
+
+Unit Types page
+
+Overview page (project-scoped only)
+
+Copy:
+
+“Units have not been uploaded for this project. Upload an Excel file to complete setup.”
+
+CTA:
+
+“Upload Excel”
+
+Routes to /super/projects/[projectId]/import-units
+
+3. Ensure manual unit creation is never the default path
+
+Do not auto-open the “Add Unit Type” modal
+
+Do not show “No unit types yet” as a blocking state
+
+Excel upload must always be visible and obvious
+
+4. Verify Longview Park is untouched
+
+Longview Park continues to work exactly as before
+
+No changes to its data, units, or flows
+
+VERIFICATION CHECKLIST (must be confirmed)
+
+New project → Unit Types page shows Excel-first CTA
+
+Excel upload creates all units correctly
+
+Manual unit creation still works
+
+No new API calls added
+
+No schema changes
+
+No regressions in Longview Park
+
+OUTPUT
+
+List files changed
+
+Confirm Excel upload is now the primary onboarding path
+
+Confirm manual unit creation remains optional
+
+What this gives you strategically
+
+True developer-scale onboarding
+
+No perception of “admin busywork”
+
+Clean parity between Longview Park and Rathard Park
+
+A demo-safe, investor-safe flow
+
+Zero technical risk

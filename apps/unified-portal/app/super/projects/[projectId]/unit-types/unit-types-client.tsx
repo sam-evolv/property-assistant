@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Pencil, Trash2, FileText, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, FileText, X, Loader2, Upload, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -24,6 +24,7 @@ interface UnitTypesClientProps {
 
 export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
   const [unitTypes, setUnitTypes] = useState<UnitType[]>([]);
+  const [unitsCount, setUnitsCount] = useState<number | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -43,9 +44,10 @@ export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
   async function fetchData() {
     setIsLoading(true);
     try {
-      const [typesRes, projectRes] = await Promise.all([
+      const [typesRes, projectRes, statusRes] = await Promise.all([
         fetch(`/api/projects/${projectId}/unit-types`),
         fetch(`/api/developments/${projectId}`),
+        fetch(`/api/projects/${projectId}/status`),
       ]);
 
       if (typesRes.ok) {
@@ -59,6 +61,11 @@ export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
           id: projectData.development?.id || projectId,
           name: projectData.development?.name || 'Project',
         });
+      }
+
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setUnitsCount(statusData.unitsCount || 0);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -191,29 +198,61 @@ export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white rounded-lg font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 border border-gold-500 text-gold-600 hover:bg-gold-50 rounded-lg font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Unit Type
         </button>
       </div>
 
+      {unitTypes.length > 0 && unitsCount !== null && unitsCount === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-100 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-amber-800 mb-2">Setup Required</h3>
+              <p className="text-amber-700 text-sm mb-4">
+                Units have not been uploaded for this project. Upload an Excel file to complete setup.
+              </p>
+              <Link
+                href={`/super/projects/${projectId}/import-units`}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                Upload Excel
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {unitTypes.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-grey-200">
-          <FileText className="w-12 h-12 text-grey-300 mx-auto mb-4" />
+          <Upload className="w-12 h-12 text-grey-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-grey-900 mb-2">
-            No unit types yet
+            No units yet
           </h3>
-          <p className="text-grey-600 mb-4">
-            Add unit types before importing units for this project.
+          <p className="text-grey-600 mb-6 max-w-md mx-auto">
+            This project has no units yet. Upload an Excel file to create units in bulk, or add unit types manually.
           </p>
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white rounded-lg font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Unit Type
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href={`/super/projects/${projectId}/import-units`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-600 text-white rounded-lg font-medium transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Upload Units via Excel
+            </Link>
+            <button
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-grey-300 text-grey-700 hover:bg-grey-50 rounded-lg font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Unit Type Manually
+            </button>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-grey-200 overflow-hidden">
