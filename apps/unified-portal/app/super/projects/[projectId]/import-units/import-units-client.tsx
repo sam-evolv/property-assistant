@@ -131,17 +131,11 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
           <h2 className="text-lg font-semibold text-grey-900 mb-4">Available Unit Types</h2>
           {unitTypes.length === 0 ? (
             <div className="text-center py-8">
-              <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-              <p className="text-grey-700 font-medium mb-2">No unit types defined</p>
-              <p className="text-grey-500 text-sm mb-4">
-                You must create unit types before importing units.
+              <FileSpreadsheet className="w-12 h-12 text-grey-300 mx-auto mb-4" />
+              <p className="text-grey-700 font-medium mb-2">No unit types defined yet</p>
+              <p className="text-grey-500 text-sm">
+                Unit types will be created automatically from your Excel file during import.
               </p>
-              <Link
-                href={`/super/projects/${projectId}/unit-types`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-600 text-white rounded-lg font-medium transition-colors"
-              >
-                Create Unit Types
-              </Link>
             </div>
           ) : (
             <>
@@ -156,7 +150,7 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
                 ))}
               </div>
               <p className="text-grey-500 text-sm">
-                The "unit_type" column in your file must exactly match one of these names.
+                New unit types in your file will be created automatically.
               </p>
             </>
           )}
@@ -165,55 +159,54 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
         <div className="bg-white rounded-lg border border-grey-200 p-6">
           <h2 className="text-lg font-semibold text-grey-900 mb-4">Upload File</h2>
           
-          {unitTypes.length === 0 ? (
-            <div className="text-center py-8 text-grey-500">
-              <FileSpreadsheet className="w-12 h-12 text-grey-300 mx-auto mb-4" />
-              <p>Create unit types first to enable imports</p>
+          {unitTypes.length === 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Unit types will be created automatically from your Excel file during import.
+              </p>
             </div>
-          ) : (
-            <>
-              <div className="border-2 border-dashed border-grey-300 rounded-lg p-8 text-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="file-upload"
-                  disabled={isUploading}
-                />
-                <label
-                  htmlFor="file-upload"
-                  className={`cursor-pointer flex flex-col items-center ${
-                    isUploading ? 'opacity-50 pointer-events-none' : ''
-                  }`}
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-12 h-12 text-gold-500 animate-spin mb-4" />
-                  ) : (
-                    <Upload className="w-12 h-12 text-grey-400 mb-4" />
-                  )}
-                  <span className="text-grey-700 font-medium">
-                    {isUploading ? 'Uploading...' : 'Click to upload CSV or Excel file'}
-                  </span>
-                  <span className="text-grey-500 text-sm mt-1">
-                    Required columns: unit_number, unit_type
-                  </span>
-                </label>
-              </div>
-
-              <div className="mt-4 p-4 bg-grey-50 rounded-lg">
-                <h3 className="text-sm font-semibold text-grey-700 mb-2">File Format</h3>
-                <p className="text-sm text-grey-600 mb-2">
-                  Your file should have these columns:
-                </p>
-                <ul className="text-sm text-grey-600 space-y-1">
-                  <li><code className="bg-grey-200 px-1 rounded">unit_number</code> - Unit identifier (e.g., "1", "2A")</li>
-                  <li><code className="bg-grey-200 px-1 rounded">unit_type</code> - Must match a unit type name above</li>
-                </ul>
-              </div>
-            </>
           )}
+
+          <div className="border-2 border-dashed border-grey-300 rounded-lg p-8 text-center">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="file-upload"
+              disabled={isUploading}
+            />
+            <label
+              htmlFor="file-upload"
+              className={`cursor-pointer flex flex-col items-center ${
+                isUploading ? 'opacity-50 pointer-events-none' : ''
+              }`}
+            >
+              {isUploading ? (
+                <Loader2 className="w-12 h-12 text-gold-500 animate-spin mb-4" />
+              ) : (
+                <Upload className="w-12 h-12 text-grey-400 mb-4" />
+              )}
+              <span className="text-grey-700 font-medium">
+                {isUploading ? 'Uploading...' : 'Click to upload CSV or Excel file'}
+              </span>
+              <span className="text-grey-500 text-sm mt-1">
+                Required columns: unit_number, unit_type
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-4 p-4 bg-grey-50 rounded-lg">
+            <h3 className="text-sm font-semibold text-grey-700 mb-2">File Format</h3>
+            <p className="text-sm text-grey-600 mb-2">
+              Your file should have these columns:
+            </p>
+            <ul className="text-sm text-grey-600 space-y-1">
+              <li><code className="bg-grey-200 px-1 rounded">unit_number</code> - Unit identifier (e.g., "1", "2A")</li>
+              <li><code className="bg-grey-200 px-1 rounded">unit_type</code> - Type name (will be created if new)</li>
+            </ul>
+          </div>
         </div>
       </div>
 

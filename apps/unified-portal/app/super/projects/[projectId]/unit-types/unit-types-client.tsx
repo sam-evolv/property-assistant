@@ -235,7 +235,7 @@ export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
             No units yet
           </h3>
           <p className="text-grey-600 mb-6 max-w-md mx-auto">
-            This project has no units yet. Upload an Excel file to create units in bulk, or add unit types manually.
+            This project has no units yet. Upload an Excel file to create units and unit types in bulk, or add unit types manually.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link

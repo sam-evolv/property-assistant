@@ -38,29 +38,6 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found in Supabase' }, { status: 404 });
     }
 
-    const { data: unitTypes, error: typesError } = await supabaseAdmin
-      .from('unit_types')
-      .select('id, name')
-      .eq('project_id', projectId);
-
-    if (typesError) {
-      console.error('[Import Units] Error fetching unit types:', typesError);
-      return NextResponse.json({ error: 'Failed to fetch unit types' }, { status: 500 });
-    }
-
-    if (!unitTypes || unitTypes.length === 0) {
-      return NextResponse.json({
-        error: 'No unit types defined for this project. Please create unit types first.',
-      }, { status: 400 });
-    }
-
-    const unitTypeMap = new Map<string, string>();
-    for (const ut of unitTypes) {
-      unitTypeMap.set(normalizeTypeName(ut.name), ut.id);
-    }
-
-    console.log('[Import Units] Unit types loaded:', unitTypes.length);
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
@@ -103,8 +80,8 @@ export async function POST(
     );
 
     const errors: string[] = [];
-    const validRows: Array<{ unit_number: string; unit_type_id: string }> = [];
     const seenUnitNumbers = new Set<string>();
+    const unitTypesInFile = new Set<string>();
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -117,16 +94,6 @@ export async function POST(
 
       if (!row.unit_type) {
         errors.push(`Row ${rowNum}: Missing unit_type column`);
-        continue;
-      }
-
-      const normalizedType = normalizeTypeName(row.unit_type);
-      const unitTypeId = unitTypeMap.get(normalizedType);
-
-      if (!unitTypeId) {
-        errors.push(
-          `Row ${rowNum}: Unit type "${row.unit_type}" not found. Available types: ${Array.from(unitTypeMap.keys()).join(', ')}`
-        );
         continue;
       }
 
@@ -143,10 +110,7 @@ export async function POST(
       }
 
       seenUnitNumbers.add(normalizedUnitNumber);
-      validRows.push({
-        unit_number: row.unit_number.trim(),
-        unit_type_id: unitTypeId,
-      });
+      unitTypesInFile.add(row.unit_type.trim());
     }
 
     if (errors.length > 0) {
@@ -154,18 +118,120 @@ export async function POST(
         success: false,
         error: 'Validation failed - fix all errors before importing',
         totalRows: rows.length,
-        validCount: validRows.length,
+        validCount: seenUnitNumbers.size,
         errorCount: errors.length,
         errors: errors,
       }, { status: 400 });
     }
 
-    if (validRows.length === 0) {
+    if (seenUnitNumbers.size === 0) {
       return NextResponse.json({
         success: false,
         error: 'No valid rows to import',
         totalRows: rows.length,
       }, { status: 400 });
+    }
+
+    const { data: existingUnitTypes, error: typesError } = await supabaseAdmin
+      .from('unit_types')
+      .select('id, name')
+      .eq('project_id', projectId);
+
+    if (typesError) {
+      console.error('[Import Units] Error fetching unit types:', typesError);
+      return NextResponse.json({ error: 'Failed to fetch unit types' }, { status: 500 });
+    }
+
+    const unitTypeMap = new Map<string, string>();
+    for (const ut of existingUnitTypes || []) {
+      unitTypeMap.set(normalizeTypeName(ut.name), ut.id);
+    }
+
+    const missingTypes: string[] = [];
+    for (const typeName of unitTypesInFile) {
+      const normalized = normalizeTypeName(typeName);
+      if (!unitTypeMap.has(normalized)) {
+        missingTypes.push(typeName);
+      }
+    }
+
+    let createdTypesCount = 0;
+    if (missingTypes.length > 0) {
+      console.log('[Import Units] Creating missing unit types:', missingTypes);
+      
+      for (const typeName of missingTypes) {
+        const { data: insertedType, error: insertTypeError } = await supabaseAdmin
+          .from('unit_types')
+          .insert({
+            project_id: projectId,
+            name: typeName,
+            floor_plan_pdf_url: null,
+            specification_json: null,
+          })
+          .select()
+          .single();
+
+        if (insertTypeError) {
+          if (insertTypeError.code === '23505') {
+            console.log('[Import Units] Unit type already exists (concurrent creation):', typeName);
+          } else {
+            console.error('[Import Units] Fatal error creating unit type:', insertTypeError);
+            return NextResponse.json({
+              success: false,
+              error: `Failed to create unit type "${typeName}": ${insertTypeError.message}`,
+            }, { status: 500 });
+          }
+        } else if (insertedType) {
+          createdTypesCount++;
+          unitTypeMap.set(normalizeTypeName(insertedType.name), insertedType.id);
+        }
+      }
+
+      const { data: refreshedTypes } = await supabaseAdmin
+        .from('unit_types')
+        .select('id, name')
+        .eq('project_id', projectId);
+
+      for (const ut of refreshedTypes || []) {
+        unitTypeMap.set(normalizeTypeName(ut.name), ut.id);
+      }
+
+      console.log('[Import Units] Created', createdTypesCount, 'new unit types');
+    }
+
+    const validRows: Array<{ unit_number: string; unit_type_id: string }> = [];
+    const unmappedTypes: string[] = [];
+    
+    for (const row of rows) {
+      if (!row.unit_number || !row.unit_type) continue;
+      
+      const normalizedType = normalizeTypeName(row.unit_type);
+      const unitTypeId = unitTypeMap.get(normalizedType);
+      
+      if (!unitTypeId) {
+        unmappedTypes.push(row.unit_type);
+        continue;
+      }
+
+      validRows.push({
+        unit_number: row.unit_number.trim(),
+        unit_type_id: unitTypeId,
+      });
+    }
+
+    if (unmappedTypes.length > 0) {
+      console.error('[Import Units] Failed to map unit types:', unmappedTypes);
+      return NextResponse.json({
+        success: false,
+        error: `Failed to resolve unit types: ${[...new Set(unmappedTypes)].join(', ')}`,
+      }, { status: 500 });
+    }
+
+    if (validRows.length !== seenUnitNumbers.size) {
+      return NextResponse.json({
+        success: false,
+        error: `Row count mismatch: expected ${seenUnitNumbers.size}, got ${validRows.length}`,
+      }, { status: 500 });
     }
 
     const unitsToInsert = validRows.map((row) => ({
@@ -194,6 +260,8 @@ export async function POST(
       project: { id: project.id, name: project.name },
       totalRows: rows.length,
       inserted: insertedUnits?.length || 0,
+      skipped: 0,
+      unitTypesCreated: createdTypesCount,
     });
   } catch (error: any) {
     console.error('[Import Units] Error:', error);

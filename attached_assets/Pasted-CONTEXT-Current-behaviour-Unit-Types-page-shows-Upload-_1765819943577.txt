@@ -1,0 +1,160 @@
+CONTEXT
+
+Current behaviour:
+
+Unit Types page shows “Upload Units via Excel”.
+
+Clicking it routes to /super/projects/[projectId]/import-units.
+
+Import page blocks upload when no unit types exist and forces “Create Unit Types”.
+
+Clicking that routes back to Unit Types page.
+Result: infinite loop, cannot upload spreadsheet.
+
+Target behaviour (match Longview Park onboarding):
+
+If unit types do not exist yet, Excel import should still work.
+
+The import flow should auto-create missing unit types from the spreadsheet, then import units.
+
+Manual unit type creation remains optional.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No new libraries
+
+Do not alter branding/tokens
+
+No em dashes in UI copy
+
+Keep All Schemes behaviour unchanged
+
+Do not break Longview Park import
+
+TASKS
+1) Update Import Units UI to allow upload even when no unit types exist
+
+File (likely):
+apps/unified-portal/app/super/projects/[projectId]/import-units/import-units-client.tsx
+(or equivalent client component)
+
+Current: disables upload panel with “Create unit types first to enable imports”.
+
+Change:
+
+Always render the upload panel.
+
+If unit types list is empty, show an info note above upload area:
+
+Copy:
+“Unit types will be created automatically from your Excel file during import.”
+
+CTA button label stays “Import Units”.
+
+Do not redirect user back to unit types page.
+
+2) Update the import API route to support auto-creating unit types
+
+File (likely):
+apps/unified-portal/app/api/super/projects/[projectId]/import-units/route.ts
+(or wherever the import handler lives)
+
+Current validation requires unit_type matches existing unit types exactly.
+
+Change logic (server-side, no schema changes):
+
+Parse upload rows.
+
+Validate required columns exist:
+
+unit_number
+
+unit_type
+(keep existing strict validation for required columns)
+
+Fetch existing unit_types for projectId.
+
+Build a set of unit_type names from the file.
+
+Determine missing unit types = those in file not in DB.
+
+If missing unit types exist:
+
+Insert them into unit_types for this projectId.
+
+Use minimal fields: project_id, name.
+
+Leave floor_plan_pdf_url null and specification_json null.
+
+If a type already exists concurrently, handle conflict safely (select again after insert).
+
+Re-fetch unit_types and build mapping name -> id.
+
+Proceed with existing unit insert logic, using mapped ids.
+
+Keep all-or-nothing behaviour:
+
+If any row invalid (duplicate unit_number, missing unit_number, etc.), reject entire import and do not insert partial units.
+
+IMPORTANT: If you created unit types in step 6 and later fail unit validation, rollback by wrapping everything in a transaction if supported, otherwise:
+
+Perform full validation of units first (except unit_type existence), then create unit types, then insert units.
+
+This avoids creating types on a failed import.
+
+No changes to table structure.
+
+3) Update copy on Unit Types empty state to remove the sequencing implication
+
+File:
+apps/unified-portal/app/super/projects/[projectId]/unit-types/unit-types-client.tsx
+
+Update copy to:
+
+“This project has no units yet. Upload an Excel file to create units and unit types in bulk, or add unit types manually.”
+
+Buttons unchanged.
+
+VERIFICATION
+
+New project (no unit types, no units):
+
+Click “Upload Units via Excel”
+
+Import page allows upload
+
+Import succeeds
+
+Unit types appear automatically
+
+Units appear under Units page
+
+Setup Required banner disappears
+
+Existing project (Longview Park):
+
+Import flow still works exactly as before
+
+No changes to existing unit types logic
+
+Failure case:
+
+Upload a file with a missing unit_number
+
+Import fails all-or-nothing
+
+No units inserted
+
+No unit types created (ensure validation happens before creation)
+
+OUTPUT
+
+List files changed
+
+Confirm no schema changes
+
+Confirm no new libraries
+
+Confirm Longview Park unaffected
