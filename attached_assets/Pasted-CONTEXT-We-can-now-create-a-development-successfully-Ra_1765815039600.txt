@@ -1,0 +1,63 @@
+CONTEXT
+We can now create a development successfully (Rathard Park), but the Developer Dashboard is broken: /api/developments is returning 500, and the Development dropdown only shows Longview Park. We need Rathard Park to appear in the dropdown and the dashboard to load developments reliably. Also, the system currently does not prompt for CSV import. We need at minimum an admin-only “Import Units CSV” flow for a selected development, even if a full onboarding wizard comes later.
+
+NON NEGOTIABLES
+
+Do not break Longview Park.
+
+Do not change purchaser portal or QR resolver behaviour.
+
+Do not rename tables or delete data.
+
+Changes should be minimal and reversible.
+
+TASK 1: Fix /api/developments 500
+
+Locate the API route for listing developments (likely app/api/developments/route.ts or in packages/api/src/developments.ts).
+
+Add safe logging on the server for the error cause and return a structured JSON error message, not a generic 500.
+
+Confirm the query scopes correctly by tenant: it must only return developments for the current tenant.
+
+Confirm the query does not assume fields that may be missing. Ensure it selects: id, name, code, slug, is_active, created_at at minimum.
+
+If the list endpoint filters by is_active, ensure newly created developments are created with is_active = true OR adjust the list endpoint to include inactive developments for super admin view.
+
+Verify the endpoint returns 200 and includes Rathard Park.
+
+TASK 2: Ensure the dashboard dropdown uses the fixed endpoint
+
+Locate DevelopmentSwitcher.tsx.
+
+Ensure it uses /api/developments and correctly updates state from the response.
+
+Remove any stale fallback that hardcodes a single development.
+
+Verify the dropdown now shows both Longview Park and Rathard Park.
+
+TASK 3: Add a minimal admin “Import Units CSV” step
+
+Add an admin-only page: /super/developments/[id]/import (or similar) with:
+
+File upload for CSV/XLSX
+
+A button “Import Units”
+
+Implement server-side import that expects the canonical schema matching Longview (address_line_1, house_type_code, bedrooms_raw, property_designation, property_type_raw, eircode etc).
+
+On import, create unit rows linked to the selected development id.
+
+Return a summary: units inserted, units skipped, errors.
+
+Do not build a column-mapper yet. Hard fail with a clear message if headers do not match.
+
+VERIFICATION
+
+Create Rathard Park, confirm it appears in dropdown.
+
+Import the Rathard formatted spreadsheet and confirm units appear under Rathard Park.
+
+Confirm Longview Park still works and remains unchanged.
+
+OUTPUT
+List all changed files and the specific reason for each change.
