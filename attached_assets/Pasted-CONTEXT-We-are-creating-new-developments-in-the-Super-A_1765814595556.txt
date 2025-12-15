@@ -1,0 +1,46 @@
+CONTEXT
+We are creating new developments in the Super Admin UI. Creating Rathard Park fails with a 500 error from /api/developments. The browser console shows the backend is attempting:
+insert into "developments" (..., "system_instructions", ..., "logo url", "important_docs_version", ...)
+The insert fails. We must fix the backend insert to match the actual Supabase schema and safely accept long system_instructions.
+
+NON NEGOTIABLES
+
+Do NOT change purchaser portal behaviour or QR logic.
+
+Do NOT rename tables.
+
+Prefer minimal changes.
+
+Keep Longview Park working.
+
+TASKS
+
+Identify the API route handling development creation (likely app/api/developments/route.ts or similar). Add robust server-side logging of Supabase error messages (but do not leak secrets).
+
+Inspect the Supabase developments table schema (use the existing DB types or Drizzle schema files if present). Confirm the correct column names. In particular, check whether the real column is logo_url not "logo url".
+
+Fix the insert payload so it uses the exact real column names. If the code currently uses "logo url" or any spaced field name, change it to the actual schema column (almost certainly logo_url).
+
+Ensure system_instructions can store long prompts:
+
+If the DB column is varchar with a limit, create a safe migration to change it to TEXT in Postgres.
+
+Do not remove existing values.
+
+If important_docs_version is not present in the schema, remove it from the insert payload. If it is present, ensure it has a sensible default.
+
+Improve error handling:
+
+On insert failure, return a structured 400/500 with a clear message for the UI (“Database insert failed: <reason>”).
+
+Update the UI to display the returned message without dumping full SQL.
+
+Verification
+
+Re-test creating Rathard Park using the same inputs and long system instruction text.
+
+Confirm it inserts successfully and the new development appears in the list.
+
+Confirm Longview Park is unchanged.
+
+Output a concise summary of exactly what files changed, and what schema change (if any) was applied.

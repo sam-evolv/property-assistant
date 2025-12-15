@@ -65,6 +65,20 @@ export async function handleGetDevelopments(req: NextRequest) {
   }
 }
 
+// Generate a unique code from name (uppercase, alphanumeric, max 20 chars)
+function generateDevelopmentCode(name: string): string {
+  const base = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .substring(0, 16);
+  
+  // Add random suffix for uniqueness
+  const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${base}_${suffix}`;
+}
+
 export async function handleCreateDevelopment(req: NextRequest) {
   try {
     const adminContext = await getAdminSession();
@@ -74,7 +88,7 @@ export async function handleCreateDevelopment(req: NextRequest) {
     }
 
     const body: any = await req.json();
-    const { name, address, description, systemInstructions, tenantId, developerUserId } = body;
+    const { name, code, address, description, systemInstructions, tenantId, developerUserId } = body;
 
     if (!name || !address) {
       return NextResponse.json(
@@ -125,8 +139,12 @@ export async function handleCreateDevelopment(req: NextRequest) {
       }
     }
 
+    // Generate a unique code if not provided
+    const developmentCode = code || generateDevelopmentCode(name);
+
     const result = await db.insert(developments).values({
       tenant_id: tenantId,
+      code: developmentCode,
       name,
       address,
       description: description || '',
@@ -135,17 +153,39 @@ export async function handleCreateDevelopment(req: NextRequest) {
       developer_user_id: assignedDeveloperId || null,
     }).returning();
 
-    console.log(`[DEVELOPMENT] Created: ${name} for tenant ${tenantId}, developer: ${assignedDeveloperId || 'none'}`);
+    console.log(`[DEVELOPMENT] Created: ${name} (code: ${developmentCode}) for tenant ${tenantId}, developer: ${assignedDeveloperId || 'none'}`);
 
     return NextResponse.json({ 
       success: true, 
-      developmentId: result[0].id 
+      developmentId: result[0].id,
+      code: developmentCode,
     }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating development:', error);
+    
+    // Provide clearer error messages based on database errors
+    let errorMessage = 'Failed to create development';
+    let statusCode = 500;
+    
+    if (error?.code === '23505') {
+      // Unique constraint violation
+      if (error?.constraint?.includes('code')) {
+        errorMessage = 'A development with this code already exists. Please try again.';
+      } else {
+        errorMessage = 'A development with these details already exists.';
+      }
+      statusCode = 400;
+    } else if (error?.code === '23502') {
+      // Not-null constraint violation
+      errorMessage = `Missing required field: ${error?.column || 'unknown'}`;
+      statusCode = 400;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create development' },
-      { status: 500 }
+      { error: errorMessage },
+      { status: statusCode }
     );
   }
 }
