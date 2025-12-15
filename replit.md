@@ -73,6 +73,35 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Multi-Project Support Enhancement (December 2025)
+
+**Development Dropdown Update:**
+- `/api/developments` now queries BOTH Drizzle (local) and Supabase projects tables
+- Merges results, deduplicates by ID
+- Shows all projects from both sources
+
+**Unit Types Admin Page:**
+- Route: `/super/projects/[projectId]/unit-types`
+- CRUD operations for unit types per project
+- Fields: name (required), floor_plan_pdf_url, specification_json
+- Enforces per-project name uniqueness
+- Blocks deletion if units are assigned
+
+**Units Import (All-or-Nothing Validation):**
+- Route: `/super/projects/[projectId]/import-units`
+- Validates EVERY row before inserting ANY units
+- Fails entire import if: missing columns, unknown unit types, duplicates
+- Required CSV columns: `unit_number`, `unit_type`
+- Unit types MUST be created first
+
+**API Routes Added:**
+- `GET/POST /api/projects/[projectId]/unit-types` - List/create unit types
+- `PUT/DELETE /api/projects/[projectId]/unit-types/[unitTypeId]` - Update/delete
+- `POST /api/projects/[projectId]/import-units` - Import units with validation
+
+**Supabase Projects Added:**
+- Rathard Park added to Supabase projects table
+
 ### Noticeboard Abuse & Safety Controls (December 2025)
 
 **Server-side Stamping:**
