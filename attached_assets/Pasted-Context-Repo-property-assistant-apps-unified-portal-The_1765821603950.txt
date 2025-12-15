@@ -1,0 +1,71 @@
+Context
+Repo: property-assistant/apps/unified-portal. The Import Units endpoint was updated to accept house_type_code as an alias for unit_type. Import now fails with: name.trim is not a function.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No new libraries
+
+Keep Longview Park behaviour unchanged
+
+All-or-nothing import remains
+
+Goal
+Harden CSV/XLSX parsing so header and cell values are always treated as strings safely (no .trim() on non-strings).
+
+Tasks
+
+Find the import route used by /super/projects/[projectId]/import-units (the API handler that parses the file and builds row objects).
+
+Add these helpers near the top of the handler (or in a local util file already used by this route):
+
+const asString = (v: unknown) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") return String(v);
+  // Handle objects (rare but happens with some parsers)
+  try { return String(v); } catch { return ""; }
+};
+
+const clean = (v: unknown) => asString(v).trim();
+
+const normHeader = (h: unknown) =>
+  clean(h)
+    .toLowerCase()
+    .replace(/[\s\-]+/g, "_");
+
+
+Update header mapping logic:
+
+Wherever you do header.trim() or similar, replace with clean(header) or normHeader(header).
+
+Update row reads:
+
+Wherever you do row[field].trim() or String(row[field]).trim(), replace with clean(row[field]).
+
+Ensure unit type mapping uses the cleaned values:
+
+const unitNumber = clean(row.unit_number ?? row.unit ?? row.unit_no);
+const unitType = clean(row.unit_type ?? row.house_type_code ?? row.house_type ?? row.type);
+
+
+Validation:
+
+If unitNumber is empty -> Row X: Missing unit_number
+
+If unitType is empty -> Row X: Missing unit type (unit_type or house_type_code)
+
+Verify
+
+Upload the Rathard Park CSV again and confirm it passes.
+
+Upload a known-good Longview Park import file and confirm unchanged behaviour.
+
+Confirm no partial imports on failure.
+
+Output
+
+List files changed
+
+Confirm .trim() is no longer called on non-strings anywhere in the import path.

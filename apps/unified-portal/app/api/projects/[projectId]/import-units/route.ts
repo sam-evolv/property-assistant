@@ -19,28 +19,39 @@ interface NormalizedRow {
   unit_type: string;
 }
 
-function normalizeTypeName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+function asString(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v);
+  try { return String(v); } catch { return ''; }
 }
 
-function normalizeHeader(header: string): string {
-  return header.trim().toLowerCase().replace(/[\s-]+/g, '_');
+function clean(v: unknown): string {
+  return asString(v).trim();
+}
+
+function normHeader(h: unknown): string {
+  return clean(h).toLowerCase().replace(/[\s\-]+/g, '_');
+}
+
+function normalizeTypeName(name: unknown): string {
+  return clean(name).toLowerCase().replace(/\s+/g, ' ');
 }
 
 function normalizeRowHeaders(rawRow: RawRow): Record<string, any> {
   const normalized: Record<string, any> = {};
   for (const [key, value] of Object.entries(rawRow)) {
-    normalized[normalizeHeader(key)] = value;
+    normalized[normHeader(key)] = value;
   }
   return normalized;
 }
 
-function extractUnitNumber(row: Record<string, any>): string | undefined {
-  return row['unit_number'] ?? row['unit'] ?? row['unit_no'];
+function extractUnitNumber(row: Record<string, any>): string {
+  return clean(row['unit_number'] ?? row['unit'] ?? row['unit_no']);
 }
 
-function extractUnitType(row: Record<string, any>): string | undefined {
-  return row['unit_type'] ?? row['house_type_code'] ?? row['house_type'] ?? row['type'];
+function extractUnitType(row: Record<string, any>): string {
+  return clean(row['unit_type'] ?? row['house_type_code'] ?? row['house_type'] ?? row['type']);
 }
 
 export async function POST(
@@ -97,8 +108,8 @@ export async function POST(
     const rows: NormalizedRow[] = rawRows.map((rawRow) => {
       const normalized = normalizeRowHeaders(rawRow);
       return {
-        unit_number: String(extractUnitNumber(normalized) ?? '').trim(),
-        unit_type: String(extractUnitType(normalized) ?? '').trim(),
+        unit_number: extractUnitNumber(normalized),
+        unit_type: extractUnitType(normalized),
       };
     });
 
@@ -142,7 +153,7 @@ export async function POST(
       }
 
       seenUnitNumbers.add(normalizedUnitNumber);
-      unitTypesInFile.add(row.unit_type.trim());
+      unitTypesInFile.add(row.unit_type);
     }
 
     if (errors.length > 0) {
@@ -246,7 +257,7 @@ export async function POST(
       }
 
       validRows.push({
-        unit_number: row.unit_number.trim(),
+        unit_number: row.unit_number,
         unit_type_id: unitTypeId,
       });
     }
