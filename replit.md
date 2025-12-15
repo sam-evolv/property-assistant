@@ -115,12 +115,14 @@ OpenHouse AI/
 - Enforces per-project name uniqueness
 - Blocks deletion if units are assigned
 
-**Units Import (All-or-Nothing Validation):**
+**Units Import (Excel-First with Auto-Create):**
 - Route: `/super/projects/[projectId]/import-units`
-- Validates EVERY row before inserting ANY units
-- Fails entire import if: missing columns, unknown unit types, duplicates
-- Required CSV columns: `unit_number`, `unit_type`
-- Unit types MUST be created first
+- **Excel-first flow**: Unit types auto-created from Excel file if missing
+- Validates EVERY row before inserting ANY units (all-or-nothing)
+- Fails entire import if: missing columns, duplicates, or unit type creation errors
+- Required Excel columns: `unit_number`, `unit_type`
+- Concurrent unit type creation handled via 23505 conflict detection and re-fetch
+- Returns `unitTypesCreated` count in success response
 
 **API Routes Added:**
 - `GET/POST /api/projects/[projectId]/unit-types` - List/create unit types
