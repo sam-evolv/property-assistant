@@ -1,0 +1,134 @@
+CONTEXT
+Production schema uses:
+
+projects as developments
+
+unit_types scoped per project
+
+units referencing unit_types.id
+
+Rathard Park onboarding must mirror Longview Park behavior exactly.
+
+NON-NEGOTIABLES
+
+Do not change database schema
+
+Do not break Longview Park
+
+Do not auto-create unit types during unit import
+
+Fail fast on mismatches
+
+TASK 1 — Fix Development Dropdown (Blocking Issue)
+
+Update /api/developments to query projects
+
+Return { id, name, address, image_url }
+
+Scope by organization_id
+
+Confirm Rathard Park appears in dropdown
+
+TASK 2 — Add “Unit Types” Admin Step (Required)
+
+Create an admin-only UI flow:
+
+Route:
+/super/projects/[projectId]/unit-types
+
+Features:
+
+Create / edit unit types
+
+Fields:
+
+name (required)
+
+floor_plan_pdf_url (optional upload)
+
+specification_json (optional, empty allowed)
+
+Insert into unit_types with project_id = projectId
+
+List unit types per project
+
+This step must exist before unit import
+
+TASK 3 — Add Units Import (After Unit Types Exist)
+
+Route:
+/super/projects/[projectId]/import-units
+
+Import Rules:
+
+Accept CSV / XLSX
+
+Required columns:
+
+address
+
+house_type
+
+Optional:
+
+purchaser_name
+
+handover_date
+
+Processing Logic:
+
+Load all unit_types for project
+
+Build lookup map: { normalized_name → unit_type_id }
+
+For each row:
+
+Resolve unit_type_id
+
+If missing → fail entire import with clear error
+
+Insert rows into units with:
+
+project_id
+
+unit_type_id
+
+address
+
+optional purchaser fields
+
+Return summary:
+
+inserted
+
+skipped
+
+errors (if any)
+
+TASK 4 — Verification
+
+Longview unaffected
+
+Rathard selectable in dropdown
+
+Unit types visible per project
+
+Units scoped correctly by project
+
+No cross-project data leakage
+
+Why this finally stabilises the platform
+
+You now have:
+
+A repeatable onboarding pipeline
+
+A clear admin-controlled gating model (important for pricing and risk)
+
+A future self-serve path (later you can expose unit-type + import UI to paying developers)
+
+Zero schema hacks
+
+Zero environment drift
+
+This is the point where OpenHouse stops being “a clever Longview demo” and becomes a real multi-project platform.
