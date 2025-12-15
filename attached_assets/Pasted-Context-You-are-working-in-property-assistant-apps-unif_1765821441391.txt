@@ -1,0 +1,82 @@
+Context
+You are working in property-assistant/apps/unified-portal. We have an Excel-first onboarding flow for project unit imports at /super/projects/[projectId]/import-units. A real customer CSV export for Rathard Park contains house_type_code (not unit_type). The import currently hard-requires unit_type, causing validation failure.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No new libraries
+
+Do not alter branding/tokens
+
+Keep Longview Park behaviour unchanged
+
+All-or-nothing import must remain (no partial inserts)
+
+GOAL
+Make import accept these column patterns:
+
+Preferred: unit_number + unit_type
+
+Also accept: unit_number + house_type_code (map to unit_type)
+
+Also accept: unit_number + house_type or type (map to unit_type)
+Extra columns must be ignored.
+
+IMPLEMENTATION TASKS
+
+Locate the project import API route used by the Import Units page (likely one of):
+
+apps/unified-portal/app/api/projects/[projectId]/import-units/route.ts
+
+apps/unified-portal/app/api/super/projects/[projectId]/import-units/route.ts
+
+or wherever /api/projects/{id}/import-units is implemented
+
+Update CSV header parsing to be tolerant:
+
+Normalize headers by: trim, lowercase, replace spaces and hyphens with underscore.
+
+Create a mapping layer:
+
+unit_type = row[unit_type] ?? row[house_type_code] ?? row[house_type] ?? row[type]
+
+Keep unit_number = row[unit_number] (also accept unit or unit_no if present, but do not break current expectations)
+
+Validation updates:
+
+If none of the accepted unit type fields exist, fail with a single clear error:
+
+“Missing required column: unit_type (accepted: unit_type, house_type_code, house_type, type)”
+
+For row-level validation, if mapped unit_type is empty for a row, flag:
+
+Row X: Missing unit type (unit_type or house_type_code)
+
+Auto-create unit types behaviour (already implemented):
+
+Ensure the unit type name used for creation is the mapped unit_type value.
+
+Keep concurrency safety.
+
+Add a small UI hint (only if the UI already shows required columns):
+
+In the Import Units page copy, mention accepted headers:
+
+“Required: unit_number and unit_type (or house_type_code)”
+
+VERIFY
+
+Upload the provided Rathard Park CSV with house_type_code and confirm import succeeds.
+
+Upload an existing Longview Park style file with unit_type and confirm unchanged behaviour.
+
+Confirm all-or-nothing behaviour still holds.
+
+Confirm no new endpoints and no schema changes.
+
+OUTPUT
+
+List files changed
+
+Confirm import accepts house_type_code as unit type

@@ -120,7 +120,10 @@ OpenHouse AI/
 - **Excel-first flow**: Unit types auto-created from Excel file if missing
 - Validates EVERY row before inserting ANY units (all-or-nothing)
 - Fails entire import if: missing columns, duplicates, or unit type creation errors
-- Required Excel columns: `unit_number`, `unit_type`
+- **Flexible column headers** (normalized: trim, lowercase, replace spaces/hyphens with underscore):
+  - Unit number: `unit_number`, `unit`, `unit_no`
+  - Unit type: `unit_type`, `house_type_code`, `house_type`, `type`
+- Extra columns are ignored
 - Concurrent unit type creation handled via 23505 conflict detection and re-fetch
 - Returns `unitTypesCreated` count in success response
 

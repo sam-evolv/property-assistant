@@ -10,13 +10,37 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface CSVRow {
+interface RawRow {
+  [key: string]: any;
+}
+
+interface NormalizedRow {
   unit_number: string;
   unit_type: string;
 }
 
 function normalizeTypeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeHeader(header: string): string {
+  return header.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function normalizeRowHeaders(rawRow: RawRow): Record<string, any> {
+  const normalized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(rawRow)) {
+    normalized[normalizeHeader(key)] = value;
+  }
+  return normalized;
+}
+
+function extractUnitNumber(row: Record<string, any>): string | undefined {
+  return row['unit_number'] ?? row['unit'] ?? row['unit_no'];
+}
+
+function extractUnitType(row: Record<string, any>): string | undefined {
+  return row['unit_type'] ?? row['house_type_code'] ?? row['house_type'] ?? row['type'];
 }
 
 export async function POST(
@@ -53,22 +77,30 @@ export async function POST(
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    let rows: CSVRow[] = [];
+    let rawRows: RawRow[] = [];
 
     if (fileName.endsWith('.csv')) {
       const text = buffer.toString('utf-8');
       const workbook = xlsx.read(text, { type: 'string' });
       const sheetName = workbook.SheetNames[0];
-      rows = xlsx.utils.sheet_to_json<CSVRow>(workbook.Sheets[sheetName]);
+      rawRows = xlsx.utils.sheet_to_json<RawRow>(workbook.Sheets[sheetName]);
     } else {
       const workbook = xlsx.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
-      rows = xlsx.utils.sheet_to_json<CSVRow>(workbook.Sheets[sheetName]);
+      rawRows = xlsx.utils.sheet_to_json<RawRow>(workbook.Sheets[sheetName]);
     }
 
-    if (rows.length === 0) {
+    if (rawRows.length === 0) {
       return NextResponse.json({ error: 'File is empty or has no data rows' }, { status: 400 });
     }
+
+    const rows: NormalizedRow[] = rawRows.map((rawRow) => {
+      const normalized = normalizeRowHeaders(rawRow);
+      return {
+        unit_number: String(extractUnitNumber(normalized) ?? '').trim(),
+        unit_type: String(extractUnitType(normalized) ?? '').trim(),
+      };
+    });
 
     const { data: existingUnits } = await supabaseAdmin
       .from('units')
@@ -88,12 +120,12 @@ export async function POST(
       const rowNum = i + 2;
 
       if (!row.unit_number) {
-        errors.push(`Row ${rowNum}: Missing unit_number column`);
+        errors.push(`Row ${rowNum}: Missing unit number (accepted: unit_number, unit, unit_no)`);
         continue;
       }
 
       if (!row.unit_type) {
-        errors.push(`Row ${rowNum}: Missing unit_type column`);
+        errors.push(`Row ${rowNum}: Missing unit type (accepted: unit_type, house_type_code, house_type, type)`);
         continue;
       }
 
