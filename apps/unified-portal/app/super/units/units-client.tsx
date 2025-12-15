@@ -22,6 +22,23 @@ interface Unit {
   created_at: string;
 }
 
+function naturalSort(a: string, b: string): number {
+  const aMatch = a.match(/^(\d+)(.*)$/);
+  const bMatch = b.match(/^(\d+)(.*)$/);
+  
+  if (aMatch && bMatch) {
+    const aNum = parseInt(aMatch[1], 10);
+    const bNum = parseInt(bMatch[1], 10);
+    if (aNum !== bNum) return aNum - bNum;
+    return (aMatch[2] || '').localeCompare(bMatch[2] || '');
+  }
+  
+  if (aMatch) return -1;
+  if (bMatch) return 1;
+  
+  return a.localeCompare(b);
+}
+
 export function UnitsExplorer() {
   const { selectedProjectId, selectedProject, projects, isLoading: projectsLoading } = useProjectContext();
   const [units, setUnits] = useState<Unit[]>([]);
@@ -48,7 +65,12 @@ export function UnitsExplorer() {
           const data = await res.json();
 
           console.log('[UnitsExplorer] Received:', data.count, 'Supabase units for projectId:', data.projectId);
-          setUnits(data.units || []);
+          const sortedUnits = [...(data.units || [])].sort((a: Unit, b: Unit) => {
+            const addrCompare = naturalSort(a.address, b.address);
+            if (addrCompare !== 0) return addrCompare;
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          });
+          setUnits(sortedUnits);
         } else {
           const url = '/api/admin/units';
           console.log('[UnitsExplorer] Fetching Drizzle units (All Schemes):', url);
@@ -109,6 +131,11 @@ FROM public.unit_types
 WHERE project_id = '${selectedProjectId}'
 ORDER BY created_at DESC;`
     : '';
+
+  const unitCountsSql = `SELECT project_id, count(*) as unit_count
+FROM public.units
+GROUP BY project_id
+ORDER BY unit_count DESC;`;
 
   if (loading || projectsLoading) {
     return (
@@ -275,6 +302,12 @@ ORDER BY created_at DESC;`
                 <p className="text-xs font-medium text-gray-600 mb-1">Unit Types Query:</p>
                 <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
                   {unitTypesSql}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">Unit Counts by Project:</p>
+                <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
+                  {unitCountsSql}
                 </pre>
               </div>
             </div>

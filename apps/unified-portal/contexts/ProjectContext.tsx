@@ -64,6 +64,7 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
         
         const data = await response.json();
         const projectList = data.projects || [];
+        const idRemapping: Record<string, string> = data.idRemapping || {};
         console.log('[ProjectContext] Loaded projects:', projectList.length);
         setProjects(projectList);
         
@@ -72,6 +73,14 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
         if (urlProjectId && projectList.find((p: Project) => p.id === urlProjectId)) {
           setSelectedProjectIdState(urlProjectId);
           console.log('[ProjectContext] Using projectId from URL:', urlProjectId);
+        } else if (urlProjectId && idRemapping[urlProjectId]) {
+          const canonicalId = idRemapping[urlProjectId];
+          console.log('[ProjectContext] Remapping suppressed project', urlProjectId, 'to canonical', canonicalId);
+          setSelectedProjectIdState(canonicalId);
+          
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('projectId', canonicalId);
+          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
         } else if (projectList.length > 0) {
           const firstProjectId = projectList[0].id;
           setSelectedProjectIdState(firstProjectId);

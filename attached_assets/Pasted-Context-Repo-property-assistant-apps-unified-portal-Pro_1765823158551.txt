@@ -1,0 +1,149 @@
+Context
+Repo: property-assistant/apps/unified-portal
+Production-critical. Fix scoping and UX inconsistencies.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No API changes that require DB migrations
+
+No new libraries
+
+Do not alter branding/tokens
+
+No em dashes in UI copy
+
+Keep All Schemes behaviour unchanged (legacy Drizzle views remain as-is)
+
+PHASE 1: Make project selection deterministic and always pick the “real” project
+
+Problem: There are duplicate project rows (two Rathard IDs). The UI can select the wrong one (0 units), causing Overview to show 0 and “Setup Required” even though units exist.
+
+Implement:
+
+In the Project Context / Project Switcher data loading, add a “canonical project resolution” step:
+
+When building the selectable project list from public.projects, detect duplicates by a stable key: lower(trim(name)).
+
+For each duplicate group, pick the canonical project:
+
+Prefer the project ID with the highest units count in public.units.
+
+If tied (0 units on both), prefer the newest created_at.
+
+Hide the non-canonical duplicates from the dropdown entirely.
+
+Ensure that when the URL contains a projectId that is a non-canonical duplicate, the context automatically redirects (or replaces state + URL param) to the canonical projectId.
+
+Add a small dev-only console log (not UI) when a duplicate is suppressed: Suppressed duplicate project <id> in favor of <canonicalId>.
+
+Constraints: Do not require new endpoints. You may do one additional Supabase query in existing project-loading logic to compute units count by project_id (grouped select) if the context currently already hits Supabase.
+
+PHASE 2: Fix Overview “Setup Required” and unit counts to reflect the canonical project
+
+Problem: Overview shows “Setup Required” and Total Units = 0 because the selectedProjectId is the duplicate with 0 units.
+
+Implement:
+
+After Phase 1 canonicalisation, ensure Overview uses the canonical selectedProjectId.
+
+Re-check the setup status fetch /api/projects/{id}/status is called with the canonical ID.
+
+Ensure Total Units card is sourced from Supabase project-scoped metrics and uses the canonical ID.
+
+PHASE 3: Units Explorer ordering and correctness
+
+Problems:
+
+Units show but “not in any right order”.
+
+Sorting must be stable and sensible for addresses that include numbers and letters.
+
+Implement:
+
+In the project-scoped units API (Supabase-backed) and the Units Explorer client:
+
+Default order: numeric-aware sort by address:
+
+If address is purely numeric, sort by numeric value.
+
+Else, do a “natural-ish” sort where numeric prefix sorts numerically then the remainder.
+
+Do not add libraries. Implement a small local comparator in the client for display ordering if Supabase ordering is insufficient.
+
+Also add server-side deterministic order to reduce jitter:
+
+Always order by created_at asc as a fallback secondary sort.
+
+Ensure the Units Explorer never mixes Drizzle units into project-scoped mode.
+
+Ensure the “Development” column is derived from selectedProject.name in project-scoped mode (or from joined project), not hardcoded.
+
+Acceptance: When Rathard selected, the list shows all imported units (52) in a consistent order.
+
+PHASE 4: Homeowners page - apply Option A guardrails (UI-only)
+
+Problem: Homeowners are stored in Drizzle and are global. In project view it misleadingly shows Longview owners.
+
+Implement:
+
+Identify the Super Admin Homeowners page component (likely app/super/homeowners/* or components/*homeowners*).
+
+Use the same Option A pattern used in overview-client.tsx:
+
+If isProjectScoped === true, do not call Drizzle homeowner endpoints.
+
+Render a disabled/empty state panel with copy:
+
+Title: “Project view is active”
+
+Body: “Homeowners are available in All Schemes view.”
+
+Add a single button: “Switch to All Schemes” that clears selected project (use existing context setter).
+
+Keep All Schemes behaviour unchanged and fully functional.
+
+No em dashes in copy.
+
+PHASE 5: Data verification panel improvements (optional but recommended)
+
+In the “Verify in Supabase” section:
+
+Remove placeholder <RATHARD_PROJECT_ID> patterns.
+
+Always use the actual canonical selectedProjectId in the generated SQL snippets.
+
+Add a query for unit counts:
+
+select project_id, count(*) from public.units group by project_id order by count desc;
+
+PHASE 6: Provide safe Supabase SQL to clean duplicates (do not auto-run)
+
+Output a SQL script the user can run manually that deletes duplicate projects only when they have 0 units, and keeps the canonical one. Do not delete if both have units.
+
+OUTPUT REQUIRED
+
+List files changed (paths)
+
+Explain canonical project resolution logic in 3 bullets
+
+Confirm:
+
+No schema changes
+
+No new libraries
+
+All Schemes unchanged
+
+Provide the manual Supabase cleanup SQL in a code block
+
+Manual Supabase cleanup SQL (agent must include this in output)
+
+Use this logic:
+
+Keep the project that has units
+
+Delete the duplicate with 0 units
+
+If both have units, do nothing and print rows for manual review

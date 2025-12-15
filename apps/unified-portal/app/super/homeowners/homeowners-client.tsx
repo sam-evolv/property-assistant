@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, MessageSquare, Activity, CheckCircle2 } from 'lucide-react';
+import { Users, MessageSquare, Activity, CheckCircle2, Info } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
 import { DataTable, Column } from '@/components/admin-enterprise/DataTable';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
 interface Homeowner {
   id: string;
@@ -20,11 +21,19 @@ interface Homeowner {
 }
 
 export function HomeownersDirectory() {
+  const { selectedProjectId, setSelectedProjectId } = useProjectContext();
   const [homeowners, setHomeowners] = useState<Homeowner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isProjectScoped = selectedProjectId !== null;
+
   useEffect(() => {
+    if (isProjectScoped) {
+      setLoading(false);
+      return;
+    }
+
     fetch('/api/admin/homeowners/stats')
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch homeowners');
@@ -36,7 +45,7 @@ export function HomeownersDirectory() {
         setError(err.message);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [isProjectScoped]);
 
   const getActivityStatus = (lastActive: string | null) => {
     if (!lastActive) return { label: 'Never', color: 'text-gray-400' };
@@ -50,6 +59,29 @@ export function HomeownersDirectory() {
     if (daysSince <= 30) return { label: `${daysSince}d ago`, color: 'text-gold-600' };
     return { label: `${daysSince}d ago`, color: 'text-gray-500' };
   };
+
+  if (isProjectScoped) {
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <SectionHeader title="Homeowner Directory" description="Project view is active" />
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-lg mx-auto mt-8">
+          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Info className="w-6 h-6 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Project view is active</h3>
+          <p className="text-gray-600 mb-6">
+            Homeowners are available in All Schemes view.
+          </p>
+          <button
+            onClick={() => setSelectedProjectId(null)}
+            className="px-6 py-2.5 bg-gold-500 text-white rounded-lg font-medium hover:bg-gold-600 transition-colors"
+          >
+            Switch to All Schemes
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+      .order('address', { ascending: true })
+      .order('created_at', { ascending: true });
 
     const { data: units, error } = await query;
 
