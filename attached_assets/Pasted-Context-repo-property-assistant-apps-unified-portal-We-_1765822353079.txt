@@ -1,0 +1,163 @@
+Context: repo property-assistant/apps/unified-portal. We have successfully imported 52 Rathard units, but the Super Admin UI still shows Longview data in some places and the Supabase SQL verification is failing because the user does not have the real project UUID (they used <RATHARD_PROJECT_ID> placeholder). Fix this properly end to end: project selection must reliably scope Units Explorer and any unit lists to the selected Supabase projects.id, and the UI must expose the real project ID so users can verify in Supabase without guessing.
+
+Non negotiables:
+
+No schema changes
+
+No new libraries
+
+Do not alter branding or theme tokens
+
+No em dashes in UI copy
+
+Keep “All Schemes” behaviour unchanged where applicable
+
+Primary goals:
+
+Selecting “Rathard Park” must show Rathard units (not Longview) in Super Admin:
+
+Units Explorer list
+
+Units counts/cards tied to Supabase units
+
+Any unit tables that are meant to be project scoped
+
+Make it impossible to get stuck on “I do not know the project ID”:
+
+Show the selected project UUID in the UI (copy button)
+
+Show a “Verify in Supabase” helper that prints the exact SQL with the real UUID
+
+Fix any remaining routing loop or context mismatch that causes “Upload via Excel” or “Units” pages to bounce to the wrong screen
+
+Work plan:
+
+A) Confirm current Supabase schema (do not change it)
+
+projects columns include id, name, address
+
+units columns include id, project_id, address, unit_type_id, etc
+
+unit_types columns include id, project_id, name, etc
+
+B) Fix Units Explorer scoping (this is the likely source of “still showing Longview”)
+
+Find the Super Admin Units page component (likely one of):
+
+apps/unified-portal/app/super/units/*
+
+apps/unified-portal/components/units/*
+
+Any API route used by Units Explorer (search for /api/units or /api/super/units)
+
+Ensure that when a project is selected in useProjectContext():
+
+The query to Supabase filters by units.project_id = selectedProjectId
+
+The table rows shown come from that scoped query
+
+The “Total Units” card on Units Explorer reflects the scoped count
+
+When “All Schemes” is selected:
+
+Keep existing behaviour (show all units across projects)
+
+Implementation requirements for scoping:
+
+Use existing useProjectContext() values: selectedProjectId, selectedProject (if available)
+
+If the Units Explorer uses an API route:
+
+Add optional query param projectId
+
+When projectId is present, apply .eq('project_id', projectId)
+
+When absent, return all units (current behaviour)
+
+If the Units Explorer queries Supabase directly in the client:
+
+Apply .eq('project_id', selectedProjectId) only when selectedProjectId exists
+
+C) Add “Selected Project” ID visibility with copy support (no new libraries)
+
+In the Super Admin nav area where the current project is shown OR at the top of project scoped pages (Units Explorer, Import Units, Unit Types):
+
+Display a small line: Project ID: <uuid> with a “Copy” button
+
+Use navigator.clipboard.writeText
+
+Use existing button styles (do not introduce new design system)
+
+UI copy must not use em dashes
+
+Add a collapsible “Verify in Supabase” block (or a small hint section) that shows SQL that the user can copy:
+
+For units:
+
+select id, project_id, address, unit_type_id, created_at
+from public.units
+where project_id = '<UUID_HERE>'
+order by created_at desc;
+
+
+For unit types:
+
+select id, project_id, name, created_at
+from public.unit_types
+where project_id = '<UUID_HERE>'
+order by created_at desc;
+
+
+Replace <UUID_HERE> with the real selectedProjectId at render time
+
+D) Fix any remaining “Upload via Excel” navigation loop
+
+On Unit Types empty state CTA “Upload Units via Excel”:
+
+Ensure it routes to /super/projects/[projectId]/import-units (with the same projectId currently selected)
+
+Ensure the import page does not redirect back to unit types unless there is an intentional guard
+
+On Import Units page:
+
+Do not require unit types to exist (since we now auto-create)
+
+If there is a guard that redirects to unit types when unitTypes.length === 0, remove it or invert it
+
+Keep All-or-nothing import logic unchanged
+
+E) Add lightweight logging (dev only) for projectId propagation
+
+In Units Explorer client, log:
+
+selectedProjectId
+
+the final API URL being called (if any)
+
+number of rows returned
+
+Ensure logs do not expose secrets
+
+Deliverables:
+
+List of files changed
+
+Brief explanation of how Units Explorer is now scoped
+
+Confirm no schema changes, no new libs
+
+Acceptance tests (must pass):
+
+Select Rathard Park in Project Switcher
+
+Go to Units Explorer: list shows Rathard units, count matches imported count (52) or the actual total for Rathard
+
+Copy Project ID from UI and run the provided SQL in Supabase: rows return
+
+“All Schemes” shows all units unchanged
+
+Clicking “Upload Units via Excel” never bounces back incorrectly
+
+Now implement.
+
+Also: after you finish, print the exact SQL query (with the Rathard UUID) that I can paste into Supabase SQL Editor to confirm the 52 units exist.

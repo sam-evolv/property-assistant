@@ -1,51 +1,119 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Home, AlertTriangle, CheckCircle, XCircle, FileText, User } from 'lucide-react';
+import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
 import { DataTable, Column } from '@/components/admin-enterprise/DataTable';
+import { useProjectContext } from '@/contexts/ProjectContext';
+import toast from 'react-hot-toast';
 
 interface Unit {
   id: string;
-  unit_number: string;
-  unit_uid: string;
-  address_line_1: string;
-  house_type_code: string;
-  development_name: string;
+  address: string;
+  unit_type_name: string;
+  project_name: string;
+  project_address: string;
   purchaser_name: string | null;
-  purchaser_email: string | null;
-  homeowner: { name: string; email: string } | null;
-  has_floor_plan: boolean;
-  has_elevations: boolean;
-  missing_docs: boolean;
+  user_id: string | null;
+  handover_date: string | null;
+  has_snag_list: boolean;
+  created_at: string;
 }
 
 export function UnitsExplorer() {
+  const { selectedProjectId, selectedProject, projects, isLoading: projectsLoading } = useProjectContext();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'missing_docs' | 'has_homeowner'>('all');
+  const [filter, setFilter] = useState<'all' | 'with_purchaser' | 'unassigned'>('all');
+  const [showVerifySQL, setShowVerifySQL] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/units')
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch units');
-        return res.json();
-      })
-      .then((data) => setUnits(data.units || []))
-      .catch((err) => {
-        console.error('Units error:', err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    if (projectsLoading) return;
 
-  if (loading) {
+    async function fetchUnits() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        if (selectedProjectId) {
+          const url = `/api/super/units?projectId=${selectedProjectId}`;
+          console.log('[UnitsExplorer] Fetching Supabase units:', url);
+
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch units');
+          const data = await res.json();
+
+          console.log('[UnitsExplorer] Received:', data.count, 'Supabase units for projectId:', data.projectId);
+          setUnits(data.units || []);
+        } else {
+          const url = '/api/admin/units';
+          console.log('[UnitsExplorer] Fetching Drizzle units (All Schemes):', url);
+
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch units');
+          const data = await res.json();
+
+          const mappedUnits = (data.units || []).map((u: any) => ({
+            id: u.id,
+            address: u.address || u.unit_number || '',
+            unit_type_name: u.house_type_code || 'Unknown',
+            project_name: u.development_name || 'Unknown',
+            project_address: '',
+            purchaser_name: u.purchaser_name || null,
+            user_id: null,
+            handover_date: null,
+            has_snag_list: false,
+            created_at: new Date().toISOString(),
+          }));
+
+          console.log('[UnitsExplorer] Received:', mappedUnits.length, 'Drizzle units');
+          setUnits(mappedUnits);
+        }
+      } catch (err: any) {
+        console.error('[UnitsExplorer] Error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUnits();
+  }, [selectedProjectId, projectsLoading]);
+
+  const handleCopyProjectId = async () => {
+    if (!selectedProjectId) return;
+    try {
+      await navigator.clipboard.writeText(selectedProjectId);
+      setCopied(true);
+      toast.success('Project ID copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
+
+  const unitsSql = selectedProjectId
+    ? `SELECT id, project_id, address, unit_type_id, created_at
+FROM public.units
+WHERE project_id = '${selectedProjectId}'
+ORDER BY created_at DESC;`
+    : '';
+
+  const unitTypesSql = selectedProjectId
+    ? `SELECT id, project_id, name, created_at
+FROM public.unit_types
+WHERE project_id = '${selectedProjectId}'
+ORDER BY created_at DESC;`
+    : '';
+
+  if (loading || projectsLoading) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
-        <SectionHeader title="Unit Explorer" description="Loading..." />
+        <SectionHeader title="Units Explorer" description="Loading..." />
         <TableSkeleton rows={10} />
       </div>
     );
@@ -63,142 +131,180 @@ export function UnitsExplorer() {
   }
 
   const filteredUnits = units.filter((u) => {
-    if (filter === 'missing_docs') return u.missing_docs;
-    if (filter === 'has_homeowner') return u.homeowner !== null;
+    if (filter === 'with_purchaser') return u.purchaser_name !== null;
+    if (filter === 'unassigned') return u.purchaser_name === null;
     return true;
   });
 
-  const missingDocsCount = units.filter((u) => u.missing_docs).length;
-  const withHomeownerCount = units.filter((u) => u.homeowner !== null).length;
-  const completeDocsCount = units.filter((u) => u.has_floor_plan && u.has_elevations).length;
+  const withPurchaserCount = units.filter((u) => u.purchaser_name !== null).length;
+  const withHandoverCount = units.filter((u) => u.handover_date !== null).length;
+  const withSnagListCount = units.filter((u) => u.has_snag_list).length;
 
   const columns: Column<Unit>[] = [
     {
-      key: 'unit_number',
+      key: 'address',
       label: 'Unit',
       sortable: true,
       render: (item) => (
         <div>
-          <p className="font-semibold text-gray-900">{item.unit_number}</p>
-          <p className="text-xs text-gray-500">{item.address_line_1}</p>
+          <p className="font-semibold text-gray-900">{item.address}</p>
+          <p className="text-xs text-gray-500">{item.unit_type_name}</p>
         </div>
       ),
     },
     {
-      key: 'house_type_code',
-      label: 'Type',
+      key: 'project_name',
+      label: 'Project',
       sortable: true,
       render: (item) => (
-        <span className="px-2 py-1 bg-gold-100 text-gold-700 rounded text-xs font-medium">
-          {item.house_type_code}
-        </span>
+        <div>
+          <p className="text-gray-700">{item.project_name}</p>
+          <p className="text-xs text-gray-400">{item.project_address}</p>
+        </div>
       ),
     },
     {
-      key: 'development_name',
-      label: 'Development',
-      sortable: true,
-      render: (item) => <span className="text-gray-700">{item.development_name}</span>,
-    },
-    {
-      key: 'homeowner',
-      label: 'Homeowner',
+      key: 'purchaser_name',
+      label: 'Purchaser',
       sortable: false,
       render: (item) =>
-        item.homeowner ? (
+        item.purchaser_name ? (
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-green-600" />
-            <div>
-              <p className="text-sm font-medium text-gray-900">{item.homeowner.name}</p>
-              <p className="text-xs text-gray-500">{item.homeowner.email}</p>
-            </div>
-          </div>
-        ) : item.purchaser_name ? (
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-orange-500" />
-            <div>
-              <p className="text-sm font-medium text-orange-700">{item.purchaser_name}</p>
-              <p className="text-xs text-orange-500">Pending</p>
-            </div>
+            <p className="text-sm font-medium text-gray-900">{item.purchaser_name}</p>
           </div>
         ) : (
           <span className="text-gray-400 text-sm">Unassigned</span>
         ),
     },
     {
-      key: 'has_floor_plan',
-      label: 'Status',
-      sortable: false,
-      render: (item) => (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            {item.has_floor_plan ? (
-              <CheckCircle className="w-4 h-4 text-green-500" />
-            ) : (
-              <XCircle className="w-4 h-4 text-red-500" />
-            )}
-            <span className="text-xs text-gray-600">Floor Plan</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {item.has_elevations ? (
-              <CheckCircle className="w-4 h-4 text-green-500" />
-            ) : (
-              <XCircle className="w-4 h-4 text-red-500" />
-            )}
-            <span className="text-xs text-gray-600">Elevations</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'missing_docs',
-      label: 'Completeness',
+      key: 'handover_date',
+      label: 'Handover',
       sortable: true,
       render: (item) =>
-        item.missing_docs ? (
-          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium flex items-center gap-1 w-fit">
-            <AlertTriangle className="w-3 h-3" />
-            Missing Docs
+        item.handover_date ? (
+          <span className="text-gray-700 text-sm">
+            {new Date(item.handover_date).toLocaleDateString()}
           </span>
         ) : (
+          <span className="text-gray-400 text-sm">Not set</span>
+        ),
+    },
+    {
+      key: 'has_snag_list',
+      label: 'Snag List',
+      sortable: false,
+      render: (item) =>
+        item.has_snag_list ? (
           <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1 w-fit">
             <CheckCircle className="w-3 h-3" />
-            Complete
+            Yes
+          </span>
+        ) : (
+          <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium w-fit">
+            No
           </span>
         ),
     },
+    {
+      key: 'created_at',
+      label: 'Created',
+      sortable: true,
+      render: (item) => (
+        <span className="text-gray-500 text-sm">
+          {new Date(item.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
   ];
+
+  const scopeLabel = selectedProject ? selectedProject.name : 'All Projects';
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <SectionHeader
-        title="Unit Explorer"
-        description={`Manage ${units.length} units across all developments`}
+        title="Units Explorer"
+        description={`Viewing ${units.length} units in ${scopeLabel}`}
       />
+
+      {selectedProjectId && selectedProject && (
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Selected Project</p>
+              <p className="font-semibold text-gray-900">{selectedProject.name}</p>
+              {selectedProject.address && (
+                <p className="text-sm text-gray-500">{selectedProject.address}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Project ID</p>
+                <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                  {selectedProjectId}
+                </code>
+              </div>
+              <button
+                onClick={handleCopyProjectId}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Copy Project ID"
+              >
+                <Copy className={`w-4 h-4 ${copied ? 'text-green-500' : 'text-gray-400'}`} />
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowVerifySQL(!showVerifySQL)}
+            className="mt-3 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            <Database className="w-4 h-4" />
+            Verify in Supabase
+            {showVerifySQL ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showVerifySQL && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">Units Query:</p>
+                <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
+                  {unitsSql}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">Unit Types Query:</p>
+                <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
+                  {unitTypesSql}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <InsightCard
           title="Total Units"
           value={units.length}
-          subtitle="All properties"
+          subtitle={scopeLabel}
           icon={<Home className="w-5 h-5" />}
         />
         <InsightCard
-          title="With Homeowner"
-          value={withHomeownerCount}
-          subtitle={`${Math.round((withHomeownerCount / units.length) * 100) || 0}% occupied`}
+          title="With Purchaser"
+          value={withPurchaserCount}
+          subtitle={`${Math.round((withPurchaserCount / units.length) * 100) || 0}% assigned`}
           icon={<User className="w-5 h-5" />}
         />
         <InsightCard
-          title="Complete Docs"
-          value={completeDocsCount}
-          subtitle={`${Math.round((completeDocsCount / units.length) * 100) || 0}% ready`}
-          icon={<FileText className="w-5 h-5" />}
+          title="With Handover"
+          value={withHandoverCount}
+          subtitle={`${Math.round((withHandoverCount / units.length) * 100) || 0}% scheduled`}
+          icon={<CheckCircle className="w-5 h-5" />}
         />
         <InsightCard
-          title="Missing Docs"
-          value={missingDocsCount}
-          subtitle="Needs attention"
+          title="Unassigned"
+          value={units.length - withPurchaserCount}
+          subtitle="Available"
           icon={<AlertTriangle className="w-5 h-5" />}
         />
       </div>
@@ -215,26 +321,26 @@ export function UnitsExplorer() {
           All Units ({units.length})
         </button>
         <button
-          onClick={() => setFilter('has_homeowner')}
+          onClick={() => setFilter('with_purchaser')}
           className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
-            filter === 'has_homeowner'
+            filter === 'with_purchaser'
               ? 'bg-gold-600 text-white shadow-md'
               : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
           }`}
         >
           <User className="w-4 h-4" />
-          With Homeowner ({withHomeownerCount})
+          With Purchaser ({withPurchaserCount})
         </button>
         <button
-          onClick={() => setFilter('missing_docs')}
+          onClick={() => setFilter('unassigned')}
           className={`px-4 py-2 rounded-lg transition-all duration-premium font-medium flex items-center gap-2 shadow-sm ${
-            filter === 'missing_docs'
-              ? 'bg-red-600 text-white shadow-md'
+            filter === 'unassigned'
+              ? 'bg-amber-600 text-white shadow-md'
               : 'bg-white text-gray-700 border border-gray-300 hover:bg-gold-50 hover:border-gold-200'
           }`}
         >
           <AlertTriangle className="w-4 h-4" />
-          Missing Docs ({missingDocsCount})
+          Unassigned ({units.length - withPurchaserCount})
         </button>
       </div>
 
@@ -242,7 +348,7 @@ export function UnitsExplorer() {
         data={filteredUnits}
         columns={columns}
         searchable={true}
-        searchPlaceholder="Search by unit number, address, development..."
+        searchPlaceholder="Search by unit address, type, project..."
         emptyMessage="No units found matching your filter"
       />
     </div>
