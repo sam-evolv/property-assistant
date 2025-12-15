@@ -1,0 +1,173 @@
+Context
+Repo: property-assistant/apps/unified-portal
+This is production-critical. The Import Units flow is failing with:
+
+Insert failed: Could not find the 'unit_number' column of 'units' in the schema cache
+
+previously also: name.trim is not a function
+
+Root Cause
+Supabase public.units table does NOT have a unit_number column. It has:
+id, project_id, unit_type_id, address, user_id, handover_date, snag_list_url, created_at, purchaser_name
+So the API route must never insert unit_number. It must insert into address (or another existing column) for the unit identifier.
+
+NON-NEGOTIABLES
+
+No schema changes
+
+No new libraries
+
+Do not change branding/tokens
+
+Keep all-or-nothing import behaviour
+
+Keep Longview Park behaviour unchanged
+
+No em dashes in UI copy
+
+GOAL
+Make import accept Excel/CSV with flexible headers, avoid trim crashes, and correctly insert into Supabase units.address instead of units.unit_number. Also improve UI copy to clarify mapping.
+
+FILES TO MODIFY
+
+apps/unified-portal/app/api/projects/[projectId]/import-units/route.ts
+
+apps/unified-portal/app/super/projects/[projectId]/import-units/import-units-client.tsx (copy only, no design changes)
+
+IMPLEMENTATION TASKS
+
+PHASE 1: Patch the Import API to match DB schema (critical)
+In route.ts:
+
+Ensure header normalization stays in place (lowercase, trim, spaces/hyphens to underscores).
+
+Ensure cell normalization never calls .trim() on non-strings. Create a helper:
+
+asText(v) => String(v ?? '').trim()
+
+Use it for unit number, unit type, any name fields.
+
+Column mapping (must remain backward compatible):
+Map these inputs:
+
+Unit identifier key candidates (in priority order):
+
+unit_number
+
+unit
+
+unit_no
+
+address
+
+Unit type key candidates:
+
+unit_type
+
+house_type_code
+
+house_type
+
+type
+
+Validation (all-or-nothing):
+
+If unit identifier column missing: fail with clear error listing accepted columns.
+
+If unit type column missing: fail with clear error listing accepted columns.
+
+For each row:
+
+unit identifier must be non-empty after asText
+
+unit type must be non-empty after asText
+
+Track row numbers based on file row index + 2 (header row counts as row 1).
+
+Unit type creation:
+
+Keep the current auto-create behaviour for missing unit types.
+
+Ensure concurrency safety via upsert or re-select after insert conflict.
+
+Use project_id + name uniqueness logic already in code (do not add DB constraints).
+
+Units insert:
+
+STOP inserting unit_number.
+
+Insert into Supabase units as:
+
+{
+project_id: projectId,
+unit_type_id: resolvedUnitTypeId,
+address: unitIdentifier
+}
+
+Where unitIdentifier is asText(unit_number_cell).
+
+Duplicate handling:
+
+If the same unit identifier appears twice within the upload, fail validation before inserting.
+
+Also check for existing units in DB for that project with matching address; if any exist, fail import and list duplicates.
+
+Schema cache error avoidance:
+
+Ensure you are not passing any unknown keys to supabase.from('units').insert().
+
+Do not send undefined keys.
+
+PHASE 2: Improve error messages (no em dashes)
+Return structured errors that the UI already displays. Examples:
+
+"Validation failed. Missing unit identifier column. Accepted: unit_number, unit, unit_no, address"
+
+"Row 14: Unit type is empty"
+
+"Row 22: Duplicate unit identifier in file: 12A"
+
+"Duplicate units already exist in this project: 1, 2, 3"
+
+PHASE 3: UI copy update (no design changes)
+In import-units-client.tsx, update the “File Format” helper text to reflect reality:
+
+Required: a unit identifier and a unit type
+
+Accepted headers:
+
+Unit identifier: unit_number, unit, unit_no, address
+
+Unit type: unit_type, house_type_code, house_type, type
+
+Clarify mapping: "Unit identifier will be stored as the unit address."
+
+Keep styling unchanged. Only adjust text.
+
+VERIFICATION STEPS (must execute)
+
+In Supabase, confirm units columns are unchanged (no migrations run).
+
+Upload the provided Rathard Park CSV again. Expected:
+
+No schema cache error
+
+Import succeeds
+
+Unit types auto-created
+
+Units inserted with address populated as the unit identifier
+
+Confirm Longview Park can still import using previous headers (unit_number, unit_type).
+
+Confirm re-importing the same file fails with "duplicates already exist" and does not partially import.
+
+OUTPUT REQUIRED
+
+List files changed
+
+Summarize exactly what was fixed
+
+Provide the exact accepted header list and the mapping used
+
+Confirm no schema changes, no new libraries

@@ -192,7 +192,7 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
                 {isUploading ? 'Uploading...' : 'Click to upload CSV or Excel file'}
               </span>
               <span className="text-grey-500 text-sm mt-1">
-                Required: unit_number and unit_type (or house_type_code)
+                Required: unit identifier and unit type columns
               </span>
             </label>
           </div>
@@ -203,11 +203,11 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
               Your file should have these columns:
             </p>
             <ul className="text-sm text-grey-600 space-y-1">
-              <li><code className="bg-grey-200 px-1 rounded">unit_number</code> - Unit identifier (e.g., "1", "2A")</li>
-              <li><code className="bg-grey-200 px-1 rounded">unit_type</code> or <code className="bg-grey-200 px-1 rounded">house_type_code</code> - Type name (will be created if new)</li>
+              <li><strong>Unit identifier:</strong> <code className="bg-grey-200 px-1 rounded">unit_number</code>, <code className="bg-grey-200 px-1 rounded">unit</code>, <code className="bg-grey-200 px-1 rounded">unit_no</code>, or <code className="bg-grey-200 px-1 rounded">address</code></li>
+              <li><strong>Unit type:</strong> <code className="bg-grey-200 px-1 rounded">unit_type</code>, <code className="bg-grey-200 px-1 rounded">house_type_code</code>, <code className="bg-grey-200 px-1 rounded">house_type</code>, or <code className="bg-grey-200 px-1 rounded">type</code></li>
             </ul>
             <p className="text-sm text-grey-500 mt-2">
-              Extra columns are ignored.
+              Unit identifier will be stored as the unit address. Extra columns are ignored.
             </p>
           </div>
         </div>

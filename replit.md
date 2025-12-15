@@ -121,8 +121,9 @@ OpenHouse AI/
 - Validates EVERY row before inserting ANY units (all-or-nothing)
 - Fails entire import if: missing columns, duplicates, or unit type creation errors
 - **Flexible column headers** (normalized: trim, lowercase, replace spaces/hyphens with underscore):
-  - Unit number: `unit_number`, `unit`, `unit_no`
+  - Unit identifier: `unit_number`, `unit`, `unit_no`, `address`
   - Unit type: `unit_type`, `house_type_code`, `house_type`, `type`
+- **DB mapping**: Unit identifier is stored in Supabase `units.address` column
 - Extra columns are ignored
 - Concurrent unit type creation handled via 23505 conflict detection and re-fetch
 - Returns `unitTypesCreated` count in success response

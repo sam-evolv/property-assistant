@@ -15,7 +15,7 @@ interface RawRow {
 }
 
 interface NormalizedRow {
-  unit_number: string;
+  unit_identifier: string;
   unit_type: string;
 }
 
@@ -46,8 +46,8 @@ function normalizeRowHeaders(rawRow: RawRow): Record<string, any> {
   return normalized;
 }
 
-function extractUnitNumber(row: Record<string, any>): string {
-  return clean(row['unit_number'] ?? row['unit'] ?? row['unit_no']);
+function extractUnitIdentifier(row: Record<string, any>): string {
+  return clean(row['unit_number'] ?? row['unit'] ?? row['unit_no'] ?? row['address']);
 }
 
 function extractUnitType(row: Record<string, any>): string {
@@ -108,30 +108,30 @@ export async function POST(
     const rows: NormalizedRow[] = rawRows.map((rawRow) => {
       const normalized = normalizeRowHeaders(rawRow);
       return {
-        unit_number: extractUnitNumber(normalized),
+        unit_identifier: extractUnitIdentifier(normalized),
         unit_type: extractUnitType(normalized),
       };
     });
 
     const { data: existingUnits } = await supabaseAdmin
       .from('units')
-      .select('unit_number')
+      .select('address')
       .eq('project_id', projectId);
 
-    const existingUnitNumbers = new Set(
-      (existingUnits || []).map((u) => normalizeTypeName(u.unit_number || ''))
+    const existingAddresses = new Set(
+      (existingUnits || []).map((u) => normalizeTypeName(u.address || ''))
     );
 
     const errors: string[] = [];
-    const seenUnitNumbers = new Set<string>();
+    const seenIdentifiers = new Set<string>();
     const unitTypesInFile = new Set<string>();
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2;
 
-      if (!row.unit_number) {
-        errors.push(`Row ${rowNum}: Missing unit number (accepted: unit_number, unit, unit_no)`);
+      if (!row.unit_identifier) {
+        errors.push(`Row ${rowNum}: Missing unit identifier (accepted: unit_number, unit, unit_no, address)`);
         continue;
       }
 
@@ -140,19 +140,19 @@ export async function POST(
         continue;
       }
 
-      const normalizedUnitNumber = normalizeTypeName(row.unit_number);
+      const normalizedIdentifier = normalizeTypeName(row.unit_identifier);
       
-      if (existingUnitNumbers.has(normalizedUnitNumber)) {
-        errors.push(`Row ${rowNum}: Unit "${row.unit_number}" already exists in database`);
+      if (existingAddresses.has(normalizedIdentifier)) {
+        errors.push(`Row ${rowNum}: Unit "${row.unit_identifier}" already exists in database`);
         continue;
       }
 
-      if (seenUnitNumbers.has(normalizedUnitNumber)) {
-        errors.push(`Row ${rowNum}: Duplicate unit "${row.unit_number}" in file`);
+      if (seenIdentifiers.has(normalizedIdentifier)) {
+        errors.push(`Row ${rowNum}: Duplicate unit "${row.unit_identifier}" in file`);
         continue;
       }
 
-      seenUnitNumbers.add(normalizedUnitNumber);
+      seenIdentifiers.add(normalizedIdentifier);
       unitTypesInFile.add(row.unit_type);
     }
 
@@ -161,13 +161,13 @@ export async function POST(
         success: false,
         error: 'Validation failed - fix all errors before importing',
         totalRows: rows.length,
-        validCount: seenUnitNumbers.size,
+        validCount: seenIdentifiers.size,
         errorCount: errors.length,
         errors: errors,
       }, { status: 400 });
     }
 
-    if (seenUnitNumbers.size === 0) {
+    if (seenIdentifiers.size === 0) {
       return NextResponse.json({
         success: false,
         error: 'No valid rows to import',
@@ -242,11 +242,11 @@ export async function POST(
       console.log('[Import Units] Created', createdTypesCount, 'new unit types');
     }
 
-    const validRows: Array<{ unit_number: string; unit_type_id: string }> = [];
+    const validRows: Array<{ address: string; unit_type_id: string }> = [];
     const unmappedTypes: string[] = [];
     
     for (const row of rows) {
-      if (!row.unit_number || !row.unit_type) continue;
+      if (!row.unit_identifier || !row.unit_type) continue;
       
       const normalizedType = normalizeTypeName(row.unit_type);
       const unitTypeId = unitTypeMap.get(normalizedType);
@@ -257,7 +257,7 @@ export async function POST(
       }
 
       validRows.push({
-        unit_number: row.unit_number,
+        address: row.unit_identifier,
         unit_type_id: unitTypeId,
       });
     }
@@ -270,16 +270,16 @@ export async function POST(
       }, { status: 500 });
     }
 
-    if (validRows.length !== seenUnitNumbers.size) {
+    if (validRows.length !== seenIdentifiers.size) {
       return NextResponse.json({
         success: false,
-        error: `Row count mismatch: expected ${seenUnitNumbers.size}, got ${validRows.length}`,
+        error: `Row count mismatch: expected ${seenIdentifiers.size}, got ${validRows.length}`,
       }, { status: 500 });
     }
 
     const unitsToInsert = validRows.map((row) => ({
       project_id: projectId,
-      unit_number: row.unit_number,
+      address: row.address,
       unit_type_id: row.unit_type_id,
     }));
 
