@@ -254,6 +254,17 @@ export default function OverviewDashboard() {
         description={selectedProject ? `Viewing: ${selectedProject.name}` : 'Enterprise control center for OpenHouse AI platform'}
       />
 
+      {isProjectScoped && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <p className="text-sm text-blue-700">
+              Project view is active. Some account-level analytics are available in All Schemes view.
+            </p>
+          </div>
+        </div>
+      )}
+
       {projectStatus?.setupRequired && selectedProjectId && (
         <div className="mb-8 bg-amber-50 border border-amber-200 rounded-lg p-6">
           <div className="flex items-start gap-4">
@@ -290,13 +301,28 @@ export default function OverviewDashboard() {
 
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Supabase-backed: Total Developments - always available */}
-        <InsightCard
-          title="Total Developments"
-          value={isProjectScoped ? 1 : platformData.total_developments}
-          subtitle={isProjectScoped ? 'Selected project' : `${platformData.total_developers} tenant${platformData.total_developers !== 1 ? 's' : ''}`}
-          icon={<Building2 className="w-5 h-5" />}
-        />
+        {/* Total Developments (All Schemes) or Selected Project card (project-scoped) */}
+        {isProjectScoped ? (
+          <div className="bg-white border border-gold-200 rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-600">Selected Project</span>
+              <div className="text-gold-600"><Building2 className="w-5 h-5" /></div>
+            </div>
+            <div className="text-xl font-bold text-gray-900 mb-1 truncate" title={selectedProject?.name || 'Project'}>
+              {selectedProject?.name || 'Project'}
+            </div>
+            <p className="text-xs text-gray-500 truncate" title={selectedProject?.address || ''}>
+              {selectedProject?.address || 'No address'}
+            </p>
+          </div>
+        ) : (
+          <InsightCard
+            title="Total Developments"
+            value={platformData.total_developments}
+            subtitle={`${platformData.total_developers} tenant${platformData.total_developers !== 1 ? 's' : ''}`}
+            icon={<Building2 className="w-5 h-5" />}
+          />
+        )}
         
         {/* Supabase-backed: Total Units - always available */}
         <InsightCard
