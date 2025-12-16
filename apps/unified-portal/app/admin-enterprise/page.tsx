@@ -1,8 +1,10 @@
 import { requireRole } from '@/lib/supabase-server';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { LazyLoadFallback } from './components/LazyLoadFallback';
 
-const OverviewDashboard = dynamic(() => import('./overview-client').then(mod => ({ default: mod.OverviewDashboard })), {
+export const dynamic = 'force-dynamic';
+
+const OverviewDashboard = nextDynamic(() => import('./overview-client').then(mod => ({ default: mod.OverviewDashboard })), {
   loading: () => <LazyLoadFallback />
 });
 

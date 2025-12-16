@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireRole } from '@/lib/supabase-server';
 import { SuperLayoutClient } from './super-layout-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminEnterpriseLayout({
   children,
 }: {

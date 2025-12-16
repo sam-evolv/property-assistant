@@ -1,0 +1,59 @@
+You are a Replit agent working in the repo shown. Objective: make the Vercel production deployment succeed for the **apps/unified-portal** Next.js app. Current Vercel build failure shows: **Module not found: Can't resolve 'lucide-react'** in:
+
+* ./app/admin-enterprise/overview-client.tsx
+* ./app/admin-enterprise/rag/rag-client.tsx
+
+Non-goals:
+
+* Do not add or reintroduce any `vercel.json` rootDirectory config. Root Directory is configured in Vercel UI as `apps/unified-portal`.
+* Do not refactor features. Focus on deploy-blocking fixes only.
+
+Constraints:
+
+* Use Node 20 compatibility.
+* Prefer minimal diffs; keep changes localized.
+* Ensure the fix is committed so Vercel can redeploy from a fresh commit.
+
+Plan of attack (execute in order):
+
+1. Dependency remediation (primary blocker)
+
+* Open `apps/unified-portal/package.json`.
+* Add `lucide-react` to **dependencies** (not devDependencies). Use a stable version compatible with React 18 and Next 14 (e.g., `"lucide-react": "^0.4xx.x"`; pick the latest reasonable major that is commonly used, but do not over-optimize).
+* Verify no conflicting dependency aliases exist.
+
+2. Install + lockfile hygiene
+
+* Determine the package manager used by the repo (check for `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, and root `package.json` workspaces).
+* Run install using the repo’s actual package manager at the repo root so workspace resolution is correct.
+* Ensure the correct lockfile is updated and included in the commit.
+* Do not introduce a second lockfile type.
+
+3. Local build verification (must pass)
+
+* From repo root, run the build targeting the Vercel root directory:
+
+  * Either `cd apps/unified-portal && npm run build` (or equivalent for pnpm/yarn),
+  * Or run the workspace-scoped build command if the repo is configured that way.
+* If additional “module not found” errors appear, repeat Step 1 for each missing package until build succeeds (keep it minimal; only add what is required for compile/build).
+* If TypeScript/build failures occur, fix only what is required to compile; avoid broad refactors.
+
+4. Vercel alignment checks (do not change Vercel UI, just ensure repo matches)
+
+* Confirm `apps/unified-portal` has a valid Next.js structure and `next build` is the build command.
+* Ensure no `rootDirectory` property exists inside any `vercel.json` (ideally none exists at all).
+* Ensure the app does not rely on local-only env vars to compile (runtime env vars are fine; compile-time NEXT_PUBLIC vars must exist only if code requires them at build time).
+
+5. Deliverables
+
+* Provide a concise summary of what changed (files + rationale).
+* Provide the exact git commands to run (stage/commit/push) and a recommended commit message.
+* Provide confirmation that `next build` succeeds for `apps/unified-portal`.
+
+Acceptance criteria (definition of done):
+
+* `apps/unified-portal` builds cleanly with `next build` locally in Replit.
+* A fresh commit is pushed to `main`.
+* Vercel build no longer fails on missing `lucide-react` (and no new missing-module errors remain).
+
+Execute now.
