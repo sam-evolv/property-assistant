@@ -1,0 +1,102 @@
+Repo: property-assistant (monorepo). Replit deployment for apps/unified-portal fails with Bus error (core dumped) during next build due to out-of-memory during production optimisation. Deployment machine is already 4 vCPU / 8GB RAM and build uses NODE_OPTIONS=--max-old-space-size=4096, but Next.js optimisation still OOMs. We need to reduce build-time memory usage while preserving runtime behaviour.
+
+Objective
+Make apps/unified-portal production build succeed on Replit Deploy by reducing Next/Webpack memory usage and disabling expensive build outputs that are not required for this beta (source maps, lint during build, typecheck during build, telemetry). Do not alter routing/auth/Supabase logic.
+
+Non-negotiables
+
+Do NOT change app functionality or UI.
+
+Do NOT remove pages/features.
+
+Only adjust build configuration and build-time checks.
+
+Keep TypeScript type safety in dev, but do not block production build on typecheck for this beta.
+
+Keep ESLint in dev, but do not block production build on lint for this beta.
+
+Steps
+
+Phase 1 — Harden Next config to reduce build memory
+
+Open apps/unified-portal/next.config.js (or next.config.mjs).
+
+Add/ensure the following settings in the exported config object (merge with existing config, do not overwrite other settings):
+
+Disable browser source maps in production:
+productionBrowserSourceMaps: false
+
+Skip lint during builds:
+eslint: { ignoreDuringBuilds: true }
+
+Skip TypeScript type checking during builds (beta only):
+typescript: { ignoreBuildErrors: true }
+
+Disable Next telemetry:
+telemetry: false
+
+Reduce Webpack build memory pressure:
+Add a webpack function and set these:
+
+config.infrastructureLogging = { level: 'error' }
+
+config.stats = 'errors-only'
+
+If config.optimization exists, ensure:
+
+config.optimization.moduleIds = 'deterministic'
+
+config.optimization.chunkIds = 'deterministic'
+
+Do NOT enable extra plugins. Keep it minimal.
+
+Phase 2 — Ensure no script reintroduces low heap / extra heavy checks
+
+Open apps/unified-portal/package.json.
+
+Ensure "build" is exactly:
+"build": "next build"
+(no NODE_OPTIONS inside scripts; deployment will supply it)
+
+Ensure "start" is:
+"start": "next start -p $PORT"
+If start script already works with PORT elsewhere, keep existing, but ensure it uses $PORT.
+
+Phase 3 — Ensure build runs in production mode and minimises concurrency blowups
+
+Add a file apps/unified-portal/.env.production if it does not exist, containing:
+NEXT_TELEMETRY_DISABLED=1
+
+Add an additional deployment-safe build flag via package.json scripts (without changing behaviour):
+Add script:
+"build:replit": "NEXT_TELEMETRY_DISABLED=1 next build"
+
+Then set deployment build command to use this script (see Phase 4).
+
+Phase 4 — Align Replit deployment commands
+In Replit Deployment settings, use:
+
+Build command:
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=4096 npm run build:replit
+
+Run command:
+cd apps/unified-portal && npm run start
+
+Do NOT add npm install to build command.
+
+Phase 5 — Quick verification inside Replit workspace
+
+From shell:
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=4096 npm run build:replit
+
+If it succeeds, redeploy.
+
+Deliverables
+
+Updated apps/unified-portal/next.config.* with memory-reducing settings.
+
+Updated apps/unified-portal/package.json scripts with build:replit.
+
+Added apps/unified-portal/.env.production with telemetry disabled.
+
+Deployment build succeeds on Replit.
