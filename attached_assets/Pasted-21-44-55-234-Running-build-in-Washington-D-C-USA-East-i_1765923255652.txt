@@ -1,0 +1,96 @@
+21:44:55.234 Running build in Washington, D.C., USA (East) – iad1
+21:44:55.234 Build machine configuration: 2 cores, 8 GB
+21:44:55.355 Cloning github.com/sam-evolv/property-assistant (Branch: main, Commit: 6444adf)
+21:44:55.356 Previous build caches not available.
+21:45:01.973 Cloning completed: 6.617s
+21:45:02.686 Running "vercel build"
+21:45:03.088 Vercel CLI 50.0.1
+21:45:03.462 Installing dependencies...
+21:45:04.333 npm warn reify invalid or damaged lockfile detected
+21:45:04.333 npm warn reify please re-try this operation once it completes
+21:45:04.333 npm warn reify so that the damage can be corrected, or perform
+21:45:04.333 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.335 npm warn reify invalid or damaged lockfile detected
+21:45:04.335 npm warn reify please re-try this operation once it completes
+21:45:04.335 npm warn reify so that the damage can be corrected, or perform
+21:45:04.335 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.336 npm warn reify invalid or damaged lockfile detected
+21:45:04.336 npm warn reify please re-try this operation once it completes
+21:45:04.336 npm warn reify so that the damage can be corrected, or perform
+21:45:04.336 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.337 npm warn reify invalid or damaged lockfile detected
+21:45:04.337 npm warn reify please re-try this operation once it completes
+21:45:04.337 npm warn reify so that the damage can be corrected, or perform
+21:45:04.337 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.337 npm warn reify invalid or damaged lockfile detected
+21:45:04.337 npm warn reify please re-try this operation once it completes
+21:45:04.337 npm warn reify so that the damage can be corrected, or perform
+21:45:04.337 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.338 npm warn reify invalid or damaged lockfile detected
+21:45:04.338 npm warn reify please re-try this operation once it completes
+21:45:04.338 npm warn reify so that the damage can be corrected, or perform
+21:45:04.338 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.339 npm warn reify invalid or damaged lockfile detected
+21:45:04.339 npm warn reify please re-try this operation once it completes
+21:45:04.339 npm warn reify so that the damage can be corrected, or perform
+21:45:04.339 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.339 npm warn reify invalid or damaged lockfile detected
+21:45:04.339 npm warn reify please re-try this operation once it completes
+21:45:04.339 npm warn reify so that the damage can be corrected, or perform
+21:45:04.340 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:04.340 npm warn reify invalid or damaged lockfile detected
+21:45:04.340 npm warn reify please re-try this operation once it completes
+21:45:04.340 npm warn reify so that the damage can be corrected, or perform
+21:45:04.340 npm warn reify a fresh install with no lockfile if the problem persists.
+21:45:18.381 
+21:45:18.382 added 268 packages in 15s
+21:45:18.382 
+21:45:18.383 36 packages are looking for funding
+21:45:18.383   run `npm fund` for details
+21:45:18.402 Detected Next.js version: 14.2.35
+21:45:18.406 Running "npm run build"
+21:45:18.553 
+21:45:18.554 > @openhouse/unified-portal@0.1.0 build
+21:45:18.554 > next build
+21:45:18.554 
+21:45:19.125   ▲ Next.js 14.2.35
+21:45:19.125   - Environments: .env.production
+21:45:19.126 
+21:45:19.150    Creating an optimized production build ...
+21:45:50.295 Failed to compile.
+21:45:50.295 
+21:45:50.297 ./app/login/page.tsx
+21:45:50.297 Module not found: Can't resolve '@supabase/auth-helpers-nextjs'
+21:45:50.297 
+21:45:50.297 https://nextjs.org/docs/messages/module-not-found
+21:45:50.297 
+21:45:50.298 ./app/admin/theme/page.tsx
+21:45:50.298 Module not found: Can't resolve '@supabase/auth-helpers-nextjs'
+21:45:50.298 
+21:45:50.298 https://nextjs.org/docs/messages/module-not-found
+21:45:50.298 
+21:45:50.299 ./app/admin/theme/page.tsx
+21:45:50.299 Module not found: Can't resolve '@supabase/supabase-js'
+21:45:50.299 
+21:45:50.299 https://nextjs.org/docs/messages/module-not-found
+21:45:50.299 
+21:45:50.300 ./app/api/admin/qr-pack/route.ts
+21:45:50.300 Module not found: Can't resolve '@supabase/supabase-js'
+21:45:50.300 
+21:45:50.300 https://nextjs.org/docs/messages/module-not-found
+21:45:50.300 
+21:45:50.300 ./app/api/admin/qr-pack/route.ts
+21:45:50.301 Module not found: Can't resolve 'pdf-lib'
+21:45:50.301 
+21:45:50.301 https://nextjs.org/docs/messages/module-not-found
+21:45:50.302 
+21:45:50.303 
+21:45:50.304 > Build failed because of webpack errors
+21:45:50.401 npm error Lifecycle script `build` failed with error:
+21:45:50.401 npm error code 1
+21:45:50.402 npm error path /vercel/path0/apps/unified-portal
+21:45:50.402 npm error workspace @openhouse/unified-portal@0.1.0
+21:45:50.402 npm error location /vercel/path0/apps/unified-portal
+21:45:50.402 npm error command failed
+21:45:50.403 npm error command sh -c next build
+21:45:50.414 Error: Command "npm run build" exited with 1
