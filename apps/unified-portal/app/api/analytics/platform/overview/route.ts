@@ -6,9 +6,14 @@ import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
+// Service role client bypasses RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: { persistSession: false },
+    db: { schema: 'public' }
+  }
 );
 
 export async function GET(request: Request) {
@@ -19,28 +24,45 @@ export async function GET(request: Request) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    let unitsQuery = supabaseAdmin
-      .from('units')
-      .select('id', { count: 'exact', head: true });
-    
-    if (projectId) {
-      unitsQuery = unitsQuery.eq('project_id', projectId);
-    }
-
-    const { count: unitCount, error: unitError } = await unitsQuery;
-
-    if (unitError) {
+    // Use raw SQL via Supabase RPC to bypass RLS completely
+    // This counts units regardless of user_id being NULL
+    let unitCount = 0;
+    try {
+      if (projectId) {
+        const { data, error } = await supabaseAdmin.rpc('count_units_by_project', {
+          p_project_id: projectId
+        });
+        if (error) {
+          // Fallback: direct query which should work with service role
+          const { count, error: countError } = await supabaseAdmin
+            .from('units')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', projectId);
+          if (!countError) unitCount = count || 0;
+          console.log('[Overview] Units count (fallback query):', unitCount, countError);
+        } else {
+          unitCount = data || 0;
+        }
+      } else {
+        const { count, error } = await supabaseAdmin
+          .from('units')
+          .select('*', { count: 'exact', head: true });
+        if (!error) unitCount = count || 0;
+      }
+    } catch (unitError) {
       console.error('[Overview] Units error:', unitError);
     }
     
-    console.log('[Overview] Units count:', unitCount);
+    console.log('[Overview] Units count:', unitCount, 'projectId:', projectId);
 
-    // Get projects count
-    const { count: projectCount, error: projectError } = await supabaseAdmin
-      .from('projects')
-      .select('id', { count: 'exact', head: true });
-
-    if (projectError) {
+    // Get projects count from Supabase
+    let projectCount = 0;
+    try {
+      const { count, error } = await supabaseAdmin
+        .from('projects')
+        .select('*', { count: 'exact', head: true });
+      if (!error) projectCount = count || 0;
+    } catch (projectError) {
       console.error('[Overview] Projects error:', projectError);
     }
 

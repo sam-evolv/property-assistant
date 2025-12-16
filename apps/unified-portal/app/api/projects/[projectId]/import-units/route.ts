@@ -5,9 +5,14 @@ import * as xlsx from 'xlsx';
 
 export const runtime = 'nodejs';
 
+// Service role client bypasses RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: { persistSession: false },
+    db: { schema: 'public' }
+  }
 );
 
 interface RawRow {
@@ -298,11 +303,32 @@ export async function POST(
 
     console.log('[Import Units] Inserted:', insertedUnits?.length || 0, 'units for project:', project.name);
 
+    // POST-IMPORT VALIDATION: Verify units are queryable via service role
+    let verifiedCount = 0;
+    try {
+      const { count, error } = await supabaseAdmin
+        .from('units')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectId);
+      
+      if (!error) {
+        verifiedCount = count || 0;
+      }
+      console.log(`[Import Units] Post-import verification: ${verifiedCount} total units in project, error: ${error?.message || 'none'}`);
+      
+      if (verifiedCount < (insertedUnits?.length || 0)) {
+        console.warn('[Import Units] WARNING: Verified count is less than inserted count - possible RLS issue');
+      }
+    } catch (verifyError) {
+      console.error('[Import Units] Post-import verification error:', verifyError);
+    }
+
     return NextResponse.json({
       success: true,
       project: { id: project.id, name: project.name },
       totalRows: rows.length,
       inserted: insertedUnits?.length || 0,
+      verified: verifiedCount,
       skipped: 0,
       unitTypesCreated: createdTypesCount,
     });
