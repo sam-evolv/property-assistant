@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build --workspace=apps/unified-portal",
+  "installCommand": "npm ci",
+  "framework": "nextjs",
+  "outputDirectory": "apps/unified-portal/.next"
+}
