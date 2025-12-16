@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database, Upload, FileSpreadsheet, Loader2, X } from 'lucide-react';
+import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database, Upload, FileSpreadsheet, Loader2, X, QrCode, Download } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
@@ -59,6 +59,7 @@ export function UnitsExplorer() {
   const [isUploading, setIsUploading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDownloadingQR, setIsDownloadingQR] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -182,6 +183,37 @@ export function UnitsExplorer() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy');
+    }
+  };
+
+  const handleDownloadQRPack = async () => {
+    if (!selectedProjectId) return;
+    
+    setIsDownloadingQR(true);
+    try {
+      const res = await fetch(`/api/admin/qr-pack?projectId=${selectedProjectId}`);
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to generate QR pack');
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedProject?.name?.toLowerCase().replace(/\s+/g, '-') || 'project'}-qr-pack.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('QR Pack downloaded successfully');
+    } catch (err: any) {
+      console.error('[UnitsExplorer] QR Pack error:', err);
+      toast.error(err.message || 'Failed to download QR pack');
+    } finally {
+      setIsDownloadingQR(false);
     }
   };
 
@@ -338,6 +370,19 @@ ORDER BY unit_count DESC;`;
               >
                 <Upload className="w-4 h-4" />
                 Import/Update Units
+              </button>
+              <button
+                onClick={handleDownloadQRPack}
+                disabled={isDownloadingQR || units.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Generates a multi-page PDF with one QR page per unit"
+              >
+                {isDownloadingQR ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <QrCode className="w-4 h-4" />
+                )}
+                {isDownloadingQR ? 'Generating...' : 'Download QR Pack'}
               </button>
               <div className="text-right">
                 <p className="text-xs text-gray-400">Project ID</p>
