@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database, Upload, FileSpreadsheet, Loader2, X } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
 import { DataTable, Column } from '@/components/admin-enterprise/DataTable';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import toast from 'react-hot-toast';
+
+interface ImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
 
 interface Unit {
   id: string;
@@ -47,6 +54,66 @@ export function UnitsExplorer() {
   const [filter, setFilter] = useState<'all' | 'with_purchaser' | 'unassigned'>('all');
   const [showVerifySQL, setShowVerifySQL] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedProjectId) return;
+
+    setIsUploading(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`/api/projects/${selectedProjectId}/smart-import`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Import failed');
+      }
+
+      setImportResult(data);
+      
+      if (data.errors && data.errors.length > 0) {
+        toast.error(`Import had ${data.errors.length} error(s) - check details`);
+      } else if (data.created > 0 || data.updated > 0) {
+        toast.success(`${data.created} created, ${data.updated} updated`);
+      } else {
+        toast.success('No changes needed - all units already up to date');
+      }
+      
+      if (data.created > 0 || data.updated > 0) {
+        const fetchRes = await fetch(`/api/super/units?projectId=${selectedProjectId}`);
+        if (fetchRes.ok) {
+          const fetchData = await fetchRes.json();
+          const sortedUnits = [...(fetchData.units || [])].sort((a: Unit, b: Unit) => {
+            const addrCompare = naturalSort(a.address, b.address);
+            if (addrCompare !== 0) return addrCompare;
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          });
+          setUnits(sortedUnits);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Import failed');
+      setImportResult({ created: 0, updated: 0, skipped: 0, errors: [err.message] });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   useEffect(() => {
     if (projectsLoading) return;
@@ -265,6 +332,13 @@ ORDER BY unit_count DESC;`;
               )}
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setShowImportModal(true); setImportResult(null); }}
+                className="flex items-center gap-2 px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition-colors font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                Import/Update Units
+              </button>
               <div className="text-right">
                 <p className="text-xs text-gray-400">Project ID</p>
                 <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
@@ -384,6 +458,117 @@ ORDER BY unit_count DESC;`;
         searchPlaceholder="Search by unit address, type, project..."
         emptyMessage="No units found matching your filter"
       />
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Import/Update Units</h2>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 font-medium mb-2">Smart Import</p>
+                <p className="text-sm text-blue-700">
+                  Upload your Excel file and the system will automatically:
+                </p>
+                <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                  <li>Create new units that don't exist yet</li>
+                  <li>Update purchaser names for existing units</li>
+                  <li>Skip units that are already up to date</li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">Expected columns:</p>
+                <div className="flex flex-wrap gap-2">
+                  {['unit_number / address', 'unit_type / house_type', 'purchaser_name (optional)'].map((col) => (
+                    <span key={col} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                      {col}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="unit-file-upload"
+                  disabled={isUploading}
+                />
+                <label
+                  htmlFor="unit-file-upload"
+                  className={`cursor-pointer flex flex-col items-center ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-10 h-10 text-gold-500 animate-spin mb-2" />
+                  ) : (
+                    <FileSpreadsheet className="w-10 h-10 text-gray-400 mb-2" />
+                  )}
+                  <p className="text-gray-700 font-medium">
+                    {isUploading ? 'Processing...' : 'Click to upload Excel or CSV'}
+                  </p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    .xlsx, .xls, or .csv files
+                  </p>
+                </label>
+              </div>
+
+              {importResult && (
+                <div className={`mt-4 p-4 rounded-lg ${importResult.errors.length > 0 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                  {importResult.errors.length > 0 ? (
+                    <div>
+                      <p className="text-red-700 font-medium">Import had errors:</p>
+                      <ul className="text-sm text-red-600 mt-1 list-disc list-inside">
+                        {importResult.errors.slice(0, 5).map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-green-700 font-medium mb-2">Import Complete!</p>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div className="bg-white rounded p-2">
+                          <p className="text-2xl font-bold text-green-600">{importResult.created}</p>
+                          <p className="text-xs text-gray-600">Created</p>
+                        </div>
+                        <div className="bg-white rounded p-2">
+                          <p className="text-2xl font-bold text-blue-600">{importResult.updated}</p>
+                          <p className="text-xs text-gray-600">Updated</p>
+                        </div>
+                        <div className="bg-white rounded p-2">
+                          <p className="text-2xl font-bold text-gray-500">{importResult.skipped}</p>
+                          <p className="text-xs text-gray-600">Skipped</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
