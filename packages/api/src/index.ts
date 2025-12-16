@@ -3,7 +3,6 @@ export * from './tenancy';
 export * from './rate-limit';
 export * from './vector-store';
 export * from './utils';
-export * from './documents/index';
 export * from './chat/retrieval';
 export * from './chat/prompt';
 export * from './rag-service';
@@ -11,7 +10,12 @@ export * from './csv-mapper';
 export * from './job-queue';
 export * from './document-processor';
 
-// Document classification and mapping
+// Document utilities - explicit file imports to avoid barrel resolution issues
+export * from './documents/extract-text';
+export * from './documents/vectorize';
+export * from './documents/parse-metadata';
+export * from './documents/save-document';
+export * from './documents/upload-document';
 export { classifyDocument, classifyByFilename } from './documents/classify-document';
 export { autoMapFloorplanToHouseType, extractHouseTypeCodes } from './documents/map-floorplan-to-house-type';
 export type { DocumentClassificationResult } from './documents/classify-document';
