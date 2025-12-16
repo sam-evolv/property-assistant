@@ -10,17 +10,6 @@ export * from './csv-mapper';
 export * from './job-queue';
 export * from './document-processor';
 
-// Document utilities - explicit file imports to avoid barrel resolution issues
-export * from './documents/extract-text';
-export * from './documents/vectorize';
-export * from './documents/parse-metadata';
-export * from './documents/save-document';
-export * from './documents/upload-document';
-export { classifyDocument, classifyByFilename } from './documents/classify-document';
-export { autoMapFloorplanToHouseType, extractHouseTypeCodes } from './documents/map-floorplan-to-house-type';
-export type { DocumentClassificationResult } from './documents/classify-document';
-export type { HouseTypeMappingResult } from './documents/map-floorplan-to-house-type';
-
 // Export session function and re-exported rbac types/functions
 export { getAdminSession } from './session';
 export type { AdminRole, AdminSession } from './session';

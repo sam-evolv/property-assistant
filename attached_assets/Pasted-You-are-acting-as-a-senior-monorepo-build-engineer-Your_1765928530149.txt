@@ -1,0 +1,145 @@
+You are acting as a senior monorepo build engineer. Your sole objective is to make this project **successfully build and deploy on Vercel**. Runtime correctness is secondary; build correctness is mandatory.
+
+### Context
+
+* Monorepo using npm workspaces
+* Next.js app at `apps/unified-portal`
+* Shared package at `packages/api`
+* Vercel build fails with webpack errors due to missing modules
+
+### Build Errors (Authoritative)
+
+Webpack fails because `packages/api/src/index.ts` imports **non-existent files**:
+
+* `./documents/index`
+* `./documents/classify-document`
+* `./documents/map-floorplan-to-house-type`
+
+These files **do not exist in the repository** and must NOT be referenced during a Next.js build.
+
+---
+
+## REQUIRED ACTIONS (DO NOT SKIP)
+
+### 1. Open `packages/api/src/index.ts`
+
+Locate **all exports/imports** referencing the following paths:
+
+* `./documents`
+* `./documents/index`
+* `./documents/classify-document`
+* `./documents/map-floorplan-to-house-type`
+
+### 2. REMOVE OR NEUTRALIZE THOSE EXPORTS
+
+You must do ONE of the following (preferred order):
+
+#### ✅ Option A — DELETE the exports entirely (preferred)
+
+If the exports look like any of the following, **delete them**:
+
+```ts
+export * from "./documents";
+export * from "./documents/index";
+export * from "./documents/classify-document";
+export * from "./documents/map-floorplan-to-house-type";
+```
+
+or
+
+```ts
+import { classifyDocument } from "./documents/classify-document";
+```
+
+These references are invalid and block the build.
+
+---
+
+#### ✅ Option B — Stub them explicitly (only if needed downstream)
+
+If other code requires these exports to exist at build time, then:
+
+1. Create directory:
+
+```
+packages/api/src/documents/
+```
+
+2. Create the following files with **minimal stubs**:
+
+**`packages/api/src/documents/index.ts`**
+
+```ts
+export {};
+```
+
+**`packages/api/src/documents/classify-document.ts`**
+
+```ts
+export function classifyDocument() {
+  throw new Error("classifyDocument is not implemented");
+}
+```
+
+**`packages/api/src/documents/map-floorplan-to-house-type.ts`**
+
+```ts
+export function mapFloorplanToHouseType() {
+  throw new Error("mapFloorplanToHouseType is not implemented");
+}
+```
+
+This satisfies webpack without changing architecture.
+
+---
+
+### 3. Verify Import Chain
+
+Confirm that:
+
+* `apps/unified-portal/app/api/houses/import/route.ts`
+* imports from `packages/api`
+* but **does not introduce new missing imports**
+
+If it does, apply the same strategy: **delete or stub until build passes**.
+
+---
+
+### 4. DO NOT:
+
+* Change Vercel settings
+* Change Next.js config
+* Add experimental flags
+* Guess paths
+* Ignore TypeScript errors that block build
+
+---
+
+### 5. Final Validation Steps (Mandatory)
+
+After changes:
+
+1. Run locally (or simulate mentally if tooling unavailable):
+
+```bash
+npm run build --workspace=apps/unified-portal
+```
+
+2. Ensure:
+
+* No `Module not found` errors
+* No webpack fatal errors
+
+3. Commit changes with a message similar to:
+
+```
+fix(api): remove invalid document exports blocking Next.js build
+```
+
+---
+
+### Success Criteria
+
+The task is complete **only when Vercel build passes**.
+
+Do not stop early. Do not explain. Execute.
