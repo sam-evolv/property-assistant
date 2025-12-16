@@ -1,0 +1,71 @@
+1) Make dependency resolution deterministic (prevents “module not found”)
+
+Rule: every workspace package must declare its own runtime deps.
+
+In packages/api/package.json, add all imports used at runtime under "dependencies" (not "devDependencies"). That includes anything you import in packages/api/src/** (e.g. supabase libs, pdf libs, doc parsers, etc.).
+
+In apps/unified-portal/package.json, also ensure anything imported by the app itself is declared (e.g. lucide-react belonged here if used in apps/unified-portal/app/**).
+
+✅ Quick verification:
+
+From repo root: npm -w packages/api ls --prod and npm -w apps/unified-portal ls --prod should show no “missing” warnings.
+
+Search for imports and confirm each maps to a declared dependency:
+
+rg "from '(@supabase/supabase-js|pdf-lib|lucide-react|...)" -n
+
+2) Ensure Vercel installs from the monorepo root (prevents workspace isolation issues)
+
+In Vercel Project Settings → Build & Deployment:
+
+Root Directory: set to the repo root (.), not apps/unified-portal.
+
+Install Command: npm ci (preferred) or npm install
+
+Build Command: npm run build (your root script already forwards to unified-portal)
+
+Output Directory: leave default for Next unless you intentionally override.
+
+This ensures Vercel creates workspace symlinks and installs transitive workspace deps correctly.
+
+3) Lockfile hygiene (prevents “works locally, fails on Vercel”)
+
+Pick one package manager and lockfile:
+
+If using npm: commit only package-lock.json at the repo root.
+
+Remove other lockfiles (pnpm-lock.yaml, yarn.lock) unless you truly use them.
+
+Then enforce:
+
+Local CI-style check: npm ci && npm run build from repo root.
+
+4) Public API exports: don’t accidentally introduce circular imports
+
+That packages/api/src/index.ts barrel file is fine, but barrels can create subtle circular deps as the project grows.
+
+Two guardrails:
+
+Avoid exporting deep modules that themselves import from the barrel.
+
+If you see weird runtime behavior, run: npx madge packages/api/src --circular (or add it as a script) and fix any cycles.
+
+5) Add a “preflight” that fails fast before Vercel does
+
+Add a root script (or CI) that mimics Vercel:
+
+npm ci
+
+npm run typecheck (if present)
+
+npm run build
+
+optionally: npm -w apps/unified-portal test / npm -w packages/api test if you have them
+
+This catches missing deps and bad exports immediately.
+
+If you do just two things, do these:
+
+Declare every runtime dependency in the workspace package that imports it (especially packages/api).
+
+Make Vercel install/build from the monorepo root so workspaces are honored.
