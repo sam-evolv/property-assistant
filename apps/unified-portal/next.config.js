@@ -106,6 +106,8 @@ const nextConfig = {
     ];
   },
   webpack: (config, { isServer, dev }) => {
+    config.parallelism = 1;
+    
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
