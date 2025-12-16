@@ -73,6 +73,18 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### QR Pack Generator (December 2025)
+One-click PDF generation for print-ready QR codes:
+- **Location:** Super Admin > Units page > "Download QR Pack" button
+- **Output:** Multi-page PDF with one page per unit containing:
+  - Longview Park branding and content template
+  - Unit address prominently displayed
+  - Scannable QR code linking to `/homes/{unitId}`
+- **API Endpoint:** `GET /api/admin/qr-pack?projectId={uuid}`
+- **Template:** `apps/unified-portal/assets/qr-pack/longview-template.txt`
+- **Dependencies:** pdf-lib, qrcode
+- **Sorting:** Deterministic by house number (numeric extraction)
+
 ### RLS Fix for Units Table (December 2025)
 **Issue:** Units with NULL user_id were invisible to Overview and Status APIs due to Supabase RLS policy `auth.uid() = user_id`.
 
