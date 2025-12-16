@@ -73,6 +73,29 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### RLS Fix for Units Table (December 2025)
+**Issue:** Units with NULL user_id were invisible to Overview and Status APIs due to Supabase RLS policy `auth.uid() = user_id`.
+
+**Solution:** Updated Overview, Status, and Import APIs to use properly configured Supabase service role clients:
+```typescript
+const supabaseAdmin = createClient(url, serviceRoleKey, {
+  auth: { persistSession: false },
+  db: { schema: 'public' }
+});
+```
+
+**Files Updated:**
+- `apps/unified-portal/app/api/analytics/platform/overview/route.ts`
+- `apps/unified-portal/app/api/projects/[projectId]/status/route.ts`
+- `apps/unified-portal/app/api/projects/[projectId]/import-units/route.ts`
+
+**Key Architecture Note:**
+- Supabase's `units` table contains project units (used by import, analytics)
+- Drizzle's `units` table is for different data (homeowner portal)
+- Always use Supabase service role for admin/analytics queries on project units
+
+---
+
 ### Multi-Project Support Enhancement (December 2025)
 
 **ProjectContext & URL Sync:**
