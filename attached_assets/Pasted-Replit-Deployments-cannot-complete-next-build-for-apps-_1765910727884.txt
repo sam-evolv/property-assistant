@@ -1,0 +1,103 @@
+Replit Deployments cannot complete next build for apps/unified-portal due to repeated SIGBUS / core dumps from memory exhaustion. We need a deployment strategy that avoids building inside Replit Deploy entirely. We will build the app in the workspace (or locally) and deploy a standalone build artifact that Deployments can run without compilation.
+
+Objective
+
+Configure Next.js to produce a standalone build output.
+
+Add scripts to create a deployable artifact directory containing:
+
+.next/standalone
+
+.next/static
+
+public
+
+Add a lightweight production server entrypoint for Replit Deploy that runs the standalone build.
+
+Update Replit deployment commands so Deploy does NOT run next build.
+
+Non-negotiables
+
+Do not change app logic, routing, auth, or Supabase queries.
+
+Only change build packaging and run startup.
+
+Implementation Steps
+
+Phase 1 — Enable standalone output
+
+Edit apps/unified-portal/next.config.js (or .mjs) and ensure:
+
+output: "standalone"
+
+productionBrowserSourceMaps: false
+
+eslint.ignoreDuringBuilds: true
+
+typescript.ignoreBuildErrors: true
+
+Phase 2 — Add deploy packaging script
+
+In apps/unified-portal/package.json add scripts:
+
+"build": "next build"
+
+"build:standalone": "NEXT_TELEMETRY_DISABLED=1 next build"
+
+"package:replit": "rm -rf .replit-deploy && mkdir -p .replit-deploy && cp -R .next/standalone/* .replit-deploy/ && mkdir -p .replit-deploy/.next && cp -R .next/static .replit-deploy/.next/static && cp -R public .replit-deploy/public || true"
+
+(Use a cross-platform safe approach if rm/cp not available; Replit is Linux so rm/cp is OK.)
+
+Create apps/unified-portal/.replit-deploy/server.js is already included by the standalone output; we will use the generated server.js inside .replit-deploy/ (it comes from .next/standalone). If it’s not present, fail loudly and explain.
+
+Phase 3 — One-time build in workspace (not Deploy)
+
+In Replit workspace shell, run:
+
+cd apps/unified-portal
+
+NODE_OPTIONS=--max-old-space-size=6144 npm run build:standalone
+
+npm run package:replit
+
+This produces apps/unified-portal/.replit-deploy/ containing a runnable server.
+
+Phase 4 — Configure Replit Deployment to run artifact only
+Set Replit Deployment commands to:
+
+Build command:
+
+leave blank OR set to:
+echo "Skipping build; using prebuilt standalone artifact"
+
+Run command:
+cd apps/unified-portal/.replit-deploy && node server.js
+
+Important:
+
+Ensure PORT is honored. If server.js doesn’t bind to process.env.PORT, add a tiny wrapper start.js to set process.env.PORT and require server.js.
+
+If needed create apps/unified-portal/.replit-deploy/start.js:
+
+process.env.PORT = process.env.PORT || "3000";
+require("./server.js");
+
+
+Then run command becomes:
+cd apps/unified-portal/.replit-deploy && node start.js
+
+Phase 5 — Notes
+
+Deployment secrets must still include Supabase keys and NEXT_PUBLIC_APP_URL.
+
+This approach avoids running Next compilation during Deployments, preventing SIGBUS.
+
+Deliverables
+
+next.config updated to standalone
+
+package.json scripts added
+
+.replit-deploy folder produced by packaging script
+
+Deployment run command starts the prebuilt server

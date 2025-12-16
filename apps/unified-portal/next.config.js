@@ -1,8 +1,4 @@
 /** @type {import('next').NextConfig} */
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
-
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
@@ -15,11 +11,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    instrumentationHook: true,
     serverActions: {
       bodySizeLimit: '10mb'
     },
-    optimizePackageImports: ['@heroicons/react', 'framer-motion', 'lucide-react', 'recharts', '@radix-ui/react-tabs', '@radix-ui/react-dialog'],
   },
   images: {
     remotePatterns: [
@@ -185,4 +179,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withBundleAnalyzer(nextConfig);
+module.exports = nextConfig;
