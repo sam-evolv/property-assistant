@@ -1,0 +1,81 @@
+You are a senior DevOps + Next.js monorepo engineer. Your only goal is: **make this repo deploy successfully on Vercel** (Production) with **no build-time “Module not found” errors** and **no invalid Vercel config**.
+
+## Context (current failures)
+
+Vercel builds from **apps/unified-portal** (Root Directory is set in Vercel UI).
+Recent Vercel errors included:
+
+* Module not found: Can't resolve **lucide-react**
+* Module not found: Can't resolve **@supabase/supabase-js**
+* Module not found: Can't resolve **pdf-lib**
+* Previously: vercel.json schema validation failed due to **unsupported `rootDirectory`** in vercel.json
+
+## Non-negotiables
+
+* Do NOT rely on local-only hacks. Fix must work in clean CI (Vercel) installs.
+* Vercel should be able to run `npm install` at repo root and then `npm run build` (or equivalent) and succeed.
+* If Vercel Root Directory is already configured in the UI, do **not** reintroduce `rootDirectory` in vercel.json.
+* Keep changes minimal and correct.
+
+## Tasks
+
+1. **Identify the actual Next.js app package**
+
+   * Confirm the Next.js app that Vercel builds is `apps/unified-portal`.
+   * Open `apps/unified-portal/package.json` and confirm it contains the Next.js build script (`next build`) and correct dependencies.
+
+2. **Fix missing dependencies properly (workspace-aware)**
+
+   * Ensure **lucide-react**, **@supabase/supabase-js**, and **pdf-lib** are installed in the **correct package**:
+
+     * If they are imported by code inside `apps/unified-portal/**`, they must appear under `apps/unified-portal/package.json -> dependencies`.
+   * Add them with appropriate modern versions (compatible with Next.js / React 18+) and commit the lockfile changes.
+   * Ensure there are no other missing deps referenced in build logs; search the repo for “Module not found” risks and missing imports.
+
+3. **Remove/repair invalid Vercel configuration**
+
+   * Search for `vercel.json` in repo root and under apps.
+   * If any `vercel.json` contains unsupported fields like `rootDirectory`, remove those fields.
+   * Prefer either:
+
+     * **No vercel.json at all**, OR
+     * A minimal vercel.json that does not set rootDirectory and does not conflict with Vercel UI settings.
+   * Confirm Vercel UI Root Directory remains the source of truth.
+
+4. **Make the monorepo build deterministic on Vercel**
+
+   * Ensure root `package.json` scripts build the unified portal reliably:
+
+     * root build should run `npm --prefix apps/unified-portal run build`
+   * Ensure installs work in CI:
+
+     * If using npm workspaces, confirm `"workspaces": ["apps/*","packages/*"]` at root.
+     * Confirm dependency hoisting doesn’t hide missing deps (i.e., deps required by unified-portal must still be declared in unified-portal).
+   * If needed, add/adjust `.npmrc` ONLY if it improves reproducibility (avoid unnecessary changes).
+
+5. **Run the exact Vercel-like build locally in Replit**
+   Run, in order, from repo root:
+
+   * `rm -rf node_modules apps/unified-portal/node_modules package-lock.json apps/unified-portal/package-lock.json` (only if present; keep one lockfile strategy)
+   * `npm install`
+   * `npm --prefix apps/unified-portal run build`
+     The build must succeed with zero “Module not found” errors.
+
+6. **Commit and push with a clean message**
+
+   * Commit message: `fix: vercel deploy (missing deps + config)`
+   * Push to `main`.
+
+## Output requirements
+
+* Summarize exactly what you changed (files + key lines).
+* Confirm the local build commands succeeded.
+* Provide a short “Vercel settings checklist”:
+
+  * Root Directory: `apps/unified-portal`
+  * Framework: Next.js
+  * Node: 20.x
+  * Build Command: default or `npm run build` (explain which and why)
+  * Install Command: default `npm install`
+
+Proceed now. Do not ask me questions unless you are blocked by missing files.

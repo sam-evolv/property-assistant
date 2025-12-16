@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { getAllDevelopersForList } from '@/app/actions/developers';
 import { getAllDevelopmentsForList } from '@/app/actions/developments';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SuperAdminDashboard() {
   let session;
   

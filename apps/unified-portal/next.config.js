@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: false,
   productionBrowserSourceMaps: false,
-  transpilePackages: ['@openhouse/api', '@openhouse/auth', '@openhouse/db', '@openhouse/workers'],
+  transpilePackages: ['@openhouse/api', '@openhouse/auth', '@openhouse/db', '@openhouse/workers', 'recharts', 'react-smooth', 'recharts-scale'],
   eslint: {
     ignoreDuringBuilds: true,
   },
