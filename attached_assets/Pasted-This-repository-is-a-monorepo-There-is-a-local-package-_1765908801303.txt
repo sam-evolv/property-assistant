@@ -1,0 +1,134 @@
+This repository is a monorepo.
+There is a local package at packages/api that provides @openhouse/api.
+The deployment is failing because apps/unified-portal is trying to install @openhouse/api from the public npm registry instead of resolving it locally.
+
+Objective
+Make @openhouse/api resolve as a local workspace package so Replit Deploy can build without any private registry or npm token.
+
+Non-negotiable rules
+
+Do NOT publish anything to npm.
+
+Do NOT introduce registry authentication.
+
+Do NOT change runtime logic.
+
+Do NOT change Supabase config.
+
+Only adjust workspace wiring and dependency resolution.
+
+Step 1 — Verify workspace configuration at repo root
+
+Open the root package.json.
+
+Confirm it declares workspaces.
+
+Ensure it includes both apps/* and packages/*.
+
+If missing or incomplete, update it to:
+
+{
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
+
+
+Do not remove any existing fields. Only add what is missing.
+
+Step 2 — Ensure packages/api is a valid workspace package
+
+Open packages/api/package.json.
+
+Confirm it contains:
+
+{
+  "name": "@openhouse/api",
+  "version": "0.0.0",
+  "private": true
+}
+
+
+The name must exactly match @openhouse/api.
+
+private: true is required to prevent npm publish assumptions.
+
+Version can be any value, but must exist.
+
+Do not add build tooling unless already present.
+
+Step 3 — Fix the dependency reference in apps/unified-portal
+
+Open apps/unified-portal/package.json.
+
+Locate the dependency entry for @openhouse/api.
+
+Replace whatever is currently there with:
+
+"@openhouse/api": "workspace:*"
+
+
+This explicitly tells the package manager to resolve the dependency from the local workspace, not npm.
+
+Step 4 — Ensure unified-portal is inside the workspace graph
+
+Still in apps/unified-portal/package.json, ensure:
+
+It does NOT mark itself as private: false
+
+It does NOT override workspaces
+
+It uses standard dependencies, not bundled ones
+
+No changes unless something is obviously breaking workspace resolution.
+
+Step 5 — Clean install sanity check (do NOT skip)
+
+At repo root, perform a clean install:
+
+Remove any lockfiles only if they are obviously out of sync.
+
+Run the standard install command already used by the repo (npm / pnpm / yarn).
+
+The goal:
+
+@openhouse/api should resolve locally
+
+No attempt to fetch it from npm should occur
+
+Step 6 — Redeploy
+
+Once steps above are complete:
+
+Re-run the Replit deployment.
+
+The build step should now pass.
+
+The app should start normally.
+
+Success criteria (must all pass)
+
+Deployment build completes without npm registry errors
+
+No request to fetch @openhouse/api externally
+
+App boots and Units Explorer loads
+
+QR Pack download works once NEXT_PUBLIC_APP_URL is set
+
+Important note for future migrations
+
+This fix is portable.
+It will work identically on:
+
+Replit
+
+Vercel
+
+Cloudflare
+
+Local dev
+
+You are correcting the architecture, not papering over it.

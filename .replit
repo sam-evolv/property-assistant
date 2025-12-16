@@ -47,6 +47,6 @@ PUBLIC_UPLOAD_BASE_URL = "https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og6
 LEGACY_DATABASE_URL = "${DATABASE_URL}"
 
 [deployment]
-build = ["sh", "-c", "npm --prefix apps/unified-portal install && npm --prefix apps/unified-portal run build"]
+build = ["sh", "-c", "npm install && npm --prefix apps/unified-portal run build"]
 run = ["sh", "-c", "cd apps/unified-portal && npm run start"]
 deploymentTarget = "autoscale"
