@@ -1,0 +1,125 @@
+You are fixing a broken TypeScript monorepo build that MUST succeed on Vercel.
+
+This is NOT a dependency issue. This is a broken export graph.
+
+Your job is to make the build deterministic and stop future regressions.
+
+---
+
+## ROOT CAUSE (DO NOT IGNORE)
+
+The file `packages/api/src/index.ts` exports modules that DO NOT EXIST.
+
+Specifically:
+
+* `export * from './documents'` is invalid
+* The `documents` directory was deleted or partially removed
+* Webpack fails correctly with:
+  "Module not found: Can't resolve './documents'"
+
+This must be fixed at the SOURCE, not worked around.
+
+---
+
+## REQUIRED ACTIONS (IN ORDER)
+
+### 1. Audit exports
+
+Scan `packages/api/src/index.ts`.
+
+For **every export**:
+
+* Verify the file or folder exists
+* Verify it has a resolvable `.ts` file or `index.ts`
+
+### 2. Fix `documents`
+
+Do ONE of the following (choose the correct one based on repo state):
+
+**Option A — Documents is gone**
+
+* Remove ALL references to:
+
+  * `./documents`
+  * document classifiers
+  * floorplan document utilities
+* Remove any imports in `apps/unified-portal` that reference document APIs
+
+**Option B — Documents should exist**
+
+* Recreate `packages/api/src/documents/index.ts`
+* Explicitly export only real files
+* No wildcard exports to missing paths
+
+DO NOT GUESS. MATCH REAL FILES.
+
+---
+
+### 3. Enforce explicit exports
+
+Replace wildcard exports with **explicit exports only**.
+
+Bad:
+
+```ts
+export * from './documents'
+```
+
+Good:
+
+```ts
+export { processFloorplanUpload } from './floorplan-storage'
+export type { FloorplanUploadResult } from './floorplan-storage'
+```
+
+If a module is not required by the app, REMOVE IT.
+
+---
+
+### 4. Validate workspace boundaries
+
+Ensure:
+
+* `apps/unified-portal` only imports from `@openhouse/api`
+* No deep imports into `packages/api/src/**`
+* No circular references
+
+---
+
+### 5. Verify build locally
+
+Run:
+
+```bash
+npm run build --workspace=apps/unified-portal
+```
+
+The task is NOT complete unless:
+
+* Build exits with code 0
+* No webpack module resolution errors
+* No missing exports
+
+---
+
+### 6. Lock it in
+
+After success:
+
+* Do NOT add new exports
+* Do NOT add new dependencies
+* Do NOT modify Vercel config
+
+The goal is **stability**, not feature work.
+
+---
+
+## OUTPUT REQUIREMENTS
+
+When finished, report:
+
+1. Which exports were removed or fixed
+2. Which files were recreated (if any)
+3. Confirmation that the build passes cleanly
+
+DO NOT STOP UNTIL THE BUILD PASSES.

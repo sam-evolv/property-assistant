@@ -1,0 +1,162 @@
+You are operating in a **Node.js + Next.js monorepo** with npm workspaces.
+
+Your objective is **one thing only**:
+➡️ **Make `npm run build --workspace=apps/unified-portal` succeed on Vercel.**
+
+You must treat the Vercel build logs as the source of truth and resolve **all root causes**, not symptoms.
+
+---
+
+## CONTEXT (DO NOT IGNORE)
+
+### Monorepo structure
+
+* apps/unified-portal (Next.js app, deployed on Vercel)
+* packages/api (internal workspace dependency: `@openhouse/api`)
+
+The Next.js app imports code from `@openhouse/api`.
+
+Vercel is running:
+
+* `npm ci`
+* `npm run build --workspace=apps/unified-portal`
+* Node 20.x
+
+---
+
+## KNOWN BUILD FAILURE (PRIMARY ROOT CAUSE)
+
+Vercel error:
+
+```
+Module not found: Can't resolve './documents'
+../../packages/api/src/index.ts
+```
+
+This means:
+
+* `packages/api/src/index.ts` exports `./documents`
+* BUT `packages/api/src/documents` **does not exist** OR does not contain an `index.ts`
+* Webpack fails hard → build stops
+
+This is **not optional**. You must fix this deterministically.
+
+---
+
+## REQUIRED ACTIONS (IN ORDER)
+
+### 1. Fix invalid exports in `packages/api/src/index.ts`
+
+Do **one** of the following (choose the correct one based on filesystem reality):
+
+#### Option A — Folder exists but is missing index
+
+If `packages/api/src/documents/` exists:
+
+* Create `packages/api/src/documents/index.ts`
+* Export only files that actually exist in that folder
+
+#### Option B — Folder does NOT exist (most likely)
+
+If `packages/api/src/documents/` does NOT exist:
+
+* **DELETE** the following line from `packages/api/src/index.ts`:
+
+```ts
+export * from './documents';
+```
+
+You are NOT allowed to leave dangling exports. Webpack will not tolerate it.
+
+---
+
+### 2. Remove any downstream imports that rely on the deleted export
+
+Search the repo for:
+
+```ts
+from '@openhouse/api/documents'
+from '@openhouse/api'
+```
+
+If anything imports document-related helpers that no longer exist:
+
+* Either remove those imports
+* OR stub them behind feature flags / TODOs
+* OR inline minimal logic to unblock build
+
+The build must compile even if features are temporarily disabled.
+
+---
+
+### 3. Validate workspace dependency resolution
+
+Ensure `packages/api/package.json`:
+
+* Lists **all runtime dependencies it imports**
+* Does NOT rely on transitive dependencies from `apps/unified-portal`
+
+Specifically confirm these are present (already mostly done, verify):
+
+* `@supabase/auth-helpers-nextjs`
+* `@supabase/supabase-js`
+* `unpdf`
+* `pdf-parse`
+* `zod`
+* `openai`
+
+If a file imports it, it **must** be in `dependencies`, not `devDependencies`.
+
+---
+
+### 4. Do NOT add fake exports to silence TypeScript
+
+Do not:
+
+* Create empty files just to satisfy imports
+* Add barrel exports for non-existent logic
+* Add `any` casts to bypass errors
+
+The goal is **structural correctness**, not suppression.
+
+---
+
+### 5. Validate locally EXACTLY how Vercel builds
+
+Run these commands from repo root:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+npm run build --workspace=apps/unified-portal
+```
+
+The agent must not stop until this passes.
+
+---
+
+### 6. Final verification checklist (mandatory)
+
+Before stopping, confirm:
+
+* No `Module not found` errors
+* No imports from deleted paths
+* `packages/api/src/index.ts` only exports real files
+* Build passes without warnings escalating to errors
+
+---
+
+## OUTPUT EXPECTATION
+
+When finished, report:
+
+1. Which exports were removed or fixed
+2. Which files were modified
+3. Confirmation that the build passed locally
+4. Exact reason the failure will NOT recur on Vercel
+
+Do NOT provide advice.
+Do NOT ask questions.
+Do NOT stop early.
+
+Your job ends only when the deploy is unblocked.
