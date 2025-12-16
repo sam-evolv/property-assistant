@@ -73,6 +73,20 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Replit Preview Fix (December 2025)
+**Issue:** Next.js dev server was OOM-killed before completing compilation due to heavy imports at root layout level.
+
+**Solution:** Refactored `layout-client.tsx` to use dynamic imports with `ssr: false`:
+- Created `layout-providers.tsx` containing heavy context providers (AuthProvider, DevelopmentProvider, ToastProvider)
+- Updated `layout-client.tsx` to dynamically import `layout-providers` only in the browser
+- This prevents Next.js from loading the entire Supabase/database graph at compile time
+
+**Files Changed:**
+- `apps/unified-portal/app/layout-client.tsx` - Dynamic import wrapper
+- `apps/unified-portal/app/layout-providers.tsx` - Heavy providers moved here
+
+**Result:** Preview now compiles and serves in ~2 seconds instead of timing out.
+
 ### QR Pack Generator (December 2025)
 One-click PDF generation for print-ready QR codes:
 - **Location:** Super Admin > Units page > "Download QR Pack" button

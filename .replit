@@ -28,7 +28,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node apps/unified-portal/preview-server.js"
+args = "NODE_OPTIONS=\"--max_old_space_size=2048\" NEXT_TELEMETRY_DISABLED=1 npm --prefix apps/unified-portal run dev -- --port 5000 --hostname 0.0.0.0"
 waitForPort = 5000
 
 [[ports]]

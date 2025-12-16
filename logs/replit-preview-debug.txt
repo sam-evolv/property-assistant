@@ -1,0 +1,298 @@
+=== Node/NPM versions ===
+v20.19.3
+10.8.2
+
+=== pwd ===
+/home/runner/workspace
+
+=== ls -la (root) ===
+total 600
+drwxr-xr-x 1 runner runner   1064 Dec 16 20:06 .
+drwxrwxrwx 1 runner runner     66 Dec 16 09:47 ..
+drwxr-xr-x 1 runner runner     46 Nov 22 11:49 apps
+drwxr-xr-x 1 runner runner  86552 Dec 16 20:28 attached_assets
+drwxr-xr-x 1 runner runner     42 Dec  3 20:32 .cache
+drwxr-xr-x 1 runner runner     50 Oct 28 16:55 .config
+-rw-r--r-- 1 runner runner   7472 Nov 17 20:15 create_riverside_doc.py
+-rw-r--r-- 1 runner runner   9758 Nov  7 16:00 DEPLOY_TO_SUPABASE.md
+drwxr-xr-x 1 runner runner    634 Dec  4 22:13 docs
+-rw-r--r-- 1 runner runner   1415 Nov 15 18:20 .env.example
+-rw-r--r-- 1 runner runner    456 Nov  2 14:38 .env.local.example
+-rw-r--r-- 1 runner runner   5241 Nov 15 16:11 .env.production.example
+drwxr-xr-x 1 runner runner    190 Dec 16 20:28 .git
+-rw-r--r-- 1 runner runner    172 Dec  3 20:24 .gitignore
+-rw-r--r-- 1 runner runner   6608 Nov 17 20:20 insert_sample_data.mjs
+drwxr-xr-x 1 runner runner    176 Nov 20 21:25 lib
+drwxr-xr-x 1 runner runner     10 Oct 28 16:42 .local
+drwxr-xr-x 1 runner runner    652 Dec 16 20:28 logs
+-rw-r--r-- 1 runner runner     96 Nov 13 20:15 main.py
+-rw-r--r-- 1 runner runner   5575 Nov 15 10:47 MONOREPO_STRUCTURE.md
+drwxr-xr-x 1 runner runner    218 Nov  2 13:26 .next
+drwxr-xr-x 1 runner runner   7988 Dec 16 18:16 node_modules
+-rw-r--r-- 1 runner runner   3743 Dec 16 18:19 package.json
+-rw-r--r-- 1 runner runner 195527 Dec 16 19:44 package-lock.json
+drwxr-xr-x 1 runner runner     44 Nov 22 17:47 packages
+-rw-r--r-- 1 runner runner  11596 Nov 15 15:16 PHASE_11_SUMMARY.md
+-rw-r--r-- 1 runner runner  12490 Nov 22 13:28 PHASE_5.11_COMPLETION.md
+-rw-r--r-- 1 runner runner   2679 Nov 17 20:17 process_document_direct.js
+-rw-r--r-- 1 runner runner   3066 Nov 17 20:17 process_document_direct.mjs
+drwxr-xr-x 1 runner runner    918 Dec  4 19:43 property-assistant
+-rw-r--r-- 1 runner runner    168 Nov 13 20:15 pyproject.toml
+drwxr-xr-x 1 runner runner     96 Nov 13 20:15 .pythonlibs
+-rw-r--r-- 1 runner runner  16662 Nov  7 17:02 README_DEV.md
+-rw-r--r-- 1 runner runner   3942 Nov  2 14:29 README.md
+-rw-r--r-- 1 runner runner   1309 Dec 16 20:23 .replit
+-rw-r--r-- 1 runner runner 205109 Dec 16 20:06 replit.md
+-rw-r--r-- 1 runner runner   6118 Nov 17 20:15 Riverside_Gardens_Property_Information.pdf
+drwxr-xr-x 1 runner runner   1664 Dec  7 19:47 scripts
+-rw-r--r-- 1 runner runner   1159 Nov 17 20:16 upload_document.js
+drwxr-xr-x 1 runner runner     20 Dec 16 17:32 .upm
+-rw-r--r-- 1 runner runner  49226 Nov 13 20:15 uv.lock
+-rw-r--r-- 1 runner runner    402 Nov 15 16:04 .vercelignore
+
+=== ls -la apps ===
+total 8
+drwxr-xr-x 1 runner runner   46 Nov 22 11:49 .
+drwxr-xr-x 1 runner runner 1064 Dec 16 20:06 ..
+drwxr-xr-x 1 runner runner  234 Nov 17 20:06 marketing
+drwxr-xr-x 1 runner runner  748 Dec 16 20:23 unified-portal
+
+=== ls -la apps/unified-portal ===
+total 1128
+drwxr-xr-x 1 runner runner    748 Dec 16 20:23 .
+drwxr-xr-x 1 runner runner     46 Nov 22 11:49 ..
+drwxr-xr-x 1 runner runner    390 Dec 16 20:23 app
+drwxr-xr-x 1 runner runner     14 Dec 16 17:32 assets
+drwxr-xr-x 1 runner runner    226 Dec  9 21:08 components
+drwxr-xr-x 1 runner runner    186 Dec 15 18:28 contexts
+-rw-r--r-- 1 runner runner     26 Dec 16 18:38 .env.production
+drwxr-xr-x 1 runner runner     58 Nov 25 19:12 hooks
+drwxr-xr-x 1 runner runner     42 Nov 24 19:32 i18n
+-rw-r--r-- 1 runner runner    204 Nov 24 22:06 instrumentation.ts
+drwxr-xr-x 1 runner runner    632 Dec 12 17:26 lib
+-rw-r--r-- 1 runner runner 682193 Dec 16 20:05 LongviewPark_QR_Pack.pdf
+-rw-r--r-- 1 runner runner   3043 Nov 24 22:06 middleware.ts
+drwxr-xr-x 1 runner runner     74 Dec 16 20:22 .next
+-rw-r--r-- 1 runner runner   5221 Dec 16 20:17 next.config.js
+-rw-r--r-- 1 runner runner    423 Dec 16 20:13 next.config.minimal.js
+-rw-r--r-- 1 runner runner    228 Nov 24 22:06 next-env.d.ts
+drwxr-xr-x 1 runner runner     20 Dec 16 18:14 node_modules
+-rw-r--r-- 1 runner runner    896 Dec 16 19:49 package.json
+-rw-r--r-- 1 runner runner  12818 Nov 21 12:13 PHASE_18_TEST_REPORT.md
+-rw-r--r-- 1 runner runner     81 Nov 15 10:44 postcss.config.mjs
+-rw-r--r-- 1 runner runner   4129 Dec 16 20:23 preview-server.js
+drwxr-xr-x 1 runner runner    122 Dec  9 21:16 public
+-rw-r--r-- 1 runner runner    719 Nov 15 10:44 README.md
+drwxr-xr-x 1 runner runner     16 Dec 16 18:44 .replit-deploy
+drwxr-xr-x 1 runner runner    326 Dec 16 20:05 scripts
+drwxr-xr-x 1 runner runner     10 Nov 17 21:09 src
+-rw-r--r-- 1 runner runner   4608 Nov 25 20:17 tailwind.config.ts
+-rw-r--r-- 1 runner runner   1158 Nov 22 10:41 tsconfig.json
+-rw-r--r-- 1 runner runner 363857 Nov 22 11:40 tsconfig.tsbuildinfo
+drwxr-xr-x 1 runner runner     54 Dec  6 13:13 types
+-rw-r--r-- 1 runner runner   9995 Nov 21 12:11 UNIFIED_PORTAL_GUIDE.md
+-rw-r--r-- 1 runner runner   1307 Nov 15 16:04 vercel.json
+
+=== cat package.json ===
+{
+  "name": "openhouse-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OpenHouse AI - Multi-tenant property management platform",
+  "scripts": {
+    "dev": "cd apps/unified-portal && npm run dev",
+    "dev:unified": "cd apps/unified-portal && npm run dev",
+    "dev:marketing": "cd apps/marketing && npm run dev",
+    "build": "npm --prefix apps/unified-portal run build",
+    "build:all": "npm --prefix apps/unified-portal run build && npm --prefix apps/marketing run build",
+    "build:unified": "npm --prefix apps/unified-portal run build",
+    "build:marketing": "npm --prefix apps/marketing run build",
+    "build:production": "npm install && npm run build:unified",
+    "install:all": "npm install",
+    "start": "cd apps/unified-portal && npm run start",
+    "typecheck": "npm --prefix apps/unified-portal run typecheck",
+    "test:build": "npm run build:production",
+    "db:generate": "drizzle-kit generate --config=packages/db/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=packages/db/drizzle.config.ts",
+    "db:push": "npx drizzle-kit push --config=packages/db/drizzle.config.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:studio": "drizzle-kit studio --config=packages/db/drizzle.config.ts",
+    "db:verify": "tsx scripts/verify-db.ts",
+    "seed:longview": "tsx scripts/seed-longview-park.ts",
+    "generate:qrs": "tsx scripts/generate-qrs.ts",
+    "validate:pilot": "tsx scripts/validate-pilot.ts",
+    "pilot:setup": "npm run seed:longview && npm run generate:qrs",
+    "loadtest:rag": "tsx scripts/loadtest-rag.ts",
+    "loadtest:chat": "tsx scripts/loadtest-chat.ts",
+    "loadtest:onboarding": "tsx scripts/loadtest-onboarding.ts",
+    "loadtest:all": "npm run loadtest:rag && npm run loadtest:chat && npm run loadtest:onboarding",
+    "smoke:test": "tsx scripts/smoke-test.ts",
+    "ai:test": "tsx scripts/test-training-pipeline.ts",
+    "test:intel": "tsx scripts/test-intel-pipeline.ts",
+    "ingest-docs": "tsx packages/api/scripts/ingestDocuments.ts",
+    "embed-docs": "tsx packages/api/scripts/embedDocuments.ts",
+    "deploy": "bash scripts/deploy.sh",
+    "migrate": "bash scripts/migrate.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.77",
+    "@next/bundle-analyzer": "^16.0.4",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/supabase-js": "^2.78.0",
+    "@types/leaflet": "^1.9.21",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.17.3",
+    "@types/qrcode": "^1.5.6",
+    "@types/recharts": "^1.8.29",
+    "ai": "^5.0.108",
+    "autoprefixer": "^10.4.16",
+    "canvas": "^3.2.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.6",
+    "drizzle-orm": "^0.44.7",
+    "jose": "^6.1.2",
+    "jspdf": "^3.0.4",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.294.0",
+    "mammoth": "^1.11.0",
+    "nanoid": "^5.1.6",
+    "next": "^14.2.18",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.394",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.16.3",
+    "postcss": "^8.4.32",
+    "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^3.4.1",
+    "sharp": "^0.34.5",
+    "stripe": "^14.10.0",
+    "swr": "^2.3.6",
+    "tailwind-merge": "^2.2.0",
+    "tailwindcss": "^3.4.0",
+    "tesseract.js": "^6.0.1",
+    "tiktoken": "^1.0.22",
+    "tsx": "^4.20.6",
+    "typescript": "^5.3.3",
+    "unpdf": "^1.4.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.1.12"
+  }
+}
+
+=== cat replit.nix (if exists) ===
+File not found
+
+=== cat .replit (if exists) ===
+modules = ["nodejs-20", "python-3.11", "postgresql-16"]
+[agent]
+expertMode = true
+integrations = ["javascript_openai:1.0.0", "javascript_database:1.0.0", "resend:1.0.0"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["util-linux"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Unified Portal"
+
+[[workflows.workflow]]
+name = "Unified Portal"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node apps/unified-portal/preview-server.js"
+waitForPort = 5000
+
+[[ports]]
+localPort = 3000
+externalPort = 3002
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "AIzaSyC5_CrHxmzlTg2xeY1Pz_tpz2F6QKIoHsI"
+PUBLIC_UPLOAD_BASE_URL = "https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev"
+LEGACY_DATABASE_URL = "${DATABASE_URL}"
+
+[userenv.development]
+HOSTNAME = "0.0.0.0"
+
+[deployment]
+build = ["sh", "-c", "cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=6144 npm run build:replit"]
+run = ["sh", "-c", "cd apps/unified-portal && npm run start"]
+deploymentTarget = "autoscale"
+
+=== cat apps/unified-portal/package.json ===
+{
+  "name": "@openhouse/unified-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 5000",
+    "build": "next build",
+    "build:standalone": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "package:replit": "rm -rf .replit-deploy && mkdir -p .replit-deploy && cp -R .next/standalone/* .replit-deploy/ && mkdir -p .replit-deploy/.next && cp -R .next/static .replit-deploy/.next/static && cp -R public .replit-deploy/public || true",
+    "start": "next start -p $PORT"
+  },
+  "dependencies": {
+    "@openhouse/api": "1.0.0",
+    "@openhouse/db": "0.1.0",
+    "next": "^14.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.21",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5"
+  }
+}
+
+=== FIX APPLIED ===
+Date: Tue Dec 16 08:33:16 PM UTC 2025
+Solution: Refactored layout-client.tsx to use dynamic imports
+- Created layout-providers.tsx with heavy context imports
+- Updated layout-client.tsx to dynamically import layout-providers with ssr: false
+- This prevents Next.js from loading the entire context/Supabase/DB graph at compile time
+Preview Status: WORKING

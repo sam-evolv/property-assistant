@@ -1,0 +1,133 @@
+REPLIT AGENT PROMPT (COPY-PASTE EVERYTHING)
+
+Context
+- Repo: property-assistant (monorepo)
+- App we need to run locally in Replit Preview: apps/unified-portal
+- Problem: Preview used to work. After attempting “Deploy/Publish” in Replit, Preview and “Open in new tab” now fail and the Agent cannot run the program.
+- Goal: Restore a working Preview immediately with the smallest, safest changes. Do NOT change routing, auth, Supabase logic, or UI design. This is purely an execution/build/runtime fix.
+
+Non-negotiables
+- Do not remove or rewrite app code.
+- Do not add new libraries unless absolutely necessary.
+- Do not change Next.js routes, API handlers, or Supabase queries.
+- Do not depend on Replit Deployments to view the app. We only need the Preview to run again.
+
+Phase 0 - Snapshot what Replit is doing
+1) In Replit Shell, run these and paste outputs into a new file logs/replit-preview-debug.txt:
+   - node -v
+   - npm -v
+   - pwd
+   - ls -la
+   - ls -la apps
+   - ls -la apps/unified-portal
+   - cat package.json
+   - (if exists) cat replit.nix
+   - (if exists) cat .replit
+   - (if exists) cat apps/unified-portal/package.json
+2) Identify which command Replit is using to start Preview (it is usually from .replit or the “Run” button configuration). We will enforce the correct command.
+
+Phase 1 - Force Preview to run ONLY the unified-portal app
+3) Create or update the root .replit file to explicitly run unified-portal and nothing else.
+   - If .replit exists, edit it.
+   - If not, create it at repo root with:
+
+   run = "npm --prefix apps/unified-portal run dev -- --port 3000 --hostname 0.0.0.0"
+
+   [env]
+   NODE_ENV = "development"
+   NEXT_TELEMETRY_DISABLED = "1"
+
+4) Ensure Replit preview is pointing to port 3000. If Replit uses a different port internally, keep the app on 3000 and rely on Replit port mapping.
+
+Phase 2 - Stop “too big to build” by preventing monorepo-wide builds in Preview
+5) The failure pattern is usually one of:
+   - Replit trying to run root-level build scripts across the monorepo
+   - Next build running out of memory
+   - A postinstall/build step is executing unnecessarily
+   Fix it by making Preview use “next dev” only, not “next build”.
+
+6) Update root package.json scripts to avoid any monorepo build during Preview.
+   - Open root package.json
+   - Ensure it has these scripts (and remove references to apps that do not exist):
+     "scripts": {
+       "dev": "npm --prefix apps/unified-portal run dev",
+       "preview": "npm --prefix apps/unified-portal run dev -- --port 3000 --hostname 0.0.0.0",
+       "build": "npm --prefix apps/unified-portal run build",
+       "start": "npm --prefix apps/unified-portal run start"
+     }
+
+   IMPORTANT: Do not run root “build” in Preview. Preview should run “preview” or “dev”.
+
+7) If Replit auto-runs “npm install” at root and triggers heavy postinstall steps:
+   - Check root package.json for "postinstall" or "prepare".
+   - If present and it runs builds (turbo, nx, next build, etc.), modify it to be no-op in Replit Preview:
+     - Wrap it with an env guard:
+
+     "postinstall": "node -e \"if(process.env.REPLIT){process.exit(0)}\" && <existing-command>"
+
+     If there is no existing-command or it is unknown, set:
+     "postinstall": "node -e \"process.exit(0)\""
+
+   Keep changes minimal. The objective is to stop automatic builds during install.
+
+Phase 3 - Repair node_modules / lockfile and reduce install churn
+8) Replit can get into a broken state after Deploy attempts. Do a clean, deterministic install:
+   - In Shell at repo root:
+     rm -rf node_modules
+     rm -rf apps/unified-portal/node_modules
+     npm cache verify || true
+     npm install
+
+9) If npm reports lockfile corruption or repeated warnings:
+   - Remove and regenerate once:
+     rm -f package-lock.json
+     npm install
+   - Do NOT delete app code. Only lockfiles.
+
+Phase 4 - Make Next dev lighter so it doesn’t OOM
+10) Create or update apps/unified-portal/next.config.js (or next.config.mjs) with safe dev optimizations ONLY if required:
+   - Do NOT change routes or output mode.
+   - Add these conservative options if missing:
+
+   const nextConfig = {
+     poweredByHeader: false,
+     reactStrictMode: true,
+     eslint: { ignoreDuringBuilds: true },
+     typescript: { ignoreBuildErrors: true }
+   }
+   module.exports = nextConfig
+
+   Note: This is to prevent build-time blockers. It should not change runtime behaviour.
+
+11) Set NODE_OPTIONS in .replit env to reduce memory failures if needed:
+   - Add in .replit [env]:
+     NODE_OPTIONS = "--max_old_space_size=2048"
+
+Phase 5 - Verify Preview is back
+12) Run the exact Preview command manually:
+   - npm --prefix apps/unified-portal run dev -- --port 3000 --hostname 0.0.0.0
+13) Confirm:
+   - The terminal shows “ready - started server on 0.0.0.0:3000”
+   - Replit Preview loads the app
+   - “Open in new tab” works
+14) If Preview still fails, capture the last 200 lines of logs:
+   - (in Shell) npm --prefix apps/unified-portal run dev -- --port 3000 --hostname 0.0.0.0 2>&1 | tail -n 200
+   Save to logs/replit-preview-last200.txt and report.
+
+Phase 6 - Hard fallback if Replit Preview is stuck due to the Deploy pipeline
+15) If Replit is forcing a Deploy build step when you hit Run:
+   - Disable Deploy/Publish hooks by ensuring .replit run command is ONLY dev.
+   - Remove any “deployment” config that sets a build command for Preview (do not delete files, just stop Preview from invoking them).
+16) If necessary, create a lightweight root “run” script so Replit never tries root build:
+   - root package.json:
+     "scripts": { "replit": "npm run preview" }
+   - .replit:
+     run = "npm run replit"
+
+Deliverable
+- Commit changes to: .replit, root package.json (scripts + postinstall guard if present), and any minimal config files required.
+- Preview MUST work again without needing Replit Deployments.
+
+Start now
+- Execute Phase 0 then Phase 1 immediately.
+- Do not stop until Preview is confirmed working.
