@@ -65,12 +65,6 @@ export {
 
 export type { TrainingJob, TrainingPipelineResult } from './train/types';
 
-// Document classification and mapping
-export { classifyDocument, classifyByFilename } from './documents/classify-document';
-export { autoMapFloorplanToHouseType, extractHouseTypeCodes } from './documents/map-floorplan-to-house-type';
-export type { DocumentClassificationResult } from './documents/classify-document';
-export type { HouseTypeMappingResult } from './documents/map-floorplan-to-house-type';
-
 // Floorplan storage and processing
 export {
   processFloorplanUpload,
