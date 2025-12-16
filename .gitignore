@@ -1,15 +1,44 @@
+# Dependencies
 node_modules/
+**/node_modules
+
+# Next.js
 .next/
+**/.next
+out/
 dist/
 build/
-tmp/
-data/
-supabase/
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
 *.sqlite
 *.db
-apps/unified-portal/.next/
-packages/api/.next/
-packages/api/tmp/
+supabase/
+
+# Misc
+tmp/
+data/
 uploads/
 documents/
 public/documents/
+coverage/
+*.log
+.DS_Store
+
+# App-specific
+apps/unified-portal/.next/
+packages/api/.next/
+packages/api/tmp/

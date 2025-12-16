@@ -1,0 +1,148 @@
+REPLIT AGENT PROMPT (COPY-PASTE EVERYTHING)
+
+Context
+- Repo: property-assistant (GitHub: sam-evolv/property-assistant)
+- We are running the app from: apps/unified-portal
+- Preview is working again. Do NOT change runtime behaviour.
+- Objective: push a clean, safe, deploy-ready commit to GitHub, without breaking anything.
+- Secondary objective: ensure no secrets or unsafe config gets committed, and that Vercel will build the correct app.
+
+NON-NEGOTIABLES
+- Do NOT change routing, auth, Supabase queries, UI theme, or business logic.
+- Do NOT delete app code.
+- Do NOT commit any .env files, Supabase keys, service role keys, or Replit secrets.
+- Keep changes minimal. This is a “release hygiene + git push” task.
+
+PHASE 1 - Verify repo health and current state (no guessing)
+1) Open Shell at repo root and run:
+   - pwd
+   - git status
+   - git remote -v
+   - git branch --show-current
+   - git log -1 --oneline
+   - ls -la
+   Save outputs in logs/release-git-precheck.txt
+
+2) Confirm the repo contains apps/unified-portal:
+   - ls -la apps
+   - ls -la apps/unified-portal
+   Save outputs to logs/release-git-precheck.txt (append).
+
+PHASE 2 - Security and secret leakage prevention (must be clean)
+3) Ensure .gitignore blocks secrets and build artifacts.
+   - Open .gitignore (root). If missing, create it.
+   - Ensure it includes at minimum (add if absent):
+
+     # env / secrets
+     .env
+     .env.*
+     **/.env
+     **/.env.*
+     .env.local
+     .env.development.local
+     .env.test.local
+     .env.production.local
+
+     # node / next
+     node_modules
+     **/node_modules
+     .next
+     **/.next
+     out
+     dist
+     coverage
+     *.log
+
+     # misc
+     .DS_Store
+
+   - Do NOT remove existing ignore rules. Only add missing.
+
+4) Scan for accidental secret files before committing:
+   - find . -maxdepth 4 -type f \( -name ".env" -o -name ".env.*" -o -name "*.pem" -o -name "*.key" -o -name "*service-account*" \) -print
+   If any are found, DO NOT commit them. Confirm they are ignored or delete them locally (only if they are generated artifacts).
+
+5) Confirm no secrets are staged:
+   - git status
+   - git diff --cached
+   If any secret-like content appears, stop and fix .gitignore.
+
+PHASE 3 - Ensure Vercel builds the right app (without changing behaviour)
+6) Confirm root package.json scripts do not reference non-existent apps.
+   - Open root package.json.
+   - Ensure scripts are compatible with current repo structure.
+   Required minimum scripts (keep existing ones too, but fix broken references):
+
+     "scripts": {
+       "dev": "npm --prefix apps/unified-portal run dev",
+       "build": "npm --prefix apps/unified-portal run build",
+       "start": "npm --prefix apps/unified-portal run start"
+     }
+
+   - If there are legacy scripts referencing apps/tenant-portal or apps/developer-portal that no longer exist, remove ONLY those references.
+   - Do not add new tooling.
+
+7) Add a Vercel config to force correct root (recommended, minimal, safe):
+   - Create vercel.json at repo root if it does not exist:
+
+     {
+       "framework": "nextjs",
+       "rootDirectory": "apps/unified-portal"
+     }
+
+   This prevents Vercel from trying to build the entire monorepo and avoids accidental root script execution.
+
+PHASE 4 - Make install deterministic (optional but strongly recommended)
+8) If npm previously warned about lockfile corruption, repair it cleanly:
+   - At repo root:
+     rm -rf node_modules apps/unified-portal/node_modules || true
+     npm install
+   - This updates package-lock.json deterministically.
+   - Do NOT run next build here unless required.
+
+PHASE 5 - Sanity check before pushing (must pass)
+9) Run a local build of unified-portal to catch breakage now (not on Vercel):
+   - npm --prefix apps/unified-portal run build
+   If build fails, STOP and report the error in logs/release-build-failure.txt. Do not push broken.
+
+10) Run a quick dev boot smoke test (ensure nothing regressed):
+   - npm --prefix apps/unified-portal run dev -- --port 3000 --hostname 0.0.0.0
+   Confirm it reaches “ready”. Then stop the process.
+
+PHASE 6 - Commit and push (clean release commit)
+11) Stage changes carefully:
+   - git status
+   - git add -A
+   - git status
+   - git diff --cached
+
+12) Commit with a clear message:
+   - git commit -m "Release hygiene: Vercel root + scripts alignment"
+
+13) Push to GitHub (main branch):
+   - git push origin HEAD:main
+
+14) Confirm push success:
+   - git log -1 --oneline
+   - git status
+
+PHASE 7 - Post-push checklist for Vercel (no actions, just output guidance)
+15) Output these exact instructions to the user (as text in the Agent response):
+   - In Vercel Project Settings set Root Directory to: apps/unified-portal (or rely on vercel.json)
+   - Ensure build command is: npm run build
+   - Ensure output is Next.js default
+   - Add environment variables in Vercel (do not paste values into Git):
+     - NEXT_PUBLIC_SUPABASE_URL
+     - NEXT_PUBLIC_SUPABASE_ANON_KEY
+     - (any server-side keys used by API routes, if applicable)
+   - Domain to attach later: portal.openhouseai.de (must match QR code base URL exactly)
+
+Execution rules
+- Work only in this repo.
+- Make minimal diffs.
+- Do not expose secret values in logs.
+- Do not change application logic.
+
+Start now
+- Execute Phase 1 through Phase 6 in order.
+- If any step fails, write the failure reason and the exact command output into logs/ and stop before pushing.
