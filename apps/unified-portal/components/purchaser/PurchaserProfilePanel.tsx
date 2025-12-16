@@ -150,7 +150,7 @@ export default function PurchaserProfilePanel({
     : 'from-slate-50 via-white to-white';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
       {/* Backdrop */}
       <div 
         className={`absolute inset-0 ${overlayClass} backdrop-blur-sm transition-opacity duration-300`}

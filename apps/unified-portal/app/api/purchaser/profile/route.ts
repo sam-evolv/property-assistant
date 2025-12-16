@@ -220,15 +220,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get documents by house_type_code, development_id, or title pattern
+    // Get documents ONLY for user's specific house_type_code or global docs
     let documents: any[] = [];
     const developmentId = unit.development_id || unit.project_id || unit.dev_id;
     
     try {
       let docRows: any[] = [];
       
-      if (houseTypeCode) {
-        // First try by house_type_code
+      if (houseTypeCode && developmentId) {
+        // Only get documents that match the user's house type OR are global
         const houseTypePattern = `%${houseTypeCode}%`;
         const result = await db.execute(sql`
           SELECT 
@@ -241,10 +241,12 @@ export async function GET(request: NextRequest) {
             metadata
           FROM documents
           WHERE is_superseded = false
+            AND development_id = ${developmentId}::uuid
             AND (
               house_type_code = ${houseTypeCode}
               OR UPPER(title) LIKE UPPER(${houseTypePattern})
               OR UPPER(file_name) LIKE UPPER(${houseTypePattern})
+              OR (metadata->>'is_global')::boolean = true
             )
           ORDER BY 
             CASE 
@@ -252,31 +254,12 @@ export async function GET(request: NextRequest) {
               ELSE 1 
             END,
             created_at DESC
-          LIMIT 20
+          LIMIT 10
         `);
         docRows = result.rows as any[];
       }
       
-      // If no documents by house_type, try by development_id
-      if (docRows.length === 0 && developmentId) {
-        console.log('[Profile] No docs by house_type, trying development_id:', developmentId);
-        const result = await db.execute(sql`
-          SELECT 
-            id,
-            title,
-            file_url,
-            mime_type,
-            document_type,
-            discipline,
-            metadata
-          FROM documents
-          WHERE is_superseded = false
-            AND development_id = ${developmentId}::uuid
-          ORDER BY created_at DESC
-          LIMIT 20
-        `);
-        docRows = result.rows as any[];
-      }
+      // NO fallback to all development documents - only show house-type specific docs
       
       documents = (docRows || []).map((doc: any) => ({
         id: doc.id,
@@ -286,7 +269,7 @@ export async function GET(request: NextRequest) {
         category: getCategoryFromDoc(doc),
       }));
       
-      console.log('[Profile] Found', documents.length, 'documents');
+      console.log('[Profile] Found', documents.length, 'documents for house type:', houseTypeCode);
     } catch (e) {
       console.error('[Profile] Error fetching documents:', e);
     }
