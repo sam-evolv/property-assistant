@@ -1,0 +1,197 @@
+You are working inside the repository: property-assistant/apps/unified-portal (Next.js).
+We are rolling out Longview Park tomorrow. We need a one-click “QR Pack” generator that produces a single print-ready PDF containing one page per house (expected 61 pages). Each page uses a fixed one-page template and inserts a unique QR code and house address into placeholders.
+
+Non-negotiable rules
+
+DO NOT change routing, auth logic, Supabase schema, or theme tokens.
+
+DO NOT introduce new UI libraries.
+
+MUST use Supabase as the source of truth for units.
+
+MUST generate QR codes server-side.
+
+MUST generate a single PDF (multi-page) download.
+
+MUST lock access to admin-only (Super Admin / authenticated admin).
+
+MUST use deterministic ordering.
+
+MUST use placeholders in the template to position the address and QR: {{HOUSE_ADDRESS}} and {{QR_CODE}}.
+
+MUST implement in a way that can be reused for other projects later, but default to Longview Park for this rollout.
+
+Goal
+Add an admin button: “Download Longview Park QR Pack (PDF)”.
+When clicked, it downloads longview-park-qr-pack.pdf where each page contains:
+
+The template text and styling (as close as practical)
+
+The house address injected at {{HOUSE_ADDRESS}}
+
+The QR code image injected at {{QR_CODE}}
+
+QR code encodes a stable URL that loads the portal in the correct unit context
+
+Assumptions
+
+Units exist in Supabase and are already used elsewhere in the app.
+
+There is an existing stable unit-entry route or resolver. If there is already a resolver endpoint, use that. If not, use an existing unit route pattern already present in the repo.
+
+Use env var NEXT_PUBLIC_APP_URL as the base URL for QR encoding. If not present, use VERCEL_URL or current host fallback safely.
+
+Phase 0 - Locate the Longview Park template
+
+Find the existing homeowner template file(s). The user has a Word document that includes the content and placeholders. We need a canonical template inside the repo.
+
+Create a template text file in the repo that contains the final content with the placeholders.
+
+Create: apps/unified-portal/assets/qr-pack/longview-template.txt
+
+It must include the placeholders exactly:
+
+{{HOUSE_ADDRESS}}
+
+{{QR_CODE}}
+
+The rest of the content should match the one-page copy already approved:
+
+Title: “Longview Park Digital Property Assistant”
+
+Sections: Welcome, What It Can Help With (bullets), Beta Notice, Important Information (bullets), Privacy & Use, Final Note, Questions line with sam.donworth@longview.ie.
+
+Keep it compact to fit one A4 page with a large QR.
+
+Phase 1 - Add server route to generate PDF
+Create API route:
+apps/unified-portal/app/api/admin/qr-pack/route.ts
+
+Route requirements
+
+Authenticate and enforce admin-only access. Reuse existing admin auth patterns in the repo (search for other /api/admin/* routes or guards). If none exist, gate via current session and a hard check for a known admin role/claim already used in Super Admin.
+
+Accept optional query params:
+
+projectId (uuid)
+
+format = a4 (default)
+
+Default projectId to Longview Park project UUID if there is an existing constant used elsewhere. If not, allow it to be passed from the UI and do not hardcode unless there is already a Longview Park constant.
+
+Query Supabase for units filtered by projectId. Retrieve at least:
+
+id (uuid)
+
+address field (prefer: address_line1, else address, else unit_number, else code)
+
+Deterministic ordering:
+
+If you have a numeric house number, sort ascending by it.
+
+Else sort by address string ascending.
+
+If 0 units returned, respond 400 with a clear error.
+
+PDF generation
+
+Use pdf-lib for PDF creation.
+
+Use qrcode npm package to generate QR images as PNG buffers.
+
+Install dependencies: npm i pdf-lib qrcode.
+
+Layout requirements (A4)
+
+One unit per page.
+
+Top margin ~40px.
+
+Title bold.
+
+Render template sections in a clean, professional layout.
+
+Insert the address where {{HOUSE_ADDRESS}} appears (bold).
+
+Insert the QR image centered where {{QR_CODE}} appears.
+
+QR size: at least 300–360px square equivalent on A4.
+
+Ensure everything fits on one page. If the text risks overflow, reduce body font slightly but do not shrink QR below 300px.
+
+Important: template placeholder handling
+
+Treat the template as structured lines.
+
+When you hit {{HOUSE_ADDRESS}}, draw the address line.
+
+When you hit {{QR_CODE}}, draw the QR image at the current y-position and advance y by QR height + spacing.
+
+For bullets, support lines beginning with - and render as bullet list.
+
+Preserve section headings by detecting lines that match known headings (Welcome, What It Can Help With, etc) and render them bold.
+
+QR target URL
+
+Base URL = process.env.NEXT_PUBLIC_APP_URL (required). If missing, throw a clear error message.
+
+QR URL must include unit identity. Use the existing resolver/route.
+Process:
+
+Search the repo for existing unit QR logic or resolver endpoints (e.g. /api/houses/resolve, /u/[id], unitId, token).
+
+Use the existing mechanism so scanning the QR takes the user directly into their unit context without manual input.
+
+Encode the final URL in the QR.
+
+Response
+
+Return PDF bytes with headers:
+
+Content-Type: application/pdf
+
+Content-Disposition: attachment; filename="longview-park-qr-pack.pdf"
+
+Add minimal server logging: projectId, count.
+
+Phase 2 - Add UI button in Super Admin
+
+Identify the Super Admin page/component where a tool button can live (search “Super Admin”, “Admin”, “Tools”, “Units Explorer”).
+
+Add a button labeled exactly: “Download Longview Park QR Pack (PDF)”.
+
+On click: call /api/admin/qr-pack?projectId=<selectedProjectId> and download the file.
+
+Use an existing project switcher value if available. If not, provide a small input/select limited to known projects already loaded in the Super Admin UI.
+
+Ensure button shows loading state and handles error with a visible message.
+
+Phase 3 - Add a minimal “print pack” section under Units Explorer
+
+Place the button near where Longview Park is selected.
+
+Include small helper text: “Generates a multi-page PDF with one QR page per unit.”
+
+Phase 4 - Verification (must pass)
+
+Locally generate the PDF for Longview Park and confirm:
+
+Page count equals unit count (expected 61)
+
+3 random pages scan successfully on phone and land in correct unit context
+
+Addresses match the unit list
+
+Layout is consistent and QR codes are large and scannable
+
+Add a simple unit test script if there is an existing scripts folder, otherwise skip tests but ensure manual verification steps are documented in code comments.
+
+Deliverables checklist
+
+New template file: assets/qr-pack/longview-template.txt
+
+New API route: app/api/admin/qr-pack/route.ts
+
+UI button in Super Admin
+
+Works end-to-end: click button, PDF downloads, prints cleanly

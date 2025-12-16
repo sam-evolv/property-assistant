@@ -1,0 +1,41 @@
+Longview Park Digital Property Assistant
+
+Welcome
+
+Scan the QR code below to access the Longview Park Digital Property Assistant — an AI-powered information hub designed to help homeowners quickly find general information about the development, their home, and the local area.
+
+{{HOUSE_ADDRESS}}
+
+{{QR_CODE}}
+
+What It Can Help With
+
+- Longview Park and estate information
+- General home-related guidance and documents
+- Local amenities and services
+- Common homeowner questions
+
+Simply scan and ask a question in plain English. No apps or accounts required.
+
+Beta Notice
+
+This assistant is currently in beta. Information and features will be refined and expanded over time as the system continues to improve.
+
+Important Information
+
+- All content is provided for general reference only
+- It does not replace official documents, professional advice, or formal communication
+- No legal, structural, financial, or safety-critical advice is provided
+- Always rely on official documentation or qualified professionals where appropriate
+
+Privacy & Use
+
+No account is required. Usage may be monitored in aggregate to improve the service.
+
+Final Note
+
+This assistant is provided as a convenience to support homeowners and complements existing communication channels.
+
+Questions?
+
+For any questions or feedback regarding the assistant you can reach out to us at – sam.donworth@longview.ie
