@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
   productionBrowserSourceMaps: false,
   transpilePackages: ['@openhouse/api', '@openhouse/auth', '@openhouse/db', '@openhouse/workers'],
   eslint: {
@@ -14,6 +14,7 @@ const nextConfig = {
       bodySizeLimit: '10mb'
     },
   },
+  allowedDevOrigins: ['*'],
   images: {
     remotePatterns: [
       {

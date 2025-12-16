@@ -2,38 +2,40 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, PoolClient, PoolConfig } from 'pg';
 import * as schema from './schema';
 
-// Supabase is now the single source of truth for the database
-// Legacy DATABASE_URL is kept as LEGACY_DATABASE_URL for migration scripts only
-const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
-
-if (!connectionString) {
-  throw new Error('SUPABASE_DB_URL (or DATABASE_URL fallback) is not defined in environment variables');
-}
-
-// Pool configuration with production-ready settings
-const poolConfig: PoolConfig = {
-  connectionString,
-  max: parseInt(process.env.DB_POOL_MAX || '20', 10),
-  min: parseInt(process.env.DB_POOL_MIN || '2', 10),
-  idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_MS || '30000', 10),
-  connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONN_TIMEOUT_MS || '5000', 10),
-  // Enable SSL for Supabase/production connections
-  ssl: process.env.DATABASE_SSL === 'true' || connectionString.includes('supabase.co') 
-    ? { rejectUnauthorized: false } 
-    : false,
-};
-
 // Use global cache to survive Next.js HMR (Hot Module Reloading)
 const globalForDb = globalThis as unknown as {
   dbPool: Pool | undefined;
+  drizzleDb: ReturnType<typeof drizzle> | undefined;
 };
 
-// Create connection pool
+// Lazy-initialize connection pool to prevent blocking Next.js startup
 let pool: Pool | null = globalForDb.dbPool ?? null;
+
+function getConnectionString(): string {
+  const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    throw new Error('SUPABASE_DB_URL (or DATABASE_URL fallback) is not defined in environment variables');
+  }
+  return connectionString;
+}
+
+function getPoolConfig(): PoolConfig {
+  const connectionString = getConnectionString();
+  return {
+    connectionString,
+    max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    min: parseInt(process.env.DB_POOL_MIN || '2', 10),
+    idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_MS || '30000', 10),
+    connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONN_TIMEOUT_MS || '5000', 10),
+    ssl: process.env.DATABASE_SSL === 'true' || connectionString.includes('supabase.co') 
+      ? { rejectUnauthorized: false } 
+      : false,
+  };
+}
 
 function getPool(): Pool {
   if (!pool) {
-    pool = new Pool(poolConfig);
+    pool = new Pool(getPoolConfig());
     globalForDb.dbPool = pool;
     
     // Pool error handlers

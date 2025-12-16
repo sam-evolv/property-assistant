@@ -28,7 +28,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd apps/unified-portal && npm run dev"
+args = "node apps/unified-portal/preview-server.js"
 waitForPort = 5000
 
 [[ports]]
