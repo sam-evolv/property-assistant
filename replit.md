@@ -79,11 +79,24 @@ One-click PDF generation for print-ready QR codes:
 - **Output:** Multi-page PDF with one page per unit containing:
   - Longview Park branding and content template
   - Unit address prominently displayed
-  - Scannable QR code linking to `/homes/{unitId}`
+  - Scannable QR code linking to `/units/{unitId}`
 - **API Endpoint:** `GET /api/admin/qr-pack?projectId={uuid}`
+- **CLI Script:** `npx tsx scripts/generate-qr-pack.ts --projectId=<id> [--output=<file.pdf>]`
+- **Base URL:** `https://portal.openhouseai.ie`
 - **Template:** `apps/unified-portal/assets/qr-pack/longview-template.txt`
 - **Dependencies:** pdf-lib, qrcode
 - **Sorting:** Deterministic by house number (numeric extraction)
+
+**CLI Usage (bypasses Next.js for memory-constrained environments):**
+```bash
+cd apps/unified-portal
+npx tsx scripts/generate-qr-pack.ts --projectId=57dc3919-2725-4575-8046-9179075ac88e --output=LongviewPark_QR_Pack.pdf
+```
+
+### Infrastructure Changes (December 2025)
+**API Init Guard:** Background workers (cleanup, job queue) now require explicit opt-in via `RUN_INFRA=1` environment variable to prevent crashes during Next.js dev/build phases.
+- **File:** `packages/api/src/init.ts`
+- **Reason:** Dynamic imports prevent module-load-time crashes when database isn't ready
 
 ### RLS Fix for Units Table (December 2025)
 **Issue:** Units with NULL user_id were invisible to Overview and Status APIs due to Supabase RLS policy `auth.uid() = user_id`.

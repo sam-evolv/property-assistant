@@ -1,0 +1,91 @@
+The Replit web Preview shows “Hmm… We couldn’t reach this app” after we initiated deployment. The app used to run locally in Replit for development and testing. Deployment should not break local dev. We must restore the ability to run the site in Replit (Run button + Agent) immediately without undoing deployment work.
+
+Objective
+Make the Replit workspace runnable again so that:
+
+Clicking Run starts the Next.js dev server for apps/unified-portal
+
+Preview loads on port 3000
+
+The Agent can run and test the app locally
+
+Deployment config remains intact (do not remove deployments)
+
+Non-negotiables
+
+Do NOT change routing, Supabase queries, auth logic, or theme
+
+Do NOT remove deployment files/folders
+
+Do NOT introduce new libraries
+
+Keep monorepo structure intact
+
+Tasks
+
+Audit current run configuration
+
+Inspect .replit at repo root and confirm what run command is set to.
+
+Inspect any Replit-related config files that might override run behaviour:
+
+replit.nix
+
+.config/* (if relevant)
+
+package.json scripts at repo root and apps/unified-portal/package.json
+
+Restore correct local dev run command
+Update .replit so the Run button starts the dev server for the unified portal:
+
+Primary target:
+cd apps/unified-portal && npm run dev -- -p 3000
+
+If the project uses next dev directly, use:
+cd apps/unified-portal && npx next dev -p 3000
+
+Ensure the server binds to all interfaces so Replit Preview can reach it:
+Prefer:
+HOSTNAME=0.0.0.0
+or HOST=0.0.0.0
+or Next’s host binding if supported.
+
+Final .replit run command should be one of:
+A)
+run = "cd apps/unified-portal && HOSTNAME=0.0.0.0 npm run dev -- -p 3000"
+or
+B)
+run = "cd apps/unified-portal && HOSTNAME=0.0.0.0 npx next dev -p 3000"
+
+Validate port + preview assumptions
+
+Confirm that the dev server prints a listening message and is reachable from Preview.
+
+Ensure the port is 3000 (as shown in the Preview URL).
+
+If Replit expects a different port via env, make it explicit.
+
+Add a “dev:replit” script (to make this bulletproof)
+In apps/unified-portal/package.json add:
+
+"dev:replit": "HOSTNAME=0.0.0.0 next dev -p 3000"
+
+Then set .replit to:
+
+run = "cd apps/unified-portal && npm run dev:replit"
+
+Do not change existing scripts; only add.
+
+Confirm local run does not affect deployment
+
+Leave deployment build/run commands alone.
+
+This fix is strictly for local development in the workspace.
+
+Output
+
+Provide the exact diff of .replit and any package.json changes.
+
+Confirm Preview loads successfully after clicking Run.
+
+END PROMPT

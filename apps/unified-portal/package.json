@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "next dev -H 0.0.0.0 -p 5000",
     "build": "next build",
     "build:standalone": "NEXT_TELEMETRY_DISABLED=1 next build",
     "package:replit": "rm -rf .replit-deploy && mkdir -p .replit-deploy && cp -R .next/standalone/* .replit-deploy/ && mkdir -p .replit-deploy/.next && cp -R .next/static .replit-deploy/.next/static && cp -R public .replit-deploy/public || true",

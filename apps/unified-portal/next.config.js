@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
   transpilePackages: ['@openhouse/api', '@openhouse/auth', '@openhouse/db', '@openhouse/workers'],
@@ -108,21 +107,6 @@ const nextConfig = {
     ];
   },
   webpack: (config, { isServer, dev }) => {
-    config.parallelism = 1;
-    config.infrastructureLogging = { level: 'error' };
-    config.stats = 'errors-only';
-    config.cache = { type: 'filesystem' };
-    
-    if (!dev) {
-      config.devtool = false;
-    }
-    
-    if (config.optimization) {
-      config.optimization.moduleIds = 'deterministic';
-      config.optimization.chunkIds = 'deterministic';
-      config.optimization.minimize = true;
-    }
-    
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
