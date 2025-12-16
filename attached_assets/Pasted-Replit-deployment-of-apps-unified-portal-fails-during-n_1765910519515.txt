@@ -1,0 +1,103 @@
+Replit deployment of apps/unified-portal fails during next build with SIGBUS (exit code 135) due to memory exhaustion even with NODE_OPTIONS=--max-old-space-size=4096 and 4 vCPU / 8GB RAM. We need an emergency “deployment build profile” that reduces Next/Webpack peak memory usage so the build completes on Replit.
+
+Objective
+Make apps/unified-portal production build succeed on Replit by:
+
+reducing build parallelism and peak memory usage
+
+disabling expensive build artefacts (source maps, lint/typecheck during build)
+
+using output: "standalone" to produce a smaller runtime bundle
+
+keeping app functionality unchanged
+
+Non-negotiables
+
+Do NOT change routing, auth, Supabase logic, or UI behaviour
+
+Do NOT remove pages or features
+
+Only change build config and scripts for deployment reliability
+
+Phase 1 — Update Next config for low-memory build
+
+Open apps/unified-portal/next.config.js or apps/unified-portal/next.config.mjs (whichever exists).
+
+Merge in these settings (do not delete existing config; add/override only these keys):
+
+output: "standalone"
+
+productionBrowserSourceMaps: false
+
+eslint: { ignoreDuringBuilds: true }
+
+typescript: { ignoreBuildErrors: true }
+
+compress: true (leave default if already set)
+
+Add/modify webpack function to reduce memory pressure:
+
+Force filesystem cache (reduces rebuild memory spikes):
+config.cache = { type: "filesystem" }
+
+Reduce stats noise:
+config.stats = "errors-only"
+
+Limit parallelism:
+
+If config.optimization exists, set:
+config.optimization.minimize = true
+
+Add:
+config.parallelism = 1
+
+Ensure no source maps in production:
+config.devtool = false
+
+Return config at end.
+
+Phase 2 — Add a Replit-specific build script to control concurrency
+
+Open apps/unified-portal/package.json.
+
+Ensure scripts include:
+
+"build": "next build"
+
+"build:replit": "NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production next build"
+
+"start": "next start -p $PORT"
+
+If start already exists, ensure it uses $PORT.
+
+Phase 3 — Disable telemetry
+
+Add apps/unified-portal/.env.production with:
+NEXT_TELEMETRY_DISABLED=1
+
+Phase 4 — Adjust deployment to use the Replit build profile
+In Replit deployment settings (do not change code here, just ensure docs/instructions are correct), use:
+
+Build command:
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=6144 npm run build:replit
+
+Run command:
+cd apps/unified-portal && npm run start
+
+Note: increase heap to 6144 for build. This is acceptable on 8GB RAM because we are reducing parallelism. If this is too high, fall back to 4096.
+
+Phase 5 — Verification
+Run in Replit shell:
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=6144 npm run build:replit
+
+If it succeeds, redeploy. If it fails, print the first 50 lines of the build error output.
+
+Deliverables
+
+Updated apps/unified-portal/next.config.* with low-memory build settings and standalone output
+
+Updated apps/unified-portal/package.json scripts (build:replit, start uses $PORT)
+
+Added .env.production disabling telemetry
+
+Clear instructions for Replit deployment commands
