@@ -1,0 +1,96 @@
+Repo: property-assistant (monorepo). Deployment on Replit is failing during next build for apps/unified-portal with a bus error / memory allocation issue. Deployment build command sets NODE_OPTIONS=--max-old-space-size=4096 but the build still crashes because apps/unified-portal/package.json build script overrides Node heap back down to 2048. We must remove that override and harden the build to succeed on Replit deploy.
+
+Objective
+
+Remove any NODE_OPTIONS / --max-old-space-size=2048 override from apps/unified-portal/package.json scripts so deployment can apply 4096.
+
+Ensure Next build runs with higher heap and lower memory footprint.
+
+Keep runtime behavior unchanged. Only adjust build configuration and scripts.
+
+Provide a predictable Replit deployment build path.
+
+Non-negotiables
+
+Do NOT change routing, auth, Supabase logic, or data fetching logic.
+
+Do NOT add new UI libraries.
+
+Do NOT delete major features.
+
+Only change build scripts/config to pass deployment.
+
+Steps
+
+Phase 1 — Remove the 2048 override in unified-portal build script
+
+Open apps/unified-portal/package.json.
+
+In scripts, find any script that sets NODE_OPTIONS or includes --max-old-space-size=2048 (commonly in build, or a wrapper like build:prod).
+
+Replace it with a plain Next build command that does NOT hardcode memory, e.g.:
+
+If it’s currently:
+"build": "NODE_OPTIONS='--max-old-space-size=2048' next build"
+Change to:
+"build": "next build"
+
+If it’s currently running via node with options, remove options:
+"build": "node --max-old-space-size=2048 node_modules/.bin/next build"
+Change to:
+"build": "next build"
+
+Do not modify other scripts unless they also hardcode memory.
+
+Phase 2 — Reduce Next build memory usage
+
+Open apps/unified-portal/next.config.js or next.config.mjs (whichever exists).
+
+Ensure the exported config includes:
+
+productionBrowserSourceMaps: false
+
+If config is already present, add the property without removing existing settings.
+
+If swcMinify or other settings exist, leave them as-is.
+
+Phase 3 — Ensure deployment route handlers that generate PDFs run on Node (avoid edge constraints)
+
+Locate the QR pack endpoint file: apps/unified-portal/app/api/admin/qr-pack/route.ts (or the actual path if different).
+
+At the top-level of that file, add:
+
+export const runtime = "nodejs";
+
+Do not change logic inside the handler.
+
+Phase 4 — Make deployment commands consistent with monorepo
+
+Ensure the Replit deployment build command is:
+
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=4096 npm run build
+
+Ensure the run command is:
+
+cd apps/unified-portal && npm run start
+
+Do not add npm install into build commands.
+
+Phase 5 — Quick verification
+
+From Replit shell, run:
+
+cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=4096 npm run build
+
+Confirm build completes locally in the Replit workspace.
+2) If it still fails, adjust Replit deployment machine to 4 vCPU / 8GB RAM in deployment settings (do not change code for this).
+
+Deliverables
+
+Updated apps/unified-portal/package.json scripts: build no longer forces 2048.
+
+Updated apps/unified-portal/next.config.*: productionBrowserSourceMaps: false.
+
+Updated QR pack route to runtime="nodejs" (if file exists).
+
+Build succeeds when run with NODE_OPTIONS=--max-old-space-size=4096.
