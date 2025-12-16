@@ -71,13 +71,14 @@ const SECTION_HEADINGS = [
 
 export async function GET(request: NextRequest) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!baseUrl) {
       return NextResponse.json(
         { error: 'NEXT_PUBLIC_APP_URL environment variable is required' },
         { status: 500 }
       );
     }
+    baseUrl = baseUrl.trim().replace(/\/+$/, '');
 
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('projectId');
@@ -132,7 +133,7 @@ export async function GET(request: NextRequest) {
       const page = pdfDoc.addPage([pageWidth, pageHeight]);
       let y = pageHeight - marginTop;
 
-      const qrUrl = `${baseUrl}/homes/${unit.id}`;
+      const qrUrl = `${baseUrl}/units/${unit.id}`;
       const qrBuffer = await generateQRCodePNG(qrUrl);
       const qrImage = await pdfDoc.embedPng(qrBuffer);
       const qrSize = 200;
@@ -245,7 +246,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="longview-park-qr-pack.pdf"',
+        'Content-Disposition': 'attachment; filename="LongviewPark_QR_Pack.pdf"',
       },
     });
   } catch (error: any) {

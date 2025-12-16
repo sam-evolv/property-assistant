@@ -1,0 +1,144 @@
+Context
+We need to print QR code sheets for Longview Park tonight. We already have a DOCX template file named Longview Park Digital Property Assistant.docx in the repo/assets. The template contains two placeholders that MUST be replaced per unit:
+
+{{HOUSE_ADDRESS}}
+
+{{QR_CODE}}
+
+The base URL for QR codes is fixed as:
+NEXT_PUBLIC_APP_URL = https://portal.openhouseai.ie
+Do not use any other domain. Do not insert extra dots. Use the env value verbatim.
+
+Goal
+When the user clicks “Download QR Pack” in Units Explorer, generate and download a single PDF where:
+
+There is 1 page per unit
+
+Each page is based on the DOCX template
+
+{{HOUSE_ADDRESS}} is replaced with the unit’s printable address label (e.g. “3 Longview Park” or “3 Longview Park, Ballyhooly Road, Ballyvolane, Cork City” depending on what exists in the units record)
+
+{{QR_CODE}} is replaced by a QR image encoding:
+{NEXT_PUBLIC_APP_URL}/units/{unit.id}
+Example: https://portal.openhouseai.ie/units/8b3d...-uuid
+
+Constraints
+
+Do NOT embed replit.app or vercel.app in QR codes.
+
+Do NOT require projectId/developmentId in the QR payload. Unit UUID is the token.
+
+Keep the existing DOCX content unchanged other than replacing placeholders.
+
+Output must be a print-ready PDF, A4, with the QR located where the placeholder is.
+
+Implementation Plan
+
+Fix environment variable usage (current 500 error)
+
+Locate the QR pack API route used by the “Download QR Pack” button, likely:
+apps/unified-portal/app/api/admin/qr-pack/route.ts (or similar)
+
+Read process.env.NEXT_PUBLIC_APP_URL
+
+If missing, return 500 with message: “NEXT_PUBLIC_APP_URL is required”
+
+Normalise:
+
+baseUrl = baseUrl.trim().replace(/\/+$/, "")
+
+Fetch units
+
+Use existing Supabase service role or server-side client already used by admin routes.
+
+Fetch units for the selected projectId currently visible in Units Explorer.
+
+Include fields needed for printing:
+
+id (UUID)
+
+unit_number (if exists)
+
+address / display_address / label (use whichever your schema has)
+
+fallback: “Unit {unit_number}” if address missing
+
+Compose printable strings
+
+houseAddress should be the best available single-line label:
+
+Prefer a dedicated display field if present
+
+Else: ${unit_number} Longview Park if unit_number exists
+
+Else: ${address} if present
+
+Compose QR URL exactly:
+qrUrl = ${baseUrl}/units/${unit.id}`
+
+Generate QR images
+
+Use a Node QR library (already in repo or add a lightweight one such as qrcode).
+
+Generate PNG buffers at print quality (minimum 512x512, ideally 1024x1024).
+
+Apply DOCX template per unit using placeholders
+
+Store the template in a stable path in the repo, for example:
+apps/unified-portal/assets/Longview Park Digital Property Assistant.docx
+(If it currently exists elsewhere, keep path but reference it explicitly.)
+
+For each unit:
+a) Load the DOCX template
+b) Replace {{HOUSE_ADDRESS}} with houseAddress
+c) Replace {{QR_CODE}} with the generated QR PNG placed at the placeholder location
+
+The QR must be inserted inline where {{QR_CODE}} appears
+
+Keep sizing consistent (target approx 55mm–70mm square on A4)
+Recommended approach:
+
+Use docxtemplater + pizzip + image module OR python-docx via a small script invoked from Node
+
+The key requirement is exact placeholder replacement and preserved layout.
+
+Convert to a single PDF
+
+Combine all pages into one PDF in the correct order (sorted by unit_number if numeric).
+
+Conversion approach options:
+
+Generate PDF directly (preferred): render content programmatically, but MUST replicate the template text and spacing exactly.
+
+OR: generate a merged DOCX (one section break per unit) and convert DOCX → PDF using a reliable converter available in the environment.
+
+The final download MUST be longview-qr-pack.pdf.
+
+Return the PDF as download
+
+API returns application/pdf with a filename:
+LongviewPark_QR_Pack.pdf
+
+Add a local “smoke test” script
+
+Create apps/unified-portal/scripts/test-qr-pack.ts that:
+
+Calls the QR pack route for the Longview Park projectId
+
+Verifies the PDF is returned and size > 0
+
+Logs first 3 QR URLs generated (no secrets)
+
+Acceptance Criteria
+
+Clicking “Download QR Pack” downloads LongviewPark_QR_Pack.pdf
+
+Each page uses the exact DOCX template wording
+
+{{HOUSE_ADDRESS}} and {{QR_CODE}} are fully replaced (no placeholders remain)
+
+QR scans resolve to https://portal.openhouseai.ie/units/<uuid>
+
+Ready for immediate printing
+
+END PROMPT

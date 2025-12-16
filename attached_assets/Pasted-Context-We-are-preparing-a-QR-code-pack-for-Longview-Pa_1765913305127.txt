@@ -1,0 +1,86 @@
+Context
+We are preparing a QR code pack for Longview Park for printing tonight. The base URL is set via deployment secret NEXT_PUBLIC_APP_URL and is currently https://portal.openhouse.ai.ie (domain is openhouse.ai.ie). We must generate QR codes that remain valid permanently even if hosting changes. QRs must not include replit.app or vercel.app.
+
+Goal
+When the user clicks “Download QR Pack”, generate a PDF where each QR encodes a stable URL composed as:
+
+{NEXT_PUBLIC_APP_URL}/units/{unitId}
+
+Where:
+
+NEXT_PUBLIC_APP_URL comes from env (must be used verbatim)
+
+unitId is the UUID primary key of the unit in Supabase
+
+No developerId, no projectId required in QR payload (unitId resolution is server-side)
+
+Requirements
+
+Locate the QR pack generator endpoint that currently fails with “NEXT_PUBLIC_APP_URL environment variable is required” and/or currently composes URLs incorrectly. Likely file(s):
+
+apps/unified-portal/app/api/admin/qr-pack/route.ts (or similar)
+
+Client trigger in apps/unified-portal/* around Units Explorer “Download QR Pack”
+
+Fix environment variable usage:
+
+Read process.env.NEXT_PUBLIC_APP_URL
+
+If missing, return 500 with explicit message
+
+If present, ensure it is normalised:
+
+Trim whitespace
+
+Remove trailing slash (so concatenation is clean)
+
+Compose QR URL exactly:
+
+const qrUrl = \${baseUrl}/units/${unit.id}`;`
+
+Do not use /u/. Do not hardcode any domain. Do not use projectId in the URL.
+
+Ensure the route /units/[id] exists in the app router:
+
+If it already exists, do not change its behaviour
+
+If it does not exist, implement it with minimal logic:
+
+A page at apps/unified-portal/app/units/[id]/page.tsx
+
+It should redirect into the existing purchaser portal/chat flow by resolving the unit token/id using the existing resolver logic (do not change auth)
+
+If your app already uses a resolver endpoint (e.g. /api/houses/resolve?token=), reuse it
+
+The page must work for logged-out users in beta (if that is how QR onboarding is designed)
+
+PDF generation
+
+Keep the existing PDF layout and placeholders
+
+Ensure each page prints:
+
+Address label (unit display name, e.g. “3 Longview Park”)
+
+QR code image for qrUrl
+
+Critical: Fix domain formatting
+
+Do not insert any dots or modify the domain
+
+Use NEXT_PUBLIC_APP_URL as supplied: https://portal.openhouse.ai.ie
+
+Add a quick verification log
+
+When generating, log the first 3 generated URLs to server logs for sanity check (do not log secrets)
+
+Deliverables
+
+“Download QR Pack” works without 500 errors
+
+Generated QR URLs are of the form:
+https://portal.openhouse.ai.ie/units/<uuid>
+
+No dependency on replit/app hostnames
+
+Ready to print tonight
