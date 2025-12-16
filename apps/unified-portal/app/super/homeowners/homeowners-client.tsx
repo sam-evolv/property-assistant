@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, MessageSquare, Activity, CheckCircle2, Info } from 'lucide-react';
+import { Users, MessageSquare, Activity, CheckCircle2, Home } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
@@ -18,34 +18,55 @@ interface Homeowner {
   created_at: string;
   chat_message_count: number;
   last_active: string | null;
+  handover_date?: string | null;
+  is_registered?: boolean;
 }
 
 export function HomeownersDirectory() {
-  const { selectedProjectId, setSelectedProjectId } = useProjectContext();
+  const { selectedProjectId, selectedProject, isLoading: projectsLoading } = useProjectContext();
   const [homeowners, setHomeowners] = useState<Homeowner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isProjectScoped = selectedProjectId !== null;
-
   useEffect(() => {
-    if (isProjectScoped) {
-      setLoading(false);
-      return;
+    if (projectsLoading) return;
+
+    async function fetchHomeowners() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        if (selectedProjectId) {
+          const url = `/api/super/homeowners?projectId=${selectedProjectId}`;
+          console.log('[HomeownersDirectory] Fetching project-scoped homeowners:', url);
+          
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch homeowners');
+          const data = await res.json();
+          
+          console.log('[HomeownersDirectory] Received:', data.count, 'homeowners for projectId:', data.projectId);
+          setHomeowners(data.homeowners || []);
+        } else {
+          const url = '/api/admin/homeowners/stats';
+          console.log('[HomeownersDirectory] Fetching all homeowners:', url);
+          
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch homeowners');
+          const data = await res.json();
+          
+          console.log('[HomeownersDirectory] Received:', (data.homeowners || []).length, 'homeowners');
+          setHomeowners(data.homeowners || []);
+        }
+      } catch (err: any) {
+        console.error('[HomeownersDirectory] Error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    fetch('/api/admin/homeowners/stats')
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch homeowners');
-        return res.json();
-      })
-      .then((data) => setHomeowners(data.homeowners || []))
-      .catch((err) => {
-        console.error('Homeowners error:', err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
-  }, [isProjectScoped]);
+    fetchHomeowners();
+  }, [selectedProjectId, projectsLoading]);
 
   const getActivityStatus = (lastActive: string | null) => {
     if (!lastActive) return { label: 'Never', color: 'text-gray-400' };
@@ -60,30 +81,7 @@ export function HomeownersDirectory() {
     return { label: `${daysSince}d ago`, color: 'text-gray-500' };
   };
 
-  if (isProjectScoped) {
-    return (
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <SectionHeader title="Homeowner Directory" description="Project view is active" />
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-lg mx-auto mt-8">
-          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Info className="w-6 h-6 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Project view is active</h3>
-          <p className="text-gray-600 mb-6">
-            Homeowners are available in All Schemes view.
-          </p>
-          <button
-            onClick={() => setSelectedProjectId(null)}
-            className="px-6 py-2.5 bg-gold-500 text-white rounded-lg font-medium hover:bg-gold-600 transition-colors"
-          >
-            Switch to All Schemes
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
+  if (loading || projectsLoading) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <SectionHeader title="Homeowner Directory" description="Loading..." />
@@ -188,25 +186,34 @@ export function HomeownersDirectory() {
     return daysSince <= 7;
   });
 
+  const scopeLabel = selectedProject ? selectedProject.name : 'All Projects';
+  const registeredCount = homeowners.filter((h) => h.is_registered).length;
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <SectionHeader
         title="Homeowner Directory"
-        description={`${homeowners.length} registered homeowners`}
+        description={`Viewing ${homeowners.length} homeowners in ${scopeLabel}`}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <InsightCard
           title="Total Homeowners"
           value={homeowners.length}
-          subtitle="Registered users"
+          subtitle={scopeLabel}
           icon={<Users className="w-5 h-5" />}
+        />
+        <InsightCard
+          title="Registered"
+          value={registeredCount}
+          subtitle={`${Math.round((registeredCount / homeowners.length) * 100) || 0}% signed up`}
+          icon={<CheckCircle2 className="w-5 h-5" />}
         />
         <InsightCard
           title="Active (7 days)"
           value={activeHomeowners.length}
           subtitle={`${Math.round((activeHomeowners.length / homeowners.length) * 100) || 0}% activity rate`}
-          icon={<CheckCircle2 className="w-5 h-5" />}
+          icon={<Activity className="w-5 h-5" />}
         />
         <InsightCard
           title="Total Messages"

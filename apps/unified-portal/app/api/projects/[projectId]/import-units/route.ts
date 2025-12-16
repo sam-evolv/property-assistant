@@ -22,6 +22,7 @@ interface RawRow {
 interface NormalizedRow {
   unit_identifier: string;
   unit_type: string;
+  purchaser_name: string;
 }
 
 function asString(v: unknown): string {
@@ -57,6 +58,10 @@ function extractUnitIdentifier(row: Record<string, any>): string {
 
 function extractUnitType(row: Record<string, any>): string {
   return clean(row['unit_type'] ?? row['house_type_code'] ?? row['house_type'] ?? row['type']);
+}
+
+function extractPurchaserName(row: Record<string, any>): string {
+  return clean(row['purchaser_name'] ?? row['purchaser'] ?? row['owner'] ?? row['buyer_name'] ?? row['buyer'] ?? row['customer_name'] ?? row['customer']);
 }
 
 export async function POST(
@@ -115,6 +120,7 @@ export async function POST(
       return {
         unit_identifier: extractUnitIdentifier(normalized),
         unit_type: extractUnitType(normalized),
+        purchaser_name: extractPurchaserName(normalized),
       };
     });
 
@@ -247,7 +253,7 @@ export async function POST(
       console.log('[Import Units] Created', createdTypesCount, 'new unit types');
     }
 
-    const validRows: Array<{ address: string; unit_type_id: string }> = [];
+    const validRows: Array<{ address: string; unit_type_id: string; purchaser_name: string }> = [];
     const unmappedTypes: string[] = [];
     
     for (const row of rows) {
@@ -264,6 +270,7 @@ export async function POST(
       validRows.push({
         address: row.unit_identifier,
         unit_type_id: unitTypeId,
+        purchaser_name: row.purchaser_name,
       });
     }
 
@@ -286,6 +293,7 @@ export async function POST(
       project_id: projectId,
       address: row.address,
       unit_type_id: row.unit_type_id,
+      purchaser_name: row.purchaser_name || null,
     }));
 
     const { data: insertedUnits, error: insertError } = await supabaseAdmin
