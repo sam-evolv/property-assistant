@@ -120,41 +120,102 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       return null;
     }
 
-    // Get house type for this development
-    // TODO: For multi-house-type developments, we need unit-specific house type mapping
-    const { rows: houseTypeRows } = await db.execute(sql`
-      SELECT house_type_code, name 
-      FROM house_types 
-      WHERE development_id = ${developmentId}::uuid
-      ORDER BY house_type_code
-      LIMIT 1
-    `);
-    const houseType = houseTypeRows[0] as any;
+    // CRITICAL FIX: Match Supabase unit to Drizzle unit by address to get correct house_type_code
+    // Do NOT use LIMIT 1 on house_types - that picks wrong type for multi-type developments
+    let houseTypeCode: string | null = null;
+    let matchedBedrooms: number | null = null;
+    let matchedBathrooms: number | null = null;
+
+    if (supabaseUnit.address) {
+      // Extract unit number from address using flexible patterns:
+      // "31 Longview Park", "House 31 Longview", "31, Longview", "Unit 31", "31A Longview"
+      const addressNormalized = supabaseUnit.address.trim();
+      
+      // Try multiple patterns to extract unit number
+      const patterns = [
+        /^(\d+[A-Za-z]?)[,\s]/,              // "31 Longview" or "31, Longview" or "31A Longview"
+        /^(?:House|Unit|No\.?|#)\s*(\d+[A-Za-z]?)/i,  // "House 31" or "Unit 31A"
+        /\b(\d+[A-Za-z]?)\s+(?:Longview|Park|Street|Road|Avenue|Lane|Drive)/i  // "at 31 Longview Park"
+      ];
+      
+      let unitNumber: string | null = null;
+      for (const pattern of patterns) {
+        const match = addressNormalized.match(pattern);
+        if (match) {
+          unitNumber = match[1];
+          break;
+        }
+      }
+      
+      if (unitNumber) {
+        // Try to find matching Drizzle unit by address containing this number
+        // Use fully wildcarded ILIKE patterns to handle all cases:
+        // - "31 Longview" (start), "House 31 Longview" (middle), "31, Longview" (comma)
+        const { rows: matchedRows } = await db.execute(sql`
+          SELECT house_type_code, bedrooms, bathrooms, address_line_1
+          FROM units 
+          WHERE development_id = ${developmentId}::uuid
+            AND (
+              address_line_1 ILIKE ${'%' + unitNumber + ' %'}
+              OR address_line_1 ILIKE ${'%' + unitNumber + ',%'}
+              OR address_line_1 ILIKE ${unitNumber + ' %'}
+              OR address_line_1 ILIKE ${unitNumber + ',%'}
+              OR address_line_1 ~ ${'^' + unitNumber + '[^0-9]'}
+            )
+          LIMIT 1
+        `);
+        
+        const matched = matchedRows[0] as any;
+        if (matched) {
+          houseTypeCode = matched.house_type_code;
+          matchedBedrooms = matched.bedrooms;
+          matchedBathrooms = matched.bathrooms;
+          console.log('[UnitLookup] Matched Supabase unit to Drizzle by address number:', unitNumber, '-> house_type:', houseTypeCode, 'matched address:', matched.address_line_1);
+        }
+      }
+    }
     
-    if (!houseType) {
-      console.log('[UnitLookup] WARNING: No house types found for development:', developmentId);
+    // Fallback: get sample unit data for bedrooms/bathrooms even if house type matching failed
+    if (!matchedBedrooms || !matchedBathrooms) {
+      const { rows: sampleRows } = await db.execute(sql`
+        SELECT bedrooms, bathrooms 
+        FROM units 
+        WHERE development_id = ${developmentId}::uuid
+          AND bedrooms IS NOT NULL
+        LIMIT 1
+      `);
+      const sample = sampleRows[0] as any;
+      if (sample) {
+        matchedBedrooms = matchedBedrooms || sample.bedrooms;
+        matchedBathrooms = matchedBathrooms || sample.bathrooms;
+      }
+    }
+    
+    // Only fall back to first house type if address matching failed
+    if (!houseTypeCode) {
+      console.log('[UnitLookup] WARNING: Could not match unit by address, using fallback (may be incorrect)');
+      const { rows: houseTypeRows } = await db.execute(sql`
+        SELECT house_type_code 
+        FROM house_types 
+        WHERE development_id = ${developmentId}::uuid
+        ORDER BY house_type_code
+        LIMIT 1
+      `);
+      const fallbackType = houseTypeRows[0] as any;
+      houseTypeCode = fallbackType?.house_type_code || null;
     }
 
-    const { rows: sampleUnitRows } = await db.execute(sql`
-      SELECT bedrooms, bathrooms 
-      FROM units 
-      WHERE development_id = ${developmentId}::uuid
-        AND bedrooms IS NOT NULL
-      LIMIT 1
-    `);
-    const sampleUnit = sampleUnitRows[0] as any;
-
-    console.log('[UnitLookup] Using development:', developmentId, 'House type:', houseType?.house_type_code || 'null');
+    console.log('[UnitLookup] Using development:', developmentId, 'House type:', houseTypeCode || 'null');
 
     return {
       id: supabaseUnit.id,
       tenant_id: tenantId,
       development_id: developmentId,
-      house_type_code: houseType?.house_type_code || null,
+      house_type_code: houseTypeCode,
       address: supabaseUnit.address || 'Unknown Unit',
       purchaser_name: supabaseUnit.purchaser_name,
-      bedrooms: sampleUnit?.bedrooms || null,
-      bathrooms: sampleUnit?.bathrooms || null,
+      bedrooms: matchedBedrooms,
+      bathrooms: matchedBathrooms,
     };
   } catch (err) {
     console.error('[UnitLookup] Error:', err);
