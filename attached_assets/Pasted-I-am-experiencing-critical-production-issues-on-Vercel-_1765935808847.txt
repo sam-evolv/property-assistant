@@ -1,0 +1,27 @@
+I am experiencing critical production issues on Vercel that do not happen on Replit. I need you to audit and fix the following three areas immediately so the app works exactly as it does in development.
+
+### 1. CRITICAL: Fix Middleware & QR Code Access
+**The Problem:** When users scan a QR code (routes like `/purchaser/...`, `/qr/...`, or `/welcome/...`), they are being redirected to the Sign-In page. These routes MUST be public.
+**The Fix:**
+- Open `middleware.ts` (or `src/middleware.ts`).
+- Review the `matcher` config and the Supabase Auth logic.
+- Explicitly whitelist/exclude ALL purchaser and QR-related routes from authentication enforcement.
+- Ensure that if a user visits a public "Welcome" or "Intro" page, the middleware allows the request to pass through without checking for a session.
+
+### 2. Fix Dashboard Data & API URL Handling
+**The Problem:** The Developer Dashboard is broken, data is missing, and analytics aren't loading. This is likely due to the app trying to fetch data from "localhost" instead of the real Vercel domain.
+**The Fix:**
+- Search for any API fetch calls in the dashboard components (e.g., `apps/unified-portal/app/developer/...`).
+- Ensure they are NOT hardcoded to `http://localhost:3000`.
+- Update them to use a dynamic helper function (like `getAbsoluteUrl()`) that uses `process.env.NEXT_PUBLIC_APP_URL` or `window.location.origin`.
+- Verify that `NEXT_PUBLIC_APP_URL` is being used correctly in your Supabase client initialization.
+
+### 3. Fix Data Formatting & Sorting
+**The Problem:** Names and addresses are appearing out of order or unformatted in the dashboard.
+**The Fix:**
+- Check the specific components rendering the User/Purchaser lists.
+- Ensure that the data sorting logic (e.g., `.sort()`) is robust and handles missing dates/names gracefully so it doesn't break the render order.
+- Verify that the CSS/Tailwind classes for these tables are standard and not being purged incorrectly during the production build.
+
+**Summary of Action:**
+Please implement these fixes, then run a check to ensure no "localhost" references remain in critical fetch paths.
