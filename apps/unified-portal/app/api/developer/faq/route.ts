@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db, faqEntries } from '@openhouse/db';
 import { eq, and, desc } from 'drizzle-orm';

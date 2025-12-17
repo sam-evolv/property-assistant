@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';

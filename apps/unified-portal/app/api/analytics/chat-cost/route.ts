@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 // TEMPORARILY DISABLED: analytics-engine module not found
 // import { NextRequest, NextResponse } from 'next/server';
 // import { getChatCostEstimate } from 'analytics-engine';

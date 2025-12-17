@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';

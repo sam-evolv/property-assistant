@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { units, developments } from '@openhouse/db/schema';

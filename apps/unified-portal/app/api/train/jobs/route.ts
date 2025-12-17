@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { handleGetTrainingJobs } from '@openhouse/api/train';
 
 export const runtime = 'nodejs';
