@@ -1,0 +1,81 @@
+You are working in a Next.js 14 monorepo deployed on Vercel. The build currently fails during `next build` for `apps/unified-portal`.
+
+There are TWO blocking issues you must fix. Apply BOTH fixes in one pass, commit, and ensure `npm ci` and `npm run build --workspace=apps/unified-portal` succeed.
+
+---
+
+## ISSUE 1 — Missing export `docChunks`
+
+**Build error:**
+Attempted import error: `docChunks` is not exported from `@openhouse/db/schema`.
+
+### Root cause
+
+`apps/unified-portal/app/api/information-requests/[id]/route.ts` imports `docChunks` from `@openhouse/db/schema`, but `docChunks` is not exported from the schema package.
+
+### Required fix
+
+1. Open `packages/db/schema.ts` (or the correct schema entry file).
+2. Either:
+
+   * Export the existing `docChunks` table if it exists but is not exported, OR
+   * If the table was removed, update **all imports** to use the correct replacement table, OR
+   * Remove the import and refactor usage if `docChunks` is obsolete.
+3. Ensure `@openhouse/db/schema` has a valid export for whatever symbol is imported.
+4. Rebuild TypeScript references if needed.
+
+---
+
+## ISSUE 2 — `/api/admin/qr-pack` fails during static build
+
+**Build error:**
+
+```
+Error: Failed to collect page data for /api/admin/qr-pack
+```
+
+### Root cause
+
+Next.js is trying to statically evaluate an API route that:
+
+* Uses runtime-only logic (filesystem, env secrets, crypto, DB access, etc.)
+* Does not explicitly opt out of static rendering
+
+### Required fix
+
+1. Open:
+
+```
+apps/unified-portal/app/api/admin/qr-pack/route.ts
+```
+
+2. At the TOP of the file, add:
+
+```ts
+export const dynamic = 'force-dynamic';
+```
+
+3. Ensure:
+
+   * No code in this route executes at module scope that depends on runtime-only values
+   * All logic runs inside the request handler
+
+This explicitly tells Next.js **not** to statically analyze this route during build.
+
+---
+
+## FINAL VERIFICATION CHECKLIST
+
+After applying both fixes:
+
+* Run `npm ci` from repo root
+* Run `npm run build --workspace=apps/unified-portal`
+* Confirm:
+
+  * No missing export errors
+  * No `Failed to collect page data` errors
+  * Build completes successfully
+
+Commit all changes with a clear message (e.g. `fix: resolve schema export and force dynamic api route`).
+
+Do not skip any step.
