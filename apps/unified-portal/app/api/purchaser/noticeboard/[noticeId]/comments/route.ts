@@ -5,10 +5,14 @@ import { notice_comments, noticeboard_posts, tenants, notice_audit_log } from '@
 import { eq, and, desc, gte, isNull, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const COMMENTS_PER_HOUR_LIMIT = 20;
 const EDIT_WINDOW_MINUTES = 10;
@@ -41,6 +45,7 @@ export async function GET(
   { params }: { params: Promise<{ noticeId: string }> }
 ) {
   try {
+    const supabase = getSupabaseClient();
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
@@ -159,6 +164,7 @@ export async function POST(
   { params }: { params: Promise<{ noticeId: string }> }
 ) {
   try {
+    const supabase = getSupabaseClient();
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');

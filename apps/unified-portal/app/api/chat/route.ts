@@ -17,14 +17,18 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
@@ -580,7 +584,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Generate embedding for the search query (may be expanded with context)
     console.log('[Chat] Generating query embedding...');
-    const embeddingResponse = await openai.embeddings.create({
+    const embeddingResponse = await getOpenAIClient().embeddings.create({
       model: 'text-embedding-3-small',
       input: searchQuery,
       dimensions: 1536,
@@ -607,6 +611,7 @@ export async function POST(request: NextRequest) {
     
     // Fetch ALL chunks with embeddings for proper semantic search
     console.log('[Chat] Loading all document chunks with embeddings...');
+    const supabase = getSupabaseClient();
     const { data: allChunks, error: fetchError } = await supabase
       .from('document_sections')
       .select('id, content, metadata, embedding')
@@ -1185,7 +1190,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     // TEST MODE: Return JSON response instead of streaming for test harness
     if (testMode) {
       console.log('[Chat] TEST MODE: Generating non-streaming response...');
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAIClient().chat.completions.create({
         model: 'gpt-4o-mini',
         messages: chatMessages,
         temperature: 0.3,
@@ -1234,7 +1239,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     }
 
     // Create streaming response
-    const stream = await openai.chat.completions.create({
+    const stream = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: chatMessages,
       temperature: 0.3,

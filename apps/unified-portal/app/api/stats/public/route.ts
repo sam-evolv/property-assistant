@@ -6,15 +6,18 @@ import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 export async function GET() {
   try {
+    const supabase = getSupabaseClient();
     const [messagesStats, documentsCount] = await Promise.all([
       db.select({
         totalMessages: sql<number>`count(*)`,

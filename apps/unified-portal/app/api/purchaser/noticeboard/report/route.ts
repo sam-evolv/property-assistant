@@ -5,10 +5,14 @@ import { notice_reports, noticeboard_posts, notice_comments, tenants } from '@op
 import { eq, and, gte, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const REPORTS_PER_HOUR_LIMIT = 10;
 
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
     const { data: unit, error: unitError } = await supabase
       .from('units')
       .select('id')

@@ -4,9 +4,13 @@ import { informationRequests, docChunks } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+export const dynamic = 'force-dynamic';
+
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 // REMOVED: Hardcoded tenant/development IDs - these are now derived from the request's existing data
 
@@ -66,7 +70,7 @@ export async function PATCH(
       
       let embedding: number[] | null = null;
       try {
-        const embeddingResponse = await openai.embeddings.create({
+        const embeddingResponse = await getOpenAIClient().embeddings.create({
           model: 'text-embedding-3-small',
           input: faqContent,
           dimensions: 1536,

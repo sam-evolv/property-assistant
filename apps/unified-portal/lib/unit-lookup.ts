@@ -3,10 +3,12 @@ import { units, developments } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // NO HARDCODED DEVELOPMENT IDS - All lookups derive from unit.development_id
 
@@ -57,6 +59,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
     }
 
     console.log('[UnitLookup] Not in Drizzle or missing house_type_code, checking Supabase...');
+    const supabase = getSupabaseClient();
     const { data: supabaseUnit, error } = await supabase
       .from('units')
       .select('id, address, purchaser_name, project_id')

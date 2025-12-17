@@ -3,11 +3,14 @@ import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(
   request: NextRequest,
@@ -15,6 +18,7 @@ export async function GET(
 ) {
   try {
     await requireRole(['super_admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const { data: unitTypes, error } = await supabaseAdmin
       .from('unit_types')
@@ -43,6 +47,7 @@ export async function POST(
 ) {
   try {
     await requireRole(['super_admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const body = await request.json();
     const { name, floor_plan_pdf_url, specification_json } = body;

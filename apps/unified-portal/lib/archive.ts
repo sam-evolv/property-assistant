@@ -26,10 +26,12 @@ export {
   type FetchDocumentsResult 
 } from './archive-constants';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // SINGLE SOURCE OF TRUTH - hardcoded Launch project ID
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
@@ -52,6 +54,7 @@ export async function fetchArchiveDisciplines({
     const projectId = PROJECT_ID;
     console.log('🔥 [Archive] Fetching disciplines for PROJECT_ID:', projectId);
     
+    const supabase = getSupabaseClient();
     const { data: sections, error } = await supabase
       .from('document_sections')
       .select('id, metadata')
@@ -178,6 +181,7 @@ export async function fetchDocumentsByDiscipline({
     // ALWAYS use hardcoded Launch project ID
     const projectId = PROJECT_ID;
     console.log('📂 Fetching documents for:', projectId);
+    const supabase = getSupabaseClient();
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -260,6 +264,7 @@ export async function countArchiveDocuments({
   try {
     // ALWAYS use hardcoded Launch project ID
     const projectId = PROJECT_ID;
+    const supabase = getSupabaseClient();
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -304,6 +309,7 @@ export async function fetchDocumentById({
   documentId: string;
 }): Promise<ArchiveDocument | null> {
   try {
+    const supabase = getSupabaseClient();
     const { data: section, error } = await supabase
       .from('document_sections')
       .select('id, metadata, content')
@@ -364,6 +370,7 @@ export async function searchArchiveDocuments({
   try {
     // ALWAYS use hardcoded Launch project ID
     const projectId = PROJECT_ID;
+    const supabase = getSupabaseClient();
     
     const { data: sections, error } = await supabase
       .from('document_sections')
@@ -425,6 +432,7 @@ export async function deleteDocument({
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   try {
     const projectId = PROJECT_ID;
+    const supabase = getSupabaseClient();
     console.log('[Archive] Deleting document:', { documentId, fileName, projectId });
 
     if (!documentId && !fileName) {
@@ -472,6 +480,7 @@ export async function updateDocumentFlags({
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
     const projectId = PROJECT_ID;
+    const supabase = getSupabaseClient();
     console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, projectId });
 
     // Fetch all sections for this project then filter in JS (handles special characters)
@@ -535,6 +544,7 @@ export async function assignDocumentToFolder({
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
     const projectId = PROJECT_ID;
+    const supabase = getSupabaseClient();
     console.log('[Archive] Assigning document to folder:', { fileName, folderId, projectId });
 
     const { data: allSections, error: fetchError } = await supabase

@@ -4,6 +4,8 @@ import { db } from '@openhouse/db/client';
 import { messages } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const context = await assertEnterpriseUser();

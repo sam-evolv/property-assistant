@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 const EXACT_MATCH_TOPICS: Record<string, string[]> = {
   'heat_pump': ['heat pump', 'heatpump', 'daikin', 'altherma'],
@@ -92,7 +94,7 @@ export async function extractQuestionTopic(question: string): Promise<string> {
   }
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {

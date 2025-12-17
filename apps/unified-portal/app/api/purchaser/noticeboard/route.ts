@@ -5,11 +5,14 @@ import { eq, desc, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase client for legacy units lookup
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Helper to get unit info from either database
 async function getUnitInfo(unitUid: string): Promise<{
@@ -34,6 +37,7 @@ async function getUnitInfo(unitUid: string): Promise<{
   }
 
   // Fall back to Supabase units table
+  const supabase = getSupabaseClient();
   console.log('[Noticeboard] Unit not in Drizzle, checking Supabase...');
   const { data: supabaseUnit, error } = await supabase
     .from('units')

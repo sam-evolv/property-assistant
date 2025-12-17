@@ -4,6 +4,8 @@ import { db } from '@openhouse/db/client';
 import { documents, doc_chunks } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const context = await assertEnterpriseUser();

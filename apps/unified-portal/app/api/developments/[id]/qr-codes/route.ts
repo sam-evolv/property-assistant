@@ -3,17 +3,21 @@ import { NextResponse } from 'next/server';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 
-// CRITICAL: Service Role Key bypasses RLS
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const BASE_URL = 'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    const supabase = getSupabaseClient();
     console.log(`[QR] Generating for project: ${REAL_PROJECT_ID}`);
 
     // Simple query without join

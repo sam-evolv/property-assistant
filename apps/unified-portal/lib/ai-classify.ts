@@ -8,7 +8,9 @@
 import OpenAI from 'openai';
 import type { DisciplineType } from './archive';
 
-const openai = new OpenAI();
+function getOpenAIClient() {
+  return new OpenAI();
+}
 
 export interface ClassificationResult {
   discipline: DisciplineType;
@@ -214,7 +216,7 @@ Respond ONLY with valid JSON:
   "reasoning": "Brief explanation"
 }`;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },

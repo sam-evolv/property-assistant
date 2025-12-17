@@ -3,10 +3,14 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Known Irish location coordinates for fallback
 const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
@@ -86,6 +90,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseClient();
     let body: any = {};
     
     try {

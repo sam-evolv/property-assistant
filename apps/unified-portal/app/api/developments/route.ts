@@ -7,15 +7,19 @@ import { developments } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     console.log('[Developments API] Fetching from both Drizzle and Supabase...');
     

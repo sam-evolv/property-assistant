@@ -4,16 +4,18 @@ import { createClient } from '@supabase/supabase-js';
 import * as xlsx from 'xlsx';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-// Service role client bypasses RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: { persistSession: false },
-    db: { schema: 'public' }
-  }
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 interface RawRow {
   [key: string]: any;
@@ -70,6 +72,7 @@ export async function POST(
 ) {
   try {
     await requireRole(['super_admin']);
+    const supabaseAdmin = getSupabaseAdmin();
 
     const projectId = params.projectId;
 

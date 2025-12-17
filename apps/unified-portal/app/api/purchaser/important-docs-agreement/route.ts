@@ -4,16 +4,21 @@ import { purchaserAgreements } from '@openhouse/db/schema';
 import { createClient } from '@supabase/supabase-js';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const PUBLIC_DISCIPLINES = ['handover', 'other'];
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const body = await request.json();
     const { unitUid, token, purchaserName } = body;
 

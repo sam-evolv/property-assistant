@@ -4,10 +4,14 @@ import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,6 +77,7 @@ export async function GET(request: NextRequest) {
     if (!unit) {
       console.log('[Profile] Not found in Drizzle, checking Supabase...');
       try {
+        const supabase = getSupabaseClient();
         const { data: supabaseUnit, error } = await supabase
           .from('units')
           .select('id, address, purchaser_name, project_id')
