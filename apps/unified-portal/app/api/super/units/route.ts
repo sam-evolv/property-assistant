@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { units, developments } from '@openhouse/db/schema';
 import { eq, asc, sql } from 'drizzle-orm';
+import { resolveDevelopment } from '@/lib/development-resolver';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,14 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId');
 
     console.log('[API] /api/super/units - projectId:', projectId || 'all');
+    
+    // Resolve Supabase project ID to Drizzle development ID
+    let drizzleDevelopmentId: string | null = null;
+    if (projectId) {
+      const resolved = await resolveDevelopment(projectId);
+      drizzleDevelopmentId = resolved?.drizzleDevelopmentId || null;
+      console.log('[API] /api/super/units - resolved to Drizzle development_id:', drizzleDevelopmentId);
+    }
 
     let query = db
       .select({
@@ -37,8 +46,9 @@ export async function GET(request: NextRequest) {
       .leftJoin(developments, eq(units.development_id, developments.id))
       .orderBy(asc(developments.name), asc(units.address_line_1), asc(units.created_at));
 
-    const unitsData = projectId
-      ? await query.where(eq(units.development_id, projectId))
+    // Use resolved Drizzle development_id for filtering (not Supabase project_id)
+    const unitsData = drizzleDevelopmentId
+      ? await query.where(eq(units.development_id, drizzleDevelopmentId))
       : await query;
 
     const formattedUnits = unitsData.map((unit) => ({
