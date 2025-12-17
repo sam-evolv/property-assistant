@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
+import { resolveDevelopment } from '@/lib/development-resolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,40 +194,28 @@ export async function POST(req: Request) {
       if (supabaseUnit && !supabaseError) {
         console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address);
         
-        // Get development info from Supabase projects
-        const { data: project } = await supabase
-          .from('projects')
-          .select('id, name, logo_url')
-          .eq('id', supabaseUnit.project_id)
-          .single();
-        
         const fullAddress = supabaseUnit.address || '';
         const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
         
-        // Resolve tenant_id from development
-        let resolvedTenantId = null;
-        let resolvedDevName = project?.name || 'Your Development';
-        if (supabaseUnit.project_id) {
-          const { rows: devRows } = await db.execute(sql`
-            SELECT tenant_id, name FROM developments WHERE id = ${supabaseUnit.project_id}::uuid
-          `);
-          if (devRows.length > 0) {
-            resolvedTenantId = (devRows[0] as any).tenant_id;
-            resolvedDevName = (devRows[0] as any).name;
-          }
-        }
+        // Use development resolver to get both Supabase and Drizzle IDs
+        const resolved = await resolveDevelopment(supabaseUnit.project_id, fullAddress);
+        
+        console.log("[Resolve] Resolved development:", resolved?.developmentName, 
+          "Supabase ID:", resolved?.supabaseProjectId, 
+          "Drizzle ID:", resolved?.drizzleDevelopmentId);
         
         return NextResponse.json({
           success: true,
           unitId: supabaseUnit.id,
           house_id: supabaseUnit.id,
-          tenantId: resolvedTenantId,
-          tenant_id: resolvedTenantId,
-          developmentId: supabaseUnit.project_id,
-          development_id: supabaseUnit.project_id,
-          development_name: resolvedDevName,
+          tenantId: resolved?.tenantId || null,
+          tenant_id: resolved?.tenantId || null,
+          developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+          development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+          supabase_project_id: supabaseUnit.project_id,
+          development_name: resolved?.developmentName || 'Your Development',
           development_code: '',
-          development_logo_url: project?.logo_url || null,
+          development_logo_url: resolved?.logoUrl || null,
           development_system_instructions: '',
           address: fullAddress || 'Your Home',
           eircode: '',

@@ -512,10 +512,12 @@ export async function POST(request: NextRequest) {
     const userHouseTypeCode = userUnitDetails.unitInfo?.house_type_code || null;
     const userTenantId = userUnitDetails.unitInfo?.tenant_id || DEFAULT_TENANT_ID;
     const userDevelopmentId = userUnitDetails.unitInfo?.development_id || DEFAULT_DEVELOPMENT_ID;
+    // For Supabase queries (document_sections), we need the Supabase project_id which may differ from Drizzle development_id
+    const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id || userDevelopmentId;
     
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
     console.log('[Chat] User house type code:', userHouseTypeCode || 'none (will use all house types)');
-    console.log('[Chat] User tenant/development:', userTenantId, '/', userDevelopmentId);
+    console.log('[Chat] User tenant/development:', userTenantId, '/', userDevelopmentId, '(Supabase:', userSupabaseProjectId, ')');
     
     const gdprCheck = detectOtherUnitQuestion(message, userUnitDetails.address);
     
@@ -612,13 +614,13 @@ export async function POST(request: NextRequest) {
     }
     
     // Fetch ALL chunks with embeddings for proper semantic search
-    // Use resolved userDevelopmentId to get correct documents for this unit's development
-    console.log('[Chat] Loading document chunks for development:', userDevelopmentId);
+    // Use Supabase project_id (not Drizzle development_id) for document_sections queries
+    console.log('[Chat] Loading document chunks for Supabase project:', userSupabaseProjectId);
     const supabase = getSupabaseClient();
     const { data: allChunks, error: fetchError } = await supabase
       .from('document_sections')
       .select('id, content, metadata, embedding')
-      .eq('project_id', userDevelopmentId);
+      .eq('project_id', userSupabaseProjectId);
 
     if (fetchError) {
       console.error('[Chat] Error fetching chunks:', fetchError.message);
