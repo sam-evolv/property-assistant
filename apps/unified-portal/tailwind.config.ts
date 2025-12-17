@@ -8,6 +8,19 @@ const config: Config = {
     "./contexts/**/*.{js,ts,jsx,tsx,mdx}",
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    // Critical mobile navigation classes - NEVER purge these
+    'fixed', 'bottom-0', 'left-0', 'right-0', 'z-50',
+    'md:hidden', 'hidden', 'md:block',
+    'bg-white', 'bg-gray-900', 'bg-opacity-90', 'backdrop-blur-xl',
+    'border-t', 'border-gray-200', 'border-white/10',
+    'flex', 'items-center', 'justify-around', 'justify-center',
+    'h-20', 'h-24', 'pb-4', 'px-2',
+    'text-gold-400', 'text-gray-400', 'text-gray-500',
+    'active:scale-95', 'transition-all', 'duration-150',
+    // Ensure gold colors are available
+    'text-[#D4AF37]', 'bg-gold-500', 'bg-gold-50',
+  ],
   theme: {
     extend: {
       colors: {
