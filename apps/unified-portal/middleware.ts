@@ -9,11 +9,13 @@ const PUBLIC_PATHS = [
   '/units',
   '/purchaser',
   '/welcome',
+  '/intro',
   '/onboarding',
   '/chat',
   '/unauthorized',
   '/test-hub',
   '/test-page',
+  '/api/public',
 ];
 
 // Protected paths that require authentication
