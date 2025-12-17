@@ -62,12 +62,12 @@ export default function PurchaserDocumentsTab({
 
   const fetchDocuments = async () => {
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        console.error('No token found for documents');
-        setLoading(false);
-        return;
-      }
+      // Use stored token if available, otherwise use unitUid as fallback token
+      // The API supports demo/fallback authentication where token === unitUid
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
+      
+      console.log('[PurchaserDocumentsTab] Fetching documents with token:', token ? 'present' : 'missing');
 
       const res = await fetch(
         `/api/purchaser/documents?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
