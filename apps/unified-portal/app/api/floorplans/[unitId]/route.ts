@@ -60,7 +60,6 @@ export async function GET(
             tenant: true,
           },
         },
-        houseType: true,
       },
     });
 
@@ -69,7 +68,7 @@ export async function GET(
     }
 
     if (authorizedTenantId) {
-      if (session?.role !== 'super_admin' && unit.development.tenant_id !== authorizedTenantId) {
+      if (session?.role !== 'super_admin' && unit.development?.tenant_id !== authorizedTenantId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       }
     } else if (authorizedDevelopmentId) {
@@ -82,17 +81,7 @@ export async function GET(
     let floorplanUrl: string | null = null;
     let houseTypeCode: string | null = null;
 
-    if (unit.houseType) {
-      houseTypeCode = unit.houseType.house_type_code;
-      dimensions = unit.houseType.dimensions as Record<string, any> | null;
-      
-      if (!dimensions || Object.keys(dimensions).length === 0) {
-        floorplanUrl = await getFloorplanSignedUrl(
-          unit.development_id,
-          unit.houseType.house_type_code
-        );
-      }
-    } else if (unit.house_type_code) {
+    if (unit.house_type_code) {
       houseTypeCode = unit.house_type_code;
       
       const houseType = await db.query.houseTypes.findFirst({

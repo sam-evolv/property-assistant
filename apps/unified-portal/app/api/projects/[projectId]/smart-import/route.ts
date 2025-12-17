@@ -196,7 +196,7 @@ export async function POST(
       }
     }
 
-    for (const typeName of missingTypes) {
+    for (const typeName of Array.from(missingTypes)) {
       const { data: newType, error: typeError } = await supabaseAdmin
         .from('unit_types')
         .insert({ project_id: projectId, name: typeName })

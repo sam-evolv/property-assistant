@@ -84,6 +84,8 @@ export async function PATCH(
         tenant_id: existingRequest[0].tenant_id,
         development_id: existingRequest[0].development_id,
         document_id: null,
+        source_type: 'faq',
+        source_id: id,
         content: faqContent,
         chunk_index: 0,
         token_count: Math.ceil(faqContent.length / 4),

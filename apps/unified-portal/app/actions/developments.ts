@@ -25,8 +25,12 @@ export async function createDevelopment(formData: FormData) {
     throw new Error('Name, tenant, and developer are required');
   }
 
+  // Generate a unique code from the name
+  const code = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 50) + '-' + Date.now().toString(36);
+  
   await db.insert(developments).values({
     name,
+    code,
     address: address || '',
     description: description || undefined,
     system_instructions: systemInstructions || undefined,

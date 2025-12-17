@@ -79,7 +79,7 @@ export async function GET(
           .select({
             date: sql<string>`DATE(${documents.created_at})`,
             count: sql<number>`CAST(COUNT(*) AS INTEGER)`,
-            doc_names: sql<string[]>`ARRAY_AGG(${documents.name})`,
+            doc_names: sql<string[]>`ARRAY_AGG(${documents.title})`,
           })
           .from(documents)
           .where(and(eq(documents.development_id, developmentId), gte(documents.created_at, thirtyDaysAgo)))
@@ -90,7 +90,7 @@ export async function GET(
           .select({
             date: sql<string>`DATE(${homeowners.created_at})`,
             count: sql<number>`CAST(COUNT(*) AS INTEGER)`,
-            homeowner_names: sql<string[]>`ARRAY_AGG(${homeowners.first_name} || ' ' || ${homeowners.last_name})`,
+            homeowner_names: sql<string[]>`ARRAY_AGG(${homeowners.unique_qr_token})`,
           })
           .from(homeowners)
           .where(and(eq(homeowners.development_id, developmentId), gte(homeowners.created_at, thirtyDaysAgo)))

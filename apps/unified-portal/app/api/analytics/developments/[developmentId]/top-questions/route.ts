@@ -23,7 +23,7 @@ export async function GET(
       count: sql<number>`COUNT(*)::int`,
     })
       .from(messages)
-      .where(sql`${messages.development_id} = ${developmentId} AND ${messages.created_at} >= ${startDate} AND ${messages.role} = 'user'`)
+      .where(sql`${messages.development_id} = ${developmentId} AND ${messages.created_at} >= ${startDate} AND ${messages.sender} = 'user'`)
       .groupBy(sql`SUBSTRING(${messages.content} FROM 1 FOR 100)`)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(limit);

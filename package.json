@@ -70,6 +70,7 @@
     "drizzle-kit": "^0.31.6",
     "drizzle-orm": "^0.44.7",
     "formdata-node": "^6.0.3",
+    "framer-motion": "^12.23.26",
     "jose": "^6.1.2",
     "jspdf": "^3.0.4",
     "leaflet": "^1.9.4",

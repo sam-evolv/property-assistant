@@ -205,7 +205,7 @@ export async function POST(
     }
 
     const missingTypes: string[] = [];
-    for (const typeName of unitTypesInFile) {
+    for (const typeName of Array.from(unitTypesInFile)) {
       const normalized = normalizeTypeName(typeName);
       if (!unitTypeMap.has(normalized)) {
         missingTypes.push(typeName);
@@ -281,7 +281,7 @@ export async function POST(
       console.error('[Import Units] Failed to map unit types:', unmappedTypes);
       return NextResponse.json({
         success: false,
-        error: `Failed to resolve unit types: ${[...new Set(unmappedTypes)].join(', ')}`,
+        error: `Failed to resolve unit types: ${Array.from(new Set(unmappedTypes)).join(', ')}`,
       }, { status: 500 });
     }
 
