@@ -441,11 +441,12 @@ export async function POST(request: NextRequest) {
       console.log('[Chat] SAFETY INTERCEPT: Query blocked by pre-filter, matched keyword:', safetyCheck.matchedKeyword);
       
       // Log the safety intercept for analytics/monitoring
+      // Note: Using defaults here since we don't have unit context for safety intercepts
       try {
         await db.insert(messages).values({
           tenant_id: DEFAULT_TENANT_ID,
           development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: userId || 'anonymous',
+          user_id: clientUnitUid || userId || 'anonymous',
           content: message,
           user_message: message,
           ai_message: SAFETY_INTERCEPT_RESPONSE,
@@ -534,8 +535,8 @@ export async function POST(request: NextRequest) {
       // Save the GDPR-blocked interaction to database for analytics
       try {
         await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
           user_id: validatedUnitUid || userId || 'anonymous',
           content: message,
           user_message: message,
@@ -569,7 +570,7 @@ export async function POST(request: NextRequest) {
     // Use effective unit UID (validated token OR client-provided) as user identifier for session isolation
     // This ensures conversation continuity even when QR token validation fails but client unit UID exists
     const conversationUserId = effectiveUnitUid || userId || '';
-    const conversationHistory = await loadConversationHistory(conversationUserId, DEFAULT_TENANT_ID, DEFAULT_DEVELOPMENT_ID);
+    const conversationHistory = await loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId);
     console.log('[Chat] Loaded', conversationHistory.length, 'previous exchanges for context');
     
     // Check if this is a follow-up question that needs context expansion
@@ -594,11 +595,12 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Semantic search using cosine similarity on ALL chunks
     // First, get list of superseded document IDs to filter out from RAG
+    // Use resolved userTenantId to filter by correct tenant
     let supersededDocIds = new Set<string>();
     try {
       const { rows: superseded } = await db.execute(sql`
         SELECT id FROM documents 
-        WHERE tenant_id = ${DEFAULT_TENANT_ID}::uuid 
+        WHERE tenant_id = ${userTenantId}::uuid 
         AND is_superseded = true
       `);
       supersededDocIds = new Set((superseded as any[]).map(r => r.id));
@@ -610,12 +612,13 @@ export async function POST(request: NextRequest) {
     }
     
     // Fetch ALL chunks with embeddings for proper semantic search
-    console.log('[Chat] Loading all document chunks with embeddings...');
+    // Use resolved userDevelopmentId to get correct documents for this unit's development
+    console.log('[Chat] Loading document chunks for development:', userDevelopmentId);
     const supabase = getSupabaseClient();
     const { data: allChunks, error: fetchError } = await supabase
       .from('document_sections')
       .select('id, content, metadata, embedding')
-      .eq('project_id', PROJECT_ID);
+      .eq('project_id', userDevelopmentId);
 
     if (fetchError) {
       console.error('[Chat] Error fetching chunks:', fetchError.message);
