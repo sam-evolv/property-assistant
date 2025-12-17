@@ -90,6 +90,14 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 }
 
 export async function POST(req: Request) {
+  // Enhanced debug logging for Vercel deployment
+  console.log("[Resolve API] === REQUEST START ===");
+  console.log("[Resolve API] Environment check:", {
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+  });
+  
   try {
     const supabase = getSupabaseClient();
     let body: any = {};
@@ -130,31 +138,38 @@ export async function POST(req: Request) {
     }
 
     // First try: Query units table by ID or unit_uid using Drizzle
-    const unitResult = await db.execute(sql`
-      SELECT 
-        u.id,
-        u.unit_uid,
-        u.development_id,
-        u.house_type_code,
-        u.address_line_1,
-        u.address_line_2,
-        u.city,
-        u.eircode,
-        u.purchaser_name,
-        u.tenant_id,
-        u.latitude,
-        u.longitude,
-        d.id as dev_id,
-        d.name as dev_name,
-        d.address as dev_address,
-        d.logo_url as dev_logo_url
-      FROM units u
-      LEFT JOIN developments d ON u.development_id = d.id
-      WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
-      LIMIT 1
-    `);
-
-    const unit = unitResult.rows[0] as any;
+    let unit: any = null;
+    try {
+      console.log("[Resolve] Querying Drizzle units table...");
+      const unitResult = await db.execute(sql`
+        SELECT 
+          u.id,
+          u.unit_uid,
+          u.development_id,
+          u.house_type_code,
+          u.address_line_1,
+          u.address_line_2,
+          u.city,
+          u.eircode,
+          u.purchaser_name,
+          u.tenant_id,
+          u.latitude,
+          u.longitude,
+          d.id as dev_id,
+          d.name as dev_name,
+          d.address as dev_address,
+          d.logo_url as dev_logo_url
+        FROM units u
+        LEFT JOIN developments d ON u.development_id = d.id
+        WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
+        LIMIT 1
+      `);
+      unit = unitResult.rows[0] as any;
+      console.log("[Resolve] Drizzle query result:", unit ? "FOUND" : "NOT FOUND");
+    } catch (drizzleErr: any) {
+      console.error("[Resolve] Drizzle query FAILED:", drizzleErr.message);
+      // Continue to Supabase fallback
+    }
 
     if (unit) {
       // Found in units table
@@ -356,7 +371,23 @@ export async function POST(req: Request) {
     }
 
   } catch (err: any) {
-    console.error("[Resolve] Server Error:", err);
-    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
+    // GRACEFUL ERROR HANDLING - Return 200 with error details for debugging
+    // This prevents the frontend from showing generic "Access Error" screen
+    console.error("[Resolve API] === CRASH DETECTED ===");
+    console.error("[Resolve API] Error message:", err.message);
+    console.error("[Resolve API] Error stack:", err.stack);
+    console.error("[Resolve API] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    
+    // Return 200 with error details so frontend can display helpful message
+    return NextResponse.json({ 
+      success: false,
+      error: err.message || "Server error",
+      errorType: err.name || "UnknownError",
+      debug: {
+        message: err.message,
+        code: err.code,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      }
+    }, { status: 200 });
   }
 }
