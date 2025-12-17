@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
+import { db } from '@openhouse/db';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 interface UnitData {
   id: string;
@@ -95,28 +89,23 @@ export async function GET(request: NextRequest) {
 
     console.log('[QR Pack] Generating for projectId:', projectId);
 
-    const supabase = getSupabaseClient();
-    const { data: units, error: unitsError } = await supabase
-      .from('units')
-      .select('id, address, unit_number')
-      .eq('project_id', projectId);
+    const { rows } = await db.execute(sql`
+      SELECT id, unit_uid, address_line_1 as address, unit_number
+      FROM units
+      WHERE development_id = ${projectId}::uuid
+      ORDER BY address_line_1
+    `);
 
-    if (unitsError) {
-      console.error('[QR Pack] Supabase error:', unitsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch units: ' + unitsError.message },
-        { status: 500 }
-      );
-    }
+    const units = rows as unknown as UnitData[];
 
     if (!units || units.length === 0) {
       return NextResponse.json(
-        { error: 'No units found for this project' },
+        { error: 'No units found for this development' },
         { status: 400 }
       );
     }
 
-    console.log('[QR Pack] Found', units.length, 'units');
+    console.log('[QR Pack] Found', units.length, 'units from Drizzle');
 
     const sortedUnits = sortUnits(units);
     const template = loadTemplate();
