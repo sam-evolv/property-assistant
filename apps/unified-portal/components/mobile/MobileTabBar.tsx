@@ -44,16 +44,14 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
         fixed bottom-0 left-0 right-0 z-50
         md:hidden
         border-t
+        bg-opacity-90 backdrop-blur-xl
         ${isDarkMode 
-          ? 'bg-[#1A1A1A]/90 border-white/10' 
-          : 'bg-white/90 border-black/5'
+          ? 'bg-gray-900 border-white/10' 
+          : 'bg-white border-gray-200'
         }
-        backdrop-blur-xl
-        safe-area-bottom
       `}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="flex items-center justify-around h-16 px-2">
+      <div className="flex items-center justify-around h-20 px-2 pb-4">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
