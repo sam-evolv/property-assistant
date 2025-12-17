@@ -5,20 +5,25 @@ import { classifyDrawing, DrawingClassification } from '@/lib/drawing-classifier
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
 
 const pdf = require('pdf-parse');
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-small',
     input: text.slice(0, 8000),
     dimensions: 1536,
@@ -46,6 +51,8 @@ export async function POST(request: NextRequest) {
   console.log('[Upload] PROJECT_ID:', PROJECT_ID);
   console.log('============================================================');
 
+  const supabase = getSupabaseClient();
+  
   try {
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];

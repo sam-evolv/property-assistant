@@ -6,7 +6,11 @@ import { admins, userDevelopments, documents, developments, houseTypes } from '@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import OpenAI from 'openai';
 
-const openai = new OpenAI();
+export const dynamic = 'force-dynamic';
+
+function getOpenAI() {
+  return new OpenAI();
+}
 
 interface SearchFilters {
   discipline?: string | null;
@@ -81,7 +85,7 @@ async function validateDeveloperAccess(
 }
 
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
     dimensions: 1536,
