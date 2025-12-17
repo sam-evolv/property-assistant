@@ -39,24 +39,6 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const pathname = req.nextUrl.pathname;
 
-  // GOD MODE: Developer portal bypass - allow authenticated users through
-  // This removes role-checking in middleware for /developer paths
-  // Layout will handle email-based access control
-  if (pathname.startsWith('/developer')) {
-    // Create Supabase client to check if user is at least authenticated
-    const supabase = createMiddlewareClient({ req, res });
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      // Authenticated user - let layout handle permission check
-      return res;
-    }
-    // Not authenticated - redirect to login
-    const redirectUrl = new URL('/login', req.url);
-    redirectUrl.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
-
   // Skip middleware for API routes, static files, auth callbacks, and Next.js internals
   // Purchaser APIs are public and require no authentication
   if (

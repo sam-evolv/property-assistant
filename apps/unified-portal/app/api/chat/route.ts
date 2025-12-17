@@ -36,16 +36,6 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
-// DEBUG: Log project IDs being used for Vercel troubleshooting
-console.log('[Chat API] Configuration:', {
-  PROJECT_ID,
-  DEFAULT_TENANT_ID,
-  DEFAULT_DEVELOPMENT_ID,
-  hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-  hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-  hasOpenAI: !!process.env.OPENAI_API_KEY,
-});
-
 // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM
 // Uses both exact keywords and regex patterns for robust matching
 function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedKeyword: string | null } {

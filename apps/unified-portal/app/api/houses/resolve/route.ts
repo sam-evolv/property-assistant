@@ -90,41 +90,20 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 }
 
 export async function POST(req: Request) {
-  // Enhanced debug logging for Vercel deployment
-  console.log("[Resolve API] === REQUEST START ===");
-  console.log("[Resolve API] Environment check:", {
-    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-  });
-  
   try {
     const supabase = getSupabaseClient();
     let body: any = {};
     
-    // Parse URL to get query parameters as fallback
-    const url = new URL(req.url);
-    const queryToken = url.searchParams.get('token') || url.searchParams.get('unitId');
-    
-    // Debug: Log request details
-    console.log("[Resolve] Request method:", req.method);
-    console.log("[Resolve] Content-Type:", req.headers.get('content-type'));
-    
     try {
-      const text = await req.text();
-      console.log("[Resolve] Raw body text:", text ? `"${text.substring(0, 100)}..."` : "(empty)");
-      if (text && text.trim()) {
-        body = JSON.parse(text);
-        console.log("[Resolve] Parsed body:", JSON.stringify(body));
-      }
+      body = await req.json();
     } catch (e) {
       console.log("[Resolve] Failed to parse body:", e);
     }
     
-    const token = body?.token || body?.unitId || body?.unit_id || queryToken;
+    const token = body?.token || body?.unitId || body?.unit_id;
 
     if (!token) {
-      console.log("[Resolve] No token provided - body:", JSON.stringify(body), "queryToken:", queryToken);
+      console.log("[Resolve] No token provided");
       return NextResponse.json({ error: "No token provided" }, { status: 400 });
     }
 
@@ -138,38 +117,31 @@ export async function POST(req: Request) {
     }
 
     // First try: Query units table by ID or unit_uid using Drizzle
-    let unit: any = null;
-    try {
-      console.log("[Resolve] Querying Drizzle units table...");
-      const unitResult = await db.execute(sql`
-        SELECT 
-          u.id,
-          u.unit_uid,
-          u.development_id,
-          u.house_type_code,
-          u.address_line_1,
-          u.address_line_2,
-          u.city,
-          u.eircode,
-          u.purchaser_name,
-          u.tenant_id,
-          u.latitude,
-          u.longitude,
-          d.id as dev_id,
-          d.name as dev_name,
-          d.address as dev_address,
-          d.logo_url as dev_logo_url
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
-        LIMIT 1
-      `);
-      unit = unitResult.rows[0] as any;
-      console.log("[Resolve] Drizzle query result:", unit ? "FOUND" : "NOT FOUND");
-    } catch (drizzleErr: any) {
-      console.error("[Resolve] Drizzle query FAILED:", drizzleErr.message);
-      // Continue to Supabase fallback
-    }
+    const unitResult = await db.execute(sql`
+      SELECT 
+        u.id,
+        u.unit_uid,
+        u.development_id,
+        u.house_type_code,
+        u.address_line_1,
+        u.address_line_2,
+        u.city,
+        u.eircode,
+        u.purchaser_name,
+        u.tenant_id,
+        u.latitude,
+        u.longitude,
+        d.id as dev_id,
+        d.name as dev_name,
+        d.address as dev_address,
+        d.logo_url as dev_logo_url
+      FROM units u
+      LEFT JOIN developments d ON u.development_id = d.id
+      WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
+      LIMIT 1
+    `);
+
+    const unit = unitResult.rows[0] as any;
 
     if (unit) {
       // Found in units table
@@ -293,42 +265,7 @@ export async function POST(req: Request) {
 
       if (!homeowner) {
         console.log("[Resolve] No unit or homeowner found for:", token);
-        
-        // FALLBACK: For demo/development access, return a generic Longview Park unit
-        // This matches the documents API behavior which uses PROJECT_ID fallback
-        console.log("[Resolve] Using Longview Park demo fallback for unit:", token);
-        
-        const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-        const LONGVIEW_PARK_DEV_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-        const LONGVIEW_COORDS = { lat: 51.9265, lng: -8.4532 };
-        
-        return NextResponse.json({
-          success: true,
-          unitId: token,
-          house_id: token,
-          tenantId: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
-          tenant_id: 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d',
-          developmentId: LONGVIEW_PARK_DEV_ID,
-          development_id: LONGVIEW_PARK_DEV_ID,
-          supabase_project_id: PROJECT_ID,
-          development_name: 'Longview Park',
-          development_code: 'LV-PARK',
-          development_logo_url: null,
-          development_system_instructions: '',
-          address: 'Longview Park, Ballyhooly Road, Ballyvolane, Cork City',
-          eircode: '',
-          purchaserName: 'Demo Homeowner',
-          purchaser_name: 'Demo Homeowner',
-          user_id: null,
-          project_id: PROJECT_ID,
-          houseType: null,
-          house_type: null,
-          floorPlanUrl: null,
-          floor_plan_pdf_url: null,
-          latitude: LONGVIEW_COORDS.lat,
-          longitude: LONGVIEW_COORDS.lng,
-          specs: null,
-        });
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
 
       // Found in homeowners table
@@ -371,23 +308,7 @@ export async function POST(req: Request) {
     }
 
   } catch (err: any) {
-    // GRACEFUL ERROR HANDLING - Return 200 with error details for debugging
-    // This prevents the frontend from showing generic "Access Error" screen
-    console.error("[Resolve API] === CRASH DETECTED ===");
-    console.error("[Resolve API] Error message:", err.message);
-    console.error("[Resolve API] Error stack:", err.stack);
-    console.error("[Resolve API] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
-    
-    // Return 200 with error details so frontend can display helpful message
-    return NextResponse.json({ 
-      success: false,
-      error: err.message || "Server error",
-      errorType: err.name || "UnknownError",
-      debug: {
-        message: err.message,
-        code: err.code,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-      }
-    }, { status: 200 });
+    console.error("[Resolve] Server Error:", err);
+    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
   }
 }

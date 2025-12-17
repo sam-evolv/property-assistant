@@ -45,7 +45,7 @@ export async function getServerSession(): Promise<AdminSession | null> {
 
     const admin = await retryDBQuery(() =>
       db.query.admins.findFirst({
-        where: eq(admins.email, user.email!),
+        where: eq(admins.email, user.email),
         columns: {
           id: true,
           email: true,

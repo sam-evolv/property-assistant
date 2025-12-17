@@ -22,9 +22,6 @@ export async function GET(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
-    
-    // DEBUG: Log project ID for Vercel troubleshooting
-    console.log('[Overview API] Fetching for projectId:', projectId || 'ALL');
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

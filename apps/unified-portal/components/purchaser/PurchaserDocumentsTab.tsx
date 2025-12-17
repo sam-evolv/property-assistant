@@ -62,10 +62,12 @@ export default function PurchaserDocumentsTab({
 
   const fetchDocuments = async () => {
     try {
-      // Use shared token getter - supports demo/fallback authentication where token === unitUid
-      const token = getToken();
-      
-      console.log('[PurchaserDocumentsTab] Fetching documents with token:', token ? 'present' : 'missing');
+      const token = sessionStorage.getItem(`house_token_${unitUid}`);
+      if (!token) {
+        console.error('No token found for documents');
+        setLoading(false);
+        return;
+      }
 
       const res = await fetch(
         `/api/purchaser/documents?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -84,11 +86,6 @@ export default function PurchaserDocumentsTab({
     }
   };
 
-  const getToken = () => {
-    const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-    return storedToken || unitUid;
-  };
-
   const handleDownload = async (doc: Document) => {
     try {
       // For Supabase documents with direct file_url, open in new tab
@@ -98,8 +95,11 @@ export default function PurchaserDocumentsTab({
       }
       
       // For Drizzle documents, use the download API
-      // Use stored token if available, otherwise use unitUid as fallback token
-      const token = getToken();
+      const token = sessionStorage.getItem(`house_token_${unitUid}`);
+      if (!token) {
+        alert('Session expired. Please refresh and try again.');
+        return;
+      }
 
       const downloadUrl = `/api/purchaser/documents/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       

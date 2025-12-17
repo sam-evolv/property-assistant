@@ -11,7 +11,7 @@ interface DeveloperLayoutProviderProps {
     id: string;
     email: string;
     role: string;
-    tenantId: string | null;
+    tenantId: string;
   } | null;
 }
 
