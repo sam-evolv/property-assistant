@@ -5,10 +5,13 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
-import { units, developments, houseTypes } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { units, developments } from '@openhouse/db/schema';
+import { eq, ilike, and } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 const RATHARD_PARK_SUPABASE_PROJECT_ID = '6d3789de-2e46-430c-bf31-22224bd878da';
+const RATHARD_PARK_NAME = 'Rathard Park';
+const DEVELOPMENT_CODE = 'RATHARD_PARK_8U9H';
 
 async function syncRathardPark() {
   console.log('🔄 Starting Rathard Park Synchronization...\n');
@@ -33,28 +36,20 @@ async function syncRathardPark() {
   }
   console.log(`✓ Found project: ${project.name}`);
 
-  // Step 2: Find or create Rathard Park development in Drizzle
-  console.log('\n📋 Checking Drizzle database for Rathard Park development...');
-  let drizzleDevelopment = await db
+  // Step 2: Find Rathard Park development in Drizzle
+  console.log('\n📋 Finding Rathard Park development in Drizzle...');
+  const drizzleDevelopment = await db
     .select()
     .from(developments)
-    .where(eq(developments.supabase_project_id, RATHARD_PARK_SUPABASE_PROJECT_ID))
+    .where(eq(developments.code, DEVELOPMENT_CODE))
     .then(rows => rows[0]);
 
   if (!drizzleDevelopment) {
-    console.log('⚠️ Rathard Park not found in Drizzle, creating...');
-    const [newDev] = await db.insert(developments).values({
-      name: project.name || 'Rathard Park',
-      code: 'RATHARD',
-      address: 'Lahardane, Ballyvolane, Cork City, Cork',
-      supabase_project_id: RATHARD_PARK_SUPABASE_PROJECT_ID,
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-    }).returning();
-    drizzleDevelopment = newDev;
-    console.log(`✓ Created Rathard Park development: ${drizzleDevelopment.id}`);
-  } else {
-    console.log(`✓ Found existing development: ${drizzleDevelopment.id}`);
+    console.error('❌ Rathard Park development not found in Drizzle with code:', DEVELOPMENT_CODE);
+    console.log('   Please ensure development exists with code:', DEVELOPMENT_CODE);
+    process.exit(1);
   }
+  console.log(`✓ Found development: ${drizzleDevelopment.id} (${drizzleDevelopment.name})`);
 
   // Step 3: Fetch all units from Supabase
   console.log('\n📥 Fetching units from Supabase...');
@@ -69,9 +64,14 @@ async function syncRathardPark() {
   }
   console.log(`✓ Found ${supabaseUnits?.length || 0} units in Supabase`);
 
-  // Step 4: Get existing unit types
-  const existingTypes = await db.select().from(houseTypes).where(eq(houseTypes.development_id, drizzleDevelopment.id));
-  const typeMap = new Map(existingTypes.map(t => [t.code, t.id]));
+  // Step 4: Get existing units in Drizzle to check for duplicates
+  const existingUnits = await db
+    .select()
+    .from(units)
+    .where(eq(units.development_id, drizzleDevelopment.id));
+  
+  const existingUnitMap = new Map(existingUnits.map(u => [u.unit_number, u]));
+  console.log(`📊 Existing units in Drizzle: ${existingUnits.length}`);
 
   // Step 5: Sync each unit
   let created = 0;
@@ -80,44 +80,57 @@ async function syncRathardPark() {
 
   for (const unit of supabaseUnits || []) {
     try {
-      // Check if unit already exists
-      const existingUnit = await db
-        .select()
-        .from(units)
-        .where(eq(units.supabase_unit_id, unit.id))
-        .then(rows => rows[0]);
+      const unitNumber = unit.unit_number || unit.name || `Unit-${unit.id.substring(0, 8)}`;
+      const existingUnit = existingUnitMap.get(unitNumber);
+      const unitCode = unit.unit_code || `${DEVELOPMENT_CODE}-${unitNumber.replace(/\s+/g, '-')}`;
+      const unitUid = unit.unit_uid || `${DEVELOPMENT_CODE.toLowerCase()}-${nanoid(12)}`;
 
+      // Map Supabase unit data to Drizzle schema with all required fields
       const unitData = {
-        development_id: drizzleDevelopment.id,
         tenant_id: drizzleDevelopment.tenant_id,
-        supabase_unit_id: unit.id,
-        unit_number: unit.unit_number || unit.name || `Unit-${unit.id.substring(0, 8)}`,
-        address: unit.address || `${unit.unit_number || 'Unit'}, Rathard Park, Cork`,
-        status: unit.status || 'available',
-        handover_date: unit.handover_date ? new Date(unit.handover_date) : null,
+        development_id: drizzleDevelopment.id,
+        development_code: DEVELOPMENT_CODE,
+        unit_number: unitNumber,
+        unit_code: unitCode,
+        unit_uid: unitUid,
+        address_line_1: unit.address || `${unitNumber}, Rathard Park`,
+        address_line_2: unit.address_line_2 || 'Lahardane, Ballyvolane',
+        city: unit.city || 'Cork',
+        state_province: unit.state_province || 'Cork',
+        postal_code: unit.postal_code || null,
+        country: unit.country || 'Ireland',
+        eircode: unit.eircode || null,
+        property_designation: unit.property_designation || null,
+        property_type: unit.property_type || 'house',
+        house_type_code: unit.house_type || unit.house_type_code || 'A',
         bedrooms: unit.bedrooms || null,
         bathrooms: unit.bathrooms || null,
-        floor_area_sqm: unit.floor_area_sqm || null,
+        square_footage: unit.square_footage || null,
+        floor_area_m2: unit.floor_area_sqm || unit.floor_area_m2 || null,
         purchaser_name: unit.purchaser_name || null,
         purchaser_email: unit.purchaser_email || null,
-        unique_qr_token: unit.unique_qr_token || crypto.randomUUID(),
-        eircode: unit.eircode || null,
+        purchaser_phone: unit.purchaser_phone || null,
         mrpn: unit.mrpn || null,
         latitude: unit.latitude || null,
         longitude: unit.longitude || null,
       };
 
       if (existingUnit) {
+        // Update existing unit (exclude unit_uid as it must be unique)
+        const { unit_uid, ...updateData } = unitData;
         await db.update(units)
-          .set(unitData)
+          .set(updateData)
           .where(eq(units.id, existingUnit.id));
         updated++;
+        console.log(`  ⟳ Updated: ${unitNumber}`);
       } else {
+        // Create new unit
         await db.insert(units).values(unitData);
         created++;
+        console.log(`  + Created: ${unitNumber}`);
       }
-    } catch (err) {
-      console.error(`❌ Error syncing unit ${unit.id}:`, err);
+    } catch (err: any) {
+      console.error(`❌ Error syncing unit ${unit.unit_number || unit.id}:`, err.message || err);
       errors++;
     }
   }
