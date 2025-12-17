@@ -62,12 +62,8 @@ export default function PurchaserDocumentsTab({
 
   const fetchDocuments = async () => {
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        console.error('No token found for documents');
-        setLoading(false);
-        return;
-      }
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/documents?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -95,11 +91,8 @@ export default function PurchaserDocumentsTab({
       }
       
       // For Drizzle documents, use the download API
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        alert('Session expired. Please refresh and try again.');
-        return;
-      }
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const downloadUrl = `/api/purchaser/documents/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       

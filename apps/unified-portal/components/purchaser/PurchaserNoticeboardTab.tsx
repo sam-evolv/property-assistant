@@ -490,8 +490,8 @@ export default function PurchaserNoticeboardTab({
 
   const checkTermsStatus = async () => {
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) return;
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -508,8 +508,8 @@ export default function PurchaserNoticeboardTab({
   const handleAcceptTerms = async () => {
     setAcceptingTerms(true);
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) return;
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
@@ -543,11 +543,8 @@ export default function PurchaserNoticeboardTab({
 
   const fetchNotices = async () => {
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -566,8 +563,8 @@ export default function PurchaserNoticeboardTab({
   const fetchComments = async (noticeId: string) => {
     setLoadingComments(true);
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) return;
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/noticeboard/${noticeId}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -595,11 +592,8 @@ export default function PurchaserNoticeboardTab({
 
     setSubmittingComment(true);
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        alert(t.sessionExpired);
-        return;
-      }
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(
         `/api/purchaser/noticeboard/${selectedNotice.id}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
@@ -631,8 +625,9 @@ export default function PurchaserNoticeboardTab({
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token || !selectedNotice) return;
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
+      if (!selectedNotice) return;
 
       const res = await fetch(
         `/api/purchaser/noticeboard/${selectedNotice.id}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}&commentId=${commentId}`,
@@ -653,11 +648,8 @@ export default function PurchaserNoticeboardTab({
 
     setCreating(true);
     try {
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
-      if (!token) {
-        alert(t.sessionExpired);
-        return;
-      }
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
       const res = await fetch(`/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`, {
         method: 'POST',

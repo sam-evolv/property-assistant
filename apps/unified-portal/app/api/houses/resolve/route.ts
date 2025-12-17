@@ -109,37 +109,59 @@ export async function POST(req: Request) {
 
     console.log("[Resolve] Looking up unit:", token);
 
-    // Validate UUID format
+    // Check if token is UUID format or unit_uid format (e.g., LV-PARK-008)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(token)) {
-      console.log("[Resolve] Invalid UUID format:", token);
-      return NextResponse.json({ error: "Invalid unit identifier" }, { status: 400 });
-    }
+    const isUuid = uuidRegex.test(token);
 
     // First try: Query units table by ID or unit_uid using Drizzle
-    const unitResult = await db.execute(sql`
-      SELECT 
-        u.id,
-        u.unit_uid,
-        u.development_id,
-        u.house_type_code,
-        u.address_line_1,
-        u.address_line_2,
-        u.city,
-        u.eircode,
-        u.purchaser_name,
-        u.tenant_id,
-        u.latitude,
-        u.longitude,
-        d.id as dev_id,
-        d.name as dev_name,
-        d.address as dev_address,
-        d.logo_url as dev_logo_url
-      FROM units u
-      LEFT JOIN developments d ON u.development_id = d.id
-      WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
-      LIMIT 1
-    `);
+    // Use different query based on whether token is UUID format or not
+    const unitResult = isUuid 
+      ? await db.execute(sql`
+          SELECT 
+            u.id,
+            u.unit_uid,
+            u.development_id,
+            u.house_type_code,
+            u.address_line_1,
+            u.address_line_2,
+            u.city,
+            u.eircode,
+            u.purchaser_name,
+            u.tenant_id,
+            u.latitude,
+            u.longitude,
+            d.id as dev_id,
+            d.name as dev_name,
+            d.address as dev_address,
+            d.logo_url as dev_logo_url
+          FROM units u
+          LEFT JOIN developments d ON u.development_id = d.id
+          WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
+          LIMIT 1
+        `)
+      : await db.execute(sql`
+          SELECT 
+            u.id,
+            u.unit_uid,
+            u.development_id,
+            u.house_type_code,
+            u.address_line_1,
+            u.address_line_2,
+            u.city,
+            u.eircode,
+            u.purchaser_name,
+            u.tenant_id,
+            u.latitude,
+            u.longitude,
+            d.id as dev_id,
+            d.name as dev_name,
+            d.address as dev_address,
+            d.logo_url as dev_logo_url
+          FROM units u
+          LEFT JOIN developments d ON u.development_id = d.id
+          WHERE u.unit_uid = ${token}
+          LIMIT 1
+        `);
 
     const unit = unitResult.rows[0] as any;
 
@@ -240,26 +262,46 @@ export async function POST(req: Request) {
     console.log("[Resolve] Not found in Supabase, checking homeowners table...");
     
     try {
-      const homeownerResult = await db.execute(sql`
-        SELECT 
-          h.id,
-          h.name,
-          h.email,
-          h.house_type,
-          h.address,
-          h.unique_qr_token,
-          h.development_id,
-          h.tenant_id,
-          d.id as dev_id,
-          d.name as dev_name,
-          d.address as dev_address,
-          d.logo_url as dev_logo_url
-        FROM homeowners h
-        LEFT JOIN developments d ON h.development_id = d.id
-        WHERE h.id = ${token}::uuid 
-           OR h.unique_qr_token = ${token}
-        LIMIT 1
-      `);
+      const homeownerResult = isUuid 
+        ? await db.execute(sql`
+            SELECT 
+              h.id,
+              h.name,
+              h.email,
+              h.house_type,
+              h.address,
+              h.unique_qr_token,
+              h.development_id,
+              h.tenant_id,
+              d.id as dev_id,
+              d.name as dev_name,
+              d.address as dev_address,
+              d.logo_url as dev_logo_url
+            FROM homeowners h
+            LEFT JOIN developments d ON h.development_id = d.id
+            WHERE h.id = ${token}::uuid 
+               OR h.unique_qr_token = ${token}
+            LIMIT 1
+          `)
+        : await db.execute(sql`
+            SELECT 
+              h.id,
+              h.name,
+              h.email,
+              h.house_type,
+              h.address,
+              h.unique_qr_token,
+              h.development_id,
+              h.tenant_id,
+              d.id as dev_id,
+              d.name as dev_name,
+              d.address as dev_address,
+              d.logo_url as dev_logo_url
+            FROM homeowners h
+            LEFT JOIN developments d ON h.development_id = d.id
+            WHERE h.unique_qr_token = ${token}
+            LIMIT 1
+          `);
 
       const homeowner = homeownerResult.rows[0] as any;
 
