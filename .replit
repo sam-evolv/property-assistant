@@ -54,6 +54,6 @@ LEGACY_DATABASE_URL = "${DATABASE_URL}"
 HOSTNAME = "0.0.0.0"
 
 [deployment]
-build = ["sh", "-c", "cd apps/unified-portal && NODE_OPTIONS=--max-old-space-size=6144 npm run build:replit"]
-run = ["sh", "-c", "cd apps/unified-portal && npm run start"]
+build = ["npm", "--prefix", "apps/unified-portal", "run", "build"]
+run = ["npm", "--prefix", "apps/unified-portal", "run", "start"]
 deploymentTarget = "autoscale"
