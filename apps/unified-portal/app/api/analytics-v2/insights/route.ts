@@ -6,9 +6,11 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAIClient() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 interface InsightRequest {
   sectionName: string;
@@ -62,6 +64,7 @@ ${metricsStr}
 Provide your insight in a clear, actionable format.`;
 
     // Call OpenAI to generate insight
+    const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
