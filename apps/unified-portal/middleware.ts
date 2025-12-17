@@ -6,9 +6,14 @@ import type { NextRequest } from 'next/server';
 const PUBLIC_PATHS = [
   '/homes',
   '/qr',
+  '/units',
+  '/purchaser',
+  '/welcome',
+  '/onboarding',
   '/chat',
   '/unauthorized',
   '/test-hub',
+  '/test-page',
 ];
 
 // Protected paths that require authentication

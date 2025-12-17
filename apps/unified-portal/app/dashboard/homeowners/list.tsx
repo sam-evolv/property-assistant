@@ -43,7 +43,7 @@ export function HomeownersList({
   }
 
   function copyQRLink(token: string) {
-    const tenantPortalUrl = process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || 'http://localhost:5000';
+    const tenantPortalUrl = process.env.NEXT_PUBLIC_TENANT_PORTAL_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const link = `${tenantPortalUrl}/onboarding/${token}`;
     navigator.clipboard.writeText(link);
     alert('QR link copied to clipboard!');

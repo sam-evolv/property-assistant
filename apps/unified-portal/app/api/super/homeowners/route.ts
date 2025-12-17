@@ -1,77 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@openhouse/db/client';
+import { units, developments, homeowners as homeownersTable, messages } from '@openhouse/db/schema';
+import { eq, asc, sql, count } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: { persistSession: false },
-      db: { schema: 'public' }
-    }
-  );
-}
-
 export async function GET(request: NextRequest) {
   try {
     await requireRole(['super_admin']);
-    const supabaseAdmin = getSupabaseAdmin();
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
-    console.log('[API] /api/super/homeowners - projectId:', projectId);
+    console.log('[API] /api/super/homeowners - projectId:', projectId || 'all');
 
-    let query = supabaseAdmin
-      .from('units')
-      .select(`
-        id,
-        project_id,
-        address,
-        purchaser_name,
-        handover_date,
-        created_at,
-        user_id,
-        unit_types (
-          id,
-          name
-        ),
-        projects (
-          id,
-          name,
-          address
-        )
-      `)
-      .order('address', { ascending: true });
+    let query = db
+      .select({
+        id: units.id,
+        unit_number: units.unit_number,
+        address_line_1: units.address_line_1,
+        house_type_code: units.house_type_code,
+        purchaser_name: units.purchaser_name,
+        purchaser_email: units.purchaser_email,
+        development_id: units.development_id,
+        created_at: units.created_at,
+        last_chat_at: units.last_chat_at,
+        consent_at: units.consent_at,
+        development_name: developments.name,
+      })
+      .from(units)
+      .leftJoin(developments, eq(units.development_id, developments.id))
+      .orderBy(asc(developments.name), asc(units.address_line_1));
 
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
+    const unitsData = projectId
+      ? await query.where(eq(units.development_id, projectId))
+      : await query;
 
-    const { data: units, error } = await query;
-
-    if (error) {
-      console.error('[API] /api/super/homeowners error:', error);
-      return NextResponse.json({ error: 'Failed to fetch homeowners' }, { status: 500 });
-    }
-
-    const homeowners = (units || []).map((unit: any) => ({
+    const homeowners = unitsData.map((unit) => ({
       id: unit.id,
-      name: unit.purchaser_name || `Unit ${unit.address || 'Unknown'}`,
-      email: 'Not collected',
-      house_type: unit.unit_types?.name || null,
-      address: unit.address || null,
-      development_name: unit.projects?.name || 'Unknown',
-      development_id: unit.project_id,
+      name: unit.purchaser_name || `Unit ${unit.unit_number || unit.address_line_1 || 'Unknown'}`,
+      email: unit.purchaser_email || 'Not collected',
+      house_type: unit.house_type_code || null,
+      address: unit.address_line_1 || null,
+      development_name: unit.development_name || 'Unknown',
+      development_id: unit.development_id,
       created_at: unit.created_at,
-      chat_message_count: 0,
-      last_active: null,
-      handover_date: unit.handover_date,
-      is_registered: !!unit.user_id,
+      chat_message_count: unit.last_chat_at ? 1 : 0,
+      last_active: unit.last_chat_at,
+      handover_date: null,
+      is_registered: !!unit.consent_at || !!unit.purchaser_email,
       has_purchaser: !!unit.purchaser_name,
     }));
 
