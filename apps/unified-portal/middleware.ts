@@ -4,6 +4,8 @@ import type { NextRequest } from 'next/server';
 
 // Public paths that bypass authentication (purchaser/QR code flows)
 const PUBLIC_PATHS = [
+  '/',
+  '/login',
   '/homes',
   '/qr',
   '/units',
