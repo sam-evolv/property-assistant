@@ -530,58 +530,6 @@ export default function HomeResidentPage() {
           </Tabs.Content>
         </div>
 
-        {/* Desktop Tab Navigation - Hidden on Mobile */}
-        <Tabs.List className={`hidden md:block ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t shadow-lg`}>
-          <div className="grid grid-cols-4 gap-0">
-            <Tabs.Trigger
-              value="chat"
-              className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'chat'
-                  ? (isDarkMode ? 'bg-gold-950 text-gold-400 font-bold shadow-lg shadow-gold-500/20' : 'bg-gold-50 text-gold-600 font-bold shadow-md shadow-gold-400/30')
-                  : (isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600')
-              }`}
-            >
-              <MessageCircle className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Chat</span>
-            </Tabs.Trigger>
-
-            <Tabs.Trigger
-              value="maps"
-              className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'maps'
-                  ? (isDarkMode ? 'bg-gold-950 text-gold-400 font-bold shadow-lg shadow-gold-500/20' : 'bg-gold-50 text-gold-600 font-bold shadow-md shadow-gold-400/30')
-                  : (isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600')
-              }`}
-            >
-              <Map className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Map</span>
-            </Tabs.Trigger>
-
-            <Tabs.Trigger
-              value="noticeboard"
-              className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'noticeboard'
-                  ? (isDarkMode ? 'bg-gold-950 text-gold-400 font-bold shadow-lg shadow-gold-500/20' : 'bg-gold-50 text-gold-600 font-bold shadow-md shadow-gold-400/30')
-                  : (isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600')
-              }`}
-            >
-              <Bell className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Notice</span>
-            </Tabs.Trigger>
-
-            <Tabs.Trigger
-              value="documents"
-              className={`flex flex-col items-center justify-center py-3 px-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'documents'
-                  ? (isDarkMode ? 'bg-gold-950 text-gold-400 font-bold shadow-lg shadow-gold-500/20' : 'bg-gold-50 text-gold-600 font-bold shadow-md shadow-gold-400/30')
-                  : (isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600')
-              }`}
-            >
-              <FileText className="w-5 h-5 mb-0.5" />
-              <span className="text-[11px]">Docs</span>
-            </Tabs.Trigger>
-          </div>
-        </Tabs.List>
       </Tabs.Root>
 
       {/* Mobile Bottom Tab Bar - Frosted Glass Native Feel */}
