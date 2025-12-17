@@ -1,0 +1,27 @@
+I am done with incremental fixes. We need to perform a full-stack repair to ensure the Vercel deployment works exactly like the Replit development environment.
+
+Please execute these 4 Critical Actions immediately:
+
+### ACTION 1: DATA SYNC (Fix Empty Dashboard)
+- **The Issue:** The 'Units Explorer' in the dashboard queries the Drizzle database, but the actual unit data for "Rathard Park" is sitting in Supabase.
+- **The Fix:** Create and run a migration script immediately to IMPORT all units from Supabase (Project ID: 6d37...) into the Drizzle 'units' table (Project ID: e0833...).
+- **Requirement:** Ensure all fields (unit_number, address, status, handover_date, purchaser_id) are mapped correctly so the dashboard is no longer empty.
+
+### ACTION 2: MIDDLEWARE AUDIT (Fix QR Codes & Purchaser Access)
+- **The Issue:** Public QR codes and Purchaser Portals are redirecting to "Sign In" because Vercel's Edge Middleware is too strict.
+- **The Fix:** Open `middleware.ts`. Explicitly whitelist/exclude the following route patterns from Supabase Auth:
+  - `/purchaser/*` (All purchaser portal routes)
+  - `/qr/*` (All QR code landing pages)
+  - `/welcome` and `/intro`
+  - `/api/public/*`
+- **Requirement:** These routes must be publicly accessible without a session.
+
+### ACTION 3: HARDCODED URL SWEEP (Fix Broken Links & Images)
+- **The Issue:** Data formatting and images are breaking because parts of the app are still trying to fetch from `http://localhost:3000`.
+- **The Fix:** recursively search the entire `apps/` directory for "localhost". Replace every instance with a helper function that uses `process.env.NEXT_PUBLIC_APP_URL` (which is set to 'https://portal.openhouseai.ie').
+
+### ACTION 4: BUILD VERIFICATION
+- **The Fix:** Run `npm run build` locally inside the shell.
+- **Requirement:** If the build fails with ANY type error (TypeScript), fix it immediately. Do not ask for permission—just fix the type mismatch.
+
+**Goal:** When you are finished, the Dashboard must show Rathard Park units, and scanning a QR code must take me straight to the portal, not a login screen.
