@@ -77,8 +77,8 @@ export async function PATCH(
       }
 
       await db.insert(docChunks).values({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
+        tenant_id: existingRequest[0].tenant_id,
+        development_id: existingRequest[0].development_id,
         document_id: null,
         content: faqContent,
         chunk_index: 0,

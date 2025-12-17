@@ -1310,3 +1310,6 @@ export const analyticsEvents = pgTable('analytics_events', {
   createdAtIdx: index('analytics_created_at_idx').on(table.created_at),
   tenantEventDateIdx: index('analytics_tenant_event_date_idx').on(table.tenant_id, table.event_type, table.created_at),
 }));
+
+// Alias exports for camelCase naming convention compatibility
+export const docChunks = doc_chunks;

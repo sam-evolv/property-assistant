@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
 
 const supabase = createClient(
