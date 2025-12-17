@@ -9,9 +9,11 @@ import { extractRoomDimensionsFromFloorplan, FloorplanVisionInput } from './trai
 import { resolveUploadUrl } from './resolve-upload-url';
 import { getDocumentProxy } from 'unpdf';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 async function extractPDFTextWithUnpdf(buffer: Buffer): Promise<string> {
   const uint8Array = new Uint8Array(buffer);
@@ -600,7 +602,7 @@ export class DocumentProcessor {
       try {
         logger.info(`[DocumentProcessor] Generating embedding ${index + 1}/${total} (attempt ${attempt + 1})`);
         
-        const response = await openai.embeddings.create({
+        const response = await getOpenAI().embeddings.create({
           model: this.EMBEDDING_MODEL,
           input: text,
           dimensions: this.EMBEDDING_DIMENSIONS,

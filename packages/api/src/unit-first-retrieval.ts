@@ -3,9 +3,11 @@ import { sql } from 'drizzle-orm';
 import OpenAI from 'openai';
 import { logger } from './logger';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface UnitFirstChunk {
   id: string;
@@ -173,7 +175,7 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
   console.log(`  House Type: ${houseTypeCode || 'none'}`);
   console.log(`  Query: ${query}`);
 
-  const embeddingResponse = await openai.embeddings.create({
+  const embeddingResponse = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
     dimensions: 1536,

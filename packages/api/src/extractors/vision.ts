@@ -4,9 +4,11 @@ import { db } from '@openhouse/db';
 import { intel_extractions } from '@openhouse/db/schema';
 import crypto from 'crypto';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 const VISION_MODEL = 'gpt-4o';
 const MAX_PAGES_PER_DOCUMENT = 10;
@@ -137,7 +139,7 @@ async function extractWithVision(imageBase64: string): Promise<{
   data: any;
   raw_response: string;
 }> {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: VISION_MODEL,
     messages: [
       {

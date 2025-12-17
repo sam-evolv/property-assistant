@@ -4,9 +4,11 @@ import OpenAI from 'openai';
 import { logger } from './logger';
 import { normalizeToCanonicalRoomName } from './normalize-room-name';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface EnhancedRetrievalOptions {
   tenantId: string;
@@ -140,7 +142,7 @@ function getDocKindBoost(docKind: string | null, questionType: string): number {
 }
 
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
     dimensions: 1536,

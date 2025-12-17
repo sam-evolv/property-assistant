@@ -2,9 +2,11 @@ import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface MatchedChunk {
   id: string;
@@ -14,7 +16,7 @@ export interface MatchedChunk {
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const embeddingResponse = await openai.embeddings.create({
+  const embeddingResponse = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: text,
     dimensions: 1536,

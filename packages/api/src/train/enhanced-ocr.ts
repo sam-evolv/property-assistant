@@ -6,9 +6,11 @@ import crypto from 'crypto';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface EnhancedOCRResult {
   text: string;
@@ -292,7 +294,7 @@ async function extractWithVision(buffer: Buffer, fileName: string, maxPages: num
       const imageBuffer = canvas.toBuffer('image/png');
       const base64Image = imageBuffer.toString('base64');
       
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages: [
           {

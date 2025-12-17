@@ -22,9 +22,11 @@ async function loadCanvas(): Promise<CreateCanvasFn | null> {
   }
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface FloorplanVisionInput {
   tenant_id: string;
@@ -155,7 +157,7 @@ async function callVisionForFloorplan(
 ): Promise<FloorplanVisionOutput> {
   console.log(`  Calling OpenAI Vision for floorplan: ${fileName}...`);
   
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       {

@@ -3,9 +3,11 @@ import { sql } from 'drizzle-orm';
 import OpenAI from 'openai';
 import { logger } from './logger';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 export interface HybridChunk {
   id: string;
@@ -122,7 +124,7 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
   logger.info('Hybrid retrieval started', { developmentId, unitId, houseTypeCode, query });
 
   // Step 1: Generate query embedding
-  const embeddingResponse = await openai.embeddings.create({
+  const embeddingResponse = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
     dimensions: 1536,

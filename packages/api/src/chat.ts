@@ -23,9 +23,11 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 interface ChatRequest {
   developmentId: string;
@@ -708,7 +710,7 @@ When a user asks about room sizes, dimensions, or floor area:
 ONLY if the answer is truly not in the context at all, say:
 "Based on the documents available for your home, I don't see any information about that. Would you like me to check with your developer?"`;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: systemPrompt + greetingContext },
