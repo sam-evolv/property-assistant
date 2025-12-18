@@ -216,7 +216,10 @@ export async function POST(
       .eq('id', unitUid)
       .single();
 
+    console.log('[Comments POST] Supabase unit lookup:', unit ? 'found' : 'not found', 'error:', unitError?.message || 'none');
+
     if (unitError || !unit) {
+      console.log('[Comments POST] Returning 404 - Unit not found');
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -228,7 +231,10 @@ export async function POST(
       .from(tenants)
       .limit(1);
 
+    console.log('[Comments POST] Tenant lookup:', tenantResult?.length || 0, 'tenants found');
+
     if (!tenantResult || tenantResult.length === 0) {
+      console.log('[Comments POST] Returning 500 - No tenant');
       return NextResponse.json(
         { error: 'No tenant configured' },
         { status: 500 }
@@ -236,15 +242,18 @@ export async function POST(
     }
 
     const tenantId = tenantResult[0].id;
+    console.log('[Comments POST] Using tenantId:', tenantId);
 
     const rateLimit = await checkCommentRateLimit(unitUid, tenantId);
     if (!rateLimit.allowed) {
+      console.log('[Comments POST] Rate limit exceeded');
       return NextResponse.json(
         { error: 'You have reached the comment limit. Please try again later.' },
         { status: 429, headers: { 'X-RateLimit-Remaining': '0' } }
       );
     }
 
+    console.log('[Comments POST] Looking for notice:', noticeId, 'with tenant:', tenantId);
     const notice = await db
       .select({ id: noticeboard_posts.id })
       .from(noticeboard_posts)
@@ -256,12 +265,17 @@ export async function POST(
       )
       .limit(1);
 
+    console.log('[Comments POST] Notice lookup result:', notice?.length || 0, 'notices found');
+
     if (!notice || notice.length === 0) {
+      console.log('[Comments POST] Returning 404 - Notice not found');
       return NextResponse.json(
         { error: 'Notice not found' },
         { status: 404 }
       );
     }
+    
+    console.log('[Comments POST] All checks passed, proceeding to create comment');
 
     const body = await request.json();
     const { text, termsAccepted } = body;
