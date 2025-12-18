@@ -74,7 +74,7 @@ export default function PurchaserDocumentsTab({
       console.log('[Documents] Fetching with unitUid:', unitUid, 'token:', token?.slice(0, 10) + '...');
 
       const res = await fetch(
-        `/api/purchaser/documents?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
+        `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
       
       console.log('[Documents] API response status:', res.status);
@@ -115,7 +115,7 @@ export default function PurchaserDocumentsTab({
       const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
       const token = storedToken || unitUid;
 
-      const downloadUrl = `/api/purchaser/documents/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
+      const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       
       // First check if the download will succeed
       const response = await fetch(downloadUrl);
