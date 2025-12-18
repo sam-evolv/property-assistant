@@ -171,14 +171,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ noticeId: string }> }
 ) {
+  console.log('[Comments POST] Request received');
   try {
     const supabase = getSupabaseClient();
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const unitUid = searchParams.get('unitUid');
+    
+    console.log('[Comments POST] noticeId:', noticeId, 'unitUid:', unitUid, 'token:', token ? 'present' : 'missing');
 
     if (!token || !unitUid) {
+      console.log('[Comments POST] Missing token or unitUid');
       return NextResponse.json(
         { error: 'Token and unit UID are required' },
         { status: 400 }
@@ -187,6 +191,8 @@ export async function POST(
 
     let validatedUnitId = null;
     const payload = await validateQRToken(token);
+    console.log('[Comments POST] QR validation result:', payload ? 'valid' : 'invalid', 'token === unitUid:', token === unitUid);
+    
     if (payload && payload.supabaseUnitId === unitUid) {
       validatedUnitId = payload.supabaseUnitId;
     } else if (token === unitUid) {
@@ -195,11 +201,14 @@ export async function POST(
     }
 
     if (!validatedUnitId) {
+      console.log('[Comments POST] Token validation failed');
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
+    
+    console.log('[Comments POST] Token validated, unitId:', validatedUnitId);
 
     const { data: unit, error: unitError } = await supabase
       .from('units')
