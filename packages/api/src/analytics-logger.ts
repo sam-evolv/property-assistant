@@ -487,6 +487,271 @@ export interface UnactivatedSignup {
   hoursSinceSignup: number;
 }
 
+// ============ UNANSWERED QUESTIONS ============
+
+export interface UnansweredQuestion {
+  question: string;
+  topic: string;
+  developmentName: string | null;
+  reason: string;
+  occurrences: number;
+  lastAsked: string;
+}
+
+export async function getUnansweredQuestions(options: {
+  developmentId?: string;
+  hours?: number;
+  limit?: number;
+}): Promise<UnansweredQuestion[]> {
+  try {
+    const { developmentId, hours = 168, limit = 30 } = options; // Default 7 days
+
+    const devFilter = developmentId 
+      ? sql`AND ae.development_id = ${developmentId}::uuid`
+      : sql``;
+
+    const { rows } = await db.execute(sql`
+      SELECT 
+        COALESCE(ae.event_data->>'question_preview', 'Unknown question') as question,
+        ae.event_category as topic,
+        d.name as development_name,
+        COALESCE(ae.event_data->>'reason', 'unknown') as reason,
+        COUNT(*) as occurrences,
+        MAX(ae.created_at) as last_asked
+      FROM analytics_events ae
+      LEFT JOIN developments d ON ae.development_id = d.id
+      WHERE ae.event_type = 'unanswered'
+      AND ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'
+      ${devFilter}
+      GROUP BY 
+        COALESCE(ae.event_data->>'question_preview', 'Unknown question'),
+        ae.event_category,
+        d.name,
+        COALESCE(ae.event_data->>'reason', 'unknown')
+      ORDER BY occurrences DESC, last_asked DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map((r: any) => ({
+      question: r.question || 'Unknown question',
+      topic: r.topic || 'unknown',
+      developmentName: r.development_name,
+      reason: r.reason || 'unknown',
+      occurrences: Number(r.occurrences),
+      lastAsked: r.last_asked
+    }));
+  } catch (e) {
+    console.error('[Analytics] Failed to get unanswered questions:', e);
+    return [];
+  }
+}
+
+// ============ DOCUMENT USAGE TRACKING ============
+
+export interface DocumentUsage {
+  documentName: string;
+  documentId: string | null;
+  developmentName: string | null;
+  usageCount: number;
+  avgSimilarity: number;
+  lastUsed: string;
+}
+
+export async function getDocumentUsage(options: {
+  developmentId?: string;
+  hours?: number;
+  limit?: number;
+}): Promise<{ mostUsed: DocumentUsage[]; leastUsed: DocumentUsage[] }> {
+  try {
+    const { developmentId, hours = 168, limit = 15 } = options;
+
+    const devFilter = developmentId 
+      ? sql`AND ae.development_id = ${developmentId}::uuid`
+      : sql``;
+
+    // Get most used documents from analytics
+    // Use WITH ORDINALITY to properly zip sourceDocIds and sourceDocNames arrays
+    const { rows: mostUsedRows } = await db.execute(sql`
+      WITH doc_refs AS (
+        SELECT 
+          ae.development_id,
+          ids.val as doc_id,
+          COALESCE(names.val, 'Unknown') as doc_name,
+          COALESCE((ae.event_data->>'topSimilarity')::decimal, 0) as similarity,
+          ae.created_at
+        FROM analytics_events ae,
+        LATERAL jsonb_array_elements_text(COALESCE(ae.event_data->'sourceDocIds', '[]'::jsonb)) WITH ORDINALITY AS ids(val, ord)
+        LEFT JOIN LATERAL jsonb_array_elements_text(COALESCE(ae.event_data->'sourceDocNames', '[]'::jsonb)) WITH ORDINALITY AS names(val, ord)
+          ON ids.ord = names.ord
+        WHERE ae.event_type = 'chat_question'
+        AND ae.event_data ? 'sourceDocIds'
+        AND jsonb_array_length(COALESCE(ae.event_data->'sourceDocIds', '[]'::jsonb)) > 0
+        AND ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'
+        ${devFilter}
+      )
+      SELECT 
+        dr.doc_name as document_name,
+        dr.doc_id as document_id,
+        d.name as development_name,
+        COUNT(*)::integer as usage_count,
+        COALESCE(AVG(dr.similarity), 0) as avg_similarity,
+        MAX(dr.created_at) as last_used
+      FROM doc_refs dr
+      LEFT JOIN developments d ON dr.development_id = d.id
+      WHERE dr.doc_id IS NOT NULL AND dr.doc_id != ''
+      GROUP BY dr.doc_name, dr.doc_id, d.name
+      ORDER BY usage_count DESC
+      LIMIT ${limit}
+    `);
+
+    // Get documents that exist but haven't been cited much
+    // This lists all documents and their usage count (0 if never cited)
+    const { rows: leastUsedRows } = await db.execute(sql`
+      WITH doc_usage AS (
+        SELECT 
+          elem.doc_id,
+          COUNT(*)::integer as usage_count
+        FROM analytics_events ae,
+        LATERAL jsonb_array_elements_text(COALESCE(ae.event_data->'sourceDocIds', '[]'::jsonb)) as elem(doc_id)
+        WHERE ae.event_type = 'chat_question'
+        AND ae.event_data ? 'sourceDocIds'
+        AND ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'
+        ${devFilter}
+        GROUP BY elem.doc_id
+      ),
+      all_docs AS (
+        SELECT 
+          docs.id::text as doc_id,
+          docs.file_name as document_name,
+          d.name as development_name
+        FROM documents docs
+        LEFT JOIN developments d ON docs.development_id = d.id
+        WHERE docs.file_name IS NOT NULL AND docs.file_name != ''
+        ${developmentId ? sql`AND docs.development_id = ${developmentId}::uuid` : sql``}
+      )
+      SELECT 
+        ad.document_name,
+        ad.doc_id as document_id,
+        ad.development_name,
+        COALESCE(du.usage_count, 0)::integer as usage_count,
+        0::decimal as avg_similarity,
+        NULL::timestamptz as last_used
+      FROM all_docs ad
+      LEFT JOIN doc_usage du ON ad.doc_id = du.doc_id
+      ORDER BY COALESCE(du.usage_count, 0) ASC, ad.document_name ASC
+      LIMIT ${limit}
+    `);
+
+    return {
+      mostUsed: mostUsedRows.map((r: any) => ({
+        documentName: r.document_name || 'Unknown',
+        documentId: r.document_id,
+        developmentName: r.development_name,
+        usageCount: Number(r.usage_count) || 0,
+        avgSimilarity: parseFloat(r.avg_similarity) || 0,
+        lastUsed: r.last_used
+      })),
+      leastUsed: leastUsedRows.map((r: any) => ({
+        documentName: r.document_name || 'Unknown',
+        documentId: r.document_id,
+        developmentName: r.development_name,
+        usageCount: Number(r.usage_count) || 0,
+        avgSimilarity: parseFloat(r.avg_similarity) || 0,
+        lastUsed: r.last_used
+      }))
+    };
+  } catch (e) {
+    console.error('[Analytics] Failed to get document usage:', e);
+    return { mostUsed: [], leastUsed: [] };
+  }
+}
+
+// ============ CONVERSATION COMPLETION TRACKING ============
+
+export interface ConversationStats {
+  totalConversations: number;
+  avgMessagesPerSession: number;
+  singleMessageSessions: number;
+  multiMessageSessions: number;
+  deepConversations: number; // 5+ messages
+  sessionsByDepth: { depth: number; count: number }[];
+}
+
+export async function getConversationStats(options: {
+  developmentId?: string;
+  hours?: number;
+}): Promise<ConversationStats> {
+  try {
+    const { developmentId, hours = 168 } = options;
+
+    const devFilter = developmentId 
+      ? sql`AND development_id = ${developmentId}::uuid`
+      : sql``;
+
+    // Get conversation depth by session - with explicit integer casting
+    const { rows: sessionDepths } = await db.execute(sql`
+      SELECT 
+        session_hash,
+        COUNT(*)::integer as message_count
+      FROM analytics_events
+      WHERE event_type = 'chat_question'
+      AND session_hash IS NOT NULL
+      AND session_hash != ''
+      AND created_at > now() - interval '${sql.raw(hours.toString())} hours'
+      ${devFilter}
+      GROUP BY session_hash
+    `);
+
+    // Safely convert to numbers with fallback
+    const depths = sessionDepths.map((r: any) => {
+      const count = r.message_count;
+      return typeof count === 'number' ? count : parseInt(String(count), 10) || 0;
+    });
+    
+    const totalConversations = depths.length;
+    
+    // Guard against divide by zero
+    const totalMessages = depths.reduce((a, b) => a + b, 0);
+    const avgMessages = totalConversations > 0 
+      ? totalMessages / totalConversations 
+      : 0;
+
+    const singleMessage = depths.filter(d => d === 1).length;
+    const multiMessage = depths.filter(d => d >= 2).length;
+    const deepConversations = depths.filter(d => d >= 5).length;
+
+    // Group by depth for histogram
+    const depthCounts = new Map<number, number>();
+    depths.forEach(d => {
+      const bucket = Math.min(d, 10); // Cap at 10+ for grouping
+      depthCounts.set(bucket, (depthCounts.get(bucket) || 0) + 1);
+    });
+
+    const sessionsByDepth = Array.from(depthCounts.entries())
+      .map(([depth, count]) => ({ depth, count }))
+      .sort((a, b) => a.depth - b.depth);
+
+    return {
+      totalConversations,
+      avgMessagesPerSession: Math.round(avgMessages * 10) / 10,
+      singleMessageSessions: singleMessage,
+      multiMessageSessions: multiMessage,
+      deepConversations,
+      sessionsByDepth
+    };
+  } catch (e) {
+    console.error('[Analytics] Failed to get conversation stats:', e);
+    return {
+      totalConversations: 0,
+      avgMessagesPerSession: 0,
+      singleMessageSessions: 0,
+      multiMessageSessions: 0,
+      deepConversations: 0,
+      sessionsByDepth: []
+    };
+  }
+}
+
 export async function getUnactivatedSignups(options: {
   developmentId?: string;
   windowHours?: number;

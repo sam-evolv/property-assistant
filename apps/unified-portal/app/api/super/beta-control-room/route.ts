@@ -7,7 +7,10 @@ import {
   getLiveActivity, 
   getTopQuestions,
   getTrainingOpportunities,
-  getUnactivatedSignups 
+  getUnactivatedSignups,
+  getUnansweredQuestions,
+  getDocumentUsage,
+  getConversationStats
 } from '@openhouse/api/analytics-logger';
 
 export async function GET(request: NextRequest) {
@@ -19,13 +22,26 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const [kpis, liveActivity, topQuestions24h, topQuestions7d, trainingOpportunities, unactivatedSignups] = await Promise.all([
+    const [
+      kpis, 
+      liveActivity, 
+      topQuestions24h, 
+      topQuestions7d, 
+      trainingOpportunities, 
+      unactivatedSignups,
+      unansweredQuestions,
+      documentUsage,
+      conversationStats
+    ] = await Promise.all([
       getBetaKPIs(developmentId),
       getLiveActivity({ developmentId, eventType, hours, limit, offset }),
       getTopQuestions({ developmentId, hours: 24, limit: 15 }),
       getTopQuestions({ developmentId, hours: 168, limit: 15 }),
       getTrainingOpportunities({ developmentId, hours: 168, limit: 15 }),
-      getUnactivatedSignups({ developmentId, windowHours: 6, limit: 30 })
+      getUnactivatedSignups({ developmentId, windowHours: 6, limit: 30 }),
+      getUnansweredQuestions({ developmentId, hours: 168, limit: 20 }),
+      getDocumentUsage({ developmentId, hours: 168, limit: 15 }),
+      getConversationStats({ developmentId, hours: 168 })
     ]);
 
     return NextResponse.json({
@@ -36,7 +52,10 @@ export async function GET(request: NextRequest) {
         last7d: topQuestions7d
       },
       trainingOpportunities,
-      unactivatedSignups
+      unactivatedSignups,
+      unansweredQuestions,
+      documentUsage,
+      conversationStats
     });
   } catch (error) {
     console.error('[Beta Control Room API] Error:', error);

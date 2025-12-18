@@ -88,19 +88,33 @@ Enhanced the Beta Control Room with granular analytics for AI training insights:
 - `confidenceLevel`: 'high' (≥0.5), 'medium' (≥0.35), or 'low' (<0.35)
 - `needsTraining`: Boolean flag for low-confidence answers
 - `verified_attribution`: Whether development_id came from unit lookup (not fallback)
+- `sourceDocIds`: Array of document IDs used in the response
+- `sourceDocNames`: Array of document names used in the response
+- `conversationDepth`: Number of messages in the current session
+- `isFollowUp`: Boolean indicating if this is a follow-up question
 
 **New Features:**
 - **Training Opportunities Panel**: Shows questions with low confidence answers (7d window)
   - Displays similarity score, confidence level, occurrence count
   - Helps identify topics needing more training documents
+- **Unanswered Questions Panel**: Shows questions the AI couldn't answer (no matching docs)
+  - Captures full question text for training prioritization
+  - Grouped by topic and development
+- **Document Usage Panel**: Shows which documents are most/least cited
+  - Most Cited: Identifies valuable training documents
+  - Underutilized: Documents that may need better chunking or aren't relevant
+- **Conversation Completion Panel**: Session depth analytics
+  - Total sessions, avg messages per session
+  - Single-message vs multi-message vs deep (5+) conversations
+  - Visual histogram of session depth distribution
 - **Enhanced Top Questions**: Now shows development name alongside each question
 - **Response Quality Metrics**: Track AI performance across developments
 
 **Files Changed:**
-- `packages/api/src/analytics-logger.ts` - Added getTrainingOpportunities(), enhanced getTopQuestions()
-- `apps/unified-portal/app/api/chat/route.ts` - Enhanced analytics logging with quality metrics
-- `apps/unified-portal/app/api/super/beta-control-room/route.ts` - Added training opportunities endpoint
-- `apps/unified-portal/app/super/beta-control-room/beta-control-room-client.tsx` - New UI panels
+- `packages/api/src/analytics-logger.ts` - Added getUnansweredQuestions(), getDocumentUsage(), getConversationStats()
+- `apps/unified-portal/app/api/chat/route.ts` - Enhanced analytics with source docs and conversation depth
+- `apps/unified-portal/app/api/super/beta-control-room/route.ts` - Added new analytics endpoints
+- `apps/unified-portal/app/super/beta-control-room/beta-control-room-client.tsx` - New UI panels for all features
 
 ### Replit Preview Fix (December 2025)
 **Issue:** Next.js dev server was OOM-killed before completing compilation due to heavy imports at root layout level.

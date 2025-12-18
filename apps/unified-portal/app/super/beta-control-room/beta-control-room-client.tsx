@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3 } from 'lucide-react';
 
 interface KPIData {
   totalUnits: number;
@@ -49,6 +49,33 @@ interface UnactivatedSignup {
   hoursSinceSignup: number;
 }
 
+interface UnansweredQuestion {
+  question: string;
+  topic: string;
+  developmentName: string | null;
+  reason: string;
+  occurrences: number;
+  lastAsked: string;
+}
+
+interface DocumentUsage {
+  documentName: string;
+  documentId: string | null;
+  developmentName: string | null;
+  usageCount: number;
+  avgSimilarity: number;
+  lastUsed: string;
+}
+
+interface ConversationStats {
+  totalConversations: number;
+  avgMessagesPerSession: number;
+  singleMessageSessions: number;
+  multiMessageSessions: number;
+  deepConversations: number;
+  sessionsByDepth: { depth: number; count: number }[];
+}
+
 interface BetaControlRoomData {
   kpis: KPIData;
   liveActivity: {
@@ -61,6 +88,12 @@ interface BetaControlRoomData {
   };
   trainingOpportunities: TrainingOpportunity[];
   unactivatedSignups: UnactivatedSignup[];
+  unansweredQuestions: UnansweredQuestion[];
+  documentUsage: {
+    mostUsed: DocumentUsage[];
+    leastUsed: DocumentUsage[];
+  };
+  conversationStats: ConversationStats;
 }
 
 function KPICard({ icon: Icon, label, value, subtext }: { icon: any; label: string; value: string | number; subtext?: string }) {
@@ -190,6 +223,16 @@ export default function BetaControlRoomClient() {
   const topQuestions = data?.topQuestions || { last24h: [], last7d: [] };
   const trainingOpportunities = data?.trainingOpportunities || [];
   const unactivatedSignups = data?.unactivatedSignups || [];
+  const unansweredQuestions = data?.unansweredQuestions || [];
+  const documentUsage = data?.documentUsage || { mostUsed: [], leastUsed: [] };
+  const conversationStats = data?.conversationStats || {
+    totalConversations: 0,
+    avgMessagesPerSession: 0,
+    singleMessageSessions: 0,
+    multiMessageSessions: 0,
+    deepConversations: 0,
+    sessionsByDepth: []
+  };
   const totalPages = Math.ceil(liveActivity.total / pageSize);
 
   return (
@@ -462,6 +505,163 @@ export default function BetaControlRoomClient() {
             </ul>
           ) : (
             <EmptyState message="All signups are active!" />
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div className="bg-white rounded-lg border border-red-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-red-200 bg-red-50">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-red-500" />
+              Unanswered Questions
+              <span className="text-xs font-normal text-gray-500">(Questions AI couldn't answer - 7d)</span>
+            </h2>
+          </div>
+          {unansweredQuestions.length > 0 ? (
+            <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              {unansweredQuestions.map((item, idx) => (
+                <li key={idx} className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 line-clamp-2">{item.question}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {item.topic && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                            {item.topic}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                          {item.reason === 'low_similarity_or_no_chunks' ? 'No matching docs' : item.reason}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-sm font-medium text-red-600">{item.occurrences}x</span>
+                      {item.developmentName && (
+                        <p className="text-xs text-gray-400 mt-1">{item.developmentName}</p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="No unanswered questions - all queries matched documents!" />
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-blue-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-blue-200 bg-blue-50">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-500" />
+              Conversation Completion
+              <span className="text-xs font-normal text-gray-500">(Session depth analysis - 7d)</span>
+            </h2>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-900">{conversationStats.totalConversations}</div>
+                <div className="text-xs text-gray-500">Total Sessions</div>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-900">{conversationStats.avgMessagesPerSession}</div>
+                <div className="text-xs text-gray-500">Avg Messages/Session</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{conversationStats.singleMessageSessions}</div>
+                <div className="text-xs text-gray-500">One-and-done</div>
+              </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{conversationStats.deepConversations}</div>
+                <div className="text-xs text-gray-500">Deep (5+ msgs)</div>
+              </div>
+            </div>
+            {conversationStats.sessionsByDepth.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Session Depth Distribution</h4>
+                <div className="flex items-end gap-1 h-20">
+                  {conversationStats.sessionsByDepth.map((item, idx) => {
+                    const maxCount = Math.max(...conversationStats.sessionsByDepth.map(s => s.count));
+                    const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                    return (
+                      <div key={idx} className="flex-1 flex flex-col items-center">
+                        <div 
+                          className="w-full bg-blue-400 rounded-t" 
+                          style={{ height: `${height}%`, minHeight: item.count > 0 ? '4px' : '0' }}
+                          title={`${item.count} sessions with ${item.depth}${item.depth >= 10 ? '+' : ''} messages`}
+                        />
+                        <span className="text-xs text-gray-400 mt-1">{item.depth}{item.depth >= 10 ? '+' : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div className="bg-white rounded-lg border border-green-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-green-200 bg-green-50">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-green-600" />
+              Most Cited Documents
+              <span className="text-xs font-normal text-gray-500">(7d)</span>
+            </h2>
+          </div>
+          {documentUsage.mostUsed.length > 0 ? (
+            <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              {documentUsage.mostUsed.map((doc, idx) => (
+                <li key={idx} className="px-6 py-4 flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 truncate">{doc.documentName}</p>
+                    {doc.developmentName && (
+                      <p className="text-xs text-gray-400 mt-1">{doc.developmentName}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-4">
+                    <span className="text-sm font-medium text-green-600">{doc.usageCount}x</span>
+                    {doc.avgSimilarity > 0 && (
+                      <p className="text-xs text-gray-400">{(doc.avgSimilarity * 100).toFixed(0)}% match</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="No document usage data yet" />
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-gray-400" />
+              Underutilized Documents
+              <span className="text-xs font-normal text-gray-500">(Consider reviewing)</span>
+            </h2>
+          </div>
+          {documentUsage.leastUsed.length > 0 ? (
+            <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              {documentUsage.leastUsed.map((doc, idx) => (
+                <li key={idx} className="px-6 py-4 flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 truncate">{doc.documentName}</p>
+                    {doc.developmentName && (
+                      <p className="text-xs text-gray-400 mt-1">{doc.developmentName}</p>
+                    )}
+                  </div>
+                  <span className={`text-sm font-medium ${doc.usageCount === 0 ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {doc.usageCount === 0 ? 'Never cited' : `${doc.usageCount}x`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="All documents are being used!" />
           )}
         </div>
       </div>

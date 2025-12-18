@@ -1040,14 +1040,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
   "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
       console.log('[Chat] No relevant documents found for this query');
       
-      // Log unanswered event for "what couldn't be answered" insights
+      // Log unanswered event with full question context for training insights
       logAnalyticsEvent({
-        tenantId: DEFAULT_TENANT_ID,
-        developmentId: DEFAULT_DEVELOPMENT_ID,
+        tenantId: userTenantId,
+        developmentId: userDevelopmentId,
+        houseTypeCode: userHouseTypeCode || undefined,
         eventType: 'unanswered',
         eventCategory: 'no_relevant_docs',
-        eventData: { reason: 'low_similarity_or_no_chunks' },
-        sessionId: validatedUnitUid || userId,
+        eventData: { 
+          reason: 'low_similarity_or_no_chunks',
+          question_preview: message.substring(0, 200), // Capture more context for training
+          conversationDepth: conversationHistory.length + 1,
+        },
+        sessionId: validatedUnitUid || conversationUserId,
+        unitId: effectiveUnitUid,
       }).catch(() => {}); // Don't fail chat if analytics fails
     }
 
@@ -1087,6 +1093,23 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     // Determine if we have verified development attribution (from unit lookup, not fallback)
     const hasVerifiedDevelopment = !!userUnitDetails.unitInfo?.development_id;
     
+    // Extract source document IDs and names for attribution tracking
+    const sourceDocIds: string[] = [];
+    const sourceDocNames: string[] = [];
+    const seenDocs = new Set<string>();
+    for (const chunk of chunks.slice(0, 5)) { // Top 5 chunks
+      const docId = chunk.metadata?.document_id || chunk.document_id;
+      const docName = chunk.metadata?.document_name || chunk.file_name || 'Unknown';
+      if (docId && !seenDocs.has(docId)) {
+        seenDocs.add(docId);
+        sourceDocIds.push(docId);
+        sourceDocNames.push(docName);
+      }
+    }
+    
+    // Calculate conversation depth (how many messages in this session)
+    const conversationDepth = conversationHistory.length + 1;
+    
     // Log analytics event (anonymised - no PII) with development_id from unit lookup
     logAnalyticsEvent({
       tenantId: userTenantId,
@@ -1103,6 +1126,12 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         needsTraining,
         question_preview: message.substring(0, 100),
         verified_attribution: hasVerifiedDevelopment,
+        // Source document tracking
+        sourceDocIds: sourceDocIds.length > 0 ? sourceDocIds : undefined,
+        sourceDocNames: sourceDocNames.length > 0 ? sourceDocNames : undefined,
+        // Conversation completion tracking
+        conversationDepth,
+        isFollowUp: conversationDepth > 1,
       },
       sessionId: validatedUnitUid || conversationUserId,
       unitId: effectiveUnitUid,
