@@ -7,8 +7,7 @@ export * from './chat/retrieval';
 export * from './chat/prompt';
 export * from './rag-service';
 export * from './csv-mapper';
-export * from './job-queue';
-// Note: document-processor and train modules are NOT exported here
+// Note: job-queue, document-processor, and train modules are NOT exported here
 // because they depend on tesseract.js (heavy OCR library).
 // Import them separately via '@openhouse/api/train' when needed.
 

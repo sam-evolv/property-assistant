@@ -1,0 +1,67 @@
+10:51:18.947 Running build in Washington, D.C., USA (East) – iad1
+10:51:18.948 Build machine configuration: 2 cores, 8 GB
+10:51:19.098 Cloning github.com/sam-evolv/property-assistant (Branch: main, Commit: b45ec11)
+10:51:19.099 Previous build caches not available.
+10:51:26.833 Cloning completed: 7.735s
+10:51:27.557 Running "vercel build"
+10:51:28.078 Vercel CLI 50.0.1
+10:51:28.635 Running "install" command: `npm ci`...
+10:51:31.435 npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+10:51:31.755 npm warn deprecated npmlog@5.0.1: This package is no longer supported.
+10:51:31.934 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+10:51:32.053 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+10:51:32.784 npm warn deprecated gauge@3.0.2: This package is no longer supported.
+10:51:32.959 npm warn deprecated are-we-there-yet@2.0.0: This package is no longer supported.
+10:51:33.306 npm warn deprecated @supabase/auth-helpers-shared@0.6.3: This package is now deprecated - please use the @supabase/ssr package instead.
+10:51:33.419 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+10:51:33.917 npm warn deprecated @supabase/auth-helpers-nextjs@0.8.7: This package is now deprecated - please use the @supabase/ssr package instead.
+10:51:33.945 npm warn deprecated @supabase/auth-helpers-nextjs@0.8.7: This package is now deprecated - please use the @supabase/ssr package instead.
+10:51:46.659 
+10:51:46.660 added 377 packages, and audited 381 packages in 18s
+10:51:46.660 
+10:51:46.661 40 packages are looking for funding
+10:51:46.661   run `npm fund` for details
+10:51:46.665 
+10:51:46.665 3 vulnerabilities (1 moderate, 2 high)
+10:51:46.665 
+10:51:46.665 To address all issues possible (including breaking changes), run:
+10:51:46.666   npm audit fix --force
+10:51:46.666 
+10:51:46.666 Some issues need review, and may require choosing
+10:51:46.666 a different dependency.
+10:51:46.666 
+10:51:46.666 Run `npm audit` for details.
+10:51:46.689 Detected Next.js version: 14.2.35
+10:51:46.690 Running "npm --workspace=@openhouse/unified-portal run build"
+10:51:46.859 
+10:51:46.859 > @openhouse/unified-portal@0.1.0 build
+10:51:46.859 > next build
+10:51:46.860 
+10:51:47.590   ▲ Next.js 14.2.35
+10:51:47.590   - Environments: .env.production
+10:51:47.591 
+10:51:47.619    Creating an optimized production build ...
+10:52:29.740 <w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (130kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+10:52:29.861 Failed to compile.
+10:52:29.861 
+10:52:29.861 ../../packages/api/src/train/ocr.ts
+10:52:29.862 Module not found: Can't resolve 'tesseract.js'
+10:52:29.862 
+10:52:29.862 https://nextjs.org/docs/messages/module-not-found
+10:52:29.862 
+10:52:29.862 Import trace for requested module:
+10:52:29.863 ../../packages/api/src/document-processor.ts
+10:52:29.863 ../../packages/api/src/job-queue.ts
+10:52:29.863 ../../packages/api/src/index.ts
+10:52:29.863 ./app/api/chat/route.ts
+10:52:29.863 
+10:52:29.863 
+10:52:29.863 > Build failed because of webpack errors
+10:52:29.931 npm error Lifecycle script `build` failed with error:
+10:52:29.932 npm error code 1
+10:52:29.932 npm error path /vercel/path0/apps/unified-portal
+10:52:29.933 npm error workspace @openhouse/unified-portal@0.1.0
+10:52:29.933 npm error location /vercel/path0/apps/unified-portal
+10:52:29.933 npm error command failed
+10:52:29.933 npm error command sh -c next build
+10:52:29.945 Error: Command "npm --workspace=@openhouse/unified-portal run build" exited with 1
