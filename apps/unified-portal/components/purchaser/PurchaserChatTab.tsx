@@ -739,13 +739,16 @@ export default function PurchaserChatTab({
   return (
     <div 
       ref={messagesContainerRef}
-      className={`flex flex-col h-[100dvh] overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      className={`flex flex-col h-[var(--vvh,100dvh)] min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        /* HOME SCREEN - Centered hero, flex-1 takes remaining space */
+        /* HOME SCREEN - Centered hero, scrollable with bottom padding */
         <div 
-          className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain"
+          className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+          style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
+          }}
         >
           <style>{ANIMATION_STYLES}</style>
           
@@ -793,16 +796,16 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
-        /* MESSAGES AREA - Scrollable region with flex-col-reverse for natural bottom anchoring */
+        /* MESSAGES AREA - This is the only scrollable region */
         <div 
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col-reverse px-4 py-4"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)',
             overflowAnchor: 'auto',
             overscrollBehaviorY: 'contain',
           }}
         >
-          {/* Inner container - flex-col-reverse means first child appears at bottom */}
-          <div className="mx-auto max-w-3xl w-full flex flex-col gap-4">
+          <div className="mx-auto max-w-3xl flex flex-col gap-4">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
                   return (
@@ -953,16 +956,17 @@ export default function PurchaserChatTab({
           </div>
       )}
 
-      {/* INPUT BAR - Fixed footer using flexbox, not position:fixed */}
+      {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`flex-none w-full px-4 pt-3 pb-2 ${
+        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
           isDarkMode 
-            ? 'bg-black border-t border-white/10' 
-            : 'bg-white border-t border-black/10'
+            ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
+            : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)'
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))',
+          transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
