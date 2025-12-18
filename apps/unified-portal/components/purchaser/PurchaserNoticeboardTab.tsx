@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, Calendar, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
 import NoticeboardTermsModal from './NoticeboardTermsModal';
+import SessionExpiredModal from './SessionExpiredModal';
 
 interface Notice {
   id: string;
@@ -474,6 +475,7 @@ export default function PurchaserNoticeboardTab({
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [acceptingTerms, setAcceptingTerms] = useState(false);
   const [pendingAction, setPendingAction] = useState<'post' | 'comment' | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
@@ -496,6 +498,10 @@ export default function PurchaserNoticeboardTab({
       const res = await fetch(
         `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setTermsAccepted(data.termsAccepted);
@@ -516,6 +522,10 @@ export default function PurchaserNoticeboardTab({
         { method: 'POST' }
       );
 
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         setTermsAccepted(true);
         setShowTermsModal(false);
@@ -549,6 +559,10 @@ export default function PurchaserNoticeboardTab({
       const res = await fetch(
         `/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setNotices(data.notices || []);
@@ -569,6 +583,10 @@ export default function PurchaserNoticeboardTab({
       const res = await fetch(
         `/api/purchaser/noticeboard/${noticeId}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setComments(data.comments || []);
@@ -608,6 +626,10 @@ export default function PurchaserNoticeboardTab({
         }
       );
 
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setComments((prev) => [data.comment, ...prev]);
@@ -634,6 +656,10 @@ export default function PurchaserNoticeboardTab({
         { method: 'DELETE' }
       );
 
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         setComments((prev) => prev.filter((c) => c.id !== commentId));
       }
@@ -664,6 +690,10 @@ export default function PurchaserNoticeboardTab({
         })
       });
 
+      if (res.status === 401) {
+        setSessionExpired(true);
+        return;
+      }
       if (res.ok) {
         setShowCreateModal(false);
         setFormData({ title: '', message: '', category: 'general', priority: 'low' });
@@ -1090,6 +1120,12 @@ export default function PurchaserNoticeboardTab({
         }}
         isDarkMode={isDarkMode}
         isSubmitting={acceptingTerms}
+      />
+
+      <SessionExpiredModal
+        isOpen={sessionExpired}
+        isDarkMode={isDarkMode}
+        selectedLanguage={selectedLanguage}
       />
     </>
   );
