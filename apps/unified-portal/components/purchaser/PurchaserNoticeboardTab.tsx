@@ -986,7 +986,7 @@ export default function PurchaserNoticeboardTab({
               </button>
             </div>
 
-            <form onSubmit={handleCreateNotice} className="p-5 space-y-4">
+            <form onSubmit={handleCreateNotice} className="p-5 space-y-4 pb-32 md:pb-5">
               <div>
                 <label className={`block text-sm font-medium ${textColor} mb-2`}>
                   {t.formAuthorName}
@@ -1060,7 +1060,7 @@ export default function PurchaserNoticeboardTab({
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className={`flex gap-3 pt-4 sticky bottom-0 ${isDarkMode ? 'bg-gradient-to-t from-gray-800 via-gray-800 to-transparent' : 'bg-gradient-to-t from-white via-white to-transparent'} md:bg-none md:relative -mx-5 px-5 pb-5 md:m-0 md:p-0`}>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
