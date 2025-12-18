@@ -416,19 +416,15 @@ export async function PATCH(
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    if (!tenantResult || tenantResult.length === 0) {
+    const unit = await getUnitInfo(unitUid);
+    if (!unit) {
       return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
+        { error: 'Unit not found' },
+        { status: 404 }
       );
     }
 
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
 
     const existingComment = await db
       .select()
@@ -549,19 +545,15 @@ export async function DELETE(
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    if (!tenantResult || tenantResult.length === 0) {
+    const unit = await getUnitInfo(unitUid);
+    if (!unit) {
       return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
+        { error: 'Unit not found' },
+        { status: 404 }
       );
     }
 
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
 
     const comment = await db
       .select({
