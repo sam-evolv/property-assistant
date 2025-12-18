@@ -73,6 +73,8 @@ export default function HomeResidentPage() {
   const [house, setHouse] = useState<HouseContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [showIntro, setShowIntro] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
   const [selectedLanguage, setSelectedLanguage] = useState('en');
@@ -87,6 +89,9 @@ export default function HomeResidentPage() {
   const [importantDocs, setImportantDocs] = useState<any[]>([]);
   const [consentRequired, setConsentRequired] = useState(false);
   const [agreeingToDocs, setAgreeingToDocs] = useState(false);
+  
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000;
 
   useEffect(() => {
     // Load saved preferences
@@ -98,7 +103,7 @@ export default function HomeResidentPage() {
   }, []);
 
   useEffect(() => {
-    const fetchHouse = async () => {
+    const fetchHouse = async (attempt: number = 0) => {
       try {
         const tokenKey = `house_token_${unitUid}`;
         // Get the QR token from query param or sessionStorage (for drawing access)
@@ -113,13 +118,32 @@ export default function HomeResidentPage() {
         });
         
         if (!validateRes.ok) {
+          // Check if this is a retryable error (503 = service temporarily unavailable)
+          // MAX_RETRIES = 3 means attempts 1, 2, 3 (not 0-indexed for user display)
+          if (validateRes.status === 503 && attempt + 1 < MAX_RETRIES) {
+            const nextAttempt = attempt + 1;
+            console.log(`[Home] Service temporarily unavailable, retrying in ${RETRY_DELAY_MS}ms (attempt ${nextAttempt + 1}/${MAX_RETRIES})`);
+            setIsRetrying(true);
+            setRetryCount(nextAttempt + 1);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            return fetchHouse(nextAttempt);
+          }
+          
           sessionStorage.removeItem(tokenKey);
           sessionStorage.removeItem(`intro_seen_${unitUid}`);
-          setError('Invalid or expired QR code. Please scan again.');
+          
+          // Show a friendlier error for temporary unavailability
+          if (validateRes.status === 503) {
+            setError('The service is temporarily busy. Please wait a moment and try again.');
+          } else {
+            setError('Invalid or expired QR code. Please scan again.');
+          }
           setLoading(false);
+          setIsRetrying(false);
           return;
         }
 
+        setIsRetrying(false);
         const data = await validateRes.json();
 
         // Handle both old format (house_id) and new format (unitId)
@@ -257,18 +281,38 @@ export default function HomeResidentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="text-xl animate-pulse text-gray-600">Loading your home...</div>
+        <div className="text-center">
+          <div className="text-xl animate-pulse text-gray-600">
+            {isRetrying ? `Connecting... (attempt ${retryCount}/${MAX_RETRIES})` : 'Loading your home...'}
+          </div>
+          {isRetrying && (
+            <div className="text-sm text-gray-500 mt-2">
+              The service is momentarily busy. Please wait...
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   if (error) {
+    const isTemporaryError = error.includes('temporarily') || error.includes('busy');
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="text-center max-w-md p-8 bg-white rounded-lg shadow-lg border border-gray-200">
-          <div className="text-6xl mb-4">🏠</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Error</h2>
+          <div className="text-6xl mb-4">{isTemporaryError ? '⏳' : '🏠'}</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            {isTemporaryError ? 'Just a Moment' : 'Access Error'}
+          </h2>
           <p className="text-gray-700 mb-6">{error}</p>
+          {isTemporaryError && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mb-4 px-6 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition font-medium"
+            >
+              Try Again
+            </button>
+          )}
           <p className="text-sm text-gray-500">
             If you continue to have issues, please contact support.
           </p>

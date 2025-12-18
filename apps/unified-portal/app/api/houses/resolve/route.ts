@@ -108,6 +108,9 @@ export async function POST(req: Request) {
     }
 
     console.log("[Resolve] Looking up unit:", token);
+    
+    // Track if we hit a database connection error vs actual not found
+    let dbConnectionError = false;
 
     // Check if token is UUID format or unit_uid format (e.g., LV-PARK-008)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,53 +118,62 @@ export async function POST(req: Request) {
 
     // First try: Query units table by ID or unit_uid using Drizzle
     // Use different query based on whether token is UUID format or not
-    const unitResult = isUuid 
-      ? await db.execute(sql`
-          SELECT 
-            u.id,
-            u.unit_uid,
-            u.development_id,
-            u.house_type_code,
-            u.address_line_1,
-            u.address_line_2,
-            u.city,
-            u.eircode,
-            u.purchaser_name,
-            u.tenant_id,
-            u.latitude,
-            u.longitude,
-            d.id as dev_id,
-            d.name as dev_name,
-            d.address as dev_address,
-            d.logo_url as dev_logo_url
-          FROM units u
-          LEFT JOIN developments d ON u.development_id = d.id
-          WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
-          LIMIT 1
-        `)
-      : await db.execute(sql`
-          SELECT 
-            u.id,
-            u.unit_uid,
-            u.development_id,
-            u.house_type_code,
-            u.address_line_1,
-            u.address_line_2,
-            u.city,
-            u.eircode,
-            u.purchaser_name,
-            u.tenant_id,
-            u.latitude,
-            u.longitude,
-            d.id as dev_id,
-            d.name as dev_name,
-            d.address as dev_address,
-            d.logo_url as dev_logo_url
-          FROM units u
-          LEFT JOIN developments d ON u.development_id = d.id
-          WHERE u.unit_uid = ${token}
-          LIMIT 1
-        `);
+    let unitResult;
+    try {
+      unitResult = isUuid 
+        ? await db.execute(sql`
+            SELECT 
+              u.id,
+              u.unit_uid,
+              u.development_id,
+              u.house_type_code,
+              u.address_line_1,
+              u.address_line_2,
+              u.city,
+              u.eircode,
+              u.purchaser_name,
+              u.tenant_id,
+              u.latitude,
+              u.longitude,
+              d.id as dev_id,
+              d.name as dev_name,
+              d.address as dev_address,
+              d.logo_url as dev_logo_url
+            FROM units u
+            LEFT JOIN developments d ON u.development_id = d.id
+            WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
+            LIMIT 1
+          `)
+        : await db.execute(sql`
+            SELECT 
+              u.id,
+              u.unit_uid,
+              u.development_id,
+              u.house_type_code,
+              u.address_line_1,
+              u.address_line_2,
+              u.city,
+              u.eircode,
+              u.purchaser_name,
+              u.tenant_id,
+              u.latitude,
+              u.longitude,
+              d.id as dev_id,
+              d.name as dev_name,
+              d.address as dev_address,
+              d.logo_url as dev_logo_url
+            FROM units u
+            LEFT JOIN developments d ON u.development_id = d.id
+            WHERE u.unit_uid = ${token}
+            LIMIT 1
+          `);
+    } catch (dbErr: any) {
+      console.error("[Resolve] Database error during unit lookup:", dbErr.message);
+      if (dbErr.message?.includes('MaxClients') || dbErr.message?.includes('pool') || dbErr.code === 'XX000') {
+        dbConnectionError = true;
+      }
+      unitResult = { rows: [] };
+    }
 
     const unit = unitResult.rows[0] as any;
 
@@ -307,6 +319,14 @@ export async function POST(req: Request) {
 
       if (!homeowner) {
         console.log("[Resolve] No unit or homeowner found for:", token);
+        // If we had database connection errors earlier, this might not be a real "not found"
+        if (dbConnectionError) {
+          console.log("[Resolve] Returning service unavailable due to earlier DB connection issues");
+          return NextResponse.json({ 
+            error: "Service temporarily unavailable. Please try again in a moment.",
+            retryable: true 
+          }, { status: 503 });
+        }
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
 
@@ -346,11 +366,25 @@ export async function POST(req: Request) {
       });
     } catch (homeownerErr: any) {
       console.error("[Resolve] Homeowner lookup error:", homeownerErr.message);
+      // Check if this was a connection pool issue
+      if (homeownerErr.message?.includes('MaxClients') || homeownerErr.message?.includes('pool') || homeownerErr.code === 'XX000' || dbConnectionError) {
+        return NextResponse.json({ 
+          error: "Service temporarily unavailable. Please try again in a moment.",
+          retryable: true 
+        }, { status: 503 });
+      }
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
   } catch (err: any) {
     console.error("[Resolve] Server Error:", err);
+    // Check for connection pool errors at top level
+    if (err.message?.includes('MaxClients') || err.message?.includes('pool') || err.code === 'XX000') {
+      return NextResponse.json({ 
+        error: "Service temporarily unavailable. Please try again in a moment.",
+        retryable: true 
+      }, { status: 503 });
+    }
     return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
   }
 }

@@ -6,10 +6,18 @@ import { db } from '@openhouse/db/client';
 import { units } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev';
+function getBaseUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!baseUrl) {
+    console.error('[QR Generate] NEXT_PUBLIC_APP_URL is not set - QR codes will not work correctly');
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for QR code generation');
+  }
+  return baseUrl.trim().replace(/\/+$/, '');
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const BASE_URL = getBaseUrl();
     const { searchParams } = new URL(request.url);
     const unitId = searchParams.get('unitId');
     const format = searchParams.get('format') || 'png';
