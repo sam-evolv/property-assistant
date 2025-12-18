@@ -3,7 +3,7 @@ import { db } from '@openhouse/db/client';
 import { noticeboard_posts, notice_audit_log } from '@openhouse/db/schema';
 import { eq, desc, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
-import { getUnitInfo } from '@openhouse/api';
+import { getUnitInfo, logError } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,7 +128,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notices });
   } catch (error) {
-    console.error('[Purchaser Noticeboard GET Error]:', error);
+    const err = error as Error;
+    console.error('[Purchaser Noticeboard GET Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'NOTICEBOARD_GET_FAILED',
+      errorMessage: err.message || 'Failed to fetch notices',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard',
+      requestContext: { method: 'GET' },
+    });
     return NextResponse.json(
       { error: 'Failed to fetch notices' },
       { status: 500 }
@@ -251,7 +260,16 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('[Purchaser Noticeboard POST Error]:', error);
+    const err = error as Error;
+    console.error('[Purchaser Noticeboard POST Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'NOTICEBOARD_POST_FAILED',
+      errorMessage: err.message || 'Failed to create notice',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard',
+      requestContext: { method: 'POST' },
+    });
     return NextResponse.json(
       { error: 'Failed to create notice' },
       { status: 500 }
@@ -360,7 +378,16 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Purchaser Noticeboard PATCH Error]:', error);
+    const err = error as Error;
+    console.error('[Purchaser Noticeboard PATCH Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'NOTICEBOARD_PATCH_FAILED',
+      errorMessage: err.message || 'Failed to update notice',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard',
+      requestContext: { method: 'PATCH' },
+    });
     return NextResponse.json(
       { error: 'Failed to update notice' },
       { status: 500 }
@@ -444,7 +471,16 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Purchaser Noticeboard DELETE Error]:', error);
+    const err = error as Error;
+    console.error('[Purchaser Noticeboard DELETE Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'NOTICEBOARD_DELETE_FAILED',
+      errorMessage: err.message || 'Failed to delete notice',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard',
+      requestContext: { method: 'DELETE' },
+    });
     return NextResponse.json(
       { error: 'Failed to delete notice' },
       { status: 500 }

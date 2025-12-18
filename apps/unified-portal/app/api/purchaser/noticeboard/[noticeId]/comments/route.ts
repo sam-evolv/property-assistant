@@ -3,7 +3,7 @@ import { db } from '@openhouse/db/client';
 import { notice_comments, noticeboard_posts, notice_audit_log } from '@openhouse/db/schema';
 import { eq, and, desc, gte, isNull, sql } from 'drizzle-orm';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
-import { getUnitInfo } from '@openhouse/api';
+import { getUnitInfo, logError } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,7 +127,16 @@ export async function GET(
 
     return NextResponse.json({ comments: enrichedComments });
   } catch (error) {
-    console.error('[Comments GET Error]:', error);
+    const err = error as Error;
+    console.error('[Comments GET Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'COMMENTS_GET_FAILED',
+      errorMessage: err.message || 'Failed to fetch comments',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard/[noticeId]/comments',
+      requestContext: { method: 'GET' },
+    });
     return NextResponse.json(
       { error: 'Failed to fetch comments' },
       { status: 500 }
@@ -275,7 +284,16 @@ export async function POST(
       }
     });
   } catch (error) {
-    console.error('[Comments POST Error]:', error);
+    const err = error as Error;
+    console.error('[Comments POST Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'COMMENTS_POST_FAILED',
+      errorMessage: err.message || 'Failed to create comment',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard/[noticeId]/comments',
+      requestContext: { method: 'POST' },
+    });
     return NextResponse.json(
       { error: 'Failed to create comment' },
       { status: 500 }
@@ -396,7 +414,16 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Comments PATCH Error]:', error);
+    const err = error as Error;
+    console.error('[Comments PATCH Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'COMMENTS_PATCH_FAILED',
+      errorMessage: err.message || 'Failed to update comment',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard/[noticeId]/comments',
+      requestContext: { method: 'PATCH' },
+    });
     return NextResponse.json(
       { error: 'Failed to update comment' },
       { status: 500 }
@@ -492,7 +519,16 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Comments DELETE Error]:', error);
+    const err = error as Error;
+    console.error('[Comments DELETE Error]:', err);
+    void logError({
+      errorType: 'purchaser',
+      errorCode: 'COMMENTS_DELETE_FAILED',
+      errorMessage: err.message || 'Failed to delete comment',
+      stackTrace: err.stack,
+      endpoint: '/api/purchaser/noticeboard/[noticeId]/comments',
+      requestContext: { method: 'DELETE' },
+    });
     return NextResponse.json(
       { error: 'Failed to delete comment' },
       { status: 500 }

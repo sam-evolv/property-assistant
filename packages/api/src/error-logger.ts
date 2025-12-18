@@ -1,7 +1,7 @@
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 
-export type ErrorType = 'supabase' | 'llm' | 'timeout' | 'validation' | 'unknown';
+export type ErrorType = 'supabase' | 'llm' | 'timeout' | 'validation' | 'database' | 'auth' | 'purchaser' | 'unknown';
 export type Severity = 'warning' | 'error' | 'critical';
 
 interface LogErrorParams {
@@ -73,6 +73,15 @@ export function createErrorLogger(endpoint: string, tenantId?: string, developme
     
     validation: (message: string, context?: Record<string, any>) =>
       logError({ tenantId, developmentId, endpoint, errorType: 'validation', errorMessage: message, requestContext: context, severity: 'warning' }),
+    
+    database: (message: string, code?: string, context?: Record<string, any>) =>
+      logError({ tenantId, developmentId, endpoint, errorType: 'database', errorCode: code, errorMessage: message, requestContext: context }),
+    
+    auth: (message: string, code?: string, context?: Record<string, any>) =>
+      logError({ tenantId, developmentId, endpoint, errorType: 'auth', errorCode: code, errorMessage: message, requestContext: context, severity: 'warning' }),
+    
+    purchaser: (message: string, code?: string, context?: Record<string, any>) =>
+      logError({ tenantId, developmentId, endpoint, errorType: 'purchaser', errorCode: code, errorMessage: message, requestContext: context }),
     
     critical: (message: string, errorType: ErrorType, stackTrace?: string, context?: Record<string, any>) =>
       logError({ tenantId, developmentId, endpoint, errorType, errorMessage: message, stackTrace, requestContext: context, severity: 'critical' }),
