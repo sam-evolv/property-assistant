@@ -7,7 +7,10 @@ import { db } from '@openhouse/db/client';
 import { documents, units } from '@openhouse/db/schema';
 import { eq, and, asc, or, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
+
+const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 
 function getSupabaseClient() {
   return createClient(
@@ -190,12 +193,24 @@ export async function GET(request: NextRequest) {
         // Silent fallback
       }
     }
+
+    const actualResolvedDevId = drizzleDevelopmentId;
     
     if (!drizzleDevelopmentId) {
       drizzleDevelopmentId = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
     }
     
     const developmentId = drizzleDevelopmentId || supabaseProjectId;
+
+    logAnalyticsEvent({
+      tenantId: DEFAULT_TENANT_ID,
+      developmentId: actualResolvedDevId || undefined,
+      houseTypeCode: houseTypeCode || undefined,
+      eventType: 'qr_scan',
+      eventCategory: 'docs_access',
+      sessionId: unitUid,
+      unitId: unitUid,
+    }).catch(() => {});
     
     const normalizedHouseType = (houseTypeCode || '').toLowerCase();
 

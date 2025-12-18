@@ -7,9 +7,10 @@ import { db } from '@openhouse/db/client';
 import { documents, units } from '@openhouse/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 
-console.log("[docs-list/download] Route module loaded");
+const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 
 function getSupabaseClient() {
   return createClient(
@@ -54,6 +55,51 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUuid = uuidPattern.test(unitUid);
+    let resolvedDevId: string | undefined;
+    
+    const unitResult = await db
+      .select({ development_id: units.development_id })
+      .from(units)
+      .where(isUuid 
+        ? or(eq(units.id, unitUid), eq(units.unit_uid, unitUid))
+        : eq(units.unit_uid, unitUid))
+      .limit(1);
+    
+    if (unitResult.length > 0) {
+      resolvedDevId = unitResult[0].development_id;
+    } else if (isUuid) {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: supabaseUnit } = await supabase
+          .from('units')
+          .select('project_id')
+          .eq('id', unitUid)
+          .single();
+        
+        if (supabaseUnit?.project_id) {
+          const SUPABASE_TO_DRIZZLE: Record<string, string> = {
+            '57dc3919-2725-4575-8046-9179075ac88e': '34316432-f1e8-4297-b993-d9b5c88ee2d8',
+            '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': 'e0833c98-23a7-490c-9f67-b58e73aeb14e',
+          };
+          resolvedDevId = SUPABASE_TO_DRIZZLE[supabaseUnit.project_id];
+        }
+      } catch (e) {
+        // Silent - just won't have development context
+      }
+    }
+
+    logAnalyticsEvent({
+      tenantId: DEFAULT_TENANT_ID,
+      developmentId: resolvedDevId,
+      eventType: 'document_open',
+      eventCategory: 'document_download',
+      eventData: { docId },
+      sessionId: unitUid,
+      unitId: unitUid,
+    }).catch(() => {});
 
     if (docId.startsWith('supabase-')) {
       const supabase = getSupabaseClient();

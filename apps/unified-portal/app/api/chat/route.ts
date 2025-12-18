@@ -1086,8 +1086,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         hasContext: chunks.length > 0,
         chunkCount: chunks.length,
         topSimilarity: chunks[0]?.similarity?.toFixed(3) || 0,
+        question_preview: message.substring(0, 100),
       },
       sessionId: validatedUnitUid || conversationUserId,
+      unitId: effectiveUnitUid,
     }).catch(() => {}); // Don't fail chat if analytics fails
     
     // If question is ambiguous about internal vs external, offer clarification

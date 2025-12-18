@@ -1,0 +1,78 @@
+You are working inside: property-assistant/apps/unified-portal.
+Goal: Add a Super Admin “Beta Control Room” analytics view that shows adoption + engagement + top questions + live activity, WITHOUT breaking any existing functionality.
+
+NON-NEGOTIABLES
+- Do NOT change routing structure (no renaming routes, no moving pages).
+- Do NOT change auth logic.
+- Do NOT change existing Supabase queries except to ADD new read-only queries.
+- Do NOT change theme tokens, colours, branding, or layout primitives outside the new analytics UI.
+- Do NOT introduce new third-party libraries.
+- Analytics logging (if added) must be non-blocking (fail silently and never break user flows).
+
+DELIVERABLES
+1) A new Super Admin dashboard section/tab/page called “Beta Control Room”.
+2) KPI cards: Units, Unique QR scans, Signups, Activated, Active (24h), Questions (24h), Questions (7d), Fallback rate.
+3) A “Live Activity” table showing recent events with filters (time range, scheme, event type) and pagination.
+4) A “Top Questions” list (last 24h + last 7d) with counts and ability to expand a question to view example rows.
+5) A “Unactivated Signups” list: users who signed up but had no chat/doc activity after 6 hours.
+
+IMPLEMENTATION STRATEGY (SAFE)
+A) First, inventory what telemetry already exists in Supabase:
+- Tables you can query today for:
+  - units/projects (for Units KPI)
+  - QR scans or unit resolves (for scan KPIs)
+  - user profiles/auth users mapping (for signups)
+  - chat messages / conversations (for questions + top questions)
+  - document opens/acceptance logs (for engagement)
+If any of these do not exist, do NOT guess. Instead implement a lightweight analytics_events table (see B).
+
+B) If telemetry is missing/fragmented: add ONE new table in Supabase called analytics_events with fields:
+- id uuid primary key default gen_random_uuid()
+- created_at timestamptz default now()
+- tenant_id uuid nullable
+- project_id uuid nullable
+- unit_id uuid nullable
+- user_id uuid nullable
+- event_type text not null (QR_SCAN, SIGNUP, LOGIN, CHAT_QUESTION, DOC_OPEN, DOC_ACCEPT, ASSISTANT_FALLBACK, SAFETY_BLOCK)
+- event_data jsonb default '{}'::jsonb
+Indexes:
+- created_at desc
+- project_id, unit_id, user_id
+RLS:
+- Enabled
+- Super Admin role can read all (use existing Super Admin auth pattern)
+- No public reads
+Writes:
+- Add BEST-EFFORT inserts from existing touchpoints:
+  - QR resolver route: log QR_SCAN
+  - Signup completion / profile creation: log SIGNUP
+  - Login session creation: log LOGIN
+  - Chat API route when user asks: log CHAT_QUESTION with preview text + assistant status (answered/fallback/blocked)
+  - Document open/accept routes: log DOC_OPEN / DOC_ACCEPT
+IMPORTANT: wrap inserts in try/catch and never fail the main request.
+
+C) Build server-side read functions (no new libs) in existing server util style:
+- getBetaKPIs({projectId?, range})
+- getLiveActivity({projectId?, range, eventType?, limit, cursor})
+- getTopQuestions({projectId?, range, limit})
+- getUnactivatedSignups({projectId?, windowHours})
+
+D) UI
+- Add a new component in the Super Admin area (follow existing folder conventions).
+- Layout:
+  - KPI card grid (responsive)
+  - Filters row (range selector: 1h/24h/7d/custom, project selector, event type selector)
+  - Live Activity table with pagination
+  - Side panel or below: Top Questions + Unactivated Signups
+- Use existing UI components/styles (tables, cards, badges) already in the repo. Do not introduce new ones unless they are simple local components.
+
+E) Acceptance Criteria
+- Dashboard loads in < 2 seconds for last 24h (pagination default 50 rows).
+- No runtime errors.
+- No changes to existing resident portal flows.
+- If analytics_events is used, all logging must be non-blocking and should not appear in the UI if tables/fields are missing (show “No data yet” states).
+
+OUTPUT REQUIRED
+- List of files changed with brief rationale.
+- Any SQL migration needed for analytics_events (as a single SQL file under scripts/ or supabase/migrations/ following repo conventions).
+- Step-by-step instructions to apply the migration in Supabase and set any required env vars (if none, say none).

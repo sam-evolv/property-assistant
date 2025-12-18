@@ -20,7 +20,8 @@ import {
   Smartphone,
   FolderPlus,
   Layers,
-  FileUp
+  FileUp,
+  Zap
 } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
@@ -37,6 +38,7 @@ const menuSections = [
     label: 'Analytics',
     items: [
       { href: '/super', label: 'Overview', icon: LayoutDashboard },
+      { href: '/super/beta-control-room', label: 'Beta Control Room', icon: Zap },
       { href: '/super/analytics', label: 'Platform Analytics', icon: Activity },
     ],
   },
