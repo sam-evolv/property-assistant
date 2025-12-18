@@ -4279,6 +4279,14 @@ The Smart Archive organises construction documents by discipline for easy naviga
 - Monitoring and alerting
 - UI/UX redesign rollout
 
+## 🌐 Vercel Deployment Fixes (December 2025)
+- **Graceful Error Handling**: All external service calls (Supabase) wrapped in try-catch with fallbacks
+- **Documents API**: Returns Drizzle documents + warning if Supabase unavailable (instead of failing)
+- **Chat API**: Returns user-friendly 503 error message when Supabase chunks unavailable
+- **Health Endpoint**: `/api/health` checks Drizzle, Supabase, OpenAI with latency metrics
+- **Frontend Error States**: Documents and Chat tabs show actionable error messages with retry buttons
+- **Environment Logging**: All APIs log environment variable presence for debugging
+
 ## 📝 Notes
 - **Breaking Change**: Embedding dimensions changed from 3072 → 1536
   - Deleted 152 old chunks during migration
