@@ -7,6 +7,7 @@ export type EventType =
   | 'chat_fallback'
   | 'document_view' 
   | 'document_open'
+  | 'document_download'
   | 'search' 
   | 'unanswered' 
   | 'error' 

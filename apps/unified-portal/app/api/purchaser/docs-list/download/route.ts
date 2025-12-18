@@ -91,15 +91,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    logAnalyticsEvent({
-      tenantId: DEFAULT_TENANT_ID,
-      developmentId: resolvedDevId,
-      eventType: 'document_open',
-      eventCategory: 'document_download',
-      eventData: { docId },
-      sessionId: unitUid,
-      unitId: unitUid,
-    }).catch(() => {});
+    // Track document download - non-blocking for marketing website counter
+    // Uses try/catch with no await blocking to ensure file delivery is never delayed
+    const trackDownload = async (filename: string) => {
+      try {
+        await logAnalyticsEvent({
+          tenantId: DEFAULT_TENANT_ID,
+          developmentId: resolvedDevId,
+          eventType: 'document_download',
+          eventCategory: 'documents',
+          eventData: { docId, filename },
+          sessionId: unitUid,
+          unitId: unitUid,
+        });
+      } catch (err) {
+        console.error('[docs-list/download] Failed to track download:', err);
+        // Do not throw - continue to serve file
+      }
+    };
 
     if (docId.startsWith('supabase-')) {
       const supabase = getSupabaseClient();
@@ -128,6 +137,8 @@ export async function GET(request: NextRequest) {
       }
       
       console.log('[docs-list/download] Redirecting to Supabase file:', fileUrl);
+      // Fire and forget - don't block the redirect
+      trackDownload(section.metadata?.title || sectionId).catch(() => {});
       return NextResponse.redirect(fileUrl);
     }
 
@@ -153,6 +164,8 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('[docs-list/download] Redirecting to Drizzle file:', fileUrl);
+    // Fire and forget - don't block the redirect
+    trackDownload(doc[0].title || docId).catch(() => {});
     return NextResponse.redirect(fileUrl);
   } catch (error) {
     console.error('[docs-list/download] ERROR:', error);

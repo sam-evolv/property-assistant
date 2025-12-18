@@ -1,0 +1,42 @@
+The marketing website needs to display the total number of "Documents Downloaded," but currently, PDF downloads are not being tracked in Supabase.
+
+Please execute this "Silent Tracking" feature injection:
+
+### 1. LOCATE THE DOWNLOAD HANDLER
+- **Target:** Find the active API route handling document downloads.
+- **Search Paths:**
+  - `apps/unified-portal/app/api/purchaser/docs-list/download/route.ts` (Most likely, based on recent moves)
+  - `apps/unified-portal/app/api/purchaser/documents/download/route.ts`
+- **Action:** Identify the specific function that streams the PDF back to the user.
+
+### 2. IDENTIFY THE ANALYTICS TABLE
+- **Task:** We need to know where to save this count.
+- **Action:** Search the codebase for where "Message" or "Engagement" stats are currently saved (look for `db.insert` calls related to analytics).
+- **Decision:**
+  - If you find a generic `analytics_events` table, use that with `event_type: 'document_download'`.
+  - If no generic table exists, create a new simple table schema: `document_downloads (id, unit_uid, document_name, created_at)`.
+
+### 3. INJECT THE TRACKING CODE (Non-Blocking)
+- **The Fix:** Inside the download route handler, *before* returning the response:
+  - Add a `try/catch` block to insert a row into the chosen analytics table.
+  - **CRITICAL SAFETY:** The DB insert must NOT block the user. Use `Promise.allSettled` or simply do not `await` the result if the runtime allows, OR ensure the `await` is wrapped in a `try/catch` that silently logs errors to `console.error` but *always* proceeds to return the file.
+  - **Code Pattern:**
+    ```typescript
+    // ... existing permission checks ...
+
+    // TRACKING INJECTION
+    try {
+      await db.insert(analyticsTable).values({
+        type: 'document_download',
+        unitUid: unitUid, // from query param
+        meta: { filename: fileName }
+      });
+    } catch (err) {
+      console.error("Failed to track download:", err);
+      // Do not throw! Continue to serve the file.
+    }
+
+    // ... existing code to return Response ...
+    ```
+
+**Goal:** Every time a user downloads a PDF, the counter in Supabase goes up by 1. The user must explicitly *not* notice any delay.
