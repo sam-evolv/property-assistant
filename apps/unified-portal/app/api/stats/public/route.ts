@@ -1,48 +1,42 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
-import { messages } from '@openhouse/db/schema';
-import { sql } from 'drizzle-orm';
+import { messages, analyticsEvents } from '@openhouse/db/schema';
+import { sql, eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-
 export async function GET() {
   try {
-    const supabase = getSupabaseClient();
-    const [messagesStats, documentsCount] = await Promise.all([
+    const [messagesStats, downloadStats] = await Promise.all([
+      // Count messages and unique users
       db.select({
         totalMessages: sql<number>`count(*)`,
         uniqueUsers: sql<number>`count(distinct user_id)`,
       }).from(messages),
       
-      supabase
-        .from('document_sections')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', PROJECT_ID)
-        .not('metadata->archive_category', 'is', null)
+      // Count document downloads from analytics_events
+      db.select({
+        count: sql<number>`count(*)`,
+      }).from(analyticsEvents)
+        .where(eq(analyticsEvents.event_type, 'document_download'))
     ]);
 
     const questionsAnswered = Number(messagesStats[0]?.totalMessages || 0);
     const activeUsers = Number(messagesStats[0]?.uniqueUsers || 0);
-    const pdfDownloads = documentsCount.count || 0;
+    const pdfDownloads = Number(downloadStats[0]?.count || 0);
+    
+    // Total interactions = questions + downloads
+    const totalInteractions = questionsAnswered + pdfDownloads;
     
     const engagementRate = activeUsers > 0 
-      ? Math.round((questionsAnswered / activeUsers) * 10) 
+      ? Math.round((totalInteractions / activeUsers) * 10) 
       : 0;
 
     const response = NextResponse.json({
       active_users: activeUsers,
       questions_answered: questionsAnswered,
       pdf_downloads: pdfDownloads,
+      total_interactions: totalInteractions,
       engagement_rate: `${engagementRate}%`,
     });
 
