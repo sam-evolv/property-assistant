@@ -663,9 +663,18 @@ export default function PurchaserChatTab({
             },
           ]);
         } else if (data.error) {
-          const errorMessage = res.status === 401 || res.status === 403 
-            ? t.sessionExpired 
-            : t.errorOccurred;
+          // Use the API's answer field if available (for user-friendly error messages)
+          // Otherwise fall back to generic error messages
+          let errorMessage: string;
+          if (res.status === 401 || res.status === 403) {
+            errorMessage = t.sessionExpired;
+          } else if (data.answer) {
+            errorMessage = data.answer;
+          } else {
+            errorMessage = t.errorOccurred;
+          }
+          
+          console.error('[Chat] API error:', data.error, data.details);
           
           setMessages((prev) => [
             ...prev,

@@ -616,15 +616,38 @@ export async function POST(request: NextRequest) {
     // Fetch ALL chunks with embeddings for proper semantic search
     // Use Supabase project_id (not Drizzle development_id) for document_sections queries
     console.log('[Chat] Loading document chunks for Supabase project:', userSupabaseProjectId);
-    const supabase = getSupabaseClient();
-    const { data: allChunks, error: fetchError } = await supabase
-      .from('document_sections')
-      .select('id, content, metadata, embedding')
-      .eq('project_id', userSupabaseProjectId);
+    console.log('[Chat] Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('[Chat] Supabase key configured:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
+    let allChunks: any[] | null = null;
+    let supabaseError: string | null = null;
+    
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error: fetchError } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata, embedding')
+        .eq('project_id', userSupabaseProjectId);
 
-    if (fetchError) {
-      console.error('[Chat] Error fetching chunks:', fetchError.message);
-      throw new Error('Failed to load documents');
+      if (fetchError) {
+        console.error('[Chat] Supabase query error:', fetchError.message, fetchError.details, fetchError.hint);
+        supabaseError = fetchError.message;
+      } else {
+        allChunks = data;
+      }
+    } catch (supabaseErr) {
+      console.error('[Chat] Supabase connection failed:', supabaseErr);
+      supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
+    }
+
+    if (supabaseError || !allChunks) {
+      console.error('[Chat] Cannot proceed without document chunks. Error:', supabaseError);
+      return NextResponse.json({
+        success: false,
+        error: 'Unable to access knowledge base',
+        details: supabaseError || 'No documents found',
+        answer: "I'm sorry, I'm currently unable to access the property information system. Please try again in a moment, or contact your development's support team if the issue persists.",
+      }, { status: 503 });
     }
 
     console.log('[Chat] Loaded', allChunks?.length || 0, 'total chunks');

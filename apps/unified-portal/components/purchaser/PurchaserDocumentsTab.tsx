@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame } from 'lucide-react';
+import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame, RefreshCw } from 'lucide-react';
 
 interface Document {
   id: string;
@@ -53,6 +53,8 @@ export default function PurchaserDocumentsTab({
 }: PurchaserDocumentsTabProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -62,21 +64,40 @@ export default function PurchaserDocumentsTab({
 
   const fetchDocuments = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      setErrorDetails(null);
+      
       const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
       const token = storedToken || unitUid;
+
+      console.log('[Documents] Fetching with unitUid:', unitUid, 'token:', token?.slice(0, 10) + '...');
 
       const res = await fetch(
         `/api/purchaser/documents?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
+      
+      console.log('[Documents] API response status:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
         const allDocs = data.documents || [];
-        
-        // Backend already filters documents correctly - just display them
+        console.log('[Documents] Loaded', allDocs.length, 'documents');
         setDocuments(allDocs);
+        
+        if (allDocs.length === 0 && data.warning) {
+          console.warn('[Documents] Warning from API:', data.warning);
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[Documents] API error:', res.status, errorData);
+        setError(`Failed to load documents (${res.status})`);
+        setErrorDetails(errorData.details || errorData.error || 'Please try again');
       }
-    } catch (error) {
-      console.error('Failed to fetch documents:', error);
+    } catch (err) {
+      console.error('[Documents] Fetch error:', err);
+      setError('Failed to connect to server');
+      setErrorDetails(err instanceof Error ? err.message : 'Network error');
     } finally {
       setLoading(false);
     }
@@ -188,6 +209,28 @@ export default function PurchaserDocumentsTab({
     return (
       <div className={`flex items-center justify-center h-full ${bgColor}`}>
         <div className={`animate-pulse ${subtextColor}`}>Loading documents...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`flex flex-col items-center justify-center h-full ${bgColor} p-6`}>
+        <div className="p-4 bg-red-100 rounded-full mb-4">
+          <AlertTriangle className="w-8 h-8 text-red-600" />
+        </div>
+        <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
+          {error}
+        </h3>
+        <p className={`${subtextColor} text-sm text-center mb-4 max-w-md`}>
+          {errorDetails || 'Unable to retrieve your documents. Please try again.'}
+        </p>
+        <button
+          onClick={fetchDocuments}
+          className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition-all font-medium"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
