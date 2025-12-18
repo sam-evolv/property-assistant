@@ -1124,20 +1124,6 @@ export const intelExtractionsRelations = relations(intel_extractions, ({ one }) 
   }),
 }));
 
-export const analytics_events = pgTable('analytics_events', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
-  development_id: uuid('development_id').references(() => developments.id),
-  event_type: varchar('event_type', { length: 50 }).notNull(),
-  event_data: jsonb('event_data').default(sql`'{}'::jsonb`),
-  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => ({
-  tenantIdx: index('analytics_events_tenant_idx').on(table.tenant_id),
-  developmentIdx: index('analytics_events_development_idx').on(table.development_id),
-  eventTypeIdx: index('analytics_events_type_idx').on(table.event_type),
-  createdAtIdx: index('analytics_events_created_at_idx').on(table.created_at),
-  tenantDevCreatedIdx: index('analytics_events_tenant_dev_created_idx').on(table.tenant_id, table.development_id, table.created_at),
-}));
 
 export const document_processing_logs = pgTable('document_processing_logs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -1313,3 +1299,4 @@ export const analyticsEvents = pgTable('analytics_events', {
 
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
+export const analytics_events = analyticsEvents;

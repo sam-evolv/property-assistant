@@ -314,7 +314,7 @@ export async function getLiveActivity(options: {
   try {
     const { developmentId, eventType, hours = 24, limit = 50, offset = 0 } = options;
 
-    let filters = sql`WHERE created_at > now() - interval '${sql.raw(hours.toString())} hours'`;
+    let filters = sql`WHERE ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'`;
     
     if (developmentId) {
       filters = sql`${filters} AND ae.development_id = ${developmentId}::uuid`;
