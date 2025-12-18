@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
-import { notice_comments, noticeboard_posts, tenants, notice_audit_log } from '@openhouse/db/schema';
+import { notice_comments, noticeboard_posts, tenants, notice_audit_log, units, developments } from '@openhouse/db/schema';
 import { eq, and, desc, gte, isNull, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
@@ -12,6 +12,82 @@ function getSupabaseClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+}
+
+async function getUnitInfo(unitUid: string): Promise<{
+  id: string;
+  tenant_id: string;
+  development_id: string | null;
+  address: string;
+} | null> {
+  const drizzleUnit = await db.query.units.findFirst({
+    where: eq(units.id, unitUid),
+    columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
+  });
+
+  if (drizzleUnit) {
+    return {
+      id: drizzleUnit.id,
+      tenant_id: drizzleUnit.tenant_id,
+      development_id: drizzleUnit.development_id,
+      address: drizzleUnit.address_line_1 || 'Unknown Unit',
+    };
+  }
+
+  const supabase = getSupabaseClient();
+  console.log('[Comments] Unit not in Drizzle, checking Supabase...');
+  const { data: supabaseUnit, error } = await supabase
+    .from('units')
+    .select('id, address, project_id')
+    .eq('id', unitUid)
+    .single();
+
+  if (error || !supabaseUnit) {
+    return null;
+  }
+
+  console.log('[Comments] Found in Supabase:', supabaseUnit.id);
+
+  if (supabaseUnit.project_id) {
+    const dev = await db.query.developments.findFirst({
+      where: eq(developments.id, supabaseUnit.project_id),
+      columns: { id: true, tenant_id: true },
+    });
+
+    if (dev) {
+      return {
+        id: supabaseUnit.id,
+        tenant_id: dev.tenant_id,
+        development_id: dev.id,
+        address: supabaseUnit.address || 'Unknown Unit',
+      };
+    }
+  }
+
+  if (supabaseUnit.address) {
+    const addressLower = supabaseUnit.address.toLowerCase();
+    const allDevs = await db.query.developments.findMany({
+      columns: { id: true, tenant_id: true, name: true },
+    });
+    
+    for (const dev of allDevs) {
+      const devNameLower = dev.name.toLowerCase();
+      const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
+      for (const word of devWords) {
+        if (addressLower.includes(word)) {
+          console.log('[Comments] Matched development by address pattern:', dev.name);
+          return {
+            id: supabaseUnit.id,
+            tenant_id: dev.tenant_id,
+            development_id: dev.id,
+            address: supabaseUnit.address || 'Unknown Unit',
+          };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 const COMMENTS_PER_HOUR_LIMIT = 20;
@@ -45,7 +121,6 @@ export async function GET(
   { params }: { params: Promise<{ noticeId: string }> }
 ) {
   try {
-    const supabase = getSupabaseClient();
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
@@ -74,32 +149,16 @@ export async function GET(
       );
     }
 
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address, project_id')
-      .eq('id', unitUid)
-      .single();
+    const unit = await getUnitInfo(unitUid);
 
-    if (unitError || !unit) {
+    if (!unit) {
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    if (!tenantResult || tenantResult.length === 0) {
-      return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
-      );
-    }
-
-    const tenantId = tenantResult[0].id;
+    const tenantId = unit.tenant_id;
 
     const notice = await db
       .select({ id: noticeboard_posts.id })
@@ -173,7 +232,6 @@ export async function POST(
 ) {
   console.log('[Comments POST] Request received');
   try {
-    const supabase = getSupabaseClient();
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
@@ -210,15 +268,10 @@ export async function POST(
     
     console.log('[Comments POST] Token validated, unitId:', validatedUnitId);
 
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address, project_id')
-      .eq('id', unitUid)
-      .single();
+    const unit = await getUnitInfo(unitUid);
+    console.log('[Comments POST] Unit lookup:', unit ? 'found' : 'not found');
 
-    console.log('[Comments POST] Supabase unit lookup:', unit ? 'found' : 'not found', 'error:', unitError?.message || 'none');
-
-    if (unitError || !unit) {
+    if (!unit) {
       console.log('[Comments POST] Returning 404 - Unit not found');
       return NextResponse.json(
         { error: 'Unit not found' },
@@ -226,23 +279,8 @@ export async function POST(
       );
     }
 
-    const tenantResult = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .limit(1);
-
-    console.log('[Comments POST] Tenant lookup:', tenantResult?.length || 0, 'tenants found');
-
-    if (!tenantResult || tenantResult.length === 0) {
-      console.log('[Comments POST] Returning 500 - No tenant');
-      return NextResponse.json(
-        { error: 'No tenant configured' },
-        { status: 500 }
-      );
-    }
-
-    const tenantId = tenantResult[0].id;
-    console.log('[Comments POST] Using tenantId:', tenantId);
+    const tenantId = unit.tenant_id;
+    console.log('[Comments POST] Using tenantId from unit:', tenantId);
 
     const rateLimit = await checkCommentRateLimit(unitUid, tenantId);
     if (!rateLimit.allowed) {
