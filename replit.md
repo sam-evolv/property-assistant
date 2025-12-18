@@ -73,6 +73,53 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Pre-Beta Stabilization (December 2025)
+
+Comprehensive production-readiness improvements for purchaser portal:
+
+**Multi-Tenant Authorization Fix:**
+- Comments API now uses tenant from `getUnitInfo()` instead of "select first tenant" anti-pattern
+- Prevents cross-tenant data access when posting to noticeboard
+
+**Shared getUnitInfo Helper:**
+- Extracted to `packages/api/src/unit-resolver.ts`
+- Checks Drizzle first, falls back to Supabase for backward compatibility
+- Returns tenant, development, and purchaser info in one call
+- Used consistently across all purchaser APIs
+
+**Standardized Token Validation:**
+- All purchaser endpoints (noticeboard, comments, docs, terms) use same pattern
+- Centralized in `packages/api/src/qr-tokens.ts`
+- Consistent error handling and showhouse mode support
+
+**Structured Error Logging:**
+- Fire-and-forget pattern with `void logError(...)` for non-blocking logging
+- Logger in `packages/api/src/error-logger.ts`
+- All database and API failures logged with context
+
+**Session Expiry UX:**
+- `SessionExpiredModal` component with multi-language support (EN, ES, FR, DE)
+- 401 detection across all purchaser APIs triggers modal
+- Clear instruction to re-scan QR code (intentional - tokens only via physical scan)
+
+**Environment Variable Validation:**
+- Fail-fast at startup for missing critical vars
+- Production mode throws, development mode warns
+- Validates APP_URL, DATABASE_URL, SUPABASE keys
+
+**Frontend Fetch Storm Prevention:**
+- Shared in-memory cache in `apps/unified-portal/lib/documentCache.ts`
+- In-flight request deduplication (concurrent calls share same promise)
+- Stale-while-revalidate pattern with 60s TTL
+- Abort handling for component unmounts
+
+**Files Added/Changed:**
+- `packages/api/src/unit-resolver.ts` - getUnitInfo helper
+- `packages/api/src/error-logger.ts` - Structured logging
+- `apps/unified-portal/components/purchaser/SessionExpiredModal.tsx`
+- `apps/unified-portal/lib/documentCache.ts` - Fetch caching
+- `apps/unified-portal/lib/env-validation.ts` - Startup checks
+
 ### Beta Control Room Analytics Improvements (December 2025)
 Enhanced the Beta Control Room with granular analytics for AI training insights:
 
