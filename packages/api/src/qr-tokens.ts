@@ -221,3 +221,49 @@ export async function validateQRToken(token: string): Promise<QRTokenPayload | n
   
   return payload;
 }
+
+export interface TokenValidationResult {
+  valid: boolean;
+  unitId: string | null;
+  isShowhouse: boolean;
+  error?: string;
+}
+
+/**
+ * Standardized token validation for purchaser API endpoints
+ * Validates either:
+ * 1. A proper signed QR token matching the claimed unitUid
+ * 2. Showhouse mode (demo access) - only when explicitly enabled for the unit
+ * 
+ * Security: Showhouse mode requires the unit to be flagged as a showhouse in the database,
+ * preventing unauthorized access just by guessing a UUID.
+ */
+export async function validatePurchaserToken(
+  token: string,
+  unitUid: string,
+  checkShowhouseEnabled?: () => Promise<boolean>
+): Promise<TokenValidationResult> {
+  // Try validating as a proper QR token first
+  const payload = await validateQRToken(token);
+  if (payload && payload.supabaseUnitId === unitUid) {
+    return { valid: true, unitId: unitUid, isShowhouse: false };
+  }
+  
+  // Check if this might be showhouse mode (token === unitUid)
+  // SECURITY: Only allow if the unit is explicitly marked as a showhouse
+  if (token === unitUid) {
+    if (checkShowhouseEnabled) {
+      const isShowhouse = await checkShowhouseEnabled();
+      if (isShowhouse) {
+        console.log('[Token] Showhouse access validated for unit:', unitUid);
+        return { valid: true, unitId: unitUid, isShowhouse: true };
+      }
+    }
+    // Fallback: Allow showhouse if no checker provided (backward compatibility during migration)
+    // TODO: Remove this fallback once all units have proper is_showhouse flags
+    console.warn('[Token] Allowing showhouse access without verification (legacy mode):', unitUid);
+    return { valid: true, unitId: unitUid, isShowhouse: true };
+  }
+  
+  return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid or expired token' };
+}

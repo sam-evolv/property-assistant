@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { notice_comments, noticeboard_posts, notice_audit_log } from '@openhouse/db/schema';
 import { eq, and, desc, gte, isNull, sql } from 'drizzle-orm';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { getUnitInfo } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
@@ -50,18 +50,10 @@ export async function GET(
       );
     }
 
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
@@ -164,26 +156,18 @@ export async function POST(
       );
     }
 
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    console.log('[Comments POST] QR validation result:', payload ? 'valid' : 'invalid', 'token === unitUid:', token === unitUid);
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    console.log('[Comments POST] Token validation:', tokenResult.valid ? 'valid' : 'invalid', 'isShowhouse:', tokenResult.isShowhouse);
     
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    if (!tokenResult.valid) {
       console.log('[Comments POST] Token validation failed');
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
     
-    console.log('[Comments POST] Token validated, unitId:', validatedUnitId);
+    console.log('[Comments POST] Token validated, unitId:', tokenResult.unitId);
 
     const unit = await getUnitInfo(unitUid);
     console.log('[Comments POST] Unit lookup:', unit ? 'found' : 'not found');
@@ -317,18 +301,10 @@ export async function PATCH(
       );
     }
 
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
@@ -446,18 +422,10 @@ export async function DELETE(
       );
     }
 
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }

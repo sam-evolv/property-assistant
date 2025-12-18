@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { noticeboard_posts, notice_audit_log } from '@openhouse/db/schema';
 import { eq, desc, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { getUnitInfo } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
@@ -46,24 +46,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
@@ -159,24 +149,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      // Showhouse mode: token is the unit UID itself
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
@@ -293,23 +273,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
@@ -411,23 +382,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unitUid as token for showhouse
-    let validatedUnitId = null;
-    const payload = await validateQRToken(token);
-    if (payload && payload.supabaseUnitId === unitUid) {
-      validatedUnitId = payload.supabaseUnitId;
-    } else if (token === unitUid) {
-      validatedUnitId = unitUid;
-    }
-
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {

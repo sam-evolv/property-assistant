@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { homeowners } from '@openhouse/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { eq } from 'drizzle-orm';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { getUnitInfo } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
@@ -20,32 +20,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unit UID as token
-    let validatedUnitId: string | null = null;
-    
-    try {
-      const payload = await validateQRToken(token);
-      if (payload?.supabaseUnitId === unitUid) {
-        validatedUnitId = unitUid;
-      }
-    } catch {
-      // QR token validation failed - check if token is the unit UID itself (showhouse access)
-    }
-    
-    // Allow unit UID as token for showhouse/demo access
-    if (!validatedUnitId && token === unitUid) {
-      validatedUnitId = unitUid;
-      console.log('[Terms] Accepting unit UID as token for showhouse access:', unitUid);
-    }
-    
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases (Drizzle first, then Supabase fallback)
     const unit = await getUnitInfo(unitUid);
     
     // For terms check, we don't require the unit - just return false if not found
@@ -99,32 +81,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try QR token validation first, fall back to accepting unit UID as token
-    let validatedUnitId: string | null = null;
-    
-    try {
-      const payload = await validateQRToken(token);
-      if (payload?.supabaseUnitId === unitUid) {
-        validatedUnitId = unitUid;
-      }
-    } catch {
-      // QR token validation failed - check if token is the unit UID itself (showhouse access)
-    }
-    
-    // Allow unit UID as token for showhouse/demo access
-    if (!validatedUnitId && token === unitUid) {
-      validatedUnitId = unitUid;
-      console.log('[Terms POST] Accepting unit UID as token for showhouse access:', unitUid);
-    }
-    
-    if (!validatedUnitId) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
+        { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // Look up unit in both databases (Drizzle first, then Supabase fallback)
     const unit = await getUnitInfo(unitUid);
     
     if (!unit) {
