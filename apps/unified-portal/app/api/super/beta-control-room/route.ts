@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   getBetaKPIs, 
   getLiveActivity, 
-  getTopQuestions, 
+  getTopQuestions,
+  getTrainingOpportunities,
   getUnactivatedSignups 
 } from '@openhouse/api/analytics-logger';
 
@@ -18,11 +19,12 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const [kpis, liveActivity, topQuestions24h, topQuestions7d, unactivatedSignups] = await Promise.all([
+    const [kpis, liveActivity, topQuestions24h, topQuestions7d, trainingOpportunities, unactivatedSignups] = await Promise.all([
       getBetaKPIs(developmentId),
       getLiveActivity({ developmentId, eventType, hours, limit, offset }),
       getTopQuestions({ developmentId, hours: 24, limit: 15 }),
       getTopQuestions({ developmentId, hours: 168, limit: 15 }),
+      getTrainingOpportunities({ developmentId, hours: 168, limit: 15 }),
       getUnactivatedSignups({ developmentId, windowHours: 6, limit: 30 })
     ]);
 
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
         last24h: topQuestions24h,
         last7d: topQuestions7d
       },
+      trainingOpportunities,
       unactivatedSignups
     });
   } catch (error) {

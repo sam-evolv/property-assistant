@@ -366,6 +366,8 @@ export interface TopQuestion {
   question: string;
   count: number;
   lastAsked: string;
+  confidenceLevel?: string;
+  developmentName?: string;
 }
 
 export async function getTopQuestions(options: {
@@ -377,20 +379,23 @@ export async function getTopQuestions(options: {
     const { developmentId, hours = 24, limit = 20 } = options;
 
     const devFilter = developmentId 
-      ? sql`AND development_id = ${developmentId}::uuid`
+      ? sql`AND ae.development_id = ${developmentId}::uuid`
       : sql``;
 
+    // Use question_preview if available, fallback to event_category for older events
     const { rows } = await db.execute(sql`
       SELECT 
-        event_data->>'question_preview' as question,
+        COALESCE(ae.event_data->>'question_preview', ae.event_category, 'Unknown') as question,
         COUNT(*) as count,
-        MAX(created_at) as last_asked
-      FROM analytics_events
-      WHERE event_type = 'chat_question'
-      AND event_data->>'question_preview' IS NOT NULL
-      AND created_at > now() - interval '${sql.raw(hours.toString())} hours'
+        MAX(ae.created_at) as last_asked,
+        MAX(ae.event_data->>'confidenceLevel') as confidence_level,
+        d.name as development_name
+      FROM analytics_events ae
+      LEFT JOIN developments d ON ae.development_id = d.id
+      WHERE ae.event_type = 'chat_question'
+      AND ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'
       ${devFilter}
-      GROUP BY event_data->>'question_preview'
+      GROUP BY COALESCE(ae.event_data->>'question_preview', ae.event_category, 'Unknown'), d.name
       ORDER BY count DESC
       LIMIT ${limit}
     `);
@@ -398,10 +403,79 @@ export async function getTopQuestions(options: {
     return rows.map((r: any) => ({
       question: r.question || 'Unknown',
       count: Number(r.count),
-      lastAsked: r.last_asked
+      lastAsked: r.last_asked,
+      confidenceLevel: r.confidence_level,
+      developmentName: r.development_name
     }));
   } catch (e) {
     console.error('[Analytics] Failed to get top questions:', e);
+    return [];
+  }
+}
+
+export interface TrainingOpportunity {
+  question: string;
+  topic: string;
+  developmentName: string | null;
+  similarity: string;
+  confidenceLevel: string;
+  occurrences: number;
+  lastAsked: string;
+}
+
+export async function getTrainingOpportunities(options: {
+  developmentId?: string;
+  hours?: number;
+  limit?: number;
+}): Promise<TrainingOpportunity[]> {
+  try {
+    const { developmentId, hours = 168, limit = 20 } = options; // Default 7 days
+
+    const devFilter = developmentId 
+      ? sql`AND ae.development_id = ${developmentId}::uuid`
+      : sql``;
+
+    // Find questions with low confidence or marked as needing training
+    const { rows } = await db.execute(sql`
+      SELECT 
+        COALESCE(ae.event_data->>'question_preview', ae.event_category, 'Unknown') as question,
+        ae.event_category as topic,
+        d.name as development_name,
+        ae.event_data->>'topSimilarity' as similarity,
+        ae.event_data->>'confidenceLevel' as confidence_level,
+        COUNT(*) as occurrences,
+        MAX(ae.created_at) as last_asked
+      FROM analytics_events ae
+      LEFT JOIN developments d ON ae.development_id = d.id
+      WHERE ae.event_type = 'chat_question'
+      AND ae.created_at > now() - interval '${sql.raw(hours.toString())} hours'
+      AND (
+        ae.event_data->>'needsTraining' = 'true'
+        OR ae.event_data->>'confidenceLevel' = 'low'
+        OR CAST(ae.event_data->>'topSimilarity' AS DECIMAL) < 0.35
+      )
+      ${devFilter}
+      GROUP BY 
+        COALESCE(ae.event_data->>'question_preview', ae.event_category, 'Unknown'),
+        ae.event_category,
+        d.name,
+        ae.event_data->>'topSimilarity',
+        ae.event_data->>'confidenceLevel'
+      ORDER BY occurrences DESC, last_asked DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map((r: any) => ({
+      question: r.question || 'Unknown',
+      topic: r.topic || 'unknown',
+      developmentName: r.development_name,
+      similarity: r.similarity || '0',
+      confidenceLevel: r.confidence_level || 'unknown',
+      occurrences: Number(r.occurrences),
+      lastAsked: r.last_asked
+    }));
+  } catch (e) {
+    console.error('[Analytics] Failed to get training opportunities:', e);
     return [];
   }
 }

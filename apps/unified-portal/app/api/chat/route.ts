@@ -1076,17 +1076,33 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     console.log('[Chat] Question topic:', questionTopic);
     
-    // Log analytics event (anonymised - no PII)
+    // Calculate response quality metrics for analytics
+    const topSimilarity = chunks[0]?.similarity || 0;
+    const avgSimilarity = chunks.length > 0 
+      ? chunks.reduce((sum, c) => sum + (c.similarity || 0), 0) / chunks.length 
+      : 0;
+    const confidenceLevel = topSimilarity >= 0.5 ? 'high' : topSimilarity >= 0.35 ? 'medium' : 'low';
+    const needsTraining = topSimilarity < 0.35 || chunks.length < 3;
+    
+    // Determine if we have verified development attribution (from unit lookup, not fallback)
+    const hasVerifiedDevelopment = !!userUnitDetails.unitInfo?.development_id;
+    
+    // Log analytics event (anonymised - no PII) with development_id from unit lookup
     logAnalyticsEvent({
-      tenantId: DEFAULT_TENANT_ID,
-      developmentId: DEFAULT_DEVELOPMENT_ID,
+      tenantId: userTenantId,
+      developmentId: userDevelopmentId,
+      houseTypeCode: userHouseTypeCode || undefined,
       eventType: 'chat_question',
       eventCategory: questionTopic || 'unknown',
       eventData: {
         hasContext: chunks.length > 0,
         chunkCount: chunks.length,
-        topSimilarity: chunks[0]?.similarity?.toFixed(3) || 0,
+        topSimilarity: topSimilarity.toFixed(3),
+        avgSimilarity: avgSimilarity.toFixed(3),
+        confidenceLevel,
+        needsTraining,
         question_preview: message.substring(0, 100),
+        verified_attribution: hasVerifiedDevelopment,
       },
       sessionId: validatedUnitUid || conversationUserId,
       unitId: effectiveUnitUid,

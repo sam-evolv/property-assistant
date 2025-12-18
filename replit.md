@@ -73,6 +73,35 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Beta Control Room Analytics Improvements (December 2025)
+Enhanced the Beta Control Room with granular analytics for AI training insights:
+
+**Fixed Issues:**
+- Live Activity Feed now shows events correctly (was returning empty due to SQL ambiguity)
+- Top Questions now shows actual questions with development attribution
+- Development attribution uses verified unit data (not hardcoded defaults)
+
+**New Analytics Fields (in chat_question events):**
+- `question_preview`: First 100 chars of the actual question text
+- `topSimilarity`: Highest RAG similarity score (0-1)
+- `avgSimilarity`: Average similarity across all chunks
+- `confidenceLevel`: 'high' (≥0.5), 'medium' (≥0.35), or 'low' (<0.35)
+- `needsTraining`: Boolean flag for low-confidence answers
+- `verified_attribution`: Whether development_id came from unit lookup (not fallback)
+
+**New Features:**
+- **Training Opportunities Panel**: Shows questions with low confidence answers (7d window)
+  - Displays similarity score, confidence level, occurrence count
+  - Helps identify topics needing more training documents
+- **Enhanced Top Questions**: Now shows development name alongside each question
+- **Response Quality Metrics**: Track AI performance across developments
+
+**Files Changed:**
+- `packages/api/src/analytics-logger.ts` - Added getTrainingOpportunities(), enhanced getTopQuestions()
+- `apps/unified-portal/app/api/chat/route.ts` - Enhanced analytics logging with quality metrics
+- `apps/unified-portal/app/api/super/beta-control-room/route.ts` - Added training opportunities endpoint
+- `apps/unified-portal/app/super/beta-control-room/beta-control-room-client.tsx` - New UI panels
+
 ### Replit Preview Fix (December 2025)
 **Issue:** Next.js dev server was OOM-killed before completing compilation due to heavy imports at root layout level.
 

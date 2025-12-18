@@ -28,6 +28,18 @@ interface TopQuestion {
   question: string;
   count: number;
   lastAsked: string;
+  confidenceLevel?: string;
+  developmentName?: string;
+}
+
+interface TrainingOpportunity {
+  question: string;
+  topic: string;
+  developmentName: string | null;
+  similarity: string;
+  confidenceLevel: string;
+  occurrences: number;
+  lastAsked: string;
 }
 
 interface UnactivatedSignup {
@@ -47,6 +59,7 @@ interface BetaControlRoomData {
     last24h: TopQuestion[];
     last7d: TopQuestion[];
   };
+  trainingOpportunities: TrainingOpportunity[];
   unactivatedSignups: UnactivatedSignup[];
 }
 
@@ -175,6 +188,7 @@ export default function BetaControlRoomClient() {
 
   const liveActivity = data?.liveActivity || { events: [], total: 0 };
   const topQuestions = data?.topQuestions || { last24h: [], last7d: [] };
+  const trainingOpportunities = data?.trainingOpportunities || [];
   const unactivatedSignups = data?.unactivatedSignups || [];
   const totalPages = Math.ceil(liveActivity.total / pageSize);
 
@@ -310,7 +324,7 @@ export default function BetaControlRoomClient() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -327,7 +341,12 @@ export default function BetaControlRoomClient() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700 line-clamp-2">{q.question}</p>
-                    <p className="text-xs text-gray-400 mt-1">{q.count} times</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{q.count} times</span>
+                      {q.developmentName && (
+                        <span className="text-xs text-gray-400">• {q.developmentName}</span>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -353,13 +372,66 @@ export default function BetaControlRoomClient() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700 line-clamp-2">{q.question}</p>
-                    <p className="text-xs text-gray-400 mt-1">{q.count} times</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{q.count} times</span>
+                      {q.developmentName && (
+                        <span className="text-xs text-gray-400">• {q.developmentName}</span>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
             <EmptyState message="No questions yet" />
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg border border-orange-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-orange-200 bg-orange-50">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Training Opportunities
+              <span className="text-xs font-normal text-gray-500">(Low confidence answers - 7d)</span>
+            </h2>
+          </div>
+          {trainingOpportunities.length > 0 ? (
+            <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              {trainingOpportunities.map((item, idx) => (
+                <li key={idx} className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 line-clamp-2">{item.question}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                          {item.topic}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          item.confidenceLevel === 'low' ? 'bg-red-100 text-red-700' :
+                          item.confidenceLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {item.confidenceLevel} confidence
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Similarity: {(parseFloat(item.similarity) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-sm font-medium text-orange-600">{item.occurrences}x</span>
+                      {item.developmentName && (
+                        <p className="text-xs text-gray-400 mt-1">{item.developmentName}</p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="No low-confidence answers - AI is performing well!" />
           )}
         </div>
 
