@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame, RefreshCw } from 'lucide-react';
+import SessionExpiredModal from './SessionExpiredModal';
+import { 
+  getCachedDocuments, 
+  setCachedDocuments, 
+  invalidateDocumentCache,
+  getInFlightRequest,
+  setInFlightRequest
+} from '../../lib/documentCache';
 
 interface Document {
   id: string;
@@ -54,54 +62,129 @@ export default function PurchaserDocumentsTab({
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sessionExpired, setSessionExpired] = useState(false);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    fetchDocuments();
-  }, [unitUid, houseType]);
+  const doFetch = useCallback(async (token: string, signal: AbortSignal): Promise<Document[]> => {
+    const res = await fetch(
+      `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
+      { signal }
+    );
 
-  const fetchDocuments = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setErrorDetails(null);
+    if (res.status === 401) {
+      invalidateDocumentCache(unitUid);
+      throw new Error('SESSION_EXPIRED');
+    }
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to load documents (${res.status})`);
+    }
+
+    const data = await res.json();
+    const docs = data.documents || [];
+    setCachedDocuments(unitUid, token, docs);
+    return docs;
+  }, [unitUid]);
+
+  const fetchDocuments = useCallback(async (forceRefresh = false) => {
+    const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+    const token = storedToken || unitUid;
+    
+    const { data: cached, isStale } = getCachedDocuments<Document[]>(unitUid, token);
+    
+    if (!forceRefresh && cached) {
+      setDocuments(cached);
+      setLoading(false);
       
-      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-      const token = storedToken || unitUid;
-
-      console.log('[Documents] Fetching with unitUid:', unitUid, 'token:', token?.slice(0, 10) + '...');
-
-      const res = await fetch(
-        `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
-      );
-      
-      console.log('[Documents] API response status:', res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        const allDocs = data.documents || [];
-        console.log('[Documents] Loaded', allDocs.length, 'documents');
-        setDocuments(allDocs);
-        
-        if (allDocs.length === 0 && data.warning) {
-          console.warn('[Documents] Warning from API:', data.warning);
-        }
-      } else {
-        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('[Documents] API error:', res.status, errorData);
-        setError(`Failed to load documents (${res.status})`);
-        setErrorDetails(errorData.details || errorData.error || 'Please try again');
+      if (isStale && !getInFlightRequest<Document[]>(unitUid, token)) {
+        const controller = new AbortController();
+        const promise = doFetch(token, controller.signal)
+          .then(docs => {
+            setDocuments(docs);
+            return docs;
+          })
+          .catch(err => {
+            if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
+              setSessionExpired(true);
+            }
+            throw err;
+          });
+        setInFlightRequest(unitUid, token, promise, () => controller.abort());
       }
+      return;
+    }
+    
+    const existingRequest = getInFlightRequest<Document[]>(unitUid, token);
+    if (!forceRefresh && existingRequest) {
+      setLoading(true);
+      try {
+        const docs = await existingRequest;
+        setDocuments(docs);
+      } catch (err) {
+        if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
+          setSessionExpired(true);
+        }
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+    setSessionExpired(false);
+
+    const promise = doFetch(token, controller.signal);
+    setInFlightRequest(unitUid, token, promise, () => controller.abort());
+
+    try {
+      const docs = await promise;
+      setDocuments(docs);
     } catch (err) {
-      console.error('[Documents] Fetch error:', err);
-      setError('Failed to connect to server');
-      setErrorDetails(err instanceof Error ? err.message : 'Network error');
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') return;
+        if (err.message === 'SESSION_EXPIRED') {
+          setSessionExpired(true);
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError('Failed to connect to server');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [unitUid, doFetch]);
+
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      fetchDocuments();
+    }, 200);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [unitUid, houseType]);
 
   const handleDownload = async (doc: Document) => {
     try {
@@ -205,6 +288,18 @@ export default function PurchaserDocumentsTab({
   const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
 
+  if (sessionExpired) {
+    return (
+      <div className={`flex flex-col h-full ${bgColor}`}>
+        <SessionExpiredModal
+          isOpen={true}
+          isDarkMode={isDarkMode}
+          selectedLanguage={selectedLanguage}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className={`flex items-center justify-center h-full ${bgColor}`}>
@@ -220,13 +315,13 @@ export default function PurchaserDocumentsTab({
           <AlertTriangle className="w-8 h-8 text-red-600" />
         </div>
         <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
-          {error}
+          Unable to Load Documents
         </h3>
         <p className={`${subtextColor} text-sm text-center mb-4 max-w-md`}>
-          {errorDetails || 'Unable to retrieve your documents. Please try again.'}
+          {error || 'Unable to retrieve your documents. Please try again.'}
         </p>
         <button
-          onClick={fetchDocuments}
+          onClick={() => fetchDocuments(true)}
           className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition-all font-medium"
         >
           Try Again
