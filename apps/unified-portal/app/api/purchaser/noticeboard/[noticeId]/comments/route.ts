@@ -58,8 +58,16 @@ export async function GET(
       );
     }
 
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -177,8 +185,16 @@ export async function POST(
       );
     }
 
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -323,8 +339,16 @@ export async function PATCH(
       );
     }
 
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -448,8 +472,16 @@ export async function DELETE(
       );
     }
 
+    let validatedUnitId = null;
     const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    if (payload && payload.supabaseUnitId === unitUid) {
+      validatedUnitId = payload.supabaseUnitId;
+    } else if (token === unitUid) {
+      // Showhouse mode: token is the unit UID itself
+      validatedUnitId = unitUid;
+    }
+
+    if (!validatedUnitId) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
