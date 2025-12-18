@@ -8,7 +8,9 @@ export * from './chat/prompt';
 export * from './rag-service';
 export * from './csv-mapper';
 export * from './job-queue';
-export * from './document-processor';
+// Note: document-processor and train modules are NOT exported here
+// because they depend on tesseract.js (heavy OCR library).
+// Import them separately via '@openhouse/api/train' when needed.
 
 // Export session function and re-exported rbac types/functions
 export { getAdminSession } from './session';
@@ -43,10 +45,8 @@ export {
   handleDeleteDevelopment
 } from './developments';
 
-export {
-  handleTrainRequest,
-  handleGetTrainingJobs
-} from './train';
+// Training exports moved to '@openhouse/api/train' to avoid tesseract.js dependency
+// Use: import { handleTrainRequest } from '@openhouse/api/train';
 
 export {
   handleChatRequest
@@ -55,14 +55,6 @@ export {
 export {
   handleTenantChat
 } from './chat-tenant';
-
-export {
-  trainFromFile,
-  getJob,
-  getTenantJobs
-} from './train/index';
-
-export type { TrainingJob, TrainingPipelineResult } from './train/types';
 
 // Floorplan storage and processing
 export {

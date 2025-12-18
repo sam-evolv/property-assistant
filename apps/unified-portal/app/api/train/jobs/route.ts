@@ -1,7 +1,11 @@
 export const dynamic = 'force-dynamic';
-
-import { handleGetTrainingJobs } from '@openhouse/api/train';
-
 export const runtime = 'nodejs';
 
-export const GET = handleGetTrainingJobs;
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Training jobs are not available in the purchaser portal. Please use the developer portal.' },
+    { status: 404 }
+  );
+}

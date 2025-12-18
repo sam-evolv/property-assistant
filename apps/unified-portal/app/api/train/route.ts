@@ -1,8 +1,11 @@
 export const dynamic = 'force-dynamic';
-
-import { handleTrainRequest } from '@openhouse/api/train';
-
 export const runtime = 'nodejs';
-export const maxDuration = 300;
 
-export const POST = handleTrainRequest;
+import { NextResponse } from 'next/server';
+
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Training functionality is not available in the purchaser portal. Please use the developer portal for document training.' },
+    { status: 404 }
+  );
+}

@@ -1,0 +1,87 @@
+10:38:34.180 Running build in Washington, D.C., USA (East) – iad1
+10:38:34.180 Build machine configuration: 2 cores, 8 GB
+10:38:34.191 Cloning github.com/sam-evolv/property-assistant (Branch: main, Commit: d6435a2)
+10:38:34.192 Skipping build cache, deployment was triggered without cache.
+10:38:41.759 Cloning completed: 7.568s
+10:38:42.650 Running "vercel build"
+10:38:43.158 Vercel CLI 50.0.1
+10:38:43.680 Running "install" command: `npm ci`...
+10:38:46.888 npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+10:38:47.226 npm warn deprecated npmlog@5.0.1: This package is no longer supported.
+10:38:47.505 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+10:38:47.543 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+10:38:48.117 npm warn deprecated gauge@3.0.2: This package is no longer supported.
+10:38:48.278 npm warn deprecated are-we-there-yet@2.0.0: This package is no longer supported.
+10:38:48.766 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+10:38:48.888 npm warn deprecated @supabase/auth-helpers-shared@0.6.3: This package is now deprecated - please use the @supabase/ssr package instead.
+10:38:49.383 npm warn deprecated @supabase/auth-helpers-nextjs@0.8.7: This package is now deprecated - please use the @supabase/ssr package instead.
+10:38:49.477 npm warn deprecated @supabase/auth-helpers-nextjs@0.8.7: This package is now deprecated - please use the @supabase/ssr package instead.
+10:39:02.927 
+10:39:02.928 added 377 packages, and audited 381 packages in 19s
+10:39:02.929 
+10:39:02.929 40 packages are looking for funding
+10:39:02.929   run `npm fund` for details
+10:39:02.933 
+10:39:02.934 3 vulnerabilities (1 moderate, 2 high)
+10:39:02.934 
+10:39:02.934 To address all issues possible (including breaking changes), run:
+10:39:02.935   npm audit fix --force
+10:39:02.935 
+10:39:02.935 Some issues need review, and may require choosing
+10:39:02.935 a different dependency.
+10:39:02.935 
+10:39:02.935 Run `npm audit` for details.
+10:39:02.957 Detected Next.js version: 14.2.35
+10:39:02.958 Running "npm --workspace=@openhouse/unified-portal run build"
+10:39:03.234 
+10:39:03.234 > @openhouse/unified-portal@0.1.0 build
+10:39:03.235 > next build
+10:39:03.235 
+10:39:03.858   ▲ Next.js 14.2.35
+10:39:03.858   - Environments: .env.production
+10:39:03.859 
+10:39:03.888    Creating an optimized production build ...
+10:39:47.735 <w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (130kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+10:39:47.859 Failed to compile.
+10:39:47.860 
+10:39:47.860 ../../packages/api/src/train/enhanced-ocr.ts
+10:39:47.860 Module not found: Can't resolve 'tesseract.js'
+10:39:47.860 
+10:39:47.861 https://nextjs.org/docs/messages/module-not-found
+10:39:47.861 
+10:39:47.861 Import trace for requested module:
+10:39:47.864 ../../packages/api/src/train/parse.ts
+10:39:47.864 ../../packages/api/src/train/index.ts
+10:39:47.864 ../../packages/api/src/index.ts
+10:39:47.864 ./app/api/chat/route.ts
+10:39:47.864 
+10:39:47.864 ../../packages/api/src/train/ocr.ts
+10:39:47.864 Module not found: Can't resolve 'tesseract.js'
+10:39:47.864 
+10:39:47.864 https://nextjs.org/docs/messages/module-not-found
+10:39:47.864 
+10:39:47.864 Import trace for requested module:
+10:39:47.864 ../../packages/api/src/document-processor.ts
+10:39:47.864 ../../packages/api/src/index.ts
+10:39:47.865 ./app/api/chat/route.ts
+10:39:47.865 
+10:39:47.865 ../../packages/api/src/train/parse.ts
+10:39:47.865 Module not found: Can't resolve 'tesseract.js'
+10:39:47.865 
+10:39:47.865 https://nextjs.org/docs/messages/module-not-found
+10:39:47.865 
+10:39:47.865 Import trace for requested module:
+10:39:47.865 ../../packages/api/src/train/index.ts
+10:39:47.865 ../../packages/api/src/index.ts
+10:39:47.865 ./app/api/chat/route.ts
+10:39:47.865 
+10:39:47.865 
+10:39:47.865 > Build failed because of webpack errors
+10:39:47.928 npm error Lifecycle script `build` failed with error:
+10:39:47.929 npm error code 1
+10:39:47.929 npm error path /vercel/path0/apps/unified-portal
+10:39:47.929 npm error workspace @openhouse/unified-portal@0.1.0
+10:39:47.930 npm error location /vercel/path0/apps/unified-portal
+10:39:47.935 npm error command failed
+10:39:47.935 npm error command sh -c next build
+10:39:47.945 Error: Command "npm --workspace=@openhouse/unified-portal run build" exited with 1
