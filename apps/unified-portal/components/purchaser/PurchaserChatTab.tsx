@@ -719,11 +719,20 @@ export default function PurchaserChatTab({
 
   // Ref for scrolling to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   // Scroll to bottom when messages change
+  // Use 'auto' for initial load (instant), 'smooth' for user-sent messages
   useEffect(() => {
     if (messagesEndRef.current && messages.length > 0) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: isInitialLoad.current ? 'auto' : 'smooth', 
+        block: 'end' 
+      });
+      // After first scroll, switch to smooth for subsequent messages
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+      }
     }
   }, [messages.length]);
 
@@ -791,7 +800,9 @@ export default function PurchaserChatTab({
         <div 
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
-            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)',
+            overflowAnchor: 'auto',
+            overscrollBehaviorY: 'contain',
           }}
         >
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
@@ -939,8 +950,8 @@ export default function PurchaserChatTab({
                 );
               })}
               {sending && <TypingIndicator isDarkMode={isDarkMode} />}
-              {/* Scroll anchor */}
-              <div ref={messagesEndRef} />
+              {/* Scroll anchor - 1px element for reliable scrollIntoView targeting */}
+              <div ref={messagesEndRef} style={{ height: '1px', width: '100%' }} aria-hidden="true" />
             </div>
           </div>
       )}
