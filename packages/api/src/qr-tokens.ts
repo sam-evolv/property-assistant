@@ -4,10 +4,12 @@ import { db } from '@openhouse/db/client';
 import { qr_tokens } from '@openhouse/db/schema';
 import { eq, and, or, lt, isNull, isNotNull } from 'drizzle-orm';
 
-const SECRET: string = process.env.SESSION_SECRET || process.env.SUPABASE_JWT_SECRET || '';
-
-if (!SECRET) {
-  throw new Error('CRITICAL: SESSION_SECRET or SUPABASE_JWT_SECRET environment variable is required for QR token generation');
+function getSecret(): string {
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_JWT_SECRET || '';
+  if (!secret) {
+    throw new Error('CRITICAL: SESSION_SECRET or SUPABASE_JWT_SECRET environment variable is required for QR token generation');
+  }
+  return secret;
 }
 
 interface QRTokenPayload {
@@ -36,7 +38,7 @@ export function signQRToken(payload: QRTokenPayload, expiryHours: number = 720):
   
   // Create HMAC signature
   const signature = crypto
-    .createHmac('sha256', SECRET)
+    .createHmac('sha256', getSecret())
     .update(payloadString)
     .digest('base64url');
   
@@ -73,7 +75,7 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
     
     // Verify signature
     const expectedSignature = crypto
-      .createHmac('sha256', SECRET)
+      .createHmac('sha256', getSecret())
       .update(payloadString)
       .digest('base64url');
     
