@@ -1,0 +1,119 @@
+type EnvVar = {
+  key: string;
+  required: boolean;
+  description: string;
+};
+
+const CRITICAL_ENV_VARS: EnvVar[] = [
+  {
+    key: 'DATABASE_URL',
+    required: true,
+    description: 'PostgreSQL database connection URL',
+  },
+  {
+    key: 'NEXT_PUBLIC_SUPABASE_URL',
+    required: true,
+    description: 'Supabase project URL',
+  },
+  {
+    key: 'SUPABASE_SERVICE_ROLE_KEY',
+    required: true,
+    description: 'Supabase service role key for server-side operations',
+  },
+  {
+    key: 'NEXT_PUBLIC_APP_URL',
+    required: true,
+    description: 'Public URL of the deployed app (required for QR codes)',
+  },
+];
+
+const OPTIONAL_ENV_VARS: EnvVar[] = [
+  {
+    key: 'OPENAI_API_KEY',
+    required: false,
+    description: 'OpenAI API key for AI features (optional)',
+  },
+  {
+    key: 'GOOGLE_MAPS_API_KEY',
+    required: false,
+    description: 'Google Maps API key for map features (optional)',
+  },
+  {
+    key: 'RESEND_API_KEY',
+    required: false,
+    description: 'Resend API key for email features (optional)',
+  },
+];
+
+export interface EnvValidationResult {
+  valid: boolean;
+  missing: string[];
+  warnings: string[];
+}
+
+export function validateEnvironment(): EnvValidationResult {
+  const missing: string[] = [];
+  const warnings: string[] = [];
+
+  for (const envVar of CRITICAL_ENV_VARS) {
+    if (!process.env[envVar.key]) {
+      missing.push(`${envVar.key}: ${envVar.description}`);
+    }
+  }
+
+  for (const envVar of OPTIONAL_ENV_VARS) {
+    if (!process.env[envVar.key]) {
+      warnings.push(`${envVar.key}: ${envVar.description}`);
+    }
+  }
+
+  return {
+    valid: missing.length === 0,
+    missing,
+    warnings,
+  };
+}
+
+export function logEnvironmentStatus(options?: { failOnMissing?: boolean }): void {
+  const result = validateEnvironment();
+  const isDev = process.env.NODE_ENV === 'development';
+  const shouldFail = options?.failOnMissing ?? !isDev;
+
+  if (!result.valid) {
+    console.error('\n========================================');
+    console.error('[ENV] MISSING REQUIRED ENVIRONMENT VARIABLES:');
+    console.error('========================================');
+    result.missing.forEach((msg) => console.error(`  ✗ ${msg}`));
+    console.error('========================================\n');
+
+    if (shouldFail) {
+      throw new Error(
+        `Missing required environment variables: ${result.missing.map(m => m.split(':')[0]).join(', ')}`
+      );
+    } else {
+      console.error('[ENV] Continuing in development mode - some features will not work.\n');
+    }
+  }
+
+  if (result.warnings.length > 0 && isDev) {
+    console.warn('\n[ENV] Optional environment variables not set:');
+    result.warnings.forEach((msg) => console.warn(`  - ${msg}`));
+    console.warn('[ENV] Some features may be unavailable.\n');
+  }
+
+  if (result.valid) {
+    console.log('[ENV] All required environment variables are set');
+  }
+}
+
+export function requireEnvVar(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+}
+
+export function getEnvVar(key: string, defaultValue?: string): string | undefined {
+  return process.env[key] || defaultValue;
+}
