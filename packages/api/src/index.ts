@@ -72,3 +72,7 @@ export { logError, createErrorLogger, getRecentErrors, getErrorStats } from './e
 export type { ErrorType, Severity } from './error-logger';
 export { logAnalyticsEvent, getAnalyticsSummary, getUnansweredReport } from './analytics-logger';
 export type { EventType } from './analytics-logger';
+
+// Unit resolution (shared helper for Drizzle/Supabase dual-database lookups)
+export { getUnitInfo } from './unit-resolver';
+export type { ResolvedUnit } from './unit-resolver';

@@ -1,92 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { homeowners, units, developments } from '@openhouse/db/schema';
+import { homeowners } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
-import { createClient } from '@supabase/supabase-js';
+import { getUnitInfo } from '@openhouse/api';
 
 export const dynamic = 'force-dynamic';
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
-// Helper to get unit info from either database
-async function getUnitInfo(unitUid: string): Promise<{
-  id: string;
-  tenant_id: string;
-  development_id: string | null;
-} | null> {
-  // First try Drizzle units table
-  const drizzleUnit = await db.query.units.findFirst({
-    where: eq(units.id, unitUid),
-    columns: { id: true, tenant_id: true, development_id: true },
-  });
-
-  if (drizzleUnit) {
-    return {
-      id: drizzleUnit.id,
-      tenant_id: drizzleUnit.tenant_id,
-      development_id: drizzleUnit.development_id,
-    };
-  }
-
-  // Fall back to Supabase units table
-  const supabase = getSupabaseClient();
-  const { data: supabaseUnit, error } = await supabase
-    .from('units')
-    .select('id, address, project_id')
-    .eq('id', unitUid)
-    .single();
-
-  if (error || !supabaseUnit) {
-    return null;
-  }
-
-  // Get development info to find tenant_id
-  if (supabaseUnit.project_id) {
-    const dev = await db.query.developments.findFirst({
-      where: eq(developments.id, supabaseUnit.project_id),
-      columns: { id: true, tenant_id: true },
-    });
-
-    if (dev) {
-      return {
-        id: supabaseUnit.id,
-        tenant_id: dev.tenant_id,
-        development_id: dev.id,
-      };
-    }
-  }
-
-  // Try to match by address pattern against all developments
-  if (supabaseUnit.address) {
-    const addressLower = supabaseUnit.address.toLowerCase();
-    const allDevs = await db.query.developments.findMany({
-      columns: { id: true, tenant_id: true, name: true },
-    });
-    
-    for (const dev of allDevs) {
-      const devNameLower = dev.name.toLowerCase();
-      const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
-      for (const word of devWords) {
-        if (addressLower.includes(word)) {
-          console.log('[Terms] Matched development by address pattern:', dev.name);
-          return {
-            id: supabaseUnit.id,
-            tenant_id: dev.tenant_id,
-            development_id: dev.id,
-          };
-        }
-      }
-    }
-  }
-
-  return null;
-}
 
 export async function GET(request: NextRequest) {
   try {
