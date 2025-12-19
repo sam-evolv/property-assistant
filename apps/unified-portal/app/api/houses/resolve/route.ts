@@ -238,6 +238,40 @@ export async function POST(req: Request) {
           "Supabase ID:", resolved?.supabaseProjectId, 
           "Drizzle ID:", resolved?.drizzleDevelopmentId);
         
+        // Cross-reference with Drizzle units to get full purchaser name
+        // Supabase may only have surnames, Drizzle has full names
+        let fullPurchaserName = supabaseUnit.purchaser_name || '';
+        
+        if (fullAddress && resolved?.drizzleDevelopmentId) {
+          try {
+            // Extract unit number from address (e.g., "31 Longview Park" -> "31")
+            const unitNumMatch = fullAddress.match(/^(\d+[A-Za-z]?)\s/);
+            const unitNumber = unitNumMatch ? unitNumMatch[1] : null;
+            
+            if (unitNumber) {
+              const drizzleUnitResult = await db.execute(sql`
+                SELECT purchaser_name 
+                FROM units 
+                WHERE development_id = ${resolved.drizzleDevelopmentId}::uuid
+                  AND (
+                    address_line_1 ILIKE ${unitNumber + ' %'}
+                    OR address_line_1 ILIKE ${unitNumber + ',%'}
+                    OR unit_number = ${unitNumber}
+                  )
+                LIMIT 1
+              `);
+              
+              const drizzleUnit = drizzleUnitResult.rows[0] as any;
+              if (drizzleUnit?.purchaser_name) {
+                console.log("[Resolve] Cross-referenced full name from Drizzle:", drizzleUnit.purchaser_name);
+                fullPurchaserName = drizzleUnit.purchaser_name;
+              }
+            }
+          } catch (crossRefErr: any) {
+            console.log("[Resolve] Drizzle cross-reference failed:", crossRefErr.message);
+          }
+        }
+        
         return NextResponse.json({
           success: true,
           unitId: supabaseUnit.id,
@@ -253,8 +287,8 @@ export async function POST(req: Request) {
           development_system_instructions: '',
           address: fullAddress || 'Your Home',
           eircode: '',
-          purchaserName: supabaseUnit.purchaser_name || 'Homeowner',
-          purchaser_name: supabaseUnit.purchaser_name || 'Homeowner',
+          purchaserName: fullPurchaserName || 'Homeowner',
+          purchaser_name: fullPurchaserName || 'Homeowner',
           user_id: null,
           project_id: supabaseUnit.project_id,
           houseType: null,
