@@ -23,9 +23,9 @@ function getPoolConfig(): PoolConfig {
   const connectionString = getConnectionString();
   return {
     connectionString,
-    max: parseInt(process.env.DB_POOL_MAX || '3', 10),
-    min: parseInt(process.env.DB_POOL_MIN || '1', 10),
-    idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_MS || '10000', 10),
+    max: parseInt(process.env.DB_POOL_MAX || '2', 10),
+    min: parseInt(process.env.DB_POOL_MIN || '0', 10),
+    idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_MS || '5000', 10),
     connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONN_TIMEOUT_MS || '10000', 10),
     allowExitOnIdle: true,
     ssl: process.env.DATABASE_SSL === 'true' || connectionString.includes('supabase.co') 
