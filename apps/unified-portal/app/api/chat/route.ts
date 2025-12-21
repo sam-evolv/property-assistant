@@ -33,7 +33,7 @@ function getOpenAIClient() {
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
+const MAX_CHUNKS = 10; // Limit context to top 10 most relevant chunks (safe middle ground)
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
 // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM
