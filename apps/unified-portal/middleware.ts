@@ -18,6 +18,8 @@ const PUBLIC_PATHS = [
   '/test-hub',
   '/test-page',
   '/api/public',
+  '/archive',
+  '/smart-archive',
 ];
 
 // Protected paths that require authentication
