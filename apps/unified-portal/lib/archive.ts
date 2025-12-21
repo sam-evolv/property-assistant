@@ -122,13 +122,14 @@ export async function fetchArchiveDisciplines({
 
 function createArchiveDocument(section: any, projectId: string): ArchiveDocument {
   const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
+  const rawDiscipline = section.metadata?.discipline?.toLowerCase() || 'other';
   return {
     id: section.id,
     title: source,
     file_name: section.metadata?.file_name || source,
     file_url: section.metadata?.file_url || null,
     storage_url: section.metadata?.file_url || null,
-    discipline: section.metadata?.discipline || 'other',
+    discipline: rawDiscipline,
     revision_code: null,
     doc_kind: section.metadata?.doc_kind || 'specification',
     house_type_code: section.metadata?.house_type_code || null,
