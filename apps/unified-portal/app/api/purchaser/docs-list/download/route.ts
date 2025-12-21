@@ -143,12 +143,16 @@ export async function GET(request: NextRequest) {
       
       // 2. For relative paths (/uploads/...), convert to absolute URL
       // These files are served statically from the app, not from Supabase storage
+      // We must encode URI components to handle spaces safely (My Plan.pdf -> My%20Plan.pdf)
       try {
         const baseUrl = new URL(requestUrl);
         const origin = baseUrl.origin; // e.g., https://xxx.replit.dev
-        const absoluteUrl = fileUrl.startsWith('/') 
-          ? `${origin}${fileUrl}` 
-          : `${origin}/${fileUrl}`;
+        
+        // Remove leading slash and encode each path segment to handle spaces
+        const cleanPath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+        const encodedPath = cleanPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        const absoluteUrl = `${origin}/${encodedPath}`;
+        
         console.log('[docs-list/download] Created absolute URL:', absoluteUrl);
         return absoluteUrl;
       } catch (e) {
