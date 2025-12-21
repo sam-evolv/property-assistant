@@ -107,24 +107,25 @@ export async function GET(request: NextRequest) {
     };
 
     // Generate absolute URL for file downloads
-    // Returns: signed URL for Supabase storage, or absolute URL for other paths
+    // Priority: 1) Signed URL for Supabase storage, 2) Absolute URL
     const getAbsoluteDownloadUrl = async (
       supabase: ReturnType<typeof getSupabaseClient>, 
       fileUrl: string,
       requestUrl: string
     ): Promise<string> => {
-      // If already absolute URL, try to get signed URL for Supabase storage
+      console.log('[docs-list/download] Processing fileUrl:', fileUrl);
+      
+      // 1. If already absolute URL with Supabase storage, generate signed URL
       if (fileUrl.startsWith('https://') || fileUrl.startsWith('http://')) {
         try {
           const urlObj = new URL(fileUrl);
-          // Check if it's a Supabase storage URL
           const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
           
           if (pathMatch) {
             const [, bucket, path] = pathMatch;
             const { data, error } = await supabase.storage
               .from(bucket)
-              .createSignedUrl(decodeURIComponent(path), 60); // 60 second expiry
+              .createSignedUrl(decodeURIComponent(path), 60);
             
             if (!error && data?.signedUrl) {
               console.log('[docs-list/download] Generated signed URL for storage file');
@@ -132,7 +133,7 @@ export async function GET(request: NextRequest) {
             }
             console.error('[docs-list/download] Signed URL error:', error);
           }
-          // Already absolute, return as-is
+          // Already absolute URL, return as-is
           return fileUrl;
         } catch (e) {
           console.error('[docs-list/download] URL parsing error:', e);
@@ -140,41 +141,21 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // Handle relative paths - try to generate signed URL from storage path
-      // Common patterns: /uploads/..., documents/..., development_docs/...
-      const storagePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl;
-      
-      // Try common buckets
-      const buckets = ['development_docs', 'documents', 'uploads'];
-      for (const bucket of buckets) {
-        // Check if path starts with bucket name
-        if (storagePath.startsWith(`${bucket}/`)) {
-          const pathInBucket = storagePath.slice(bucket.length + 1);
-          const { data, error } = await supabase.storage
-            .from(bucket)
-            .createSignedUrl(pathInBucket, 60);
-          
-          if (!error && data?.signedUrl) {
-            console.log(`[docs-list/download] Generated signed URL from bucket: ${bucket}`);
-            return data.signedUrl;
-          }
-        }
-        
-        // Try with full path in bucket
-        const { data, error } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(storagePath, 60);
-        
-        if (!error && data?.signedUrl) {
-          console.log(`[docs-list/download] Generated signed URL from bucket: ${bucket}`);
-          return data.signedUrl;
-        }
+      // 2. For relative paths (/uploads/...), convert to absolute URL
+      // These files are served statically from the app, not from Supabase storage
+      try {
+        const baseUrl = new URL(requestUrl);
+        const origin = baseUrl.origin; // e.g., https://xxx.replit.dev
+        const absoluteUrl = fileUrl.startsWith('/') 
+          ? `${origin}${fileUrl}` 
+          : `${origin}/${fileUrl}`;
+        console.log('[docs-list/download] Created absolute URL:', absoluteUrl);
+        return absoluteUrl;
+      } catch (e) {
+        console.error('[docs-list/download] Failed to create absolute URL:', e);
+        // Last resort - this should never fail
+        throw new Error(`Cannot create absolute URL from: ${fileUrl}`);
       }
-      
-      // Last resort: make relative path absolute using request URL
-      console.log('[docs-list/download] Falling back to absolute URL from request');
-      const absoluteUrl = new URL(fileUrl, requestUrl);
-      return absoluteUrl.toString();
     };
 
     const supabase = getSupabaseClient();
