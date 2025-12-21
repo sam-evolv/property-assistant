@@ -91,80 +91,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fire-and-forget tracking - never blocks redirect
-    const trackDownload = (filename: string) => {
-      logAnalyticsEvent({
-        tenantId: DEFAULT_TENANT_ID,
-        developmentId: resolvedDevId,
-        eventType: 'document_download',
-        eventCategory: 'documents',
-        eventData: { docId, filename },
-        sessionId: unitUid,
-        unitId: unitUid,
-      }).catch(err => {
-        console.error('[docs-list/download] Tracking failed:', err);
-      });
-    };
-
-    // Generate absolute URL for file downloads
-    // Priority: 1) Signed URL for Supabase storage, 2) Absolute URL
-    const getAbsoluteDownloadUrl = async (
-      supabase: ReturnType<typeof getSupabaseClient>, 
-      fileUrl: string,
-      requestUrl: string
-    ): Promise<string> => {
-      console.log('[docs-list/download] Processing fileUrl:', fileUrl);
-      
-      // 1. If already absolute URL with Supabase storage, generate signed URL
-      if (fileUrl.startsWith('https://') || fileUrl.startsWith('http://')) {
-        try {
-          const urlObj = new URL(fileUrl);
-          const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
-          
-          if (pathMatch) {
-            const [, bucket, path] = pathMatch;
-            const { data, error } = await supabase.storage
-              .from(bucket)
-              .createSignedUrl(decodeURIComponent(path), 60);
-            
-            if (!error && data?.signedUrl) {
-              console.log('[docs-list/download] Generated signed URL for storage file');
-              return data.signedUrl;
-            }
-            console.error('[docs-list/download] Signed URL error:', error);
-          }
-          // Already absolute URL, return as-is
-          return fileUrl;
-        } catch (e) {
-          console.error('[docs-list/download] URL parsing error:', e);
-          return fileUrl;
-        }
-      }
-      
-      // 2. For relative paths (/uploads/...), convert to absolute URL
-      // These files are served statically from the app, not from Supabase storage
-      // We must encode URI components to handle spaces safely (My Plan.pdf -> My%20Plan.pdf)
+    // Track document download - non-blocking for marketing website counter
+    // Uses try/catch with no await blocking to ensure file delivery is never delayed
+    const trackDownload = async (filename: string) => {
       try {
-        const baseUrl = new URL(requestUrl);
-        const origin = baseUrl.origin; // e.g., https://xxx.replit.dev
-        
-        // Remove leading slash and encode each path segment to handle spaces
-        const cleanPath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
-        const encodedPath = cleanPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-        const absoluteUrl = `${origin}/${encodedPath}`;
-        
-        console.log('[docs-list/download] Created absolute URL:', absoluteUrl);
-        return absoluteUrl;
-      } catch (e) {
-        console.error('[docs-list/download] Failed to create absolute URL:', e);
-        // Last resort - this should never fail
-        throw new Error(`Cannot create absolute URL from: ${fileUrl}`);
+        await logAnalyticsEvent({
+          tenantId: DEFAULT_TENANT_ID,
+          developmentId: resolvedDevId,
+          eventType: 'document_download',
+          eventCategory: 'documents',
+          eventData: { docId, filename },
+          sessionId: unitUid,
+          unitId: unitUid,
+        });
+      } catch (err) {
+        console.error('[docs-list/download] Failed to track download:', err);
+        // Do not throw - continue to serve file
       }
     };
-
-    const supabase = getSupabaseClient();
 
     if (docId.startsWith('supabase-')) {
+      const supabase = getSupabaseClient();
       const sectionId = docId.replace('supabase-', '');
       
       const { data: section, error } = await supabase
@@ -189,16 +136,10 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      const filename = section.metadata?.title || `document-${sectionId}.pdf`;
-      
-      // Get absolute URL (signed or direct) - NEVER redirect to relative path
-      const redirectUrl = await getAbsoluteDownloadUrl(supabase, fileUrl, request.url);
-      
-      console.log('[docs-list/download] Redirecting Supabase doc to:', redirectUrl.substring(0, 80) + '...');
-      
-      // Track (fire-and-forget) then 307 redirect to signed URL
-      trackDownload(filename);
-      return NextResponse.redirect(redirectUrl, 307);
+      console.log('[docs-list/download] Redirecting to Supabase file:', fileUrl);
+      // Fire and forget - don't block the redirect
+      trackDownload(section.metadata?.title || sectionId).catch(() => {});
+      return NextResponse.redirect(fileUrl);
     }
 
     const doc = await db
@@ -222,16 +163,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const filename = doc[0].title || `document-${docId}.pdf`;
-    
-    // Get absolute URL (signed or direct) - NEVER redirect to relative path
-    const redirectUrl = await getAbsoluteDownloadUrl(supabase, fileUrl, request.url);
-    
-    console.log('[docs-list/download] Redirecting Drizzle doc to:', redirectUrl.substring(0, 80) + '...');
-    
-    // Track (fire-and-forget) then 307 redirect to signed URL
-    trackDownload(filename);
-    return NextResponse.redirect(redirectUrl, 307);
+    console.log('[docs-list/download] Redirecting to Drizzle file:', fileUrl);
+    // Fire and forget - don't block the redirect
+    trackDownload(doc[0].title || docId).catch(() => {});
+    return NextResponse.redirect(fileUrl);
   } catch (error) {
     console.error('[docs-list/download] ERROR:', error);
     return NextResponse.json(

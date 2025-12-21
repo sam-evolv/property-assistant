@@ -186,22 +186,45 @@ export default function PurchaserDocumentsTab({
     };
   }, [unitUid, houseType]);
 
-  const handleDownload = (doc: Document) => {
-    // For Supabase documents with direct file_url, open in new tab
-    if (doc.source === 'supabase' && doc.file_url) {
-      window.open(doc.file_url, '_blank');
-      return;
-    }
-    
-    // For all documents, use the download API which returns a redirect
-    // Browser handles the 302 redirect to signed URL automatically
-    const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-    const token = storedToken || unitUid;
+  const handleDownload = async (doc: Document) => {
+    try {
+      // For Supabase documents with direct file_url, open in new tab
+      if (doc.source === 'supabase' && doc.file_url) {
+        window.open(doc.file_url, '_blank');
+        return;
+      }
+      
+      // For Drizzle documents, use the download API
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
 
-    const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
-    
-    // Open in new tab - browser follows redirect to CDN
-    window.open(downloadUrl, '_blank');
+      const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
+      
+      // First check if the download will succeed
+      const response = await fetch(downloadUrl);
+      
+      if (!response.ok) {
+        // Try to get error details
+        const errorData = await response.json().catch(() => ({ error: 'Download failed' }));
+        const errorMessage = errorData.details || errorData.error || 'Failed to download document';
+        alert(errorMessage);
+        return;
+      }
+      
+      // If successful, download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.title;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      alert('Failed to download document. Please try again or contact your development administrator.');
+    }
   };
 
   const getFileIcon = (fileType?: string) => {
