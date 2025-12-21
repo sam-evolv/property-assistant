@@ -196,9 +196,9 @@ export async function GET(request: NextRequest) {
       
       console.log('[docs-list/download] Redirecting Supabase doc to:', redirectUrl.substring(0, 80) + '...');
       
-      // Track (fire-and-forget) then redirect immediately
+      // Track (fire-and-forget) then 307 redirect to signed URL
       trackDownload(filename);
-      return NextResponse.redirect(redirectUrl);
+      return NextResponse.redirect(redirectUrl, 307);
     }
 
     const doc = await db
@@ -229,9 +229,9 @@ export async function GET(request: NextRequest) {
     
     console.log('[docs-list/download] Redirecting Drizzle doc to:', redirectUrl.substring(0, 80) + '...');
     
-    // Track (fire-and-forget) then redirect immediately
+    // Track (fire-and-forget) then 307 redirect to signed URL
     trackDownload(filename);
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.redirect(redirectUrl, 307);
   } catch (error) {
     console.error('[docs-list/download] ERROR:', error);
     return NextResponse.json(
