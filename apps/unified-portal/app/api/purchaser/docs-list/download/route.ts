@@ -106,29 +106,75 @@ export async function GET(request: NextRequest) {
       });
     };
 
-    // Generate signed URL for Supabase storage files
-    const getSignedUrl = async (supabase: ReturnType<typeof getSupabaseClient>, fileUrl: string): Promise<string | null> => {
-      try {
-        // Parse Supabase storage URL: https://xxx.supabase.co/storage/v1/object/public/bucket/path
-        const urlObj = new URL(fileUrl);
-        const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
-        
-        if (pathMatch) {
-          const [, bucket, path] = pathMatch;
+    // Generate absolute URL for file downloads
+    // Returns: signed URL for Supabase storage, or absolute URL for other paths
+    const getAbsoluteDownloadUrl = async (
+      supabase: ReturnType<typeof getSupabaseClient>, 
+      fileUrl: string,
+      requestUrl: string
+    ): Promise<string> => {
+      // If already absolute URL, try to get signed URL for Supabase storage
+      if (fileUrl.startsWith('https://') || fileUrl.startsWith('http://')) {
+        try {
+          const urlObj = new URL(fileUrl);
+          // Check if it's a Supabase storage URL
+          const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
+          
+          if (pathMatch) {
+            const [, bucket, path] = pathMatch;
+            const { data, error } = await supabase.storage
+              .from(bucket)
+              .createSignedUrl(decodeURIComponent(path), 60); // 60 second expiry
+            
+            if (!error && data?.signedUrl) {
+              console.log('[docs-list/download] Generated signed URL for storage file');
+              return data.signedUrl;
+            }
+            console.error('[docs-list/download] Signed URL error:', error);
+          }
+          // Already absolute, return as-is
+          return fileUrl;
+        } catch (e) {
+          console.error('[docs-list/download] URL parsing error:', e);
+          return fileUrl;
+        }
+      }
+      
+      // Handle relative paths - try to generate signed URL from storage path
+      // Common patterns: /uploads/..., documents/..., development_docs/...
+      const storagePath = fileUrl.startsWith('/') ? fileUrl.slice(1) : fileUrl;
+      
+      // Try common buckets
+      const buckets = ['development_docs', 'documents', 'uploads'];
+      for (const bucket of buckets) {
+        // Check if path starts with bucket name
+        if (storagePath.startsWith(`${bucket}/`)) {
+          const pathInBucket = storagePath.slice(bucket.length + 1);
           const { data, error } = await supabase.storage
             .from(bucket)
-            .createSignedUrl(decodeURIComponent(path), 60); // 60 second expiry
+            .createSignedUrl(pathInBucket, 60);
           
-          if (error) {
-            console.error('[docs-list/download] Signed URL error:', error);
-            return null;
+          if (!error && data?.signedUrl) {
+            console.log(`[docs-list/download] Generated signed URL from bucket: ${bucket}`);
+            return data.signedUrl;
           }
+        }
+        
+        // Try with full path in bucket
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(storagePath, 60);
+        
+        if (!error && data?.signedUrl) {
+          console.log(`[docs-list/download] Generated signed URL from bucket: ${bucket}`);
           return data.signedUrl;
         }
-      } catch (e) {
-        console.error('[docs-list/download] URL parsing error:', e);
       }
-      return null;
+      
+      // Last resort: make relative path absolute using request URL
+      console.log('[docs-list/download] Falling back to absolute URL from request');
+      const absoluteUrl = new URL(fileUrl, requestUrl);
+      return absoluteUrl.toString();
     };
 
     const supabase = getSupabaseClient();
@@ -160,11 +206,10 @@ export async function GET(request: NextRequest) {
       
       const filename = section.metadata?.title || `document-${sectionId}.pdf`;
       
-      // Try to get signed URL for Supabase storage files
-      const signedUrl = await getSignedUrl(supabase, fileUrl);
-      const redirectUrl = signedUrl || fileUrl;
+      // Get absolute URL (signed or direct) - NEVER redirect to relative path
+      const redirectUrl = await getAbsoluteDownloadUrl(supabase, fileUrl, request.url);
       
-      console.log('[docs-list/download] Redirecting to:', signedUrl ? 'signed URL' : 'direct URL');
+      console.log('[docs-list/download] Redirecting Supabase doc to:', redirectUrl.substring(0, 80) + '...');
       
       // Track (fire-and-forget) then redirect immediately
       trackDownload(filename);
@@ -194,11 +239,10 @@ export async function GET(request: NextRequest) {
 
     const filename = doc[0].title || `document-${docId}.pdf`;
     
-    // Try to get signed URL for Supabase storage files
-    const signedUrl = await getSignedUrl(supabase, fileUrl);
-    const redirectUrl = signedUrl || fileUrl;
+    // Get absolute URL (signed or direct) - NEVER redirect to relative path
+    const redirectUrl = await getAbsoluteDownloadUrl(supabase, fileUrl, request.url);
     
-    console.log('[docs-list/download] Redirecting Drizzle doc to:', signedUrl ? 'signed URL' : 'direct URL');
+    console.log('[docs-list/download] Redirecting Drizzle doc to:', redirectUrl.substring(0, 80) + '...');
     
     // Track (fire-and-forget) then redirect immediately
     trackDownload(filename);
