@@ -22,10 +22,13 @@ export async function GET() {
   try {
     await db.execute(sql`SELECT 1`);
     checks.drizzle = { status: 'ok', latency: Date.now() - drizzleStart };
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[Health] Drizzle connection error:', error);
+    const errMsg = error?.message || error?.code || 'Connection failed';
+    const errCode = error?.code || '';
     checks.drizzle = { 
       status: 'error', 
-      message: error instanceof Error ? error.message : 'Connection failed',
+      message: `${errMsg}${errCode ? ` (${errCode})` : ''}`,
       latency: Date.now() - drizzleStart 
     };
   }
