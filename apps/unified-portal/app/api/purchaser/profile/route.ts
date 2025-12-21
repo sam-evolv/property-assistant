@@ -119,6 +119,9 @@ export async function GET(request: NextRequest) {
 
       if (docSections && docSections.length > 0) {
         const uniqueDocs = new Map<string, any>();
+        const houseCodeLower = houseTypeCode.toLowerCase();
+        const otherHouseTypes = ['bd01', 'bd02', 'bd03', 'bd04', 'bd05', 'bs01', 'bs02', 'bs03', 'bs04', 'bt01', 'bz01', 'bd17']
+          .filter(ht => ht !== houseCodeLower);
         
         for (const section of docSections) {
           const meta = section.metadata as any;
@@ -126,18 +129,26 @@ export async function GET(request: NextRequest) {
           
           const fileName = meta.file_name || meta.source || 'Unknown';
           const fileUrl = meta.file_url || null;
-          
           const fileNameLower = fileName.toLowerCase();
-          const houseCodeLower = houseTypeCode.toLowerCase();
-          const isHouseTypeDoc = fileNameLower.includes(houseCodeLower) || 
-                                 fileNameLower.includes('floor') ||
-                                 fileNameLower.includes('plan') ||
-                                 fileNameLower.includes('elevation') ||
-                                 fileNameLower.includes('layout');
           
+          const belongsToOtherHouseType = otherHouseTypes.some(ht => fileNameLower.includes(ht));
+          if (belongsToOtherHouseType) continue;
+          
+          const isThisHouseType = fileNameLower.includes(houseCodeLower);
+          const isGlobalDoc = !fileNameLower.match(/b[dst][0-9]{2}/i) && (
+            fileNameLower.includes('spec') ||
+            fileNameLower.includes('guide') ||
+            fileNameLower.includes('faq') ||
+            fileNameLower.includes('user') ||
+            fileNameLower.includes('home owner') ||
+            fileNameLower.includes('homeowner') ||
+            fileNameLower.includes('broadband') ||
+            fileNameLower.includes('charger') ||
+            fileNameLower.includes('transport')
+          );
           const isImportant = meta.is_important === true || meta.must_read === true;
           
-          if ((isHouseTypeDoc || isImportant) && !uniqueDocs.has(fileName)) {
+          if ((isThisHouseType || isGlobalDoc || isImportant) && !uniqueDocs.has(fileName)) {
             uniqueDocs.set(fileName, {
               id: section.id,
               title: fileName.replace('.pdf', '').replace(/-/g, ' '),
