@@ -3,14 +3,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@openhouse/db/client';
-import { documents, units } from '@openhouse/db/schema';
-import { eq, and, asc, or, sql } from 'drizzle-orm';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
+const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 function getSupabaseClient() {
   return createClient(
@@ -18,25 +16,6 @@ function getSupabaseClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
-
-const DRIZZLE_TO_SUPABASE_MAP: Record<string, string> = {
-  '34316432-f1e8-4297-b993-d9b5c88ee2d8': '57dc3919-2725-4575-8046-9179075ac88e',
-  'e0833c98-23a7-490c-9f67-b58e73aeb14e': '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91',
-};
-
-const SUPABASE_TO_DRIZZLE_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(DRIZZLE_TO_SUPABASE_MAP).map(([k, v]) => [v, k])
-);
-
-function getSupabaseProjectId(drizzleId: string): string | null {
-  return DRIZZLE_TO_SUPABASE_MAP[drizzleId] || null;
-}
-
-function getDrizzleDevelopmentId(supabaseId: string): string | null {
-  return SUPABASE_TO_DRIZZLE_MAP[supabaseId] || null;
-}
-
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
 function mapDisciplineToCategory(discipline: string, title: string): string {
   const lowerTitle = title.toLowerCase();
@@ -109,102 +88,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let drizzleDevelopmentId: string | null = null;
     let supabaseProjectId: string | null = null;
     let houseTypeCode: string | null = null;
     
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isUuid = uuidPattern.test(unitUid);
+    const supabase = getSupabaseClient();
+    const { data: supabaseUnit } = await supabase
+      .from('units')
+      .select('id, project_id, unit_types(name)')
+      .eq('id', unitUid)
+      .single();
     
-    const drizzleUnit = await db
-      .select({ 
-        development_id: units.development_id,
-        house_type_code: units.house_type_code
-      })
-      .from(units)
-      .where(isUuid 
-        ? or(eq(units.id, unitUid), eq(units.unit_uid, unitUid))
-        : eq(units.unit_uid, unitUid))
-      .limit(1);
-
-    if (drizzleUnit && drizzleUnit.length > 0) {
-      drizzleDevelopmentId = drizzleUnit[0].development_id;
-      houseTypeCode = drizzleUnit[0].house_type_code;
-      
-      const mappedSupabaseId = getSupabaseProjectId(drizzleDevelopmentId);
-      if (mappedSupabaseId) {
-        supabaseProjectId = mappedSupabaseId;
-      } else {
-        const { rows: devRows } = await db.execute(sql`SELECT name FROM developments WHERE id = ${drizzleDevelopmentId}::uuid`);
-        if (devRows.length > 0) {
-          const devName = (devRows[0] as any).name;
-          const supabase = getSupabaseClient();
-          const { data: project } = await supabase.from('projects').select('id').ilike('name', devName).single();
-          if (project) {
-            supabaseProjectId = project.id;
-          }
-        }
-      }
-    } else {
-      const supabase = getSupabaseClient();
-      const { data: supabaseUnit } = await supabase
-        .from('units')
-        .select('id, project_id, unit_types(name)')
-        .eq('id', unitUid)
-        .single();
-      
-      if (supabaseUnit) {
-        supabaseProjectId = supabaseUnit.project_id;
-        const unitType = Array.isArray(supabaseUnit.unit_types) 
-          ? supabaseUnit.unit_types[0] 
-          : supabaseUnit.unit_types;
-        houseTypeCode = unitType?.name || null;
-        
-        const mappedDrizzleId = supabaseProjectId ? getDrizzleDevelopmentId(supabaseProjectId) : null;
-        if (mappedDrizzleId) {
-          drizzleDevelopmentId = mappedDrizzleId;
-        } else {
-          const { data: project } = await supabase.from('projects').select('name').eq('id', supabaseProjectId).single();
-          if (project) {
-            const { rows: devRows } = await db.execute(sql`SELECT id FROM developments WHERE LOWER(name) = LOWER(${project.name})`);
-            if (devRows.length > 0) {
-              drizzleDevelopmentId = (devRows[0] as any).id;
-            }
-          }
-        }
-      }
+    if (supabaseUnit) {
+      supabaseProjectId = supabaseUnit.project_id;
+      const unitType = Array.isArray(supabaseUnit.unit_types) 
+        ? supabaseUnit.unit_types[0] 
+        : supabaseUnit.unit_types;
+      houseTypeCode = unitType?.name || null;
     }
 
     if (!supabaseProjectId) {
       supabaseProjectId = PROJECT_ID;
     }
     
-    if (!drizzleDevelopmentId && supabaseProjectId) {
-      try {
-        const supabase = getSupabaseClient();
-        const { data: project } = await supabase.from('projects').select('name').eq('id', supabaseProjectId).single();
-        if (project?.name) {
-          const { rows: devRows } = await db.execute(sql`SELECT id FROM developments WHERE LOWER(name) LIKE LOWER(${'%' + project.name.split(' ')[0] + '%'})`);
-          if (devRows.length > 0) {
-            drizzleDevelopmentId = (devRows[0] as any).id;
-          }
-        }
-      } catch (e) {
-        // Silent fallback
-      }
-    }
-
-    const actualResolvedDevId = drizzleDevelopmentId;
-    
-    if (!drizzleDevelopmentId) {
-      drizzleDevelopmentId = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
-    }
-    
-    const developmentId = drizzleDevelopmentId || supabaseProjectId;
+    console.log('[DocsListAPI] Resolved project_id:', supabaseProjectId, 'houseType:', houseTypeCode);
 
     logAnalyticsEvent({
       tenantId: DEFAULT_TENANT_ID,
-      developmentId: actualResolvedDevId || undefined,
+      developmentId: supabaseProjectId || undefined,
       houseTypeCode: houseTypeCode || undefined,
       eventType: 'qr_scan',
       eventCategory: 'docs_access',
@@ -214,215 +124,57 @@ export async function GET(request: NextRequest) {
     
     const normalizedHouseType = (houseTypeCode || '').toLowerCase();
 
-    const allDocs = await db
-      .select({
-        id: documents.id,
-        title: documents.title,
-        file_url: documents.file_url,
-        mime_type: documents.mime_type,
-        created_at: documents.created_at,
-        metadata: documents.metadata,
-        house_type_code: documents.house_type_code,
-        is_important: documents.is_important,
-        important_rank: documents.important_rank,
-        must_read: documents.must_read,
-      })
-      .from(documents)
-      .where(and(
-        eq(documents.development_id, developmentId),
-        eq(documents.is_superseded, false)
-      ))
-      .orderBy(asc(documents.created_at));
+    const { data: sections, error: sectionsError } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', supabaseProjectId);
 
-    const allHouseTypePattern = /\b([A-Z]{2,4}\d{2})\b/i;
-    const myHouseTypePattern = normalizedHouseType ? new RegExp(`\\b${normalizedHouseType}\\b`, 'i') : null;
+    if (sectionsError) {
+      console.error('[DocsListAPI] Supabase sections error:', sectionsError.message);
+    }
+
+    const documentMap = new Map<string, any>();
     
-    const docs = allDocs.filter((doc) => {
-      const metadata = doc.metadata as any || {};
+    for (const section of sections || []) {
+      const metadata = section.metadata || {};
+      const source = metadata.source || metadata.file_name || 'Unknown';
       
-      if (metadata.is_global === true || metadata.is_global === 'true') {
-        return true;
+      if (!documentMap.has(source)) {
+        documentMap.set(source, {
+          id: section.id,
+          title: source,
+          file_name: metadata.file_name || source,
+          file_url: metadata.file_url || null,
+          discipline: (metadata.discipline || 'general').toLowerCase(),
+          is_important: metadata.is_important === true,
+          must_read: metadata.must_read === true,
+          category: metadata.category || 'general',
+          created_at: new Date().toISOString(),
+        });
       }
-      
-      if (!normalizedHouseType) {
-        return true;
-      }
-      
-      const houseTypesArray = metadata.house_types || metadata.houseTypes;
-      if (Array.isArray(houseTypesArray) && houseTypesArray.length > 0) {
-        return houseTypesArray.some((type: string) => 
-          type && typeof type === 'string' && type.toLowerCase() === normalizedHouseType
-        );
-      }
-      
-      if (metadata.unit_type && typeof metadata.unit_type === 'string') {
-        return metadata.unit_type.toLowerCase() === normalizedHouseType;
-      }
-      
-      if (doc.house_type_code && typeof doc.house_type_code === 'string') {
-        return doc.house_type_code.toLowerCase() === normalizedHouseType;
-      }
-      
-      if (doc.title && myHouseTypePattern && myHouseTypePattern.test(doc.title)) {
-        return true;
-      }
-      
-      if (doc.title && allHouseTypePattern.test(doc.title)) {
-        const match = doc.title.match(allHouseTypePattern);
-        if (match && match[1].toLowerCase() !== normalizedHouseType) {
-          return false;
-        }
-      }
-      
-      return true;
-    });
+    }
 
-    const formattedDocs = docs.map((doc) => {
-      const metadata = doc.metadata as any || {};
-      
-      let isHouseSpecific = false;
-      const houseTypesArray = metadata.house_types || metadata.houseTypes;
-      if (Array.isArray(houseTypesArray) && houseTypesArray.length > 0) {
-        const hasMatch = houseTypesArray.some((type: string) => 
-          type && typeof type === 'string' && type.toLowerCase() === normalizedHouseType
-        );
-        if (hasMatch) isHouseSpecific = true;
-      }
-      if (metadata.unit_type && typeof metadata.unit_type === 'string' && 
-          metadata.unit_type.toLowerCase() === normalizedHouseType) {
-        isHouseSpecific = true;
-      }
-      if (Array.isArray(metadata.tags) && metadata.tags.length > 0) {
-        const tagsStr = metadata.tags.join(' ');
-        if (myHouseTypePattern && myHouseTypePattern.test(tagsStr)) isHouseSpecific = true;
-      }
-      if (doc.house_type_code && typeof doc.house_type_code === 'string' && 
-          doc.house_type_code.toLowerCase() === normalizedHouseType) {
-        isHouseSpecific = true;
-      }
-      if (doc.title && myHouseTypePattern && myHouseTypePattern.test(doc.title)) {
-        isHouseSpecific = true;
-      }
-      
+    console.log('[DocsListAPI] Found', documentMap.size, 'unique documents from Supabase');
+
+    const formattedDocs = Array.from(documentMap.values()).map((doc) => {
       return {
         id: doc.id,
         title: doc.title,
         file_url: doc.file_url,
-        file_type: doc.mime_type,
+        file_type: 'application/pdf',
         created_at: doc.created_at,
-        metadata: doc.metadata,
-        is_house_specific: isHouseSpecific,
+        metadata: { discipline: doc.discipline, category: doc.category },
+        is_house_specific: false,
         is_important: doc.is_important,
-        important_rank: doc.important_rank,
+        important_rank: doc.is_important ? 1 : null,
         must_read: doc.must_read,
-        source: 'drizzle',
+        source: 'supabase',
       };
     });
 
-    let supabaseSections: any[] | null = null;
-    let supabaseWarning: string | null = null;
+    console.log(`[docs-list] OK: unit=${unitUid}, total=${formattedDocs.length} docs`);
     
-    try {
-      const supabaseClient = getSupabaseClient();
-      
-      const { data, error: supabaseError } = await supabaseClient
-        .from('document_sections')
-        .select('id, content, metadata', { count: 'exact', head: false })
-        .eq('project_id', supabaseProjectId)
-        .limit(500);
-
-      if (supabaseError) {
-        console.error('[docs-list] Supabase query error:', supabaseError.message);
-        supabaseWarning = `Supabase query failed: ${supabaseError.message}`;
-      } else {
-        supabaseSections = data;
-      }
-    } catch (supabaseErr) {
-      console.error('[docs-list] Supabase connection failed:', supabaseErr);
-      supabaseWarning = `Supabase connection failed: ${supabaseErr instanceof Error ? supabaseErr.message : 'Unknown error'}`;
-    }
-
-    const supabaseDocMap = new Map<string, {
-      id: string;
-      title: string;
-      file_url: string;
-      discipline: string;
-      created_at: string;
-      is_important: boolean;
-      important_rank: number | null;
-      must_read: boolean;
-    }>();
-
-    if (supabaseSections) {
-      const userHouseType = (houseTypeCode || '').toUpperCase();
-      const houseTypePattern = /\b([A-Z]{2,4}\d{2})\b/i;
-      
-      for (const section of supabaseSections) {
-        const metadata = section.metadata || {};
-        const source = metadata.file_name || metadata.source || 'Unknown';
-        const discipline = (metadata.discipline || 'other').toLowerCase();
-        const isImportant = metadata.is_important === true;
-        const hasMustReadFlag = metadata.must_read === true;
-        const isMustRead = isImportant || hasMustReadFlag;
-        
-        const sourceUpper = source.toUpperCase();
-        const hasHouseTypeInName = houseTypePattern.test(sourceUpper);
-        
-        if (hasHouseTypeInName && userHouseType) {
-          if (!sourceUpper.includes(userHouseType)) {
-            continue;
-          }
-        }
-        
-        if (!supabaseDocMap.has(source)) {
-          supabaseDocMap.set(source, {
-            id: `supabase-${section.id}`,
-            title: source,
-            file_url: metadata.file_url || '',
-            discipline: discipline,
-            created_at: new Date().toISOString(),
-            is_important: isImportant,
-            important_rank: metadata.important_rank || null,
-            must_read: isMustRead,
-          });
-        } else if (isMustRead) {
-          const existing = supabaseDocMap.get(source)!;
-          existing.must_read = true;
-          existing.is_important = existing.is_important || isImportant;
-        }
-      }
-    }
-
-    const supabaseDocs = Array.from(supabaseDocMap.values()).map(doc => ({
-      id: doc.id,
-      title: doc.title,
-      file_url: doc.file_url,
-      file_type: 'application/pdf',
-      created_at: doc.created_at,
-      metadata: { 
-        category: mapDisciplineToCategory(doc.discipline, doc.title),
-        discipline: doc.discipline,
-        is_important: doc.is_important,
-        important_rank: doc.important_rank,
-        must_read: doc.must_read,
-      },
-      is_house_specific: false,
-      is_important: doc.is_important || false,
-      important_rank: doc.important_rank || null,
-      must_read: doc.must_read || false,
-      source: 'supabase',
-    }));
-
-    const allDocuments = [...supabaseDocs, ...formattedDocs];
-
-    console.log(`[docs-list] OK: unit=${unitUid}, total=${allDocuments.length} docs (drizzle=${formattedDocs.length}, supabase=${supabaseDocs.length})`);
-
-    const response: { documents: any[], warning?: string } = { documents: allDocuments };
-    if (supabaseWarning && allDocuments.length === 0) {
-      response.warning = supabaseWarning;
-    }
-    
-    return NextResponse.json(response);
+    return NextResponse.json({ documents: formattedDocs });
   } catch (error) {
     console.error('[docs-list] ERROR:', error);
     return NextResponse.json(
