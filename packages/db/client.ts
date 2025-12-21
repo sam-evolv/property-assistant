@@ -12,21 +12,10 @@ const globalForDb = globalThis as unknown as {
 let pool: Pool | null = globalForDb.dbPool ?? null;
 
 function getConnectionString(): string {
-  let connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!connectionString) {
     throw new Error('SUPABASE_DB_URL (or DATABASE_URL fallback) is not defined in environment variables');
   }
-  
-  // Enforce connection pooling for serverless environments (pgbouncer)
-  // This reduces handshake latency from ~1s to ~50ms per connection
-  if (!connectionString.includes('pgbouncer=true') && !connectionString.includes('pooler')) {
-    const separator = connectionString.includes('?') ? '&' : '?';
-    connectionString = `${connectionString}${separator}pgbouncer=true`;
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DB Pool] Added pgbouncer=true to connection string for connection pooling');
-    }
-  }
-  
   return connectionString;
 }
 
