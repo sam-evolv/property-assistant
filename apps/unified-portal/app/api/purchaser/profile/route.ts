@@ -24,14 +24,13 @@ function getSupabaseClient() {
   );
 }
 
-function inferHouseTypeFromAddress(address: string): string {
-  const unitMatch = address.match(/^(\d+)/);
-  const unitNum = unitMatch ? parseInt(unitMatch[1], 10) : 0;
-  
-  if (unitNum >= 1 && unitNum <= 40) return 'BD01';
-  if (unitNum >= 41 && unitNum <= 80) return 'BD02';
-  if (unitNum >= 81 && unitNum <= 100) return 'BD03';
-  return 'BD01';
+function parseNumericValue(value: any): number | null {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const match = value.match(/(\d+)/);
+    if (match) return parseInt(match[1], 10);
+  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -72,7 +71,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    console.log('[Profile] Found unit:', supabaseUnit.id, 'Address:', supabaseUnit.address);
+    console.log('[Profile] Found unit:', supabaseUnit.id, 'Address:', supabaseUnit.address, 'unit_type_id:', supabaseUnit.unit_type_id);
 
     const development = KNOWN_DEVELOPMENTS[supabaseUnit.project_id] || {
       id: supabaseUnit.project_id,
@@ -82,32 +81,82 @@ export async function GET(request: NextRequest) {
 
     let houseTypeCode = 'BD01';
     let houseTypeName = 'Semi-Detached';
-    let bedrooms = 3;
-    let bathrooms = 2;
+    let bedrooms: number | null = 3;
+    let bathrooms: number | null = 2;
+    let floorAreaSqm: number | null = null;
     
     if (supabaseUnit.unit_type_id) {
       const { data: unitType } = await supabase
         .from('unit_types')
-        .select('name, bedrooms, bathrooms, floor_area_sqm')
+        .select('name, specification_json')
         .eq('id', supabaseUnit.unit_type_id)
         .single();
       
       if (unitType) {
+        houseTypeCode = unitType.name || houseTypeCode;
         houseTypeName = unitType.name || houseTypeName;
-        if (unitType.name?.match(/BD\d+/)) {
-          houseTypeCode = unitType.name.match(/BD\d+/)![0];
+        
+        const specs = unitType.specification_json as any;
+        if (specs) {
+          bedrooms = parseNumericValue(specs.bedrooms) ?? bedrooms;
+          bathrooms = parseNumericValue(specs.bathrooms) ?? bathrooms;
+          if (specs.property_type) {
+            houseTypeName = specs.property_type;
+          }
         }
-        if (unitType.bedrooms) bedrooms = unitType.bedrooms;
-        if (unitType.bathrooms) bathrooms = unitType.bathrooms;
       }
-    } else if (supabaseUnit.address) {
-      houseTypeCode = inferHouseTypeFromAddress(supabaseUnit.address);
     }
 
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
     const fullAddress = supabaseUnit.address || development.address || 'Address not available';
 
-    console.log('[Profile] Built profile for:', purchaserName, 'HouseType:', houseTypeCode);
+    const documents: any[] = [];
+    try {
+      const { data: docSections } = await supabase
+        .from('document_sections')
+        .select('id, metadata')
+        .eq('project_id', supabaseUnit.project_id);
+
+      if (docSections && docSections.length > 0) {
+        const uniqueDocs = new Map<string, any>();
+        
+        for (const section of docSections) {
+          const meta = section.metadata as any;
+          if (!meta) continue;
+          
+          const fileName = meta.file_name || meta.source || 'Unknown';
+          const fileUrl = meta.file_url || null;
+          
+          const fileNameLower = fileName.toLowerCase();
+          const houseCodeLower = houseTypeCode.toLowerCase();
+          const isHouseTypeDoc = fileNameLower.includes(houseCodeLower) || 
+                                 fileNameLower.includes('floor') ||
+                                 fileNameLower.includes('plan') ||
+                                 fileNameLower.includes('elevation') ||
+                                 fileNameLower.includes('layout');
+          
+          const isImportant = meta.is_important === true || meta.must_read === true;
+          
+          if ((isHouseTypeDoc || isImportant) && !uniqueDocs.has(fileName)) {
+            uniqueDocs.set(fileName, {
+              id: section.id,
+              title: fileName.replace('.pdf', '').replace(/-/g, ' '),
+              file_url: fileUrl,
+              mime_type: 'application/pdf',
+              category: getDocCategory(fileName),
+            });
+          }
+        }
+        
+        documents.push(...Array.from(uniqueDocs.values()).slice(0, 10));
+      }
+      
+      console.log('[Profile] Found', documents.length, 'documents for house type:', houseTypeCode);
+    } catch (docErr) {
+      console.error('[Profile] Error fetching documents:', docErr);
+    }
+
+    console.log('[Profile] Built profile for:', purchaserName, 'HouseType:', houseTypeCode, 'Beds:', bedrooms, 'Baths:', bathrooms);
 
     const profile = {
       unit: {
@@ -119,7 +168,7 @@ export async function GET(request: NextRequest) {
         house_type_name: houseTypeName,
         bedrooms: bedrooms,
         bathrooms: bathrooms,
-        floor_area_sqm: null,
+        floor_area_sqm: floorAreaSqm,
       },
       development: {
         id: development.id,
@@ -131,7 +180,7 @@ export async function GET(request: NextRequest) {
       },
       intel: null,
       specifications: null,
-      documents: [],
+      documents: documents,
     };
 
     return NextResponse.json(profile);
@@ -139,4 +188,13 @@ export async function GET(request: NextRequest) {
     console.error('[Purchaser Profile Error]:', error);
     return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
   }
+}
+
+function getDocCategory(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.includes('floor') || lower.includes('plan') || lower.includes('layout')) return 'Floor Plans';
+  if (lower.includes('elevation')) return 'Elevations';
+  if (lower.includes('spec')) return 'Specifications';
+  if (lower.includes('user') || lower.includes('guide')) return 'User Guides';
+  return 'Documents';
 }
