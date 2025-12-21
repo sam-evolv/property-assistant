@@ -91,9 +91,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Track document download with 1s timeout - never blocks file delivery
-    const trackDownloadWithTimeout = async (filename: string) => {
-      const trackingPromise = logAnalyticsEvent({
+    // Fire-and-forget tracking - never blocks redirect
+    const trackDownload = (filename: string) => {
+      logAnalyticsEvent({
         tenantId: DEFAULT_TENANT_ID,
         developmentId: resolvedDevId,
         eventType: 'document_download',
@@ -104,39 +104,36 @@ export async function GET(request: NextRequest) {
       }).catch(err => {
         console.error('[docs-list/download] Tracking failed:', err);
       });
-      
-      // Allow max 1 second for tracking, then proceed regardless
-      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1000));
-      await Promise.race([trackingPromise, timeoutPromise]);
     };
 
-    // Stream file from storage URL - avoids memory issues with large PDFs
-    const streamFile = async (storageUrl: string, filename: string) => {
-      const fileResponse = await fetch(storageUrl);
-      
-      if (!fileResponse.ok) {
-        console.error('[docs-list/download] Fetch failed:', fileResponse.status);
-        return NextResponse.json(
-          { error: 'Failed to fetch file from storage' },
-          { status: 502 }
-        );
+    // Generate signed URL for Supabase storage files
+    const getSignedUrl = async (supabase: ReturnType<typeof getSupabaseClient>, fileUrl: string): Promise<string | null> => {
+      try {
+        // Parse Supabase storage URL: https://xxx.supabase.co/storage/v1/object/public/bucket/path
+        const urlObj = new URL(fileUrl);
+        const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/);
+        
+        if (pathMatch) {
+          const [, bucket, path] = pathMatch;
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(decodeURIComponent(path), 60); // 60 second expiry
+          
+          if (error) {
+            console.error('[docs-list/download] Signed URL error:', error);
+            return null;
+          }
+          return data.signedUrl;
+        }
+      } catch (e) {
+        console.error('[docs-list/download] URL parsing error:', e);
       }
-
-      // Return stream directly - do not buffer in memory
-      const headers: Record<string, string> = {
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-        'Content-Type': fileResponse.headers.get('Content-Type') || 'application/pdf',
-        'Cache-Control': 'no-cache',
-      };
-      const contentLength = fileResponse.headers.get('Content-Length');
-      if (contentLength) {
-        headers['Content-Length'] = contentLength;
-      }
-      return new NextResponse(fileResponse.body, { headers });
+      return null;
     };
+
+    const supabase = getSupabaseClient();
 
     if (docId.startsWith('supabase-')) {
-      const supabase = getSupabaseClient();
       const sectionId = docId.replace('supabase-', '');
       
       const { data: section, error } = await supabase
@@ -162,11 +159,16 @@ export async function GET(request: NextRequest) {
       }
       
       const filename = section.metadata?.title || `document-${sectionId}.pdf`;
-      console.log('[docs-list/download] Streaming Supabase file:', fileUrl);
       
-      // Track with timeout - doesn't block file delivery
-      await trackDownloadWithTimeout(filename);
-      return streamFile(fileUrl, filename);
+      // Try to get signed URL for Supabase storage files
+      const signedUrl = await getSignedUrl(supabase, fileUrl);
+      const redirectUrl = signedUrl || fileUrl;
+      
+      console.log('[docs-list/download] Redirecting to:', signedUrl ? 'signed URL' : 'direct URL');
+      
+      // Track (fire-and-forget) then redirect immediately
+      trackDownload(filename);
+      return NextResponse.redirect(redirectUrl);
     }
 
     const doc = await db
@@ -191,11 +193,16 @@ export async function GET(request: NextRequest) {
     }
 
     const filename = doc[0].title || `document-${docId}.pdf`;
-    console.log('[docs-list/download] Streaming Drizzle file:', fileUrl);
     
-    // Track with timeout - doesn't block file delivery
-    await trackDownloadWithTimeout(filename);
-    return streamFile(fileUrl, filename);
+    // Try to get signed URL for Supabase storage files
+    const signedUrl = await getSignedUrl(supabase, fileUrl);
+    const redirectUrl = signedUrl || fileUrl;
+    
+    console.log('[docs-list/download] Redirecting Drizzle doc to:', signedUrl ? 'signed URL' : 'direct URL');
+    
+    // Track (fire-and-forget) then redirect immediately
+    trackDownload(filename);
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error('[docs-list/download] ERROR:', error);
     return NextResponse.json(
