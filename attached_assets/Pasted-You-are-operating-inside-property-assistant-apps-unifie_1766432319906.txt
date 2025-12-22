@@ -1,0 +1,68 @@
+You are operating inside: property-assistant/apps/unified-portal
+
+We have completed Phase 1-6 hardening (rate limits, TTL cache, request IDs, health, logs).
+Now we need to PROVE stability and remove the remaining causes of “breakdown under light load” without breaking anything.
+
+NON-NEGOTIABLES
+- Do not change routes, auth, schemas, or UI behaviour.
+- No paid infra or new external services.
+- No aggressive deletions. If uncertain, mark deprecated and leave in place.
+- Every change must be validated by build + smoke tests.
+
+PHASE A — BUILD EVIDENCE (STOP GUESSING)
+1) Add a load test script if missing:
+   - scripts/load-test.mjs (or similar)
+   - Must hit:
+     - /api/health
+     - /api/houses/resolve (same token)
+     - /api/purchaser/profile (same unitUid)
+   - Provide commands in HARDENING.md
+   - Capture: req/sec, P95 latency, error breakdown (429 vs 5xx)
+
+2) Add a smoke test script:
+   - scripts/smoke.mjs or package.json "smoke"
+   - Runs lint/typecheck/build (use existing repo commands)
+   - Document in HARDENING.md
+
+PHASE B — HOTSPOT AUDIT (LIKELY ROOT CAUSES)
+3) Audit top endpoints and identify:
+   - Unbounded selects
+   - Missing pagination
+   - N+1 calls
+   - Heavy joins / large payloads
+   - Repeated identical queries triggered by frontend
+   Output a list in HARDENING.md: file path + issue + fix proposal.
+
+4) Implement SAFE optimizations only:
+   - Select only required columns
+   - Enforce .range() on list endpoints
+   - Add guards: missing required params must return 400 (never broad query)
+   - Ensure dashboard endpoints do not recompute heavy aggregates unnecessarily
+   - Ensure chat route has payload size limits and rejects malformed inputs early
+
+PHASE C — FRONTEND REQUEST HYGIENE (PREVENT REQUEST STORMS)
+5) Identify screens that spam APIs (rapid re-fetch on render/route changes).
+   - Add conservative debouncing or stable fetch keys.
+   - Ensure React effects are not re-triggering due to unstable deps.
+   - Preserve UI behaviour; just reduce duplicate calls.
+
+PHASE D — HYGIENE CLEANUP (CONSERVATIVE)
+6) Remove only provably unused imports and dead code.
+   - No large deletions.
+   - Bound any global maps/arrays.
+   - Ensure caches have maxEntries + TTL and do not grow unbounded.
+
+DELIVERABLES
+- HARDENING.md updated with:
+  - Load test commands and results
+  - Smoke commands
+  - Hotspot findings + fixes
+  - Any remaining risks
+
+ACCEPTANCE
+- Build passes
+- No regressions
+- Load test shows stable behaviour with no 5xx spikes
+- Only intentional throttling (429) under abusive patterns
+
+Execute now, step by step, with frequent build checks.

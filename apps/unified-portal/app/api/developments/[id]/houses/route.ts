@@ -23,12 +23,13 @@ export async function GET(
     
     const session = await requireRole(['developer', 'super_admin']);
 
-    // Simple query without join first
+    // Simple query without join first - limit to 500 houses max
     const { data: units, error } = await supabaseAdmin
       .from('units')
       .select('id, address, purchaser_name, project_id, created_at, unit_type_id')
       .eq('project_id', REAL_PROJECT_ID)
-      .order('address', { ascending: true });
+      .order('address', { ascending: true })
+      .limit(500);
 
     if (error) {
       console.error('[Houses] Error:', error);

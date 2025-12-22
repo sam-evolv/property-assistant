@@ -450,11 +450,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const contentLength = request.headers.get('content-length');
+    const maxPayloadBytes = 100 * 1024; // 100KB max payload
+    if (contentLength && parseInt(contentLength, 10) > maxPayloadBytes) {
+      console.log(`[Chat] Payload too large: ${contentLength} bytes requestId=${requestId}`);
+      return NextResponse.json({ error: 'Payload too large', maxBytes: maxPayloadBytes }, { status: 413 });
+    }
+
     const body = await request.json();
     const { message, unitUid: clientUnitUid, userId } = body;
 
     if (!message) {
-      return NextResponse.json({ error: 'message is required' }, { status: 400 });
+      return NextResponse.json({ error: 'message is required' }, { status: 400, headers: { 'x-request-id': requestId } });
+    }
+
+    if (typeof message !== 'string') {
+      return NextResponse.json({ error: 'message must be a string' }, { status: 400, headers: { 'x-request-id': requestId } });
+    }
+
+    const maxMessageLength = 8000; // ~2000 tokens max
+    if (message.length > maxMessageLength) {
+      console.log(`[Chat] Message too long: ${message.length} chars requestId=${requestId}`);
+      return NextResponse.json({ error: 'Message too long', maxLength: maxMessageLength }, { status: 400, headers: { 'x-request-id': requestId } });
     }
 
     // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM or RAG

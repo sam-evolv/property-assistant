@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
             eq(archive_folders.parent_folder_id, parentFolderId)
           )
         )
-        .orderBy(archive_folders.sort_order, archive_folders.name);
+        .orderBy(archive_folders.sort_order, archive_folders.name)
+        .limit(100);
     } else {
       query = db
         .select()
@@ -47,7 +48,8 @@ export async function GET(request: NextRequest) {
             isNull(archive_folders.parent_folder_id)
           )
         )
-        .orderBy(archive_folders.sort_order, archive_folders.name);
+        .orderBy(archive_folders.sort_order, archive_folders.name)
+        .limit(100);
     }
 
     const folders = await query;

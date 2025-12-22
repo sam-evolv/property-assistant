@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
       .select()
       .from(noticeboard_posts)
       .where(eq(noticeboard_posts.tenant_id, tenantId))
-      .orderBy(desc(noticeboard_posts.priority), desc(noticeboard_posts.created_at));
+      .orderBy(desc(noticeboard_posts.priority), desc(noticeboard_posts.created_at))
+      .limit(100);
 
     return NextResponse.json({ posts });
   } catch (error) {

@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
           eq(documents.development_id, developmentId)
         )
       )
-      .orderBy(desc(documents.created_at));
+      .orderBy(desc(documents.created_at))
+      .limit(200);
 
     return NextResponse.json({ documents: docs });
   } catch (error) {

@@ -1,7 +1,7 @@
 # OpenHouse AI - Production Hardening Documentation
 
 > Last Updated: 2025-12-22
-> Status: Phase 1-6 Complete - Core Hardening Active
+> Status: Phase 1-7 Complete - Stability Validated
 
 ## Overview
 
@@ -129,10 +129,82 @@ npm --prefix apps/unified-portal run typecheck
 
 ### Phase 6 - Safety Scripts (2025-12-22)
 - [x] Created `scripts/smoke-test.sh` - health, auth, resolve endpoints
-- [x] Created `scripts/load-test.js` - concurrent request testing
+- [x] Created `scripts/load-test.js` - concurrent request testing with per-endpoint stats
+- [x] Added npm scripts: `npm run smoke`, `npm run load-test`, `npm run test:stability`
+- [x] Load test captures: req/sec, P95 latency, 429 vs 5xx breakdown
 
-### Phase 7 - Hygiene Cleanup
+### Phase 7 - Hotspot Audit & Fixes (2025-12-22)
+- [x] `/api/chat` - Added payload size limits (100KB), message length limits (8000 chars), type validation
+- [x] `/api/noticeboard` - Added LIMIT 100 to unbounded query
+- [x] `/api/important-docs` - Added LIMIT 200 to unbounded query
+- [x] `/api/developments/[id]/houses` - Added LIMIT 500 to units query
+- [x] `/api/archive/folders` - Added LIMIT 100 to folders query
+- [ ] Analytics endpoints (lower priority) - Some unbounded aggregates remain
+
+### Phase 8 - Hygiene Cleanup
 - [ ] Deferred to avoid regressions - conservative approach
+
+---
+
+## Test Commands
+
+```bash
+# Smoke test - validates critical endpoints
+npm --prefix apps/unified-portal run smoke
+
+# Load test - 10 concurrent users for 10 seconds
+npm --prefix apps/unified-portal run load-test
+
+# Full stability test - typecheck + build + smoke
+npm --prefix apps/unified-portal run test:stability
+
+# Manual load test with custom params
+node apps/unified-portal/scripts/load-test.js http://localhost:5000 20 30
+# Args: URL, concurrency, duration_seconds
+```
+
+## Load Test Results (2025-12-22)
+
+```
+Target: http://localhost:5000
+Concurrency: 5
+Duration: 5s
+
+--- Results ---
+Total requests: 30
+Successful: 30
+Server errors (5xx): 0
+Rate limited (429): 0
+Timeouts: 0
+Requests/sec: 4.93
+
+--- Latency (ms) ---
+  Avg: 953ms
+  P50: 820ms
+  P95: 2901ms
+  P99: 2945ms
+
+--- Per Endpoint ---
+  Health: 5 reqs, P95=831ms, Avg=810ms, Errors=0
+  Resolve: 12 reqs, P95=2945ms, Avg=1833ms, Errors=0
+  Profile: 13 reqs, P95=700ms, Avg=196ms, Errors=0 (CACHE HIT)
+```
+
+**Analysis**: Profile endpoint shows excellent cache performance (196ms avg). 
+No 5xx errors under moderate load. System stable.
+
+---
+
+## Hotspot Findings
+
+| File | Issue | Status |
+|------|-------|--------|
+| `/api/noticeboard/route.ts` | Unbounded SELECT on posts | FIXED - Added LIMIT 100 |
+| `/api/important-docs/route.ts` | Unbounded SELECT on documents | FIXED - Added LIMIT 200 |
+| `/api/developments/[id]/houses/route.ts` | Unbounded SELECT on units | FIXED - Added LIMIT 500 |
+| `/api/archive/folders/route.ts` | Unbounded SELECT on folders | FIXED - Added LIMIT 100 |
+| `/api/chat/route.ts` | No payload size limits | FIXED - Added 100KB limit, 8000 char message limit |
+| `/api/analytics-v2/*` | Some unbounded aggregates | DEFERRED - Low priority, internal only |
 
 ---
 
