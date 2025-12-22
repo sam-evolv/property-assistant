@@ -552,7 +552,20 @@ export async function POST(request: NextRequest) {
     const userTenantId = userUnitDetails.unitInfo?.tenant_id || DEFAULT_TENANT_ID;
     const userDevelopmentId = userUnitDetails.unitInfo?.development_id || DEFAULT_DEVELOPMENT_ID;
     // For Supabase queries (document_sections), we need the Supabase project_id which may differ from Drizzle development_id
-    const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id || userDevelopmentId;
+    // TODO: In a multi-tenant system, implement proper tenant → supabase_project_id mapping
+    // Currently: Falls back to PROJECT_ID only when tenant matches DEFAULT_TENANT_ID (Longview)
+    // This prevents cross-tenant data leakage in multi-tenant deployments
+    const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id 
+      || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null);
+    
+    if (!userSupabaseProjectId) {
+      console.log('[Chat] Cannot determine Supabase project_id for tenant:', userTenantId);
+      return NextResponse.json({
+        success: true,
+        answer: "I'm unable to access your development's knowledge base at the moment. Please try again later or contact your management company for assistance.",
+        source: 'tenant_config_error',
+      }, { headers: { 'x-request-id': requestId } });
+    }
     
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
     console.log('[Chat] User house type code:', userHouseTypeCode || 'none (will use all house types)');
