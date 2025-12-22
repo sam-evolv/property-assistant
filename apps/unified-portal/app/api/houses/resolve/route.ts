@@ -3,8 +3,19 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 import { resolveDevelopment } from '@/lib/development-resolver';
+import { checkRateLimit } from '@/lib/security/rate-limit';
+import { globalCache } from '@/lib/cache/ttl-cache';
 
 export const dynamic = 'force-dynamic';
+
+function getClientIP(req: Request): string {
+  const xff = req.headers.get('x-forwarded-for');
+  return xff?.split(',')[0]?.trim() || '127.0.0.1';
+}
+
+function generateRequestId(): string {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
 function getSupabaseClient() {
   return createClient(
@@ -90,6 +101,19 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 }
 
 export async function POST(req: Request) {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  const clientIP = getClientIP(req);
+
+  const rateCheck = checkRateLimit(clientIP, '/api/houses/resolve');
+  if (!rateCheck.allowed) {
+    console.log(`[Resolve] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
+    return NextResponse.json(
+      { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
+      { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
+    );
+  }
+
   try {
     const supabase = getSupabaseClient();
     let body: any = {};
@@ -104,10 +128,17 @@ export async function POST(req: Request) {
 
     if (!token) {
       console.log("[Resolve] No token provided");
-      return NextResponse.json({ error: "No token provided" }, { status: 400 });
+      return NextResponse.json({ error: "No token provided" }, { status: 400, headers: { 'x-request-id': requestId } });
     }
 
-    console.log("[Resolve] Looking up unit:", token);
+    const cacheKey = `resolve:${token}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      console.log(`[Resolve] Cache hit for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+      return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
+    }
+
+    console.log("[Resolve] Looking up unit:", token, `requestId=${requestId}`);
     
     // Track if we hit a database connection error vs actual not found
     let dbConnectionError = false;
@@ -187,7 +218,7 @@ export async function POST(req: Request) {
       const coordinates = fullAddress ? await geocodeAddress(fullAddress) : 
         (unit.latitude && unit.longitude ? { lat: unit.latitude, lng: unit.longitude } : null);
 
-      return NextResponse.json({
+      const responseData = {
         success: true,
         unitId: unitIdentifier,
         house_id: unitIdentifier,
@@ -212,7 +243,11 @@ export async function POST(req: Request) {
         latitude: coordinates?.lat || null,
         longitude: coordinates?.lng || null,
         specs: null,
-      });
+      };
+
+      globalCache.set(cacheKey, responseData, 60000);
+      console.log(`[Resolve] Cached result for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+      return NextResponse.json(responseData, { headers: { 'x-request-id': requestId, 'x-cache': 'MISS' } });
     }
 
     // Second try: Check Supabase units table (legacy data source)

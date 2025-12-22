@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
-import { db } from '@openhouse/db/client';
+import { db, getPoolStats } from '@openhouse/db/client';
 import { createClient } from '@supabase/supabase-js';
 import { sql } from 'drizzle-orm';
+import { getVersion } from '@/lib/version';
+import { globalCache } from '@/lib/cache/ttl-cache';
+import { getRateLimiterStats } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const startTime = Date.now();
   const checks: Record<string, { status: 'ok' | 'error'; message?: string; latency?: number }> = {};
   
   // Check environment variables
@@ -81,14 +85,27 @@ export async function GET() {
   
   // Determine overall health
   const allHealthy = Object.values(checks).every(c => c.status === 'ok');
+  const responseTime = Date.now() - startTime;
+
+  let poolStats = { totalCount: 0, idleCount: 0, waitingCount: 0 };
+  try {
+    poolStats = getPoolStats();
+  } catch {}
   
   return NextResponse.json({
+    ok: allHealthy,
     status: allHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     service: 'unified-portal',
-    version: process.env.VERCEL_GIT_COMMIT_SHA || 'local',
+    version: getVersion(),
     environment: process.env.NODE_ENV,
+    responseTimeMs: responseTime,
     envConfigured: envStatus,
     checks,
+    stats: {
+      dbPool: poolStats,
+      cache: globalCache.stats(),
+      rateLimiter: getRateLimiterStats(),
+    },
   }, { status: allHealthy ? 200 : 503 });
 }

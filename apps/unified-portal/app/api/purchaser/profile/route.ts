@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { checkRateLimit } from '@/lib/security/rate-limit';
+import { globalCache } from '@/lib/cache/ttl-cache';
 
 export const dynamic = 'force-dynamic';
+
+function getClientIP(request: NextRequest): string {
+  const xff = request.headers.get('x-forwarded-for');
+  return xff?.split(',')[0]?.trim() || '127.0.0.1';
+}
+
+function generateRequestId(): string {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
 const KNOWN_DEVELOPMENTS: Record<string, { id: string; name: string; address: string }> = {
   '57dc3919-2725-4575-8046-9179075ac88e': {
@@ -34,17 +45,37 @@ function parseNumericValue(value: any): number | null {
 }
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  const clientIP = getClientIP(request);
+
+  const rateCheck = checkRateLimit(clientIP, '/api/purchaser/profile');
+  if (!rateCheck.allowed) {
+    console.log(`[Profile] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
+    return NextResponse.json(
+      { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
+      { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const unitUid = searchParams.get('unitUid');
 
     if (!unitUid) {
-      return NextResponse.json({ error: 'Unit UID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Unit UID is required' }, { status: 400, headers: { 'x-request-id': requestId } });
     }
 
     if (!token) {
-      return NextResponse.json({ error: 'Token is required' }, { status: 401 });
+      return NextResponse.json({ error: 'Token is required' }, { status: 401, headers: { 'x-request-id': requestId } });
+    }
+
+    const cacheKey = `profile:${unitUid}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      console.log(`[Profile] Cache hit for ${unitUid} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+      return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
     }
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,11 +84,11 @@ export async function GET(request: NextRequest) {
     if (!isDirectUnitId) {
       const payload = await validateQRToken(token);
       if (!payload || payload.supabaseUnitId !== unitUid) {
-        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401, headers: { 'x-request-id': requestId } });
       }
     }
 
-    console.log('[Profile] Fetching unit from Supabase:', unitUid);
+    console.log('[Profile] Fetching unit from Supabase:', unitUid, `requestId=${requestId}`);
     
     const supabase = getSupabaseClient();
     const { data: supabaseUnit, error } = await supabase
@@ -185,10 +216,12 @@ export async function GET(request: NextRequest) {
       documents: documents,
     };
 
-    return NextResponse.json(profile);
+    globalCache.set(cacheKey, profile, 60000);
+    console.log(`[Profile] Cached result for ${unitUid} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+    return NextResponse.json(profile, { headers: { 'x-request-id': requestId, 'x-cache': 'MISS' } });
   } catch (error) {
     console.error('[Purchaser Profile Error]:', error);
-    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }
 

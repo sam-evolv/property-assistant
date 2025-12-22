@@ -10,6 +10,16 @@ import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver'
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
+import { checkRateLimit } from '@/lib/security/rate-limit';
+
+function getClientIP(request: NextRequest): string {
+  const xff = request.headers.get('x-forwarded-for');
+  return xff?.split(',')[0]?.trim() || '127.0.0.1';
+}
+
+function generateRequestId(): string {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
 const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
 
@@ -413,9 +423,21 @@ function expandQueryWithContext(currentMessage: string, history: { userMessage: 
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
+  const clientIP = getClientIP(request);
+
+  const rateCheck = checkRateLimit(clientIP, '/api/chat');
+  if (!rateCheck.allowed) {
+    console.log(`[Chat] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
+    return NextResponse.json(
+      { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
+      { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
+    );
+  }
+
   console.log('\n============================================================');
   console.log('[Chat] RAG CHAT API - SEMANTIC SEARCH MODE');
-  console.log('[Chat] PROJECT_ID:', PROJECT_ID);
+  console.log('[Chat] PROJECT_ID:', PROJECT_ID, `requestId=${requestId}`);
   console.log('============================================================');
 
   const startTime = Date.now();

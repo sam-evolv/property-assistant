@@ -1,0 +1,173 @@
+REPLIT AGENT PROMPT — OPENHOUSE AI PRODUCTION HARDENING (ZERO-REGRESSION)
+
+You are operating inside the repository:
+property-assistant/apps/unified-portal
+
+You have been hired as a world-class web application and systems reliability consultant.
+
+Your mandate is to convert the current MVP into a production-grade, load-tolerant, secure, and resilient application that can safely scale to:
+- 10+ developers
+- 10+ concurrent developments
+- 1,000–5,000 houses
+- sustained concurrent usage
+
+The application must not break, not degrade, and not fail under light or moderate load.
+
+This is a hardening and hygiene pass, not a rewrite.
+
+NON-NEGOTIABLE CONSTRAINTS
+- DO NOT break any existing functionality.
+- DO NOT change routes, URLs, or navigation.
+- DO NOT rename or remove API endpoints.
+- DO NOT alter auth flows or Supabase schemas.
+- DO NOT introduce paid services or new infrastructure.
+- DO NOT remove large blocks of code unless provably dead.
+- DO NOT change UI, layout, branding, or user flows.
+- All changes must be behaviour-preserving.
+
+If something is risky to remove, leave it in place and guard it instead.
+
+SUCCESS CRITERIA (DEFINITION OF DONE)
+- App builds cleanly.
+- No regressions in purchaser, developer, or super-admin flows.
+- API routes stop failing under repeated or concurrent requests.
+- No unbounded queries or runaway loops.
+- Hot paths cached safely with short TTLs.
+- Errors are predictable, logged, and traceable.
+- The system degrades gracefully instead of breaking.
+- A hygiene report exists documenting what was done.
+
+EXECUTION PLAN (FOLLOW IN ORDER)
+
+PHASE 0 — BASELINE & GUARDRAILS
+1. Create branch: hardening/stability-pass
+2. Add documentation file: apps/unified-portal/HARDENING.md
+3. Document critical flows, busiest API routes, known fragility points, build commands, and smoke test checklist.
+Do not change logic yet.
+
+PHASE 1 — API ROUTE STABILITY LAYER
+Goal: eliminate random failures, timeouts, and silent crashes.
+
+Create lib/api/route-utils.ts with a withRouteGuard(handler, options) wrapper enforcing:
+- Request ID generation
+- Structured logging (route, requestId, durationMs, status)
+- Hard timeout (default 10s)
+- Bounded retries (2 max, exponential backoff)
+- Standard error normalization
+- No internal error leakage
+
+Create lib/api/errors.ts defining public error codes:
+TIMEOUT, BAD_REQUEST, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, RATE_LIMITED, UPSTREAM_FAIL, INTERNAL
+
+Wrap all API routes under app/api/**.
+Preserve existing response shapes where the UI depends on them.
+
+Build after first two routes, then continue.
+
+PHASE 2 — IN-MEMORY TTL CACHING (HOT READ PATHS)
+Goal: stop hammering Supabase on refresh or repeated calls.
+
+Create lib/cache/ttl-cache.ts implementing:
+- Short TTL in-memory cache
+- maxEntries cap
+- get, set, wrap(fn)
+- safe eviction
+
+Apply caching ONLY to safe GET-style reads:
+- Dashboard aggregates
+- Counts and summaries
+- Units lists (paged)
+- Project metadata
+- Document lists
+
+Rules:
+- TTL 15–60 seconds only
+- Cache keys include projectId and role where relevant
+- Never cache chat content or sensitive per-user data
+
+Document cached routes and TTLs in HARDENING.md.
+
+PHASE 3 — RATE LIMITING & LOAD SHEDDING
+Goal: prevent runaway loops and abuse.
+
+Create lib/security/rate-limit.ts implementing:
+- In-memory token bucket
+- Keyed by IP + route
+- Defaults:
+  Chat: 30 req/min
+  Dashboard: 120 req/min
+  Public resolve: 60 req/min
+
+Add:
+- Payload size limits on POST routes
+- Early rejection for malformed requests
+- Clean 429 responses with RATE_LIMITED code
+
+No third-party services.
+
+PHASE 4 — DATABASE HYGIENE (NO LOGIC CHANGES)
+Audit Supabase usage for:
+- N+1 patterns
+- Unbounded selects
+- Missing pagination
+- Queries that could fetch all rows accidentally
+
+Fix by:
+- Selecting only required columns
+- Enforcing pagination
+- Adding hard guards when required IDs are missing
+- Preventing broad queries on undefined inputs
+
+Do not change schemas or returned data shape.
+Document improvements in HARDENING.md.
+
+PHASE 5 — OBSERVABILITY & DIAGNOSTICS
+Goal: failures must be debuggable fast.
+
+Add:
+- Request ID propagation via x-request-id
+- Structured logs with timing and identifiers (no PII)
+- lib/version.ts exposing git SHA if available
+
+Add /api/health endpoint:
+- Fast response
+- Lightweight Supabase ping
+- Returns ok and version
+
+Document incident debugging steps.
+
+PHASE 6 — SAFETY NET SCRIPTS
+Add:
+- Smoke test script (build, typecheck, minimal runtime validation)
+- Load test targeting /api/health and public resolve endpoints using autocannon or Node
+
+Document exact commands and expected outcomes.
+
+PHASE 7 — HYGIENE CLEANUP (CONSERVATIVE)
+- Remove unused imports
+- Bound global memory structures
+- Replace unbounded maps/arrays with TTL or caps
+- Mark uncertain dead code as deprecated, not deleted
+
+Rebuild after cleanup.
+
+FINAL DELIVERABLES
+Update HARDENING.md with:
+1. Change log
+2. Routes hardened and how
+3. Cache coverage and TTLs
+4. Rate limit policy
+5. How to run smoke and load tests
+6. Remaining risks requiring future architectural change
+
+ACCEPTANCE CHECKLIST
+- Build succeeds
+- Purchaser chat stable under repeated queries
+- Developer dashboard stable
+- Super-admin dashboard stable
+- Rate limiting triggers cleanly
+- Cached endpoints return correct data
+- Load test shows no crashes or error spikes
+- No regression in any user flow
+
+Proceed methodically, phase by phase. Stability above all else.
