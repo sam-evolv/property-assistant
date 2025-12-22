@@ -37,18 +37,27 @@ function LoginForm() {
 
         if (!response.ok) {
           console.error('[LOGIN] Login failed:', data.error);
+          if (data.error === 'Invalid login credentials') {
+            throw new Error('Invalid email or password. Please check your credentials and try again.');
+          }
           throw new Error(data.error || 'Login failed');
         }
 
         console.log('[LOGIN] Login successful, fetching user role...');
         
-        // Fetch user role to determine redirect
         const meRes = await fetch('/api/auth/me');
         const userData = await meRes.json();
         
+        if (!meRes.ok) {
+          console.error('[LOGIN] User check failed:', userData);
+          if (userData.error === 'not_provisioned') {
+            throw new Error(`Your account (${userData.email}) is not set up for portal access. Please contact your administrator.`);
+          }
+          throw new Error(userData.message || 'Unable to verify account access.');
+        }
+        
         let finalRedirect = redirectTo;
         if (!finalRedirect) {
-          // Route based on role
           if (userData.role === 'super_admin') {
             finalRedirect = '/super';
           } else if (userData.role === 'developer' || userData.role === 'admin') {
@@ -59,7 +68,6 @@ function LoginForm() {
         }
         
         console.log('[LOGIN] Redirecting to:', finalRedirect);
-        // Use window.location for a full page reload to ensure cookies propagate
         window.location.href = finalRedirect;
       } else {
         const { error: signUpError } = await supabase.auth.signUp({

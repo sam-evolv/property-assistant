@@ -34,18 +34,29 @@ async function retryDBQuery<T>(
   throw new Error('Retry exhausted');
 }
 
-export async function getServerSession(): Promise<AdminSession | null> {
+export type SessionResult = 
+  | { status: 'authenticated'; session: AdminSession }
+  | { status: 'not_authenticated'; reason: string }
+  | { status: 'not_provisioned'; email: string; reason: string };
+
+export async function getServerSessionWithStatus(): Promise<SessionResult> {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (error || !user?.email) {
-      return null;
+    if (error) {
+      console.log('[AUTH] Supabase auth error:', error.message);
+      return { status: 'not_authenticated', reason: error.message };
     }
 
+    if (!user?.email) {
+      return { status: 'not_authenticated', reason: 'No active session' };
+    }
+
+    const userEmail = user.email as string;
     const admin = await retryDBQuery(() =>
       db.query.admins.findFirst({
-        where: eq(admins.email, user.email),
+        where: eq(admins.email, userEmail),
         columns: {
           id: true,
           email: true,
@@ -56,19 +67,35 @@ export async function getServerSession(): Promise<AdminSession | null> {
     );
 
     if (!admin) {
-      return null;
+      console.log('[AUTH] User authenticated but not provisioned:', user.email);
+      return { 
+        status: 'not_provisioned', 
+        email: user.email,
+        reason: 'Account not set up for portal access. Please contact your administrator.'
+      };
     }
 
     return {
-      id: admin.id,
-      email: admin.email,
-      role: admin.role as AdminRole,
-      tenantId: admin.tenant_id,
+      status: 'authenticated',
+      session: {
+        id: admin.id,
+        email: admin.email,
+        role: admin.role as AdminRole,
+        tenantId: admin.tenant_id,
+      }
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[AUTH] Failed to get session:', error);
-    return null;
+    return { status: 'not_authenticated', reason: error.message || 'Session check failed' };
   }
+}
+
+export async function getServerSession(): Promise<AdminSession | null> {
+  const result = await getServerSessionWithStatus();
+  if (result.status === 'authenticated') {
+    return result.session;
+  }
+  return null;
 }
 
 export async function requireSession(): Promise<AdminSession> {

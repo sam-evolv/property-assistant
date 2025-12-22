@@ -1,22 +1,33 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/supabase-server';
+import { getServerSessionWithStatus } from '@/lib/supabase-server';
 
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const result = await getServerSessionWithStatus();
     
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (result.status === 'authenticated') {
+      return NextResponse.json({
+        id: result.session.id,
+        email: result.session.email,
+        role: result.session.role,
+        tenantId: result.session.tenantId,
+      });
     }
-
-    return NextResponse.json({
-      id: session.id,
-      email: session.email,
-      role: session.role,
-      tenantId: session.tenantId,
-    });
+    
+    if (result.status === 'not_provisioned') {
+      return NextResponse.json({ 
+        error: 'not_provisioned',
+        email: result.email,
+        message: result.reason
+      }, { status: 403 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'not_authenticated',
+      message: result.reason 
+    }, { status: 401 });
   } catch (error: any) {
     console.error('[AUTH ME] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
