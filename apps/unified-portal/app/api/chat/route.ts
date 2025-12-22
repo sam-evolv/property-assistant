@@ -458,7 +458,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, unitUid: clientUnitUid, userId } = body;
+    const { message, unitUid: clientUnitUid, userId, messageCount: clientMessageCount } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400, headers: { 'x-request-id': requestId } });
@@ -868,7 +868,12 @@ export async function POST(request: NextRequest) {
     let systemMessage: string;
     
     // Check if this is the first message in the conversation (for greeting logic)
-    const isFirstMessage = conversationHistory.length === 0;
+    // Priority: 1) Client-provided messageCount, 2) Server conversation history, 3) Assume first message
+    // Client messageCount is more reliable as it tracks the current session's messages
+    const isFirstMessage = typeof clientMessageCount === 'number' 
+      ? clientMessageCount === 0 
+      : conversationHistory.length === 0;
+    console.log('[Chat] isFirstMessage:', isFirstMessage, '(clientMessageCount:', clientMessageCount, ', historyLength:', conversationHistory.length, ')');
     
     // CAPABILITY EVALUATOR: Determine support level based on RAG quality
     // This prevents the AI from offering follow-up help it cannot deliver

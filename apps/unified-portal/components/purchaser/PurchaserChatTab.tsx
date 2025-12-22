@@ -553,6 +553,7 @@ export default function PurchaserChatTab({
           message: textToSend,
           userId: userId || undefined,
           unitUid: unitUid,
+          messageCount: messages.filter(m => m.role === 'user').length,
         }),
       });
 
