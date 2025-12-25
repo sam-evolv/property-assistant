@@ -1,8 +1,6 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { db } from '@openhouse/db/client';
-import { admins } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
 import type { AdminRole, AdminSession } from './types';
 
 export type { AdminRole, AdminSession } from './types';
@@ -11,27 +9,13 @@ export async function createServerSupabaseClient() {
   return createServerComponentClient({ cookies });
 }
 
-async function retryDBQuery<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  delay: number = 100
-): Promise<T> {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error: any) {
-      const isLastAttempt = attempt === maxRetries - 1;
-      const isConnectionError = error?.code === '57P01' || error?.message?.includes('terminating connection');
-      
-      if (isLastAttempt || !isConnectionError) {
-        throw error;
-      }
-      
-      // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
-    }
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase configuration missing');
   }
-  throw new Error('Retry exhausted');
+  return createClient(url, key);
 }
 
 export type SessionResult = 
@@ -54,17 +38,18 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     }
 
     const userEmail = user.email as string;
-    const admin = await retryDBQuery(() =>
-      db.query.admins.findFirst({
-        where: eq(admins.email, userEmail),
-        columns: {
-          id: true,
-          email: true,
-          role: true,
-          tenant_id: true,
-        },
-      })
-    );
+    
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: admin, error: adminError } = await supabaseAdmin
+      .from('admins')
+      .select('id, email, role, tenant_id')
+      .eq('email', userEmail)
+      .single();
+
+    if (adminError && adminError.code !== 'PGRST116') {
+      console.error('[AUTH] Error fetching admin:', adminError.message);
+      return { status: 'not_authenticated', reason: adminError.message };
+    }
 
     if (!admin) {
       console.log('[AUTH] User authenticated but not provisioned:', user.email);
