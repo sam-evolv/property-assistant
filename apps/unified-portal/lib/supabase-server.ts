@@ -1,21 +1,14 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { db } from '@openhouse/db/client';
+import { admins } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
 import type { AdminRole, AdminSession } from './types';
 
 export type { AdminRole, AdminSession } from './types';
 
 export async function createServerSupabaseClient() {
   return createServerComponentClient({ cookies });
-}
-
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase configuration missing');
-  }
-  return createClient(url, key);
 }
 
 export type SessionResult = 
@@ -39,36 +32,40 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
 
     const userEmail = user.email as string;
     
-    const supabaseAdmin = getSupabaseAdmin();
-    const { data: admin, error: adminError } = await supabaseAdmin
-      .from('admins')
-      .select('id, email, role, tenant_id')
-      .eq('email', userEmail)
-      .single();
+    try {
+      const admin = await db.query.admins.findFirst({
+        where: eq(admins.email, userEmail),
+        columns: {
+          id: true,
+          email: true,
+          role: true,
+          tenant_id: true,
+        },
+      });
 
-    if (adminError && adminError.code !== 'PGRST116') {
-      console.error('[AUTH] Error fetching admin:', adminError.message);
-      return { status: 'not_authenticated', reason: adminError.message };
-    }
-
-    if (!admin) {
-      console.log('[AUTH] User authenticated but not provisioned:', user.email);
-      return { 
-        status: 'not_provisioned', 
-        email: user.email,
-        reason: 'Account not set up for portal access. Please contact your administrator.'
-      };
-    }
-
-    return {
-      status: 'authenticated',
-      session: {
-        id: admin.id,
-        email: admin.email,
-        role: admin.role as AdminRole,
-        tenantId: admin.tenant_id,
+      if (!admin) {
+        console.log('[AUTH] User authenticated but not provisioned:', user.email);
+        return { 
+          status: 'not_provisioned', 
+          email: user.email,
+          reason: 'Account not set up for portal access. Please contact your administrator.'
+        };
       }
-    };
+
+      console.log('[AUTH] Admin found in Drizzle DB:', admin.email, 'role:', admin.role);
+      return {
+        status: 'authenticated',
+        session: {
+          id: admin.id,
+          email: admin.email,
+          role: admin.role as AdminRole,
+          tenantId: admin.tenant_id,
+        }
+      };
+    } catch (dbError: any) {
+      console.error('[AUTH] Drizzle DB error fetching admin:', dbError.message);
+      return { status: 'not_authenticated', reason: 'Database error: ' + dbError.message };
+    }
   } catch (error: any) {
     console.error('[AUTH] Failed to get session:', error);
     return { status: 'not_authenticated', reason: error.message || 'Session check failed' };
