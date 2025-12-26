@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
+// Animation styles for typing indicator and logo hover
 const ANIMATION_STYLES = `
   @keyframes dot-bounce {
     0%, 60%, 100% {
@@ -42,9 +43,11 @@ const ANIMATION_STYLES = `
   }
 `;
 
+const TYPING_STYLES = ANIMATION_STYLES;
+
 const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
-  <div className="flex justify-start">
-    <style>{ANIMATION_STYLES}</style>
+  <div className={`flex justify-start`}>
+    <style>{TYPING_STYLES}</style>
     <div
       className={`rounded-[20px] rounded-bl-[6px] px-4 py-2.5 shadow-sm ${
         isDarkMode 
@@ -233,11 +236,17 @@ interface PurchaserChatTabProps {
   userId?: string | null;
 }
 
+// Translations for UI and prompts
 const TRANSLATIONS: Record<string, any> = {
   en: {
     welcome: 'Ask anything about your home or community',
     subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
-    prompts: ["Public Transport", "Waste collection", "Parking rules", "Local area"],
+    prompts: [
+      "Public Transport",
+      "Waste collection",
+      "Parking rules",
+      "Local area"
+    ],
     placeholder: 'Ask about your home or community...',
     askButton: 'Ask',
     powered: 'Powered by AI • Information provided for reference only',
@@ -248,7 +257,12 @@ const TRANSLATIONS: Record<string, any> = {
   pl: {
     welcome: 'Zapytaj o cokolwiek dotyczącego Twojego domu lub społeczności',
     subtitle: 'Szybkie odpowiedzi na co dzień: plany pięter, udogodnienia, lokalne usługi i więcej.',
-    prompts: ["Transport publiczny", "Odbiór śmieci", "Zasady parkowania", "Okolica"],
+    prompts: [
+      "Transport publiczny",
+      "Odbiór śmieci",
+      "Zasady parkowania",
+      "Okolica"
+    ],
     placeholder: 'Zapytaj o swój dom lub społeczność...',
     askButton: 'Zapytaj',
     powered: 'Zasilane przez AI • Informacje wyłącznie w celach informacyjnych',
@@ -259,7 +273,12 @@ const TRANSLATIONS: Record<string, any> = {
   es: {
     welcome: 'Pregunta cualquier cosa sobre tu hogar o comunidad',
     subtitle: 'Respuestas rápidas para la vida diaria: planos, comodidades, servicios locales y más.',
-    prompts: ["Transporte público", "Recogida de basura", "Reglas de estacionamiento", "Área local"],
+    prompts: [
+      "Transporte público",
+      "Recogida de basura",
+      "Reglas de estacionamiento",
+      "Área local"
+    ],
     placeholder: 'Pregunta sobre tu hogar o comunidad...',
     askButton: 'Preguntar',
     powered: 'Con tecnología de IA • Información solo como referencia',
@@ -270,7 +289,12 @@ const TRANSLATIONS: Record<string, any> = {
   ru: {
     welcome: 'Спросите что угодно о вашем доме или сообществе',
     subtitle: 'Быстрые ответы на повседневные вопросы: планировки, удобства, местные услуги и многое другое.',
-    prompts: ["Общественный транспорт", "Вывоз мусора", "Правила парковки", "Местность"],
+    prompts: [
+      "Общественный транспорт",
+      "Вывоз мусора",
+      "Правила парковки",
+      "Местность"
+    ],
     placeholder: 'Спросите о вашем доме или сообществе...',
     askButton: 'Спросить',
     powered: 'На базе ИИ • Информация только для справки',
@@ -281,7 +305,12 @@ const TRANSLATIONS: Record<string, any> = {
   pt: {
     welcome: 'Pergunte qualquer coisa sobre sua casa ou comunidade',
     subtitle: 'Respostas rápidas para o dia a dia: plantas, comodidades, serviços locais e mais.',
-    prompts: ["Transporte público", "Coleta de lixo", "Regras de estacionamento", "Área local"],
+    prompts: [
+      "Transporte público",
+      "Coleta de lixo",
+      "Regras de estacionamento",
+      "Área local"
+    ],
     placeholder: 'Pergunte sobre sua casa ou comunidade...',
     askButton: 'Perguntar',
     powered: 'Alimentado por IA • Informação apenas para referência',
@@ -292,7 +321,12 @@ const TRANSLATIONS: Record<string, any> = {
   lv: {
     welcome: 'Jautājiet jebko par savu māju vai kopienu',
     subtitle: 'Ātras atbildes ikdienai: plāni, ērtības, vietējie pakalpojumi un vairāk.',
-    prompts: ["Sabiedriskais transports", "Atkritumu savākšana", "Stāvvietas noteikumi", "Vietējā apkārtne"],
+    prompts: [
+      "Sabiedriskais transports",
+      "Atkritumu savākšana",
+      "Stāvvietas noteikumi",
+      "Vietējā apkārtne"
+    ],
     placeholder: 'Jautājiet par savu māju vai kopienu...',
     askButton: 'Jautāt',
     powered: 'Darbina AI • Informācija tikai atsaucei',
@@ -303,7 +337,12 @@ const TRANSLATIONS: Record<string, any> = {
   lt: {
     welcome: 'Klauskite bet ko apie savo namus ar bendruomenę',
     subtitle: 'Greiti atsakymai kasdienybei: planai, patogumai, vietinės paslaugos ir daugiau.',
-    prompts: ["Viešasis transportas", "Šiukšlių surinkimas", "Parkavimo taisyklės", "Vietovė"],
+    prompts: [
+      "Viešasis transportas",
+      "Šiukšlių surinkimas",
+      "Parkavimo taisyklės",
+      "Vietovė"
+    ],
     placeholder: 'Klauskite apie savo namus ar bendruomenę...',
     askButton: 'Klausti',
     powered: 'Veikia AI • Informacija tik nuorodai',
@@ -314,7 +353,12 @@ const TRANSLATIONS: Record<string, any> = {
   ro: {
     welcome: 'Întrebați orice despre casa sau comunitatea dvs.',
     subtitle: 'Răspunsuri rapide pentru viața de zi cu zi: planuri, facilități, servicii locale și multe altele.',
-    prompts: ["Transport public", "Colectare gunoi", "Reguli parcare", "Zona locală"],
+    prompts: [
+      "Transport public",
+      "Colectare gunoi",
+      "Reguli parcare",
+      "Zona locală"
+    ],
     placeholder: 'Întrebați despre casa sau comunitatea dvs...',
     askButton: 'Întreabă',
     powered: 'Alimentat de AI • Informații doar ca referință',
@@ -325,7 +369,12 @@ const TRANSLATIONS: Record<string, any> = {
   ga: {
     welcome: 'Fiafraigh aon rud faoi do theach nó do phobal',
     subtitle: 'Freagraí tapa don saol laethúil: pleananna urláir, áiseanna, seirbhísí áitiúla, agus tuilleadh.',
-    prompts: ["Iompar Poiblí", "Bailiú Dramhaíola", "Rialacha Páirceála", "An Ceantar Áitiúil"],
+    prompts: [
+      "Iompar Poiblí",
+      "Bailiú Dramhaíola",
+      "Rialacha Páirceála",
+      "An Ceantar Áitiúil"
+    ],
     placeholder: 'Fiafraigh faoi do theach nó do phobal...',
     askButton: 'Fiafraigh',
     powered: 'Faoi chumhacht AI • Eolas le haghaidh tagartha amháin',
@@ -351,23 +400,68 @@ export default function PurchaserChatTab({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
-  const [mounted, setMounted] = useState(false);
-  const [hasBeenWelcomed, setHasBeenWelcomed] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [hasBeenWelcomed, setHasBeenWelcomed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`chat_welcomed_${unitUid}`) === 'true';
+    }
+    return false;
+  });
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const isInitialLoad = useRef(true);
+  const inputBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
-    if (typeof window !== 'undefined') {
-      setHasBeenWelcomed(localStorage.getItem(`chat_welcomed_${unitUid}`) === 'true');
+    const el = inputBarRef.current;
+    if (!el) return;
+    
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        '--purchaser-inputbar-h',
+        `${el.offsetHeight}px`
+      );
+    };
+    
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(el);
+    updateHeight();
+    
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    
+    if (vv) {
+      const onResize = () => {
+        const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+        document.documentElement.style.setProperty('--vv-offset', `${offset}px`);
+      };
+      
+      vv.addEventListener('resize', onResize);
+      vv.addEventListener('scroll', onResize);
+      onResize();
+      
+      return () => {
+        vv.removeEventListener('resize', onResize);
+        vv.removeEventListener('scroll', onResize);
+      };
+    } else {
+      const fallback = () => {
+        document.documentElement.style.setProperty('--vvh', `${window.innerHeight}px`);
+        document.documentElement.style.setProperty('--vv-offset', '0px');
+      };
+      window.addEventListener('resize', fallback);
+      fallback();
+      return () => window.removeEventListener('resize', fallback);
     }
-  }, [unitUid]);
+  }, []);
 
   useEffect(() => {
+    // Initialize Web Speech API
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -391,30 +485,19 @@ export default function PurchaserChatTab({
           setIsListening(false);
         };
 
-        recognition.onerror = () => setIsListening(false);
-        recognition.onend = () => setIsListening(false);
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
         recognitionRef.current = recognition;
       }
     }
   }, [selectedLanguage]);
-
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: isInitialLoad.current ? 'auto' : 'smooth', 
-        block: 'end' 
-      });
-      isInitialLoad.current = false;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      requestAnimationFrame(() => {
-        scrollToBottom();
-      });
-    }
-  }, [messages, scrollToBottom]);
 
   const toggleVoiceInput = () => {
     const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
@@ -431,6 +514,7 @@ export default function PurchaserChatTab({
       try {
         recognitionRef.current.start();
       } catch (error) {
+        console.error('Error starting speech recognition:', error);
         setIsListening(false);
       }
     }
@@ -442,14 +526,23 @@ export default function PurchaserChatTab({
     if (!textToSend || sending) return;
 
     if (!token) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: t.sessionExpired }]);
+      console.error('No token available for chat');
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: t.sessionExpired,
+        },
+      ]);
       return;
     }
 
-    if (showHome) setShowHome(false);
-    
+    if (showHome) {
+      setShowHome(false);
+    }
     const userMessage: Message = { role: 'user', content: textToSend };
     setMessages((prev) => [...prev, userMessage]);
+    
     setInput('');
     setSending(true);
 
@@ -464,13 +557,14 @@ export default function PurchaserChatTab({
           developmentId,
           message: textToSend,
           userId: userId || undefined,
-          unitUid,
-          hasBeenWelcomed,
+          unitUid: unitUid,
+          hasBeenWelcomed: hasBeenWelcomed,
         }),
       });
 
       const contentType = res.headers.get('content-type') || '';
 
+      // Handle streaming response (Server-Sent Events)
       if (contentType.includes('text/event-stream')) {
         const reader = res.body?.getReader();
         if (!reader) throw new Error('No reader available');
@@ -481,6 +575,7 @@ export default function PurchaserChatTab({
         let sources: SourceDocument[] | null = null;
         let assistantMessageIndex = -1;
 
+        // Add placeholder assistant message immediately
         setMessages((prev) => {
           assistantMessageIndex = prev.length;
           return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
@@ -499,9 +594,15 @@ export default function PurchaserChatTab({
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'metadata') {
-                  if (data.drawing) drawing = data.drawing;
-                  if (data.sources?.length > 0) sources = data.sources;
+                  // Received metadata with drawing and source info
+                  if (data.drawing) {
+                    drawing = data.drawing;
+                  }
+                  if (data.sources && data.sources.length > 0) {
+                    sources = data.sources;
+                  }
                 } else if (data.type === 'text') {
+                  // Streaming text content
                   streamedContent += data.content;
                   setMessages((prev) => {
                     const updated = [...prev];
@@ -509,13 +610,14 @@ export default function PurchaserChatTab({
                       updated[assistantMessageIndex] = {
                         ...updated[assistantMessageIndex],
                         content: streamedContent,
-                        drawing,
-                        sources,
+                        drawing: drawing,
+                        sources: sources,
                       };
                     }
                     return updated;
                   });
                 } else if (data.type === 'done') {
+                  // Streaming complete - detect if this is a "no info" response
                   const isNoInfoResponse = streamedContent.toLowerCase().includes("i don't have that information") ||
                     streamedContent.toLowerCase().includes("i don't have that specific detail") ||
                     streamedContent.toLowerCase().includes("i'd recommend contacting your developer");
@@ -526,14 +628,15 @@ export default function PurchaserChatTab({
                       updated[assistantMessageIndex] = {
                         ...updated[assistantMessageIndex],
                         content: streamedContent,
-                        drawing,
-                        sources,
+                        drawing: drawing,
+                        sources: sources,
                         isNoInfo: isNoInfoResponse,
                       };
                     }
                     return updated;
                   });
                   
+                  // Mark user as welcomed after first successful response
                   if (!hasBeenWelcomed) {
                     localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
                     setHasBeenWelcomed(true);
@@ -551,12 +654,13 @@ export default function PurchaserChatTab({
                   });
                 }
               } catch (e) {
-                // Ignore parse errors
+                // Ignore parse errors for incomplete chunks
               }
             }
           }
         }
       } else {
+        // Handle non-streaming JSON response (liability override, clarification, errors)
         const data = await res.json();
 
         if (data.answer) {
@@ -571,11 +675,14 @@ export default function PurchaserChatTab({
             },
           ]);
           
+          // Mark user as welcomed after first successful response (non-streaming path)
           if (!hasBeenWelcomed) {
             localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
             setHasBeenWelcomed(true);
           }
         } else if (data.error) {
+          // Use the API's answer field if available (for user-friendly error messages)
+          // Otherwise fall back to generic error messages
           let errorMessage: string;
           if (res.status === 401 || res.status === 403) {
             errorMessage = t.sessionExpired;
@@ -585,18 +692,35 @@ export default function PurchaserChatTab({
             errorMessage = t.errorOccurred;
           }
           
-          setMessages((prev) => [...prev, { role: 'assistant', content: errorMessage }]);
+          console.error('[Chat] API error:', data.error, data.details);
+          
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: errorMessage,
+            },
+          ]);
         }
       }
     } catch (error) {
-      const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
-      setMessages((prev) => [...prev, { role: 'assistant', content: t.errorOccurred }]);
+      console.error('Failed to send message:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: t.errorOccurred,
+        },
+      ]);
     } finally {
       setSending(false);
     }
   };
 
-  const handleQuickPrompt = (prompt: string) => sendMessage(prompt);
+  const handleQuickPrompt = (prompt: string) => {
+    sendMessage(prompt);
+  };
+
   const handleHomeClick = () => {
     setShowHome(true);
     setMessages([]);
@@ -604,41 +728,74 @@ export default function PurchaserChatTab({
 
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
-  if (!mounted) {
-    return (
-      <div className={`flex h-full items-center justify-center ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-        <div className={`h-8 w-8 animate-spin rounded-full border-2 border-t-transparent ${isDarkMode ? 'border-gold-500' : 'border-gold-600'}`} />
-      </div>
-    );
-  }
+  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
+  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+  const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
+  const inputText = isDarkMode ? 'text-white' : 'text-gray-900';
+
+  // Ref for scrolling to bottom of messages
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
+
+  // Scroll to bottom when messages change
+  // Use 'auto' for initial load (instant), 'smooth' for user-sent messages
+  useEffect(() => {
+    if (messagesEndRef.current && messages.length > 0) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: isInitialLoad.current ? 'auto' : 'smooth', 
+        block: 'end' 
+      });
+      // After first scroll, switch to smooth for subsequent messages
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+      }
+    }
+  }, [messages.length]);
 
   return (
-    <div className={`relative flex flex-col w-full h-full ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
-      <style>{ANIMATION_STYLES}</style>
-      
+    <div 
+      ref={messagesContainerRef}
+      className={`flex flex-col h-[var(--vvh,100dvh)] min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+    >
+      {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-28">
+        /* HOME SCREEN - Centered hero, scrollable with bottom padding */
+        <div 
+          className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+          style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
+          }}
+        >
+          <style>{ANIMATION_STYLES}</style>
+          
+          {/* Logo */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
             <img 
               src="/longview-logo.png" 
-              alt="Logo" 
+              alt="Longview Estates" 
               className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
             />
           </div>
 
+          {/* Welcome Headline */}
           <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
             {t.welcome.includes('or community') ? (
               <>
                 {t.welcome.split('or community')[0]}
                 <span className="block">or community</span>
               </>
-            ) : t.welcome}
+            ) : (
+              t.welcome
+            )}
           </h1>
 
+          {/* Subtitle */}
           <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
             {t.subtitle}
           </p>
 
+          {/* 2x2 Prompt Grid */}
           <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
             {t.prompts.map((prompt: string, i: number) => (
               <button
@@ -656,38 +813,45 @@ export default function PurchaserChatTab({
           </div>
         </div>
       ) : (
+        /* MESSAGES AREA - This is the only scrollable region */
         <div 
-          ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-28"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
+          style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)',
+            overflowAnchor: 'auto',
+            overscrollBehaviorY: 'contain',
+          }}
         >
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
-            {messages.map((msg, idx) => {
-              if (msg.role === 'user') {
+              {messages.map((msg, idx) => {
+                if (msg.role === 'user') {
+                  return (
+                    <div key={`msg-${idx}`} className="flex justify-end">
+                      {/* User bubble - iMessage inspired, asymmetric rounded */}
+                      <div className={`max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
+                        isDarkMode
+                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
+                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
+                      }`}>
+                        <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
-                  <div key={`msg-${idx}`} className="flex justify-end">
-                    <div className={`max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
-                      isDarkMode
-                        ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
-                        : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
+                  <div key={`msg-${idx}`} className="flex justify-start">
+                    {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
+                    <div className={`max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm ${
+                      isDarkMode 
+                        ? 'bg-[#1C1C1E] text-white shadow-black/20' 
+                        : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
                       <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <div key={`msg-${idx}`} className="flex justify-start">
-                  <div className={`max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm ${
-                    isDarkMode 
-                      ? 'bg-[#1C1C1E] text-white shadow-black/20' 
-                      : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
-                  }`}>
-                    <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
-                    
-                    {msg.drawing && (
+                      {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
-                        isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'
+                        isDarkMode 
+                          ? 'border-gray-700 bg-gray-800/50' 
+                          : 'border-gray-200 bg-gray-50'
                       }`}>
                         <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                           <div className="flex items-center gap-2">
@@ -726,7 +890,9 @@ export default function PurchaserChatTab({
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
-                              isDarkMode ? 'text-gold-400 hover:bg-gray-700/50' : 'text-gold-700 hover:bg-gray-100'
+                              isDarkMode
+                                ? 'text-gold-400 hover:bg-gray-700/50'
+                                : 'text-gold-700 hover:bg-gray-100'
                             }`}
                           >
                             <Download className="h-4 w-4" />
@@ -754,7 +920,7 @@ export default function PurchaserChatTab({
                       </a>
                     )}
                     
-                    {msg.clarification?.options && (
+                    {msg.clarification && msg.clarification.options && (
                       <div className="mt-3 flex flex-col gap-2">
                         {msg.clarification.options.map((option) => (
                           <button
@@ -782,10 +948,12 @@ export default function PurchaserChatTab({
                       </div>
                     )}
                     
+                    {/* Sources dropdown for transparency */}
                     {msg.sources && msg.sources.length > 0 && (
                       <SourcesDropdown sources={msg.sources} isDarkMode={isDarkMode} />
                     )}
                     
+                    {/* Request info button when AI doesn't have the answer */}
                     {msg.isNoInfo && messages.find(m => m.role === 'user') && (
                       <RequestInfoButton 
                         question={messages.filter(m => m.role === 'user').slice(-1)[0]?.content || ''}
@@ -794,25 +962,32 @@ export default function PurchaserChatTab({
                         onSubmitted={() => {}}
                       />
                     )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            {sending && <TypingIndicator isDarkMode={isDarkMode} />}
-            <div ref={messagesEndRef} className="h-1 w-full shrink-0" aria-hidden="true" />
+                );
+              })}
+              {sending && <TypingIndicator isDarkMode={isDarkMode} />}
+              {/* Scroll anchor - 1px element for reliable scrollIntoView targeting */}
+              <div ref={messagesEndRef} style={{ height: '1px', width: '100%' }} aria-hidden="true" />
+            </div>
           </div>
-        </div>
       )}
 
+      {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
-        className={`absolute bottom-0 left-0 right-0 z-50 px-4 pt-3 pb-safe ${
+        ref={inputBarRef}
+        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
           isDarkMode 
             ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
+        style={{ 
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))',
+          transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
+        }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
+          {/* Home button - only show when in chat mode */}
           {messages.length > 0 && (
             <button
               onClick={handleHomeClick}
@@ -827,6 +1002,7 @@ export default function PurchaserChatTab({
             </button>
           )}
 
+          {/* Input pill container - iMessage inspired */}
           <div className={`flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 transition-all duration-200 ${
             isDarkMode
               ? 'bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]'
