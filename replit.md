@@ -73,6 +73,25 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Chat Interface Stability Fixes (December 26, 2025)
+
+Fixed critical layout issues in the purchaser chat interface:
+
+**Layout Fixes:**
+- Rewrote chat layout with robust flexbox structure
+- Eliminated CSS variable dependencies causing mobile instability
+- Fixed content bleeding below input bar
+- Proper scroll containment in message container
+
+**Hydration Safety:**
+- Fixed provider wrapping in layout-client.tsx - providers always wrap children
+- Added mounted state with isLoading flag for hydration safety
+- Removed dynamic imports that caused hydration mismatches
+
+**Files Changed:**
+- `apps/unified-portal/components/purchaser/PurchaserChatTab.tsx` - Robust layout
+- `apps/unified-portal/app/layout-client.tsx` - Provider stability fixes
+
 ### Pre-Beta Stabilization (December 2025)
 
 Comprehensive production-readiness improvements for purchaser portal:
