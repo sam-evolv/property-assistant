@@ -401,7 +401,12 @@ export default function PurchaserChatTab({
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [hasGreeted, setHasGreeted] = useState(false);
+  const [hasBeenWelcomed, setHasBeenWelcomed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`chat_welcomed_${unitUid}`) === 'true';
+    }
+    return false;
+  });
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -553,7 +558,7 @@ export default function PurchaserChatTab({
           message: textToSend,
           userId: userId || undefined,
           unitUid: unitUid,
-          messageCount: messages.filter(m => m.role === 'user').length,
+          hasBeenWelcomed: hasBeenWelcomed,
         }),
       });
 
@@ -630,6 +635,12 @@ export default function PurchaserChatTab({
                     }
                     return updated;
                   });
+                  
+                  // Mark user as welcomed after first successful response
+                  if (!hasBeenWelcomed) {
+                    localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
+                    setHasBeenWelcomed(true);
+                  }
                 } else if (data.type === 'error') {
                   setMessages((prev) => {
                     const updated = [...prev];
@@ -663,6 +674,12 @@ export default function PurchaserChatTab({
               clarification: data.clarification || null,
             },
           ]);
+          
+          // Mark user as welcomed after first successful response (non-streaming path)
+          if (!hasBeenWelcomed) {
+            localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
+            setHasBeenWelcomed(true);
+          }
         } else if (data.error) {
           // Use the API's answer field if available (for user-friendly error messages)
           // Otherwise fall back to generic error messages
@@ -707,7 +724,6 @@ export default function PurchaserChatTab({
   const handleHomeClick = () => {
     setShowHome(true);
     setMessages([]);
-    setHasGreeted(false);
   };
 
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
