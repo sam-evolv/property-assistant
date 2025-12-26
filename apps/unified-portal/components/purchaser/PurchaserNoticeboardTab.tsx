@@ -492,6 +492,12 @@ export default function PurchaserNoticeboardTab({
 
   const checkTermsStatus = async () => {
     try {
+      const cachedTerms = localStorage.getItem(`noticeboard_terms_${unitUid}`);
+      if (cachedTerms === 'accepted') {
+        setTermsAccepted(true);
+        return;
+      }
+
       const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
       const token = storedToken || unitUid;
 
@@ -508,6 +514,7 @@ export default function PurchaserNoticeboardTab({
       }
     } catch (error) {
       console.error('Failed to check terms status:', error);
+      setTermsAccepted(false);
     }
   };
 
@@ -527,6 +534,7 @@ export default function PurchaserNoticeboardTab({
         return;
       }
       if (res.ok) {
+        localStorage.setItem(`noticeboard_terms_${unitUid}`, 'accepted');
         setTermsAccepted(true);
         setShowTermsModal(false);
         
