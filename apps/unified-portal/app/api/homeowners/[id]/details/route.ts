@@ -66,12 +66,20 @@ export async function GET(
     // Fetch project details separately
     let project = null;
     if (unitRow.project_id) {
-      const { data: projectData } = await supabase
+      const { data: projectData, error: projectError } = await supabase
         .from('projects')
-        .select('id, name, address, important_docs_version')
+        .select('id, name, address')
         .eq('id', unitRow.project_id)
         .single();
-      project = projectData;
+      project = projectData ? { ...projectData, important_docs_version: 1 } : null;
+      console.log('[HOMEOWNER DETAILS] Project lookup:', { 
+        project_id: unitRow.project_id, 
+        found: !!projectData, 
+        name: projectData?.name,
+        error: projectError?.message 
+      });
+    } else {
+      console.log('[HOMEOWNER DETAILS] No project_id on unit');
     }
 
     const hasAccess = await canAccessDevelopment(adminContext, unitRow.project_id);
@@ -235,12 +243,16 @@ export async function GET(
         created_at: unitRow.created_at,
         important_docs_agreed_version: agreedVersion,
         important_docs_agreed_at: unitRow.important_docs_agreed_at,
-        development: project ? {
-          id: project.id,
-          name: project.name,
-          address: project.address,
-          important_docs_version: projectDocsVersion,
-        } : null,
+        development: (() => {
+          const dev = project ? {
+            id: project.id,
+            name: project.name,
+            address: project.address,
+            important_docs_version: projectDocsVersion,
+          } : null;
+          console.log('[HOMEOWNER DETAILS] Returning development:', dev);
+          return dev;
+        })(),
       },
       activity: {
         total_messages: messageStats.total_messages,
