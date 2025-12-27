@@ -33,26 +33,10 @@ export async function GET(
 
     const supabase = getSupabaseAdmin();
     
+    // Fetch unit with all columns
     const { data: unitRow, error: unitError } = await supabase
       .from('units')
-      .select(`
-        id, 
-        unit_number, 
-        purchaser_name, 
-        purchaser_email,
-        address_line_1, 
-        address_line_2, 
-        city, 
-        eircode,
-        project_id, 
-        created_at, 
-        house_type_code,
-        projects (
-          id,
-          name,
-          address
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -61,11 +45,23 @@ export async function GET(
       return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
     }
 
+    // Fetch project details separately
+    let project = null;
+    if (unitRow.project_id) {
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('id, name, address')
+        .eq('id', unitRow.project_id)
+        .single();
+      project = projectData;
+    }
+
     const hasAccess = await canAccessDevelopment(adminContext, unitRow.project_id);
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    // Fetch messaging stats from Drizzle (messages table)
     const [msgStatsResult, recentMsgsResult, agreementsRes] = await Promise.all([
       db.execute(sql`
         SELECT 
@@ -121,19 +117,27 @@ export async function GET(
       engagementLevel = 'low';
     }
 
-    const residentName = unitRow.purchaser_name || 'Unassigned';
-    const fullAddress = [unitRow.address_line_1, unitRow.address_line_2, unitRow.city, unitRow.eircode]
-      .filter(Boolean)
-      .join(', ');
+    // Build display name from available fields
+    const residentName = unitRow.purchaser_name || unitRow.name || 'Unassigned';
+    
+    // Build address from available fields
+    const addressParts = [
+      unitRow.address_line_1 || unitRow.address,
+      unitRow.address_line_2,
+      unitRow.city,
+      unitRow.eircode || unitRow.postcode
+    ].filter(Boolean);
+    const fullAddress = addressParts.join(', ');
 
-    const project = unitRow.projects as any;
+    // Get house type from available fields
+    const houseType = unitRow.house_type_code || unitRow.house_type || unitRow.unit_type || unitRow.plot_number || 'N/A';
 
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
         name: residentName,
-        email: unitRow.purchaser_email,
-        house_type: unitRow.house_type_code || unitRow.unit_number,
+        email: unitRow.purchaser_email || unitRow.email,
+        house_type: houseType,
         address: fullAddress || null,
         unique_qr_token: unitRow.id,
         development_id: unitRow.project_id,
