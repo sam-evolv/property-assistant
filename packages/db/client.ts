@@ -19,6 +19,29 @@ function getConnectionString(): string {
   return connectionString;
 }
 
+export function getAnalyticsTarget(): { isSupabase: boolean; target: string } {
+  const connectionString = getConnectionString();
+  const isSupabase = connectionString.includes('supabase.co') || 
+                     connectionString.includes('pooler.supabase.com') ||
+                     !!process.env.SUPABASE_DB_URL;
+  
+  return {
+    isSupabase,
+    target: process.env.SUPABASE_DB_URL ? 'supabase' : 
+            process.env.DATABASE_URL ? 'database_url' : 'postgres_url'
+  };
+}
+
+export function assertSupabaseAnalytics(): void {
+  const { isSupabase, target } = getAnalyticsTarget();
+  if (!isSupabase) {
+    console.error('[ANALYTICS CRITICAL] Analytics target is NOT Supabase!');
+    console.error('[ANALYTICS CRITICAL] Current target:', target);
+    console.error('[ANALYTICS CRITICAL] Set SUPABASE_DB_URL to ensure data goes to Supabase.');
+    throw new Error('ANALYTICS_TARGET_NOT_SUPABASE: Analytics must only write to Supabase');
+  }
+}
+
 function getPoolConfig(): PoolConfig {
   const connectionString = getConnectionString();
   return {
@@ -36,6 +59,15 @@ function getPoolConfig(): PoolConfig {
 
 function getPool(): Pool {
   if (!pool) {
+    const { isSupabase, target } = getAnalyticsTarget();
+    if (!isSupabase) {
+      console.error('[DB CRITICAL] Database target is NOT Supabase!');
+      console.error('[DB CRITICAL] Current target:', target);
+      console.error('[DB CRITICAL] Set SUPABASE_DB_URL to ensure data goes to Supabase.');
+    } else {
+      console.log('[DB] Verified Supabase target:', target);
+    }
+    
     pool = new Pool(getPoolConfig());
     globalForDb.dbPool = pool;
     

@@ -10,6 +10,14 @@ interface AnalyticsHealth {
   insertsToday: number;
   insertsTotal: number;
   eventBreakdown: Record<string, number>;
+  recoveryBreakdown: { recovered: number; inferred: number; live: number };
+  messagesBreakdown: { total: number; recovered: number; live: number };
+  memoryHealth?: {
+    lastSuccessfulWrite: string | null;
+    writeCountToday: number;
+    writeCountLastMinute: number;
+    status: 'healthy' | 'warning' | 'critical';
+  };
   status: 'operational' | 'degraded' | 'error';
   checkedAt: string;
   error?: string;
@@ -212,6 +220,49 @@ function ConfidenceCheckPanel({ health }: { health: AnalyticsHealth | null }) {
   );
 }
 
+function RecoveredDataPanel({ health }: { health: AnalyticsHealth | null }) {
+  if (!health) return null;
+
+  const { recoveryBreakdown, messagesBreakdown } = health;
+  const hasRecoveredData = recoveryBreakdown.recovered > 0 || messagesBreakdown.recovered > 0;
+
+  if (!hasRecoveredData) return null;
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded">
+          RECOVERED BETA DATA
+        </span>
+        <span className="text-sm text-amber-700">Pre-Hardening Recovery</span>
+      </div>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg p-3 border border-amber-200">
+          <div className="text-2xl font-bold text-green-600">{recoveryBreakdown.live}</div>
+          <div className="text-xs text-gray-500">Live Events</div>
+        </div>
+        <div className="bg-white rounded-lg p-3 border border-amber-200">
+          <div className="text-2xl font-bold text-amber-600">{recoveryBreakdown.recovered}</div>
+          <div className="text-xs text-gray-500">Recovered Events</div>
+        </div>
+        <div className="bg-white rounded-lg p-3 border border-amber-200">
+          <div className="text-2xl font-bold text-blue-600">{recoveryBreakdown.inferred}</div>
+          <div className="text-xs text-gray-500">Inferred Events</div>
+        </div>
+        <div className="bg-white rounded-lg p-3 border border-amber-200">
+          <div className="text-2xl font-bold text-purple-600">{messagesBreakdown.recovered}</div>
+          <div className="text-xs text-gray-500">Recovered Messages</div>
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs text-amber-700">
+        Recovered data was migrated from Neon DB on 2025-12-27. Inferred events are high-confidence extrapolations from server logs.
+      </div>
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div className="animate-pulse">
@@ -364,6 +415,7 @@ export default function BetaControlRoomClient() {
       </div>
 
       <ConfidenceCheckPanel health={health} />
+      <RecoveredDataPanel health={health} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <KPICard icon={FileText} label="Units" value={kpis.totalUnits.toLocaleString()} />

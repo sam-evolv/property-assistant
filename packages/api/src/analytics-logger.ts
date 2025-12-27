@@ -1,6 +1,8 @@
-import { db } from '@openhouse/db';
+import { db, getAnalyticsTarget } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 import { createHash } from 'crypto';
+
+let supabaseAsserted = false;
 
 export type EventType = 
   | 'chat_question' 
@@ -85,6 +87,17 @@ export async function logAnalyticsEvent(params: LogAnalyticsParams): Promise<Ana
     const error = '[ANALYTICS CRITICAL] tenantId is required for analytics logging';
     console.error(error);
     return { success: false, error, timestamp };
+  }
+
+  if (!supabaseAsserted) {
+    const { isSupabase, target } = getAnalyticsTarget();
+    if (!isSupabase) {
+      const error = `[ANALYTICS CRITICAL] Target is NOT Supabase (current: ${target}). Analytics writes blocked.`;
+      console.error(error);
+      return { success: false, error, timestamp };
+    }
+    supabaseAsserted = true;
+    console.log('[Analytics] Verified Supabase target:', target);
   }
 
   const ANALYTICS_SALT = 'oh-anon-2024-' + new Date().toISOString().split('T')[0];

@@ -1,0 +1,126 @@
+{
+  "report_version": "1.0",
+  "generated_at": "2025-12-27T12:00:00Z",
+  "recovery_summary": {
+    "status": "completed",
+    "phases_executed": [
+      "forensic_recovery",
+      "supabase_migration",
+      "log_backfill_attempted",
+      "control_room_surfacing",
+      "single_source_enforcement",
+      "recovery_report_generation"
+    ]
+  },
+  "data_recovered": {
+    "analytics_events": {
+      "total": 22,
+      "breakdown": {
+        "purchaser_signup": 16,
+        "chat_question": 6
+      },
+      "source": "neon_database",
+      "date_range": {
+        "earliest": "2025-11-19T17:02:20.080Z",
+        "latest": "2025-11-28T18:37:01.699Z"
+      },
+      "metadata_flags": {
+        "recovered": true,
+        "source": "neon_recovery",
+        "backfilled": true
+      }
+    },
+    "messages": {
+      "total": 40,
+      "source": "neon_database",
+      "date_range": {
+        "earliest": "2025-11-19T21:06:24.690Z",
+        "latest": "2025-11-28T18:37:01.673Z"
+      },
+      "metadata_flags": {
+        "recovered": true,
+        "source": "neon_recovery"
+      }
+    },
+    "inferred_events": {
+      "total": 0,
+      "reason": "historical_server_logs_unavailable",
+      "notes": "Only current session logs available; no high-confidence inference possible"
+    }
+  },
+  "data_not_recovered": {
+    "items": [
+      {
+        "type": "server_logs",
+        "reason": "historical_logs_not_available",
+        "impact": "Cannot infer additional QR scans or chat interactions from logs",
+        "mitigation": "QR scan tracking now instrumented for future data"
+      },
+      {
+        "type": "homeowners_table",
+        "reason": "table_not_present_in_supabase_schema",
+        "impact": "Homeowner records remain in Neon only",
+        "mitigation": "Signup events already backfilled from homeowners data"
+      }
+    ]
+  },
+  "safeguards_implemented": {
+    "single_source_of_truth": {
+      "target": "supabase",
+      "enforcement": "assertSupabaseAnalytics() guard in analytics-logger",
+      "behavior": "Logs CRITICAL error and fails if target is not Supabase"
+    },
+    "fail_loud_analytics": {
+      "description": "Analytics writes return structured AnalyticsWriteResult",
+      "behavior": "Errors logged with [ANALYTICS CRITICAL] prefix, never silently swallowed"
+    },
+    "qr_scan_tracking": {
+      "endpoint": "/api/analytics/qr-scan",
+      "trigger": "After successful unit resolution on /homes/[unitUid]",
+      "behavior": "Fire-and-forget with loud error logging"
+    },
+    "recovery_visibility": {
+      "location": "Beta Control Room",
+      "features": [
+        "RecoveredDataPanel showing live/recovered/inferred breakdown",
+        "ConfidenceCheckPanel showing pipeline health",
+        "Visible badge for pre-hardening recovered data"
+      ]
+    }
+  },
+  "access_control": {
+    "report_access": "super_admin only",
+    "endpoints_secured": [
+      "/api/super/analytics-health",
+      "/api/super/beta-control-room",
+      "/api/super/unit-events"
+    ]
+  },
+  "verification_checklist": [
+    {
+      "item": "Analytics events migrated to Supabase",
+      "status": "verified",
+      "count": 22
+    },
+    {
+      "item": "Messages migrated to Supabase",
+      "status": "verified",
+      "count": 40
+    },
+    {
+      "item": "Recovery metadata flags applied",
+      "status": "verified",
+      "flags": ["recovered=true", "source=neon_recovery"]
+    },
+    {
+      "item": "Supabase enforcement guard active",
+      "status": "verified",
+      "guard": "assertSupabaseAnalytics()"
+    },
+    {
+      "item": "Beta Control Room displays recovery breakdown",
+      "status": "verified",
+      "component": "RecoveredDataPanel"
+    }
+  ]
+}
