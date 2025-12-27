@@ -81,29 +81,38 @@ export async function GET(
 
     // Fetch messaging stats from Drizzle (messages table)
     // NOTE: Messages table stores both user_message and ai_message in each row (conversation format)
+    // The user_id in messages can be the Supabase unit UUID OR might be stored differently
     const emptyStats = { rows: [{ total_conversations: 0, first_message: null, last_message: null }] };
     const emptyMessages = { rows: [] };
 
+    // Try to find messages by user_id (which should be the Supabase unit UUID)
+    // Also check metadata.unitUid as a fallback
     const [msgStatsResult, recentMsgsResult] = await Promise.all([
       safeQuery(
-        () => db.execute(sql`
-          SELECT 
-            COUNT(*)::int as total_conversations,
-            MIN(created_at) as first_message,
-            MAX(created_at) as last_message
-          FROM messages
-          WHERE user_id = ${id}
-        `),
+        async () => {
+          const result = await db.execute(sql`
+            SELECT 
+              COUNT(*)::int as total_conversations,
+              MIN(created_at) as first_message,
+              MAX(created_at) as last_message
+            FROM messages
+            WHERE user_id = ${id} OR metadata->>'unitUid' = ${id}
+          `);
+          return result;
+        },
         emptyStats
       ),
       safeQuery(
-        () => db.execute(sql`
-          SELECT id, user_message, ai_message, created_at
-          FROM messages
-          WHERE user_id = ${id}
-          ORDER BY created_at DESC
-          LIMIT 5
-        `),
+        async () => {
+          const result = await db.execute(sql`
+            SELECT id, user_message, ai_message, created_at
+            FROM messages
+            WHERE user_id = ${id} OR metadata->>'unitUid' = ${id}
+            ORDER BY created_at DESC
+            LIMIT 5
+          `);
+          return result;
+        },
         emptyMessages
       ),
     ]);
