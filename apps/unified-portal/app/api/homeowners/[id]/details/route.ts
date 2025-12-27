@@ -19,6 +19,18 @@ function getSupabaseAdmin() {
   );
 }
 
+async function safeQuery<T>(queryFn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await queryFn();
+  } catch (error: any) {
+    if (error?.cause?.code === '42P01') {
+      return fallback;
+    }
+    console.log('[HOMEOWNER DETAILS] Query failed (graceful fallback):', error?.message || error);
+    return fallback;
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -33,7 +45,7 @@ export async function GET(
 
     const supabase = getSupabaseAdmin();
     
-    // Fetch unit with all columns
+    // Fetch unit with all columns from Supabase
     const { data: unitRow, error: unitError } = await supabase
       .from('units')
       .select('*')
@@ -61,34 +73,47 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Fetch messaging stats from Drizzle (messages table)
+    // Fetch messaging stats from Drizzle (messages table) - graceful fallback if table doesn't exist
+    const emptyStats = { rows: [{ total_messages: 0, user_messages: 0, assistant_messages: 0, first_message: null, last_message: null }] };
+    const emptyMessages = { rows: [] };
+    const emptyAgreements = { rows: [] };
+
     const [msgStatsResult, recentMsgsResult, agreementsRes] = await Promise.all([
-      db.execute(sql`
-        SELECT 
-          COUNT(*)::int as total_messages,
-          COUNT(CASE WHEN sender = 'user' THEN 1 END)::int as user_messages,
-          COUNT(CASE WHEN sender = 'assistant' THEN 1 END)::int as assistant_messages,
-          MIN(created_at) as first_message,
-          MAX(created_at) as last_message
-        FROM messages
-        WHERE user_id = ${id}
-      `),
-      db.execute(sql`
-        SELECT id, content, sender, created_at
-        FROM messages
-        WHERE user_id = ${id}
-        ORDER BY created_at DESC
-        LIMIT 5
-      `),
-      db.execute(sql`
-        SELECT 
-          id, unit_id, purchaser_name, agreed_at, ip_address, user_agent, 
-          important_docs_acknowledged, docs_version
-        FROM purchaser_agreements
-        WHERE unit_id = ${id}
-        ORDER BY agreed_at DESC
-        LIMIT 1
-      `),
+      safeQuery(
+        () => db.execute(sql`
+          SELECT 
+            COUNT(*)::int as total_messages,
+            COUNT(CASE WHEN sender = 'user' THEN 1 END)::int as user_messages,
+            COUNT(CASE WHEN sender = 'assistant' THEN 1 END)::int as assistant_messages,
+            MIN(created_at) as first_message,
+            MAX(created_at) as last_message
+          FROM messages
+          WHERE user_id = ${id}
+        `),
+        emptyStats
+      ),
+      safeQuery(
+        () => db.execute(sql`
+          SELECT id, content, sender, created_at
+          FROM messages
+          WHERE user_id = ${id}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `),
+        emptyMessages
+      ),
+      safeQuery(
+        () => db.execute(sql`
+          SELECT 
+            id, unit_id, purchaser_name, agreed_at, ip_address, user_agent, 
+            important_docs_acknowledged, docs_version
+          FROM purchaser_agreements
+          WHERE unit_id = ${id}
+          ORDER BY agreed_at DESC
+          LIMIT 1
+        `),
+        emptyAgreements
+      ),
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
