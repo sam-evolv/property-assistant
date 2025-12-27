@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Get unit info and project from Supabase
     const { data: unitData, error: unitError } = await supabase
       .from('units')
-      .select('id, purchaser_name, purchaser_email, project_id')
+      .select('id, purchaser_name, project_id')
       .eq('id', unitUid)
       .single();
     
