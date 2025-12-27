@@ -69,9 +69,6 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
 
   return (
     <>
-      {/* Spacer to prevent content from being hidden behind fixed nav */}
-      <div className="h-24" aria-hidden="true" />
-      
       {/* Bottom Navigation - VISIBLE ON ALL SCREEN SIZES for testing */}
       <nav
         ref={navRef}

@@ -453,7 +453,7 @@ export default function HomeResidentPage() {
   // Main app render - consent already handled above
   return (
     <>
-      <div className={`flex flex-col h-screen md:h-screen min-h-[100dvh] md:min-h-screen ${bgColor}`}>
+      <div className={`flex flex-col h-[100dvh] overflow-hidden ${bgColor}`}>
         {/* Premium Top Bar with Blur - Logo Left, Language/Theme Right */}
         <header className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between ${
         isDarkMode 
@@ -545,8 +545,8 @@ export default function HomeResidentPage() {
         onValueChange={setActiveTab}
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
       >
-        <div className="flex-1 min-h-0 overflow-hidden pb-24 md:pb-0">
-          <Tabs.Content value="chat" className="h-full min-h-0">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Tabs.Content value="chat" className="h-full min-h-0 overflow-hidden">
             <PurchaserChatTab
               houseId={house.house_id}
               developmentId={house.development_id}

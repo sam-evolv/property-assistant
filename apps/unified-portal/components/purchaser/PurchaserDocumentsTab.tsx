@@ -421,7 +421,7 @@ export default function PurchaserDocumentsTab({
           </p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-24">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDocs.map((doc) => {
               const hasBadge = doc.must_read || doc.is_important;

@@ -736,16 +736,36 @@ export default function PurchaserChatTab({
 
   // Ref for scrolling to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const userScrolledUp = useRef(false);
 
-  // Scroll to bottom when messages change
-  // Use 'auto' for initial load (instant), 'smooth' for user-sent messages
+  // Track if user has scrolled up from bottom
+  // Re-run when showHome changes or messages appear to attach listener to the correct container
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const threshold = 100; // px from bottom
+      const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+      userScrolledUp.current = !isAtBottom;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [showHome, messages.length > 0]);
+
+  // Scroll to bottom when messages change - only if user is at bottom
   useEffect(() => {
     if (messagesEndRef.current && messages.length > 0) {
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: isInitialLoad.current ? 'auto' : 'smooth', 
-        block: 'end' 
-      });
+      // Always scroll on initial load or when user hasn't scrolled up
+      if (isInitialLoad.current || !userScrolledUp.current) {
+        messagesEndRef.current.scrollIntoView({ 
+          behavior: isInitialLoad.current ? 'auto' : 'smooth', 
+          block: 'end' 
+        });
+      }
       // After first scroll, switch to smooth for subsequent messages
       if (isInitialLoad.current) {
         isInitialLoad.current = false;
@@ -756,7 +776,7 @@ export default function PurchaserChatTab({
   return (
     <div 
       ref={messagesContainerRef}
-      className={`flex flex-col h-[var(--vvh,100dvh)] min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
@@ -764,7 +784,7 @@ export default function PurchaserChatTab({
         <div 
           className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
           style={{
-            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)'
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--mobile-tab-bar-h, 80px) + env(safe-area-inset-bottom, 0px) + 12px)'
           }}
         >
           <style>{ANIMATION_STYLES}</style>
@@ -815,9 +835,10 @@ export default function PurchaserChatTab({
       ) : (
         /* MESSAGES AREA - This is the only scrollable region */
         <div 
+          ref={scrollContainerRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
-            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)) + env(safe-area-inset-bottom, 0px) + 12px)',
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--mobile-tab-bar-h, 80px) + env(safe-area-inset-bottom, 0px) + 12px)',
             overflowAnchor: 'auto',
             overscrollBehaviorY: 'contain',
           }}
@@ -982,7 +1003,7 @@ export default function PurchaserChatTab({
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--tenant-bottom-nav-h, var(--mobile-tab-bar-h, 0px)))',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
