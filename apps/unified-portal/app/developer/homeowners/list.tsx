@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2 } from 'lucide-react';
 
 interface Unit {
   id: string;
@@ -22,6 +23,12 @@ interface Unit {
   };
 }
 
+interface Project {
+  id: string;
+  name: string;
+  important_docs_version?: number;
+}
+
 function extractHouseNumber(address: string | null, unitNumber: string | null): number {
   if (address) {
     const match = address.match(/^(\d+)/);
@@ -38,17 +45,28 @@ export function HomeownersList({
   session, 
   homeowners,
   development,
-  developmentId 
+  developmentId,
+  allProjects = []
 }: { 
   session: AdminSession;
   homeowners: any[];
   development?: any;
   developmentId?: string;
+  allProjects?: Project[];
 }) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'acknowledged' | 'pending'>('all');
   const [sortBy, setSortBy] = useState<'house' | 'name' | 'date' | 'activity'>('house');
   const [showFilters, setShowFilters] = useState(false);
+
+  const handleDevelopmentChange = (projectId: string) => {
+    if (projectId === 'all') {
+      router.push('/developer/homeowners');
+    } else {
+      router.push(`/developer/homeowners?developmentId=${projectId}`);
+    }
+  };
 
   const currentVersion = development?.important_docs_version || 0;
 
@@ -119,9 +137,25 @@ export function HomeownersList({
                 <span className="text-sm">Back to Dashboard</span>
               </Link>
               <h1 className="text-3xl font-bold text-grey-900">Homeowners</h1>
-              <p className="text-grey-600 text-sm mt-1">
-                {development?.name || 'All Developments'} - {homeowners.length} residents
-              </p>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-gold-500" />
+                  <select
+                    value={developmentId || 'all'}
+                    onChange={(e) => handleDevelopmentChange(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-gold-200/50 bg-white text-grey-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-400 cursor-pointer"
+                  >
+                    <option value="all">All Developments</option>
+                    {allProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <span className="text-grey-400">|</span>
+                <span className="text-grey-600 text-sm">{homeowners.length} residents</span>
+              </div>
             </div>
             <Link
               href="/developer/homeowners/new"

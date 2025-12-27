@@ -29,10 +29,16 @@ export default async function HomeownersPage({
 
   let unitsData: any[] = [];
   let developmentData: any = null;
+  let allProjects: any[] = [];
   const supabaseAdmin = getSupabaseAdmin();
   
   try {
-    // Fetch units from Supabase where the data actually lives
+    // Fetch all projects first for the dropdown
+    const { data: projects } = await supabaseAdmin.from('projects').select('*').order('name');
+    allProjects = projects || [];
+    const projectsMap = new Map(allProjects.map((p: any) => [p.id, p]));
+    
+    // Fetch units from Supabase - filter by developmentId if provided
     let unitsQuery = supabaseAdmin.from('units').select('*').order('created_at', { ascending: false });
     
     if (searchParams.developmentId) {
@@ -47,10 +53,6 @@ export default async function HomeownersPage({
       unitsData = units || [];
     }
     
-    // Fetch projects for development info
-    const { data: projects } = await supabaseAdmin.from('projects').select('*');
-    const projectsMap = new Map((projects || []).map((p: any) => [p.id, p]));
-    
     // Enrich units with development info
     unitsData = unitsData.map((u: any) => ({
       ...u,
@@ -64,7 +66,7 @@ export default async function HomeownersPage({
       developmentData = unitsData[0].development;
     }
     
-    console.log(`[HomeownersPage] Loaded ${unitsData.length} units from Supabase`);
+    console.log(`[HomeownersPage] Loaded ${unitsData.length} units from Supabase, ${allProjects.length} projects`);
   } catch (error) {
     console.error('Failed to fetch units:', error);
   }
@@ -74,7 +76,8 @@ export default async function HomeownersPage({
       session={session} 
       homeowners={unitsData} 
       development={developmentData}
-      developmentId={searchParams.developmentId} 
+      developmentId={searchParams.developmentId}
+      allProjects={allProjects}
     />
   );
 }
