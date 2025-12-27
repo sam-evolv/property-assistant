@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -12,6 +12,7 @@ import {
   Target,
   MessageSquare,
   Calendar,
+  AlertTriangle,
 } from 'lucide-react';
 import { OverviewTab } from './tabs/overview';
 import { TrendsTab } from './tabs/trends';
@@ -22,6 +23,8 @@ import { EngagementTab } from './tabs/engagement';
 import { UnitsTab } from './tabs/units';
 import { QuestionsTab } from './tabs/questions';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
+import { useCanonicalSuperadmin } from '@/hooks/useCanonicalAnalytics';
+import type { CanonicalTimeWindow } from '@/lib/canonical-analytics';
 
 type TabId = 'overview' | 'questions' | 'trends' | 'knowledge-gaps' | 'rag-performance' | 'documents' | 'homeowners' | 'units';
 type TimeWindow = 7 | 14 | 30 | 90;
@@ -54,10 +57,26 @@ interface AnalyticsClientProps {
   tenantId: string;
 }
 
+function daysToCanonicalWindow(days: number): CanonicalTimeWindow {
+  if (days <= 7) return '7d';
+  if (days <= 14) return '14d';
+  if (days <= 30) return '30d';
+  return '90d';
+}
+
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [days, setDays] = useState<TimeWindow>(30);
   const { developmentId } = useSafeCurrentContext();
+  
+  const canonicalTimeWindow = daysToCanonicalWindow(days);
+  const { data: canonicalSummary, error: canonicalError } = useCanonicalSuperadmin({
+    project_id: developmentId ?? undefined,
+    time_window: canonicalTimeWindow,
+  });
+
+  const hasAnalyticsErrors = canonicalSummary?.errors && canonicalSummary.errors.length > 0;
+  const showConsistencyWarning = process.env.NODE_ENV === 'development' && hasAnalyticsErrors;
 
   const tabProps = { 
     tenantId, 
@@ -131,6 +150,69 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Consistency Warning Banner (dev mode only) */}
+      {showConsistencyWarning && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Analytics consistency check failed</p>
+              <p className="text-xs text-amber-600 mt-1">
+                {canonicalSummary?.errors.map(e => `${e.metric}: ${e.reason}`).join('; ')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Canonical Summary Quick Stats */}
+      {canonicalSummary && !canonicalError && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Canonical Analytics Summary ({canonicalSummary.time_window})
+              </h4>
+              <span className="text-xs text-gray-400">Computed: {new Date(canonicalSummary.computed_at).toLocaleTimeString()}</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.total_questions.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Total Questions</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.questions_in_window.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Questions ({canonicalSummary.time_window})</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.active_tenants_in_window.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Active Users ({canonicalSummary.time_window})</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.qr_scans_in_window.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">QR Scans ({canonicalSummary.time_window})</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.signups_in_window.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Signups ({canonicalSummary.time_window})</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{canonicalSummary.live_events_count.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Live Events</p>
+              </div>
+            </div>
+            {canonicalSummary.recovered_events_count > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-500">
+                  <span className="font-medium text-blue-600">{canonicalSummary.recovered_events_count.toLocaleString()}</span> recovered events | 
+                  <span className="font-medium text-purple-600 ml-1">{canonicalSummary.inferred_events_count.toLocaleString()}</span> inferred events
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="max-w-7xl mx-auto px-6 py-8">

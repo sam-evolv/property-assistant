@@ -1,0 +1,129 @@
+You are operating in a production-critical repository.
+
+This task is an ANALYTICS CONSOLIDATION AND CONSISTENCY HARDENING pass.
+
+OBJECTIVE:
+Create a single, canonical analytics aggregation layer and force all dashboards
+(developer, superadmin, executive summary, AI insights) to consume the same data
+with consistent definitions, filters, and time windows.
+
+This is NOT a feature build.
+This is NOT new analytics.
+This is correctness, consistency, and trust.
+
+NON-NEGOTIABLE RULES:
+- Do NOT fabricate or infer data
+- Do NOT add new analytics events
+- Do NOT change existing event semantics
+- Do NOT hide errors behind empty states
+- Supabase analytics_events is the sole source of truth
+
+------------------------------------
+PHASE 1 — DEFINE CANONICAL METRICS
+------------------------------------
+
+Create a single server-side analytics aggregation module/service.
+
+Define, explicitly, the following metrics with shared semantics:
+
+- total_events
+- total_questions (chat messages from tenants)
+- questions_last_7_days
+- questions_last_30_days
+- active_units_last_7_days
+- active_units_last_30_days
+- active_tenants_last_7_days
+- active_tenants_last_30_days
+- recovered_events_count
+- inferred_events_count
+
+Rules:
+- "Active" means at least one analytics event in the time window
+- Recovered data (metadata.recovered = true) MUST be included
+- Inferred data MUST be included but flagged
+
+All time windows must be calculated using the SAME created_at logic.
+
+------------------------------------
+PHASE 2 — SINGLE AGGREGATION QUERY PATH
+------------------------------------
+
+Implement ONE aggregation function (or API endpoint), e.g.:
+
+/api/analytics/summary
+
+Inputs:
+- scope (superadmin | developer)
+- project_id (optional)
+- developer_id (optional)
+- time_window (7d | 30d)
+
+This function:
+- Queries analytics_events ONCE
+- Applies filters deterministically
+- Returns a fully populated summary object
+- NEVER returns partial metrics
+
+If a metric cannot be computed:
+- Return an explicit error field explaining why
+- Do NOT return "0" or "no data" silently
+
+------------------------------------
+PHASE 3 — FORCE ALL DASHBOARDS TO USE IT
+------------------------------------
+
+Refactor the following to consume ONLY the canonical summary output:
+
+- Developer dashboard overview
+- Developer analytics pages
+- Superadmin executive summary
+- Superadmin AI insights input
+- Question analysis views
+- Trends views
+
+Rules:
+- Remove all component-level analytics calculations
+- Remove duplicated queries
+- No dashboard may compute its own counts
+
+------------------------------------
+PHASE 4 — AI INSIGHTS HARDENING
+------------------------------------
+
+Update AI insights generation so that:
+
+- It ONLY consumes canonical summary data
+- If metrics are missing, it says:
+  "Analytics data unavailable due to [reason]"
+- It MUST NOT say "no activity" unless canonical metrics confirm zero
+
+This prevents hallucinated or misleading summaries.
+
+------------------------------------
+PHASE 5 — CONSISTENCY ASSERTIONS
+------------------------------------
+
+Add runtime assertions in development mode:
+
+- If two dashboards receive different values for the same metric,
+  log a CRITICAL analytics consistency error.
+
+Optionally surface a small superadmin warning banner:
+"Analytics consistency check failed"
+
+------------------------------------
+PHASE 6 — VERIFICATION CHECKLIST
+------------------------------------
+
+Verify manually:
+
+- Executive summary matches question analysis counts
+- 30-day question count reflects all recovered + live data
+- AI insights no longer claim "no data" when data exists
+- Developer dashboard and superadmin dashboard show identical numbers
+  for the same scope and time window
+
+FINAL OUTPUT:
+- One canonical analytics summary
+- Zero conflicting metrics across the platform
+- Analytics that users and admins can trust
