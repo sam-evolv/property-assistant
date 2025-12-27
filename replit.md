@@ -73,6 +73,34 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Homeowner Onboarding Hardening (December 2025)
+
+Stabilized the "create development -> add units -> invite tenants" workflow:
+
+**Homeowner Creation Form (`/developer/homeowners/new`):**
+- Client-side validation blocks empty/short name submissions before API call
+- Field-level error display with specific messages (e.g., "Name required", "Min 2 chars")
+- Warning state when no developments available
+- Request ID tracking shown on server errors for diagnosability
+
+**Homeowner API (`/api/homeowners`):**
+- Request ID generation (`ho-{nanoid(12)}`) for production monitoring
+- Strict input validation with detailed error messages
+- Proper tenant/development access enforcement via `canAccessDevelopment()`
+- Duplicate entry detection (Postgres error 23505)
+- JSON parse error handling with clear messages
+- All operations logged with `[HOMEOWNERS][<requestId>]` prefix
+
+**Multi-Tenant Scoping:**
+- CurrentContext stores development selection per-tenant in localStorage (`current-dev-{tenantId}`)
+- DevelopmentSwitcher fetches developments via RLS-protected API
+- No data bleed when switching between tenants or developments
+
+**Files Changed:**
+- `apps/unified-portal/app/developer/homeowners/new/form.tsx`
+- `apps/unified-portal/app/api/homeowners/route.ts`
+- `packages/api/src/session.ts` (LSP fix)
+
 ### Homeowners Development Filter (December 2025)
 
 Added development (housing estate) filtering to the Homeowners page:
