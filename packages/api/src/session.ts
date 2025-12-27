@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
+import type { AdminRole } from './rbac';
 
 // Re-export types and functions from rbac to avoid duplication
 export type { AdminRole, AdminContext as AdminSession } from './rbac';
@@ -23,7 +24,7 @@ export async function getAdminSession() {
     }
 
     const admin = await db.query.admins.findFirst({
-      where: (admins, { eq }) => eq(admins.email, user.email),
+      where: eq(admins.email, user.email!),
       columns: {
         id: true,
         email: true,

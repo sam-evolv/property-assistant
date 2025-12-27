@@ -6,8 +6,24 @@ import { db } from '@openhouse/db/client';
 import { homeowners, developments, messages, purchaserAgreements } from '@openhouse/db/schema';
 import { eq, and, inArray, sql, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
+import { nanoid } from 'nanoid';
 
 export const runtime = 'nodejs';
+
+function generateRequestId(): string {
+  return `ho-${nanoid(12)}`;
+}
+
+function errorResponse(error: string, status: number, requestId: string, details?: string) {
+  console.error(`[HOMEOWNERS][${requestId}] Error (${status}): ${error}${details ? ` - ${details}` : ''}`);
+  return NextResponse.json(
+    { error, requestId, details },
+    { 
+      status, 
+      headers: { 'x-request-id': requestId } 
+    }
+  );
+}
 
 function extractSupabaseUnitId(email: string | null): string | null {
   if (!email) return null;
@@ -182,57 +198,59 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
+  
   try {
     const adminContext = await getAdminSession();
     
     if (!adminContext) {
-      return NextResponse.json(
-        { error: 'Unauthorised' },
-        { status: 401 }
-      );
+      return errorResponse('Unauthorised. Please log in.', 401, requestId);
     }
 
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return errorResponse('Invalid request body', 400, requestId, 'Could not parse JSON');
+    }
+    
     const { developmentId, name, email, houseType, address } = body;
 
-    if (!developmentId || !name) {
-      return NextResponse.json(
-        { error: 'Development ID and name are required' },
-        { status: 400 }
-      );
+    if (!developmentId) {
+      return errorResponse('Development is required', 400, requestId, 'Missing developmentId field');
+    }
+    
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return errorResponse('Name is required (minimum 2 characters)', 400, requestId, 'Invalid name field');
     }
 
     const hasAccess = await canAccessDevelopment(adminContext, developmentId);
     if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access denied to this development' },
-        { status: 403 }
-      );
+      return errorResponse('Access denied to this development', 403, requestId, `User ${adminContext.email} cannot access development ${developmentId}`);
     }
 
     const development = await db.query.developments.findFirst({
-      where: (developments, { eq }) => eq(developments.id, developmentId),
+      where: eq(developments.id, developmentId),
       columns: {
         id: true,
         tenant_id: true,
+        name: true,
       },
     });
 
     if (!development) {
-      return NextResponse.json(
-        { error: 'Development not found' },
-        { status: 404 }
-      );
+      return errorResponse('Development not found', 404, requestId, `No development with ID ${developmentId}`);
     }
 
     const uniqueQrToken = randomBytes(16).toString('hex');
+    const cleanName = name.trim();
 
     const [homeowner] = await db
       .insert(homeowners)
       .values({
         tenant_id: development.tenant_id,
         development_id: developmentId,
-        name,
+        name: cleanName,
         email: email || '',
         house_type: houseType || null,
         address: address || null,
@@ -240,14 +258,23 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    console.log(`[HOMEOWNERS] Created: ${name} for development ${developmentId}`);
+    console.log(`[HOMEOWNERS][${requestId}] Created: ${cleanName} for development ${development.name} (${developmentId})`);
 
-    return NextResponse.json({ homeowner }, { status: 201 });
-  } catch (error) {
-    console.error('[HOMEOWNERS] Error creating:', error);
     return NextResponse.json(
-      { error: 'Failed to create homeowner' },
-      { status: 500 }
+      { homeowner, requestId }, 
+      { 
+        status: 201,
+        headers: { 'x-request-id': requestId }
+      }
     );
+  } catch (error: any) {
+    const errorMsg = error?.message || 'Unknown error';
+    const errorCode = error?.code || 'UNKNOWN';
+    
+    if (errorCode === '23505') {
+      return errorResponse('A homeowner with these details already exists', 409, requestId, 'Duplicate entry');
+    }
+    
+    return errorResponse('Failed to create homeowner', 500, requestId, errorMsg);
   }
 }

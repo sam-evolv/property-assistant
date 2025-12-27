@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, Home, Building2, MapPin } from 'lucide-react';
+import { ArrowLeft, User, Home, Building2, MapPin, AlertCircle } from 'lucide-react';
 
 interface Development {
   id: string;
@@ -11,15 +11,39 @@ interface Development {
   address: string;
 }
 
+interface FormErrors {
+  developmentId?: string;
+  name?: string;
+}
+
 export function HomeownerForm({ developments }: { developments: Development[] }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  function validateForm(data: { developmentId: FormDataEntryValue | null; name: FormDataEntryValue | null }): boolean {
+    const errors: FormErrors = {};
+    
+    if (!data.developmentId || data.developmentId.toString().trim() === '') {
+      errors.developmentId = 'Please select a development';
+    }
+    
+    if (!data.name || data.name.toString().trim() === '') {
+      errors.name = 'Please enter the homeowner name';
+    } else if (data.name.toString().trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setRequestId(null);
 
     const formData = new FormData(e.currentTarget);
     const data = {
@@ -29,12 +53,21 @@ export function HomeownerForm({ developments }: { developments: Development[] })
       address: formData.get('address') || null,
     };
 
+    if (!validateForm(data)) {
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const response = await fetch('/api/homeowners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
+
+      const reqId = response.headers.get('x-request-id');
+      if (reqId) setRequestId(reqId);
 
       if (response.ok) {
         router.push('/developer/homeowners');
@@ -44,7 +77,7 @@ export function HomeownerForm({ developments }: { developments: Development[] })
         setLoading(false);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create homeowner');
+      setError(err.message || 'Network error. Please check your connection and try again.');
       setLoading(false);
     }
   }
@@ -72,9 +105,25 @@ export function HomeownerForm({ developments }: { developments: Development[] })
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {developments.length === 0 && (
+            <div className="m-6 mb-0 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">No developments available</p>
+                <p className="mt-1">You need at least one development to add homeowners. Please create a development first or contact your administrator.</p>
+              </div>
+            </div>
+          )}
+          
           {error && (
-            <div className="m-6 mb-0 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
+            <div className="m-6 mb-0 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p>{error}</p>
+                {requestId && (
+                  <p className="mt-2 text-xs text-red-500">Request ID: {requestId}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -87,7 +136,8 @@ export function HomeownerForm({ developments }: { developments: Development[] })
               <select
                 name="developmentId"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent bg-white"
+                disabled={developments.length === 0}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:cursor-not-allowed ${formErrors.developmentId ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
               >
                 <option value="">Select a development...</option>
                 {developments.map((dev) => (
@@ -96,6 +146,9 @@ export function HomeownerForm({ developments }: { developments: Development[] })
                   </option>
                 ))}
               </select>
+              {formErrors.developmentId && (
+                <p className="mt-1 text-xs text-red-600">{formErrors.developmentId}</p>
+              )}
             </div>
 
             <div>
@@ -107,10 +160,14 @@ export function HomeownerForm({ developments }: { developments: Development[] })
                 type="text"
                 name="name"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent ${formErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
                 placeholder="e.g., Mr John Smith and Mrs Jane Smith"
               />
-              <p className="mt-1 text-xs text-gray-500">Enter the full name(s) of the homeowner(s)</p>
+              {formErrors.name ? (
+                <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">Enter the full name(s) of the homeowner(s)</p>
+              )}
             </div>
 
             <div>
