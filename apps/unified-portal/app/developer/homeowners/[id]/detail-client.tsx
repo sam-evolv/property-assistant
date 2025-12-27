@@ -288,7 +288,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                 <h1 className="text-2xl font-bold text-gray-900">{homeowner.name}</h1>
                 <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
                   <Building2 className="w-4 h-4" />
-                  {homeowner.development.name}
+                  {homeowner.development?.name || 'Unknown Development'}
                 </div>
               </div>
             </div>
