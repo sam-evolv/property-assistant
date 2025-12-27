@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database, Upload, FileSpreadsheet, Loader2, X, QrCode, Download } from 'lucide-react';
+import { Home, AlertTriangle, CheckCircle, User, Copy, ChevronDown, ChevronUp, Database, Upload, FileSpreadsheet, Loader2, X, QrCode, Download, Clock, Activity } from 'lucide-react';
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { TableSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
@@ -26,6 +26,15 @@ interface Unit {
   user_id: string | null;
   handover_date: string | null;
   has_snag_list: boolean;
+  created_at: string;
+}
+
+interface UnitEvent {
+  id: string;
+  event_type: string;
+  event_category: string | null;
+  event_data: Record<string, any>;
+  session_hash: string | null;
   created_at: string;
 }
 
@@ -60,6 +69,61 @@ export function UnitsExplorer() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDownloadingQR, setIsDownloadingQR] = useState(false);
+  
+  const [selectedUnitForTimeline, setSelectedUnitForTimeline] = useState<Unit | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<UnitEvent[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
+
+  const fetchUnitTimeline = async (unit: Unit) => {
+    setSelectedUnitForTimeline(unit);
+    setTimelineLoading(true);
+    setTimelineError(null);
+    setTimelineEvents([]);
+    setExpandedEventIds(new Set());
+
+    try {
+      const res = await fetch(`/api/super/unit-events?unit_id=${unit.id}&limit=30`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Failed to fetch events (${res.status})`);
+      }
+      const data = await res.json();
+      setTimelineEvents(data.events || []);
+    } catch (err: any) {
+      console.error('[UnitTimeline] Error:', err);
+      setTimelineError(err.message || 'Failed to load event timeline');
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
+
+  const toggleEventExpanded = (eventId: string) => {
+    setExpandedEventIds(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  };
+
+  const formatEventType = (type: string) => {
+    return type
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return new Date(timestamp).toLocaleString();
+    } catch {
+      return timestamp;
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -342,6 +406,21 @@ ORDER BY unit_count DESC;`;
         </span>
       ),
     },
+    {
+      key: 'id',
+      label: 'Actions',
+      sortable: false,
+      render: (item) => (
+        <button
+          onClick={() => fetchUnitTimeline(item)}
+          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors"
+          title="View Event Timeline"
+        >
+          <Activity className="w-3 h-3" />
+          Timeline
+        </button>
+      ),
+    },
   ];
 
   const scopeLabel = selectedProject ? selectedProject.name : 'All Projects';
@@ -606,6 +685,115 @@ ORDER BY unit_count DESC;`;
             <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedUnitForTimeline && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-blue-600" />
+                  Event Timeline
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Unit: <span className="font-medium">{selectedUnitForTimeline.address}</span>
+                  {selectedUnitForTimeline.unit_type_name && (
+                    <span className="text-gray-400"> ({selectedUnitForTimeline.unit_type_name})</span>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedUnitForTimeline(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {timelineLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                  <span className="ml-3 text-gray-600">Loading events...</span>
+                </div>
+              ) : timelineError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                  <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                  <p className="text-red-700 font-medium">Failed to load events</p>
+                  <p className="text-red-600 text-sm mt-1">{timelineError}</p>
+                </div>
+              ) : timelineEvents.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No events recorded</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    This unit has no analytics events yet
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {timelineEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    >
+                      <button
+                        onClick={() => toggleEventExpanded(event.id)}
+                        className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                            {formatEventType(event.event_type)}
+                          </span>
+                          {event.event_category && (
+                            <span className="text-xs text-gray-500">
+                              {event.event_category}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          {formatTimestamp(event.created_at)}
+                          {expandedEventIds.has(event.id) ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </div>
+                      </button>
+                      {expandedEventIds.has(event.id) && (
+                        <div className="border-t border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs font-medium text-gray-600 mb-2">Event Data:</p>
+                          <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded overflow-x-auto max-h-48">
+                            {JSON.stringify(event.event_data, null, 2)}
+                          </pre>
+                          {event.session_hash && (
+                            <p className="text-xs text-gray-400 mt-2">
+                              Session: {event.session_hash.substring(0, 16)}...
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50">
+              <span className="text-sm text-gray-500">
+                {timelineEvents.length} event{timelineEvents.length !== 1 ? 's' : ''} (read-only)
+              </span>
+              <button
+                onClick={() => setSelectedUnitForTimeline(null)}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Close
