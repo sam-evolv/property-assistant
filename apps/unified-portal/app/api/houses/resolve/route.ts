@@ -5,16 +5,13 @@ import { sql } from 'drizzle-orm';
 import { resolveDevelopment } from '@/lib/development-resolver';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
+import { generateRequestId, createStructuredError, logCritical, getResponseHeaders, isConnectionPoolError } from '@/lib/api-error-utils';
 
 export const dynamic = 'force-dynamic';
 
 function getClientIP(req: Request): string {
   const xff = req.headers.get('x-forwarded-for');
   return xff?.split(',')[0]?.trim() || '127.0.0.1';
-}
-
-function generateRequestId(): string {
-  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
 function getSupabaseClient() {
@@ -109,8 +106,11 @@ export async function POST(req: Request) {
   if (!rateCheck.allowed) {
     console.log(`[Resolve] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
     return NextResponse.json(
-      { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
-      { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
+      createStructuredError('Too many requests', requestId, {
+        error_code: 'RATE_LIMITED',
+        retryable: true,
+      }),
+      { status: 429, headers: { ...getResponseHeaders(requestId), 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
     );
   }
 
@@ -127,15 +127,21 @@ export async function POST(req: Request) {
     const token = body?.token || body?.unitId || body?.unit_id;
 
     if (!token) {
-      console.log("[Resolve] No token provided");
-      return NextResponse.json({ error: "No token provided" }, { status: 400, headers: { 'x-request-id': requestId } });
+      console.log("[Resolve] No token provided", `requestId=${requestId}`);
+      return NextResponse.json(
+        createStructuredError('No token provided', requestId, { error_code: 'MISSING_TOKEN' }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     const cacheKey = `resolve:${token}`;
     const cached = globalCache.get(cacheKey);
     if (cached) {
       console.log(`[Resolve] Cache hit for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
-      return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
+      return NextResponse.json(
+        { ...cached, request_id: requestId },
+        { headers: { ...getResponseHeaders(requestId), 'x-cache': 'HIT' } }
+      );
     }
 
     console.log("[Resolve] Looking up unit:", token, `requestId=${requestId}`);
@@ -247,7 +253,10 @@ export async function POST(req: Request) {
 
       globalCache.set(cacheKey, responseData, 60000);
       console.log(`[Resolve] Cached result for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
-      return NextResponse.json(responseData, { headers: { 'x-request-id': requestId, 'x-cache': 'MISS' } });
+      return NextResponse.json(
+        { ...responseData, request_id: requestId },
+        { headers: { ...getResponseHeaders(requestId), 'x-cache': 'MISS' } }
+      );
     }
 
     // Second try: Check Supabase units table (legacy data source)
@@ -307,36 +316,40 @@ export async function POST(req: Request) {
           }
         }
         
-        return NextResponse.json({
-          success: true,
-          unitId: supabaseUnit.id,
-          house_id: supabaseUnit.id,
-          tenantId: resolved?.tenantId || null,
-          tenant_id: resolved?.tenantId || null,
-          developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
-          development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
-          supabase_project_id: supabaseUnit.project_id,
-          development_name: resolved?.developmentName || 'Your Development',
-          development_code: '',
-          development_logo_url: resolved?.logoUrl || null,
-          development_system_instructions: '',
-          address: fullAddress || 'Your Home',
-          eircode: '',
-          purchaserName: fullPurchaserName || 'Homeowner',
-          purchaser_name: fullPurchaserName || 'Homeowner',
-          user_id: null,
-          project_id: supabaseUnit.project_id,
-          houseType: null,
-          house_type: null,
-          floorPlanUrl: null,
-          floor_plan_pdf_url: null,
-          latitude: coordinates?.lat || null,
-          longitude: coordinates?.lng || null,
-          specs: null,
-        });
+        return NextResponse.json(
+          {
+            success: true,
+            unitId: supabaseUnit.id,
+            house_id: supabaseUnit.id,
+            tenantId: resolved?.tenantId || null,
+            tenant_id: resolved?.tenantId || null,
+            developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+            development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+            supabase_project_id: supabaseUnit.project_id,
+            development_name: resolved?.developmentName || 'Your Development',
+            development_code: '',
+            development_logo_url: resolved?.logoUrl || null,
+            development_system_instructions: '',
+            address: fullAddress || 'Your Home',
+            eircode: '',
+            purchaserName: fullPurchaserName || 'Homeowner',
+            purchaser_name: fullPurchaserName || 'Homeowner',
+            user_id: null,
+            project_id: supabaseUnit.project_id,
+            houseType: null,
+            house_type: null,
+            floorPlanUrl: null,
+            floor_plan_pdf_url: null,
+            latitude: coordinates?.lat || null,
+            longitude: coordinates?.lng || null,
+            specs: null,
+            request_id: requestId,
+          },
+          { headers: getResponseHeaders(requestId) }
+        );
       }
     } catch (supabaseErr: any) {
-      console.log("[Resolve] Supabase lookup failed:", supabaseErr.message);
+      console.log("[Resolve] Supabase lookup failed:", supabaseErr.message, `requestId=${requestId}`);
     }
 
     // Third try: Check homeowners table by unique_qr_token OR id using Drizzle
@@ -388,15 +401,20 @@ export async function POST(req: Request) {
 
       if (!homeowner) {
         console.log("[Resolve] No unit or homeowner found for:", token);
-        // If we had database connection errors earlier, this might not be a real "not found"
         if (dbConnectionError) {
-          console.log("[Resolve] Returning service unavailable due to earlier DB connection issues");
-          return NextResponse.json({ 
-            error: "Service temporarily unavailable. Please try again in a moment.",
-            retryable: true 
-          }, { status: 503 });
+          console.log("[Resolve] Returning service unavailable due to earlier DB connection issues", `requestId=${requestId}`);
+          return NextResponse.json(
+            createStructuredError('Service temporarily unavailable', requestId, {
+              error_code: 'DB_UNAVAILABLE',
+              retryable: true,
+            }),
+            { status: 503, headers: getResponseHeaders(requestId) }
+          );
         }
-        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+        return NextResponse.json(
+          createStructuredError('Unit not found', requestId, { error_code: 'NOT_FOUND' }),
+          { status: 404, headers: getResponseHeaders(requestId) }
+        );
       }
 
       // Found in homeowners table
@@ -407,53 +425,72 @@ export async function POST(req: Request) {
       // Geocode the address to get coordinates for the map
       const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
 
-      return NextResponse.json({
-        success: true,
-        unitId: homeowner.id,
-        house_id: homeowner.id,
-        tenantId: homeowner.tenant_id || null,
-        tenant_id: homeowner.tenant_id || null,
-        developmentId: homeowner.development_id,
-        development_id: homeowner.development_id,
-        development_name: homeowner.dev_name || 'Your Development',
-        development_code: '',
-        development_logo_url: homeowner.dev_logo_url || null,
-        development_system_instructions: '',
-        address: fullAddress || 'Your Home',
-        eircode: '',
-        purchaserName: homeowner.name || 'Homeowner',
-        purchaser_name: homeowner.name || 'Homeowner',
-        user_id: null,
-        project_id: homeowner.development_id,
-        houseType: homeowner.house_type || null,
-        house_type: homeowner.house_type || null,
-        floorPlanUrl: null,
-        floor_plan_pdf_url: null,
-        latitude: coordinates?.lat || null,
-        longitude: coordinates?.lng || null,
-        specs: null,
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          unitId: homeowner.id,
+          house_id: homeowner.id,
+          tenantId: homeowner.tenant_id || null,
+          tenant_id: homeowner.tenant_id || null,
+          developmentId: homeowner.development_id,
+          development_id: homeowner.development_id,
+          development_name: homeowner.dev_name || 'Your Development',
+          development_code: '',
+          development_logo_url: homeowner.dev_logo_url || null,
+          development_system_instructions: '',
+          address: fullAddress || 'Your Home',
+          eircode: '',
+          purchaserName: homeowner.name || 'Homeowner',
+          purchaser_name: homeowner.name || 'Homeowner',
+          user_id: null,
+          project_id: homeowner.development_id,
+          houseType: homeowner.house_type || null,
+          house_type: homeowner.house_type || null,
+          floorPlanUrl: null,
+          floor_plan_pdf_url: null,
+          latitude: coordinates?.lat || null,
+          longitude: coordinates?.lng || null,
+          specs: null,
+          request_id: requestId,
+        },
+        { headers: getResponseHeaders(requestId) }
+      );
     } catch (homeownerErr: any) {
-      console.error("[Resolve] Homeowner lookup error:", homeownerErr.message);
-      // Check if this was a connection pool issue
-      if (homeownerErr.message?.includes('MaxClients') || homeownerErr.message?.includes('pool') || homeownerErr.code === 'XX000' || dbConnectionError) {
-        return NextResponse.json({ 
-          error: "Service temporarily unavailable. Please try again in a moment.",
-          retryable: true 
-        }, { status: 503 });
+      console.error("[Resolve] Homeowner lookup error:", homeownerErr.message, `requestId=${requestId}`);
+      if (isConnectionPoolError(homeownerErr) || dbConnectionError) {
+        return NextResponse.json(
+          createStructuredError('Service temporarily unavailable', requestId, {
+            error_code: 'DB_UNAVAILABLE',
+            retryable: true,
+          }),
+          { status: 503, headers: getResponseHeaders(requestId) }
+        );
       }
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      return NextResponse.json(
+        createStructuredError('Unit not found', requestId, { error_code: 'NOT_FOUND' }),
+        { status: 404, headers: getResponseHeaders(requestId) }
+      );
     }
 
   } catch (err: any) {
-    console.error("[Resolve] Server Error:", err);
-    // Check for connection pool errors at top level
-    if (err.message?.includes('MaxClients') || err.message?.includes('pool') || err.code === 'XX000') {
-      return NextResponse.json({ 
-        error: "Service temporarily unavailable. Please try again in a moment.",
-        retryable: true 
-      }, { status: 503 });
+    logCritical('Resolve', 'Server error during unit resolution', requestId, {
+      error: err.message || 'Unknown error',
+    });
+    if (isConnectionPoolError(err)) {
+      return NextResponse.json(
+        createStructuredError('Service temporarily unavailable', requestId, {
+          error_code: 'DB_UNAVAILABLE',
+          retryable: true,
+        }),
+        { status: 503, headers: getResponseHeaders(requestId) }
+      );
     }
-    return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      createStructuredError(err.message || 'Server error', requestId, {
+        error_code: 'SERVER_ERROR',
+        retryable: true,
+      }),
+      { status: 500, headers: getResponseHeaders(requestId) }
+    );
   }
 }

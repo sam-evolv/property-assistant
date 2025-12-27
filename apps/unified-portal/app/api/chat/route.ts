@@ -11,14 +11,11 @@ import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
 import { checkRateLimit } from '@/lib/security/rate-limit';
+import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
   return xff?.split(',')[0]?.trim() || '127.0.0.1';
-}
-
-function generateRequestId(): string {
-  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
 const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
@@ -430,8 +427,11 @@ export async function POST(request: NextRequest) {
   if (!rateCheck.allowed) {
     console.log(`[Chat] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
     return NextResponse.json(
-      { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
-      { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
+      createStructuredError('Too many requests', requestId, {
+        error_code: 'RATE_LIMITED',
+        retryable: true,
+      }),
+      { status: 429, headers: { ...getResponseHeaders(requestId), 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
     );
   }
 
@@ -454,24 +454,36 @@ export async function POST(request: NextRequest) {
     const maxPayloadBytes = 100 * 1024; // 100KB max payload
     if (contentLength && parseInt(contentLength, 10) > maxPayloadBytes) {
       console.log(`[Chat] Payload too large: ${contentLength} bytes requestId=${requestId}`);
-      return NextResponse.json({ error: 'Payload too large', maxBytes: maxPayloadBytes }, { status: 413 });
+      return NextResponse.json(
+        createStructuredError('Payload too large', requestId, { error_code: 'PAYLOAD_TOO_LARGE' }),
+        { status: 413, headers: getResponseHeaders(requestId) }
+      );
     }
 
     const body = await request.json();
     const { message, unitUid: clientUnitUid, userId, hasBeenWelcomed } = body;
 
     if (!message) {
-      return NextResponse.json({ error: 'message is required' }, { status: 400, headers: { 'x-request-id': requestId } });
+      return NextResponse.json(
+        createStructuredError('message is required', requestId, { error_code: 'MISSING_MESSAGE' }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     if (typeof message !== 'string') {
-      return NextResponse.json({ error: 'message must be a string' }, { status: 400, headers: { 'x-request-id': requestId } });
+      return NextResponse.json(
+        createStructuredError('message must be a string', requestId, { error_code: 'INVALID_MESSAGE' }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     const maxMessageLength = 8000; // ~2000 tokens max
     if (message.length > maxMessageLength) {
       console.log(`[Chat] Message too long: ${message.length} chars requestId=${requestId}`);
-      return NextResponse.json({ error: 'Message too long', maxLength: maxMessageLength }, { status: 400, headers: { 'x-request-id': requestId } });
+      return NextResponse.json(
+        createStructuredError('Message too long', requestId, { error_code: 'MESSAGE_TOO_LONG' }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM or RAG
@@ -1579,9 +1591,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     });
 
   } catch (error) {
-    console.error('[Chat] Error:', error);
+    logCritical('Chat', 'Chat API failed', requestId, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     
-    // Log error to database for observability
     const errorLogger = createErrorLogger('/api/chat', DEFAULT_TENANT_ID, DEFAULT_DEVELOPMENT_ID);
     const isTimeout = error instanceof Error && error.message.includes('timeout');
     const isLLM = error instanceof Error && (error.message.includes('OpenAI') || error.message.includes('rate limit'));
@@ -1594,9 +1607,13 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       await errorLogger.supabase(error instanceof Error ? error.message : 'Chat failed', undefined, { endpoint: '/api/chat' });
     }
     
+    const errorCode = isTimeout ? 'TIMEOUT' : isLLM ? 'LLM_ERROR' : 'SERVER_ERROR';
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Chat failed' },
-      { status: 500 }
+      createStructuredError(error instanceof Error ? error.message : 'Chat failed', requestId, {
+        error_code: errorCode,
+        retryable: true,
+      }),
+      { status: 500, headers: getResponseHeaders(requestId) }
     );
   }
 }

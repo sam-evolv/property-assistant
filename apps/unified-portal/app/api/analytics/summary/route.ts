@@ -30,6 +30,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
 
 const summaryQuerySchema = z.object({
   scope: z.enum(['superadmin', 'developer']),
@@ -80,6 +81,7 @@ function daysFromWindow(window: string): number {
 }
 
 export async function GET(request: Request) {
+  const requestId = generateRequestId();
   const computedAt = new Date().toISOString();
   const errors: CanonicalMetricError[] = [];
 
@@ -94,22 +96,26 @@ export async function GET(request: Request) {
     });
 
     if (!parseResult.success) {
-      return NextResponse.json({
-        error: 'Invalid query parameters',
-        details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`),
-        computed_at: computedAt,
-      }, { status: 400 });
+      return NextResponse.json(
+        createStructuredError('Invalid query parameters', requestId, {
+          error_code: 'INVALID_PARAMS',
+          details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`),
+        }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     const { scope, project_id, developer_id, time_window } = parseResult.data;
     const days = daysFromWindow(time_window);
 
     if (scope === 'developer' && !developer_id) {
-      return NextResponse.json({
-        error: 'Tenant isolation violation',
-        details: 'developer_id is required when scope=developer to prevent cross-tenant data leakage',
-        computed_at: computedAt,
-      }, { status: 400 });
+      return NextResponse.json(
+        createStructuredError('Tenant isolation violation', requestId, {
+          error_code: 'TENANT_VIOLATION',
+          details: 'developer_id is required when scope=developer to prevent cross-tenant data leakage',
+        }),
+        { status: 400, headers: getResponseHeaders(requestId) }
+      );
     }
 
     const projectFilter = project_id
@@ -283,17 +289,24 @@ export async function GET(request: Request) {
     };
 
     if (errors.length > 0) {
-      console.error('[ANALYTICS SUMMARY] Partial failure:', errors);
+      console.error('[ANALYTICS SUMMARY] Partial failure:', errors, `requestId=${requestId}`);
     }
 
-    return NextResponse.json(summary);
+    return NextResponse.json(
+      { ...summary, request_id: requestId },
+      { headers: getResponseHeaders(requestId) }
+    );
   } catch (error) {
-    console.error('[ANALYTICS SUMMARY] Critical error:', error);
-    return NextResponse.json({
-      error: 'Failed to compute analytics summary',
-      reason: error instanceof Error ? error.message : 'Unknown error',
-      computed_at: computedAt,
-      errors: [{ metric: 'all', reason: 'Query execution failed' }],
-    }, { status: 500 });
+    logCritical('ANALYTICS SUMMARY', 'Failed to compute analytics summary', requestId, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return NextResponse.json(
+      createStructuredError('Failed to compute analytics summary', requestId, {
+        error_code: 'ANALYTICS_FAILURE',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        retryable: true,
+      }),
+      { status: 500, headers: getResponseHeaders(requestId) }
+    );
   }
 }

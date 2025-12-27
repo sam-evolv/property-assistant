@@ -70,13 +70,15 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const { developmentId } = useSafeCurrentContext();
   
   const canonicalTimeWindow = daysToCanonicalWindow(days);
-  const { data: canonicalSummary, error: canonicalError } = useCanonicalSuperadmin({
+  const { data: canonicalSummary, error: canonicalError, isLoading: canonicalLoading } = useCanonicalSuperadmin({
     project_id: developmentId ?? undefined,
     time_window: canonicalTimeWindow,
   });
 
   const hasAnalyticsErrors = canonicalSummary?.errors && canonicalSummary.errors.length > 0;
   const showConsistencyWarning = process.env.NODE_ENV === 'development' && hasAnalyticsErrors;
+  const showLoadingState = canonicalLoading && !canonicalSummary;
+  const showErrorState = !!canonicalError && !canonicalSummary;
 
   const tabProps = { 
     tenantId, 
@@ -150,6 +152,33 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Error State Banner */}
+      {showErrorState && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Failed to load analytics</p>
+              <p className="text-xs text-red-600 mt-1">
+                {canonicalError?.message || 'Unable to fetch analytics data. Please try refreshing the page.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {showLoadingState && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+              <p className="text-sm text-gray-600">Loading analytics...</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Consistency Warning Banner (dev mode only) */}
       {showConsistencyWarning && (
