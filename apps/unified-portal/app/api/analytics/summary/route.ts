@@ -1,3 +1,28 @@
+/*
+ * =============================================================================
+ * CANONICAL ANALYTICS CONTRACT
+ * =============================================================================
+ *
+ * This endpoint defines the SINGLE SOURCE OF TRUTH for all analytics metrics.
+ *
+ * All dashboards, developer views, superadmin views, and AI insights
+ * MUST consume this output as-is.
+ *
+ * DO NOT:
+ * - Recompute metrics elsewhere
+ * - Redefine time windows
+ * - Filter independently
+ * - Interpret null as zero (use explicit error handling)
+ * - Query analytics_events directly for display purposes
+ *
+ * All legacy analytics endpoints (/api/analytics/platform/*, /api/analytics-v2/*)
+ * have been deprecated and will throw errors. Use this endpoint exclusively.
+ *
+ * Contract version: 1.0.0
+ * Last updated: 2025-01-XX
+ * =============================================================================
+ */
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

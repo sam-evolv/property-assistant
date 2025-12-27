@@ -1,0 +1,135 @@
+You are operating in a production-critical repository.
+
+This task is a FINAL ANALYTICS LOCK-IN AND REGRESSION PREVENTION PASS
+prior to launch.
+
+This is NOT feature work.
+This is NOT refactoring for elegance.
+This is correctness, governance, and long-term safety.
+
+----------------------------------------
+PRIMARY OBJECTIVES
+----------------------------------------
+
+1. Hard-deprecate all legacy analytics code paths.
+2. Freeze analytics semantics so they cannot diverge again.
+3. Add a single, global sanity signal to confirm analytics liveness.
+4. Prevent silent regressions across dashboards and AI insights.
+5. Do NOT change analytics data or event semantics.
+
+----------------------------------------
+NON-NEGOTIABLE RULES
+----------------------------------------
+
+- Do NOT add new analytics events
+- Do NOT modify analytics_events schema
+- Do NOT fabricate or infer data
+- Do NOT weaken tenant isolation
+- Do NOT introduce new dashboards or features
+- Supabase analytics_events remains the sole source of truth
+
+----------------------------------------
+PHASE 1 — HARD-DEPRECATE LEGACY ANALYTICS
+----------------------------------------
+
+1. Identify ALL pre-canonical analytics endpoints, services, and queries,
+   including (but not limited to):
+   - v1 / v2 analytics endpoints
+   - homeowner-based metrics paths
+   - any analytics logic not using /api/analytics/summary
+
+2. For each legacy endpoint:
+   - Add explicit deprecation markers in code comments
+   - Make the endpoint throw a clear error:
+     "Legacy analytics endpoint disabled.
+      Use /api/analytics/summary instead."
+
+3. Ensure these endpoints:
+   - Cannot be accidentally consumed by dashboards
+   - Cannot silently return partial or incorrect data
+
+4. Confirm that no active UI or AI path calls deprecated analytics.
+
+----------------------------------------
+PHASE 2 — FREEZE CANONICAL ANALYTICS SEMANTICS
+----------------------------------------
+
+1. At the top of /api/analytics/summary, add a prominent comment block:
+
+   /*
+    CANONICAL ANALYTICS CONTRACT
+
+    This endpoint defines the single source of truth for all analytics.
+    All dashboards, developer views, superadmin views, and AI insights
+    MUST consume this output as-is.
+
+    Do NOT:
+    - Recompute metrics elsewhere
+    - Redefine time windows
+    - Filter independently
+    - Interpret null as zero
+   */
+
+2. Ensure all analytics metrics:
+   - Use the same created_at logic
+   - Include recovered and inferred data consistently
+   - Use explicit time window parameters only
+
+3. Remove any remaining component-level analytics calculations.
+
+----------------------------------------
+PHASE 3 — GLOBAL SANITY SIGNAL (LIVENESS CHECK)
+----------------------------------------
+
+1. Extend the canonical analytics summary to include:
+   - last_analytics_event_at (timestamp of most recent analytics_events row)
+
+2. Surface this value consistently in:
+   - Superadmin analytics overview
+   - Developer analytics overview
+
+3. Display format:
+   "Last activity received: X minutes ago"
+
+4. This must:
+   - Never be inferred
+   - Never be cached incorrectly
+   - Fail loudly if unavailable
+
+----------------------------------------
+PHASE 4 — REGRESSION GUARDS
+----------------------------------------
+
+1. In development mode, add runtime assertions:
+   - If any dashboard metric differs from canonical summary output,
+     log a CRITICAL analytics consistency error.
+
+2. Ensure:
+   - No dashboard renders analytics without canonical data
+   - No AI insight is generated without canonical summary input
+
+3. AI Insights:
+   - Must never state "no activity" unless canonical metrics confirm zero
+   - Must surface analytics errors explicitly if present
+
+----------------------------------------
+PHASE 5 — FINAL VERIFICATION
+----------------------------------------
+
+Manually verify:
+
+- Legacy analytics endpoints throw explicit errors
+- All dashboards show identical numbers for the same time window
+- Recovered data appears consistently everywhere
+- AI insights align exactly with dashboards
+- "Last activity received" updates when a QR scan or chat occurs
+
+----------------------------------------
+FINAL OUTPUT REQUIRED
+----------------------------------------
+
+- Canonical analytics fully locked in
+- Legacy analytics permanently disabled
+- One consistent analytics story across the entire platform
+- Zero silent analytics failures possible
+- Platform ready for launch without analytics regressions
