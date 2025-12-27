@@ -376,20 +376,11 @@ export async function validatePurchaserAccess(
     };
   }
 
-  // Showhouse mode: token === unitUid (demo access)
-  // SECURITY: Only allow if token exactly matches claimed unit_uid
-  if (token === claimedUnitUid) {
-    console.log(`[Auth] Showhouse mode access for unit ${claimedUnitUid} requestId=${requestId}`);
-    return {
-      valid: true,
-      unitUid: unit.unit_uid,
-      projectId: unit.development_id,
-      developmentId: unit.development_id,
-      tenantId: unit.tenant_id,
-    };
-  }
-
-  // Token invalid and not showhouse mode
+  // SECURITY: Showhouse mode REMOVED from this helper
+  // Showhouse access must be explicitly verified by each endpoint checking unit.is_showhouse in DB
+  // This prevents cross-unit attacks via forged token=unitUid requests
+  
+  // Token invalid - log and reject
   logSecurityViolation({
     request_id: requestId,
     unit_uid: claimedUnitUid,
