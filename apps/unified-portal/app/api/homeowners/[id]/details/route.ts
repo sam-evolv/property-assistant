@@ -79,17 +79,16 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Fetch messaging stats from Drizzle (messages table) - graceful fallback if table doesn't exist
-    const emptyStats = { rows: [{ total_messages: 0, user_messages: 0, assistant_messages: 0, first_message: null, last_message: null }] };
+    // Fetch messaging stats from Drizzle (messages table)
+    // NOTE: Messages table stores both user_message and ai_message in each row (conversation format)
+    const emptyStats = { rows: [{ total_conversations: 0, first_message: null, last_message: null }] };
     const emptyMessages = { rows: [] };
 
     const [msgStatsResult, recentMsgsResult] = await Promise.all([
       safeQuery(
         () => db.execute(sql`
           SELECT 
-            COUNT(*)::int as total_messages,
-            COUNT(CASE WHEN sender = 'user' THEN 1 END)::int as user_messages,
-            COUNT(CASE WHEN sender = 'assistant' THEN 1 END)::int as assistant_messages,
+            COUNT(*)::int as total_conversations,
             MIN(created_at) as first_message,
             MAX(created_at) as last_message
           FROM messages
@@ -99,7 +98,7 @@ export async function GET(
       ),
       safeQuery(
         () => db.execute(sql`
-          SELECT id, content, sender, created_at
+          SELECT id, user_message, ai_message, created_at
           FROM messages
           WHERE user_id = ${id}
           ORDER BY created_at DESC
@@ -110,10 +109,13 @@ export async function GET(
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
+    const totalConversations = statsRow?.total_conversations || 0;
+    
+    // Each conversation record contains 1 user question and 1 AI response
     const messageStats = {
-      total_messages: statsRow?.total_messages || 0,
-      user_messages: statsRow?.user_messages || 0,
-      assistant_messages: statsRow?.assistant_messages || 0,
+      total_messages: totalConversations * 2, // user + AI per conversation
+      user_messages: totalConversations, // one user question per conversation
+      assistant_messages: totalConversations, // one AI response per conversation
       first_message: statsRow?.first_message || null,
       last_message: statsRow?.last_message || null,
     };
@@ -126,11 +128,11 @@ export async function GET(
     const isActiveThisWeek = lastMessageDate && lastMessageDate >= sevenDaysAgo;
 
     let engagementLevel: 'high' | 'medium' | 'low' | 'none' = 'none';
-    if (messageStats.total_messages >= 20) {
+    if (messageStats.user_messages >= 20) {
       engagementLevel = 'high';
-    } else if (messageStats.total_messages >= 5) {
+    } else if (messageStats.user_messages >= 5) {
       engagementLevel = 'medium';
-    } else if (messageStats.total_messages > 0) {
+    } else if (messageStats.user_messages > 0) {
       engagementLevel = 'low';
     }
 
@@ -164,6 +166,27 @@ export async function GET(
       accepted_at: unitRow.notices_terms_accepted_at,
     } : null;
 
+    // Format recent messages for display (expand conversation records into individual messages)
+    const formattedMessages: any[] = [];
+    for (const msg of recentMessages) {
+      if (msg.user_message) {
+        formattedMessages.push({
+          id: `${msg.id}-user`,
+          content: msg.user_message?.substring(0, 150) + (msg.user_message && msg.user_message.length > 150 ? '...' : ''),
+          role: 'user',
+          created_at: msg.created_at,
+        });
+      }
+      if (msg.ai_message) {
+        formattedMessages.push({
+          id: `${msg.id}-assistant`,
+          content: msg.ai_message?.substring(0, 150) + (msg.ai_message && msg.ai_message.length > 150 ? '...' : ''),
+          role: 'assistant',
+          created_at: msg.created_at,
+        });
+      }
+    }
+
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
@@ -191,12 +214,7 @@ export async function GET(
         last_message: messageStats.last_message,
         is_active_this_week: isActiveThisWeek,
         engagement_level: engagementLevel,
-        recent_messages: recentMessages.map((m: any) => ({
-          id: m.id,
-          content: m.content?.substring(0, 150) + (m.content && m.content.length > 150 ? '...' : ''),
-          role: m.sender,
-          created_at: m.created_at,
-        })),
+        recent_messages: formattedMessages.slice(0, 10), // Show up to 10 individual messages
       },
       acknowledgement,
       noticeboard_terms,
