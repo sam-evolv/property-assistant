@@ -68,7 +68,7 @@ export async function GET(
     if (unitRow.project_id) {
       const { data: projectData } = await supabase
         .from('projects')
-        .select('id, name, address')
+        .select('id, name, address, important_docs_version')
         .eq('id', unitRow.project_id)
         .single();
       project = projectData;
@@ -82,9 +82,8 @@ export async function GET(
     // Fetch messaging stats from Drizzle (messages table) - graceful fallback if table doesn't exist
     const emptyStats = { rows: [{ total_messages: 0, user_messages: 0, assistant_messages: 0, first_message: null, last_message: null }] };
     const emptyMessages = { rows: [] };
-    const emptyAgreements = { rows: [] };
 
-    const [msgStatsResult, recentMsgsResult, agreementsRes] = await Promise.all([
+    const [msgStatsResult, recentMsgsResult] = await Promise.all([
       safeQuery(
         () => db.execute(sql`
           SELECT 
@@ -108,18 +107,6 @@ export async function GET(
         `),
         emptyMessages
       ),
-      safeQuery(
-        () => db.execute(sql`
-          SELECT 
-            id, unit_id, purchaser_name, agreed_at, ip_address, user_agent, 
-            important_docs_acknowledged, docs_version
-          FROM purchaser_agreements
-          WHERE unit_id = ${id}
-          ORDER BY agreed_at DESC
-          LIMIT 1
-        `),
-        emptyAgreements
-      ),
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
@@ -132,7 +119,6 @@ export async function GET(
     };
 
     const recentMessages = (recentMsgsResult.rows || []) as any[];
-    const latestAgreement = agreementsRes.rows[0] as any || null;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -158,6 +144,26 @@ export async function GET(
     const unitType = unitRow.unit_types as any;
     const houseType = unitType?.name || unitRow.house_type_code || unitRow.house_type || 'N/A';
 
+    // Check acknowledgement status from unit record itself
+    const agreedVersion = unitRow.important_docs_agreed_version || 0;
+    const projectDocsVersion = project?.important_docs_version || 0;
+    const hasAcknowledged = agreedVersion > 0 && agreedVersion >= projectDocsVersion;
+    
+    // Build acknowledgement object from unit data
+    const acknowledgement = hasAcknowledged ? {
+      agreed_at: unitRow.important_docs_agreed_at,
+      purchaser_name: unitRow.purchaser_name || residentName,
+      ip_address: null,
+      user_agent: null,
+      docs_version: agreedVersion,
+      documents_acknowledged: [],
+    } : null;
+
+    // Check noticeboard terms from unit data
+    const noticeboard_terms = unitRow.notices_terms_accepted_at ? {
+      accepted_at: unitRow.notices_terms_accepted_at,
+    } : null;
+
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
@@ -168,10 +174,13 @@ export async function GET(
         unique_qr_token: unitRow.id,
         development_id: unitRow.project_id,
         created_at: unitRow.created_at,
+        important_docs_agreed_version: agreedVersion,
+        important_docs_agreed_at: unitRow.important_docs_agreed_at,
         development: project ? {
           id: project.id,
           name: project.name,
           address: project.address,
+          important_docs_version: projectDocsVersion,
         } : null,
       },
       activity: {
@@ -189,14 +198,8 @@ export async function GET(
           created_at: m.created_at,
         })),
       },
-      acknowledgement: latestAgreement ? {
-        agreed_at: latestAgreement.agreed_at,
-        purchaser_name: latestAgreement.purchaser_name,
-        ip_address: latestAgreement.ip_address,
-        user_agent: latestAgreement.user_agent,
-        docs_version: latestAgreement.docs_version,
-        documents_acknowledged: latestAgreement.important_docs_acknowledged || [],
-      } : null,
+      acknowledgement,
+      noticeboard_terms,
     });
   } catch (error) {
     console.error('[HOMEOWNER DETAILS] Error:', error);
