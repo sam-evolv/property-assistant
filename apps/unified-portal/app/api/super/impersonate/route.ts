@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
+import { signQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -31,67 +31,62 @@ export async function GET(req: NextRequest) {
     if (isUUID) {
       const { data } = await supabase
         .from('units')
-        .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
+        .select('id, project_id, address, purchaser_name')
         .eq('id', unitUid)
         .single();
       if (data) {
+        // Get project info separately
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id, name, developer_id')
+          .eq('id', data.project_id)
+          .single();
         unit = {
           id: data.id,
-          unit_uid: data.unit_uid,
           development_id: data.project_id,
-          address: data.address_line_1,
+          address: data.address,
           purchaser_name: data.purchaser_name,
-          tenant_id: (data.projects as any)?.tenant_id,
-          development_name: (data.projects as any)?.name,
+          tenant_id: project?.developer_id || data.project_id,
+          development_name: project?.name,
         };
       }
     }
 
     if (!unit) {
-      // Try by unit_uid or find first available unit
-      const { data: unitByUid } = await supabase
+      // Fallback: get any unit from Supabase
+      const { data: anyUnits, error: anyError } = await supabase
         .from('units')
-        .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
-        .eq('unit_uid', unitUid)
-        .single();
+        .select('id, project_id, address, purchaser_name')
+        .limit(10);
       
-      if (unitByUid) {
-        unit = {
-          id: unitByUid.id,
-          unit_uid: unitByUid.unit_uid,
-          development_id: unitByUid.project_id,
-          address: unitByUid.address_line_1,
-          purchaser_name: unitByUid.purchaser_name,
-          tenant_id: (unitByUid.projects as any)?.tenant_id,
-          development_name: (unitByUid.projects as any)?.name,
-        };
-      } else {
-        // Fallback: get any unit from the first project
-        const { data: anyUnits } = await supabase
-          .from('units')
-          .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
-          .limit(10);
+      console.log('[Super Admin Impersonation] fallback units:', anyUnits?.length || 0, 'error:', anyError?.message || 'none');
+      if (anyUnits && anyUnits.length > 0) {
+        console.log('[Super Admin Impersonation] first unit sample:', JSON.stringify(anyUnits[0], null, 2));
+      }
+      
+      if (anyUnits && anyUnits.length > 0) {
+        const numMatch = unitUid.match(/(\d+)/);
+        const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
         
-        if (anyUnits && anyUnits.length > 0) {
-          const numMatch = unitUid.match(/(\d+)/);
-          const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
-          
-          const exactMatch = anyUnits.find((u: any) => {
-            const addrMatch = u.address_line_1?.match(/^(\d+)\s/);
-            return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
-          });
-          
-          const selected = exactMatch || anyUnits[0];
-          unit = {
-            id: selected.id,
-            unit_uid: selected.unit_uid,
-            development_id: selected.project_id,
-            address: selected.address_line_1,
-            purchaser_name: selected.purchaser_name,
-            tenant_id: (selected.projects as any)?.tenant_id,
-            development_name: (selected.projects as any)?.name,
-          };
-        }
+        const exactMatch = anyUnits.find((u: any) => {
+          const addrMatch = u.address?.match(/^(\d+)\s/);
+          return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+        });
+        
+        const selected = exactMatch || anyUnits[0];
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id, name, developer_id')
+          .eq('id', selected.project_id)
+          .single();
+        unit = {
+          id: selected.id,
+          development_id: selected.project_id,
+          address: selected.address,
+          purchaser_name: selected.purchaser_name,
+          tenant_id: project?.developer_id || selected.project_id,
+          development_name: project?.name,
+        };
       }
     }
 
@@ -111,15 +106,13 @@ export async function GET(req: NextRequest) {
     }
     console.log('[Super Admin Impersonation] Resolved development:', developmentId, 'tenant:', tenantId);
     
-    const tokenResult = await generateQRTokenForUnit(
-      unit.id,
-      developmentId,
-      tenantId,
-      developmentId
-    );
+    // Use signQRToken directly (no DB storage needed for demo)
+    const tokenResult = signQRToken({
+      supabaseUnitId: unit.id,
+      projectId: developmentId,
+    });
 
     console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);
-    console.log(`[Super Admin Impersonation] Token stored in database`);
     console.log(`[Super Admin Impersonation] URL:`, tokenResult.url);
     
     return NextResponse.json({ 
