@@ -145,8 +145,25 @@ const SWR_ANALYTICS_CONFIG = {
 };
 
 export function useOverviewMetrics(params: FetchOptions) {
-  const key = `/api/analytics-v2/overview?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<OverviewMetrics>(key, () => fetchAnalyticsV2<OverviewMetrics>('overview', params), SWR_ANALYTICS_CONFIG);
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d`;
+  return useSWR<OverviewMetrics>(key, async () => {
+    const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
+    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch analytics summary');
+    }
+    const data = await res.json();
+    return {
+      totalMessages: data.questions_in_window || 0,
+      activeUsers: data.active_units_in_window || 0,
+      avgResponseTime: 0,
+      totalDocuments: data.total_document_opens || 0,
+      embeddingChunks: 0,
+      avgCostPerMessage: 0,
+      peakUsageHour: 0,
+      topDevelopment: null,
+    } as OverviewMetrics;
+  }, SWR_ANALYTICS_CONFIG);
 }
 
 export function useTrendMetrics(params: FetchOptions) {
@@ -170,8 +187,24 @@ export function useDocumentMetrics(params: FetchOptions) {
 }
 
 export function useHomeownerMetrics(params: FetchOptions) {
-  const key = `/api/analytics-v2/homeowners?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<HomeownerMetrics>(key, () => fetchAnalyticsV2<HomeownerMetrics>('homeowners', params), SWR_ANALYTICS_CONFIG);
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d&for=homeowners`;
+  return useSWR<HomeownerMetrics>(key, async () => {
+    const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
+    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch analytics summary');
+    }
+    const data = await res.json();
+    const activeUnits = data.active_units_in_window || 0;
+    const totalQuestions = data.questions_in_window || 0;
+    return {
+      totalHomeowners: activeUnits,
+      activeHomeowners: activeUnits,
+      engagementRate: activeUnits > 0 ? Math.min(1, totalQuestions / (activeUnits * 10)) : 0,
+      avgMessagesPerHomeowner: activeUnits > 0 ? Math.round(totalQuestions / activeUnits) : 0,
+      topEngagedDevelopment: null,
+    } as HomeownerMetrics;
+  }, SWR_ANALYTICS_CONFIG);
 }
 
 export function useUnitMetrics(params: FetchOptions) {
