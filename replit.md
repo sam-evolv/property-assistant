@@ -73,6 +73,30 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Superadmin Analytics Dashboard UX Improvements (December 2025)
+
+Reduced jank and improved navigation clarity in the analytics dashboard:
+
+**Time Window Filter:**
+- Added dropdown selector in dashboard header (7d, 14d, 30d, 90d)
+- All tabs respect the selected time window
+- Defaults to 30 days for consistency
+
+**Defensive Rendering:**
+- Questions tab: Protected reduce() from empty array crash, added empty state messages
+- Overview tab: Added null coalescing for all metric values, error state handling
+- All sections show helpful empty states when no data available
+
+**Polling Optimization:**
+- Reduced overview dashboard polling from 5s to 30s to minimize layout shift jank
+- Maintains data freshness while preventing UI flicker
+
+**Files Changed:**
+- `apps/unified-portal/app/super/analytics/analytics-client.tsx`
+- `apps/unified-portal/app/super/analytics/tabs/overview.tsx`
+- `apps/unified-portal/app/super/analytics/tabs/questions.tsx`
+- `apps/unified-portal/app/super/overview-client.tsx`
+
 ### Homeowner Onboarding Hardening (December 2025)
 
 Stabilized the "create development -> add units -> invite tenants" workflow:
