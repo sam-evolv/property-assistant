@@ -182,6 +182,23 @@ export default function HomeResidentPage() {
           
           setHouse(houseData);
 
+          // Fire qr_scan analytics event (fire-and-forget, log failures loudly)
+          fetch('/api/analytics/qr-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              unit_id: houseId,
+              development_id: houseData.development_id,
+              tenant_id: houseData.tenant_id,
+            }),
+          }).then((res) => {
+            if (!res.ok) {
+              console.error('[ANALYTICS CRITICAL] qr_scan API returned non-OK status:', res.status);
+            }
+          }).catch((err) => {
+            console.error('[ANALYTICS CRITICAL] Failed to emit qr_scan event:', err);
+          });
+
           // Check important docs consent status
           checkImportantDocsConsent(houseId, qrToken || unitUid);
 
