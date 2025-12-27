@@ -1,0 +1,97 @@
+You are operating in a production-critical repository.
+
+OBJECTIVE:
+Stabilise, verify, and permanently harden the Superadmin analytics pipeline.
+This is NOT cosmetic. This is a forensic + recovery + prevention task.
+
+NON-NEGOTIABLE RULES:
+- Do NOT delete any existing data
+- Do NOT rename production tables
+- Do NOT change auth or unit logic
+- Do NOT suppress errors
+- All analytics writes must be verifiable or the system must fail loudly
+
+PHASE 1 — FORENSIC VERIFICATION (READ ONLY)
+1. Enumerate ALL databases, schemas, and connections used by the app:
+   - Supabase project IDs
+   - Connection strings
+   - Preview vs production environments
+2. Search for ANY analytics-like tables:
+   - analytics_events
+   - events
+   - activity_log
+   - usage
+   - qr_scans
+   - page_views
+3. Log exact row counts and last_updated timestamps.
+4. Output a clear report:
+   - Table name
+   - Schema
+   - Row count
+   - Environment
+
+NO CHANGES YET.
+
+PHASE 2 — CANONICAL ANALYTICS TABLE (SAFE CREATE)
+If analytics_events does not exist in the canonical production DB:
+- Create it explicitly with:
+  - id (uuid, pk)
+  - event_type (text, not null)
+  - unit_id (uuid, nullable)
+  - project_id (uuid, nullable)
+  - user_id (uuid, nullable)
+  - metadata (jsonb)
+  - created_at (timestamptz, default now())
+
+Add indexes on:
+- event_type
+- unit_id
+- project_id
+- created_at
+
+DO NOT wrap in IF EXISTS logic silently. Log creation.
+
+PHASE 3 — HARD FAIL ON WRITE FAILURE
+Refactor ALL analytics insert code:
+- If an insert fails, throw and log visibly
+- Remove all try/catch that swallows analytics errors
+- Console.warn is NOT sufficient
+- Use structured logging
+
+If analytics cannot be written, the system must:
+- Log a red error
+- Return a diagnostic payload to Superadmin
+
+PHASE 4 — IMMEDIATE BACKFILL (BEST EFFORT)
+Backfill analytics from:
+- Supabase auth logs (user signups)
+- Units table (unit creation timestamps)
+- QR code access logs (if available)
+- Page load events (if tracked)
+
+Tag all backfilled rows with:
+metadata.backfilled = true
+
+PHASE 5 — REAL-TIME VERIFICATION MODE
+Add a Superadmin-only toggle:
+- “Analytics Verification Mode”
+
+When enabled:
+- Every analytics write is echoed live to the dashboard
+- Show last insert timestamp
+- Show inserts per minute
+
+PHASE 6 — CONFIDENCE CHECK
+Produce a final checklist:
+- Analytics table exists (YES/NO)
+- Last insert timestamp
+- Inserts in last 5 minutes
+- Inserts today
+- Inserts total
+
+This checklist must render in the Superadmin dashboard.
+
+FINAL OUTPUT:
+- A clear written report of what data existed, where
+- Confirmation of whether historic analytics were ever persisted
+- A hardened pipeline that cannot silently fail again
