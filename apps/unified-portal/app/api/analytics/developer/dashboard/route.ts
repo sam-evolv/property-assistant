@@ -3,10 +3,35 @@ import { assertDeveloper, enforceTenantScope, enforceDevelopmentScope } from '@/
 import { db } from '@openhouse/db';
 import { messages, homeowners, documents, units } from '@openhouse/db/schema';
 import { sql, gte, and, eq, count } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 export const dynamic = 'force-dynamic';
 
+function createErrorResponse(
+  requestId: string, 
+  error: string, 
+  details: string | null,
+  status: number
+) {
+  console.error(`[DeveloperDashboard] requestId=${requestId} status=${status} error=${error} details=${details || 'none'}`);
+  return NextResponse.json(
+    { 
+      error, 
+      details,
+      requestId,
+      endpoint: '/api/analytics/developer/dashboard',
+      timestamp: new Date().toISOString(),
+    },
+    { 
+      status,
+      headers: { 'x-request-id': requestId }
+    }
+  );
+}
+
 export async function GET(request: NextRequest) {
+  const requestId = `dash_${nanoid(12)}`;
+  
   try {
     const context = await assertDeveloper();
     
@@ -255,7 +280,10 @@ export async function GET(request: NextRequest) {
       messageCount: row.message_count,
     }));
 
+    console.log(`[DeveloperDashboard] requestId=${requestId} OK: tenant=${tenantId} dev=${developmentId || 'all'} units=${totalUnits} homeowners=${registeredHomeowners}`);
+    
     return NextResponse.json({
+      requestId,
       kpis: {
         onboardingRate: {
           value: onboardingRate,
@@ -298,18 +326,31 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[API] /api/analytics/developer/dashboard error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     
-    if (error instanceof Error && (error.message.includes('Unauthorized') || error.message.includes('Forbidden'))) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.message.includes('Unauthorized') ? 401 : 403 }
-      );
+    console.error(`[DeveloperDashboard] requestId=${requestId} CRITICAL ERROR:`, {
+      message: errorMessage,
+      stack: errorStack,
+    });
+    
+    if (error instanceof Error && error.message.includes('Unauthorized')) {
+      return createErrorResponse(requestId, 'Authentication required', errorMessage, 401);
     }
     
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard analytics' },
-      { status: 500 }
-    );
+    if (error instanceof Error && error.message.includes('Forbidden')) {
+      return createErrorResponse(requestId, 'Access denied', errorMessage, 403);
+    }
+    
+    // Database or query errors
+    if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+      return createErrorResponse(requestId, 'Database schema error', 'Required table missing - contact support', 500);
+    }
+    
+    if (errorMessage.includes('connection') || errorMessage.includes('ECONNREFUSED')) {
+      return createErrorResponse(requestId, 'Database connection failed', 'Unable to connect to database', 503);
+    }
+    
+    return createErrorResponse(requestId, 'Failed to load dashboard', errorMessage, 500);
   }
 }

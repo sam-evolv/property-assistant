@@ -22,6 +22,7 @@ const ChatActivityChart = dynamic(
 );
 
 interface DashboardData {
+  requestId?: string;
   kpis: {
     onboardingRate: { value: number; label: string; description: string; suffix: string };
     engagementRate: { value: number; label: string; description: string; suffix: string; growth?: number };
@@ -41,6 +42,13 @@ interface DashboardData {
     messageGrowth: number;
     totalDocuments: number;
   };
+}
+
+interface DashboardError {
+  error: string;
+  details?: string;
+  requestId?: string;
+  endpoint?: string;
 }
 
 function KpiCard({ 
@@ -480,27 +488,51 @@ export default function DeveloperDashboardClient({
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<DashboardError | null>(null);
+  const [retrying, setRetrying] = useState(false);
+
+  const fetchDashboard = useCallback(async (isRetry = false) => {
+    if (isRetry) {
+      setRetrying(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/analytics/developer/dashboard');
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        // Extract structured error from API response
+        const errorInfo: DashboardError = {
+          error: responseData.error || `HTTP ${response.status}`,
+          details: responseData.details || response.statusText,
+          requestId: responseData.requestId || response.headers.get('x-request-id') || undefined,
+          endpoint: responseData.endpoint || '/api/analytics/developer/dashboard',
+        };
+        console.error('[Dashboard] API error:', errorInfo);
+        setError(errorInfo);
+        return;
+      }
+      
+      setData(responseData);
+    } catch (err) {
+      console.error('[Dashboard] Fetch error:', err);
+      setError({
+        error: 'Network error',
+        details: err instanceof Error ? err.message : 'Failed to connect to server',
+        endpoint: '/api/analytics/developer/dashboard',
+      });
+    } finally {
+      setLoading(false);
+      setRetrying(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const response = await fetch('/api/analytics/developer/dashboard');
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-        const dashboardData = await response.json();
-        setData(dashboardData);
-      } catch (err) {
-        console.error('Dashboard fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchDashboard();
-  }, []);
+  }, [fetchDashboard]);
 
   const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-white';
   const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
@@ -530,10 +562,37 @@ export default function DeveloperDashboardClient({
     return (
       <div className={`min-h-full flex flex-col ${bgColor}`}>
         <div className="px-8 py-8 flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <p className={textColor}>Failed to load dashboard</p>
-            <p className={secondaryText}>{error}</p>
+          <div className="text-center max-w-md">
+            <div className={`p-4 rounded-full ${isDarkMode ? 'bg-red-900/30' : 'bg-red-100'} w-fit mx-auto mb-4`}>
+              <AlertCircle className="w-10 h-10 text-red-500" />
+            </div>
+            <h2 className={`text-xl font-semibold ${textColor} mb-2`}>
+              {error?.error || 'Failed to load dashboard'}
+            </h2>
+            <p className={`${secondaryText} mb-4`}>
+              {error?.details || 'An unexpected error occurred while loading the dashboard.'}
+            </p>
+            {error?.requestId && (
+              <p className={`text-xs ${secondaryText} mb-4 font-mono`}>
+                Request ID: {error.requestId}
+              </p>
+            )}
+            {error?.endpoint && (
+              <p className={`text-xs ${secondaryText} mb-6 font-mono`}>
+                Endpoint: {error.endpoint}
+              </p>
+            )}
+            <button
+              onClick={() => fetchDashboard(true)}
+              disabled={retrying}
+              className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                retrying 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-600 hover:to-gold-700 text-white shadow-lg hover:shadow-xl'
+              }`}
+            >
+              {retrying ? 'Retrying...' : 'Retry'}
+            </button>
           </div>
         </div>
       </div>
