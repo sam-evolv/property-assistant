@@ -1,0 +1,127 @@
+You are operating in a production-critical repository.
+
+This task is a DATA RECOVERY + CONSOLIDATION + PREVENTION operation.
+
+OBJECTIVES:
+1. Recover ALL historical beta data that exists anywhere (Neon DB, logs, memory artefacts).
+2. Consolidate that data into Supabase as the canonical analytics store.
+3. Surface recovered data clearly inside the Beta Control Room.
+4. Ensure this failure mode can NEVER happen again.
+
+NON-NEGOTIABLE RULES:
+- DO NOT delete existing Supabase data
+- DO NOT fabricate or infer missing events
+- DO NOT suppress errors
+- DO NOT introduce a second analytics database
+- Supabase MUST be the single source of truth after this task
+
+--------------------------------
+PHASE 1 — FORENSIC DATA RECOVERY
+--------------------------------
+
+1. Connect to Replit / Neon database (READ ONLY).
+2. Extract ALL records related to beta activity, including but not limited to:
+   - analytics events
+   - chat messages
+   - user questions
+   - unit interactions
+3. For each record, capture:
+   - original source (neon, log, etc.)
+   - original timestamp
+   - unit_id (if available)
+   - user_id (if available)
+   - raw payload
+
+Output a recovery summary:
+- Table / source
+- Row count
+- Date range
+- Data completeness (unit_id present or not)
+
+--------------------------------
+PHASE 2 — SAFE MIGRATION TO SUPABASE
+--------------------------------
+
+1. Migrate recovered data into Supabase tables:
+   - analytics_events
+   - chat_messages (or equivalent)
+2. Preserve original timestamps.
+3. Add metadata flags:
+   - metadata.recovered = true
+   - metadata.source = "neon_recovery" | "log_recovery"
+4. DO NOT deduplicate unless IDs collide exactly.
+5. Create indexes if missing (event_type, unit_id, created_at).
+
+--------------------------------
+PHASE 3 — SERVER LOG BACKFILL (BEST EFFORT)
+--------------------------------
+
+1. Parse available server logs for:
+   - /api/houses/resolve
+   - chat endpoints
+   - QR entry routes
+2. Extract only HIGH-CONFIDENCE events:
+   - successful responses only
+3. Insert as analytics_events with:
+   - event_type = "inferred_qr_scan" or "inferred_chat"
+   - metadata.inferred = true
+4. Clearly distinguish inferred vs real events.
+
+If logs are unavailable or insufficient:
+- Log this explicitly in a recovery report.
+- Do NOT guess.
+
+--------------------------------
+PHASE 4 — BETA CONTROL ROOM SURFACING
+--------------------------------
+
+1. Update Beta Control Room to display:
+   - Total recovered events
+   - Total recovered chat messages
+   - Breakdown:
+     - live
+     - recovered
+     - inferred
+2. Add a visible badge:
+   “Recovered Beta Data (Pre-Hardening)”
+3. Allow filtering:
+   - Live only
+   - Recovered only
+   - Inferred only
+
+This ensures transparency and auditability.
+
+--------------------------------
+PHASE 5 — SINGLE SOURCE OF TRUTH ENFORCEMENT
+--------------------------------
+
+1. Remove or disable ALL analytics writes to:
+   - Neon
+   - Replit DB
+   - Any non-Supabase adapter
+2. Add a guard:
+   - If analytics target !== Supabase → throw error + log CRITICAL
+3. Add startup assertion:
+   - Supabase connection must be present or app refuses analytics mode.
+
+--------------------------------
+PHASE 6 — POST-MORTEM ARTIFACT
+--------------------------------
+
+Generate a machine-readable recovery report:
+- What data was recovered
+- What could not be recovered
+- Why it could not be recovered
+- What safeguards now exist
+
+Store this report in:
+- /docs/beta-recovery-report.json
+- Accessible to super_admin only
+
+--------------------------------
+FINAL OUTPUT REQUIRED:
+--------------------------------
+- All recoverable beta data visible in Beta Control Room
+- Clear distinction between live vs recovered vs inferred data
+- Supabase confirmed as sole analytics backend
+- Zero silent failure paths remaining
