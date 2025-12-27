@@ -31,6 +31,7 @@ import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
+import { logSecurityViolation } from '@/lib/api-auth';
 
 const summaryQuerySchema = z.object({
   scope: z.enum(['superadmin', 'developer']),
@@ -108,7 +109,13 @@ export async function GET(request: Request) {
     const { scope, project_id, developer_id, time_window } = parseResult.data;
     const days = daysFromWindow(time_window);
 
+    // SECURITY: Fail-closed - developer scope MUST have developer_id to prevent cross-tenant leakage
     if (scope === 'developer' && !developer_id) {
+      logSecurityViolation({
+        request_id: requestId,
+        project_id: project_id,
+        reason: 'Analytics request with scope=developer missing developer_id - cross-tenant access blocked',
+      });
       return NextResponse.json(
         createStructuredError('Tenant isolation violation', requestId, {
           error_code: 'TENANT_VIOLATION',

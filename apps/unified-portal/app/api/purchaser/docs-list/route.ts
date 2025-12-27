@@ -1,5 +1,6 @@
 // Hardened Document Scoping API - 2025-12-27
 // SECURITY: Fail closed - show nothing rather than wrong docs
+// SECURITY: Cross-tenant access forbidden - documents scoped by unit→project relationship
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -8,6 +9,7 @@ import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
+import { logSecurityViolation } from '@/lib/api-auth';
 
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 
@@ -90,12 +92,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // AUTHENTICATION: Validate token matches unit
+    // SECURITY: Validate token matches claimed unit - cross-unit access forbidden
     let isAuthenticated = false;
     if (token) {
       const payload = await validateQRToken(token);
-      if (payload && payload.supabaseUnitId === unitUid) {
-        isAuthenticated = true;
+      if (payload) {
+        // SECURITY: Token's embedded unit must match claimed unit
+        if (payload.supabaseUnitId === unitUid) {
+          isAuthenticated = true;
+        } else {
+          // SECURITY: Cross-unit access attempt - token valid but for different unit
+          logSecurityViolation({
+            request_id: requestId,
+            unit_uid: unitUid,
+            attempted_resource: `token_unit:${payload.supabaseUnitId}`,
+            reason: 'Token unit mismatch in docs-list - cross-unit access blocked',
+          });
+        }
       }
     }
     
@@ -105,8 +118,13 @@ export async function GET(request: NextRequest) {
     }
     
     if (!isAuthenticated) {
+      logSecurityViolation({
+        request_id: requestId,
+        unit_uid: unitUid,
+        reason: 'Invalid or expired token in docs-list request',
+      });
       return NextResponse.json(
-        { error: 'Invalid or expired token', requestId },
+        { error: 'Invalid or expired token', requestId, error_code: 'AUTH_FAILED' },
         { status: 401 }
       );
     }

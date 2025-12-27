@@ -3,20 +3,26 @@ import { assertEnterpriseUser, enforceTenantScope, enforceDevelopmentScope } fro
 import { db } from '@openhouse/db/client';
 import { messages } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const requestId = `aiload_${nanoid(12)}`;
+  
   try {
+    // SECURITY: Verify enterprise user role
     const context = await assertEnterpriseUser();
     
     const { searchParams } = new URL(request.url);
     
     const requestedTenantId = searchParams.get('tenantId') || undefined;
-    const tenantId = enforceTenantScope(context, requestedTenantId);
+    // SECURITY: Cross-tenant access forbidden
+    const tenantId = enforceTenantScope(context, requestedTenantId, requestId);
     
     const requestedDevelopmentId = searchParams.get('developmentId') || undefined;
-    const developmentId = await enforceDevelopmentScope(context, requestedDevelopmentId);
+    // SECURITY: Cross-project access forbidden
+    const developmentId = await enforceDevelopmentScope(context, requestedDevelopmentId, requestId);
     
     const days = searchParams.get('days') ? Number(searchParams.get('days')) : 7;
 

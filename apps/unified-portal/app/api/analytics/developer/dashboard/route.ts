@@ -45,14 +45,17 @@ export async function GET(request: NextRequest) {
   const requestId = `dash_${nanoid(12)}`;
   
   try {
+    // SECURITY: Verify developer role - fails if not authenticated
     const context = await assertDeveloper();
     
     const { searchParams } = new URL(request.url);
     const requestedTenantId = searchParams.get('tenantId') || undefined;
-    const tenantId = enforceTenantScope(context, requestedTenantId);
+    // SECURITY: Cross-tenant access forbidden - logs violation and throws on mismatch
+    const tenantId = enforceTenantScope(context, requestedTenantId, requestId);
     
     const requestedDevelopmentId = searchParams.get('developmentId') || undefined;
-    const developmentId = await enforceDevelopmentScope(context, requestedDevelopmentId);
+    // SECURITY: Cross-project access forbidden - logs violation and throws on mismatch
+    const developmentId = await enforceDevelopmentScope(context, requestedDevelopmentId, requestId);
     
     const days = parseInt(searchParams.get('days') || '30');
 
