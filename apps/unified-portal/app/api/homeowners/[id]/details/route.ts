@@ -45,10 +45,16 @@ export async function GET(
 
     const supabase = getSupabaseAdmin();
     
-    // Fetch unit with all columns from Supabase
+    // Fetch unit with all columns and join unit_types for house type name
     const { data: unitRow, error: unitError } = await supabase
       .from('units')
-      .select('*')
+      .select(`
+        *,
+        unit_types (
+          id,
+          name
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -145,17 +151,12 @@ export async function GET(
     // Build display name from available fields
     const residentName = unitRow.purchaser_name || unitRow.name || 'Unassigned';
     
-    // Build address from available fields
-    const addressParts = [
-      unitRow.address_line_1 || unitRow.address,
-      unitRow.address_line_2,
-      unitRow.city,
-      unitRow.eircode || unitRow.postcode
-    ].filter(Boolean);
-    const fullAddress = addressParts.join(', ');
+    // Build address from the address field (units store address directly)
+    const fullAddress = unitRow.address || '';
 
-    // Get house type from available fields
-    const houseType = unitRow.house_type_code || unitRow.house_type || unitRow.unit_type || unitRow.plot_number || 'N/A';
+    // Get house type from the joined unit_types table
+    const unitType = unitRow.unit_types as any;
+    const houseType = unitType?.name || unitRow.house_type_code || unitRow.house_type || 'N/A';
 
     return NextResponse.json({
       homeowner: {
