@@ -24,7 +24,7 @@ import { UnitsTab } from './tabs/units';
 import { QuestionsTab } from './tabs/questions';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { useCanonicalSuperadmin } from '@/hooks/useCanonicalAnalytics';
-import type { CanonicalTimeWindow } from '@/lib/canonical-analytics';
+import { formatLastActivityTime, type CanonicalTimeWindow } from '@/lib/canonical-analytics';
 
 type TabId = 'overview' | 'questions' | 'trends' | 'knowledge-gaps' | 'rag-performance' | 'documents' | 'homeowners' | 'units';
 type TimeWindow = 7 | 14 | 30 | 90;
@@ -174,7 +174,12 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Canonical Analytics Summary ({canonicalSummary.time_window})
               </h4>
-              <span className="text-xs text-gray-400">Computed: {new Date(canonicalSummary.computed_at).toLocaleTimeString()}</span>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-blue-600 font-medium">
+                  {formatLastActivityTime(canonicalSummary.last_analytics_event_at)}
+                </span>
+                <span className="text-xs text-gray-400">Computed: {new Date(canonicalSummary.computed_at).toLocaleTimeString()}</span>
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               <div className="text-center">

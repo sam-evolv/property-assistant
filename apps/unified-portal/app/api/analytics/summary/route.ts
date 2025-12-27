@@ -59,6 +59,7 @@ export interface CanonicalAnalyticsSummary {
   qr_scans_in_window: number;
   signups_in_window: number;
   document_opens_in_window: number;
+  last_analytics_event_at: string | null;
   computed_at: string;
   time_window: string;
   time_window_days: number;
@@ -235,9 +236,26 @@ export async function GET(request: Request) {
         errors.push({ metric: 'document_opens_in_window', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
       }),
+
+      db.execute(sql`
+        SELECT created_at FROM analytics_events
+        WHERE 1=1 ${combinedFilter}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).catch(e => { 
+        errors.push({ metric: 'last_analytics_event_at', reason: e.message }); 
+        return { rows: [] }; 
+      }),
     ];
 
     const results = await Promise.all(queries);
+
+    const lastEventRow = results[14]?.rows[0] as { created_at?: Date | string } | undefined;
+    const lastEventAt = lastEventRow?.created_at 
+      ? (lastEventRow.created_at instanceof Date 
+          ? lastEventRow.created_at.toISOString() 
+          : String(lastEventRow.created_at))
+      : null;
 
     const summary: CanonicalAnalyticsSummary = {
       total_events: Number(results[0].rows[0]?.count) || 0,
@@ -254,6 +272,7 @@ export async function GET(request: Request) {
       qr_scans_in_window: Number(results[11].rows[0]?.count) || 0,
       signups_in_window: Number(results[12].rows[0]?.count) || 0,
       document_opens_in_window: Number(results[13].rows[0]?.count) || 0,
+      last_analytics_event_at: lastEventAt,
       computed_at: computedAt,
       time_window,
       time_window_days: days,

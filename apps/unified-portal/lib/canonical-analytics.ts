@@ -1,3 +1,12 @@
+/*
+ * =============================================================================
+ * CANONICAL ANALYTICS TYPES - CONTRACT v1.0.0
+ * =============================================================================
+ * These types define the SINGLE SOURCE OF TRUTH for all analytics data.
+ * All consumers MUST use these types. Do NOT create alternative analytics types.
+ * =============================================================================
+ */
+
 export interface CanonicalMetricError {
   metric: string;
   reason: string;
@@ -19,6 +28,7 @@ export interface CanonicalAnalyticsSummary {
   qr_scans_in_window: number;
   signups_in_window: number;
   document_opens_in_window: number;
+  last_analytics_event_at: string | null;
   computed_at: string;
   time_window: string;
   time_window_days: number;
@@ -100,10 +110,66 @@ export function assertSummaryConsistency(
   for (const metric of metricsToCheck) {
     if (summaryA[metric] !== summaryB[metric]) {
       console.error(
-        `[ANALYTICS CONSISTENCY ERROR] ${context}: Metric '${metric}' differs between sources. ` +
+        `[CRITICAL ANALYTICS CONSISTENCY ERROR] ${context}: Metric '${metric}' differs between sources. ` +
         `A: ${summaryA[metric]}, B: ${summaryB[metric]}. ` +
         `Computed at A: ${summaryA.computed_at}, B: ${summaryB.computed_at}`
       );
     }
   }
+}
+
+export function formatLastActivityTime(lastEventAt: string | null): string {
+  if (!lastEventAt) {
+    return 'No activity recorded';
+  }
+  
+  const eventDate = new Date(lastEventAt);
+  const now = new Date();
+  const diffMs = now.getTime() - eventDate.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffMinutes < 1) {
+    return 'Last activity received: just now';
+  } else if (diffMinutes < 60) {
+    return `Last activity received: ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+  } else if (diffHours < 24) {
+    return `Last activity received: ${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  } else {
+    return `Last activity received: ${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  }
+}
+
+export function assertCanonicalDataAvailable(
+  summary: CanonicalAnalyticsSummary | null | undefined,
+  context: string
+): asserts summary is CanonicalAnalyticsSummary {
+  if (!summary) {
+    const errorMsg = `[CRITICAL ANALYTICS ERROR] ${context}: Cannot render analytics without canonical summary data. This is a regression.`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  if (summary.errors.length > 0) {
+    console.error(
+      `[ANALYTICS DATA ERROR] ${context}: Canonical summary has ${summary.errors.length} errors:`,
+      summary.errors
+    );
+  }
+}
+
+export function validateNoActivityClaim(
+  summary: CanonicalAnalyticsSummary,
+  context: string
+): boolean {
+  if (summary.total_events === 0) {
+    return true;
+  }
+  
+  console.error(
+    `[CRITICAL AI INSIGHT ERROR] ${context}: Cannot claim "no activity" when canonical summary shows ` +
+    `${summary.total_events} total events. This would be a false statement.`
+  );
+  return false;
 }
