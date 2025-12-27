@@ -25,6 +25,13 @@ interface Document {
   source?: 'drizzle' | 'supabase';
 }
 
+interface DocsApiResponse {
+  documents: Document[];
+  requestId?: string;
+  message?: string;
+  error?: string;
+}
+
 interface PurchaserDocumentsTabProps {
   unitUid: string;
   houseType: string;
@@ -62,6 +69,8 @@ export default function PurchaserDocumentsTab({
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -69,7 +78,7 @@ export default function PurchaserDocumentsTab({
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const doFetch = useCallback(async (token: string, signal: AbortSignal): Promise<Document[]> => {
+  const doFetch = useCallback(async (token: string, signal: AbortSignal): Promise<{ docs: Document[]; requestId?: string; message?: string }> => {
     const res = await fetch(
       `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
       { signal }
@@ -80,15 +89,18 @@ export default function PurchaserDocumentsTab({
       throw new Error('SESSION_EXPIRED');
     }
 
+    const data: DocsApiResponse = await res.json().catch(() => ({ documents: [], error: 'Unknown error' }));
+
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `Failed to load documents (${res.status})`);
+      const errorMsg = data.error || `Failed to load documents (${res.status})`;
+      const err = new Error(errorMsg);
+      (err as any).requestId = data.requestId;
+      throw err;
     }
 
-    const data = await res.json();
     const docs = data.documents || [];
     setCachedDocuments(unitUid, token, docs);
-    return docs;
+    return { docs, requestId: data.requestId, message: data.message };
   }, [unitUid]);
 
   const fetchDocuments = useCallback(async (forceRefresh = false) => {
@@ -101,12 +113,14 @@ export default function PurchaserDocumentsTab({
       setDocuments(cached);
       setLoading(false);
       
-      if (isStale && !getInFlightRequest<Document[]>(unitUid, token)) {
+      if (isStale && !getInFlightRequest<{ docs: Document[]; requestId?: string; message?: string }>(unitUid, token)) {
         const controller = new AbortController();
         const promise = doFetch(token, controller.signal)
-          .then(docs => {
-            setDocuments(docs);
-            return docs;
+          .then(result => {
+            setDocuments(result.docs);
+            if (result.requestId) setRequestId(result.requestId);
+            if (result.message) setEmptyMessage(result.message);
+            return result;
           })
           .catch(err => {
             if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
@@ -119,12 +133,14 @@ export default function PurchaserDocumentsTab({
       return;
     }
     
-    const existingRequest = getInFlightRequest<Document[]>(unitUid, token);
+    const existingRequest = getInFlightRequest<{ docs: Document[]; requestId?: string; message?: string }>(unitUid, token);
     if (!forceRefresh && existingRequest) {
       setLoading(true);
       try {
-        const docs = await existingRequest;
-        setDocuments(docs);
+        const result = await existingRequest;
+        setDocuments(result.docs);
+        if (result.requestId) setRequestId(result.requestId);
+        if (result.message) setEmptyMessage(result.message);
       } catch (err) {
         if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
           setSessionExpired(true);
@@ -143,14 +159,18 @@ export default function PurchaserDocumentsTab({
 
     setLoading(true);
     setError(null);
+    setRequestId(null);
+    setEmptyMessage(null);
     setSessionExpired(false);
 
     const promise = doFetch(token, controller.signal);
     setInFlightRequest(unitUid, token, promise, () => controller.abort());
 
     try {
-      const docs = await promise;
-      setDocuments(docs);
+      const result = await promise;
+      setDocuments(result.docs);
+      if (result.requestId) setRequestId(result.requestId);
+      if (result.message) setEmptyMessage(result.message);
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') return;
@@ -159,6 +179,7 @@ export default function PurchaserDocumentsTab({
           return;
         }
         setError(err.message);
+        if ((err as any).requestId) setRequestId((err as any).requestId);
       } else {
         setError('Failed to connect to server');
       }
@@ -320,6 +341,11 @@ export default function PurchaserDocumentsTab({
         <p className={`${subtextColor} text-sm text-center mb-4 max-w-md`}>
           {error || 'Unable to retrieve your documents. Please try again.'}
         </p>
+        {requestId && (
+          <p className={`text-xs ${subtextColor} mb-4`}>
+            Request ID: {requestId}
+          </p>
+        )}
         <button
           onClick={() => fetchDocuments(true)}
           className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition-all font-medium"
@@ -417,7 +443,7 @@ export default function PurchaserDocumentsTab({
           <p className={`${subtextColor} max-w-md text-sm`}>
             {searchQuery || selectedCategory !== 'all' 
               ? 'Try adjusting your search or filter criteria.' 
-              : 'Property documents, manuals, and important files will appear here.'}
+              : emptyMessage || 'No documents available for this unit yet.'}
           </p>
         </div>
       ) : (
