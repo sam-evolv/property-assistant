@@ -73,6 +73,30 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Document Security Hardening (December 2025)
+
+Hardened document/floorplan scoping to prevent cross-unit or cross-house-type document leakage:
+
+**Server-Side Filtering (Fail-Closed):**
+- `/api/purchaser/docs-list` enforces project_id AND house_type_code matching
+- Documents with non-matching house_type_code are filtered out server-side
+- Documents without house_type_code are treated as project-wide (visible to all)
+- Empty results returned (rather than wrong docs) when unit lacks metadata
+
+**Audit Logging:**
+- Every docs request logs DocsAudit events with requestId
+- Tracks: filtered counts, reasons (house_type_mismatch), timestamps
+- Enables production monitoring and debugging of access patterns
+
+**UI Improvements:**
+- PurchaserDocumentsTab shows requestId on errors for support
+- Uses server-provided empty message explaining why no docs
+- Proper loading, error, and empty states
+
+**Example Filtering:**
+- Unit BD01 → 170 docs filtered (bs01, bd02, bd03, etc.)
+- Only BD01-specific + project-wide docs returned (62 total)
+
 ### Pre-Beta Stabilization (December 2025)
 
 Comprehensive production-readiness improvements for purchaser portal:
