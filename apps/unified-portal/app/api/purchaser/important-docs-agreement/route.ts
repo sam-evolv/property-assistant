@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@openhouse/db/client';
-import { purchaserAgreements } from '@openhouse/db/schema';
 import { createClient } from '@supabase/supabase-js';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
@@ -45,26 +43,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
-    // Get purchaser info from Supabase units table
-    let name = purchaserName;
-    let email = null;
-    
-    const { data: unitData } = await supabase
+    // Get unit info and project from Supabase
+    const { data: unitData, error: unitError } = await supabase
       .from('units')
-      .select('purchaser_name, purchaser_email')
+      .select('id, purchaser_name, purchaser_email, project_id')
       .eq('id', unitUid)
       .single();
     
-    if (unitData) {
-      name = name || unitData.purchaser_name || 'Unknown';
-      email = unitData.purchaser_email;
+    if (unitError || !unitData) {
+      console.error('[Important Docs Agreement] Unit not found:', unitUid, unitError);
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
+
+    const projectId = unitData.project_id || PROJECT_ID;
+
+    // Get the current important docs version from the project
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('important_docs_version')
+      .eq('id', projectId)
+      .single();
+    
+    const currentDocsVersion = projectData?.important_docs_version || 1;
 
     // Get important documents that were acknowledged (only public disciplines)
     const { data: sections } = await supabase
       .from('document_sections')
       .select('id, metadata')
-      .eq('project_id', PROJECT_ID);
+      .eq('project_id', projectId);
 
     const acknowledgedDocs: { id: string; title: string }[] = [];
     const seenSources = new Set<string>();
@@ -86,35 +92,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const userAgent = request.headers.get('user-agent');
+    const agreedAt = new Date().toISOString();
 
-    // Save agreement to database
-    const [agreement] = await db
-      .insert(purchaserAgreements)
-      .values({
-        unit_id: unitUid,
-        development_id: PROJECT_ID,
-        purchaser_name: name,
-        purchaser_email: email,
-        ip_address: forwardedFor?.split(',')[0] || null,
-        user_agent: userAgent || null,
-        important_docs_acknowledged: acknowledgedDocs,
-        docs_version: 1,
+    // Update the Supabase units table with the agreement
+    const { error: updateError } = await supabase
+      .from('units')
+      .update({
+        important_docs_agreed_version: currentDocsVersion,
+        important_docs_agreed_at: agreedAt,
       })
-      .returning();
+      .eq('id', unitUid);
+
+    if (updateError) {
+      console.error('[Important Docs Agreement] Failed to update unit:', updateError);
+      return NextResponse.json({ error: 'Failed to save agreement' }, { status: 500 });
+    }
 
     console.log('[Important Docs Agreement] Recorded agreement:', {
       unitId: unitUid,
-      purchaserName: name,
-      agreedAt: agreement.agreed_at,
+      purchaserName: unitData.purchaser_name || purchaserName,
+      agreedAt,
+      docsVersion: currentDocsVersion,
       docsCount: acknowledgedDocs.length,
     });
 
     return NextResponse.json({ 
       success: true, 
-      agreedVersion: 1,
-      agreedAt: agreement.agreed_at,
+      agreedVersion: currentDocsVersion,
+      agreedAt,
     });
   } catch (error) {
     console.error('[Important Docs Agreement Error]:', error);
