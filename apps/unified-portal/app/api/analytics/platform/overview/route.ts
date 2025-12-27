@@ -93,15 +93,16 @@ export async function GET(request: Request) {
     console.log('[Overview] Documents count (from Supabase):', docCount);
 
     const [msgCount, activeUsers, homeownerCount, developerCount] = await Promise.all([
-      db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0),
+      db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0).catch(() => 0),
       // Use user_id which contains unit UUID for purchaser portal chats (house_id is null)
       db.execute(sql`
         SELECT COUNT(DISTINCT user_id)::int as count
         FROM messages
         WHERE created_at >= ${sevenDaysAgo} AND user_id IS NOT NULL
-      `).then(r => (r.rows[0] as any)?.count || 0),
-      db.select({ count: sql<number>`COUNT(*)::int` }).from(homeowners).then(r => r[0]?.count || 0),
-      db.select({ count: sql<number>`COUNT(DISTINCT tenant_id)::int` }).from(admins).then(r => r[0]?.count || 0),
+      `).then(r => (r.rows[0] as any)?.count || 0).catch(() => 0),
+      // homeowners table may not exist in Supabase - graceful fallback
+      db.select({ count: sql<number>`COUNT(*)::int` }).from(homeowners).then(r => r[0]?.count || 0).catch(() => 0),
+      db.select({ count: sql<number>`COUNT(DISTINCT tenant_id)::int` }).from(admins).then(r => r[0]?.count || 0).catch(() => 0),
     ]);
 
     return NextResponse.json({
