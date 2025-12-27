@@ -73,6 +73,26 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Homeowners Development Filter (December 2025)
+
+Added development (housing estate) filtering to the Homeowners page:
+
+**Filter Implementation:**
+- Dropdown selector in page header to filter by development (Longview Park, Rathart Park, etc.)
+- URL-based filtering via `?developmentId=X` query parameter for bookmarkable selections
+- "All Developments" option shows combined view across all estates
+- Stats counters update to reflect filtered development counts
+
+**Architecture:**
+- `page.tsx` fetches all projects from Supabase for dropdown options
+- Passes `allProjects` array to client component `HomeownersList`
+- Client-side router.push triggers server refetch on selection change
+- Clean separation between estates maintained via Supabase project_id filtering
+
+**Files Modified:**
+- `apps/unified-portal/app/developer/homeowners/page.tsx` - Server data fetching
+- `apps/unified-portal/app/developer/homeowners/list.tsx` - Dropdown UI component
+
 ### Document Security Hardening (December 2025)
 
 Hardened document/floorplan scoping to prevent cross-unit or cross-house-type document leakage:
