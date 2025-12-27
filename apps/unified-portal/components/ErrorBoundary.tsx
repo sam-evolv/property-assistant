@@ -4,6 +4,10 @@ import React from 'react';
 import { PremiumCard } from '@openhouse/ui/components/PremiumCard';
 import { PremiumButton } from '@openhouse/ui/components/PremiumButton';
 
+function generateErrorId(): string {
+  return `err_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+}
+
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
@@ -13,22 +17,29 @@ interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
+  errorId: string | null;
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, errorId: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    return { hasError: true, error };
+    return { hasError: true, error, errorId: generateErrorId() };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[Error Boundary] Caught error:', error, errorInfo);
+    const errorId = this.state.errorId || generateErrorId();
+    console.error(`[APP CRITICAL] React error boundary caught error errorId=${errorId}`, {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      timestamp: new Date().toISOString(),
+    });
     
-    this.setState({ error, errorInfo });
+    this.setState({ error, errorInfo, errorId });
 
     if (typeof window !== 'undefined') {
       fetch('/api/admin/client-errors', {
@@ -91,6 +102,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                   Go Home
                 </PremiumButton>
               </div>
+              
+              {this.state.errorId && (
+                <p className="mt-4 text-xs text-gray-400">
+                  Error ID: {this.state.errorId}
+                </p>
+              )}
             </div>
           </PremiumCard>
         </div>
