@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateQRTokenForUnit } from '@openhouse/api/qr-tokens';
-import { db } from '@openhouse/db';
-import { sql } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const LONGVIEW_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,46 +23,76 @@ export async function GET(req: NextRequest) {
 
     console.log('[Super Admin Impersonation] Looking up unit:', unitUid);
 
+    const supabase = getSupabaseAdmin();
     let unit: any = null;
 
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(unitUid);
     
     if (isUUID) {
-      const { rows } = await db.execute(sql`
-        SELECT u.id, u.unit_uid, u.development_id, u.address_line_1 as address, u.purchaser_name,
-               d.tenant_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE u.id = ${unitUid}::uuid
-        LIMIT 1
-      `);
-      unit = rows[0];
+      const { data } = await supabase
+        .from('units')
+        .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
+        .eq('id', unitUid)
+        .single();
+      if (data) {
+        unit = {
+          id: data.id,
+          unit_uid: data.unit_uid,
+          development_id: data.project_id,
+          address: data.address_line_1,
+          purchaser_name: data.purchaser_name,
+          tenant_id: (data.projects as any)?.tenant_id,
+          development_name: (data.projects as any)?.name,
+        };
+      }
     }
 
     if (!unit) {
-      const numMatch = unitUid.match(/(\d+)/);
-      const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
-
-      const { rows: units } = await db.execute(sql`
-        SELECT u.id, u.unit_uid, u.development_id, u.address_line_1 as address, u.purchaser_name,
-               d.tenant_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE u.development_id = ${LONGVIEW_DEVELOPMENT_ID}::uuid
-        LIMIT 200
-      `);
-
-      if (!units || units.length === 0) {
-        console.error('[Super Admin Impersonation] No units found in Drizzle');
-        return NextResponse.json({ error: 'No units found for development' }, { status: 404 });
-      }
-
-      const exactMatch = units.find((u: any) => {
-        const addrMatch = u.address?.match(/^(\d+)\s/);
-        return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
-      });
+      // Try by unit_uid or find first available unit
+      const { data: unitByUid } = await supabase
+        .from('units')
+        .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
+        .eq('unit_uid', unitUid)
+        .single();
       
-      unit = exactMatch || units[0];
+      if (unitByUid) {
+        unit = {
+          id: unitByUid.id,
+          unit_uid: unitByUid.unit_uid,
+          development_id: unitByUid.project_id,
+          address: unitByUid.address_line_1,
+          purchaser_name: unitByUid.purchaser_name,
+          tenant_id: (unitByUid.projects as any)?.tenant_id,
+          development_name: (unitByUid.projects as any)?.name,
+        };
+      } else {
+        // Fallback: get any unit from the first project
+        const { data: anyUnits } = await supabase
+          .from('units')
+          .select('id, unit_uid, project_id, address_line_1, purchaser_name, projects(tenant_id, name)')
+          .limit(10);
+        
+        if (anyUnits && anyUnits.length > 0) {
+          const numMatch = unitUid.match(/(\d+)/);
+          const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
+          
+          const exactMatch = anyUnits.find((u: any) => {
+            const addrMatch = u.address_line_1?.match(/^(\d+)\s/);
+            return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+          });
+          
+          const selected = exactMatch || anyUnits[0];
+          unit = {
+            id: selected.id,
+            unit_uid: selected.unit_uid,
+            development_id: selected.project_id,
+            address: selected.address_line_1,
+            purchaser_name: selected.purchaser_name,
+            tenant_id: (selected.projects as any)?.tenant_id,
+            development_name: (selected.projects as any)?.name,
+          };
+        }
+      }
     }
 
     if (!unit) {
