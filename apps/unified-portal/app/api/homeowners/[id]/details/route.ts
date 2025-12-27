@@ -4,8 +4,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 export async function GET(
   request: NextRequest,
@@ -19,32 +31,42 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
 
-    const unitResult = await db.execute(sql`
-      SELECT 
-        u.id, u.unit_number, u.purchaser_name, u.purchaser_email,
-        u.address_line_1, u.address_line_2, u.city, u.eircode,
-        u.development_id, u.created_at, u.important_docs_agreed_version,
-        u.important_docs_agreed_at, u.house_type_code,
-        d.id as dev_id, d.name as dev_name, d.address as dev_address,
-        d.important_docs_version as dev_docs_version
-      FROM units u
-      LEFT JOIN developments d ON u.development_id = d.id
-      WHERE u.id = ${id}
-      LIMIT 1
-    `);
+    const supabase = getSupabaseAdmin();
+    
+    const { data: unitRow, error: unitError } = await supabase
+      .from('units')
+      .select(`
+        id, 
+        unit_number, 
+        purchaser_name, 
+        purchaser_email,
+        address_line_1, 
+        address_line_2, 
+        city, 
+        eircode,
+        project_id, 
+        created_at, 
+        house_type_code,
+        projects (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq('id', id)
+      .single();
 
-    const unitRow = unitResult.rows[0] as any;
-
-    if (!unitRow) {
+    if (unitError || !unitRow) {
+      console.log('[HOMEOWNER DETAILS] Unit not found:', id, unitError);
       return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
     }
 
-    const hasAccess = await canAccessDevelopment(adminContext, unitRow.development_id);
+    const hasAccess = await canAccessDevelopment(adminContext, unitRow.project_id);
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const [msgStatsResult, recentMsgsResult, agreementsRes, homeownerRes] = await Promise.all([
+    const [msgStatsResult, recentMsgsResult, agreementsRes] = await Promise.all([
       db.execute(sql`
         SELECT 
           COUNT(*)::int as total_messages,
@@ -71,12 +93,6 @@ export async function GET(
         ORDER BY agreed_at DESC
         LIMIT 1
       `),
-      db.execute(sql`
-        SELECT notices_terms_accepted_at
-        FROM homeowners
-        WHERE unique_qr_token = ${id}
-        LIMIT 1
-      `),
     ]);
 
     const statsRow = msgStatsResult.rows[0] as any;
@@ -90,7 +106,6 @@ export async function GET(
 
     const recentMessages = (recentMsgsResult.rows || []) as any[];
     const latestAgreement = agreementsRes.rows[0] as any || null;
-    const homeownerRow = homeownerRes.rows[0] as any || null;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -111,23 +126,23 @@ export async function GET(
       .filter(Boolean)
       .join(', ');
 
+    const project = unitRow.projects as any;
+
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
         name: residentName,
+        email: unitRow.purchaser_email,
         house_type: unitRow.house_type_code || unitRow.unit_number,
         address: fullAddress || null,
         unique_qr_token: unitRow.id,
-        development_id: unitRow.development_id,
+        development_id: unitRow.project_id,
         created_at: unitRow.created_at,
-        important_docs_agreed_version: unitRow.important_docs_agreed_version,
-        important_docs_agreed_at: unitRow.important_docs_agreed_at,
-        development: {
-          id: unitRow.dev_id,
-          name: unitRow.dev_name,
-          address: unitRow.dev_address,
-          important_docs_version: unitRow.dev_docs_version,
-        },
+        development: project ? {
+          id: project.id,
+          name: project.name,
+          address: project.address,
+        } : null,
       },
       activity: {
         total_messages: messageStats.total_messages,
@@ -151,9 +166,6 @@ export async function GET(
         user_agent: latestAgreement.user_agent,
         docs_version: latestAgreement.docs_version,
         documents_acknowledged: latestAgreement.important_docs_acknowledged || [],
-      } : null,
-      noticeboard_terms: homeownerRow?.notices_terms_accepted_at ? {
-        accepted_at: homeownerRow.notices_terms_accepted_at,
       } : null,
     });
   } catch (error) {
