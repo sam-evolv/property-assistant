@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertDeveloper, enforceTenantScope, enforceDevelopmentScope } from '@/lib/api-auth';
 import { db } from '@openhouse/db';
-import { messages, homeowners, documents, units } from '@openhouse/db/schema';
+import { messages, homeowners, documents } from '@openhouse/db/schema';
 import { sql, gte, and, eq, count } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -55,20 +67,29 @@ export async function GET(request: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const devFilter = developmentId ? sql`AND development_id = ${developmentId}` : sql``;
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Run queries sequentially to avoid connection pool exhaustion
-    // Build where conditions dynamically to avoid Drizzle issues with sql`1=1`
-    const unitsWhereConditions = developmentId 
-      ? and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId))
-      : eq(units.tenant_id, tenantId);
+    // Units are stored in Supabase, use Supabase client to query them
+    let totalUnits = 0;
+    try {
+      let unitsQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true });
+      if (developmentId) {
+        unitsQuery = unitsQuery.eq('project_id', developmentId);
+      }
+      const { count: unitCount, error: unitError } = await unitsQuery;
+      if (!unitError) {
+        totalUnits = unitCount || 0;
+      } else {
+        console.log(`[DeveloperDashboard] Units query error:`, unitError);
+      }
+    } catch (unitError) {
+      console.log(`[DeveloperDashboard] Units exception:`, unitError);
+    }
     
     const homeownersWhereConditions = developmentId
       ? and(eq(homeowners.tenant_id, tenantId), eq(homeowners.development_id, developmentId))
       : eq(homeowners.tenant_id, tenantId);
-    
-    const totalUnitsResult = await db.select({ count: count() })
-      .from(units)
-      .where(unitsWhereConditions);
     
     const registeredHomeownersResult = await db.select({ count: count() })
       .from(homeowners)
@@ -201,7 +222,7 @@ export async function GET(request: NextRequest) {
       LIMIT 10
     `);
 
-    const totalUnits = totalUnitsResult[0]?.count || 0;
+    // totalUnits is already set from Supabase query above
     const registeredHomeowners = registeredHomeownersResult[0]?.count || 0;
     const activeHomeowners = (activeHomeownersResult.rows[0] as any)?.count || 0;
     const previousActive = (previousActiveResult.rows[0] as any)?.count || 0;
