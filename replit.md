@@ -73,6 +73,31 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Multi-Tenant Security Hardening (December 2025)
+
+Production-critical security hardening for 100+ concurrent developers with strict tenant isolation:
+
+**Security Violation Logging Framework:**
+- All isolation violations logged with `[SECURITY VIOLATION]` prefix
+- Structured JSON context: request_id, user_id, developer_id, tenant_id, project_id, unit_uid
+- Enables production audit trails and security monitoring
+
+**Developer API Hardening:**
+- `enforceTenantScope()` and `enforceDevelopmentScope()` now log violations with request_id
+- Analytics summary endpoint: scope=developer requires developer_id (fail-closed)
+- All cross-tenant requests blocked and logged
+
+**Purchaser API Hardening:**
+- `validatePurchaserAccess()` only accepts cryptographically valid QR tokens
+- Removed insecure token===unitUid showhouse fallback from helper
+- Showhouse access requires explicit DB verification of unit.is_showhouse flag per endpoint
+- Forged tokens rejected with security violation logging
+
+**Files Changed:**
+- `apps/unified-portal/lib/api-auth.ts` - Security helpers and violation logging
+- `apps/unified-portal/app/api/purchaser/docs-list/route.ts` - Showhouse verification
+- `apps/unified-portal/app/api/analytics/summary/route.ts` - Developer scope enforcement
+
 ### Superadmin Analytics Dashboard UX Improvements (December 2025)
 
 Reduced jank and improved navigation clarity in the analytics dashboard:
