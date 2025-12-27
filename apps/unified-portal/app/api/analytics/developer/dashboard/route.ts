@@ -88,19 +88,18 @@ export async function GET(request: NextRequest) {
         console.log(`[DeveloperDashboard] Units query error:`, unitError);
       }
       
-      // Count onboarded units - those with purchaser_name or purchaser_email set
-      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true });
+      // Count onboarded units - those with purchaser_name set (using correct Supabase syntax)
+      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true }).not('purchaser_name', 'is', null);
       if (developmentId) {
         onboardedQuery = onboardedQuery.eq('project_id', developmentId);
       }
-      // A unit is "onboarded" if it has purchaser info
-      onboardedQuery = onboardedQuery.or('purchaser_name.neq.null,purchaser_email.neq.null');
       const { count: onboardedCount, error: onboardedError } = await onboardedQuery;
       if (!onboardedError) {
         onboardedUnits = onboardedCount || 0;
       } else {
         console.log(`[DeveloperDashboard] Onboarded units query error:`, onboardedError);
       }
+      console.log(`[DeveloperDashboard] Onboarded units count:`, onboardedUnits);
     } catch (unitError) {
       console.log(`[DeveloperDashboard] Units exception:`, unitError);
     }
