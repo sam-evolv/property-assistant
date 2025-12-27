@@ -48,21 +48,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user has already agreed using the purchaserAgreements table
-    const existingAgreement = await db
-      .select()
-      .from(purchaserAgreements)
-      .where(eq(purchaserAgreements.unit_id, unitUid))
-      .limit(1);
+    // Wrap in try-catch in case table doesn't exist in current database
+    try {
+      const existingAgreement = await db
+        .select()
+        .from(purchaserAgreements)
+        .where(eq(purchaserAgreements.unit_id, unitUid))
+        .limit(1);
 
-    if (existingAgreement.length > 0) {
-      console.log('[Important Docs] User has existing agreement:', existingAgreement[0].agreed_at);
-      return NextResponse.json({
-        requiresConsent: false,
-        hasAgreed: true,
-        agreedAt: existingAgreement[0].agreed_at,
-        agreedBy: existingAgreement[0].purchaser_name,
-        importantDocuments: [],
-      });
+      if (existingAgreement.length > 0) {
+        console.log('[Important Docs] User has existing agreement:', existingAgreement[0].agreed_at);
+        return NextResponse.json({
+          requiresConsent: false,
+          hasAgreed: true,
+          agreedAt: existingAgreement[0].agreed_at,
+          agreedBy: existingAgreement[0].purchaser_name,
+          importantDocuments: [],
+        });
+      }
+    } catch (agreementErr) {
+      // Table may not exist in current database - continue to check documents
+      console.log('[Important Docs] Could not check agreements (table may not exist), continuing...');
     }
 
     // Fetch important documents from Supabase document_sections
