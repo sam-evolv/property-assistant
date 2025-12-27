@@ -155,14 +155,41 @@ export async function GET(
     const unitType = unitRow.unit_types as any;
     const houseType = unitType?.name || unitRow.house_type_code || unitRow.house_type || 'N/A';
 
-    // Check acknowledgement status from unit record itself
-    const agreedVersion = unitRow.important_docs_agreed_version || 0;
-    const projectDocsVersion = project?.important_docs_version || 0;
+    // Check acknowledgement status from multiple sources:
+    // 1. Supabase units table (important_docs_agreed_version) - may not exist
+    // 2. Drizzle purchaser_agreements table - fallback
+    let agreedVersion = unitRow.important_docs_agreed_version || 0;
+    let agreedAt = unitRow.important_docs_agreed_at || null;
+    const projectDocsVersion = project?.important_docs_version || 1;
+    
+    // Also check Drizzle purchaser_agreements table
+    if (!agreedVersion) {
+      try {
+        const agreementResult = await db.execute(sql`
+          SELECT docs_version, agreed_at, purchaser_name, ip_address, user_agent, important_docs_acknowledged
+          FROM purchaser_agreements
+          WHERE unit_id = ${id}
+          ORDER BY agreed_at DESC
+          LIMIT 1
+        `);
+        
+        if (agreementResult.rows.length > 0) {
+          const agreement = agreementResult.rows[0] as any;
+          agreedVersion = agreement.docs_version || 1;
+          agreedAt = agreement.agreed_at;
+          console.log('[HOMEOWNER DETAILS] Found agreement in Drizzle purchaser_agreements:', agreement.agreed_at);
+        }
+      } catch (e: any) {
+        // Table may not exist
+        console.log('[HOMEOWNER DETAILS] Could not check purchaser_agreements (table may not exist)');
+      }
+    }
+    
     const hasAcknowledged = agreedVersion > 0 && agreedVersion >= projectDocsVersion;
     
-    // Build acknowledgement object from unit data
+    // Build acknowledgement object from available data
     const acknowledgement = hasAcknowledged ? {
-      agreed_at: unitRow.important_docs_agreed_at,
+      agreed_at: agreedAt,
       purchaser_name: unitRow.purchaser_name || residentName,
       ip_address: null,
       user_agent: null,
