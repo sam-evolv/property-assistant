@@ -73,6 +73,40 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Performance Hardening (December 2025)
+
+Improved perceived speed and responsiveness across the portal:
+
+**Analytics Cache Layer:**
+- Created `lib/analyticsCache.ts` with in-memory caching and request deduplication
+- 30-second TTL for analytics data, 5-minute TTL for static metadata
+- `fetchWithDedup()` prevents duplicate concurrent requests
+
+**SWR Optimization:**
+- Centralized `SWR_ANALYTICS_CONFIG` for all 14 analytics hooks
+- 30s deduplication window, 60s background refresh interval
+- Disabled focus revalidation to reduce network chatter
+- Maintains freshness via stale revalidation and reconnect refresh
+
+**Parallel API Calls:**
+- Beta Control Room: fetchData + fetchHealth run in parallel on mount
+- Super Overview already used Promise.all for parallel fetches
+
+**Metadata Caching:**
+- ProjectContext uses fetchWithDedup with 5-minute cache
+- Reduces redundant project list fetches across navigation
+
+**Existing Optimizations Verified:**
+- Dynamic imports with skeleton loaders in analytics tabs
+- Animate-pulse loading states throughout
+- Document cache with in-flight deduplication
+
+**Files Changed:**
+- `apps/unified-portal/lib/analyticsCache.ts` - New cache utility
+- `apps/unified-portal/hooks/useAnalyticsV2.ts` - SWR optimization
+- `apps/unified-portal/contexts/ProjectContext.tsx` - Metadata caching
+- `apps/unified-portal/app/super/beta-control-room/beta-control-room-client.tsx` - Parallel fetches
+
 ### Multi-Tenant Security Hardening (December 2025)
 
 Production-critical security hardening for 100+ concurrent developers with strict tenant isolation:
