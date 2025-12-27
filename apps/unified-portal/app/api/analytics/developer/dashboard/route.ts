@@ -55,19 +55,24 @@ export async function GET(request: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const devFilter = developmentId ? sql`AND development_id = ${developmentId}` : sql``;
-    const devFilterDrizzle = developmentId ? eq(units.development_id, developmentId) : sql`1=1`;
-    const msgDevFilter = developmentId ? eq(messages.development_id, developmentId) : sql`1=1`;
-    const docDevFilter = developmentId ? eq(documents.development_id, developmentId) : sql`1=1`;
-    const homeownerDevFilter = developmentId ? eq(homeowners.development_id, developmentId) : sql`1=1`;
 
     // Run queries sequentially to avoid connection pool exhaustion
+    // Build where conditions dynamically to avoid Drizzle issues with sql`1=1`
+    const unitsWhereConditions = developmentId 
+      ? and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId))
+      : eq(units.tenant_id, tenantId);
+    
+    const homeownersWhereConditions = developmentId
+      ? and(eq(homeowners.tenant_id, tenantId), eq(homeowners.development_id, developmentId))
+      : eq(homeowners.tenant_id, tenantId);
+    
     const totalUnitsResult = await db.select({ count: count() })
       .from(units)
-      .where(and(eq(units.tenant_id, tenantId), devFilterDrizzle));
+      .where(unitsWhereConditions);
     
     const registeredHomeownersResult = await db.select({ count: count() })
       .from(homeowners)
-      .where(and(eq(homeowners.tenant_id, tenantId), homeownerDevFilter));
+      .where(homeownersWhereConditions);
     
     const activeHomeownersResult = await (developmentId 
       ? db.execute(sql`
@@ -105,22 +110,21 @@ export async function GET(request: NextRequest) {
             AND m.user_id IS NOT NULL
         `));
     
+    const messagesWhereConditions = developmentId
+      ? and(eq(messages.tenant_id, tenantId), gte(messages.created_at, startDate), eq(messages.development_id, developmentId))
+      : and(eq(messages.tenant_id, tenantId), gte(messages.created_at, startDate));
+    
     const totalMessagesResult = await db.select({ count: count() })
       .from(messages)
-      .where(and(
-        eq(messages.tenant_id, tenantId),
-        gte(messages.created_at, startDate),
-        msgDevFilter
-      ));
+      .where(messagesWhereConditions);
+    
+    const previousMessagesWhereConditions = developmentId
+      ? and(eq(messages.tenant_id, tenantId), gte(messages.created_at, previousStartDate), sql`created_at < ${startDate}`, eq(messages.development_id, developmentId))
+      : and(eq(messages.tenant_id, tenantId), gte(messages.created_at, previousStartDate), sql`created_at < ${startDate}`);
     
     const previousMessagesResult = await db.select({ count: count() })
       .from(messages)
-      .where(and(
-        eq(messages.tenant_id, tenantId),
-        gte(messages.created_at, previousStartDate),
-        sql`created_at < ${startDate}`,
-        msgDevFilter
-      ));
+      .where(previousMessagesWhereConditions);
     
     const questionTopicsResult = await db.execute(sql`
       SELECT 
