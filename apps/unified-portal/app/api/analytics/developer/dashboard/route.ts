@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
     // Run queries sequentially to avoid connection pool exhaustion
     // Units are stored in Supabase, use Supabase client to query them
     let totalUnits = 0;
+    let onboardedUnits = 0;
     try {
       let unitsQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true });
       if (developmentId) {
@@ -86,22 +87,26 @@ export async function GET(request: NextRequest) {
       } else {
         console.log(`[DeveloperDashboard] Units query error:`, unitError);
       }
+      
+      // Count onboarded units - those with purchaser_name or purchaser_email set
+      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true });
+      if (developmentId) {
+        onboardedQuery = onboardedQuery.eq('project_id', developmentId);
+      }
+      // A unit is "onboarded" if it has purchaser info
+      onboardedQuery = onboardedQuery.or('purchaser_name.neq.null,purchaser_email.neq.null');
+      const { count: onboardedCount, error: onboardedError } = await onboardedQuery;
+      if (!onboardedError) {
+        onboardedUnits = onboardedCount || 0;
+      } else {
+        console.log(`[DeveloperDashboard] Onboarded units query error:`, onboardedError);
+      }
     } catch (unitError) {
       console.log(`[DeveloperDashboard] Units exception:`, unitError);
     }
     
-    // Wrap all Drizzle queries with try-catch for graceful fallback when tables don't exist
-    // Homeowners count - may not exist in this database
-    let registeredHomeowners = 0;
-    try {
-      const homeownersWhereConditions = developmentId
-        ? and(eq(homeowners.tenant_id, tenantId), eq(homeowners.development_id, developmentId))
-        : eq(homeowners.tenant_id, tenantId);
-      const result = await db.select({ count: count() }).from(homeowners).where(homeownersWhereConditions);
-      registeredHomeowners = result[0]?.count || 0;
-    } catch (e) {
-      console.log(`[DeveloperDashboard] Homeowners query failed (graceful fallback to 0):`, e);
-    }
+    // Use onboarded units as registered homeowners
+    let registeredHomeowners = onboardedUnits;
     
     // Active homeowners - uses messages table which should exist
     let activeHomeowners = 0;
@@ -163,11 +168,33 @@ export async function GET(request: NextRequest) {
       console.log(`[DeveloperDashboard] Document coverage query failed (graceful fallback):`, e);
     }
     
-    // Must-read compliance from Supabase
+    // Must-read compliance from both Supabase and Drizzle purchaser_agreements
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      const { count: ackCount } = await supabaseAdmin.from('units').select('*', { count: 'exact', head: true }).not('important_docs_agreed_at', 'is', null);
-      mustRead = { total_units: totalUnits, acknowledged: ackCount || 0 };
+      // Check Supabase units table for important_docs_agreed_at
+      let supabaseAckQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true }).not('important_docs_agreed_at', 'is', null);
+      if (developmentId) {
+        supabaseAckQuery = supabaseAckQuery.eq('project_id', developmentId);
+      }
+      const { count: supabaseAckCount } = await supabaseAckQuery;
+      
+      // Also check Drizzle purchaser_agreements table
+      let drizzleAckCount = 0;
+      try {
+        const drizzleResult = await db.execute(sql`
+          SELECT COUNT(DISTINCT unit_id)::int as count 
+          FROM purchaser_agreements 
+          WHERE docs_version > 0
+        `);
+        drizzleAckCount = (drizzleResult.rows[0] as any)?.count || 0;
+      } catch (drizzleError) {
+        console.log(`[DeveloperDashboard] Drizzle purchaser_agreements query failed:`, drizzleError);
+      }
+      
+      // Use the higher count (some agreements might be in one table, some in the other)
+      const totalAcknowledged = Math.max(supabaseAckCount || 0, drizzleAckCount);
+      mustRead = { total_units: totalUnits, acknowledged: totalAcknowledged };
+      console.log(`[DeveloperDashboard] Must-read: supabase=${supabaseAckCount}, drizzle=${drizzleAckCount}, using=${totalAcknowledged}`);
     } catch (e) {
       console.log(`[DeveloperDashboard] Must-read compliance query failed (graceful fallback):`, e);
     }
@@ -215,19 +242,16 @@ export async function GET(request: NextRequest) {
 
     // All values are now set above with graceful fallbacks
     // Debug logging
-    console.log('[DeveloperDashboard] Stats: units=', totalUnits, 'homeowners=', registeredHomeowners, 'active=', activeHomeowners, 'messages=', totalMessages);
+    console.log('[DeveloperDashboard] Stats: units=', totalUnits, 'onboarded=', onboardedUnits, 'active=', activeHomeowners, 'messages=', totalMessages);
 
-    // Use totalUnits as the base for both rates since units are in Supabase
-    // If we have registeredHomeowners data, use it; otherwise fall back to totalUnits
-    const effectiveRegistered = registeredHomeowners > 0 ? registeredHomeowners : totalUnits;
-    
+    // Onboarding rate = units with purchaser info / total units
     const onboardingRate = totalUnits > 0 
-      ? Math.round((effectiveRegistered / totalUnits) * 100) 
+      ? Math.round((registeredHomeowners / totalUnits) * 100) 
       : 0;
     
-    // Engagement rate = active users / total units (or registered if available)
-    const engagementRate = effectiveRegistered > 0 
-      ? Math.round((activeHomeowners / effectiveRegistered) * 100) 
+    // Engagement rate = active users in 7 days / total units
+    const engagementRate = totalUnits > 0 
+      ? Math.round((activeHomeowners / totalUnits) * 100) 
       : 0;
     
     const activeGrowth = previousActive > 0 
@@ -267,7 +291,7 @@ export async function GET(request: NextRequest) {
 
     const onboardingFunnel = [
       { stage: 'Total Units', count: totalUnits, colour: '#D4AF37' },
-      { stage: 'Registered', count: effectiveRegistered, colour: '#93C5FD' },
+      { stage: 'Registered', count: registeredHomeowners, colour: '#93C5FD' },
       { stage: 'Active (7d)', count: activeHomeowners, colour: '#34D399' },
     ];
 
@@ -297,13 +321,13 @@ export async function GET(request: NextRequest) {
         onboardingRate: {
           value: onboardingRate,
           label: 'Onboarding Rate',
-          description: `${effectiveRegistered} of ${totalUnits} units onboarded`,
+          description: `${registeredHomeowners} of ${totalUnits} units onboarded`,
           suffix: '%',
         },
         engagementRate: {
           value: engagementRate,
           label: 'Engagement Rate',
-          description: `${activeHomeowners} of ${effectiveRegistered} active (7d)`,
+          description: `${activeHomeowners} of ${totalUnits} active (7d)`,
           suffix: '%',
           growth: activeGrowth,
         },
