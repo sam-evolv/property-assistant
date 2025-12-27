@@ -28,30 +28,77 @@ interface LogAnalyticsParams {
   unitId?: string;
 }
 
-export async function logAnalyticsEvent(params: LogAnalyticsParams): Promise<void> {
+export interface AnalyticsWriteResult {
+  success: boolean;
+  eventId?: string;
+  error?: string;
+  timestamp: string;
+}
+
+let lastSuccessfulWrite: Date | null = null;
+let writeCountToday = 0;
+let writeCountLastMinute = 0;
+let lastMinuteReset = Date.now();
+
+export function getAnalyticsHealth(): {
+  lastSuccessfulWrite: string | null;
+  writeCountToday: number;
+  writeCountLastMinute: number;
+  status: 'healthy' | 'warning' | 'critical';
+} {
+  const now = Date.now();
+  if (now - lastMinuteReset > 60000) {
+    writeCountLastMinute = 0;
+    lastMinuteReset = now;
+  }
+  
+  let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+  if (!lastSuccessfulWrite) {
+    status = 'critical';
+  } else if (Date.now() - lastSuccessfulWrite.getTime() > 300000) {
+    status = 'warning';
+  }
+  
+  return {
+    lastSuccessfulWrite: lastSuccessfulWrite?.toISOString() || null,
+    writeCountToday,
+    writeCountLastMinute,
+    status
+  };
+}
+
+export async function logAnalyticsEvent(params: LogAnalyticsParams): Promise<AnalyticsWriteResult> {
+  const timestamp = new Date().toISOString();
+  
+  const {
+    tenantId,
+    developmentId,
+    houseTypeCode,
+    eventType,
+    eventCategory,
+    eventData = {},
+    sessionId,
+    unitId
+  } = params;
+
+  if (!tenantId) {
+    const error = '[ANALYTICS CRITICAL] tenantId is required for analytics logging';
+    console.error(error);
+    return { success: false, error, timestamp };
+  }
+
+  const ANALYTICS_SALT = 'oh-anon-2024-' + new Date().toISOString().split('T')[0];
+  const sessionHash = sessionId 
+    ? createHash('sha256').update(sessionId + ANALYTICS_SALT).digest('hex').substring(0, 16)
+    : null;
+
+  const sanitisedData = sanitiseEventData({
+    ...eventData,
+    unit_id: unitId || eventData.unit_id
+  });
+
   try {
-    const {
-      tenantId,
-      developmentId,
-      houseTypeCode,
-      eventType,
-      eventCategory,
-      eventData = {},
-      sessionId,
-      unitId
-    } = params;
-
-    const ANALYTICS_SALT = 'oh-anon-2024-' + new Date().toISOString().split('T')[0];
-    const sessionHash = sessionId 
-      ? createHash('sha256').update(sessionId + ANALYTICS_SALT).digest('hex').substring(0, 16)
-      : null;
-
-    const sanitisedData = sanitiseEventData({
-      ...eventData,
-      unit_id: unitId || eventData.unit_id
-    });
-
-    await db.execute(sql`
+    const result = await db.execute(sql`
       INSERT INTO analytics_events (
         tenant_id, development_id, house_type_code, event_type, 
         event_category, event_data, session_hash
@@ -64,9 +111,38 @@ export async function logAnalyticsEvent(params: LogAnalyticsParams): Promise<voi
         ${JSON.stringify(sanitisedData)}::jsonb,
         ${sessionHash}
       )
+      RETURNING id
     `);
+    
+    const eventId = (result.rows[0] as { id: string })?.id;
+    
+    lastSuccessfulWrite = new Date();
+    writeCountToday++;
+    writeCountLastMinute++;
+    
+    if (process.env.ANALYTICS_VERIFICATION_MODE === 'true') {
+      console.log(`[ANALYTICS VERIFIED] Event ${eventType} logged with ID ${eventId} at ${timestamp}`);
+    }
+    
+    return { success: true, eventId, timestamp };
   } catch (e) {
-    console.error('[Analytics] Failed to log event:', e);
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    const fullError = `[ANALYTICS CRITICAL] Failed to write event ${eventType}: ${errorMessage}`;
+    
+    console.error(fullError);
+    console.error('[ANALYTICS CRITICAL] Stack trace:', e);
+    console.error('[ANALYTICS CRITICAL] Params:', JSON.stringify({
+      tenantId,
+      developmentId,
+      eventType,
+      eventCategory
+    }));
+    
+    return { 
+      success: false, 
+      error: fullError, 
+      timestamp 
+    };
   }
 }
 

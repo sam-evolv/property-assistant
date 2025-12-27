@@ -1,7 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3 } from 'lucide-react';
+import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+
+interface AnalyticsHealth {
+  analyticsTableExists: boolean;
+  lastInsertTimestamp: string | null;
+  insertsLast5Minutes: number;
+  insertsToday: number;
+  insertsTotal: number;
+  eventBreakdown: Record<string, number>;
+  status: 'operational' | 'degraded' | 'error';
+  checkedAt: string;
+  error?: string;
+}
 
 interface KPIData {
   totalUnits: number;
@@ -109,6 +121,97 @@ function KPICard({ icon: Icon, label, value, subtext }: { icon: any; label: stri
   );
 }
 
+function ConfidenceCheckPanel({ health }: { health: AnalyticsHealth | null }) {
+  if (!health) {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+      </div>
+    );
+  }
+
+  const statusIcon = {
+    operational: <CheckCircle2 className="w-5 h-5 text-green-500" />,
+    degraded: <AlertCircle className="w-5 h-5 text-yellow-500" />,
+    error: <XCircle className="w-5 h-5 text-red-500" />
+  };
+
+  const statusColors = {
+    operational: 'bg-green-50 border-green-200',
+    degraded: 'bg-yellow-50 border-yellow-200',
+    error: 'bg-red-50 border-red-200'
+  };
+
+  const statusTextColors = {
+    operational: 'text-green-700',
+    degraded: 'text-yellow-700',
+    error: 'text-red-700'
+  };
+
+  return (
+    <div className={`rounded-lg border p-4 mb-6 ${statusColors[health.status]}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {statusIcon[health.status]}
+          <span className={`font-semibold ${statusTextColors[health.status]}`}>
+            Analytics Pipeline: {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
+          </span>
+        </div>
+        <span className="text-xs text-gray-500">
+          Checked: {new Date(health.checkedAt).toLocaleTimeString()}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          {health.analyticsTableExists ? (
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+          ) : (
+            <XCircle className="w-4 h-4 text-red-500" />
+          )}
+          <span>Table exists</span>
+        </div>
+        <div>
+          <span className="text-gray-500">Last insert:</span>{' '}
+          <span className="font-medium">
+            {health.lastInsertTimestamp 
+              ? new Date(health.lastInsertTimestamp).toLocaleString() 
+              : 'Never'}
+          </span>
+        </div>
+        <div>
+          <span className="text-gray-500">Last 5 min:</span>{' '}
+          <span className="font-medium">{health.insertsLast5Minutes}</span>
+        </div>
+        <div>
+          <span className="text-gray-500">Today:</span>{' '}
+          <span className="font-medium">{health.insertsToday}</span>
+        </div>
+        <div>
+          <span className="text-gray-500">Total:</span>{' '}
+          <span className="font-medium">{health.insertsTotal}</span>
+        </div>
+      </div>
+      {Object.keys(health.eventBreakdown).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <span className="text-xs text-gray-500 uppercase tracking-wide">Event Types:</span>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {Object.entries(health.eventBreakdown).map(([type, count]) => (
+              <span key={type} className="inline-flex items-center px-2 py-1 bg-white rounded text-xs">
+                {type}: <span className="font-medium ml-1">{count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {health.error && (
+        <div className="mt-3 p-2 bg-red-100 rounded text-sm text-red-700">
+          Error: {health.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div className="animate-pulse">
@@ -151,6 +254,7 @@ function formatEventType(type: string): string {
 
 export default function BetaControlRoomClient() {
   const [data, setData] = useState<BetaControlRoomData | null>(null);
+  const [health, setHealth] = useState<AnalyticsHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -159,6 +263,18 @@ export default function BetaControlRoomClient() {
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('');
   const [page, setPage] = useState(0);
   const pageSize = 15;
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/super/analytics-health');
+      if (res.ok) {
+        const result = await res.json();
+        setHealth(result);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics health:', err);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -184,9 +300,14 @@ export default function BetaControlRoomClient() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    fetchHealth();
+    const dataInterval = setInterval(fetchData, 30000);
+    const healthInterval = setInterval(fetchHealth, 10000);
+    return () => {
+      clearInterval(dataInterval);
+      clearInterval(healthInterval);
+    };
+  }, [fetchData, fetchHealth]);
 
   if (loading && !data) {
     return (
@@ -241,6 +362,8 @@ export default function BetaControlRoomClient() {
         <h1 className="text-2xl font-bold text-gray-900">Beta Control Room</h1>
         <p className="text-gray-500 mt-1">Real-time monitoring for beta program activity</p>
       </div>
+
+      <ConfidenceCheckPanel health={health} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <KPICard icon={FileText} label="Units" value={kpis.totalUnits.toLocaleString()} />

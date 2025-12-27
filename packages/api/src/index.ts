@@ -70,8 +70,20 @@ export type { FloorplanUploadResult, FloorplanDimensions } from './floorplan-sto
 // Error logging and analytics
 export { logError, createErrorLogger, getRecentErrors, getErrorStats } from './error-logger';
 export type { ErrorType, Severity } from './error-logger';
-export { logAnalyticsEvent, getAnalyticsSummary, getUnansweredReport } from './analytics-logger';
-export type { EventType } from './analytics-logger';
+export { 
+  logAnalyticsEvent, 
+  getAnalyticsSummary, 
+  getUnansweredReport,
+  getAnalyticsHealth,
+  getBetaKPIs,
+  getLiveActivity,
+  getTopQuestions,
+  getTrainingOpportunities,
+  getUnansweredQuestions,
+  getDocumentUsage,
+  getConversationStats
+} from './analytics-logger';
+export type { EventType, AnalyticsWriteResult } from './analytics-logger';
 
 // Unit resolution (shared helper for Drizzle/Supabase dual-database lookups)
 export { getUnitInfo } from './unit-resolver';

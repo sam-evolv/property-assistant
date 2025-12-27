@@ -12,8 +12,15 @@ import {
   getDocumentUsage,
   getConversationStats
 } from '@openhouse/api/analytics-logger';
+import { requireRole } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
+  try {
+    await requireRole(['super_admin', 'admin']);
+  } catch (authError) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId') || undefined;
