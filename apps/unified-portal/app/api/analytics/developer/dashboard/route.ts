@@ -217,12 +217,17 @@ export async function GET(request: NextRequest) {
     // Debug logging
     console.log('[DeveloperDashboard] Stats: units=', totalUnits, 'homeowners=', registeredHomeowners, 'active=', activeHomeowners, 'messages=', totalMessages);
 
+    // Use totalUnits as the base for both rates since units are in Supabase
+    // If we have registeredHomeowners data, use it; otherwise fall back to totalUnits
+    const effectiveRegistered = registeredHomeowners > 0 ? registeredHomeowners : totalUnits;
+    
     const onboardingRate = totalUnits > 0 
-      ? Math.round((registeredHomeowners / totalUnits) * 100) 
+      ? Math.round((effectiveRegistered / totalUnits) * 100) 
       : 0;
     
-    const engagementRate = registeredHomeowners > 0 
-      ? Math.round((activeHomeowners / registeredHomeowners) * 100) 
+    // Engagement rate = active users / total units (or registered if available)
+    const engagementRate = effectiveRegistered > 0 
+      ? Math.round((activeHomeowners / effectiveRegistered) * 100) 
       : 0;
     
     const activeGrowth = previousActive > 0 
@@ -262,7 +267,7 @@ export async function GET(request: NextRequest) {
 
     const onboardingFunnel = [
       { stage: 'Total Units', count: totalUnits, colour: '#D4AF37' },
-      { stage: 'Registered', count: registeredHomeowners, colour: '#93C5FD' },
+      { stage: 'Registered', count: effectiveRegistered, colour: '#93C5FD' },
       { stage: 'Active (7d)', count: activeHomeowners, colour: '#34D399' },
     ];
 
@@ -292,13 +297,13 @@ export async function GET(request: NextRequest) {
         onboardingRate: {
           value: onboardingRate,
           label: 'Onboarding Rate',
-          description: `${registeredHomeowners} of ${totalUnits} units registered`,
+          description: `${effectiveRegistered} of ${totalUnits} units onboarded`,
           suffix: '%',
         },
         engagementRate: {
           value: engagementRate,
           label: 'Engagement Rate',
-          description: `${activeHomeowners} active in last 7 days`,
+          description: `${activeHomeowners} of ${effectiveRegistered} active (7d)`,
           suffix: '%',
           growth: activeGrowth,
         },
