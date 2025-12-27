@@ -1,56 +1,64 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@openhouse/db';
-import { units, developments } from '@openhouse/db/schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const unitsData = await db
-      .select({
-        id: units.id,
-        unit_number: units.unit_number,
-        unit_code: units.unit_code,
-        purchaser_name: units.purchaser_name,
-        purchaser_email: units.purchaser_email,
-        house_type_code: units.house_type_code,
-        address_line_1: units.address_line_1,
-        eircode: units.eircode,
-        development_name: developments.name,
-        development_id: units.development_id,
-        consent_at: units.consent_at,
-        last_chat_at: units.last_chat_at,
-        important_docs_agreed_version: units.important_docs_agreed_version,
-        important_docs_agreed_at: units.important_docs_agreed_at,
-        created_at: units.created_at,
-      })
-      .from(units)
-      .leftJoin(developments, eq(units.development_id, developments.id))
-      .orderBy(desc(units.created_at));
+    const supabaseAdmin = getSupabaseAdmin();
+    
+    // Fetch units from Supabase (where units data lives)
+    const { data: unitsData, error: unitsError } = await supabaseAdmin
+      .from('units')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (unitsError) {
+      console.error('[Homeowners API] Units query error:', unitsError);
+      return NextResponse.json({ homeowners: [], error: unitsError.message });
+    }
+    
+    // Fetch projects for development names
+    const { data: projectsData } = await supabaseAdmin
+      .from('projects')
+      .select('id, name');
+    
+    const projectsMap = new Map((projectsData || []).map(p => [p.id, p.name]));
 
-    const formattedHomeowners = unitsData.map(u => ({
+    const formattedHomeowners = (unitsData || []).map((u: any) => ({
       id: u.id,
-      name: u.purchaser_name || `Unit ${u.unit_number || u.unit_code || 'Unknown'}`,
-      email: u.purchaser_email || 'Not provided',
-      house_type: u.house_type_code,
-      address: u.address_line_1 ? `${u.address_line_1}${u.eircode ? ', ' + u.eircode : ''}` : null,
-      development_name: u.development_name || 'Unknown',
-      development_id: u.development_id,
-      created_at: u.created_at?.toISOString() || new Date().toISOString(),
+      name: u.purchaser_name || u.owner_name || `Unit ${u.unit_number || u.unit_code || u.lot_number || 'Unknown'}`,
+      email: u.purchaser_email || u.owner_email || 'Not provided',
+      house_type: u.house_type_code || u.house_type,
+      address: u.address || u.address_line_1 || null,
+      development_name: projectsMap.get(u.project_id) || u.project_name || 'Unknown',
+      development_id: u.project_id || u.development_id,
+      created_at: u.created_at || new Date().toISOString(),
       chat_message_count: 0,
-      last_active: u.last_chat_at?.toISOString() || null,
-      registered_at: u.consent_at?.toISOString() || null,
+      last_active: u.last_chat_at || null,
+      registered_at: u.consent_at || u.registered_at || null,
       important_docs_agreed_version: u.important_docs_agreed_version || 0,
-      important_docs_agreed_at: u.important_docs_agreed_at?.toISOString() || null,
-      is_registered: !!u.consent_at,
+      important_docs_agreed_at: u.important_docs_agreed_at || null,
+      is_registered: !!(u.consent_at || u.registered_at || u.user_id),
     }));
 
+    console.log(`[Homeowners API] Returning ${formattedHomeowners.length} homeowners from Supabase`);
     return NextResponse.json({ homeowners: formattedHomeowners });
   } catch (error) {
     console.error('[API] /api/admin/homeowners/stats error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch homeowners' },
+      { error: 'Failed to fetch homeowners', homeowners: [] },
       { status: 500 }
     );
   }
