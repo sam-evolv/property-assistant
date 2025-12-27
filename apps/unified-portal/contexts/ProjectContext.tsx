@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { fetchWithDedup } from '@/lib/analyticsCache';
 
 export interface Project {
   id: string;
@@ -54,15 +55,20 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
       try {
         setIsLoading(true);
         console.log('[ProjectContext] Fetching projects...');
-        const response = await fetch('/api/projects');
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('[ProjectContext] API error:', response.status, errorData);
-          throw new Error(errorData.error || 'Failed to fetch projects');
-        }
+        const data = await fetchWithDedup(
+          'projects:list',
+          async () => {
+            const response = await fetch('/api/projects');
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || 'Failed to fetch projects');
+            }
+            return response.json();
+          },
+          'metadata'
+        );
         
-        const data = await response.json();
         const projectList = data.projects || [];
         const idRemapping: Record<string, string> = data.idRemapping || {};
         console.log('[ProjectContext] Loaded projects:', projectList.length);

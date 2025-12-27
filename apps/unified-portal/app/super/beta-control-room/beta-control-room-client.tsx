@@ -350,10 +350,9 @@ export default function BetaControlRoomClient() {
   }, [hours, developmentId, eventTypeFilter, page]);
 
   useEffect(() => {
-    fetchData();
-    fetchHealth();
+    Promise.all([fetchData(), fetchHealth()]);
     const dataInterval = setInterval(fetchData, 30000);
-    const healthInterval = setInterval(fetchHealth, 10000);
+    const healthInterval = setInterval(fetchHealth, 30000);
     return () => {
       clearInterval(dataInterval);
       clearInterval(healthInterval);

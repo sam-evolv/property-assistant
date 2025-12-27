@@ -136,84 +136,62 @@ export interface InsightResponse {
   insight: string;
 }
 
+const SWR_ANALYTICS_CONFIG = {
+  revalidateOnFocus: false,
+  revalidateIfStale: true,
+  dedupingInterval: 30000,
+  revalidateOnReconnect: true,
+  refreshInterval: 60000,
+};
+
 export function useOverviewMetrics(params: FetchOptions) {
   const key = `/api/analytics-v2/overview?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<OverviewMetrics>(key, () => fetchAnalyticsV2<OverviewMetrics>('overview', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<OverviewMetrics>(key, () => fetchAnalyticsV2<OverviewMetrics>('overview', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useTrendMetrics(params: FetchOptions) {
   const key = `/api/analytics-v2/trends?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<TrendMetrics>(key, () => fetchAnalyticsV2<TrendMetrics>('trends', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<TrendMetrics>(key, () => fetchAnalyticsV2<TrendMetrics>('trends', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useKnowledgeGaps(params: FetchOptions) {
   const key = `/api/analytics-v2/gaps?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<{ gaps: KnowledgeGap[] }>(key, () => fetchAnalyticsV2<{ gaps: KnowledgeGap[] }>('gaps', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<{ gaps: KnowledgeGap[] }>(key, () => fetchAnalyticsV2<{ gaps: KnowledgeGap[] }>('gaps', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useRAGPerformance(params: FetchOptions) {
   const key = `/api/analytics-v2/rag?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<RAGPerformance>(key, () => fetchAnalyticsV2<RAGPerformance>('rag', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<RAGPerformance>(key, () => fetchAnalyticsV2<RAGPerformance>('rag', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useDocumentMetrics(params: FetchOptions) {
   const key = `/api/analytics-v2/documents?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<DocumentMetrics>(key, () => fetchAnalyticsV2<DocumentMetrics>('documents', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<DocumentMetrics>(key, () => fetchAnalyticsV2<DocumentMetrics>('documents', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useHomeownerMetrics(params: FetchOptions) {
   const key = `/api/analytics-v2/homeowners?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<HomeownerMetrics>(key, () => fetchAnalyticsV2<HomeownerMetrics>('homeowners', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<HomeownerMetrics>(key, () => fetchAnalyticsV2<HomeownerMetrics>('homeowners', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useUnitMetrics(params: FetchOptions) {
   const key = `/api/analytics-v2/units?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<UnitMetrics>(key, () => fetchAnalyticsV2<UnitMetrics>('units', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<UnitMetrics>(key, () => fetchAnalyticsV2<UnitMetrics>('units', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useTopQuestions(params: FetchOptions) {
   const key = `/api/analytics-v2/top-questions?${new URLSearchParams({ tenantId: params.tenantId, limit: params.limit?.toString() || '10' }).toString()}`;
-  return useSWR<{ topQuestions: TopQuestion[] }>(key, () => fetchAnalyticsV2<{ topQuestions: TopQuestion[] }>('top-questions', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<{ topQuestions: TopQuestion[] }>(key, () => fetchAnalyticsV2<{ topQuestions: TopQuestion[] }>('top-questions', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useRepeatedQuestions(params: FetchOptions) {
   const key = `/api/analytics-v2/repeated-questions?${new URLSearchParams({ tenantId: params.tenantId, limit: params.limit?.toString() || '10' }).toString()}`;
-  return useSWR<{ repeatedQuestions: RepeatedQuestion[] }>(key, () => fetchAnalyticsV2<{ repeatedQuestions: RepeatedQuestion[] }>('repeated-questions', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<{ repeatedQuestions: RepeatedQuestion[] }>(key, () => fetchAnalyticsV2<{ repeatedQuestions: RepeatedQuestion[] }>('repeated-questions', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useRAGLatency(params: FetchOptions) {
   const key = `/api/analytics-v2/rag-latency?${new URLSearchParams({ tenantId: params.tenantId, days: params.days?.toString() || '30' }).toString()}`;
-  return useSWR<{ ragLatency: RAGLatencyMetric[] }>(key, () => fetchAnalyticsV2<{ ragLatency: RAGLatencyMetric[] }>('rag-latency', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  return useSWR<{ ragLatency: RAGLatencyMetric[] }>(key, () => fetchAnalyticsV2<{ ragLatency: RAGLatencyMetric[] }>('rag-latency', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useDocumentHealth(params: FetchOptions) {
@@ -226,10 +204,7 @@ export function useDocumentHealth(params: FetchOptions) {
     documentHealth: DocumentHealthMetric[];
     statusCounts: Record<string, number>;
     avgHealthScore: number;
-  }>('document-health', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  }>('document-health', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useCostModel(params: FetchOptions) {
@@ -242,10 +217,7 @@ export function useCostModel(params: FetchOptions) {
     costTrajectory: CostModelPoint[];
     totalActualCost: number;
     monthlyProjection: number;
-  }>('cost-model', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  }>('cost-model', params), SWR_ANALYTICS_CONFIG);
 }
 
 export function useUserFunnel(params: FetchOptions) {
@@ -256,10 +228,7 @@ export function useUserFunnel(params: FetchOptions) {
   }>(key, () => fetchAnalyticsV2<{
     funnelMetrics: UserFunnelMetric[];
     overallConversionRate: number;
-  }>('user-funnel', params), {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  }>('user-funnel', params), SWR_ANALYTICS_CONFIG);
 }
 
 export async function fetchInsight(
