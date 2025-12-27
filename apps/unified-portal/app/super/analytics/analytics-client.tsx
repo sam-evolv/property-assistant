@@ -11,7 +11,7 @@ import {
   Users,
   Target,
   MessageSquare,
-  Building2,
+  Calendar,
 } from 'lucide-react';
 import { OverviewTab } from './tabs/overview';
 import { TrendsTab } from './tabs/trends';
@@ -24,6 +24,7 @@ import { QuestionsTab } from './tabs/questions';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 
 type TabId = 'overview' | 'questions' | 'trends' | 'knowledge-gaps' | 'rag-performance' | 'documents' | 'homeowners' | 'units';
+type TimeWindow = 7 | 14 | 30 | 90;
 
 interface Tab {
   id: TabId;
@@ -42,18 +43,26 @@ const tabs: Tab[] = [
   { id: 'units', label: 'Units', icon: Home },
 ];
 
+const timeWindows: { value: TimeWindow; label: string }[] = [
+  { value: 7, label: 'Last 7 days' },
+  { value: 14, label: 'Last 14 days' },
+  { value: 30, label: 'Last 30 days' },
+  { value: 90, label: 'Last 90 days' },
+];
+
 interface AnalyticsClientProps {
   tenantId: string;
 }
 
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [days, setDays] = useState<TimeWindow>(30);
   const { developmentId } = useSafeCurrentContext();
 
   const tabProps = { 
     tenantId, 
     developmentId: developmentId ?? undefined,
-    days: 30 
+    days 
   };
 
   return (
@@ -70,6 +79,25 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               <p className="text-gray-300 text-base mt-1">
                 Performance, engagement, RAG intelligence, and operational metrics across all developments
               </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 mt-4">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+              {timeWindows.map((tw) => (
+                <button
+                  key={tw.value}
+                  onClick={() => setDays(tw.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    days === tw.value
+                      ? 'bg-gold-500 text-gray-900'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {tw.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

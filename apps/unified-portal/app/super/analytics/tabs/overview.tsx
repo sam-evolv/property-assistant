@@ -27,44 +27,69 @@ interface OverviewTabProps {
 }
 
 function OverviewMetrics({ tenantId, developmentId, days }: OverviewTabProps) {
-  const { data: metrics, isLoading: metricsLoading } = useOverviewMetrics({ tenantId, developmentId, days });
-  const { data: costData, isLoading: costLoading } = useCostModel({ tenantId, developmentId, days });
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useOverviewMetrics({ tenantId, developmentId, days });
+  const { data: costData, isLoading: costLoading, error: costError } = useCostModel({ tenantId, developmentId, days });
 
-  if (metricsLoading || costLoading || !metrics || !costData) {
+  if (metricsLoading || costLoading) {
     return <div className="h-96 bg-gray-100 rounded-xl animate-pulse" />;
   }
 
-  const messageGrowth = Math.round((metrics.totalMessages / days) * 7);
-  const userTrend = metrics.activeUsers > 0 ? 'up' : 'neutral';
+  if (metricsError || costError || !metrics || !costData) {
+    return (
+      <div className="h-96 flex items-center justify-center bg-gray-50 rounded-xl border border-gray-200">
+        <div className="text-center">
+          <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">Unable to load metrics</p>
+          <p className="text-gray-400 text-sm mt-1">Please try refreshing the page</p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalMessages = metrics.totalMessages ?? 0;
+  const activeUsers = metrics.activeUsers ?? 0;
+  const avgResponseTime = metrics.avgResponseTime ?? 0;
+  const totalDocuments = metrics.totalDocuments ?? 0;
+  const avgCostPerMessage = metrics.avgCostPerMessage ?? 0;
+  const peakUsageHour = metrics.peakUsageHour ?? 12;
+  const embeddingChunks = metrics.embeddingChunks ?? 0;
+  const topDevelopment = metrics.topDevelopment || 'N/A';
+  
+  const costTrajectory = Array.isArray(costData.costTrajectory) ? costData.costTrajectory : [];
+  const totalActualCost = costData.totalActualCost ?? 0;
+  const monthlyProjection = costData.monthlyProjection ?? 0;
+
+  const messageGrowth = days > 0 ? Math.round((totalMessages / days) * 7) : 0;
+  const userTrend = activeUsers > 0 ? 'up' : 'neutral';
 
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <MetricPulseCard
           title="Total Messages"
-          value={metrics.totalMessages.toLocaleString()}
+          value={totalMessages.toLocaleString()}
           change={messageGrowth}
           trend={messageGrowth > 0 ? 'up' : 'neutral'}
           pulse={true}
         />
         <MetricPulseCard
           title="Active Users"
-          value={metrics.activeUsers.toLocaleString()}
+          value={activeUsers.toLocaleString()}
           trend={userTrend}
         />
         <MetricPulseCard
           title="Avg Response Time"
-          value={`${metrics.avgResponseTime}ms`}
-          trend={metrics.avgResponseTime < 500 ? 'up' : 'neutral'}
+          value={`${avgResponseTime}ms`}
+          trend={avgResponseTime < 500 ? 'up' : 'neutral'}
         />
         <MetricPulseCard
           title="Total Documents"
-          value={metrics.totalDocuments.toLocaleString()}
+          value={totalDocuments.toLocaleString()}
           trend="neutral"
         />
         <MetricPulseCard
           title="Cost/Message"
-          value={`$${metrics.avgCostPerMessage.toFixed(4)}`}
+          value={`$${avgCostPerMessage.toFixed(4)}`}
           trend="neutral"
         />
       </div>
@@ -75,22 +100,28 @@ function OverviewMetrics({ tenantId, developmentId, days }: OverviewTabProps) {
             <DollarSign className="w-5 h-5 text-gold-500" />
             Cost Trajectory
           </h3>
-          <CostTrajectory data={costData.costTrajectory.map(d => ({
-            date: d.date,
-            actual: d.actualCost,
-            projected: d.projectedCost
-          }))} />
+          {costTrajectory.length > 0 ? (
+            <CostTrajectory data={costTrajectory.map(d => ({
+              date: d.date,
+              actual: d.actualCost ?? 0,
+              projected: d.projectedCost ?? 0
+            }))} />
+          ) : (
+            <div className="h-48 flex items-center justify-center text-gray-400">
+              No cost data available yet
+            </div>
+          )}
           <div className="mt-4 grid grid-cols-2 gap-4">
             <div className="text-center">
               <div className="text-sm text-gray-600">Total Actual</div>
               <div className="text-xl font-bold text-gray-900">
-                ${costData.totalActualCost.toFixed(2)}
+                ${totalActualCost.toFixed(2)}
               </div>
             </div>
             <div className="text-center">
               <div className="text-sm text-gray-600">Monthly Projection</div>
               <div className="text-xl font-bold text-gold-600">
-                ${costData.monthlyProjection.toFixed(2)}
+                ${monthlyProjection.toFixed(2)}
               </div>
             </div>
           </div>
@@ -105,19 +136,19 @@ function OverviewMetrics({ tenantId, developmentId, days }: OverviewTabProps) {
             <div>
               <div className="text-sm text-gray-600">Peak Usage Hour</div>
               <div className="text-2xl font-bold text-gray-900">
-                {metrics.peakUsageHour}:00 {metrics.peakUsageHour >= 12 ? 'PM' : 'AM'}
+                {peakUsageHour}:00 {peakUsageHour >= 12 ? 'PM' : 'AM'}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">Top Development</div>
               <div className="text-lg font-semibold text-gray-900">
-                {metrics.topDevelopment || 'N/A'}
+                {topDevelopment}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">RAG Coverage</div>
               <div className="text-2xl font-bold text-green-600">
-                {metrics.embeddingChunks.toLocaleString()} chunks
+                {embeddingChunks.toLocaleString()} chunks
               </div>
             </div>
           </div>

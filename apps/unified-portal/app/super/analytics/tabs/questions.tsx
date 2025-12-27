@@ -51,12 +51,32 @@ export function QuestionsTab({ tenantId, days }: QuestionsTabProps) {
     loadData();
   }, [tenantId, days]);
 
-  if (loading || !data) {
+  if (loading) {
     return <div className="h-96 bg-gray-100 rounded-xl animate-pulse" />;
   }
 
-  const peakHour = data.questionsByTimeOfDay.reduce((max, curr) => 
-    curr.count > max.count ? curr : max, data.questionsByTimeOfDay[0]);
+  if (!data) {
+    return (
+      <div className="h-96 flex items-center justify-center bg-gray-50 rounded-xl border border-gray-200">
+        <div className="text-center">
+          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">No question data available</p>
+          <p className="text-gray-400 text-sm mt-1">Questions will appear here once users start asking</p>
+        </div>
+      </div>
+    );
+  }
+
+  const questionsByTimeOfDay = Array.isArray(data.questionsByTimeOfDay) ? data.questionsByTimeOfDay : [];
+  const topQuestions = Array.isArray(data.topQuestions) ? data.topQuestions : [];
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const questionsByDevelopment = Array.isArray(data.questionsByDevelopment) ? data.questionsByDevelopment : [];
+  const totalQuestions = data.totalQuestions ?? 0;
+  const avgQuestionLength = data.avgQuestionLength ?? 0;
+
+  const peakHour = questionsByTimeOfDay.length > 0
+    ? questionsByTimeOfDay.reduce((max, curr) => curr.count > max.count ? curr : max, questionsByTimeOfDay[0])
+    : { hour: 0, count: 0 };
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -70,19 +90,19 @@ export function QuestionsTab({ tenantId, days }: QuestionsTabProps) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="text-sm text-gray-600 mb-1">Total Questions</div>
-            <div className="text-3xl font-bold text-gray-900">{data.totalQuestions.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-gray-900">{totalQuestions.toLocaleString()}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="text-sm text-gray-600 mb-1">Unique Questions</div>
-            <div className="text-3xl font-bold text-gray-900">{data.topQuestions.length}</div>
+            <div className="text-3xl font-bold text-gray-900">{topQuestions.length}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="text-sm text-gray-600 mb-1">Avg Length</div>
-            <div className="text-3xl font-bold text-gray-900">{data.avgQuestionLength} chars</div>
+            <div className="text-3xl font-bold text-gray-900">{avgQuestionLength} chars</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="text-sm text-gray-600 mb-1">Peak Hour</div>
-            <div className="text-3xl font-bold text-gray-900">{peakHour?.hour || 0}:00</div>
+            <div className="text-3xl font-bold text-gray-900">{peakHour.hour}:00</div>
           </div>
         </div>
 
@@ -92,17 +112,23 @@ export function QuestionsTab({ tenantId, days }: QuestionsTabProps) {
             <BarChart3 className="w-5 h-5 text-gold-500" />
             Question Categories
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {data.categories.map((cat) => (
-              <div key={cat.category} className="border border-gray-200 rounded-lg p-4">
-                <div className="text-sm text-gray-600">{cat.category}</div>
-                <div className="text-2xl font-bold text-gray-900">{cat.count}</div>
-                <div className="text-xs text-gray-500">
-                  {((cat.count / data.totalQuestions) * 100).toFixed(1)}% of total
+          {categories.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {categories.map((cat) => (
+                <div key={cat.category} className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">{cat.category}</div>
+                  <div className="text-2xl font-bold text-gray-900">{cat.count}</div>
+                  <div className="text-xs text-gray-500">
+                    {totalQuestions > 0 ? ((cat.count / totalQuestions) * 100).toFixed(1) : 0}% of total
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No question categories available yet
+            </div>
+          )}
         </div>
 
         {/* Top Questions */}
@@ -111,46 +137,58 @@ export function QuestionsTab({ tenantId, days }: QuestionsTabProps) {
             <TrendingUp className="w-5 h-5 text-gold-500" />
             Most Frequent Questions
           </h3>
-          <div className="space-y-3">
-            {data.topQuestions.slice(0, 15).map((q, idx) => (
-              <div key={idx} className="border-b border-gray-100 pb-3 last:border-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">{q.question}</div>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" />
-                        Asked {q.count}x
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Avg {q.avgResponseTime}ms response
-                      </span>
+          {topQuestions.length > 0 ? (
+            <div className="space-y-3">
+              {topQuestions.slice(0, 15).map((q, idx) => (
+                <div key={idx} className="border-b border-gray-100 pb-3 last:border-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900">{q.question}</div>
+                      <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          Asked {q.count}x
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Avg {q.avgResponseTime ?? 0}ms response
+                        </span>
+                      </div>
                     </div>
+                    <div className="text-lg font-bold text-gold-600">{q.count}</div>
                   </div>
-                  <div className="text-lg font-bold text-gold-600">{q.count}</div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No questions recorded yet
+            </div>
+          )}
         </div>
 
         {/* Questions by Development */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Questions by Development</h3>
-          <div className="space-y-3">
-            {data.questionsByDevelopment.slice(0, 10).map((item, idx) => (
-              <div key={idx} className="border-b border-gray-100 pb-3 last:border-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="text-xs text-gold-600 font-semibold mb-1">{item.development_name}</div>
-                    <div className="text-sm text-gray-900">{item.question}</div>
+          {questionsByDevelopment.length > 0 ? (
+            <div className="space-y-3">
+              {questionsByDevelopment.slice(0, 10).map((item, idx) => (
+                <div key={idx} className="border-b border-gray-100 pb-3 last:border-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="text-xs text-gold-600 font-semibold mb-1">{item.development_name || 'Unknown'}</div>
+                      <div className="text-sm text-gray-900">{item.question}</div>
+                    </div>
+                    <div className="text-sm font-bold text-gray-900">{item.count}x</div>
                   </div>
-                  <div className="text-sm font-bold text-gray-900">{item.count}x</div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No development-specific questions yet
+            </div>
+          )}
         </div>
       </section>
     </div>

@@ -206,7 +206,7 @@ export default function OverviewDashboard() {
 
     const intervalId = setInterval(() => {
       fetchDashboardData();
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(intervalId);
   }, [selectedProjectId, projectLoading]);
