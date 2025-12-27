@@ -1,3 +1,5 @@
+import { incrementCriticalError } from './system-health';
+
 export function generateRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -36,6 +38,7 @@ export function logCritical(
   requestId: string,
   data?: Record<string, unknown>
 ): void {
+  incrementCriticalError();
   const logEntry = {
     level: 'CRITICAL',
     context,

@@ -21,7 +21,8 @@ import {
   FolderPlus,
   Layers,
   FileUp,
-  Zap
+  Zap,
+  HeartPulse
 } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
@@ -61,6 +62,7 @@ const menuSections = [
   {
     label: 'System',
     items: [
+      { href: '/super/system-health', label: 'System Health', icon: HeartPulse },
       { href: '/super/system-logs', label: 'System Logs', icon: FileWarning },
       { href: '/super/training-jobs', label: 'Training Jobs', icon: Upload },
     ],
@@ -128,7 +130,9 @@ export function AdminEnterpriseNav() {
       <div className="p-4 border-t border-gold-100">
         <div className="text-xs text-gray-500 text-center">
           <p className="font-medium text-gray-700">OpenHouse AI Enterprise</p>
-          <p className="mt-1 text-gold-600 font-medium">Phase 16: Premium Polish</p>
+          <p className="mt-1 text-gray-400 font-mono text-[10px]">
+            v{process.env.npm_package_version || '0.1.0'} • {process.env.REPL_ID?.slice(0, 6) || 'dev'}
+          </p>
         </div>
       </div>
     </nav>

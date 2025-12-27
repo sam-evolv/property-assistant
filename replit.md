@@ -73,6 +73,34 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Operational Maturity Hardening (December 2025)
+
+Added production-ready system health monitoring for admin visibility:
+
+**System Health API (`/api/super/system-health`):**
+- Admin-only endpoint with role enforcement
+- Drizzle database connectivity check with latency
+- Supabase REST API check (fail-closed: only 2xx = OK)
+- Analytics freshness check (last event timestamp and age)
+- Critical error counter (tracks logCritical calls)
+- Deployment metadata (version, commit, deployed timestamp)
+
+**Admin Health Panel (`/super/system-health`):**
+- Real-time status badges (healthy/degraded/critical)
+- Auto-refresh every 30 seconds
+- Component-level status breakdown
+- Build info footer with commit hash
+
+**Environment Variables for Supabase Check:**
+- `SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL` - Required
+- `SUPABASE_SERVICE_ROLE_KEY` - Required (SKIP if not configured)
+
+**Files Added/Changed:**
+- `apps/unified-portal/app/api/super/system-health/route.ts` - Health API
+- `apps/unified-portal/app/super/system-health/page.tsx` - Admin UI
+- `apps/unified-portal/lib/system-health.ts` - Error counter utility
+- `apps/unified-portal/app/super/nav-client.tsx` - Added nav link
+
 ### Performance Hardening (December 2025)
 
 Improved perceived speed and responsiveness across the portal:
