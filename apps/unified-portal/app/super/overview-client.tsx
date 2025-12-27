@@ -51,50 +51,6 @@ interface ProjectStatus {
   setupRequired: boolean;
 }
 
-function DisabledCard({ title, icon }: { title: string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 opacity-60">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-500">{title}</span>
-        <div className="text-gray-400">{icon}</div>
-      </div>
-      <div className="text-3xl font-bold text-gray-400 mb-1">-</div>
-      <p className="text-xs text-gray-400">Not available in project view</p>
-    </div>
-  );
-}
-
-function DisabledChartPanel({ title, icon }: { title: string; icon: React.ReactNode }) {
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 opacity-60">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="text-gray-400">{icon}</div>
-        <h3 className="text-lg font-semibold text-gray-400">{title}</h3>
-      </div>
-      <div className="h-48 flex items-center justify-center">
-        <div className="text-center">
-          <Info className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-400">Available in All Schemes view</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DisabledMetricsPanel({ title }: { title: string }) {
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 opacity-60">
-      <h3 className="text-lg font-semibold text-gray-400 mb-4">{title}</h3>
-      <div className="h-40 flex items-center justify-center">
-        <div className="text-center">
-          <Info className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-400">Available in All Schemes view</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function OverviewDashboard() {
   const { selectedProjectId, selectedProject, isLoading: projectLoading } = useProjectContext();
   const [platformData, setPlatformData] = useState<PlatformMetrics | null>(null);
@@ -332,26 +288,21 @@ export default function OverviewDashboard() {
           icon={<Home className="w-5 h-5" />}
         />
         
-        {/* Drizzle-backed: Total Messages - disabled when project-scoped */}
-        {isProjectScoped ? (
-          <DisabledCard 
-            title="Total Messages" 
-            icon={<MessageSquare className="w-5 h-5" />} 
-          />
-        ) : (
-          <InsightCard
-            title="Total Messages"
-            value={platformData.total_messages}
-            subtitle="All-time conversations"
-            icon={<MessageSquare className="w-5 h-5" />}
-          />
-        )}
+        {/* Total Documents - always available */}
+        <InsightCard
+          title="Total Documents"
+          value={platformData.total_documents}
+          subtitle={isProjectScoped ? 'Project documents' : 'All documents'}
+          icon={<FileText className="w-5 h-5" />}
+        />
         
-        {/* Drizzle-backed: Active Homeowners - disabled when project-scoped */}
+        {/* Unit Types (project-scoped) or Active Homeowners (all schemes) */}
         {isProjectScoped ? (
-          <DisabledCard 
-            title="Active Homeowners" 
-            icon={<Activity className="w-5 h-5" />} 
+          <InsightCard
+            title="Unit Types"
+            value={projectStatus?.unitTypesCount || 0}
+            subtitle="Configured in project"
+            icon={<Layers className="w-5 h-5" />}
           />
         ) : (
           <InsightCard
@@ -367,15 +318,9 @@ export default function OverviewDashboard() {
         )}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Drizzle-backed: Message Volume Chart - disabled when project-scoped */}
-        {isProjectScoped ? (
-          <DisabledChartPanel 
-            title="Message Volume (14 Days)" 
-            icon={<TrendingUp className="w-5 h-5" />} 
-          />
-        ) : (
+      {/* Charts Grid - only show for All Schemes view */}
+      {!isProjectScoped && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white border border-gold-100 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-gold-600" />
@@ -387,15 +332,7 @@ export default function OverviewDashboard() {
               xAxisKey="date"
             />
           </div>
-        )}
 
-        {/* Drizzle-backed: Top Developments - disabled when project-scoped */}
-        {isProjectScoped ? (
-          <DisabledChartPanel 
-            title="Top 5 Developments by Messages" 
-            icon={<Building2 className="w-5 h-5" />} 
-          />
-        ) : (
           <div className="bg-white border border-gold-100 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-2 mb-4">
               <Building2 className="w-5 h-5 text-gold-600" />
@@ -407,14 +344,62 @@ export default function OverviewDashboard() {
               xAxisKey="name"
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* AI Usage & Costs - Drizzle-backed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {isProjectScoped ? (
-          <DisabledMetricsPanel title="AI Usage & Costs (30 Days)" />
-        ) : (
+      {/* Project Quick Actions - only for project-scoped view */}
+      {isProjectScoped && selectedProjectId && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Link href={`/super/projects/${selectedProjectId}/unit-types`}>
+            <div className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gold-400 hover:shadow-md transition-all cursor-pointer h-full">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-gold-100 rounded-lg">
+                  <Layers className="w-5 h-5 text-gold-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Unit Types</h3>
+              </div>
+              <p className="text-sm text-gray-600">Configure house types and floor plans for this project.</p>
+              <div className="mt-4 flex items-center text-gold-600 text-sm font-medium">
+                Manage Unit Types <ArrowRight className="w-4 h-4 ml-1" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href={`/super/projects/${selectedProjectId}/import-units`}>
+            <div className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gold-400 hover:shadow-md transition-all cursor-pointer h-full">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-gold-100 rounded-lg">
+                  <FileUp className="w-5 h-5 text-gold-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Import Units</h3>
+              </div>
+              <p className="text-sm text-gray-600">Bulk import units and properties from CSV files.</p>
+              <div className="mt-4 flex items-center text-gold-600 text-sm font-medium">
+                Import Data <ArrowRight className="w-4 h-4 ml-1" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/super/documents">
+            <div className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gold-400 hover:shadow-md transition-all cursor-pointer h-full">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-gold-100 rounded-lg">
+                  <FileText className="w-5 h-5 text-gold-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Documents</h3>
+              </div>
+              <p className="text-sm text-gray-600">Upload and manage property documentation.</p>
+              <div className="mt-4 flex items-center text-gold-600 text-sm font-medium">
+                View Documents <ArrowRight className="w-4 h-4 ml-1" />
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* AI Usage & Costs - only for All Schemes view */}
+      {!isProjectScoped && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Usage & Costs (30 Days)</h3>
             <div className="space-y-4">
@@ -444,12 +429,7 @@ export default function OverviewDashboard() {
               </div>
             </div>
           </div>
-        )}
 
-        {/* Top Questions - Drizzle-backed */}
-        {isProjectScoped ? (
-          <DisabledMetricsPanel title="Top Questions" />
-        ) : (
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Questions</h3>
             <div className="space-y-2">
@@ -466,8 +446,8 @@ export default function OverviewDashboard() {
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Documents Summary - Supabase-backed: always available */}
       <div className="bg-white border border-gold-100 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
