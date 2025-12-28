@@ -114,13 +114,12 @@ export async function findDocumentForLink(
   
   console.log('[DocumentLinkResolver] Looking in project:', projectId, 'houseType:', houseTypeCode);
   
-  let query = supabase
+  const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
+  
+  const { data: sections, error } = await supabase
     .from('document_sections')
     .select('id, metadata')
-    .eq('project_id', projectId)
-    .limit(100);
-  
-  const { data: sections, error } = await query;
+    .eq('project_id', projectId);
   
   if (error || !sections || sections.length === 0) {
     console.log('[DocumentLinkResolver] No documents found or error:', error?.message);
@@ -131,6 +130,8 @@ export async function findDocumentForLink(
     };
   }
   
+  console.log('[DocumentLinkResolver] Total sections fetched:', sections.length);
+  
   const uniqueDocs = new Map<string, any>();
   for (const section of sections) {
     const metadata = section.metadata as any;
@@ -139,8 +140,12 @@ export async function findDocumentForLink(
     const key = metadata.file_name || metadata.file_url;
     if (!uniqueDocs.has(key)) {
       const docHouseType = metadata.house_type_code;
-      if (docHouseType && houseTypeCode && docHouseType.toLowerCase() !== houseTypeCode.toLowerCase()) {
-        continue;
+      const normalizedDocHouseType = (docHouseType || '').toLowerCase().trim();
+      
+      if (normalizedDocHouseType && normalizedHouseType) {
+        if (normalizedDocHouseType !== normalizedHouseType) {
+          continue;
+        }
       }
       uniqueDocs.set(key, metadata);
     }
@@ -236,7 +241,7 @@ export async function findDocumentForLink(
   
   if (!matchedDoc) {
     console.log('[DocumentLinkResolver] No match found for:', documentHint);
-    console.log('[DocumentLinkResolver] Available docs:', documents.map(d => d.file_name).join(', '));
+    console.log('[DocumentLinkResolver] Available docs with types:', documents.map(d => `${d.file_name} (type: ${d.drawing_type || 'none'})`).join(', '));
     return {
       found: false,
       document: null,
