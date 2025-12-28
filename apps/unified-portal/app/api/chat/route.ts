@@ -7,6 +7,7 @@ import { messages, units } from '@openhouse/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
+import { detectDocumentLinkRequest, findDocumentForLink, ResolvedDocument } from '@/lib/document-link-resolver';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
@@ -1254,6 +1255,77 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       drawing = drawingResult.drawing;
       drawingExplanation = drawingResult.explanation;
       console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
+    }
+
+    // DOCUMENT LINK REQUEST: Check if user is asking for a download link/preview
+    let documentLink: ResolvedDocument | null = null;
+    let documentLinkExplanation = '';
+    
+    const linkRequest = detectDocumentLinkRequest(message);
+    if (linkRequest.isLinkRequest && effectiveUnitUid) {
+      console.log('[Chat] Document link request detected, hint:', linkRequest.documentHint);
+      
+      // Get context from last conversation for better matching
+      const lastContext = conversationHistory.length > 0 
+        ? conversationHistory[conversationHistory.length - 1].aiMessage 
+        : '';
+      
+      const docResult = await findDocumentForLink(
+        effectiveUnitUid, 
+        linkRequest.documentHint, 
+        lastContext,
+        userSupabaseProjectId,
+        userHouseTypeCode || undefined
+      );
+      
+      if (docResult.found && docResult.document) {
+        documentLink = docResult.document;
+        documentLinkExplanation = docResult.explanation;
+        console.log('[Chat] Found document for link:', documentLink.fileName);
+        
+        // Return immediately with the document link
+        const linkAnswer = `${documentLinkExplanation} You can view or download it using the button below.`;
+        
+        // Save to database
+        try {
+          await db.insert(messages).values({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: conversationUserId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: linkAnswer,
+            question_topic: 'document_link_request',
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              unitUid: effectiveUnitUid,
+              documentRequested: linkRequest.documentHint,
+              documentProvided: documentLink.fileName,
+            },
+          });
+        } catch (dbError) {
+          console.error('[Chat] Failed to save document link message:', dbError);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          answer: linkAnswer,
+          source: 'document_link',
+          drawing: {
+            fileName: documentLink.fileName,
+            drawingType: documentLink.discipline,
+            drawingDescription: documentLink.title,
+            houseTypeCode: documentLink.houseTypeCode,
+            previewUrl: documentLink.signedUrl,
+            downloadUrl: documentLink.downloadUrl,
+            explanation: documentLinkExplanation,
+          },
+        });
+      }
     }
 
     // Check for dimension question BEFORE streaming - may need to override response
