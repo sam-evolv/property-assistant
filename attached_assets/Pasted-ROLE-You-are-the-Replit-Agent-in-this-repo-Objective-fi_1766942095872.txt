@@ -1,0 +1,116 @@
+ROLE: You are the Replit Agent in this repo. Objective: fix the remaining Super Admin “beta control room” issues that are still broken in production behaviour:
+1) Units page still shows “Failed to fetch units”.
+2) Development Management still only lists Longview Park (Rathard Park missing).
+3) Beta Control Room / Analytics pipeline UI is unclear (event types, statuses, and signals are ambiguous). Make it operationally obvious.
+
+CONSTRAINTS
+- Do not do a redesign. Make targeted fixes that improve correctness and clarity.
+- No hardcoding Longview/Rathard. Fix the underlying query / tenancy / permissions / joins so it scales.
+- Maintain role enforcement: super_admin sees all; admin sees only their scope.
+- Prefer shared canonical “Developments list” and “Units list” data sources across pages to avoid divergence.
+
+PHASE 0 - REPRO + ROOT CAUSE (non-negotiable)
+A) Reproduce each issue locally with the running workflow.
+B) For each failing page, open DevTools Network + Server logs and record:
+   - endpoint URL called
+   - status code (401/403/500)
+   - response body error
+   - request id header (if present)
+C) Do NOT attempt UI tweaks until the underlying endpoint is confirmed working.
+
+PHASE 1 - FIX: Units page “Failed to fetch units”
+1) Locate the Units page client and the API it calls.
+   - Search: "Failed to fetch units" and "units" page route under apps/unified-portal/app/(admin|super)/management/units or similar.
+2) Identify the units endpoint actually used by the UI. Confirm whether it is:
+   - /api/admin/units OR /api/super/units OR a shared /api/units endpoint.
+3) Fix the real root cause based on what you find:
+   Common causes to explicitly check:
+   - Auth mismatch: UI uses admin session but endpoint requires super_admin only.
+   - Wrong DB source: endpoint queries Drizzle/local DB while production data is in Supabase.
+   - Missing filter params: endpoint expects developmentId but UI passes projectId or blank.
+   - RLS / permissions: Supabase REST call uses anon key instead of service role key for server-side.
+4) Implement the correction:
+   - Server-side route should use SUPABASE_SERVICE_ROLE_KEY and query Supabase directly for units.
+   - Support optional filters: developerId and developmentId (or projectId) and “all”.
+   - Return a stable contract: { units: [...], total, filtersApplied }.
+5) Add diagnostics that surface the real failure:
+   - If fetch fails, show a compact error panel: “Units failed to load” + requestId + status + safe error message.
+6) Acceptance test:
+   - Units page loads a non-empty list in both Super Admin and Admin (within their scope).
+   - No “Failed to fetch units”.
+
+PHASE 2 - FIX: Development Management missing Rathard Park
+1) Locate Development Management page and its data source.
+2) Confirm the endpoint / query used to list developments.
+3) Fix data retrieval so it returns all developments:
+   Explicit checks:
+   - Is the query accidentally filtering by a single development id?
+   - Is it joining on an incorrect column (project vs development)?
+   - Is there a “default development” constant set to Longview?
+   - Is the UI reading from the wrong table (projects instead of developments)?
+4) Establish a canonical “getDevelopments” server helper used by:
+   - Super Admin filters
+   - Development Management list
+   - Any admin development dropdowns
+5) Ensure the list is sorted and de-duplicated by id/name.
+6) Acceptance test:
+   - Development Management shows Longview Park AND Rathard Park (and any others that exist).
+   - Dropdowns across super/admin reuse the same list and do not diverge.
+
+PHASE 3 - BETA CONTROL ROOM: make analytics pipeline operationally obvious
+Goal: a super_admin should be able to look at the control room and immediately understand:
+- Is the pipeline healthy?
+- What events are flowing?
+- Which event types are being counted?
+- What failures exist, with timestamps and reason.
+
+1) Locate the Beta Control Room / analytics pipeline page(s).
+2) Identify the backing endpoints:
+   - summary endpoint (counts)
+   - last event endpoint
+   - health endpoint (degraded/critical)
+   - logs endpoint (if present)
+3) Fix the “unclear event types” problem by standardising and labelling:
+   - Create a single mapping object in shared code:
+     event_type -> { label, description, countsTowardDocumentsServed, category }
+   Example categories (adjust to match your system):
+     - Access: qr_scan, portal_view, login
+     - Documents: document_view, document_download, drawing_view, drawing_download
+     - Chat: chat_message, chat_document_served
+     - Errors: api_error, pipeline_error
+   Then render labels (human readable) everywhere instead of raw event_type strings.
+4) Make the health signals explicit:
+   - “Pipeline status” card: Healthy / Degraded / Critical
+   - “Freshness” card: time since last event (with thresholds explained)
+   - “Events in last 24h” card: total + breakdown by category
+   - “Document served events” card: count + what qualifies (views + downloads + drawings, per your policy)
+5) Add an “Event Type Breakdown” table:
+   Columns: Label | Raw Type | Last Seen | 24h Count | Counts Toward “Documents Served” (Yes/No)
+6) Add a “Recent Failures” table:
+   - Pull from system logs or analytics error events.
+   - Show: timestamp, component, message, requestId.
+7) Clarify “Documents Served” logic:
+   - Define exactly which event types increment it.
+   - Ensure those events are actually emitted where users view/download documents in-app.
+   - If needed, add missing tracking in the document endpoints (list/preview/download) so it reflects reality.
+8) Acceptance test:
+   - Control room shows clear labels (no ambiguous raw event types as the primary UI).
+   - A user can tell within 10 seconds whether the pipeline is healthy and what is flowing.
+   - “Documents Served” has a clear definition and is backed by real events.
+
+PHASE 4 - VERIFY END-TO-END
+1) Run these manual checks (document in a markdown file BETA_CONTROL_ROOM_VERIFY.md):
+   - Open Super Admin -> Management -> Units: loads successfully.
+   - Open Super Admin -> Management -> Developments: shows Longview + Rathard.
+   - Open Super Admin -> Beta Control Room: status + breakdowns render; last event updates.
+2) Add minimal logging so regressions are easier to diagnose:
+   - Ensure requestId is returned and displayed on error panels.
+
+DELIVERABLES
+- Working units fetch in both admin and super admin scope.
+- Development Management shows all developments (Rathard included).
+- Beta Control Room / analytics pipeline made clear via event mapping + breakdown + explicit health cards.
+- A short verification markdown committed to repo documenting how to test.
+
+START NOW
+Begin with Phase 0, identify the exact failing endpoints for Units and Developments, fix the server-side root causes, then implement the Beta Control Room clarity upgrades.

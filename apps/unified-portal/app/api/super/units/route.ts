@@ -1,84 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
-import { db } from '@openhouse/db/client';
-import { units, developments } from '@openhouse/db/schema';
-import { eq, asc, sql } from 'drizzle-orm';
-import { resolveDevelopment } from '@/lib/development-resolver';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function GET(request: NextRequest) {
+  const requestId = `units-${Date.now()}`;
+  
   try {
     await requireRole(['super_admin', 'admin']);
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
-    console.log('[API] /api/super/units - projectId:', projectId || 'all');
+    console.log(`[API:${requestId}] /api/super/units - projectId:`, projectId || 'all');
     
-    // Resolve Supabase project ID to Drizzle development ID
-    let drizzleDevelopmentId: string | null = null;
+    const supabase = getSupabaseClient();
+    
+    // Build query for units with project info
+    let query = supabase
+      .from('units')
+      .select(`
+        id,
+        address,
+        purchaser_name,
+        handover_date,
+        snag_list_url,
+        created_at,
+        project_id,
+        unit_type_id,
+        projects!inner(id, name, address)
+      `)
+      .order('created_at', { ascending: false });
+    
+    // Filter by project if specified
     if (projectId) {
-      const resolved = await resolveDevelopment(projectId);
-      drizzleDevelopmentId = resolved?.drizzleDevelopmentId || null;
-      console.log('[API] /api/super/units - resolved to Drizzle development_id:', drizzleDevelopmentId);
+      query = query.eq('project_id', projectId);
+    }
+    
+    const { data: unitsData, error: unitsError } = await query;
+    
+    if (unitsError) {
+      console.error(`[API:${requestId}] Supabase error:`, unitsError);
+      return NextResponse.json(
+        { 
+          error: 'Failed to fetch units from database',
+          requestId,
+          details: unitsError.message
+        },
+        { status: 500 }
+      );
     }
 
-    let query = db
-      .select({
-        id: units.id,
-        unit_number: units.unit_number,
-        unit_uid: units.unit_uid,
-        address_line_1: units.address_line_1,
-        address_line_2: units.address_line_2,
-        city: units.city,
-        house_type_code: units.house_type_code,
-        purchaser_name: units.purchaser_name,
-        purchaser_email: units.purchaser_email,
-        bedrooms: units.bedrooms,
-        created_at: units.created_at,
-        development_id: units.development_id,
-        development_name: developments.name,
-        development_address: developments.address,
-      })
-      .from(units)
-      .leftJoin(developments, eq(units.development_id, developments.id))
-      .orderBy(asc(developments.name), asc(units.address_line_1), asc(units.created_at));
+    // Get unit types for additional info
+    const { data: unitTypes } = await supabase
+      .from('unit_types')
+      .select('id, name');
+    
+    const unitTypeMap = new Map((unitTypes || []).map(ut => [ut.id, ut.name]));
 
-    // Use resolved Drizzle development_id for filtering (not Supabase project_id)
-    const unitsData = drizzleDevelopmentId
-      ? await query.where(eq(units.development_id, drizzleDevelopmentId))
-      : await query;
-
-    const formattedUnits = unitsData.map((unit) => ({
+    const formattedUnits = (unitsData || []).map((unit: any) => ({
       id: unit.id,
-      unit_number: unit.unit_number,
-      address: [unit.address_line_1, unit.address_line_2, unit.city].filter(Boolean).join(', ') || unit.unit_number,
-      unit_type_name: unit.house_type_code || 'Unknown',
-      house_type_code: unit.house_type_code || 'Unknown',
-      project_name: unit.development_name || 'Unknown',
-      project_address: unit.development_address || '',
+      unit_number: unit.address,
+      address: unit.address,
+      unit_type_name: unit.unit_type_id ? unitTypeMap.get(unit.unit_type_id) || 'Unknown' : 'Unknown',
+      house_type_code: unit.unit_type_id ? unitTypeMap.get(unit.unit_type_id) || 'Unknown' : 'Unknown',
+      project_name: unit.projects?.name || 'Unknown',
+      project_address: unit.projects?.address || '',
       purchaser_name: unit.purchaser_name || null,
-      purchaser_email: unit.purchaser_email || null,
-      user_id: unit.purchaser_email ? 'registered' : null,
-      bedrooms: unit.bedrooms || null,
-      handover_date: null,
-      has_snag_list: false,
+      purchaser_email: null,
+      user_id: null,
+      bedrooms: null,
+      handover_date: unit.handover_date || null,
+      has_snag_list: !!unit.snag_list_url,
       created_at: unit.created_at,
     }));
 
-    console.log('[API] /api/super/units - returned:', formattedUnits.length, 'units');
+    // Sort by address naturally
+    formattedUnits.sort((a: any, b: any) => {
+      const aMatch = a.address.match(/^(\d+)/);
+      const bMatch = b.address.match(/^(\d+)/);
+      if (aMatch && bMatch) {
+        return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+      }
+      return a.address.localeCompare(b.address);
+    });
+
+    console.log(`[API:${requestId}] /api/super/units - returned:`, formattedUnits.length, 'units');
 
     return NextResponse.json({ 
       units: formattedUnits,
       count: formattedUnits.length,
       projectId: projectId || null,
+      requestId,
     });
   } catch (error: any) {
-    console.error('[API] /api/super/units error:', error);
+    console.error(`[API:${requestId}] /api/super/units error:`, error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch units' },
+      { 
+        error: error.message || 'Failed to fetch units',
+        requestId,
+      },
       { status: 500 }
     );
   }

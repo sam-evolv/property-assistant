@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3, CheckCircle2, XCircle, AlertCircle, Download, Eye, Info } from 'lucide-react';
+import { getEventTypeConfig, CATEGORY_LABELS, getDocumentServedEventTypes } from '@/lib/event-types';
 
 interface AnalyticsHealth {
   analyticsTableExists: boolean;
@@ -201,13 +202,24 @@ function ConfidenceCheckPanel({ health }: { health: AnalyticsHealth | null }) {
       </div>
       {Object.keys(health.eventBreakdown).length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-200">
-          <span className="text-xs text-gray-500 uppercase tracking-wide">Event Types:</span>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {Object.entries(health.eventBreakdown).map(([type, count]) => (
-              <span key={type} className="inline-flex items-center px-2 py-1 bg-white rounded text-xs">
-                {type}: <span className="font-medium ml-1">{count}</span>
-              </span>
-            ))}
+          <span className="text-xs text-gray-500 uppercase tracking-wide">Event Types (24h):</span>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {Object.entries(health.eventBreakdown).map(([type, count]) => {
+              const config = getEventTypeConfig(type);
+              const isDocServed = config.countsTowardDocumentsServed;
+              return (
+                <span 
+                  key={type} 
+                  className={`inline-flex items-center px-2 py-1 rounded text-xs ${
+                    isDocServed ? 'bg-purple-100 text-purple-800' : 'bg-white text-gray-700'
+                  }`}
+                  title={`${config.description}${isDocServed ? ' (Counts as Document Served)' : ''}`}
+                >
+                  {isDocServed && <FileText className="w-3 h-3 mr-1" />}
+                  {config.label}: <span className="font-medium ml-1">{count}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -299,8 +311,13 @@ function formatDate(dateString: string): string {
   });
 }
 
-function formatEventType(type: string): string {
-  return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+function formatEventType(type: string): { label: string; isDocServed: boolean; description: string } {
+  const config = getEventTypeConfig(type);
+  return {
+    label: config.label,
+    isDocServed: config.countsTowardDocumentsServed,
+    description: config.description,
+  };
 }
 
 export default function BetaControlRoomClient() {
@@ -416,6 +433,34 @@ export default function BetaControlRoomClient() {
       <ConfidenceCheckPanel health={health} />
       <RecoveredDataPanel health={health} />
 
+      {/* Documents Served Definition */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="font-medium text-blue-900 mb-1">Documents Served Definition</h3>
+            <p className="text-sm text-blue-700 mb-2">
+              The following events count toward &ldquo;Documents Served&rdquo; metrics:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {getDocumentServedEventTypes().map(type => {
+                const config = getEventTypeConfig(type);
+                return (
+                  <span 
+                    key={type}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs"
+                    title={config.description}
+                  >
+                    <FileText className="w-3 h-3" />
+                    {config.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <KPICard icon={FileText} label="Units" value={kpis.totalUnits.toLocaleString()} />
         <KPICard icon={QrCode} label="QR Scans" value={kpis.uniqueQrScans.toLocaleString()} />
@@ -491,24 +536,35 @@ export default function BetaControlRoomClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {liveActivity.events.map((event) => (
-                    <tr key={event.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                        {formatDate(event.createdAt)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold-100 text-gold-800">
-                          {formatEventType(event.eventType)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {event.developmentName || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {event.eventCategory || event.houseTypeCode || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {liveActivity.events.map((event) => {
+                    const eventInfo = formatEventType(event.eventType);
+                    return (
+                      <tr key={event.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                          {formatDate(event.createdAt)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span 
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              eventInfo.isDocServed 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-gold-100 text-gold-800'
+                            }`}
+                            title={eventInfo.description}
+                          >
+                            {eventInfo.isDocServed && <FileText className="w-3 h-3" />}
+                            {eventInfo.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {event.developmentName || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {event.eventCategory || event.houseTypeCode || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
