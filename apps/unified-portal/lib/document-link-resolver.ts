@@ -160,30 +160,62 @@ export async function findDocumentForLink(
   let matchedDoc: any = null;
   const searchText = `${documentHint || ''} ${conversationContext || ''}`.toLowerCase();
   
-  const searchPatterns: { keywords: string[]; priority: number }[] = [
-    { keywords: ['elevation'], priority: 1 },
-    { keywords: ['floor plan', 'floor_plan', 'floorplan'], priority: 1 },
-    { keywords: ['room size', 'room_sizes', 'dimensions'], priority: 1 },
-    { keywords: ['site plan', 'site_plan'], priority: 1 },
-    { keywords: ['section'], priority: 2 },
-    { keywords: ['drawing', 'architectural'], priority: 3 },
-    { keywords: ['warranty', 'guarantee'], priority: 2 },
-    { keywords: ['fire', 'smoke'], priority: 2 },
-    { keywords: ['manual', 'homeowner'], priority: 3 },
-    { keywords: ['handover'], priority: 3 },
-    { keywords: ['parking', 'car'], priority: 3 },
-    { keywords: ['spec', 'specification'], priority: 3 },
-    { keywords: ['cert', 'certificate'], priority: 3 },
+  const searchPatterns: { 
+    searchTerms: string[]; 
+    docTerms: string[]; 
+    excludeTerms?: string[];
+    priority: number;
+  }[] = [
+    { 
+      searchTerms: ['elevation'], 
+      docTerms: ['elevation', 'elevations', '-elev-', '-elev.'],
+      excludeTerms: ['furnishing', 'layout', 'floor plan', 'room size'],
+      priority: 1 
+    },
+    { 
+      searchTerms: ['floor plan', 'floor_plan', 'floorplan', 'layout'], 
+      docTerms: ['floor plan', 'floor_plan', 'floorplan', 'layout', 'ground floor', 'first floor'],
+      excludeTerms: ['elevation'],
+      priority: 1 
+    },
+    { 
+      searchTerms: ['room size', 'room_sizes', 'dimensions'], 
+      docTerms: ['room size', 'room_sizes', 'dimensions'],
+      priority: 1 
+    },
+    { 
+      searchTerms: ['site plan', 'site_plan'], 
+      docTerms: ['site plan', 'site_plan', 'site layout'],
+      priority: 1 
+    },
+    { 
+      searchTerms: ['section', 'cross section'], 
+      docTerms: ['section', 'cross section', '-sec-'],
+      excludeTerms: ['elevation', 'floor', 'layout'],
+      priority: 2 
+    },
+    { searchTerms: ['warranty', 'guarantee'], docTerms: ['warranty', 'guarantee'], priority: 2 },
+    { searchTerms: ['fire', 'smoke'], docTerms: ['fire', 'smoke'], priority: 2 },
+    { searchTerms: ['manual', 'homeowner'], docTerms: ['manual', 'homeowner'], priority: 3 },
+    { searchTerms: ['handover'], docTerms: ['handover'], priority: 3 },
+    { searchTerms: ['parking', 'car'], docTerms: ['parking', 'car'], priority: 3 },
+    { searchTerms: ['spec', 'specification'], docTerms: ['spec', 'specification'], priority: 3 },
+    { searchTerms: ['cert', 'certificate'], docTerms: ['cert', 'certificate'], priority: 3 },
   ];
   
   for (const pattern of searchPatterns) {
-    if (!pattern.keywords.some(kw => searchText.includes(kw))) continue;
+    if (!pattern.searchTerms.some(kw => searchText.includes(kw))) continue;
     
     for (const doc of documents) {
       const docText = `${doc.file_name || ''} ${doc.title || ''} ${doc.discipline || ''} ${doc.drawing_type || ''}`.toLowerCase();
-      if (pattern.keywords.some(kw => docText.includes(kw))) {
+      
+      if (pattern.excludeTerms?.some(exc => docText.includes(exc))) {
+        continue;
+      }
+      
+      if (pattern.docTerms.some(kw => docText.includes(kw))) {
         matchedDoc = doc;
-        console.log('[DocumentLinkResolver] Matched by pattern:', pattern.keywords[0]);
+        console.log('[DocumentLinkResolver] Matched by pattern:', pattern.searchTerms[0], 'Doc:', doc.file_name);
         break;
       }
     }
@@ -196,17 +228,15 @@ export async function findDocumentForLink(
       const docText = `${doc.file_name || ''} ${doc.title || ''} ${doc.discipline || ''} ${doc.drawing_type || ''}`.toLowerCase();
       if (docText.includes(hintLower)) {
         matchedDoc = doc;
-        console.log('[DocumentLinkResolver] Matched by hint:', documentHint);
+        console.log('[DocumentLinkResolver] Matched by hint:', documentHint, 'Doc:', doc.file_name);
         break;
       }
     }
   }
   
-  if (!matchedDoc && documents.length > 0) {
-    console.log('[DocumentLinkResolver] No specific match, using first available document');
-  }
-  
   if (!matchedDoc) {
+    console.log('[DocumentLinkResolver] No match found for:', documentHint);
+    console.log('[DocumentLinkResolver] Available docs:', documents.map(d => d.file_name).join(', '));
     return {
       found: false,
       document: null,
