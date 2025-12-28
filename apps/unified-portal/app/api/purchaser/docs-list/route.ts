@@ -349,6 +349,29 @@ export async function GET(request: NextRequest) {
         returnedDocs: formattedDocs.length,
         timestamp,
       });
+      
+      // Track documents served for marketing website counter
+      // Each document viewed in the list counts as served
+      try {
+        for (const doc of formattedDocs) {
+          await logAnalyticsEvent({
+            tenantId: DEFAULT_TENANT_ID,
+            eventType: 'document_download',
+            eventCategory: 'documents',
+            eventData: { 
+              docId: doc.id,
+              filename: doc.title,
+              source: 'docs_list_view',
+              category: doc.metadata?.category,
+            },
+            sessionId: unitUid,
+            unitId: unitUid,
+          });
+        }
+        console.log(`[DocsListAPI] Tracked ${formattedDocs.length} documents served`);
+      } catch (trackErr) {
+        console.error('[DocsListAPI] Failed to track documents served:', trackErr);
+      }
     }
 
     console.log(`[DocsListAPI] OK: unit=${unitUid}, project=${projectId}, houseType=${houseTypeCode}, total=${totalSections}, filtered=${filteredOutCount}, returned=${formattedDocs.length}`);
