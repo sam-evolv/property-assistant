@@ -1255,6 +1255,26 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       drawing = drawingResult.drawing;
       drawingExplanation = drawingResult.explanation;
       console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
+      
+      // Track drawing served for marketing website counter
+      try {
+        await logAnalyticsEvent({
+          tenantId: DEFAULT_TENANT_ID,
+          developmentId: DEFAULT_DEVELOPMENT_ID,
+          eventType: 'document_download',
+          eventCategory: 'documents',
+          eventData: { 
+            filename: drawing.fileName,
+            source: 'chat_drawing',
+            drawingType: drawing.drawingType,
+          },
+          sessionId: effectiveUnitUid,
+          unitId: effectiveUnitUid,
+        });
+        console.log('[Chat] Tracked drawing served:', drawing.fileName);
+      } catch (trackErr) {
+        console.error('[Chat] Failed to track drawing served:', trackErr);
+      }
     }
 
     // DOCUMENT LINK REQUEST: Check if user is asking for a download link/preview
@@ -1282,6 +1302,27 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         documentLink = docResult.document;
         documentLinkExplanation = docResult.explanation;
         console.log('[Chat] Found document for link:', documentLink.fileName);
+        
+        // Track document served for marketing website counter
+        try {
+          await logAnalyticsEvent({
+            tenantId: DEFAULT_TENANT_ID,
+            developmentId: DEFAULT_DEVELOPMENT_ID,
+            eventType: 'document_download',
+            eventCategory: 'documents',
+            eventData: { 
+              docId: documentLink.id,
+              filename: documentLink.fileName,
+              source: 'chat_link',
+              discipline: documentLink.discipline,
+            },
+            sessionId: effectiveUnitUid,
+            unitId: effectiveUnitUid,
+          });
+          console.log('[Chat] Tracked document served:', documentLink.fileName);
+        } catch (trackErr) {
+          console.error('[Chat] Failed to track document served:', trackErr);
+        }
         
         // Return immediately with the document link
         const linkAnswer = `${documentLinkExplanation} You can view or download it using the button below.`;
