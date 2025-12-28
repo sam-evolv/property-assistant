@@ -73,6 +73,32 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Beta Control Room Enhancement & Units Fix (December 2025)
+
+Fixed production issues in Super Admin Units page and enhanced Beta Control Room analytics clarity:
+
+**Units Page Fix:**
+- Rewrote `/api/super/units` to query Supabase directly (bypasses Drizzle schema mismatch)
+- Uses LEFT JOIN to include units without project associations
+- Maps Supabase schema (id, project_id, unit_type_id, address, user_id, handover_date) to display format
+
+**Event Type Mapping System (`lib/event-types.ts`):**
+- 20+ event types with labels, descriptions, categories, and document-served flags
+- Categories: access, documents, chat, engagement, system, error
+- Color-coded badge classes via `getEventBadgeClasses()`
+- Document-served events: document_view, document_download, document_open, drawing_view, drawing_download, chat_document_served, elevation_view
+
+**Beta Control Room Improvements:**
+- "Documents Served Definition" info panel explains which events count
+- Color-coded event badges in Live Activity (purple for docs, blue for access, amber for chat, etc.)
+- Tooltips show event descriptions on hover
+- Event Types breakdown in ConfidenceCheckPanel shows clear labels
+
+**Files Changed:**
+- `apps/unified-portal/app/api/super/units/route.ts` - Supabase direct query
+- `apps/unified-portal/lib/event-types.ts` - Event type mapping library
+- `apps/unified-portal/app/super/beta-control-room/beta-control-room-client.tsx` - UI enhancements
+
 ### Operational Maturity Hardening (December 2025)
 
 Added production-ready system health monitoring for admin visibility:
