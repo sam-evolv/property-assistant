@@ -28,12 +28,12 @@ export function ProjectSwitcher() {
 
   if (isLoading) {
     return (
-      <div className="px-4 py-3 border-b border-gold-900/20">
+      <div className="px-4 py-3 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-grey-800 rounded-lg animate-pulse" />
+          <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse" />
           <div className="flex-1">
-            <div className="h-3 w-20 bg-grey-800 rounded animate-pulse mb-1" />
-            <div className="h-4 w-32 bg-grey-700 rounded animate-pulse" />
+            <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-1" />
+            <div className="h-4 w-32 bg-gray-300 rounded animate-pulse" />
           </div>
         </div>
       </div>
@@ -42,15 +42,15 @@ export function ProjectSwitcher() {
 
   if (error) {
     return (
-      <div className="px-4 py-3 border-b border-gold-900/20">
-        <div className="text-xs text-red-400">{error}</div>
+      <div className="px-4 py-3 border-b border-gray-200">
+        <div className="text-xs text-red-600">{error}</div>
       </div>
     );
   }
 
   if (projects.length === 0) {
     return (
-      <div className="px-4 py-3 border-b border-gold-900/20">
+      <div className="px-4 py-3 border-b border-gray-200">
         <div className="text-xs text-gray-500">No projects available</div>
       </div>
     );
@@ -59,23 +59,23 @@ export function ProjectSwitcher() {
   const displayName = selectedProject?.name || 'Select Project';
 
   return (
-    <div ref={dropdownRef} className="relative px-4 py-3 border-b border-gold-900/20">
+    <div ref={dropdownRef} className="relative px-4 py-3 border-b border-gray-200">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gold-500/10 transition-colors group"
+        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gold-50 transition-colors group"
       >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gold-500/20 text-gold-400">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gold-100 text-gold-600">
           <FolderOpen className="w-4 h-4" />
         </div>
         <div className="flex-1 text-left">
-          <div className="text-[10px] font-medium text-grey-500 uppercase tracking-wider">
+          <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
             Current Project
           </div>
-          <div className="text-sm font-semibold text-white truncate">
+          <div className="text-sm font-semibold text-gray-900 truncate">
             {displayName}
           </div>
         </div>
-        <ChevronDown className={`w-4 h-4 text-grey-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (

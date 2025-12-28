@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');

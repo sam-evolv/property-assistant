@@ -152,7 +152,7 @@ export async function GET() {
     
     analytics: {
       lastEvent: lastAnalytics,
-      isRecent: lastAnalytics.ageSeconds !== null && lastAnalytics.ageSeconds < 300,
+      isRecent: lastAnalytics.ageSeconds !== null && lastAnalytics.ageSeconds < 3600,
     },
     
     errors: {

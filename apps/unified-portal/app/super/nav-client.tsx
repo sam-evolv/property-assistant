@@ -24,7 +24,6 @@ import {
   Zap,
   HeartPulse
 } from 'lucide-react';
-import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
 interface MenuItem {
@@ -88,9 +87,6 @@ export function AdminEnterpriseNav() {
       
       {/* Project Switcher */}
       <ProjectSwitcher />
-      
-      {/* Development Switcher */}
-      <DevelopmentSwitcher />
       
       <div className="flex-1 overflow-y-auto py-4">
         {menuSections.map((section) => (

@@ -1,0 +1,161 @@
+ROLE: You are the Replit Agent working inside this repo. Objective: make the Super Admin + Admin dashboards production-grade in (1) UI polish and usability, and (2) data correctness and reliability. Do not redesign the whole product. Fix the specific issues listed below end-to-end, and add minimal guardrails so these pages don’t regress.
+
+NON-NEGOTIABLE OUTCOMES (must be true at the end)
+1) Super Admin dashboard filters are readable, logically structured, and non-duplicative:
+   - No white text on white background anywhere (especially dropdowns).
+   - “Current project / Current scheme” selectors are not duplicating the same options (Longview Park should not appear twice).
+   - Filter hierarchy is clear: Developer (top), then Scheme/Development (dependent on developer), then optional “All” states.
+2) Development Management lists ALL developments (Longview Park + Rathard Park at minimum) for the selected developer or for “All developers”.
+3) Units tab loads all units successfully (no “Failed to fetch units”).
+4) Homeowners Directory loads successfully (no “Failed to load homeowners”).
+5) System Health:
+   - “Analytics pipeline failed at … document download” is investigated and fixed (either the event is being logged incorrectly, or the health check is mis-classifying, or there is a real failure that must be resolved).
+   - Last event should reflect reality and not be stuck in a “failed” state if events are successfully logging.
+6) System Logs page works:
+   - Logs actually render (not empty because of query/permissions/endpoint issues).
+   - System health warnings (and other critical log events) appear in the logs when they occur.
+7) Add basic UX quality: consistent spacing, typography, loading skeletons/spinners, empty states, and error messages that show the real cause + request id.
+
+SCOPE: Superadmin + Admin dashboard UI + APIs they rely on.
+CONSTRAINTS:
+- Keep existing routing and general layout.
+- Prefer minimal, surgical changes over broad refactors.
+- Maintain tenant isolation and permissions (superadmin only where required).
+- No fake data. If something is missing, fix the query/filters/permissions.
+- If you find duplicated “scheme” filters are backed by two different concepts (project vs development), reconcile into one canonical concept in the UI and map it to the existing data model cleanly.
+
+STEP-BY-STEP PLAN (execute in order)
+
+PHASE 0: Locate the relevant pages and contracts
+A) Identify the code paths for:
+   - Superadmin dashboard page
+   - Admin dashboard page
+   - Management -> Developments (Development Management)
+   - Management -> Units
+   - Homeowners Directory
+   - System Health page
+   - System Logs page
+B) Identify the API endpoints each page calls and where the fetch utilities live.
+C) Confirm auth model: what token/cookie/header is required for superadmin endpoints.
+
+PHASE 1: Fix filter UI (readability + duplication + hierarchy)
+1) Fix dropdown styling so options are always visible:
+   - Apply correct background + text colors in the select trigger and the dropdown content.
+   - Ensure dark-mode compatibility if applicable.
+   - If using shadcn/ui Select or a custom select, fix the classnames on:
+     - trigger
+     - content
+     - item
+     - placeholder
+2) Remove duplication between “Current project” and “Current scheme”:
+   - Decide on one canonical filter set:
+     - Developer selector
+     - Development/Scheme selector (dependent)
+     - “All developments” option
+   - If both filters are needed for internal reasons, keep one visible and map the other silently.
+   - Ensure each development appears exactly once in the list.
+3) Ensure selections persist across tabs (optional but strongly preferred):
+   - Store selected developer + development in query params or local state persisted in URL.
+4) Acceptance criteria:
+   - No duplicate Longview Park entries.
+   - No white-on-white dropdown.
+   - Clear labels: “Developer” and “Development” (or “Scheme”), not “Current project” if it’s ambiguous.
+
+PHASE 2: Fix Development Management list missing Rathard Park
+1) Reproduce: Development Management only shows Longview Park.
+2) Trace the endpoint/query:
+   - Is it filtering by developer incorrectly?
+   - Is it hard-coded to one project?
+   - Is it using a legacy table/view?
+3) Fix the data retrieval to return all developments the user should see.
+4) Update the UI to use the same canonical development list used by the filters.
+5) Acceptance criteria:
+   - Rathard Park appears and is selectable.
+   - “All developments” shows both.
+
+PHASE 3: Fix Units tab “Failed to fetch units”
+1) Reproduce in dev.
+2) Inspect network errors:
+   - 401/403 auth failure? (missing admin token)
+   - 404 wrong endpoint?
+   - 500 query error? (bad SQL/table name/column)
+   - CORS? (less likely internally)
+3) Fix root cause:
+   - If auth: ensure request includes correct credentials, and endpoint validates correctly.
+   - If DB: fix query or table mapping (Supabase vs Drizzle mismatch, wrong schema, etc).
+   - If filtering: ensure unit query uses selected development filter properly but still supports “All”.
+4) Add resilience:
+   - Show loading state while fetching.
+   - On error, show: “Failed to load units. Request ID: …” plus the server error message (safe subset).
+5) Acceptance criteria:
+   - Units load and render.
+   - Pagination/search (if exists) still works.
+
+PHASE 4: Fix Homeowners Directory “Failed to load homeowners”
+Follow the same approach as Units:
+1) Reproduce and inspect the failing endpoint.
+2) Fix auth/query/schema mismatch.
+3) Ensure filtering respects selected development (or all).
+4) Add UI loading/empty/error states.
+5) Acceptance criteria:
+   - Homeowners list loads successfully.
+
+PHASE 5: Fix System Health analytics pipeline failure (document download)
+1) Understand what “failed at 16:15 - document download” means:
+   - Is the health check reading a “fail” flag from analytics events?
+   - Is there an errors table counter?
+   - Is there a special “status” column for events?
+2) Verify actual analytics writes:
+   - Confirm document download/view events are being logged with a success path.
+   - Confirm there isn’t a background job marking failures incorrectly.
+3) Fix whichever is wrong:
+   - If the event logging records failures incorrectly: correct the logger.
+   - If the health check logic is too strict or uses wrong field: correct the health evaluation.
+   - If there is a real failing downstream call: fix that dependency and make it fail-closed with clear reason.
+4) Acceptance criteria:
+   - Health status reflects reality.
+   - “Last event” updates as new events arrive.
+   - If something truly fails, it should show why and be visible in System Logs.
+
+PHASE 6: Fix System Logs page (nothing shows, missing warnings)
+1) Identify how logs are stored:
+   - DB table? In-memory? external provider? file?
+2) Ensure server is persisting critical logs (at least: logCritical / logWarning) to the same source the logs page reads.
+3) Fix the logs API endpoint:
+   - Correct auth (superadmin only).
+   - Correct query ordering, limits, and filters.
+4) Ensure System Health warnings create log records:
+   - When health check finds degraded/critical, write a structured log entry with:
+     - type = "system_health"
+     - severity
+     - component
+     - message
+     - timestamp
+     - request id (if relevant)
+5) UI improvements:
+   - Add filters (severity/component) if easy; otherwise minimum: readable table, empty state, refresh button.
+6) Acceptance criteria:
+   - Logs render.
+   - Health warnings appear.
+
+PHASE 7: UI polish pass (fast, targeted)
+- Standardize cards, spacing, headings, and table styling.
+- Ensure consistent button styles and hover states.
+- Add skeleton loaders to heavy tables.
+- Ensure responsive layout doesn’t break.
+- Fix any other obvious “cheap” issues you notice while implementing above, but don’t scope creep.
+
+DELIVERABLES
+A) Code changes implementing all phases.
+B) A short “Verification Checklist” in markdown committed to the repo (e.g., SUPERADMIN_DASHBOARD_FIXES.md) that includes:
+   - Where to click to verify each fix
+   - What success looks like
+   - Any environment variables required
+
+TESTING REQUIREMENTS
+- Add at least minimal integration checks where feasible:
+  - If there are API route handlers: add lightweight tests or at minimum manual verification steps with curl examples.
+- Confirm both Replit preview and production behave the same (shared DB or not). If they differ, document why.
+
+START NOW
+Begin by locating the relevant files/pages and endpoints, then execute Phase 1 in code.
