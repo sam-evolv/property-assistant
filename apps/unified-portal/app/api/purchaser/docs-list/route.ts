@@ -95,16 +95,16 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
 
     // SECURITY: Validate token matches claimed unit - cross-unit access forbidden
-    // Fail-closed: Only cryptographically valid tokens or verified showhouse units allowed
     let isAuthenticated = false;
-    let isShowhouseMode = false;
     
     if (token) {
+      // First try cryptographically signed QR token
       const payload = await validateQRToken(token);
       if (payload) {
         // SECURITY: Token's embedded unit must match claimed unit
         if (payload.supabaseUnitId === unitUid) {
           isAuthenticated = true;
+          console.log(`[DocsListAPI] QR token validated for unit ${unitUid}`);
         } else {
           // SECURITY: Cross-unit access attempt - token valid but for different unit
           logSecurityViolation({
@@ -114,36 +114,14 @@ export async function GET(request: NextRequest) {
             reason: 'Token unit mismatch in docs-list - cross-unit access blocked',
           });
         }
-      } else if (token === unitUid) {
-        // SECURITY: Showhouse mode - token equals unitUid
-        // Verify unit is explicitly flagged as showhouse in database before allowing
-        try {
-          const { data: unitCheck } = await supabase
-            .from('units')
-            .select('is_showhouse')
-            .eq('id', unitUid)
-            .single();
-          
-          if (unitCheck?.is_showhouse === true) {
-            isAuthenticated = true;
-            isShowhouseMode = true;
-            console.log(`[DocsListAPI] Showhouse access verified for unit ${unitUid}`);
-          } else {
-            // Unit not flagged as showhouse - reject access
-            logSecurityViolation({
-              request_id: requestId,
-              unit_uid: unitUid,
-              reason: 'Showhouse token attempt on non-showhouse unit - access blocked',
-            });
-          }
-        } catch (showErr) {
-          // SECURITY: Fail-closed on DB error - deny access
-          logSecurityViolation({
-            request_id: requestId,
-            unit_uid: unitUid,
-            reason: 'Showhouse verification failed - fail-closed denial',
-          });
-        }
+      }
+      
+      // Fallback: Allow demo/direct access if token matches unitUid (UUID format)
+      // This allows users who accessed via direct link to view their documents
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!isAuthenticated && uuidPattern.test(token) && token === unitUid) {
+        isAuthenticated = true;
+        console.log(`[DocsListAPI] Demo/direct access for unit ${unitUid}`);
       }
     }
     
