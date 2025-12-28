@@ -409,7 +409,7 @@ export default function OptimizedMapsTab({
   }
 
   return (
-    <div className={`h-full flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+    <div className={`h-full flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`} style={{ paddingBottom: 'var(--mobile-tab-bar-h, 80px)' }}>
       {/* Map container - takes remaining space */}
       <div className="relative flex-1 min-h-0">
         {/* Always render the map container so mapRef is available for the Google Maps initialization */}
