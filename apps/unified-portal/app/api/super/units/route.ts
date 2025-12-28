@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     
     const supabase = getSupabaseClient();
     
-    // Build query for units with project info
+    // Build query for units with project info (LEFT JOIN to include units without projects)
     let query = supabase
       .from('units')
       .select(`
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         created_at,
         project_id,
         unit_type_id,
-        projects!inner(id, name, address)
+        projects(id, name, address)
       `)
       .order('created_at', { ascending: false });
     

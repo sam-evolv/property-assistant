@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Activity, Users, MessageSquare, FileText, Clock, AlertTriangle, QrCode, UserCheck, ChevronLeft, ChevronRight, HelpCircle, BookOpen, BarChart3, CheckCircle2, XCircle, AlertCircle, Download, Eye, Info } from 'lucide-react';
-import { getEventTypeConfig, CATEGORY_LABELS, getDocumentServedEventTypes } from '@/lib/event-types';
+import { getEventTypeConfig, CATEGORY_LABELS, getDocumentServedEventTypes, getEventBadgeClasses } from '@/lib/event-types';
 
 interface AnalyticsHealth {
   analyticsTableExists: boolean;
@@ -538,6 +538,7 @@ export default function BetaControlRoomClient() {
                 <tbody className="divide-y divide-gray-100">
                   {liveActivity.events.map((event) => {
                     const eventInfo = formatEventType(event.eventType);
+                    const badgeClasses = getEventBadgeClasses(event.eventType);
                     return (
                       <tr key={event.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
@@ -545,11 +546,7 @@ export default function BetaControlRoomClient() {
                         </td>
                         <td className="px-6 py-4">
                           <span 
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              eventInfo.isDocServed 
-                                ? 'bg-purple-100 text-purple-800' 
-                                : 'bg-gold-100 text-gold-800'
-                            }`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClasses}`}
                             title={eventInfo.description}
                           >
                             {eventInfo.isDocServed && <FileText className="w-3 h-3" />}
