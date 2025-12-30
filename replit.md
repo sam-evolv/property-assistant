@@ -73,17 +73,31 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
-### Smart Archive Scope Refactoring (December 2025)
+### Smart Archive Scope Stabilization (December 2025)
 
-Refactored Smart Archive to use explicit ArchiveScope types instead of null/undefined:
+**Production stabilization** - Normalized scope contract using explicit `mode` field:
+
+**ArchiveQuery Contract (THE ONLY allowed payload):**
+```typescript
+type ArchiveQuery =
+  | { mode: 'ALL_SCHEMES' }
+  | { mode: 'SCHEME'; schemeId: string }
+```
 
 **Key Changes:**
-- Created `ArchiveScope` type: `ALL_SCHEMES | { type: 'SCHEME', schemeId: string }`
-- Updated `CurrentContext` to use `archiveScope` instead of relying on null for "All Schemes"
-- `DevelopmentSelector` now properly sets scope to ALL_SCHEMES or specific SCHEME
-- Archive page shows documents for ALL_SCHEMES without "Select a Development" empty state
-- Upload guard: when in ALL_SCHEMES mode, user must select a scheme before uploading
-- Must-read documents tab explains why scheme selection is required (per-scheme feature)
+- **Phase 1:** Renamed `type` → `mode` in ArchiveScope for clarity
+- **Phase 2:** API `/api/archive/disciplines` now requires `mode` parameter, returns 400 if missing
+- **Phase 3:** "No Schemes Found" only shows when developer has zero schemes total
+- **Phase 4:** Storage format: `ALL_SCHEMES` or `SCHEME:schemeId` (no null/undefined)
+- **Phase 5:** Temporary safety logging added (remove later)
+
+**API Behavior:**
+- `mode=ALL_SCHEMES`: Query documents for ALL schemes (no schemeId filter)
+- `mode=SCHEME&schemeId=xxx`: Query documents for specific scheme only
+
+**Storage Persistence:**
+- Uses localStorage per tenant: `current-scope-{tenantId}`
+- Values: `ALL_SCHEMES` or `SCHEME:{schemeId}`
 
 **Known Security Issue - Hardcoded PROJECT_ID:**
 The Smart Archive currently uses a hardcoded `PROJECT_ID` in several endpoints, bypassing tenant isolation:
