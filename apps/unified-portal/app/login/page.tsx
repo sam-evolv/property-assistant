@@ -171,10 +171,6 @@ function LoginForm() {
             transform: scale(1.15);
           }
         }
-        @keyframes subtleFloat {
-          0%, 100% { opacity: 0.03; transform: translateY(0); }
-          50% { opacity: 0.06; transform: translateY(-20px); }
-        }
         .logo-breathing-wrapper {
           position: relative;
           display: flex;
@@ -184,23 +180,21 @@ function LoginForm() {
         .logo-breathing-wrapper::before {
           content: '';
           position: absolute;
-          width: 280%;
-          height: 280%;
+          width: 180%;
+          height: 180%;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%) scale(1);
-          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.5) 0%, rgba(194, 158, 55, 0.3) 20%, rgba(178, 140, 55, 0.15) 40%, rgba(160, 120, 40, 0.05) 60%, transparent 80%);
+          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.55) 0%, rgba(194, 158, 55, 0.35) 25%, rgba(178, 140, 55, 0.15) 50%, transparent 75%);
           border-radius: 50%;
           pointer-events: none;
-          filter: blur(8px);
+          filter: blur(12px);
           animation: auraBreath 8s ease-in-out infinite;
+          z-index: -1;
         }
         .logo-breathe {
           animation: logoBreath 8s ease-in-out infinite;
           will-change: transform;
-        }
-        .particle-line {
-          animation: subtleFloat 12s ease-in-out infinite;
         }
         @media (prefers-reduced-motion: reduce) {
           .logo-breathe,
@@ -218,23 +212,14 @@ function LoginForm() {
       
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
       
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="particle-line absolute left-[15%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.08) 30%, rgba(212, 175, 55, 0.12) 50%, rgba(212, 175, 55, 0.08) 70%, transparent 100%)', animationDelay: '0s' }} />
-        <div className="particle-line absolute left-[35%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.05) 40%, rgba(212, 175, 55, 0.08) 60%, transparent 100%)', animationDelay: '2s' }} />
-        <div className="particle-line absolute left-[55%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.06) 20%, rgba(212, 175, 55, 0.1) 50%, rgba(212, 175, 55, 0.06) 80%, transparent 100%)', animationDelay: '4s' }} />
-        <div className="particle-line absolute left-[75%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.04) 35%, rgba(212, 175, 55, 0.07) 55%, transparent 100%)', animationDelay: '6s' }} />
-        <div className="particle-line absolute left-[90%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.03) 45%, rgba(212, 175, 55, 0.06) 65%, transparent 100%)', animationDelay: '3s' }} />
-      </div>
-      
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(212, 175, 55, 0.04) 0%, transparent 70%)' }} />
       
       <div className="relative z-10 w-full max-w-[420px] mx-4">
         <div 
-          className="rounded-2xl p-8 md:p-10"
+          className="rounded-2xl p-8 md:p-10 overflow-hidden"
           style={{
             background: 'linear-gradient(180deg, rgba(18, 18, 22, 0.95) 0%, rgba(12, 12, 15, 0.98) 100%)',
             border: '1px solid rgba(212, 175, 55, 0.08)',
-            boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), 0 0 60px -30px rgba(212, 175, 55, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
+            boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
           }}
         >
           <div className="flex justify-center mb-12">

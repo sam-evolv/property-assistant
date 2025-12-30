@@ -1,0 +1,68 @@
+ROLE: You are the Replit Agent. The Developer Login UI is approved. Your task is to FIX the gold glow implementation so it radiates ONLY from the OpenHouse AI logo, not from behind the login card.
+
+CURRENT BUG (MUST BE REMOVED)
+- There is a gold glow/gradient positioned behind the entire login card.
+- This creates a random gold hotspot behind the form.
+- This is incorrect and must be fully removed.
+
+STEP 1 — REMOVE BACKGROUND GLOW
+- Remove any gold radial gradients, box-shadows, or pseudo-elements applied to:
+  - Page background
+  - Login card container
+  - Card wrapper
+- After this step, the card background should return to pure dark/neutral with NO gold bleed.
+
+STEP 2 — ATTACH GLOW TO LOGO ONLY
+- Identify the OpenHouse AI logo container at the top of the card.
+- The glow must be implemented ONLY on the logo wrapper (not the card).
+- Use a ::before or ::after pseudo-element on the logo container.
+
+LOGO GLOW SPECIFICATION
+
+BASE STATE (ALWAYS VISIBLE)
+- Soft radial glow centered exactly on the logo
+- Warm, desaturated gold (metallic tone, not yellow)
+- Large blur radius
+- Low opacity but clearly visible on black
+- This glow must not extend to the edges of the card
+
+BREATHING SYNC
+- When the logo “breathes” (scales up slightly):
+  - Increase glow opacity slightly
+  - Increase glow spread slightly
+- When it breathes out:
+  - Reduce glow slightly
+  - Never fade to zero
+
+CRITICAL CONSTRAINTS
+- The glow must MOVE WITH THE LOGO
+- If the logo moves, the glow moves
+- If the card is hidden, the glow disappears
+- The glow must NOT be visible anywhere except around the logo
+
+VISUAL CHARACTER
+- No rings
+- No sharp edges
+- No pulses
+- No flicker
+- No background tinting
+- Reads as ambient light, not an effect
+
+TECHNICAL NOTES
+- Use transform + opacity only
+- GPU friendly
+- Respect prefers-reduced-motion:
+  - Keep base glow
+  - Disable breathing amplification
+
+ACCEPTANCE TEST (MANDATORY)
+1. Look at the page.
+2. Cover the logo with your hand.
+3. There should be ZERO gold visible anywhere.
+4. Uncover the logo.
+5. Gold light should clearly emanate from the logo itself.
+
+If this test fails, the implementation is wrong.
+
+DO NOT ADD ANY OTHER VISUAL CHANGES.
+STOP WHEN COMPLETE.
