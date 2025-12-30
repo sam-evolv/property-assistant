@@ -8,7 +8,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-const pdf = require('pdf-parse');
+import * as pdfParseModule from 'pdf-parse';
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 function getSupabaseClient() {
   return createClient(
@@ -194,23 +195,30 @@ async function processFile(
 
   try {
     if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-      const data = await pdf(fileBuffer);
-      extractedText = data.text || '';
-      pageCount = data.numpages;
-      logger.logTextExtraction(extractedText.length, pageCount);
+      try {
+        const parsed = await pdfParse(fileBuffer);
+        extractedText = parsed.text ?? '';
+        pageCount = parsed.numpages;
+        logger.logTextExtraction(extractedText.length, pageCount);
+      } catch (pdfErr) {
+        console.error('[Upload] PDF extraction failed:', pdfErr);
+        extractedText = '';
+        logger.logTextExtractionFailure('PDF extraction failed - continuing upload');
+      }
     } else {
       extractedText = fileBuffer.toString('utf-8');
       logger.logTextExtraction(extractedText.length);
     }
   } catch (parseError) {
     const errorMsg = parseError instanceof Error ? parseError.message : 'Parse error';
+    console.error('[Upload] Text extraction failed:', errorMsg);
+    extractedText = '';
     logger.logTextExtractionFailure(errorMsg);
-    return logger.logComplete(false, undefined, 0, 0, 'Text extraction failed: ' + errorMsg);
   }
 
-  if (extractedText.length < 50) {
-    logger.logTextExtractionFailure('No readable text extracted');
-    return logger.logComplete(false, undefined, 0, 0, 'No readable text in document');
+  const skipIndexing = extractedText.length < 50;
+  if (skipIndexing) {
+    logger.logTextExtractionFailure('No readable text - skipping indexing');
   }
 
   let drawingClassification: DrawingClassification | null = null;
@@ -220,6 +228,11 @@ async function processFile(
     } catch (classifyError) {
       console.error('[Upload] Classification error:', classifyError);
     }
+  }
+
+  if (skipIndexing) {
+    console.log('[Upload] Skipping AI indexing - no readable text');
+    return logger.logComplete(true, undefined, 0, 0, 'Document saved - AI indexing skipped (no readable text)');
   }
 
   const chunks = chunkText(extractedText);
