@@ -1,0 +1,113 @@
+You are Replit Agent acting as a senior platform engineer. Goal: begin “Phase 1 safety lockdown” for this codebase (4–6 weeks pre-launch) WITHOUT slowing dev velocity. Implement progressive controls: DEV remains flexible, STAGING becomes the safety proving ground, PROD is prepared for later hard lockdown. Do not remove any existing functionality. Make changes in small, reviewable commits with clear notes.
+
+CONTEXT ASSUMPTIONS (validate and adapt):
+- This is a Next.js app with API routes (app router) and Supabase Postgres.
+- There is already a server-side DB layer (Drizzle or similar) and Supabase client usage.
+- There are existing endpoints like /api/chat, /api/houses/resolve, /api/purchaser/profile, and admin routes.
+If assumptions differ, adjust but keep the same intent.
+
+DELIVERABLES:
+1) Environment separation scaffolding (DEV vs STAGING vs PROD)
+2) Read-only safety mode for STAGING (agent can’t mutate DB in STAGING accidentally)
+3) Database guardrails starter set (soft delete + blocking hard delete in staging/prod where possible)
+4) Cost/abuse guardrails (rate limiting + circuit breakers) wired to environment config
+5) Audit trail basics (log “AI vs human” + environment + request id)
+6) A single markdown doc: AI_GOVERNANCE_LOCKDOWN.md describing what was changed and how to operate it
+
+PHASE 1 TASKS (IMPLEMENT NOW)
+
+A) ENVIRONMENT CLASSIFICATION + CONFIG
+- Create /lib/config/env.ts that exports:
+  - APP_ENV: 'dev' | 'staging' | 'prod' (derived from process.env.APP_ENV, default 'dev')
+  - IS_DEV, IS_STAGING, IS_PROD booleans
+  - FEATURE flags:
+      - DB_WRITE_ENABLED (default true in dev, false in staging, false in prod for now)
+      - ALLOW_DESTRUCTIVE_DB (default true in dev, false in staging/prod)
+      - ENABLE_RATE_LIMITS (true in staging/prod, optional in dev)
+      - ENABLE_AUDIT_LOGS (true all envs)
+- Validate env at startup with a small schema checker (zod or minimal custom) and fail fast if staging/prod missing required vars.
+- Update Replit secrets guidance in docs; do NOT print secrets in logs.
+
+B) DATABASE CLIENT WRAPPER WITH WRITE-GUARD
+- Create /lib/db/safeDb.ts:
+  - Wrap the DB execution layer (Drizzle client or raw SQL helper) with a guard:
+    - If APP_ENV is staging/prod and DB_WRITE_ENABLED is false:
+        - Block any query that begins with INSERT/UPDATE/DELETE/ALTER/DROP/TRUNCATE/CREATE
+        - Allow SELECT only
+        - Throw a clear error: "DB write blocked in STAGING/PROD by safety policy"
+  - Provide an escape hatch for explicit ops:
+      - If process.env.DB_WRITE_OVERRIDE_TOKEN matches a provided header 'x-db-write-override' then allow writes (only for manual, human ops).
+      - Default: no override token set.
+  - Replace all direct DB client imports to use safeDb wrapper.
+- Add unit tests for the guard (simple string-based SQL detection is acceptable).
+
+C) SOFT DELETE STARTER (NON-BREAKING)
+- Identify key tables that represent users/clients/units/households (whatever is relevant).
+- Add columns where safe:
+  - deleted_at TIMESTAMPTZ NULL
+  - deleted_by TEXT NULL
+- Implement soft-delete in code paths where deletes exist:
+  - Replace delete operations with update setting deleted_at/deleted_by.
+  - Ensure SELECT queries filter out deleted rows by default.
+- If you cannot safely migrate now, implement application-level soft delete for the most sensitive entity first (clients/users), and document the rest as a backlog.
+
+D) RATE LIMITS + CIRCUIT BREAKERS (STAGING ON, DEV OPTIONAL)
+- Confirm existing rate limiting exists; if not, implement a lightweight rate limiter (in-memory for now) with per-route limits controlled by config.
+- Ensure these endpoints are protected at minimum:
+  - /api/chat
+  - /api/houses/resolve
+  - /api/purchaser/profile
+  - any admin mutation routes
+- Add a simple circuit breaker for expensive endpoints:
+  - If error rate exceeds threshold in last N requests, temporarily fail closed with 503 and a safe message.
+  - Only active in staging/prod.
+
+E) AUDIT LOGGING (MINIMUM VIABLE)
+- Create /lib/logging/audit.ts:
+  - logAudit(eventName, payload) writes structured JSON logs.
+  - Must include:
+      - timestamp
+      - APP_ENV
+      - request_id (use x-request-id or generate)
+      - actor_type: 'ai' | 'human' | 'unknown'
+      - actor_id if available (admin user id/email)
+      - route/method
+- Determine actor_type:
+  - If header 'x-agent-run' == 'replit-agent' OR 'x-ai-change' header exists -> actor_type='ai'
+  - Else human/unknown
+- Add middleware for API routes to attach request_id and log entry/exit timing.
+- Ensure logs do not include secrets or full user PII.
+
+F) STAGING “READ-ONLY BY DEFAULT” MODE
+- Add a deployment note:
+  - When APP_ENV=staging, DB_WRITE_ENABLED must default to false.
+  - To run approved migrations in staging, a human sets:
+      - DB_WRITE_ENABLED=true temporarily, or uses override header token.
+- Add “staging smoke test” script:
+  - /scripts/staging-smoke-test.ts
+  - Calls key endpoints and confirms:
+      - reads work
+      - writes are blocked unless override
+      - rate limit headers present
+
+G) DOCUMENTATION
+- Create AI_GOVERNANCE_LOCKDOWN.md containing:
+  - What changed
+  - How envs work
+  - How to run staging safely
+  - How to perform approved DB writes (override procedure)
+  - What will be done in Phase 2 (beta) and Phase 3 (launch)
+
+IMPLEMENTATION REQUIREMENTS
+- Make changes with minimal disruption and keep the app compiling.
+- Prefer additive changes: wrappers, middleware, flags.
+- If any change risks breaking core functionality, guard it behind feature flags and default to current behavior in DEV.
+- Update any existing docs (HARDENING.md) with a new section: “Phase 1 AI Safety Lockdown”.
+
+OUTPUT FORMAT
+1) Provide a concise summary of files changed/added.
+2) Provide any new env vars required and safe defaults.
+3) Provide exact steps to enable STAGING mode on Replit and in deploy target.
+4) Confirm that DEV remains fully write-enabled and fast.
+
+START NOW.
