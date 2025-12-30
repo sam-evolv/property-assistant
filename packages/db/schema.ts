@@ -1,6 +1,9 @@
-import { pgTable, serial, varchar, text, timestamp, integer, decimal, jsonb, index, uniqueIndex, uuid, doublePrecision, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, text, timestamp, integer, decimal, jsonb, index, uniqueIndex, uuid, doublePrecision, boolean, pgEnum } from 'drizzle-orm/pg-core';
 import { vector } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+
+export const archiveModeEnum = pgEnum('archive_mode_enum', ['shared', 'isolated']);
+export const uploadStatusEnum = pgEnum('upload_status_enum', ['pending', 'indexed', 'failed']);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -32,12 +35,14 @@ export const developments = pgTable('developments', {
   longitude: decimal('longitude', { precision: 9, scale: 6 }),
   logo_url: text('logo_url'),
   important_docs_version: integer('important_docs_version').default(1).notNull(),
+  archive_mode: archiveModeEnum('archive_mode').default('shared').notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('developments_tenant_idx').on(table.tenant_id),
   codeIdx: index('developments_code_idx').on(table.code),
   developerIdx: index('developments_developer_idx').on(table.developer_user_id),
   createdByIdx: index('developments_created_by_idx').on(table.created_by),
+  archiveModeIdx: index('developments_archive_mode_idx').on(table.archive_mode),
 }));
 
 export const houseTypes = pgTable('house_types', {
@@ -129,6 +134,7 @@ export const documents = pgTable('documents', {
   superseded_by: uuid('superseded_by'),
   superseded_at: timestamp('superseded_at', { withTimezone: true }),
   metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
+  upload_status: uploadStatusEnum('upload_status').default('pending').notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
@@ -143,6 +149,8 @@ export const documents = pgTable('documents', {
   archiveIdx: index('documents_archive_idx').on(table.tenant_id, table.development_id, table.discipline, table.created_at),
   needsReviewIdx: index('documents_needs_review_idx').on(table.needs_review),
   autoMappedConfidenceIdx: index('documents_auto_mapped_confidence_idx').on(table.auto_mapped, table.mapping_confidence),
+  uploadStatusIdx: index('documents_upload_status_idx').on(table.upload_status),
+  developmentStatusIdx: index('documents_development_status_idx').on(table.development_id, table.upload_status),
 }));
 
 export const document_versions = pgTable('document_versions', {
