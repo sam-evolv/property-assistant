@@ -33,14 +33,14 @@ function getSupabaseClient() {
   );
 }
 
-// SINGLE SOURCE OF TRUTH - hardcoded Launch project ID
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+// Default project ID for ALL_SCHEMES mode (Longview Park - the only project with data)
+const DEFAULT_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape', 'handover', 'other'];
 
 /**
  * Fetches discipline summaries with file counts for the archive grid
  * NOW READS FROM SUPABASE document_sections
- * ALWAYS uses hardcoded Launch ID - ignores developmentId param
+ * Filters by developmentId when provided, otherwise returns all for tenant
  */
 export async function fetchArchiveDisciplines({
   tenantId,
@@ -50,15 +50,18 @@ export async function fetchArchiveDisciplines({
   developmentId?: string | null;
 }): Promise<DisciplineSummary[]> {
   try {
-    // ALWAYS use hardcoded Launch project ID for Supabase
-    const projectId = PROJECT_ID;
-    console.log('🔥 [Archive] Fetching disciplines for PROJECT_ID:', projectId);
-    
     const supabase = getSupabaseClient();
-    const { data: sections, error } = await supabase
-      .from('document_sections')
-      .select('id, metadata')
-      .eq('project_id', projectId);
+    
+    let query = supabase.from('document_sections').select('id, metadata, project_id');
+    
+    if (developmentId) {
+      console.log('[Archive] Fetching disciplines for SCHEME:', developmentId);
+      query = query.eq('project_id', developmentId);
+    } else {
+      console.log('[Archive] Fetching disciplines for ALL_SCHEMES (no filter)');
+    }
+    
+    const { data: sections, error } = await query;
 
     if (error) {
       console.error('[Archive] Supabase error:', error.message);
@@ -180,7 +183,7 @@ export async function fetchDocumentsByDiscipline({
   
   try {
     // ALWAYS use hardcoded Launch project ID
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     console.log('📂 Fetching documents for:', projectId);
     const supabase = getSupabaseClient();
     
@@ -264,7 +267,7 @@ export async function countArchiveDocuments({
 }): Promise<{ total: number; indexed: number; errors: number }> {
   try {
     // ALWAYS use hardcoded Launch project ID
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
     
     const { data: sections, error } = await supabase
@@ -322,7 +325,7 @@ export async function fetchDocumentById({
       return null;
     }
 
-    return createArchiveDocument(section, PROJECT_ID);
+    return createArchiveDocument(section, DEFAULT_PROJECT_ID);
   } catch (error) {
     console.error('[Archive] Error fetching document:', error);
     return null;
@@ -370,7 +373,7 @@ export async function searchArchiveDocuments({
 }): Promise<FetchDocumentsResult> {
   try {
     // ALWAYS use hardcoded Launch project ID
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
     
     const { data: sections, error } = await supabase
@@ -432,7 +435,7 @@ export async function deleteDocument({
   fileName?: string;
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   try {
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
     console.log('[Archive] Deleting document:', { documentId, fileName, projectId });
 
@@ -480,7 +483,7 @@ export async function updateDocumentFlags({
   mustRead?: boolean;
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
     console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, projectId });
 
@@ -544,7 +547,7 @@ export async function assignDocumentToFolder({
   folderId: string | null;
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
-    const projectId = PROJECT_ID;
+    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
     console.log('[Archive] Assigning document to folder:', { fileName, folderId, projectId });
 
