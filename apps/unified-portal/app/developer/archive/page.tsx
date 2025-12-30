@@ -571,7 +571,7 @@ export default function SmartArchivePage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
-          !hasSchemes && !hasDocuments && !isLoading ? (
+          !hasSchemes && !isLoading ? (
             <div className="text-center py-20">
               <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="w-10 h-10 text-gray-600" />
@@ -581,26 +581,27 @@ export default function SmartArchivePage() {
                 No schemes have been created for your organisation yet. Create a scheme to start uploading documents.
               </p>
             </div>
-          ) : !hasDocuments && !isLoading ? (
-            <div className="text-center py-20">
-              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                <FolderArchive className="w-10 h-10 text-gray-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">No Documents Yet</h3>
-              <p className="text-gray-400 max-w-md mx-auto">
-                Upload your first documents to get started with the Smart Archive.
-              </p>
-            </div>
           ) : (
-            <DisciplineGrid 
-              disciplines={disciplines} 
-              customFolders={customFolders}
-              isLoading={isLoading}
-              showNewFolderButton={!isViewingAllSchemes}
-              onCreateFolder={handleCreateFolder}
-              onEditFolder={handleEditFolder}
-              onDeleteFolder={handleDeleteFolder}
-            />
+            <>
+              {!hasDocuments && !isLoading && !isViewingAllSchemes && (
+                <div className="mb-6 p-4 rounded-xl bg-gray-800/50 border border-gray-700 flex items-center gap-3">
+                  <FolderArchive className="w-5 h-5 text-gray-400" />
+                  <p className="text-gray-400 text-sm">
+                    No documents uploaded yet for this scheme. Upload documents to populate the categories below.
+                  </p>
+                </div>
+              )}
+              <DisciplineGrid 
+                disciplines={disciplines} 
+                customFolders={customFolders}
+                isLoading={isLoading}
+                showNewFolderButton={!isViewingAllSchemes}
+                onCreateFolder={handleCreateFolder}
+                onEditFolder={handleEditFolder}
+                onDeleteFolder={handleDeleteFolder}
+                alwaysShowCategories={true}
+              />
+            </>
           )
         ) : activeTab === 'important' ? (
           <ImportantDocsTab onRefresh={handleRefresh} />

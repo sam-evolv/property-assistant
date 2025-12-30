@@ -22,6 +22,7 @@ interface DisciplineGridProps {
   customFolders?: CustomDisciplineFolder[];
   isLoading?: boolean;
   showNewFolderButton?: boolean;
+  alwaysShowCategories?: boolean;
   onCreateFolder?: () => void;
   onEditFolder?: (folder: CustomDisciplineFolder) => void;
   onDeleteFolder?: (folderId: string) => void;
@@ -32,6 +33,7 @@ export function DisciplineGrid({
   customFolders = [],
   isLoading,
   showNewFolderButton = false,
+  alwaysShowCategories = false,
   onCreateFolder,
   onEditFolder,
   onDeleteFolder,
@@ -53,7 +55,7 @@ export function DisciplineGrid({
     );
   }
 
-  if (disciplines.length === 0 && customFolders.length === 0 && !showNewFolderButton) {
+  if (disciplines.length === 0 && customFolders.length === 0 && !showNewFolderButton && !alwaysShowCategories) {
     return (
       <div className="text-center py-16 px-6">
         <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
