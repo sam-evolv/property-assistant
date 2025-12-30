@@ -2,10 +2,11 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Public paths that bypass authentication (purchaser/QR code flows)
 const PUBLIC_PATHS = [
   '/',
   '/login',
+  '/access-pending',
+  '/reset-password',
   '/homes',
   '/qr',
   '/units',
@@ -22,7 +23,6 @@ const PUBLIC_PATHS = [
   '/smart-archive',
 ];
 
-// Protected paths that require authentication
 const PROTECTED_PATHS = [
   '/admin',
   '/super',
@@ -31,41 +31,74 @@ const PROTECTED_PATHS = [
 ];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(path => pathname.startsWith(path)) ||
-         Boolean(pathname.match(/^\/developments\/[^\/]+\/units\/[^\/]+$/)); // /developments/:id/units/:unitId
+  return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/')) ||
+         Boolean(pathname.match(/^\/developments\/[^\/]+\/units\/[^\/]+$/));
 }
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some(path => pathname.startsWith(path));
 }
 
+type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
+
+function resolveDefaultRoute(role: AdminRole | null): string {
+  if (!role) {
+    return '/access-pending';
+  }
+  
+  switch (role) {
+    case 'super_admin':
+      return '/super';
+    case 'developer':
+    case 'admin':
+    case 'tenant_admin':
+      return '/developer';
+    default:
+      return '/access-pending';
+  }
+}
+
+function isRoleAllowedForPath(role: AdminRole, pathname: string): boolean {
+  if (role === 'super_admin') {
+    return true;
+  }
+  
+  if (pathname.startsWith('/super')) {
+    return false;
+  }
+  
+  if (role === 'developer' || role === 'admin' || role === 'tenant_admin') {
+    return pathname.startsWith('/developer') || pathname.startsWith('/portal');
+  }
+  
+  return false;
+}
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const pathname = req.nextUrl.pathname;
 
-  // Skip middleware for API routes, static files, auth callbacks, and Next.js internals
-  // Purchaser APIs are public and require no authentication
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
     pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/branding/') ||
     pathname.includes('.')
   ) {
     return res;
   }
 
   const isLoginPage = pathname === '/login';
+  const isAccessPendingPage = pathname === '/access-pending';
   
-  // Allow public paths to bypass authentication entirely (purchaser QR flow)
   if (isPublicPath(pathname)) {
-    return res;
+    if (!isLoginPage) {
+      return res;
+    }
   }
 
-  // Create Supabase client and refresh session for all other paths
   const supabase = createMiddlewareClient({ req, res });
-
-  // Use getUser() instead of getSession() for security
   const {
     data: { user },
     error
@@ -73,38 +106,40 @@ export async function middleware(req: NextRequest) {
 
   const isAuthenticated = Boolean(user) && !error;
 
-  // DEFAULT: Require authentication for all non-public paths
-  // Redirect unauthenticated users to login (except login page itself)
-  if (!isAuthenticated && !isLoginPage) {
+  if (!isAuthenticated) {
+    if (isLoginPage || isAccessPendingPage || isPublicPath(pathname)) {
+      return res;
+    }
     const redirectUrl = new URL('/login', req.url);
     redirectUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect authenticated users away from login page
   if (isAuthenticated && isLoginPage) {
-    const redirectTo = req.nextUrl.searchParams.get('redirectTo') || '/dashboard';
-    // Prevent open redirect attacks - only allow internal paths
-    const safeRedirectTo = redirectTo.startsWith('/') && !redirectTo.startsWith('//') 
-      ? redirectTo 
-      : '/dashboard';
-    return NextResponse.redirect(new URL(safeRedirectTo, req.url));
+    const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
+    
+    if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
+      return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
+    }
+    
+    return res;
   }
 
-  // CRITICAL: Return the Supabase-updated response to persist cookies
+  if (isAuthenticated && isProtectedPath(pathname)) {
+    const adminCookie = req.cookies.get('admin_role');
+    const role = adminCookie?.value as AdminRole | undefined;
+    
+    if (role && !isRoleAllowedForPath(role, pathname)) {
+      const correctRoute = resolveDefaultRoute(role);
+      return NextResponse.redirect(new URL(correctRoute, req.url));
+    }
+  }
+
   return res;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - api routes
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (public folder)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

@@ -1,0 +1,90 @@
+ROLE: You are the Replit Agent in the PropertyAssistant repo (apps/unified-portal). Fix the post-login routing so the Marketing “Login” flow takes authenticated developer users to the Developer Dashboard (not the Enterprise Admin dashboard). This is a critical access-control + UX fix.
+
+PROBLEM STATEMENT
+Currently, after signing in at /login, users are being redirected into the Enterprise Admin dashboard. This is incorrect for developer accounts. Developer accounts must land in the Developer Dashboard.
+
+NON-NEGOTIABLE OUTCOME
+- After successful login:
+  - role = developer_admin (or equivalent) -> redirect to Developer Dashboard home route.
+  - role = super_admin -> redirect to Super Admin dashboard home route.
+  - role = enterprise_admin (or equivalent) -> redirect to Enterprise Admin dashboard home route (if this role exists).
+  - If role is missing/unknown -> redirect to /access-pending (or an “Access not configured” page).
+- This routing must be enforced server-side (not just client-side) so users cannot land in the wrong dashboard due to stale local state.
+
+ASSUMPTIONS (verify, do not invent)
+- There is a profile table storing role, developer_id, etc (e.g., profiles / user_profiles / admin_users).
+- There are existing route groups for:
+  - /developer/*
+  - /admin/* (enterprise admin)
+  - /super/* (super admin)
+
+PHASE 0: Identify the current redirect logic
+1) Find the login page implementation:
+   - apps/unified-portal/app/login/page.tsx
+2) Find where the redirect happens:
+   - Immediately after signInWithPassword
+   - Or inside an auth listener (supabase.auth.onAuthStateChange)
+   - Or inside middleware (next middleware / route guards)
+3) Locate any shared helper used for redirects:
+   - search for: “redirectTo”, “postLogin”, “handlePostAuth”, “getDefaultRoute”, “/admin”, “/developer”, “access-pending”.
+
+PHASE 1: Implement canonical role-based route resolver
+1) Create a single authoritative function:
+   - apps/unified-portal/lib/auth/resolvePostLoginRoute.ts (or similar)
+2) The function must:
+   - Fetch the user profile from Supabase (server-side preferred using service role for reliability)
+   - Determine role and tenant link
+   - Return a safe path:
+     - super_admin -> /super/overview (or existing super landing)
+     - developer_admin -> /developer/overview (or existing developer landing)
+     - enterprise_admin -> /admin/overview (or existing admin landing)
+     - missing/unknown -> /access-pending
+3) IMPORTANT:
+   - Do not default to /admin.
+   - If developer_admin but developer_id is null, still route to /developer/overview OR /access-pending depending on your policy. Prefer:
+     - developer_admin with no developer_id -> /access-pending (clear message: “Account created but not linked to a developer yet”).
+
+PHASE 2: Enforce redirect in the login flow
+1) Update /login so that after sign-in it calls the resolver and redirects accordingly.
+2) Prefer server-side redirect using a dedicated endpoint:
+   - Create an API route: /api/auth/post-login-redirect
+     - It reads the user session, resolves role from DB, returns { redirectTo }
+   - The login page calls this endpoint and uses router.replace(redirectTo).
+3) Ensure this works even if the client has stale cached profile state.
+
+PHASE 3: Fix middleware / route guards to prevent wrong dashboard access
+1) Locate Next.js middleware (apps/unified-portal/middleware.ts or similar).
+2) Ensure:
+   - /developer/* requires role developer_admin (or super_admin allowed too if desired).
+   - /admin/* requires enterprise_admin (or super_admin).
+   - /super/* requires super_admin only.
+3) If a developer hits /admin/*, redirect them to /developer/overview (or /access-pending).
+4) If an enterprise admin hits /developer/*, redirect to /admin/overview.
+5) Add a clear “Forbidden” page if needed, but redirects are preferred for UX.
+
+PHASE 4: Update link behaviour (marketing login target)
+- Keep the marketing login button pointing to /login.
+- The login itself will now route correctly post-auth.
+
+PHASE 5: Verification (must do)
+Add a short markdown doc: LOGIN_REDIRECT_VERIFY.md with these steps:
+1) Developer account:
+   - Sign in at /login
+   - Expected landing: /developer/overview
+2) Super admin:
+   - Sign in at /login
+   - Expected landing: /super/overview
+3) Enterprise admin (if exists):
+   - Expected landing: /admin/overview
+4) Attempt to manually navigate to the wrong dashboard routes:
+   - Developer -> /admin should redirect away.
+   - Admin -> /developer should redirect away.
+
+DELIVERABLES
+- Canonical role-based redirect resolver
+- Updated /login to use it
+- Middleware/guards to prevent landing in the wrong dashboard
+- Verification doc
+
+START NOW
+Begin by locating the current redirect logic and the existing role/profile source, then implement the resolver and fix both login redirect + route guards.

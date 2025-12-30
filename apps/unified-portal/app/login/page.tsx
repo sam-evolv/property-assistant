@@ -74,13 +74,9 @@ function LoginForm() {
 
         let finalRedirect = redirectTo;
         if (!finalRedirect) {
-          if (userData.role === 'super_admin') {
-            finalRedirect = '/super';
-          } else if (userData.role === 'developer' || userData.role === 'admin' || userData.role === 'tenant_admin') {
-            finalRedirect = '/developer';
-          } else {
-            finalRedirect = '/access-pending';
-          }
+          const { resolvePostLoginRoute } = await import('@/lib/auth/resolvePostLoginRoute');
+          const resolution = resolvePostLoginRoute(userData.role);
+          finalRedirect = resolution.route;
         }
 
         window.location.href = finalRedirect;
