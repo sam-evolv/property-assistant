@@ -55,6 +55,10 @@ export function getRateLimitConfig(route: string): RateLimitConfig {
   return ROUTE_RATE_LIMITS[key];
 }
 
+function sanitizeClientId(clientId: string): string {
+  return clientId.replace(/[:|]/g, '_');
+}
+
 export function checkRateLimit(
   clientId: string,
   route: string
@@ -68,7 +72,8 @@ export function checkRateLimit(
   }
   
   const config = getRateLimitConfig(route);
-  const key = `${clientId}:${getRouteKey(route)}`;
+  const safeClientId = sanitizeClientId(clientId);
+  const key = `${safeClientId}|${getRouteKey(route)}`;
   const now = Date.now();
   
   let entry = rateLimitStore.get(key);
@@ -130,6 +135,9 @@ export function recordCircuitBreakerSuccess(route: string): void {
     state.failures = 0;
     state.state = 'closed';
     circuitBreakerStore.set(key, state);
+  } else if (state.state === 'closed' && state.failures > 0) {
+    state.failures = Math.max(0, state.failures - 1);
+    circuitBreakerStore.set(key, state);
   }
 }
 
@@ -167,7 +175,9 @@ export function cleanupExpiredEntries(): void {
   const keysToDelete: string[] = [];
   
   rateLimitStore.forEach((entry, key) => {
-    const config = ROUTE_RATE_LIMITS[key.split(':')[1]] || ROUTE_RATE_LIMITS.default;
+    const parts = key.split('|');
+    const routeKey = parts.length > 1 ? parts[1] : 'default';
+    const config = ROUTE_RATE_LIMITS[routeKey] || ROUTE_RATE_LIMITS.default;
     if (now - entry.windowStart >= config.windowMs * 2) {
       keysToDelete.push(key);
     }

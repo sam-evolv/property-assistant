@@ -6,6 +6,7 @@ import { resolveDevelopment } from '@/lib/development-resolver';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders, isConnectionPoolError } from '@/lib/api-error-utils';
+import { recordCircuitBreakerSuccess, recordCircuitBreakerFailure } from '@/lib/security/rate-limiter';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,6 +139,7 @@ export async function POST(req: Request) {
     const cached = globalCache.get(cacheKey);
     if (cached) {
       console.log(`[Resolve] Cache hit for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+      recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(
         { ...cached, request_id: requestId },
         { headers: { ...getResponseHeaders(requestId), 'x-cache': 'HIT' } }
@@ -253,6 +255,7 @@ export async function POST(req: Request) {
 
       globalCache.set(cacheKey, responseData, 60000);
       console.log(`[Resolve] Cached result for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
+      recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(
         { ...responseData, request_id: requestId },
         { headers: { ...getResponseHeaders(requestId), 'x-cache': 'MISS' } }
@@ -316,6 +319,7 @@ export async function POST(req: Request) {
           }
         }
         
+        recordCircuitBreakerSuccess('/api/houses/resolve');
         return NextResponse.json(
           {
             success: true,
@@ -403,6 +407,7 @@ export async function POST(req: Request) {
         console.log("[Resolve] No unit or homeowner found for:", token);
         if (dbConnectionError) {
           console.log("[Resolve] Returning service unavailable due to earlier DB connection issues", `requestId=${requestId}`);
+          recordCircuitBreakerFailure('/api/houses/resolve');
           return NextResponse.json(
             createStructuredError('Service temporarily unavailable', requestId, {
               error_code: 'DB_UNAVAILABLE',
@@ -425,6 +430,7 @@ export async function POST(req: Request) {
       // Geocode the address to get coordinates for the map
       const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
 
+      recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(
         {
           success: true,
@@ -458,6 +464,7 @@ export async function POST(req: Request) {
     } catch (homeownerErr: any) {
       console.error("[Resolve] Homeowner lookup error:", homeownerErr.message, `requestId=${requestId}`);
       if (isConnectionPoolError(homeownerErr) || dbConnectionError) {
+        recordCircuitBreakerFailure('/api/houses/resolve');
         return NextResponse.json(
           createStructuredError('Service temporarily unavailable', requestId, {
             error_code: 'DB_UNAVAILABLE',
@@ -473,6 +480,7 @@ export async function POST(req: Request) {
     }
 
   } catch (err: any) {
+    recordCircuitBreakerFailure('/api/houses/resolve');
     logCritical('Resolve', 'Server error during unit resolution', requestId, {
       error: err.message || 'Unknown error',
     });

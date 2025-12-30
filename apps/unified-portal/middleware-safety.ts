@@ -106,3 +106,26 @@ export function withSafetyHeaders(response: NextResponse, requestId: string): Ne
   response.headers.set('X-Environment', APP_ENV);
   return response;
 }
+
+export function recordApiResult(pathname: string, success: boolean): void {
+  if (success) {
+    recordCircuitBreakerSuccess(pathname);
+  } else {
+    recordCircuitBreakerFailure(pathname);
+  }
+}
+
+export function wrapApiHandler<T>(
+  pathname: string,
+  handler: () => Promise<T>
+): Promise<T> {
+  return handler()
+    .then((result) => {
+      recordCircuitBreakerSuccess(pathname);
+      return result;
+    })
+    .catch((error) => {
+      recordCircuitBreakerFailure(pathname);
+      throw error;
+    });
+}

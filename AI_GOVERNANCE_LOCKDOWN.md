@@ -229,10 +229,49 @@ Tests:
 |------|---------|
 | `replit.md` | Added Phase 1 lockdown section |
 
+## API Route Integration (Phase 2)
+
+### Circuit Breaker Recording
+
+API routes should integrate circuit breaker recording to enable automatic failure detection:
+
+```typescript
+// Option 1: Use wrapApiHandler for entire route
+import { wrapApiHandler } from '@/middleware-safety';
+
+export async function GET(request: NextRequest) {
+  return wrapApiHandler('/api/your-route', async () => {
+    // Your handler logic here
+    return NextResponse.json({ data });
+  });
+}
+
+// Option 2: Manual recording at response points
+import { recordApiResult } from '@/middleware-safety';
+
+export async function POST(request: NextRequest) {
+  try {
+    const result = await processRequest();
+    recordApiResult('/api/your-route', true);  // Success
+    return NextResponse.json(result);
+  } catch (error) {
+    recordApiResult('/api/your-route', false); // Failure
+    throw error;
+  }
+}
+```
+
+### Priority Routes for Integration
+
+1. `/api/chat` - AI chat endpoint (high cost, high impact)
+2. `/api/houses/resolve` - Unit resolution 
+3. `/api/purchaser/profile` - User data
+
 ## Roadmap
 
 ### Phase 2 (Beta - Weeks 2-4)
 
+- [ ] Integrate circuit breaker recording into protected routes
 - [ ] Soft delete for user/client tables
 - [ ] Database migration safety checks
 - [ ] Enhanced audit log storage (persistent)
