@@ -4,11 +4,6 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAILS = [
-  'sam@evolv.ie',
-  'sam@evolvai.ie',
-];
-
 export default async function DeveloperLayout({
   children,
 }: {
@@ -20,11 +15,12 @@ export default async function DeveloperLayout({
     redirect('/login?redirectTo=/developer');
   }
 
-  const userEmail = session.email?.toLowerCase();
-  const isAdmin = userEmail && ADMIN_EMAILS.some(email => email.toLowerCase() === userEmail);
+  const allowedRoles = ['developer', 'admin', 'tenant_admin', 'super_admin'];
+  const hasAccess = session.roles?.some(role => allowedRoles.includes(role)) || 
+                    allowedRoles.includes(session.role);
   
-  if (!isAdmin) {
-    console.warn(`[Developer Portal] Access denied for email: ${userEmail || 'unknown'}`);
+  if (!hasAccess) {
+    console.warn(`[Developer Portal] Access denied for email: ${session.email || 'unknown'}, roles: ${session.roles}`);
     redirect('/unauthorized');
   }
 
