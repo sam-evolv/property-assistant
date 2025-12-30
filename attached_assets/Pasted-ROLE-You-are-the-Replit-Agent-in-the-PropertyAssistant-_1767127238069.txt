@@ -1,0 +1,76 @@
+ROLE: You are the Replit Agent in the PropertyAssistant repo. The app is now unreachable in Preview with “0.0.0.0 took too long to respond (ERR_TIMED_OUT)”. This is a deployment/runtime regression. Fix it immediately, then make the marketing “Login” button point to the correct URL safely.
+
+NON-NEGOTIABLE OUTCOMES
+1) Preview and Production must load again (no 0.0.0.0 timeout).
+2) The app must bind to 0.0.0.0 and the correct PORT in Replit (and not hardcode localhost).
+3) NEXT_PUBLIC_APP_URL must be set correctly for production routing (portal domain), but Preview must still work.
+4) The marketing site Login button must link to /login on the correct domain (prod domain in prod, preview URL in dev).
+
+PHASE 1: RESTORE SERVER REACHABILITY (DO THIS FIRST)
+1) Open Shell and run:
+   - `npm run dev` (or `pnpm dev`/`bun dev` depending on repo)
+   - Observe logs for crash, hanging, or port mismatch.
+2) Find what port the server is listening on.
+   - Replit expects the server to listen on `process.env.PORT` and host `0.0.0.0`.
+3) Search codebase for any forced host/port overrides:
+   - `HOST=`
+   - `localhost`
+   - `127.0.0.1`
+   - `0.0.0.0:3000`
+   - custom server wrappers
+   Commands:
+   - `rg "localhost|127\.0\.0\.1|process\.env\.PORT|0\.0\.0\.0|listen\(" -n`
+4) Fix the binding:
+   - If using Next.js: do NOT override host/port. Let Replit manage it.
+   - If using custom server: ensure:
+     - `const port = Number(process.env.PORT || 3000)`
+     - `server.listen(port, "0.0.0.0")`
+5) Confirm the Preview loads after restart.
+
+PHASE 2: FIX COMMON CAUSE IN THIS REPO (MOST LIKELY)
+This repo has multiple apps under /apps. Ensure the correct app is running.
+1) Check `replit.nix`, `.replit`, and package scripts.
+2) Ensure the run command points to `apps/unified-portal` (not another app that no longer starts).
+3) If Replit is running the wrong workspace command, update `.replit`:
+   - run = "cd apps/unified-portal && npm run dev"
+4) If build step is required:
+   - run = "cd apps/unified-portal && npm i && npm run build && npm run start"
+
+PHASE 3: ENV VARS - STOP BREAKING PREVIEW
+A bad NEXT_PUBLIC_APP_URL can cause redirects to the wrong host (including 0.0.0.0).
+1) Verify env usage:
+   - Search for `NEXT_PUBLIC_APP_URL` usage.
+   - If used for redirects, ensure it defaults safely in dev:
+     - If undefined, derive from request origin.
+2) Implement safe origin resolver:
+   - In server routes and middleware, do not force redirect to NEXT_PUBLIC_APP_URL in development.
+   - Use `request.nextUrl.origin` as the base for redirects.
+3) Only use NEXT_PUBLIC_APP_URL for canonical links in production.
+
+PHASE 4: FIX MARKETING LOGIN BUTTON WITHOUT BREAKING ENVIRONMENTS
+Marketing website should NOT hardcode the Replit preview URL in production.
+Rule:
+- In production marketing site: link to `https://portal.openhouseai.ie/login` (or your chosen portal domain).
+- In development preview: link to `/login` relative (same origin), or use an env var like `NEXT_PUBLIC_PORTAL_URL`.
+
+If marketing and portal are on different domains:
+- Use an env var in the marketing site:
+  - `NEXT_PUBLIC_PORTAL_BASE_URL=https://portal.openhouseai.ie`
+- Button href:
+  - `${NEXT_PUBLIC_PORTAL_BASE_URL}/login`
+
+PHASE 5: SMOKE TESTS (MUST PASS)
+1) Preview loads home page (no timeout).
+2) /login loads.
+3) Successful login redirects to /developer (for Sam and any developer).
+4) Hitting /super is allowed only if roles include super_admin.
+5) Marketing Login button navigates to portal /login correctly.
+
+DELIVERABLES
+- Preview reachable again (root cause fixed).
+- No host/port hardcoding.
+- Safe origin-based redirects in dev; env-based canonical domain in prod.
+- Marketing Login button points to the correct portal login URL.
+
+START NOW:
+- Fix the server binding/command so Preview loads first, then adjust env/redirect logic so it cannot regress.

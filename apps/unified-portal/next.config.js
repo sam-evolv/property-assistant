@@ -14,7 +14,12 @@ const nextConfig = {
       bodySizeLimit: '10mb'
     },
   },
-  allowedDevOrigins: ['*'],
+  allowedDevOrigins: [
+    'http://localhost:5000',
+    'http://0.0.0.0:5000',
+    'http://127.0.0.1:5000',
+    'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev',
+  ],
   images: {
     remotePatterns: [
       {
