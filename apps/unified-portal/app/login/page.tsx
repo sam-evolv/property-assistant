@@ -3,7 +3,6 @@
 import { Suspense, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -152,38 +151,75 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-gray-900" />
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gold-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gold-500/5 rounded-full blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#050507' }}>
+      <style jsx global>{`
+        @keyframes logoBreath {
+          0%, 100% {
+            transform: scale(1);
+            filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.3));
+          }
+          50% {
+            transform: scale(1.02);
+            filter: drop-shadow(0 0 35px rgba(212, 175, 55, 0.5));
+          }
+        }
+        @keyframes subtleFloat {
+          0%, 100% { opacity: 0.03; transform: translateY(0); }
+          50% { opacity: 0.06; transform: translateY(-20px); }
+        }
+        .logo-breathe {
+          animation: logoBreath 7s ease-in-out infinite;
+        }
+        .particle-line {
+          animation: subtleFloat 12s ease-in-out infinite;
+        }
+      `}</style>
+      
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, #0a0a0f 0%, #050507 70%, #020203 100%)' }} />
+      
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
+      
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="particle-line absolute left-[15%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.08) 30%, rgba(212, 175, 55, 0.12) 50%, rgba(212, 175, 55, 0.08) 70%, transparent 100%)', animationDelay: '0s' }} />
+        <div className="particle-line absolute left-[35%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.05) 40%, rgba(212, 175, 55, 0.08) 60%, transparent 100%)', animationDelay: '2s' }} />
+        <div className="particle-line absolute left-[55%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.06) 20%, rgba(212, 175, 55, 0.1) 50%, rgba(212, 175, 55, 0.06) 80%, transparent 100%)', animationDelay: '4s' }} />
+        <div className="particle-line absolute left-[75%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.04) 35%, rgba(212, 175, 55, 0.07) 55%, transparent 100%)', animationDelay: '6s' }} />
+        <div className="particle-line absolute left-[90%] top-0 w-px h-full" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(212, 175, 55, 0.03) 45%, rgba(212, 175, 55, 0.06) 65%, transparent 100%)', animationDelay: '3s' }} />
       </div>
       
-      <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800/50 shadow-2xl p-8 md:p-10">
-          <div className="flex justify-center mb-8">
-            <Image
-              src="/branding/openhouse-ai-logo.png"
-              alt="OpenHouse AI"
-              width={200}
-              height={50}
-              className="h-12 w-auto object-contain"
-              priority
-            />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(212, 175, 55, 0.04) 0%, transparent 70%)' }} />
+      
+      <div className="relative z-10 w-full max-w-[420px] mx-4">
+        <div 
+          className="rounded-2xl p-8 md:p-10"
+          style={{
+            background: 'linear-gradient(180deg, rgba(18, 18, 22, 0.95) 0%, rgba(12, 12, 15, 0.98) 100%)',
+            border: '1px solid rgba(212, 175, 55, 0.08)',
+            boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), 0 0 60px -30px rgba(212, 175, 55, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
+          }}
+        >
+          <div className="flex justify-center mb-10">
+            <div className="logo-breathe">
+              <img
+                src="/branding/openhouse-ai-logo.png"
+                alt="OpenHouse AI"
+                className="h-20 md:h-24 w-auto object-contain"
+              />
+            </div>
           </div>
 
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-white mb-2">
+            <h1 className="text-2xl md:text-[1.65rem] font-semibold mb-2" style={{ color: '#f5f5f4' }}>
               {getTitle()}
             </h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-sm tracking-wide" style={{ color: '#6b7280' }}>
               {getSubtitle()}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
                 Email Address
               </label>
               <input
@@ -194,14 +230,28 @@ function LoginForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 transition-all duration-200"
+                className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                style={{
+                  backgroundColor: '#0e1116',
+                  border: '1px solid rgba(212, 175, 55, 0.12)',
+                  color: '#e4e4e7',
+                  outline: 'none',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
                 placeholder="you@company.com"
               />
             </div>
 
             {mode !== 'forgot' && (
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
                   Password
                 </label>
                 <div className="relative">
@@ -213,22 +263,39 @@ function LoginForm() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 transition-all duration-200"
+                    className="w-full px-4 py-3.5 pr-12 rounded-xl transition-all duration-200"
+                    style={{
+                      backgroundColor: '#0e1116',
+                      border: '1px solid rgba(212, 175, 55, 0.12)',
+                      color: '#e4e4e7',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                      e.target.style.boxShadow = 'none';
+                    }}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: '#6b7280' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#a1a1aa'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     ) : (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
                     )}
                   </button>
@@ -238,7 +305,7 @@ function LoginForm() {
 
             {mode === 'signup' && (
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
                   Confirm Password
                 </label>
                 <input
@@ -249,14 +316,28 @@ function LoginForm() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 transition-all duration-200"
+                  className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                  style={{
+                    backgroundColor: '#0e1116',
+                    border: '1px solid rgba(212, 175, 55, 0.12)',
+                    color: '#e4e4e7',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                    e.target.style.boxShadow = 'none';
+                  }}
                   placeholder="Confirm your password"
                 />
               </div>
             )}
 
             {mode === 'signin' && (
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -264,7 +345,10 @@ function LoginForm() {
                     setError(null);
                     setSuccess(null);
                   }}
-                  className="text-sm text-gold-400 hover:text-gold-300 transition-colors"
+                  className="text-sm transition-colors"
+                  style={{ color: '#b8934c' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
                 >
                   Forgot password?
                 </button>
@@ -272,26 +356,53 @@ function LoginForm() {
             )}
 
             {error && (
-              <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-4">
-                <p className="text-sm text-red-300">{error}</p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(185, 28, 28, 0.3)' }}>
+                <p className="text-sm" style={{ color: '#fca5a5' }}>{error}</p>
               </div>
             )}
 
             {success && (
-              <div className="bg-green-900/30 border border-green-800/50 rounded-xl p-4">
-                <p className="text-sm text-green-300">{success}</p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(6, 78, 59, 0.2)', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+                <p className="text-sm" style={{ color: '#86efac' }}>{success}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-400 hover:to-gold-500 text-black font-semibold rounded-xl shadow-lg shadow-gold-500/20 hover:shadow-gold-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 px-4 font-semibold rounded-xl transition-all duration-200 mt-2"
+              style={{
+                background: 'linear-gradient(135deg, #d4af37 0%, #b8934c 100%)',
+                color: '#0a0a0f',
+                boxShadow: '0 4px 20px -4px rgba(212, 175, 55, 0.4)',
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 25px -4px rgba(212, 175, 55, 0.5)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 20px -4px rgba(212, 175, 55, 0.4)';
+              }}
+              onMouseDown={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = 'translateY(1px)';
+                }
+              }}
+              onMouseUp={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
+              }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
                   Processing...
@@ -306,9 +417,9 @@ function LoginForm() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-7 text-center">
             {mode === 'signin' && (
-              <p className="text-gray-400 text-sm">
+              <p className="text-sm" style={{ color: '#6b7280' }}>
                 Need an account?{' '}
                 <button
                   onClick={() => {
@@ -316,14 +427,17 @@ function LoginForm() {
                     setError(null);
                     setSuccess(null);
                   }}
-                  className="text-gold-400 hover:text-gold-300 font-medium transition-colors"
+                  className="font-medium transition-colors"
+                  style={{ color: '#b8934c' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
                 >
                   Create one
                 </button>
               </p>
             )}
             {mode === 'signup' && (
-              <p className="text-gray-400 text-sm">
+              <p className="text-sm" style={{ color: '#6b7280' }}>
                 Already have an account?{' '}
                 <button
                   onClick={() => {
@@ -332,14 +446,17 @@ function LoginForm() {
                     setSuccess(null);
                     setConfirmPassword('');
                   }}
-                  className="text-gold-400 hover:text-gold-300 font-medium transition-colors"
+                  className="font-medium transition-colors"
+                  style={{ color: '#b8934c' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
                 >
                   Sign in
                 </button>
               </p>
             )}
             {mode === 'forgot' && (
-              <p className="text-gray-400 text-sm">
+              <p className="text-sm" style={{ color: '#6b7280' }}>
                 Remember your password?{' '}
                 <button
                   onClick={() => {
@@ -347,7 +464,10 @@ function LoginForm() {
                     setError(null);
                     setSuccess(null);
                   }}
-                  className="text-gold-400 hover:text-gold-300 font-medium transition-colors"
+                  className="font-medium transition-colors"
+                  style={{ color: '#b8934c' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
                 >
                   Sign in
                 </button>
@@ -355,21 +475,33 @@ function LoginForm() {
             )}
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-800/50">
-            <p className="text-center text-xs text-gray-500">
+          <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}>
+            <p className="text-center text-xs" style={{ color: '#4b5563' }}>
               By signing in, you agree to our{' '}
-              <a href="#" className="text-gold-400/80 hover:text-gold-400 transition-colors">
+              <a 
+                href="#" 
+                className="transition-colors"
+                style={{ color: '#78716c' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#78716c'}
+              >
                 Terms of Service
               </a>{' '}
               and{' '}
-              <a href="#" className="text-gold-400/80 hover:text-gold-400 transition-colors">
+              <a 
+                href="#" 
+                className="transition-colors"
+                style={{ color: '#78716c' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#78716c'}
+              >
                 Privacy Policy
               </a>
             </p>
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-6">
+        <p className="text-center text-xs mt-8 tracking-wide" style={{ color: '#3f3f46' }}>
           OpenHouse AI Property Intelligence Platform
         </p>
       </div>
@@ -381,10 +513,10 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#050507' }}>
           <div className="text-center">
-            <div className="w-8 h-8 border-2 border-gold-500/30 border-t-gold-500 rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-400 text-sm">Loading...</p>
+            <div className="w-10 h-10 rounded-full animate-spin mx-auto mb-4" style={{ border: '2px solid rgba(212, 175, 55, 0.2)', borderTopColor: '#d4af37' }} />
+            <p className="text-sm" style={{ color: '#6b7280' }}>Loading...</p>
           </div>
         </div>
       }

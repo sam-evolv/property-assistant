@@ -1,0 +1,91 @@
+ROLE: You are the Replit Agent inside the PropertyAssistant repo. Your task is to refine and elevate the existing Developer Login page to a premium, brand-accurate OpenHouse AI experience. The current implementation is directionally correct but visually underwhelming and brand-inaccurate. Fix this properly.
+
+CRITICAL CORRECTIONS (NON-NEGOTIABLE)
+
+1) LOGO – MUST USE THE CORRECT ASSET
+- Replace the placeholder / incorrect logo with the provided official OpenHouse AI gold logo.
+- Asset to use: OpenHouseAi Logo.png (provided by user).
+- Place it prominently ABOVE “Developer Login”, centred.
+- Size: visually dominant but restrained (approx 72–96px height on desktop).
+- Do NOT raster-blur or recolour the logo. Preserve its gold integrity.
+
+2) LOGO ANIMATION – SUBTLE, PREMIUM
+- Add a **slow “breathing” glow effect** to the logo:
+  - Very subtle scale pulse (e.g. 1.0 → 1.03 → 1.0 over ~6–8s).
+  - Soft gold radial glow that gently fades in/out.
+  - No gimmicks. No bounce. No rotation.
+- Use CSS-only animation (keyframes), GPU-friendly.
+- Effect should read as “alive”, not “animated”.
+
+3) INPUT FIELDS – REMOVE WHITE (WHITE LOOKS CHEAP)
+- Replace white email/password inputs immediately.
+- New input style:
+  - Background: near-black / charcoal (e.g. #0E1116 / #111827 range).
+  - Border: subtle gold or muted warm grey (1px).
+  - Text: off-white / warm grey, NOT pure white.
+  - Placeholder: low-contrast muted grey.
+- Focus state:
+  - Soft gold glow (box-shadow), very subtle.
+  - No bright outlines.
+- Rounded corners, premium spacing.
+
+4) BACKGROUND – TOO FLAT, ADD DEPTH
+- The pure black background is too dead. Add **controlled visual interest**:
+  Choose ONE of the following (do not overdo):
+  OPTION A (preferred):
+    - Subtle radial gradient behind the card (dark → slightly warmer black).
+    - Very faint gold noise/grain overlay (2–4% opacity).
+  OPTION B:
+    - Elegant vertical “data rain” / particle streaks in gold/white at extremely low opacity (inspired by the provided image).
+    - Must be slow, barely noticeable, and non-distracting.
+- Performance matters. No video backgrounds.
+
+5) CARD ITSELF – MORE LUXURY
+- Current card is acceptable but can be improved:
+  - Slightly softer shadow.
+  - Very subtle inner gradient (top slightly lighter than bottom).
+  - Border: hairline, semi-transparent, warm tone.
+- Increase vertical breathing room slightly.
+
+6) TYPOGRAPHY & COPY
+- “Developer Login” stays.
+- Subheading (“Access your developer portal”) should be smaller and calmer.
+- Ensure font weights feel deliberate and confident.
+- No pure white text except headline if needed; prefer off-white.
+
+7) BUTTONS
+- Primary “Sign In” button:
+  - Gold gradient (subtle, not flashy).
+  - Hover: slight lift + glow.
+  - Active: press-in feel.
+- Secondary links (“Forgot password?”, “Create one”):
+  - Muted gold text.
+  - No underline by default; underline or brighten on hover.
+
+IMPLEMENTATION NOTES
+
+- This is a refinement, not a rebuild. Modify the existing login page.
+- Keep routing, auth logic, and form handling exactly as-is.
+- Focus only on:
+  - Correct logo usage
+  - Visual polish
+  - Brand fidelity
+- Ensure mobile still looks excellent (logo slightly smaller, card full-width).
+
+ACCEPTANCE CRITERIA (VERY IMPORTANT)
+
+The page should feel:
+- On the same tier as the OpenHouse AI marketing homepage.
+- Confident, calm, and expensive.
+- Like something a Tier-1 property developer would trust.
+
+If it looks like a generic SaaS login, it has FAILED.
+
+START NOW:
+1) Swap in the correct logo asset.
+2) Remove white from inputs.
+3) Add logo breathing glow.
+4) Add subtle background depth.
+5) Polish spacing, shadows, and finishes.
+
+Do not ship halfway.
