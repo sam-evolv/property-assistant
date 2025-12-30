@@ -163,12 +163,12 @@ function LoginForm() {
         }
         @keyframes auraBreath {
           0%, 100% {
-            opacity: 0.12;
-            transform: scale(0.85);
+            opacity: 0.45;
+            transform: scale(1);
           }
           50% {
-            opacity: 0.22;
-            transform: scale(1.1);
+            opacity: 0.65;
+            transform: scale(1.15);
           }
         }
         @keyframes subtleFloat {
@@ -184,14 +184,15 @@ function LoginForm() {
         .logo-breathing-wrapper::before {
           content: '';
           position: absolute;
-          width: 200%;
-          height: 200%;
+          width: 280%;
+          height: 280%;
           top: 50%;
           left: 50%;
-          transform: translate(-50%, -50%) scale(0.85);
-          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.35) 0%, rgba(184, 147, 76, 0.15) 35%, transparent 70%);
+          transform: translate(-50%, -50%) scale(1);
+          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.5) 0%, rgba(194, 158, 55, 0.3) 20%, rgba(178, 140, 55, 0.15) 40%, rgba(160, 120, 40, 0.05) 60%, transparent 80%);
           border-radius: 50%;
           pointer-events: none;
+          filter: blur(8px);
           animation: auraBreath 8s ease-in-out infinite;
         }
         .logo-breathe {
@@ -207,8 +208,8 @@ function LoginForm() {
             animation: none;
           }
           .logo-breathing-wrapper::before {
-            opacity: 0.15;
-            transform: translate(-50%, -50%) scale(0.9);
+            opacity: 0.5;
+            transform: translate(-50%, -50%) scale(1);
           }
         }
       `}</style>

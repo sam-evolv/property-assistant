@@ -1,0 +1,77 @@
+ROLE: You are the Replit Agent. The Developer Login page is approved. Your sole task is to introduce a clearly visible but still elegant gold light emanation from the OpenHouse AI logo. This must be perceptible at a glance, not hypothetical.
+
+DO NOT modify layout, typography, card styling, inputs, or button styles.
+ONLY adjust the logo aura / glow treatment.
+
+THE PROBLEM TO FIX
+- The gold glow is currently either missing or too subtle to register.
+- The logo breathes, but it does not feel like a light source.
+- We need the impression that a soft gold light is gently shining outward from the logo.
+
+TARGET VISUAL EFFECT
+Think:
+- A calm, warm gold light behind the logo
+- Like a diffused spotlight or halo
+- Always present at a base level
+- Slightly intensifies during the “breathing in” phase
+- Never disappears entirely
+
+SPECIFIC IMPLEMENTATION REQUIREMENTS
+
+1) BASE GOLD HUE (ALWAYS VISIBLE)
+- Add a constant, low-level gold aura behind the logo.
+- This should be visible even when the logo is at rest.
+- Use a radial gradient or pseudo-element behind the logo:
+  - Centered exactly on the logo
+  - Warm gold tone
+  - Large radius, very soft falloff
+- Opacity target:
+  - Enough that you can clearly see it on black
+  - But still tasteful (not neon, not yellow).
+
+2) BREATHING INTENSIFICATION (SYNCED)
+- During the existing breathing animation:
+  - Slightly increase the glow’s opacity and spread
+  - As the logo scales up, the light should feel like it’s gently radiating outward
+- During the “breathing out” phase:
+  - The glow reduces slightly
+  - But NEVER fades to zero
+
+3) VISUAL CHARACTER (IMPORTANT)
+- This is NOT a ring.
+- This is NOT a sharp halo.
+- This is NOT a pulse flash.
+- It should read as ambient light, not an effect.
+- Soft edges only. Large blur radius.
+
+4) TECHNICAL NOTES
+- Implement via ::before or ::after on the logo wrapper.
+- Use transform + opacity only.
+- GPU-friendly.
+- Respect prefers-reduced-motion (keep base glow, disable animation).
+- Ensure the glow does not clip at card edges.
+
+5) GOLD TONE
+- Use brand-adjacent gold, slightly desaturated.
+- Avoid pure yellow.
+- Think “warm metallic reflection”, not UI highlight.
+
+ABSOLUTE NO-GOS
+- No sparkles
+- No particles
+- No flicker
+- No sudden brightness jumps
+- No visible animation seams
+
+ACCEPTANCE TEST
+Open the page and ask:
+“Can I clearly see a soft gold light shining from the logo on a black background?”
+
+If the answer is not an immediate yes, increase the base glow slightly until it is.
+
+STOP WHEN THIS IS TRUE
+- The logo is the visual light source of the page.
+- The glow is subtle but unmistakable.
+- The page feels calmer, richer, and more premium than before.
+
+Do not add anything else.
