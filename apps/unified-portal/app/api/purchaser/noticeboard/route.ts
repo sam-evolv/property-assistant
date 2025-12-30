@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, message, category, priority, termsAccepted } = body;
+    const { title, message, category, priority, termsAccepted, authorName } = body;
 
     if (!termsAccepted) {
       return NextResponse.json(
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
         content: message.trim(),
         priority: priorityValue,
         active: true,
-        author_name: 'Resident',
+        author_name: authorName?.trim() || 'Resident',
         author_unit: unitAddress,
       })
       .returning();

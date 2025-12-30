@@ -25,6 +25,7 @@ function getSupabaseClient() {
 // Known Irish location coordinates for fallback
 const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
   // Specific developments - exact coordinates provided by client
+  'rathard': { lat: 51.928542, lng: -8.446790 }, // Rathard Park entrance, Cork - SOURCE OF TRUTH
   'longview': { lat: 51.9265, lng: -8.4532 }, // Longview Park entrance, Ballyvolane, Cork (51°55'35.3"N 8°27'11.6"W)
   'ballyvolane': { lat: 51.9265, lng: -8.4532 },
   'ballyhooly': { lat: 51.9265, lng: -8.4532 },
@@ -46,6 +47,21 @@ const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
   'ennis': { lat: 52.8463, lng: -8.9811 },
   'letterkenny': { lat: 54.9558, lng: -7.7342 },
 };
+
+// Hard override coordinates by project/development ID - SOURCE OF TRUTH
+const PROJECT_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (Supabase project ID)
+  '6d3789de-2e46-430c-bf31-22224bd878da': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (alternate Supabase ID)
+  'e0833063-55ac-4201-a50e-f329c090fbd6': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (Drizzle development ID)
+  '57dc3919-2725-4575-8046-9179075ac88e': { lat: 51.9265, lng: -8.4532 }, // Longview Park (Supabase project ID)
+  '34316432-f1e8-4297-b993-d9b5c88ee2d8': { lat: 51.9265, lng: -8.4532 }, // Longview Park (Drizzle development ID)
+};
+
+// Get coordinates from project/development ID
+function getProjectCoordinates(projectId: string | null | undefined): { lat: number; lng: number } | null {
+  if (!projectId) return null;
+  return PROJECT_COORDINATES[projectId] || null;
+}
 
 // Get coordinates from address using known locations
 function getCoordinatesFromAddress(address: string): { lat: number; lng: number } | null {
@@ -225,13 +241,23 @@ export async function POST(req: Request) {
       const fullAddress = unit.address_line_1 || unit.dev_address || '';
       const unitIdentifier = unit.unit_uid || unit.id;
 
-      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
+      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id);
 
-      // Coordinate resolution order: geocode address -> unit lat/lng -> development lat/lng
-      let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+      // Coordinate resolution order: PROJECT OVERRIDE -> geocode address -> unit lat/lng -> development lat/lng
+      // Priority 1: Hard override by project/development ID (SOURCE OF TRUTH for known schemes)
+      let coordinates = getProjectCoordinates(unit.development_id);
+      if (coordinates) {
+        console.log("[Resolve] Using project coordinate override for development:", unit.development_id, "->", coordinates);
+      }
+      // Priority 2: Geocode from address
+      if (!coordinates && fullAddress) {
+        coordinates = await geocodeAddress(fullAddress);
+      }
+      // Priority 3: Unit-level coordinates
       if (!coordinates && unit.latitude && unit.longitude) {
         coordinates = { lat: unit.latitude, lng: unit.longitude };
       }
+      // Priority 4: Development-level coordinates from DB
       if (!coordinates && unit.dev_latitude && unit.dev_longitude) {
         console.log("[Resolve] Using development coordinates as fallback:", unit.dev_latitude, unit.dev_longitude);
         coordinates = { lat: unit.dev_latitude, lng: unit.dev_longitude };
@@ -284,12 +310,21 @@ export async function POST(req: Request) {
         .single();
       
       if (supabaseUnit && !supabaseError) {
-        console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address);
+        console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address, "ProjectID:", supabaseUnit.project_id);
         
         const fullAddress = supabaseUnit.address || '';
-        let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
         
-        // Fallback: Try to get project coordinates from Supabase projects table
+        // Coordinate resolution: PROJECT OVERRIDE -> geocode -> project table
+        // Priority 1: Hard override by project ID (SOURCE OF TRUTH for known schemes)
+        let coordinates = getProjectCoordinates(supabaseUnit.project_id);
+        if (coordinates) {
+          console.log("[Resolve] Using project coordinate override for:", supabaseUnit.project_id, "->", coordinates);
+        }
+        // Priority 2: Geocode from address
+        if (!coordinates && fullAddress) {
+          coordinates = await geocodeAddress(fullAddress);
+        }
+        // Priority 3: Try to get project coordinates from Supabase projects table
         if (!coordinates && supabaseUnit.project_id) {
           const { data: project } = await supabase
             .from('projects')
@@ -298,7 +333,7 @@ export async function POST(req: Request) {
             .single();
           
           if (project?.latitude && project?.longitude) {
-            console.log("[Resolve] Using project coordinates as fallback:", project.latitude, project.longitude);
+            console.log("[Resolve] Using project coordinates from DB:", project.latitude, project.longitude);
             coordinates = { lat: project.latitude, lng: project.longitude };
           }
         }
@@ -454,12 +489,21 @@ export async function POST(req: Request) {
       // Found in homeowners table
       const fullAddress = homeowner.address || homeowner.dev_address || '';
 
-      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress);
+      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id);
 
-      // Geocode the address to get coordinates for the map, with development fallback
-      let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+      // Coordinate resolution: PROJECT OVERRIDE -> geocode -> development fallback
+      // Priority 1: Hard override by development ID (SOURCE OF TRUTH for known schemes)
+      let coordinates = getProjectCoordinates(homeowner.development_id);
+      if (coordinates) {
+        console.log("[Resolve] Using project coordinate override for:", homeowner.development_id, "->", coordinates);
+      }
+      // Priority 2: Geocode from address
+      if (!coordinates && fullAddress) {
+        coordinates = await geocodeAddress(fullAddress);
+      }
+      // Priority 3: Development coordinates from DB
       if (!coordinates && homeowner.dev_latitude && homeowner.dev_longitude) {
-        console.log("[Resolve] Using development coordinates as fallback:", homeowner.dev_latitude, homeowner.dev_longitude);
+        console.log("[Resolve] Using development coordinates from DB:", homeowner.dev_latitude, homeowner.dev_longitude);
         coordinates = { lat: homeowner.dev_latitude, lng: homeowner.dev_longitude };
       }
 

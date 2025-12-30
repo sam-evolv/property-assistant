@@ -1403,10 +1403,15 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     }
 
     // Check for dimension question BEFORE streaming - may need to override response
+    // STRICT: Only match when room keywords are explicitly paired with size/dimension words
     const isDimensionQuestion = questionTopic === 'room_sizes' || 
-      /\b(dimension|size|measurement|square\s*(feet|meters|m2|ft2)|how\s*(big|large)|floor\s*area)\b/i.test(message);
+      /\b(dimension|measurement|square\s*(feet|metres?|meters?|m2|ft2?)|floor\s*area)\b/i.test(message) ||
+      /\bwhat\s+size\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|house|home|room)/i.test(message) ||
+      /\bhow\s+(big|large)\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|house|home|room)/i.test(message) ||
+      /\b(living\s*room|bedroom|kitchen|bathroom|room)\s+(size|dimensions?|measurements?|area)\b/i.test(message);
     
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
+    const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
 
     // STEP 5: Generate Response with STREAMING
     console.log('[Chat] Generating streaming response with GPT-4o-mini...');
@@ -1474,6 +1479,46 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           downloadUrl: drawing.downloadUrl,
           explanation: drawingExplanation,
         } : undefined,
+      });
+    }
+
+    // Handle dimension questions when no floor plan is available
+    if (isDimensionQuestionWithNoDrawing) {
+      const noDimensionsAnswer = "The drawings do not clearly specify dimensions for that room. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
+      console.log('[Chat] Dimension question detected but no floor plan available');
+      
+      // Save to database
+      try {
+        await db.insert(messages).values({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: noDimensionsAnswer,
+          question_topic: questionTopic,
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            unitUid: validatedUnitUid || null,
+            userId: userId || null,
+            chunksUsed: chunks?.length || 0,
+            model: 'gpt-4o-mini',
+            dimensionQuestionNoDrawing: true,
+          },
+        });
+      } catch (dbError) {
+        console.error('[Chat] Failed to save message:', dbError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        answer: noDimensionsAnswer,
+        source: 'dimension_no_drawing',
+        chunksUsed: chunks?.length || 0,
       });
     }
 

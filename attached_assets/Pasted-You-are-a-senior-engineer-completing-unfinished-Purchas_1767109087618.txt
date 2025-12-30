@@ -1,0 +1,138 @@
+You are a senior engineer completing unfinished Purchaser Portal wiring.
+Do NOT refactor working document logic.
+Do NOT change schema or architecture.
+Fix ONLY the remaining broken bindings.
+
+====================================
+CONTEXT (CONFIRMED STATE)
+====================================
+
+✅ Documents now:
+- Upload correctly
+- Are scoped correctly to unit (e.g. BS06)
+- Elevation plans are retrievable via AI (links working)
+
+❌ Still broken:
+1) Maps location is incorrect
+2) No "Create Post" in Noticeboard
+3) Chat cannot answer basic questions using existing documents
+
+====================================
+PART 1 — MAPS: FORCE SCHEME COORDINATES (HARD OVERRIDE)
+====================================
+
+Scheme: Rathard Park  
+Coordinates (ENTRANCE — SOURCE OF TRUTH):
+- latitude: 51.928542
+- longitude: -8.446790
+
+ACTION:
+- Hard-bind scheme geo for Rathard Park
+- Do NOT fall back to:
+  - purchaser address
+  - browser location
+  - developer defaults
+
+IMPLEMENTATION:
+- Store coordinates on scheme record if not already present
+- Map component must ONLY use scheme.latitude / scheme.longitude
+
+FILES:
+- api/schemes/get.ts
+- api/purchaser/map.ts
+- components/PurchaserMap.tsx
+
+ACCEPTANCE:
+- Map centres exactly on 51.928542, -8.446790
+- No Wicklow / Dublin fallback under any condition
+
+====================================
+PART 2 — NOTICEBOARD: ENABLE CREATE POST (PURCHASER)
+====================================
+
+Problem:
+- Noticeboard exists
+- Read-only
+- No post creation entry point
+
+FIX:
+- Add "Create Post" button for purchaser role
+- Modal or inline composer is acceptable
+- Required fields:
+  - title
+  - body
+- Optional:
+  - unit_uid (auto-filled if available)
+
+POST must save:
+- scheme_id (required)
+- author_role = "purchaser"
+- author_unit_uid (if exists)
+
+FILES:
+- components/Noticeboard.tsx
+- components/CreatePostModal.tsx (or inline)
+- api/noticeboard/create.ts
+
+ACCEPTANCE:
+- Purchaser can create a post
+- Post appears immediately in list
+- Post is visible to other purchasers in same scheme
+
+====================================
+PART 3 — CHAT: COMPLETE BASIC DOCUMENT Q&A
+====================================
+
+Chat must now handle these MINIMUM queries:
+
+1) "What size is my living room?"
+2) "Can you give me a link to my floor plans?"
+3) "Can you give me a link to my elevation plans?"
+
+Current state:
+- Elevation plan links work
+- Size-based questions fail silently
+
+FIX:
+- If architectural document exists for unit:
+  - Attempt answer using extracted text
+  - If dimensions are NOT extractable:
+    → Respond explicitly:
+      "The drawings do not clearly specify dimensions for that room."
+
+DO NOT:
+- Return "I don't have that information" if documents exist
+- Fail silently
+
+FILES:
+- api/chat/purchaser.ts
+- services/documentContextBuilder.ts
+- services/answerGuard.ts
+
+ACCEPTANCE:
+- Chat always responds with:
+  - an answer OR
+  - a clear explanation of why it cannot extract dimensions
+- Never claims documents are missing when they are present
+
+====================================
+PART 4 — NO REGRESSIONS (IMPORTANT)
+====================================
+
+Do NOT modify:
+- Smart Archive upload logic
+- Unit document scoping (this is now correct)
+- Elevation plan retrieval (already working)
+
+====================================
+DELIVERABLE
+====================================
+
+Implement fixes.
+Confirm:
+- Map centres correctly
+- Create Post works
+- Chat answers or explains limitations
+List:
+- Files changed
+- Exact logic used for chat fallback responses
