@@ -58,12 +58,20 @@ function resolveDefaultRoute(role: AdminRole | null): string {
   }
 }
 
-function isRoleAllowedForPath(role: AdminRole, pathname: string): boolean {
+function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean {
+  if (!role) {
+    return false;
+  }
+  
   if (role === 'super_admin') {
     return true;
   }
   
   if (pathname.startsWith('/super')) {
+    return false;
+  }
+  
+  if (pathname.startsWith('/admin')) {
     return false;
   }
   
@@ -92,10 +100,8 @@ export async function middleware(req: NextRequest) {
   const isLoginPage = pathname === '/login';
   const isAccessPendingPage = pathname === '/access-pending';
   
-  if (isPublicPath(pathname)) {
-    if (!isLoginPage) {
-      return res;
-    }
+  if (isPublicPath(pathname) && !isLoginPage) {
+    return res;
   }
 
   const supabase = createMiddlewareClient({ req, res });
@@ -126,10 +132,23 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAuthenticated && isProtectedPath(pathname)) {
-    const adminCookie = req.cookies.get('admin_role');
-    const role = adminCookie?.value as AdminRole | undefined;
+    let role: AdminRole | null = null;
     
-    if (role && !isRoleAllowedForPath(role, pathname)) {
+    try {
+      const { data: adminData, error: adminError } = await supabase
+        .from('admins')
+        .select('role')
+        .eq('email', user!.email)
+        .single();
+      
+      if (!adminError && adminData?.role) {
+        role = adminData.role as AdminRole;
+      }
+    } catch (e) {
+      console.error('[Middleware] Error fetching admin role:', e);
+    }
+    
+    if (!isRoleAllowedForPath(role, pathname)) {
       const correctRoute = resolveDefaultRoute(role);
       return NextResponse.redirect(new URL(correctRoute, req.url));
     }
