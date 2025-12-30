@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, Building2, Check, Layers } from 'lucide-react';
-import { ArchiveScope, isAllSchemes, getSchemeId, createAllSchemesScope, createSchemeScope } from '@/lib/archive-scope';
+import { ArchiveScope, isAllSchemes, getSchemeId, createAllSchemesScope, createSchemeScope, scopeToString } from '@/lib/archive-scope';
 
 interface Development {
   id: string;
@@ -121,6 +121,7 @@ export function DevelopmentSelector({
       ? createSchemeScope(developmentId) 
       : createAllSchemesScope();
     
+    console.log('[DevelopmentSelector] Scope selected:', scopeToString(newScope));
     onScopeChange(newScope);
     if (onDevelopmentChange) {
       onDevelopmentChange(developmentId);

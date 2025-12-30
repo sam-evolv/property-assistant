@@ -8,7 +8,7 @@ import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { isAllSchemes, getSchemeId, createSchemeScope } from '@/lib/archive-scope';
+import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope, scopeToString } from '@/lib/archive-scope';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
 
@@ -76,13 +76,22 @@ export default function SmartArchivePage() {
     
     setIsLoading(true);
     try {
+      const queryPayload = {
+        tenantId,
+        mode: isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME',
+        schemeId: developmentId
+      };
+      console.log('[Archive] Outgoing archive query payload:', queryPayload);
+      
       const params = new URLSearchParams();
       params.set('tenantId', tenantId);
+      params.set('mode', isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME');
       if (developmentId) {
-        params.set('developmentId', developmentId);
+        params.set('schemeId', developmentId);
       }
       
       const response = await fetch(`/api/archive/disciplines?${params}`);
+      console.log('[Archive] Backend response status:', response.status);
       if (response.ok) {
         const data = await response.json();
         setDisciplines(data.disciplines || []);
@@ -92,7 +101,7 @@ export default function SmartArchivePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [tenantId, developmentId]);
+  }, [tenantId, developmentId, isViewingAllSchemes]);
 
   const loadHouseTypes = useCallback(async () => {
     if (!tenantId || !developmentId) {
@@ -340,11 +349,9 @@ export default function SmartArchivePage() {
   };
 
   const setDevelopmentId = (id: string | null) => {
-    if (id) {
-      setArchiveScope(createSchemeScope(id));
-    } else {
-      setArchiveScope({ type: 'ALL_SCHEMES' });
-    }
+    const newScope = id ? createSchemeScope(id) : createAllSchemesScope();
+    console.log('[Archive] Scope change:', scopeToString(newScope));
+    setArchiveScope(newScope);
   };
 
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);

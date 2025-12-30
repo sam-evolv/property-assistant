@@ -1,0 +1,108 @@
+You are a senior full-stack engineer stabilising Smart Archive scope handling.
+This is a production recovery task.
+
+---
+
+PHASE 1: NORMALISE SCOPE CONTRACT (CRITICAL)
+
+1. Define the ONLY allowed scope payload sent to the backend:
+
+type ArchiveQuery =
+  | { mode: "ALL_SCHEMES" }
+  | { mode: "SCHEME"; schemeId: string }
+
+2. Ban:
+- null
+- undefined
+- implicit scope inference
+
+Search entire codebase and remove any fallback logic using null.
+
+FILES TO CHECK:
+- CurrentContext.tsx
+- DevelopmentSwitch.tsx
+- useSmartArchive.ts
+
+---
+
+PHASE 2: BACKEND API FIX (THIS IS WHY NOTHING WORKS)
+
+Update Smart Archive list endpoint to support BOTH modes.
+
+In /api/smart-archive/list.ts:
+
+IF mode === "ALL_SCHEMES":
+  - Query documents WHERE developer_id = current developer
+  - DO NOT JOIN OR FILTER BY scheme_id
+  - Return documents grouped by category
+
+IF mode === "SCHEME":
+  - Query documents WHERE scheme_id = provided schemeId
+
+Reject any request missing mode explicitly with 400 + message.
+
+This endpoint must NEVER error for ALL_SCHEMES.
+
+---
+
+PHASE 3: REMOVE SCHEME EXISTENCE DEPENDENCY
+
+Right now the UI assumes:
+"No schemes returned" == "Nothing to show"
+
+This is WRONG.
+
+Fix rendering rules:
+
+1. “No Schemes Found” screen should ONLY appear when:
+   - Developer has zero schemes total (from /schemes endpoint)
+
+2. Smart Archive grid rendering should depend ONLY on:
+   - document count returned
+
+FILES:
+- SmartArchiveEmptyState.tsx
+- SmartArchivePage.tsx
+
+---
+
+PHASE 4: DEVELOPMENT SWITCH FIX
+
+Update DevelopmentSwitch:
+
+- "All Schemes" → dispatch { mode: "ALL_SCHEMES" }
+- Scheme selected → dispatch { mode: "SCHEME", schemeId }
+
+Persist exactly this object to sessionStorage.
+No transformation later.
+
+FILES:
+- DevelopmentSwitch.tsx
+- CurrentContext.tsx
+
+---
+
+PHASE 5: TEMPORARY SAFETY LOGGING
+
+Add temporary console logging (remove later):
+
+- Log outgoing archive query payload
+- Log backend response status
+
+Purpose: confirm ALL_SCHEMES path executes cleanly.
+
+FILES:
+- useSmartArchive.ts
+- /api/smart-archive/list.ts
+
+---
+
+EXPECTED RESULT:
+
+- All Schemes shows combined documents immediately
+- Longview Park shows ONLY Longview documents
+- Rathard Park shows ONLY Rathard documents
+- No “No Schemes Found” unless schemes truly do not exist
+- No 400 / 500 errors on archive switching
+
+This is a stabilisation patch. Do not refactor further in this pass.
