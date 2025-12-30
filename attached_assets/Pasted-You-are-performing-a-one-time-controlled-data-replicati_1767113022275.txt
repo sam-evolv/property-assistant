@@ -1,0 +1,121 @@
+You are performing a one-time, controlled data replication inside Supabase
+for the OpenHouse Smart Archive.
+
+GOAL
+-----
+Copy ALL documents from Longview Park into Rathard Park
+EXCEPT Architectural documents.
+
+This is intentional:
+• Architectural drawings are scheme-specific → DO NOT COPY
+• All other documentation is identical across both schemes
+• This saves manual upload time
+
+DO NOT change schemas.
+DO NOT touch embeddings logic.
+DO NOT modify UI.
+DO NOT duplicate files in storage buckets.
+Only duplicate database references / metadata rows.
+
+--------------------------------------------------
+SOURCE SCHEME
+--------------------------------------------------
+Scheme name: Longview Park
+(or scheme_id resolved via name)
+
+--------------------------------------------------
+TARGET SCHEME
+--------------------------------------------------
+Scheme name: Rathard Park
+(or scheme_id resolved via name)
+
+--------------------------------------------------
+DOCUMENT DISCIPLINES TO COPY
+--------------------------------------------------
+✅ Handover Documentation
+✅ Mechanical
+✅ Electrical
+(If discipline is stored as enum/string, match exactly)
+
+--------------------------------------------------
+DOCUMENT DISCIPLINE TO EXCLUDE
+--------------------------------------------------
+❌ Architectural
+(MUST NOT be copied under any circumstances)
+
+--------------------------------------------------
+STEP 1 — IDENTIFY SOURCE DOCUMENTS
+--------------------------------------------------
+Query Smart Archive documents table where:
+• scheme_id = Longview Park
+• discipline IN ('handover', 'mechanical', 'electrical')
+
+Explicitly exclude:
+• discipline = 'architectural'
+
+Confirm result count before writing.
+
+--------------------------------------------------
+STEP 2 — DUPLICATION RULES
+--------------------------------------------------
+For each qualifying document:
+• Create a NEW row for Rathard Park
+• Keep the SAME:
+    - file_path / storage_key
+    - filename
+    - mime_type
+    - size
+    - ai_index_status
+• Update ONLY:
+    - scheme_id → Rathard Park
+    - created_at → now()
+    - uploaded_by → system / admin
+    - any scheme-scoped foreign keys
+
+DO NOT re-upload files.
+DO NOT create duplicate blobs in storage.
+This is metadata reuse only.
+
+--------------------------------------------------
+STEP 3 — EMBEDDINGS / AI INDEX
+--------------------------------------------------
+If embeddings already exist:
+• Reuse existing embedding reference
+OR
+• Mark document as indexed = true
+
+DO NOT re-embed unless architecture strictly requires scheme-scoped vectors.
+If embeddings are scheme-scoped, enqueue re-index AFTER copy.
+
+--------------------------------------------------
+STEP 4 — SAFETY CHECKS
+--------------------------------------------------
+Before insert:
+• Ensure Rathard Park does NOT already have a document with:
+    - same filename
+    - same discipline
+    - same storage_key
+If exists → SKIP (idempotent operation)
+
+--------------------------------------------------
+STEP 5 — POST-COPY VERIFICATION
+--------------------------------------------------
+After operation:
+• Log counts:
+    - Documents copied per discipline
+• Verify Rathard Park Smart Archive shows:
+    - Handover docs populated
+    - Mechanical docs populated
+    - Electrical docs populated
+    - Architectural unchanged
+
+--------------------------------------------------
+ABSOLUTE CONSTRAINTS
+--------------------------------------------------
+❌ Do NOT copy Architectural documents
+❌ Do NOT touch Longview Park originals
+❌ Do NOT modify UI logic
+❌ Do NOT create new storage files
+❌ Do NOT infer or guess disciplines
+
+This is a direct, deterministic copy.
