@@ -41,6 +41,32 @@ function isProtectedPath(pathname: string): boolean {
 
 type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
 
+const ROLE_PRECEDENCE: Record<AdminRole, number> = {
+  'developer': 1,
+  'tenant_admin': 2,
+  'admin': 3,
+  'super_admin': 4,
+};
+
+function getEffectiveRole(roles: AdminRole[]): AdminRole | null {
+  if (!roles || roles.length === 0) {
+    return null;
+  }
+  
+  if (roles.length === 1) {
+    return roles[0];
+  }
+  
+  const sorted = [...roles].sort((a, b) => {
+    const priorityA = ROLE_PRECEDENCE[a] ?? 999;
+    const priorityB = ROLE_PRECEDENCE[b] ?? 999;
+    return priorityA - priorityB;
+  });
+  
+  console.log('[Middleware] Multiple roles detected:', roles, '-> effective:', sorted[0]);
+  return sorted[0];
+}
+
 function resolveDefaultRoute(role: AdminRole | null): string {
   if (!role) {
     return '/access-pending';
@@ -132,24 +158,29 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAuthenticated && isProtectedPath(pathname)) {
-    let role: AdminRole | null = null;
+    const roles: AdminRole[] = [];
     
     try {
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('role')
-        .eq('email', user!.email)
-        .single();
+        .eq('email', user!.email);
       
-      if (!adminError && adminData?.role) {
-        role = adminData.role as AdminRole;
+      if (!adminError && adminData && adminData.length > 0) {
+        for (const record of adminData) {
+          if (record.role) {
+            roles.push(record.role as AdminRole);
+          }
+        }
       }
     } catch (e) {
-      console.error('[Middleware] Error fetching admin role:', e);
+      console.error('[Middleware] Error fetching admin roles:', e);
     }
     
-    if (!isRoleAllowedForPath(role, pathname)) {
-      const correctRoute = resolveDefaultRoute(role);
+    const effectiveRole = getEffectiveRole(roles);
+    
+    if (!isRoleAllowedForPath(effectiveRole, pathname)) {
+      const correctRoute = resolveDefaultRoute(effectiveRole);
       return NextResponse.redirect(new URL(correctRoute, req.url));
     }
   }

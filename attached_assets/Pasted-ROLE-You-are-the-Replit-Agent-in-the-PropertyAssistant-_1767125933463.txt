@@ -1,0 +1,86 @@
+ROLE: You are the Replit Agent in the PropertyAssistant repo (apps/unified-portal). Fix post-login routing so the login flow ALWAYS lands the user in the correct dashboard. The current behaviour sends the logged-in user to the Enterprise Admin Dashboard even when they should be in the Developer Dashboard.
+
+CRITICAL CONTEXT
+- The email sam@evolvai.ie (or similar) currently has BOTH “enterprise admin” and “developer” capabilities in the database.
+- This causes ambiguous routing. The system must have deterministic precedence rules.
+- For this product, if a user has developer access, they must land in the Developer Dashboard by default (unless they are explicitly choosing “Enterprise Admin” mode).
+
+NON-NEGOTIABLE OUTCOME
+1) Default landing for any user with developer access is the Developer Dashboard (the UI shown in the screenshot).
+2) Enterprise Admin dashboard must NOT be the default landing unless the user explicitly selects it (or has no developer access at all).
+3) Super Admin can continue to route to /super by default, but if they also have developer access, they should still be able to switch to Developer Dashboard.
+4) Add a clean “Switch Workspace” control (optional if time tight), but at minimum fix the default redirect.
+
+IMPLEMENTATION STRATEGY (DO THIS)
+A) Make post-login routing resolve “effective role” with precedence.
+B) Ensure middleware and login page use the same resolver.
+C) If multiple roles exist, choose Developer as the default landing.
+
+PHASE 0 - FIND THE CURRENT ROUTE RESOLVER
+1) Open:
+   - apps/unified-portal/lib/auth/resolvePostLoginRoute.ts
+   - apps/unified-portal/app/login/page.tsx
+   - apps/unified-portal/middleware.ts
+2) Identify how the role is fetched:
+   - Which table(s): admins, profiles, user_roles, etc.
+   - Whether multiple rows per user exist.
+3) Confirm the current precedence logic (likely “first match wins” or defaults to /admin).
+
+PHASE 1 - INTRODUCE EXPLICIT ROLE PRECEDENCE (developer first)
+1) Replace any “single role string” assumption with:
+   - roles: string[] (user can have multiple)
+2) Implement precedence rules:
+   - If roles includes "super_admin" -> route /super ONLY IF user is intending super mode (see Phase 2)
+   - If roles includes "developer_admin" OR "developer" -> default route /developer/overview
+   - Else if roles includes "enterprise_admin" OR "admin" -> route /admin/overview
+   - Else -> /access-pending
+3) FOR NOW (to satisfy the requirement immediately):
+   - If user has BOTH developer + enterprise admin, DEFAULT to /developer/overview.
+
+PHASE 2 - OPTIONAL BUT RECOMMENDED: LAST-USED DASHBOARD PREFERENCE
+Goal: If Sam wants to use Enterprise Admin sometimes, allow it without breaking defaults.
+1) Store “preferred_portal” in a safe, server-validated place:
+   - Option A (fast): cookie set by server endpoint (signed with SESSION_SECRET)
+   - Option B (better): user profile column in Supabase (preferred_portal enum)
+2) Routing rule:
+   - If preferred_portal exists and user has permission for it, route there.
+   - Otherwise fall back to precedence (Developer first).
+3) Add a small UI control in top-left user menu:
+   - “Switch to Enterprise Admin” and “Switch to Developer”
+   - When clicked, call /api/auth/set-preferred-portal then redirect.
+
+PHASE 3 - FIX DATA MODEL AMBIGUITY (dedupe / unify)
+The likely cause is duplicated role records. Make role retrieval robust:
+1) If roles are stored as multiple rows (admins table etc), query all rows for that user_id and build a unique set.
+2) Ensure the resolver never uses “first row” as truth.
+3) Add a safe debug log (server-side only) when multiple roles exist:
+   - user_id, roles[], selectedRoute.
+
+PHASE 4 - HARDEN MIDDLEWARE
+1) In middleware.ts:
+   - If user is logged in and hits /admin but they have developer role and preferred_portal != admin, redirect to /developer/overview.
+   - If user hits /developer and they have only admin role, redirect to /admin/overview.
+2) Ensure no loop:
+   - Only redirect if currentPath is not already the target path.
+
+PHASE 5 - VERIFICATION (MUST PASS)
+1) Login as Sam’s account (multi-role):
+   - Expected: lands on /developer/overview (Developer Dashboard screenshot).
+2) Login as a pure developer (developer role only):
+   - Expected: /developer/overview.
+3) Login as enterprise admin only:
+   - Expected: /admin/overview.
+4) Directly paste /admin URL while logged in as developer:
+   - Expected: redirect to /developer/overview (unless preference is admin).
+5) Confirm the marketing site “Login” button points to /login and this routing works reliably.
+
+DELIVERABLES
+- Updated resolvePostLoginRoute to support multiple roles and enforce precedence (Developer first).
+- Updated login page to use the resolver output.
+- Updated middleware to enforce correct portal routing and prevent wrong landing.
+- (Optional) Preferred portal persistence + switch control (if time allows).
+
+START NOW
+1) Implement role aggregation + precedence in resolvePostLoginRoute.
+2) Wire login page + middleware to the new resolver.
+3) Test with Sam’s multi-role account to confirm default landing is Developer Dashboard.
