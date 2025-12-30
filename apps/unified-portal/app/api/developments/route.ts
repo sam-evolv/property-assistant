@@ -21,14 +21,23 @@ export async function GET(request: NextRequest) {
     const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     
-    console.log('[Developments API] Fetching from both Drizzle and Supabase...');
+    console.log('[Developments API] Fetching developments...');
     
-    const [drizzleDevs, supabaseResult] = await Promise.all([
-      db.select().from(developments).orderBy(sql`created_at DESC`),
-      supabaseAdmin.from('projects').select('id, name, address, image_url, organization_id, created_at')
-    ]);
+    let drizzleDevs: any[] = [];
+    let drizzleError: Error | null = null;
+    
+    try {
+      drizzleDevs = await db.select().from(developments).orderBy(sql`created_at DESC`);
+      console.log('[Developments API] Drizzle developments:', drizzleDevs.length);
+    } catch (err) {
+      drizzleError = err instanceof Error ? err : new Error('Drizzle query failed');
+      console.error('[Developments API] Drizzle error (falling back to Supabase):', drizzleError.message);
+    }
+    
+    const supabaseResult = await supabaseAdmin
+      .from('projects')
+      .select('id, name, address, image_url, organization_id, created_at');
 
-    console.log('[Developments API] Drizzle developments:', drizzleDevs.length);
     console.log('[Developments API] Supabase projects:', supabaseResult.data?.length || 0);
 
     if (supabaseResult.error) {

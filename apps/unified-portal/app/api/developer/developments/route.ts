@@ -46,8 +46,9 @@ export async function GET(request: NextRequest) {
 
     console.log('[Developer Developments API] Fetching for tenant:', tenantId, 'role:', role);
 
-    const [drizzleDevs, supabaseResult] = await Promise.all([
-      db.select({
+    let drizzleDevs: any[] = [];
+    try {
+      drizzleDevs = await db.select({
         id: developments.id,
         name: developments.name,
         code: developments.code,
@@ -59,14 +60,18 @@ export async function GET(request: NextRequest) {
       })
         .from(developments)
         .where(eq(developments.tenant_id, tenantId))
-        .orderBy(sql`name ASC`),
-      supabaseAdmin
-        .from('projects')
-        .select('id, name, address, organization_id, created_at')
-        .eq('organization_id', tenantId)
-    ]);
+        .orderBy(sql`name ASC`);
+      console.log('[Developer Developments API] Drizzle:', drizzleDevs.length);
+    } catch (drizzleErr) {
+      console.warn('[Developer Developments API] Drizzle fetch failed (falling back to Supabase):', 
+        drizzleErr instanceof Error ? drizzleErr.message : 'Unknown error');
+    }
 
-    console.log('[Developer Developments API] Drizzle:', drizzleDevs.length);
+    const supabaseResult = await supabaseAdmin
+      .from('projects')
+      .select('id, name, address, organization_id, created_at')
+      .eq('organization_id', tenantId);
+
     console.log('[Developer Developments API] Supabase:', supabaseResult.data?.length || 0);
 
     if (supabaseResult.error) {
