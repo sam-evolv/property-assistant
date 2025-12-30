@@ -1,0 +1,159 @@
+You are fixing incorrect data binding in Purchaser Portal → My Home modal.
+DO NOT hardcode addresses or stats.
+DO NOT change styling beyond what’s required to display correct values.
+Goal: everything comes from Supabase tables (scheme + unit), with safe fallbacks.
+
+========================================
+CURRENT BUGS (CONFIRMED)
+========================================
+1) Address is wrong and appears hardcoded:
+   Needs to be exactly:
+   "Rathard Park, Lahardane, Ballyvolane, Cork City"
+
+2) Address is being placed incorrectly:
+   Under "Welcome, Longview Estates" the subline shows "25"
+   It must show the full address string (above), sourced from Supabase.
+
+3) Bedrooms & Bathrooms are now showing “-” (null/undefined)
+   Must show: 3 bedrooms, 3 bathrooms for this unit (BS06).
+
+4) Development card shows scheme name and partial locality, but must use the scheme’s full address fields.
+
+========================================
+SOURCE OF TRUTH (DO NOT HARDCODE)
+========================================
+Supabase tables already contain this from the uploaded spreadsheet:
+- schemes (or developments) table:
+    id, name, address_line_1, address_line_2, locality, city, county, eircode, lat, lng, etc.
+- units table:
+    id, scheme_id, house_type_code, bedrooms, bathrooms, address_line_1, etc.
+
+Rules:
+- Welcome header subline = Scheme full address string (derived from scheme record)
+- Development block = scheme.name + same scheme address string
+- Bedrooms/Bathrooms = unit.bedrooms / unit.bathrooms (not inferred from house type)
+
+========================================
+STEP 1 — IDENTIFY EXACT TABLES + FIELDS
+========================================
+Search codebase for:
+- Supabase query that powers My Home modal
+- Any hardcoded address strings
+- Any placeholders showing “25”
+Files likely:
+- components/purchaser/MyHomeModal.tsx
+- components/purchaser/MyHomeHeader.tsx
+- components/purchaser/MyHomeStats.tsx
+- app/purchaser/(routes)/homeowners/[id]/page.tsx
+- lib/supabase/queries/*.ts
+- services/purchaserHome.ts
+- api/purchaser/home.ts
+
+Also search for:
+- "Welcome, Longview Estates"
+- "DEVELOPMENT"
+- "25"
+- "Rathard"
+- "address"
+- "bedrooms"
+- "bathrooms"
+
+========================================
+STEP 2 — FIX QUERY TO RETURN SCHEME + UNIT
+========================================
+Ensure the backend returns a single payload that includes:
+- unit: { id, scheme_id, house_type_code, bedrooms, bathrooms, ... }
+- scheme: { id, name, address fields... }
+
+If the current API only returns unit, extend it to join scheme:
+- Supabase join:
+   units -> schemes on scheme_id
+OR two queries in one handler.
+
+Acceptance:
+- For a unit in Rathard Park, payload includes correct scheme fields.
+- Bedrooms/bathrooms are present (not null). If null in DB, that is a data issue; log it loudly.
+
+========================================
+STEP 3 — ADDRESS COMPOSITION (NO HARDCODE)
+========================================
+Implement a single helper:
+formatSchemeAddress(scheme) -> string
+
+Priority (use whichever fields exist in DB):
+- scheme.name (NOT included in address string for the header subline unless specified)
+- scheme.address_line_1 (optional)
+- scheme.address_line_2 (optional)
+- scheme.locality (Lahardane)
+- scheme.city (Ballyvolane OR Cork City depending on schema)
+- scheme.county (optional)
+- If there is a single “full_address” field in DB, use that directly.
+
+Required output for Rathard Park MUST render as:
+"Rathard Park, Lahardane, Ballyvolane, Cork City"
+
+If the DB stores:
+- scheme.name = "Rathard Park"
+- locality = "Lahardane"
+- area/suburb = "Ballyvolane"
+- city = "Cork City"
+Then format exactly in that order:
+`${name}, ${locality}, ${area}, ${city}`
+
+Do NOT invent spellings.
+Do NOT fallback to Cork unless in DB.
+
+========================================
+STEP 4 — FIX THE “25” HEADER SUBLINE
+========================================
+Currently the subline under welcome shows “25”.
+That’s wrong and indicates a wrong field binding (maybe unit number / purchaser id / bedrooms count).
+
+Replace it:
+- Under the Welcome title show the scheme address string from formatSchemeAddress(scheme)
+- Remove any leftover numeric placeholder
+
+========================================
+STEP 5 — FIX BEDROOMS/BATHROOMS DISPLAY
+========================================
+Currently showing “-” due to undefined.
+
+Implement strict display rules:
+- If unit.bedrooms is a number: show it
+- Else show "—" (em dash) AND console.warn with unit id and scheme id
+Same for bathrooms.
+
+DO NOT default to 2.
+DO NOT infer from house type.
+DO NOT show "-" (dash). Use "—" only as missing indicator.
+
+========================================
+STEP 6 — VERIFY DATA EXISTS IN SUPABASE
+========================================
+Add a temporary debug log in dev only:
+- log the unit payload returned by API
+- log the scheme payload returned by API
+Remove noisy logs after verifying.
+
+========================================
+DELIVERABLES
+========================================
+1) My Home modal shows:
+   - Bedrooms: 3
+   - Bathrooms: 3
+   - Development: Rathard Park
+   - Development address: "Rathard Park, Lahardane, Ballyvolane, Cork City"
+   - Header subline under "Welcome, Longview Estates": same address string (NOT "25")
+
+2) No hardcoded address strings anywhere in components for this modal.
+
+3) Provide list of modified files and a short explanation of what was wrong (wrong binding + missing join).
+
+========================================
+NON-NEGOTIABLE ACCEPTANCE TESTS
+========================================
+- Switch between Longview Park and Rathard Park:
+  Address and stats change correctly per scheme/unit.
+- Refresh page:
+  Values persist (not reverting).
+- No “25” appears anywhere in the My Home header.

@@ -15,23 +15,12 @@ function generateRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
-const KNOWN_DEVELOPMENTS: Record<string, { id: string; name: string; address: string }> = {
-  '57dc3919-2725-4575-8046-9179075ac88e': {
-    id: '57dc3919-2725-4575-8046-9179075ac88e',
-    name: 'Longview Park',
-    address: 'Longview Park, Cork',
-  },
-  '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': {
-    id: '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91', 
-    name: 'Rathard Park',
-    address: 'Rathard Park, Laherdan, Ballymoulin, Cork City',
-  },
-  '6d3789de-2e46-430c-bf31-22224bd878da': {
-    id: '6d3789de-2e46-430c-bf31-22224bd878da',
-    name: 'Rathard Park',
-    address: 'Rathard Park, Laherdan, Ballymoulin, Cork City',
-  },
-};
+function formatSchemeAddress(projectName: string, projectAddress: string | null): string {
+  if (projectAddress) {
+    return `${projectName}, ${projectAddress}`;
+  }
+  return projectName;
+}
 
 function getSupabaseClient() {
   return createClient(
@@ -109,28 +98,16 @@ export async function GET(request: NextRequest) {
 
     console.log('[Profile] Found unit:', supabaseUnit.id, 'Address:', supabaseUnit.address, 'unit_type_id:', supabaseUnit.unit_type_id);
 
-    let developmentName = 'Unknown Development';
-    let developmentAddress = '';
+    const { data: project } = await supabase
+      .from('projects')
+      .select('name, address')
+      .eq('id', supabaseUnit.project_id)
+      .single();
     
-    const knownDev = KNOWN_DEVELOPMENTS[supabaseUnit.project_id];
-    if (knownDev) {
-      developmentName = knownDev.name;
-      developmentAddress = knownDev.address;
-    } else {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('name, address, city, county')
-        .eq('id', supabaseUnit.project_id)
-        .single();
-      
-      if (project) {
-        developmentName = project.name || 'Unknown Development';
-        const addressParts = [project.address, project.city, project.county].filter(Boolean);
-        developmentAddress = addressParts.length > 0 
-          ? `${developmentName}, ${addressParts.join(', ')}`
-          : developmentName;
-      }
-    }
+    const developmentName = project?.name || 'Unknown Development';
+    const developmentAddress = formatSchemeAddress(developmentName, project?.address || null);
+    
+    console.log('[Profile] Project data:', { name: developmentName, address: project?.address, formatted: developmentAddress });
 
     const development = {
       id: supabaseUnit.project_id,
@@ -170,7 +147,14 @@ export async function GET(request: NextRequest) {
     console.log('[Profile] Unit type data - bedrooms:', bedrooms, 'bathrooms:', bathrooms, 'from unit_type_id:', supabaseUnit.unit_type_id);
 
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
-    const fullAddress = supabaseUnit.address || development.address || 'Address not available';
+    
+    const unitNumber = supabaseUnit.address || '';
+    const isJustNumber = /^\d+[a-zA-Z]?$/.test(unitNumber.trim());
+    const fullAddress = isJustNumber && developmentAddress
+      ? `Unit ${unitNumber}, ${developmentAddress}`
+      : (supabaseUnit.address || developmentAddress || 'Address not available');
+    
+    console.log('[Profile] Address composition - unitNumber:', unitNumber, 'isJustNumber:', isJustNumber, 'fullAddress:', fullAddress);
 
     const documents: any[] = [];
     try {
