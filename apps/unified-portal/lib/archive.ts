@@ -33,8 +33,7 @@ function getSupabaseClient() {
   );
 }
 
-// Default project ID for ALL_SCHEMES mode (Longview Park - the only project with data)
-const DEFAULT_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+// REMOVED: No default project ID - schemeId must be passed explicitly or query ALL
 const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape', 'handover', 'other'];
 
 /**
@@ -182,15 +181,18 @@ export async function fetchDocumentsByDiscipline({
   const effectiveLimit = pageSize || limit || 50;
   
   try {
-    // ALWAYS use hardcoded Launch project ID
-    const projectId = DEFAULT_PROJECT_ID;
-    console.log('📂 Fetching documents for:', projectId);
+    console.log('📂 Fetching documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
-    const { data: sections, error } = await supabase
+    let query = supabase
       .from('document_sections')
-      .select('id, metadata, content')
-      .eq('project_id', projectId);
+      .select('id, metadata, content, project_id');
+    
+    if (developmentId) {
+      query = query.eq('project_id', developmentId);
+    }
+    
+    const { data: sections, error } = await query;
 
     if (error) {
       console.error('[Archive] Supabase error:', error.message);
@@ -204,7 +206,7 @@ export async function fetchDocumentsByDiscipline({
       const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
       
       if (!documentMap.has(source)) {
-        documentMap.set(source, createArchiveDocument(section, projectId));
+        documentMap.set(source, createArchiveDocument(section, section.project_id || developmentId || 'unknown'));
       }
     }
 
@@ -266,14 +268,18 @@ export async function countArchiveDocuments({
   developmentId?: string | null;
 }): Promise<{ total: number; indexed: number; errors: number }> {
   try {
-    // ALWAYS use hardcoded Launch project ID
-    const projectId = DEFAULT_PROJECT_ID;
+    console.log('[Archive] Counting documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
-    const { data: sections, error } = await supabase
+    let query = supabase
       .from('document_sections')
-      .select('id, metadata')
-      .eq('project_id', projectId);
+      .select('id, metadata');
+    
+    if (developmentId) {
+      query = query.eq('project_id', developmentId);
+    }
+    
+    const { data: sections, error } = await query;
 
     if (error) {
       console.error('[Archive] Supabase error:', error.message);
@@ -316,7 +322,7 @@ export async function fetchDocumentById({
     const supabase = getSupabaseClient();
     const { data: section, error } = await supabase
       .from('document_sections')
-      .select('id, metadata, content')
+      .select('id, metadata, content, project_id')
       .eq('id', documentId)
       .single();
 
@@ -325,7 +331,7 @@ export async function fetchDocumentById({
       return null;
     }
 
-    return createArchiveDocument(section, DEFAULT_PROJECT_ID);
+    return createArchiveDocument(section, section.project_id || 'unknown');
   } catch (error) {
     console.error('[Archive] Error fetching document:', error);
     return null;
@@ -372,14 +378,18 @@ export async function searchArchiveDocuments({
   limit?: number;
 }): Promise<FetchDocumentsResult> {
   try {
-    // ALWAYS use hardcoded Launch project ID
-    const projectId = DEFAULT_PROJECT_ID;
+    console.log('[Archive] Searching documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
-    const { data: sections, error } = await supabase
+    let dbQuery = supabase
       .from('document_sections')
-      .select('id, metadata, content')
-      .eq('project_id', projectId);
+      .select('id, metadata, content, project_id');
+    
+    if (developmentId) {
+      dbQuery = dbQuery.eq('project_id', developmentId);
+    }
+    
+    const { data: sections, error } = await dbQuery;
 
     if (error) {
       console.error('[Archive] Supabase error:', error.message);
@@ -393,7 +403,7 @@ export async function searchArchiveDocuments({
       const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
       
       if (!documentMap.has(source)) {
-        documentMap.set(source, createArchiveDocument(section, projectId));
+        documentMap.set(source, createArchiveDocument(section, section.project_id || 'unknown'));
       }
     }
 
@@ -430,14 +440,15 @@ export async function searchArchiveDocuments({
 export async function deleteDocument({
   documentId,
   fileName,
+  schemeId,
 }: {
   documentId?: string;
   fileName?: string;
+  schemeId?: string;
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   try {
-    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
-    console.log('[Archive] Deleting document:', { documentId, fileName, projectId });
+    console.log('[Archive] Deleting document:', { documentId, fileName, schemeId });
 
     if (!documentId && !fileName) {
       return { success: false, deletedCount: 0, error: 'Either documentId or fileName is required' };
@@ -445,8 +456,11 @@ export async function deleteDocument({
 
     let query = supabase
       .from('document_sections')
-      .delete()
-      .eq('project_id', projectId);
+      .delete();
+    
+    if (schemeId) {
+      query = query.eq('project_id', schemeId);
+    }
 
     if (fileName) {
       query = query.or(`metadata->>source.eq.${fileName},metadata->>file_name.eq.${fileName}`);
@@ -477,21 +491,27 @@ export async function updateDocumentFlags({
   fileName,
   isImportant,
   mustRead,
+  schemeId,
 }: {
   fileName: string;
   isImportant?: boolean;
   mustRead?: boolean;
+  schemeId?: string;
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
-    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
-    console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, projectId });
+    console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, schemeId });
 
-    // Fetch all sections for this project then filter in JS (handles special characters)
-    const { data: allSections, error: fetchError } = await supabase
+    // Fetch sections then filter in JS (handles special characters)
+    let fetchQuery = supabase
       .from('document_sections')
-      .select('id, metadata')
-      .eq('project_id', projectId);
+      .select('id, metadata');
+    
+    if (schemeId) {
+      fetchQuery = fetchQuery.eq('project_id', schemeId);
+    }
+    
+    const { data: allSections, error: fetchError } = await fetchQuery;
 
     if (fetchError) {
       console.error('[Archive] Supabase fetch error:', fetchError.message);
@@ -542,19 +562,25 @@ export async function updateDocumentFlags({
 export async function assignDocumentToFolder({
   fileName,
   folderId,
+  schemeId,
 }: {
   fileName: string;
   folderId: string | null;
+  schemeId?: string;
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
-    const projectId = DEFAULT_PROJECT_ID;
     const supabase = getSupabaseClient();
-    console.log('[Archive] Assigning document to folder:', { fileName, folderId, projectId });
+    console.log('[Archive] Assigning document to folder:', { fileName, folderId, schemeId });
 
-    const { data: allSections, error: fetchError } = await supabase
+    let fetchQuery = supabase
       .from('document_sections')
-      .select('id, metadata')
-      .eq('project_id', projectId);
+      .select('id, metadata');
+    
+    if (schemeId) {
+      fetchQuery = fetchQuery.eq('project_id', schemeId);
+    }
+    
+    const { data: allSections, error: fetchError } = await fetchQuery;
 
     if (fetchError) {
       console.error('[Archive] Supabase fetch error:', fetchError.message);

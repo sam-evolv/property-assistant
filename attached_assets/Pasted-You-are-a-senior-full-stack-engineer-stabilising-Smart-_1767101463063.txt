@@ -1,0 +1,181 @@
+You are a senior full-stack engineer stabilising Smart Archive scheme scoping.
+
+OBJECTIVE:
+Fix Smart Archive once and for all so that:
+- The selected scheme is the single source of truth
+- Uploaded documents ALWAYS persist in the selected scheme
+- Header state NEVER lies
+- “Viewing All Schemes” ONLY appears when explicitly selected
+- No documents are ever saved without a scheme_id
+
+DO NOT change product behaviour or UX.
+This is a correctness + enforcement pass only.
+
+---
+
+========================
+PART 1 — SINGLE SOURCE OF TRUTH
+========================
+
+In CurrentContext.tsx:
+
+1. ENSURE scheme scope is stored ONLY in React context.
+2. sessionStorage must be WRITE-ONLY for persistence.
+3. DELETE any logic that reads scope from storage on render.
+
+❌ REMOVE:
+- sessionStorage.getItem("scope")
+- any fallback that rehydrates scope from storage
+
+✅ KEEP:
+- sessionStorage.setItem("scope", scope) inside useEffect
+
+Storage is persistence, NOT authority.
+
+FILES:
+- context/CurrentContext.tsx
+
+---
+
+========================
+PART 2 — HEADER MUST REFLECT CONTEXT ONLY
+========================
+
+In SmartArchiveHeader.tsx:
+
+1. Read scheme ONLY from useCurrentContext().
+2. NEVER read from storage.
+3. Render logic must be:
+
+IF scope.type === "ALL_SCHEMES":
+  Show badge: “Viewing All Schemes”
+ELSE:
+  Show badge: scheme.name
+
+It must be IMPOSSIBLE for “Viewing All Schemes” to appear
+while a scheme is selected.
+
+FILES:
+- components/SmartArchiveHeader.tsx
+
+---
+
+========================
+PART 3 — HARD-LOCK UPLOAD TO SCHEME
+========================
+
+In SmartArchiveUploader.tsx:
+
+1. Read scope from useCurrentContext().
+2. If scope.type !== "SCHEME":
+   - Block upload immediately
+   - Show error: “Select a scheme before uploading documents”
+
+DO NOT allow uploads in ALL_SCHEMES mode.
+No fallback.
+No inference.
+
+FILES:
+- components/SmartArchiveUploader.tsx
+
+---
+
+========================
+PART 4 — SCHEME ID MUST BE EXPLICIT IN UPLOAD PAYLOAD
+========================
+
+Every upload request MUST include:
+
+{
+  schemeId: scope.schemeId,
+  discipline,
+  file
+}
+
+Remove any logic that:
+- infers schemeId
+- defaults to ALL_SCHEMES
+- uses developerId as fallback
+
+FILES:
+- api/smart-archive/upload.ts
+- lib/uploadDocument.ts
+
+---
+
+========================
+PART 5 — BACKEND GUARDRAIL (NON-NEGOTIABLE)
+========================
+
+In upload API handler:
+
+IF schemeId is missing or null:
+  return 400 with message:
+  “schemeId is required”
+
+NEVER accept documents without schemeId.
+
+FILES:
+- api/smart-archive/upload.ts
+
+---
+
+========================
+PART 6 — STRICT SCHEME QUERYING
+========================
+
+When fetching Smart Archive documents:
+
+IF scope.type === "SCHEME":
+  Query must be:
+  WHERE scheme_id = :schemeId
+
+NO:
+- OR scheme_id IS NULL
+- developer-wide fallbacks
+- implicit joins
+
+FILES:
+- api/smart-archive/list.ts
+- hooks/useSmartArchive.ts
+
+---
+
+========================
+PART 7 — POST-UPLOAD INVALIDATION
+========================
+
+After successful upload:
+
+Invalidate ONLY the active scheme cache:
+
+invalidateQueries([
+  "smart-archive",
+  scope.schemeId
+])
+
+DO NOT invalidate ALL_SCHEMES globally.
+
+FILES:
+- hooks/useSmartArchive.ts
+
+---
+
+EXPECTED RESULT (MUST HOLD):
+
+- Uploading while Rathard Park is selected:
+  ✔ Document saved with scheme_id = Rathard Park
+  ✔ Appears immediately under correct discipline
+  ✔ Header shows “Rathard Park”
+
+- Uploading while Longview Park is selected:
+  ✔ Isolated correctly
+
+- Upload attempt in ALL_SCHEMES:
+  ✔ Blocked
+
+- “Viewing All Schemes”:
+  ✔ Appears ONLY when explicitly selected
+
+This is a stability and data-integrity enforcement pass.
+Do not introduce new features or UX changes.
