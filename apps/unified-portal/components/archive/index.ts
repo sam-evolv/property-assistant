@@ -8,4 +8,5 @@ export { FolderCard } from './FolderCard';
 export { CreateFolderModal } from './CreateFolderModal';
 export { MoveToFolderModal } from './MoveToFolderModal';
 export { DevelopmentSelector } from './DevelopmentSelector';
+export { SchemeSelectionModal } from './SchemeSelectionModal';
 export type { ArchiveFolder } from './FolderCard';

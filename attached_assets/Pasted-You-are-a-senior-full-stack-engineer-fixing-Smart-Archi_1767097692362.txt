@@ -1,0 +1,116 @@
+You are a senior full-stack engineer fixing Smart Archive scope logic.
+
+GOAL:
+Fix Smart Archive so:
+- "All Schemes" shows a combined archive
+- Individual schemes show isolated archives
+- No "Select a Development" state appears for All Schemes
+
+---
+
+PART 1: DEFINE EXPLICIT ARCHIVE SCOPES
+
+1. Introduce a strict enum:
+
+type ArchiveScope =
+  | { type: "ALL_SCHEMES" }
+  | { type: "SCHEME"; schemeId: string }
+
+2. REMOVE all usage of:
+- null
+- undefined
+- falsy checks
+to represent archive scope
+
+Null must NEVER mean "all".
+
+---
+
+PART 2: CURRENT SCHEME DROPDOWN FIX
+
+Update DevelopmentSwitch logic:
+
+- When dropdown = "All Schemes"
+  → set scope = { type: "ALL_SCHEMES" }
+
+- When dropdown = Longview Park
+  → set scope = { type: "SCHEME", schemeId }
+
+- When dropdown = Rathard Park
+  → set scope = { type: "SCHEME", schemeId }
+
+Persist this scope cleanly in context + sessionStorage.
+
+FILES:
+- components/DevelopmentSwitch.tsx
+- context/CurrentContext.tsx
+
+---
+
+PART 3: SMART ARCHIVE DATA FETCHING
+
+Update Smart Archive query logic:
+
+IF scope.type === "ALL_SCHEMES":
+  - Fetch documents WHERE developer_id = current developer
+  - DO NOT filter by scheme_id
+
+IF scope.type === "SCHEME":
+  - Fetch documents WHERE scheme_id = scope.schemeId
+
+FILES:
+- api/smart-archive/list.ts
+- hooks/useSmartArchive.ts
+
+---
+
+PART 4: UI RENDERING RULES
+
+1. REMOVE the "Select a Development" empty state
+   EXCEPT when:
+   - No schemes exist at all for the developer
+
+2. For ALL_SCHEMES:
+   - Render category cards
+   - Aggregate file counts across schemes
+   - Allow upload (uploads must require scheme selection separately)
+
+3. For SCHEME:
+   - Render category cards scoped to that scheme only
+
+FILES:
+- components/SmartArchiveEmptyState.tsx
+- components/SmartArchiveGrid.tsx
+
+---
+
+PART 5: UPLOAD GUARD (IMPORTANT)
+
+When scope = ALL_SCHEMES:
+- Upload button must prompt:
+  "Choose scheme to upload into"
+- Prevent uploads without explicit schemeId
+
+FILES:
+- components/SmartArchiveUploader.tsx
+
+---
+
+PART 6: REMOVE BROKEN LOGIC
+
+Delete any logic that:
+- Treats "All Schemes" as null
+- Blocks archive rendering when scope is falsy
+- Assumes one scheme must always be selected
+
+Search and destroy.
+
+---
+
+DELIVERABLES:
+- Deterministic archive behaviour
+- No invalid empty states
+- Clean separation of aggregation vs isolation
+- No regressions
+
+This is production code, not a demo.

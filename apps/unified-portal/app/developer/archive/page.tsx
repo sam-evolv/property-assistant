@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { DisciplineGrid, UploadModal, DevelopmentSelector } from '@/components/archive';
+import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
+import { isAllSchemes, getSchemeId, createSchemeScope } from '@/lib/archive-scope';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
 
@@ -15,6 +16,11 @@ interface HouseType {
   id: string;
   house_type_code: string;
   name: string | null;
+}
+
+interface Development {
+  id: string;
+  name: string;
 }
 
 interface EmbeddingStats {
@@ -29,12 +35,17 @@ interface EmbeddingStats {
 type TabType = 'archive' | 'important' | 'insights';
 
 export default function SmartArchivePage() {
-  const { tenantId, developmentId, setDevelopmentId, isHydrated } = useSafeCurrentContext();
+  const { tenantId, archiveScope, setArchiveScope, isHydrated } = useSafeCurrentContext();
+  const developmentId = getSchemeId(archiveScope);
+  const isViewingAllSchemes = isAllSchemes(archiveScope);
+  
   const [disciplines, setDisciplines] = useState<DisciplineSummary[]>([]);
   const [customFolders, setCustomFolders] = useState<CustomDisciplineFolder[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
+  const [developments, setDevelopments] = useState<Development[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSchemeSelectionModal, setShowSchemeSelectionModal] = useState(false);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<CustomDisciplineFolder | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('archive');
@@ -44,6 +55,21 @@ export default function SmartArchivePage() {
   const [embeddingStats, setEmbeddingStats] = useState<EmbeddingStats | null>(null);
   const [isReprocessing, setIsReprocessing] = useState(false);
   const [reprocessProgress, setReprocessProgress] = useState<string | null>(null);
+  const [selectedUploadSchemeId, setSelectedUploadSchemeId] = useState<string | null>(null);
+
+  const loadDevelopments = useCallback(async () => {
+    if (!tenantId) return;
+    
+    try {
+      const response = await fetch('/api/developer/developments');
+      if (response.ok) {
+        const data = await response.json();
+        setDevelopments(data.developments || []);
+      }
+    } catch (error) {
+      console.error('[Archive] Failed to load developments:', error);
+    }
+  }, [tenantId]);
 
   const loadDisciplines = useCallback(async () => {
     if (!tenantId) return;
@@ -69,7 +95,10 @@ export default function SmartArchivePage() {
   }, [tenantId, developmentId]);
 
   const loadHouseTypes = useCallback(async () => {
-    if (!tenantId || !developmentId) return;
+    if (!tenantId || !developmentId) {
+      setHouseTypes([]);
+      return;
+    }
     
     try {
       const response = await fetch(`/api/developments/${developmentId}/houses`);
@@ -103,12 +132,14 @@ export default function SmartArchivePage() {
   }, [tenantId, developmentId]);
 
   const loadEmbeddingStats = useCallback(async () => {
-    if (!tenantId || !developmentId) return;
+    if (!tenantId) return;
     
     try {
       const params = new URLSearchParams();
       params.set('tenantId', tenantId);
-      params.set('developmentId', developmentId);
+      if (developmentId) {
+        params.set('developmentId', developmentId);
+      }
       
       const response = await fetch(`/developer/api/archive/reprocess-all?${params}`);
       if (response.ok) {
@@ -121,12 +152,14 @@ export default function SmartArchivePage() {
   }, [tenantId, developmentId]);
 
   const loadCustomFolders = useCallback(async () => {
-    if (!tenantId || !developmentId) return;
+    if (!tenantId) return;
     
     try {
       const params = new URLSearchParams();
       params.set('tenantId', tenantId);
-      params.set('developmentId', developmentId);
+      if (developmentId) {
+        params.set('developmentId', developmentId);
+      }
       params.set('discipline', '__root__');
       
       const response = await fetch(`/api/archive/folders?${params}`);
@@ -140,7 +173,7 @@ export default function SmartArchivePage() {
   }, [tenantId, developmentId]);
 
   const handleReprocessAll = async () => {
-    if (!tenantId || !developmentId || isReprocessing) return;
+    if (!tenantId || isReprocessing) return;
     
     setIsReprocessing(true);
     setReprocessProgress('Starting embedding generation...');
@@ -180,21 +213,43 @@ export default function SmartArchivePage() {
 
   useEffect(() => {
     if (!isHydrated || !tenantId) return;
+    loadDevelopments();
     loadDisciplines();
     loadHouseTypes();
     checkUnclassified();
     loadEmbeddingStats();
     loadCustomFolders();
-  }, [tenantId, developmentId, isHydrated, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats, loadCustomFolders]);
+  }, [tenantId, developmentId, isHydrated, loadDevelopments, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats, loadCustomFolders]);
+
+  const handleUploadClick = () => {
+    if (isViewingAllSchemes) {
+      setShowSchemeSelectionModal(true);
+    } else {
+      setShowUploadModal(true);
+    }
+  };
+
+  const handleSchemeSelected = (schemeId: string) => {
+    setSelectedUploadSchemeId(schemeId);
+    setShowSchemeSelectionModal(false);
+    setShowUploadModal(true);
+  };
 
   const handleUploadComplete = () => {
     loadDisciplines();
     checkUnclassified();
     loadEmbeddingStats();
     setShowUploadModal(false);
+    setSelectedUploadSchemeId(null);
+  };
+
+  const handleUploadModalClose = () => {
+    setShowUploadModal(false);
+    setSelectedUploadSchemeId(null);
   };
 
   const handleRefresh = () => {
+    loadDevelopments();
     loadDisciplines();
     loadHouseTypes();
     checkUnclassified();
@@ -214,7 +269,7 @@ export default function SmartArchivePage() {
 
   const handleDeleteFolder = async (folderId: string) => {
     const folder = customFolders.find(f => f.id === folderId);
-    if (!folder || !tenantId || !developmentId) return;
+    if (!folder || !tenantId) return;
     
     try {
       const response = await fetch('/api/archive/folders', {
@@ -284,10 +339,19 @@ export default function SmartArchivePage() {
     }
   };
 
+  const setDevelopmentId = (id: string | null) => {
+    if (id) {
+      setArchiveScope(createSchemeScope(id));
+    } else {
+      setArchiveScope({ type: 'ALL_SCHEMES' });
+    }
+  };
+
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
-  const otherDiscipline = disciplines.find(d => d.discipline === 'other');
-  const showClassifyBanner = developmentId && unclassifiedCount > 0;
-  const showEmbeddingBanner = developmentId && embeddingStats && embeddingStats.withoutEmbeddings > 0;
+  const showClassifyBanner = unclassifiedCount > 0;
+  const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
+  const hasNoDevelopments = developments.length === 0;
+  const uploadSchemeId = selectedUploadSchemeId || developmentId;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
@@ -301,9 +365,9 @@ export default function SmartArchivePage() {
               <div>
                 <h1 className="text-2xl font-bold text-white">Smart Archive</h1>
                 <p className="text-gray-400 mt-0.5">
-                  {developmentId 
-                    ? `${totalDocuments} documents organised by discipline`
-                    : 'Select a development to view documents'
+                  {isViewingAllSchemes 
+                    ? `${totalDocuments} documents across all schemes`
+                    : `${totalDocuments} documents organised by discipline`
                   }
                 </p>
               </div>
@@ -311,6 +375,8 @@ export default function SmartArchivePage() {
             
             <DevelopmentSelector
               tenantId={tenantId}
+              archiveScope={archiveScope}
+              onScopeChange={setArchiveScope}
               selectedDevelopmentId={developmentId}
               onDevelopmentChange={setDevelopmentId}
             />
@@ -331,9 +397,9 @@ export default function SmartArchivePage() {
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
-              {developmentId && (
+              {!hasNoDevelopments && (
                 <button
-                  onClick={() => setShowUploadModal(true)}
+                  onClick={handleUploadClick}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
                 >
                   <Plus className="w-5 h-5" />
@@ -380,6 +446,22 @@ export default function SmartArchivePage() {
           </div>
         </div>
       </div>
+
+      {isViewingAllSchemes && totalDocuments > 0 && (
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-800/20 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+              <FolderArchive className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-white font-medium">Viewing All Schemes</p>
+              <p className="text-gray-400 text-sm">
+                Documents from all {developments.length} scheme{developments.length !== 1 ? 's' : ''} are shown below
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showClassifyBanner && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
@@ -458,7 +540,7 @@ export default function SmartArchivePage() {
         </div>
       )}
 
-      {developmentId && embeddingStats && !showEmbeddingBanner && (
+      {embeddingStats && !showEmbeddingBanner && embeddingStats.totalDocuments > 0 && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
           <div className="bg-gradient-to-r from-green-900/30 to-emerald-800/20 border border-green-500/30 rounded-xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
@@ -476,14 +558,14 @@ export default function SmartArchivePage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
-          !developmentId ? (
+          hasNoDevelopments ? (
             <div className="text-center py-20">
               <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                <FolderArchive className="w-10 h-10 text-gray-600" />
+                <AlertCircle className="w-10 h-10 text-gray-600" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Select a Development</h3>
+              <h3 className="text-xl font-semibold text-white mb-2">No Schemes Found</h3>
               <p className="text-gray-400 max-w-md mx-auto">
-                Choose a development from the sidebar to view its document archive.
+                No schemes have been created for your organisation yet. Create a scheme to start uploading documents.
               </p>
             </div>
           ) : (
@@ -491,7 +573,7 @@ export default function SmartArchivePage() {
               disciplines={disciplines} 
               customFolders={customFolders}
               isLoading={isLoading}
-              showNewFolderButton={true}
+              showNewFolderButton={!isViewingAllSchemes}
               onCreateFolder={handleCreateFolder}
               onEditFolder={handleEditFolder}
               onDeleteFolder={handleDeleteFolder}
@@ -504,14 +586,25 @@ export default function SmartArchivePage() {
         )}
       </div>
 
-      {tenantId && developmentId && (
+      {tenantId && uploadSchemeId && (
         <UploadModal
           isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
+          onClose={handleUploadModalClose}
           onUploadComplete={handleUploadComplete}
           tenantId={tenantId}
-          developmentId={developmentId}
+          developmentId={uploadSchemeId}
           houseTypes={houseTypes}
+        />
+      )}
+
+      {tenantId && (
+        <SchemeSelectionModal
+          isOpen={showSchemeSelectionModal}
+          onClose={() => setShowSchemeSelectionModal(false)}
+          onSchemeSelected={handleSchemeSelected}
+          developments={developments}
+          title="Choose Scheme for Upload"
+          description="Select which scheme to upload documents into"
         />
       )}
 

@@ -73,6 +73,24 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Smart Archive Scope Refactoring (December 2025)
+
+Refactored Smart Archive to use explicit ArchiveScope types instead of null/undefined:
+
+**Key Changes:**
+- Created `ArchiveScope` type: `ALL_SCHEMES | { type: 'SCHEME', schemeId: string }`
+- Updated `CurrentContext` to use `archiveScope` instead of relying on null for "All Schemes"
+- `DevelopmentSelector` now properly sets scope to ALL_SCHEMES or specific SCHEME
+- Archive page shows documents for ALL_SCHEMES without "Select a Development" empty state
+- Upload guard: when in ALL_SCHEMES mode, user must select a scheme before uploading
+- Must-read documents tab explains why scheme selection is required (per-scheme feature)
+
+**Known Security Issue - Hardcoded PROJECT_ID:**
+The Smart Archive currently uses a hardcoded `PROJECT_ID` in several endpoints, bypassing tenant isolation:
+- `apps/unified-portal/lib/archive.ts` - `fetchArchiveDisciplines`
+- `apps/unified-portal/app/developer/api/archive/upload/route.ts`
+This is a systemic issue requiring significant refactoring to properly scope by tenant.
+
 ### Beta Control Room Enhancement & Units Fix (December 2025)
 
 Fixed production issues in Super Admin Units page and enhanced Beta Control Room analytics clarity:

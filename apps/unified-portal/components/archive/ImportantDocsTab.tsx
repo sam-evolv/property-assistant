@@ -168,9 +168,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
         <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
           <Star className="w-10 h-10 text-gray-600" />
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">Select a Development</h3>
+        <h3 className="text-xl font-semibold text-white mb-2">Select a Scheme</h3>
         <p className="text-gray-400 max-w-md mx-auto">
-          Choose a development from the sidebar to manage must-read documents.
+          Must-read documents are scheme-specific. Select a scheme from the dropdown above to manage its must-read documents.
         </p>
       </div>
     );
