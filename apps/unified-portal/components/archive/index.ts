@@ -7,4 +7,5 @@ export { UploadModal } from './UploadModal';
 export { FolderCard } from './FolderCard';
 export { CreateFolderModal } from './CreateFolderModal';
 export { MoveToFolderModal } from './MoveToFolderModal';
+export { DevelopmentSelector } from './DevelopmentSelector';
 export type { ArchiveFolder } from './FolderCard';

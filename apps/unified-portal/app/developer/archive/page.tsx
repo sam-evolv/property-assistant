@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star } from 'lucide-react';
 import Link from 'next/link';
-import { DisciplineGrid, UploadModal } from '@/components/archive';
+import { DisciplineGrid, UploadModal, DevelopmentSelector } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
@@ -29,7 +29,7 @@ interface EmbeddingStats {
 type TabType = 'archive' | 'important' | 'insights';
 
 export default function SmartArchivePage() {
-  const { tenantId, developmentId, isHydrated } = useSafeCurrentContext();
+  const { tenantId, developmentId, setDevelopmentId, isHydrated } = useSafeCurrentContext();
   const [disciplines, setDisciplines] = useState<DisciplineSummary[]>([]);
   const [customFolders, setCustomFolders] = useState<CustomDisciplineFolder[]>([]);
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
@@ -308,6 +308,12 @@ export default function SmartArchivePage() {
                 </p>
               </div>
             </div>
+            
+            <DevelopmentSelector
+              tenantId={tenantId}
+              selectedDevelopmentId={developmentId}
+              onDevelopmentChange={setDevelopmentId}
+            />
             
             <div className="flex items-center gap-3">
               <Link
