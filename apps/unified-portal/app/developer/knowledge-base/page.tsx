@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SkeletonCard } from '@/components/ui/SkeletonLoader';
 import { useCurrentContext } from '@/contexts/CurrentContext';
+import { isAllSchemes } from '@/lib/archive-scope';
 
 interface FAQEntry {
   id: string;
@@ -76,7 +77,7 @@ const TOPIC_OPTIONS = [
 ];
 
 export default function KnowledgeBasePage() {
-  const { developmentId } = useCurrentContext();
+  const { developmentId, archiveScope } = useCurrentContext();
   const [activeTab, setActiveTab] = useState<TabType>('faqs');
   const [faqs, setFaqs] = useState<FAQEntry[]>([]);
   const [questions, setQuestions] = useState<QuestionInsight[]>([]);
@@ -98,14 +99,16 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     fetchData();
-  }, [developmentId]);
+  }, [developmentId, archiveScope]);
 
   const fetchData = async () => {
     setLoading(true);
+    const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId;
     try {
+      const devIdParam = effectiveDevelopmentId ? `developmentId=${effectiveDevelopmentId}` : '';
       const [faqsRes, questionsRes, requestsRes] = await Promise.all([
-        fetch(`/api/developer/faq${developmentId ? `?developmentId=${developmentId}` : ''}`).catch(() => null),
-        fetch('/api/analytics/platform/top-questions?days=30').catch(() => null),
+        fetch(`/api/developer/faq${effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : ''}`).catch(() => null),
+        fetch(`/api/analytics-v2/question-analysis?days=30&limit=20${devIdParam ? `&${devIdParam}` : ''}`).catch(() => null),
         fetch('/api/information-requests').catch(() => null),
       ]);
 

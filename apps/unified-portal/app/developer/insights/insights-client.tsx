@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, TrendingUp, CheckCircle2, HelpCircle, Upload, Plus, ArrowLeft, MessageSquare, Eye, Inbox, Send, X } from 'lucide-react';
+import { useCurrentContext } from '@/contexts/CurrentContext';
+import { isAllSchemes } from '@/lib/archive-scope';
 
 interface Question {
   question: string;
@@ -47,6 +49,9 @@ interface InsightsClientProps {
 }
 
 export default function InsightsClient({ tenantId }: InsightsClientProps) {
+  const { archiveScope, developmentId } = useCurrentContext();
+  const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
+  
   const [data, setData] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'faq' | 'gaps' | 'requests'>('requests');
@@ -60,21 +65,23 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
   useEffect(() => {
     const loadInsights = async () => {
       try {
-        // Fetch real metrics from platform overview
-        const metricsRes = await fetch(`/api/analytics/platform/overview`);
+        const devIdParam = effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : '';
+        
+        // Fetch real metrics from analytics summary (scheme-aware) - cache bust for scheme changes
+        const metricsRes = await fetch(`/api/analytics/summary?scope=developer&developer_id=${tenantId}${effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : ''}&time_window=30d`, { cache: 'no-store' });
         let realMetrics = { totalMessages: 0, activeUsers: 0, engagementRate: 0 };
         
         if (metricsRes.ok) {
           const metricsData = await metricsRes.json();
           realMetrics = {
-            totalMessages: metricsData.total_messages || 0,
-            activeUsers: metricsData.active_homeowners_7d || 0,
-            engagementRate: metricsData.total_homeowners > 0 ? ((metricsData.active_homeowners_7d / metricsData.total_homeowners) * 100) : 0,
+            totalMessages: metricsData.questions_in_window || 0,
+            activeUsers: metricsData.active_units_in_window || 0,
+            engagementRate: metricsData.active_units_in_window > 0 ? Math.min(100, (metricsData.questions_in_window / (metricsData.active_units_in_window * 10)) * 100) : 0,
           };
         }
 
-        // Fetch question analysis data
-        const qRes = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20`);
+        // Fetch question analysis data (scheme-aware) - cache bust for scheme changes
+        const qRes = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20${devIdParam}`, { cache: 'no-store' });
         let qData: any = { topQuestions: [], categories: [] };
         
         if (qRes.ok) {
@@ -109,7 +116,7 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
     };
 
     loadInsights();
-  }, [tenantId]);
+  }, [tenantId, effectiveDevelopmentId]);
 
   // Fetch information requests
   useEffect(() => {

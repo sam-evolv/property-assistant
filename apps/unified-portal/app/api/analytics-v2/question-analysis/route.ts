@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
-import { sql } from 'drizzle-orm';
+import { sql, and, gte, isNotNull, eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +10,21 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
     const limit = parseInt(searchParams.get('limit') || '20');
+    const developmentId = searchParams.get('developmentId') || null;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
+
+    const baseConditions = [
+      gte(messages.created_at, startDate),
+      isNotNull(messages.user_message)
+    ];
+    
+    if (developmentId) {
+      baseConditions.push(eq(messages.development_id, developmentId));
+    }
+    
+    const whereCondition = and(...baseConditions);
 
     const [topQuestions, questionsByDevelopment, questionsByTimeOfDay, avgQuestionLength] = await Promise.all([
       db.select({
@@ -21,7 +33,7 @@ export async function GET(request: Request) {
         avg_response_time: sql<number>`AVG(${messages.latency_ms})::int`,
       })
         .from(messages)
-        .where(sql`${messages.created_at} >= ${startDate} AND ${messages.user_message} IS NOT NULL`)
+        .where(whereCondition)
         .groupBy(sql`SUBSTRING(${messages.user_message} FROM 1 FOR 150)`)
         .orderBy(sql`COUNT(*) DESC`)
         .limit(limit),
@@ -34,6 +46,7 @@ export async function GET(request: Request) {
         FROM messages m
         INNER JOIN developments d ON m.development_id = d.id
         WHERE m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+          ${developmentId ? sql`AND m.development_id = ${developmentId}::uuid` : sql``}
         GROUP BY d.name, SUBSTRING(m.user_message FROM 1 FOR 100)
         ORDER BY count DESC
         LIMIT 10
@@ -45,6 +58,7 @@ export async function GET(request: Request) {
           COUNT(*)::int as count
         FROM messages
         WHERE created_at >= ${startDate} AND user_message IS NOT NULL
+          ${developmentId ? sql`AND development_id = ${developmentId}::uuid` : sql``}
         GROUP BY EXTRACT(HOUR FROM created_at)
         ORDER BY hour
       `).then(r => r.rows),
@@ -53,6 +67,7 @@ export async function GET(request: Request) {
         SELECT AVG(LENGTH(user_message))::int as avg_length
         FROM messages
         WHERE created_at >= ${startDate} AND user_message IS NOT NULL
+          ${developmentId ? sql`AND development_id = ${developmentId}::uuid` : sql``}
       `).then(r => r.rows[0]?.avg_length || 0),
     ]);
 

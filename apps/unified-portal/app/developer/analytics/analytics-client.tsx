@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { Building2, Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Clock, Activity, Zap } from 'lucide-react';
 import { useOverviewMetrics, useHomeownerMetrics } from '@/hooks/useAnalyticsV2';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
+import { useCurrentContext } from '@/contexts/CurrentContext';
+import { isAllSchemes } from '@/lib/archive-scope';
 
 const ActivityChart = dynamic(
   () => import('./optimized-charts').then(mod => ({ default: mod.ActivityChart })),
@@ -62,15 +64,48 @@ interface AnalyticsClientProps {
 }
 
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
-  const { data: metrics, isLoading: metricsLoading } = useOverviewMetrics({ tenantId, days: 30 });
-  const { data: homeowners, isLoading: homeownersLoading } = useHomeownerMetrics({ tenantId, days: 30 });
+  const { archiveScope, developmentId } = useCurrentContext();
+  const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
+  const [schemeName, setSchemeName] = useState<string | null>(null);
+  
+  const { data: metrics, isLoading: metricsLoading } = useOverviewMetrics({ 
+    tenantId, 
+    developmentId: effectiveDevelopmentId,
+    days: 30 
+  });
+  const { data: homeowners, isLoading: homeownersLoading } = useHomeownerMetrics({ 
+    tenantId, 
+    developmentId: effectiveDevelopmentId,
+    days: 30 
+  });
   const [questionData, setQuestionData] = useState<QuestionAnalysisData | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+  
+  useEffect(() => {
+    async function fetchDevelopmentName() {
+      if (!effectiveDevelopmentId) {
+        setSchemeName(null);
+        return;
+      }
+      try {
+        const res = await fetch('/api/developer/developments');
+        if (res.ok) {
+          const data = await res.json();
+          const dev = data.developments?.find((d: any) => d.id === effectiveDevelopmentId);
+          setSchemeName(dev?.name || null);
+        }
+      } catch {
+        setSchemeName(null);
+      }
+    }
+    fetchDevelopmentName();
+  }, [effectiveDevelopmentId]);
 
   useEffect(() => {
     async function loadQuestions() {
       try {
-        const res = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20`);
+        const devIdParam = effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20${devIdParam}`);
         if (res.ok) {
           const data = await res.json();
           setQuestionData(data);
@@ -82,7 +117,7 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
       }
     }
     loadQuestions();
-  }, [tenantId]);
+  }, [tenantId, effectiveDevelopmentId]);
 
   const isLoading = metricsLoading || homeownersLoading || questionsLoading;
 
@@ -117,7 +152,9 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm">Back to Dashboard</span>
             </Link>
-            <h1 className={`text-3xl font-bold ${textColor}`}>Analytics & Insights</h1>
+            <h1 className={`text-3xl font-bold ${textColor}`}>
+              Analytics & Insights {schemeName ? `— ${schemeName}` : '— All Schemes'}
+            </h1>
             <p className={`${secondaryText} text-sm mt-1`}>Deep dive into your development metrics and homeowner engagement</p>
           </div>
         </div>

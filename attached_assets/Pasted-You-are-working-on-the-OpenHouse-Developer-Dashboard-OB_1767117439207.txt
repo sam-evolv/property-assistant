@@ -1,0 +1,139 @@
+You are working on the OpenHouse Developer Dashboard.
+
+OBJECTIVE
+---------
+Make ALL analytics, insights, knowledge base, and error dashboards fully scheme-aware.
+
+The dashboard must support:
+- "All Schemes" (aggregated view)
+- Individual Scheme views (e.g. Longview Park, Rathard Park)
+
+This applies consistently across:
+- Analytics
+- AI Insights
+- Knowledge Base
+- Error Dashboard
+
+CURRENT PROBLEM
+---------------
+All dashboards currently show only ALL_SCHEMES data.
+Switching the scheme dropdown does NOT change the data.
+This is unacceptable for a multi-scheme developer platform.
+
+REQUIRED BEHAVIOUR
+------------------
+1) Scheme Selector is the SINGLE source of truth
+   - ALL_SCHEMES → aggregated metrics across all schemes
+   - SCHEME_ID → metrics filtered to that scheme only
+
+2) Every dashboard query MUST respect the active scheme context:
+   - analytics
+   - AI insights
+   - knowledge base stats
+   - error logs
+
+3) Switching the scheme dropdown MUST:
+   - immediately re-fetch data
+   - update all KPIs, charts, tables, and summaries
+   - never require a page refresh
+
+SCHEME CONTEXT RULES
+--------------------
+- Store active scheme in a central context (already exists)
+- Possible values:
+    - 'ALL_SCHEMES'
+    - specific schemeId (UUID)
+
+BACKEND IMPLEMENTATION
+---------------------
+Update ALL relevant API endpoints to accept:
+
+  schemeId?: string | 'ALL_SCHEMES'
+
+Apply filtering logic consistently:
+
+### Analytics
+- totalMessages
+- activeUsers
+- engagementRate
+- messagesPerUser
+- daily/weekly charts
+
+If schemeId === 'ALL_SCHEMES':
+  → aggregate across all schemes
+
+Else:
+  → filter WHERE scheme_id = schemeId
+
+### AI Insights
+- insight generation
+- insight summaries
+- trends
+- recommendations
+
+All insight queries must filter by scheme_id when provided.
+
+### Knowledge Base
+- document counts
+- indexed documents
+- classification status
+- search usage
+
+Respect scheme_id at all times unless ALL_SCHEMES is selected.
+
+### Error Dashboard
+- errors
+- warnings
+- failures
+- timestamps
+- affected components
+
+Errors MUST be filterable by scheme_id.
+ALL_SCHEMES shows combined error stream.
+
+FRONTEND IMPLEMENTATION
+----------------------
+1) On scheme dropdown change:
+   - update SchemeContext
+   - trigger re-fetch for:
+       - analytics
+       - insights
+       - knowledge base
+       - errors
+
+2) UI Labels:
+   - When ALL_SCHEMES:
+       "Analytics — All Schemes"
+   - When scheme selected:
+       "Analytics — Longview Park"
+       "Analytics — Rathard Park"
+
+3) No hardcoded ALL_SCHEMES defaults allowed.
+   All queries MUST read from SchemeContext.
+
+ACCEPTANCE CRITERIA
+-------------------
+✔ Selecting "All Schemes" shows combined metrics
+✔ Selecting "Longview Park" shows ONLY Longview Park data
+✔ Selecting "Rathard Park" shows ONLY Rathard Park data
+✔ Charts, KPIs, tables all update correctly
+✔ AI Insights differ per scheme
+✔ Knowledge Base stats differ per scheme
+✔ Error Dashboard filters correctly
+✔ No duplicated or stale data
+✔ No UI reload required
+
+NON-NEGOTIABLE
+--------------
+- Do NOT duplicate dashboards per scheme
+- Do NOT create separate pages
+- Do NOT hardcode scheme logic
+- This must scale cleanly to 50+ schemes
+
+DELIVERABLE
+-----------
+Implement scheme-aware filtering end-to-end and confirm with screenshots:
+- Analytics (All Schemes vs Longview vs Rathard)
+- AI Insights (scheme-specific)
+- Knowledge Base stats (scheme-specific)
+- Error Dashboard (scheme-specific)

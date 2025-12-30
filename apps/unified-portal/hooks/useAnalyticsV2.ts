@@ -145,10 +145,12 @@ const SWR_ANALYTICS_CONFIG = {
 };
 
 export function useOverviewMetrics(params: FetchOptions) {
-  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d`;
+  const devIdPart = params.developmentId ? `&project_id=${params.developmentId}` : '';
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d${devIdPart}`;
   return useSWR<OverviewMetrics>(key, async () => {
     const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
-    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}`);
+    const projectParam = params.developmentId ? `&project_id=${params.developmentId}` : '';
+    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}${projectParam}`);
     if (!res.ok) {
       throw new Error('Failed to fetch analytics summary');
     }
@@ -187,10 +189,12 @@ export function useDocumentMetrics(params: FetchOptions) {
 }
 
 export function useHomeownerMetrics(params: FetchOptions) {
-  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d&for=homeowners`;
+  const devIdPart = params.developmentId ? `&project_id=${params.developmentId}` : '';
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d&for=homeowners${devIdPart}`;
   return useSWR<HomeownerMetrics>(key, async () => {
     const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
-    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}`);
+    const projectParam = params.developmentId ? `&project_id=${params.developmentId}` : '';
+    const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}${projectParam}`);
     if (!res.ok) {
       throw new Error('Failed to fetch analytics summary');
     }
