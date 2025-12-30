@@ -325,3 +325,254 @@ export async function findDocumentForLink(
     explanation: `Here's the ${docType.replace('_', ' ')} document for your home.`,
   };
 }
+
+export interface FloorPlanAttachment {
+  id: string;
+  title: string;
+  fileName: string;
+  fileUrl: string;
+  signedUrl: string;
+  downloadUrl: string;
+  discipline: string;
+  docType: string;
+  houseTypeCode: string | null;
+}
+
+export interface FloorPlanFallbackResult {
+  found: boolean;
+  attachments: FloorPlanAttachment[];
+  explanation: string;
+}
+
+export async function findFloorPlanDocuments(
+  unitUid: string,
+  verifiedProjectId?: string,
+  verifiedHouseTypeCode?: string
+): Promise<FloorPlanFallbackResult> {
+  console.log('[FloorPlanFallback] Finding floor plans for:', { unitUid, verifiedProjectId, verifiedHouseTypeCode });
+  
+  const supabase = getSupabaseClient();
+  
+  let projectId = verifiedProjectId;
+  let houseTypeCode = verifiedHouseTypeCode;
+  
+  if (!projectId) {
+    const unitInfo = await getUnitInfo(unitUid);
+    if (!unitInfo) {
+      console.log('[FloorPlanFallback] Could not get unit info');
+      return {
+        found: false,
+        attachments: [],
+        explanation: 'Unable to find your unit information.',
+      };
+    }
+    projectId = unitInfo.development_id || undefined;
+    houseTypeCode = houseTypeCode || unitInfo.house_type_code || undefined;
+  }
+  
+  if (!projectId) {
+    return {
+      found: false,
+      attachments: [],
+      explanation: 'Unable to determine your development.',
+    };
+  }
+  
+  const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
+  console.log('[FloorPlanFallback] Project:', projectId, 'HouseType:', normalizedHouseType);
+  
+  // SECURITY: Require house type to prevent cross-unit document disclosure
+  if (!normalizedHouseType) {
+    console.log('[FloorPlanFallback] No house type - cannot safely filter floor plans');
+    return {
+      found: false,
+      attachments: [],
+      explanation: 'Unable to determine your house type for floor plans.',
+    };
+  }
+  
+  const { data: sections, error } = await supabase
+    .from('document_sections')
+    .select('id, metadata')
+    .eq('project_id', projectId);
+  
+  if (error || !sections || sections.length === 0) {
+    console.log('[FloorPlanFallback] No documents found:', error?.message);
+    return {
+      found: false,
+      attachments: [],
+      explanation: 'No documents available for your development.',
+    };
+  }
+  
+  // Categorize documents by priority: unit-specific > house-type-specific
+  const unitSpecificDocs = new Map<string, any>();
+  const houseTypeSpecificDocs = new Map<string, any>();
+  
+  for (const section of sections) {
+    const metadata = section.metadata as any;
+    if (!metadata?.file_url) continue;
+    
+    const key = metadata.file_name || metadata.file_url;
+    
+    const docHouseType = getMetadataHouseTypeCode(metadata);
+    const normalizedDocHouseType = (docHouseType || '').toLowerCase().trim();
+    const docUnitId = metadata.unit_id || metadata.unit_uid;
+    const docType = (metadata.doc_type || '').toLowerCase();
+    const discipline = (metadata.discipline || '').toLowerCase();
+    const drawingType = (metadata.drawing_type || '').toLowerCase();
+    const tags = (metadata.tags || []).map((t: string) => t.toLowerCase());
+    const fileName = (metadata.file_name || '').toLowerCase();
+    
+    // SECURITY: Skip documents for other house types
+    if (normalizedDocHouseType && normalizedDocHouseType !== normalizedHouseType) {
+      continue;
+    }
+    
+    // Priority 1: Metadata-based floor plan detection (preferred)
+    const isFloorPlanByMetadata = 
+      docType === 'floorplan' || 
+      docType === 'floor_plan' ||
+      drawingType === 'floor_plan' ||
+      drawingType === 'room_sizes' ||
+      tags.includes('floorplan') ||
+      tags.includes('floor_plan') ||
+      tags.includes('floor plan');
+    
+    // Priority 2: Discipline-based (architectural drawings)
+    const isArchitecturalDrawing = discipline === 'architectural' || discipline === 'floorplan';
+    
+    // Exclude elevations, sections, foundations (not room dimensions)
+    const isExcludedType = 
+      /elevation/i.test(fileName) ||
+      /section/i.test(fileName) ||
+      /foundation/i.test(fileName) ||
+      drawingType === 'elevation' ||
+      drawingType === 'section';
+    
+    // Priority 3: Filename-based detection (fallback) - only for floor plan patterns, NOT elevations/sections
+    // Patterns handle both spaces and hyphens in filenames
+    const FLOOR_PLAN_ONLY_PATTERNS = [
+      /ground[-\s]*(and[-\s]*first)?[-\s]*floor/i,  // Ground Floor, Ground-Floor, Ground and First Floor
+      /first[-\s]*(and[-\s]*second)?[-\s]*floor/i,  // First Floor, First and Second Floor
+      /floor[-\s]*plan/i,
+      /layout/i,
+      /ga[-\s]*plan/i,
+      /g\/f[-\s]*plan/i,
+    ];
+    const isFloorPlanByFilename = FLOOR_PLAN_ONLY_PATTERNS.some(p => p.test(fileName));
+    
+    // Also match architectural discipline with house-type match for floor plans
+    const isArchitecturalFloorPlan = isArchitecturalDrawing && 
+      (normalizedDocHouseType === normalizedHouseType) &&
+      !isExcludedType;
+    
+    // Must match at least one floor plan indicator and not be excluded
+    if (!isFloorPlanByMetadata && !isFloorPlanByFilename && !isArchitecturalFloorPlan) {
+      continue;
+    }
+    if (isExcludedType && !isFloorPlanByMetadata) {
+      continue;
+    }
+    
+    const docEntry = {
+      ...metadata,
+      house_type_code: docHouseType,
+      isUnitSpecific: !!docUnitId && docUnitId === unitUid,
+      isHouseTypeMatch: normalizedDocHouseType === normalizedHouseType,
+    };
+    
+    // Categorize by priority
+    if (docUnitId && docUnitId === unitUid) {
+      if (!unitSpecificDocs.has(key)) {
+        unitSpecificDocs.set(key, docEntry);
+      }
+    } else if (normalizedDocHouseType === normalizedHouseType) {
+      if (!houseTypeSpecificDocs.has(key)) {
+        houseTypeSpecificDocs.set(key, docEntry);
+      }
+    }
+    // Note: We do NOT include scheme-wide docs without house_type_code 
+    // to prevent cross-unit document disclosure
+  }
+  
+  // Priority: unit-specific first, then house-type-specific
+  let selectedDocs: Map<string, any>;
+  if (unitSpecificDocs.size > 0) {
+    selectedDocs = unitSpecificDocs;
+    console.log('[FloorPlanFallback] Using', unitSpecificDocs.size, 'unit-specific floor plans');
+  } else if (houseTypeSpecificDocs.size > 0) {
+    selectedDocs = houseTypeSpecificDocs;
+    console.log('[FloorPlanFallback] Using', houseTypeSpecificDocs.size, 'house-type-specific floor plans');
+  } else {
+    console.log('[FloorPlanFallback] No floor plans found for house type:', normalizedHouseType);
+    return {
+      found: false,
+      attachments: [],
+      explanation: 'No floor plan documents found for your home.',
+    };
+  }
+  
+  console.log('[FloorPlanFallback] Found', selectedDocs.size, 'floor plan documents');
+  
+  const attachments: FloorPlanAttachment[] = [];
+  
+  for (const [key, doc] of Array.from(selectedDocs.entries())) {
+    const fileUrl = doc.file_url || '';
+    let signedUrl = fileUrl;
+    let downloadUrl = fileUrl;
+    
+    if (fileUrl.includes('development_docs')) {
+      try {
+        const storagePath = fileUrl.split('/development_docs/').pop() || '';
+        if (storagePath) {
+          const { data: signedData } = await supabase.storage
+            .from('development_docs')
+            .createSignedUrl(storagePath, 3600);
+          
+          if (signedData?.signedUrl) {
+            signedUrl = signedData.signedUrl;
+          }
+          
+          const { data: downloadData } = await supabase.storage
+            .from('development_docs')
+            .createSignedUrl(storagePath, 3600, { download: true });
+          
+          if (downloadData?.signedUrl) {
+            downloadUrl = downloadData.signedUrl;
+          }
+        }
+      } catch (urlError) {
+        console.error('[FloorPlanFallback] Error creating signed URL:', urlError);
+      }
+    }
+    
+    attachments.push({
+      id: doc.file_name || key,
+      title: doc.title || doc.file_name || 'Floor Plan',
+      fileName: doc.file_name || key,
+      fileUrl,
+      signedUrl,
+      downloadUrl,
+      discipline: doc.discipline || 'architectural',
+      docType: doc.drawing_type || 'floor_plan',
+      houseTypeCode: doc.house_type_code || null,
+    });
+  }
+  
+  attachments.sort((a, b) => {
+    if (a.houseTypeCode && !b.houseTypeCode) return -1;
+    if (!a.houseTypeCode && b.houseTypeCode) return 1;
+    return 0;
+  });
+  
+  const explanation = attachments.length === 1
+    ? "I can't provide exact room dimensions, but here's your floor plan where you can find the measurements:"
+    : "I can't provide exact room dimensions, but here are your floor plans where you can find the measurements:";
+  
+  return {
+    found: true,
+    attachments: attachments.slice(0, 5),
+    explanation,
+  };
+}

@@ -1,0 +1,75 @@
+You are working on OpenHouse Purchaser Portal chat behaviour.
+
+PROBLEM
+-------
+When a user asks “what size is my living room?”, the assistant gives an unhelpful refusal.
+We need the assistant to:
+1) Try to answer using extracted room dimensions if present
+2) If not present, it MUST provide the relevant floor plan document link(s) for the user’s unit / house type
+3) The answer must include:
+   - A short explanation that exact dimensions aren’t reliably extractable
+   - A direct “Here is your floor plan” attachment section (preview + download link)
+   - Clear guidance: “Check the room labels on Ground Floor / First Floor plan”
+
+CRITICAL REQUIREMENTS
+---------------------
+A) This must work even if the floor plan file is not named “Floor Plan”.
+   Example names: “Ground and First Floor Plans”, “GA plan”, “G/F plan”, etc.
+B) The assistant must ALWAYS return the most relevant document(s) as links whenever it cannot answer directly.
+C) Retrieval must be unit-scoped:
+   - Prefer documents linked to the specific unitId
+   - If none, use documents linked to the user’s houseType (e.g. BS06)
+   - If none, use scheme-level docs tagged floorplan/architectural
+D) Do not hallucinate room dimensions.
+E) Output must match Longview Park behaviour.
+
+IMPLEMENTATION TASKS
+--------------------
+1) Ensure floor plan detection is tag/metadata based, not filename based:
+   - Add/ensure fields in documents table: doc_type, discipline, tags, house_type, unit_id, scheme_id
+   - Implement a classifier for uploads:
+       If filename contains any of:
+         ["floor", "plan", "ground", "first", "g/f", "ga", "drawing", "elevation"]
+       OR PDF page contains keywords:
+         ["Ground Floor", "First Floor", "Plan", "Scale", "Drawing No"]
+       THEN set:
+         doc_type = 'FLOORPLAN'
+         discipline = 'ARCHITECTURAL'
+         tags include ['floorplan']
+   - Backfill existing “Ground and First Floor Plans” documents with doc_type='FLOORPLAN' + tags.
+
+2) Update chat retrieval pipeline (server route used by purchaser chat):
+   - When question intent == ROOM_DIMENSIONS (living room size, kitchen size, etc):
+       a) Search for extracted dimensions in structured store (if exists)
+       b) If not found:
+           Fetch floorplan docs using priority:
+             i) unit_id match
+            ii) house_type match
+           iii) scheme match with doc_type='FLOORPLAN'
+       c) Return a response that includes:
+           - assistant message text
+           - an attachments array with:
+               { title, docId, previewUrl, downloadUrl, discipline, doc_type }
+   - Ensure the UI renders attachments under the message.
+
+3) Add a prompt-level rule in the system/purchaser-chat prompt:
+   - “If you cannot answer a home question precisely, you MUST provide the most relevant document links from the user’s documents, especially floorplans, specifications, warranties.”
+   - “Never end with ‘contact developer’ without also linking the user to the relevant doc when it exists.”
+
+4) Acceptance tests (must pass):
+   - In Rathard Park with BS06 floor plan uploaded as “Ground and First Floor Plans”:
+       Q: “what size is my living room?”
+       Expected:
+         - states it can’t reliably extract exact dimensions
+         - provides floorplan link(s) for BS06
+         - tells user where to check (Ground Floor plan, living room label)
+   - Q: “can you link my floor plans?”
+       Expected:
+         - returns the floorplan attachments list
+
+DELIVERABLE
+-----------
+Submit code changes and confirm:
+✔ Floorplans are detected/tagged even with non-standard filenames
+✔ Room-size questions always return relevant floorplan attachments when dimensions aren’t explicit
+✔ Behaviour matches Longview Park

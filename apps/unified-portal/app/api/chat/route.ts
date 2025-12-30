@@ -7,7 +7,7 @@ import { messages, units } from '@openhouse/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { extractQuestionTopic } from '@/lib/question-topic-extractor';
 import { findDrawingForQuestion, ResolvedDrawing } from '@/lib/drawing-resolver';
-import { detectDocumentLinkRequest, findDocumentForLink, ResolvedDocument } from '@/lib/document-link-resolver';
+import { detectDocumentLinkRequest, findDocumentForLink, findFloorPlanDocuments, ResolvedDocument, FloorPlanAttachment } from '@/lib/document-link-resolver';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
@@ -1402,6 +1402,69 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       }
     }
 
+    // Handle floor plan link requests - return attachments list
+    const isFloorPlanLinkRequest = questionTopic === 'internal_floor_plans' || 
+      /\b(link|show|give|send)\s*(me\s*)?(my\s*)?(floor\s*plan|floor\s*plans)\b/i.test(message) ||
+      /\b(floor\s*plan|floor\s*plans)\s+(link|download|please)\b/i.test(message);
+    
+    if (isFloorPlanLinkRequest && effectiveUnitUid) {
+      console.log('[Chat] Floor plan link request detected');
+      
+      const floorPlanResult = await findFloorPlanDocuments(
+        effectiveUnitUid,
+        userSupabaseProjectId,
+        userHouseTypeCode || undefined
+      );
+      
+      if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
+        const floorPlanAnswer = floorPlanResult.attachments.length === 1
+          ? "Here's your floor plan. You can view or download it below."
+          : `Here are your floor plans (${floorPlanResult.attachments.length} documents). You can view or download them below.`;
+        
+        console.log('[Chat] Returning', floorPlanResult.attachments.length, 'floor plan attachments');
+        
+        // Save to database
+        try {
+          await db.insert(messages).values({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: conversationUserId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: floorPlanAnswer,
+            question_topic: 'floor_plan_link',
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              unitUid: effectiveUnitUid,
+              floorPlanCount: floorPlanResult.attachments.length,
+            },
+          });
+        } catch (dbError) {
+          console.error('[Chat] Failed to save floor plan link message:', dbError);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          answer: floorPlanAnswer,
+          source: 'floor_plan_link',
+          attachments: floorPlanResult.attachments.map(fp => ({
+            id: fp.id,
+            title: fp.title,
+            fileName: fp.fileName,
+            previewUrl: fp.signedUrl,
+            downloadUrl: fp.downloadUrl,
+            discipline: fp.discipline,
+            docType: fp.docType,
+            houseTypeCode: fp.houseTypeCode,
+          })),
+        });
+      }
+    }
+
     // Check for dimension question BEFORE streaming - may need to override response
     // STRICT: Only match when room keywords are explicitly paired with size/dimension words
     const isDimensionQuestion = questionTopic === 'room_sizes' || 
@@ -1483,9 +1546,30 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     }
 
     // Handle dimension questions when no floor plan is available
+    // Try to find floor plan documents to attach as fallback
     if (isDimensionQuestionWithNoDrawing) {
-      const noDimensionsAnswer = "The drawings do not clearly specify dimensions for that room. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
-      console.log('[Chat] Dimension question detected but no floor plan available');
+      console.log('[Chat] Dimension question detected - trying floor plan fallback');
+      
+      // Look for floor plan documents to attach
+      const floorPlanResult = await findFloorPlanDocuments(
+        effectiveUnitUid,
+        userSupabaseProjectId,
+        userHouseTypeCode || undefined
+      );
+      
+      let dimensionAnswer: string;
+      let floorPlanAttachments: FloorPlanAttachment[] = [];
+      
+      if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
+        // Found floor plans - provide helpful response with attachments
+        floorPlanAttachments = floorPlanResult.attachments;
+        dimensionAnswer = floorPlanResult.explanation + "\n\nCheck the room labels on the Ground Floor and First Floor plans for the exact measurements you need.";
+        console.log('[Chat] Found', floorPlanAttachments.length, 'floor plan attachments for dimension question');
+      } else {
+        // No floor plans available - fallback message
+        dimensionAnswer = "I don't have floor plan documents available to show you the room dimensions. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
+        console.log('[Chat] No floor plan documents found for dimension fallback');
+      }
       
       // Save to database
       try {
@@ -1495,7 +1579,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           user_id: conversationUserId || 'anonymous',
           content: message,
           user_message: message,
-          ai_message: noDimensionsAnswer,
+          ai_message: dimensionAnswer,
           question_topic: questionTopic,
           sender: 'conversation',
           source: 'purchaser_portal',
@@ -1508,6 +1592,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             chunksUsed: chunks?.length || 0,
             model: 'gpt-4o-mini',
             dimensionQuestionNoDrawing: true,
+            floorPlanFallback: floorPlanAttachments.length > 0,
           },
         });
       } catch (dbError) {
@@ -1516,9 +1601,19 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
       return NextResponse.json({
         success: true,
-        answer: noDimensionsAnswer,
-        source: 'dimension_no_drawing',
+        answer: dimensionAnswer,
+        source: floorPlanAttachments.length > 0 ? 'dimension_floor_plan_fallback' : 'dimension_no_drawing',
         chunksUsed: chunks?.length || 0,
+        attachments: floorPlanAttachments.length > 0 ? floorPlanAttachments.map(fp => ({
+          id: fp.id,
+          title: fp.title,
+          fileName: fp.fileName,
+          previewUrl: fp.signedUrl,
+          downloadUrl: fp.downloadUrl,
+          discipline: fp.discipline,
+          docType: fp.docType,
+          houseTypeCode: fp.houseTypeCode,
+        })) : undefined,
       });
     }
 

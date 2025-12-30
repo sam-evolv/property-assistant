@@ -18,7 +18,7 @@ const EXACT_MATCH_TOPICS: Record<string, string[]> = {
   'local_amenities': ['amenities', 'shops', 'supermarket', 'transport', 'bus', 'train'],
   'planning_report': ['planning', 'planning report', 'permission'],
   'warranty_guarantee': ['warranty', 'guarantee', 'defect', 'snag', 'snagging'],
-  'internal_floor_plans': ['internal floor plan', 'floor plans please', 'internal layout', 'room layout'],
+  'internal_floor_plans': ['internal floor plan', 'floor plans please', 'internal layout', 'room layout', 'floor plans', 'floor plan', 'link my floor plan', 'my floor plans', 'show floor plan', 'ground floor plan', 'first floor plan'],
   'external_elevations': ['external elevation', 'elevations please', 'outside appearance', 'external appearance', 'exterior view'],
 };
 
