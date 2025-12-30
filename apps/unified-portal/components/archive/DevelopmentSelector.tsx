@@ -154,8 +154,8 @@ export function DevelopmentSelector({
   if (developments.length === 0) {
     return (
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 ${className}`}>
-        <Building2 className="w-4 h-4" />
-        <span className="text-sm">No developments found</span>
+        <Layers className="w-4 h-4 text-emerald-400" />
+        <span className="text-sm">Viewing All Schemes</span>
       </div>
     );
   }

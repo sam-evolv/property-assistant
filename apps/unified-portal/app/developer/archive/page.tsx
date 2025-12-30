@@ -44,7 +44,6 @@ export default function SmartArchivePage() {
   const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [schemesLoading, setSchemesLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSchemeSelectionModal, setShowSchemeSelectionModal] = useState(false);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
@@ -59,12 +58,8 @@ export default function SmartArchivePage() {
   const [selectedUploadSchemeId, setSelectedUploadSchemeId] = useState<string | null>(null);
 
   const loadDevelopments = useCallback(async () => {
-    if (!tenantId) {
-      setSchemesLoading(false);
-      return;
-    }
+    if (!tenantId) return;
     
-    setSchemesLoading(true);
     try {
       const response = await fetch('/api/developer/developments');
       if (response.ok) {
@@ -73,8 +68,6 @@ export default function SmartArchivePage() {
       }
     } catch (error) {
       console.error('[Archive] Failed to load developments:', error);
-    } finally {
-      setSchemesLoading(false);
     }
   }, [tenantId]);
 
@@ -364,15 +357,10 @@ export default function SmartArchivePage() {
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
   const showClassifyBanner = unclassifiedCount > 0;
   const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
-  const schemesResolved = !schemesLoading;
-  const hasSchemes = developments.length > 0;
   const hasDocuments = totalDocuments > 0;
   const uploadSchemeId = selectedUploadSchemeId || developmentId;
   
   console.log('[Archive] Render state:', { 
-    schemesResolved,
-    schemesLoading,
-    schemes: developments.length, 
     documents: totalDocuments, 
     scope: scopeToString(archiveScope),
     isLoading
@@ -581,46 +569,27 @@ export default function SmartArchivePage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
-          !schemesResolved ? (
+          <>
+            {console.assert(disciplines !== undefined, 'Smart Archive rendered without documents')}
+            {!hasDocuments && !isLoading && !isViewingAllSchemes && (
+              <div className="mb-6 p-4 rounded-xl bg-gray-800/50 border border-gray-700 flex items-center gap-3">
+                <FolderArchive className="w-5 h-5 text-gray-400" />
+                <p className="text-gray-400 text-sm">
+                  No documents uploaded yet for this scheme. Upload documents to populate the categories below.
+                </p>
+              </div>
+            )}
             <DisciplineGrid 
-              disciplines={[]} 
-              customFolders={[]}
-              isLoading={true}
-              showNewFolderButton={false}
+              disciplines={disciplines} 
+              customFolders={customFolders}
+              isLoading={isLoading}
+              showNewFolderButton={!isViewingAllSchemes}
+              onCreateFolder={handleCreateFolder}
+              onEditFolder={handleEditFolder}
+              onDeleteFolder={handleDeleteFolder}
               alwaysShowCategories={true}
             />
-          ) : schemesResolved && !hasSchemes ? (
-            <div className="text-center py-20">
-              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-10 h-10 text-gray-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">No Schemes Found</h3>
-              <p className="text-gray-400 max-w-md mx-auto">
-                No schemes have been created for your organisation yet. Create a scheme to start uploading documents.
-              </p>
-            </div>
-          ) : (
-            <>
-              {!hasDocuments && !isLoading && !isViewingAllSchemes && schemesResolved && (
-                <div className="mb-6 p-4 rounded-xl bg-gray-800/50 border border-gray-700 flex items-center gap-3">
-                  <FolderArchive className="w-5 h-5 text-gray-400" />
-                  <p className="text-gray-400 text-sm">
-                    No documents uploaded yet for this scheme. Upload documents to populate the categories below.
-                  </p>
-                </div>
-              )}
-              <DisciplineGrid 
-                disciplines={disciplines} 
-                customFolders={customFolders}
-                isLoading={isLoading}
-                showNewFolderButton={!isViewingAllSchemes}
-                onCreateFolder={handleCreateFolder}
-                onEditFolder={handleEditFolder}
-                onDeleteFolder={handleDeleteFolder}
-                alwaysShowCategories={true}
-              />
-            </>
-          )
+          </>
         ) : activeTab === 'important' ? (
           <ImportantDocsTab onRefresh={handleRefresh} />
         ) : (
