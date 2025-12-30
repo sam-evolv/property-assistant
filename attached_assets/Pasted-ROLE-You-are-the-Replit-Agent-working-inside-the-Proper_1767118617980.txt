@@ -1,0 +1,130 @@
+ROLE: You are the Replit Agent working inside the PropertyAssistant repo (apps/unified-portal). Build a production-grade “Developer Login” experience that is visually consistent with the OpenHouse Ai marketing site (premium black + gold, cinematic, minimal, classy). This login is NOT for purchasers and must route authenticated users into the Developer Dashboard (not Super Admin).
+
+PRIMARY USER FLOW (must work end-to-end)
+1) Marketing site “Login” button links to this new login page (external link target).
+2) Developer lands on /login (or /developer/login).
+3) They can:
+   - Sign in with email + password
+   - Create an account (sign up) as a Developer user
+   - Reset password (“Forgot password”)
+4) After successful sign-in:
+   - If role = developer_admin (or equivalent), redirect to Developer Dashboard route (e.g. /developer/overview)
+   - If role = super_admin, redirect to Super Admin route (e.g. /super/overview) [optional but recommended]
+   - If role unknown, show “Access not configured” with support contact.
+5) Session persists and protects dashboard routes.
+
+NON-NEGOTIABLE VISUAL REQUIREMENTS
+- Use the OpenHouse Ai gold logo front-and-centre, above the form.
+- Styling matches the marketing site, not the internal admin UI:
+  - Deep black background with subtle gradients / vignette
+  - Gold accents for focus/hover
+  - Glassmorphism card or ultra-clean matte card with soft shadow
+  - Inputs are premium: rounded, subtle border, nice focus ring
+  - Buttons feel “product”, not default HTML.
+- Provide two layouts:
+  - Desktop: centered card with logo, clean spacing.
+  - Mobile: full-width card with proper padding, no cramped UI.
+- Background:
+  - Either black with subtle animated noise / radial glow, OR a tasteful blurred image gradient.
+  - Keep it light on performance (no heavy video).
+
+ASSETS
+- Use the provided logo image (gold OpenHouse Ai logo). Add it as a static asset in the repo:
+  - Put in: apps/unified-portal/public/branding/openhouse-ai-logo.png
+  - Reference via: /branding/openhouse-ai-logo.png
+- Ensure it renders crisp (retina) and scales.
+
+AUTH + DATA MODEL REQUIREMENTS
+- Use Supabase Auth as the canonical auth provider (already in secrets: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY).
+- Store developer profile metadata in a table (or existing table) that links auth.users -> profile:
+  - Required fields: user_id, email, role, developer_id (tenant), created_at
+- Roles:
+  - developer_admin (default for signups unless invited)
+  - super_admin (only assignable by super admin, not self-signup)
+- IMPORTANT: Self-signup must not allow users to become super_admin.
+
+ROUTING + PAGES TO BUILD
+A) New route page:
+   - apps/unified-portal/app/login/page.tsx  (or app/developer/login/page.tsx)
+B) Optional split tabs inside the card:
+   - “Sign in” and “Create account”
+C) Forgot password modal or separate page:
+   - /forgot-password
+D) After login redirects based on role:
+   - Developer -> /developer/overview (or existing developer landing)
+   - Super -> /super/overview
+
+SECURITY REQUIREMENTS (do not skip)
+- Protect developer dashboard routes with auth guard.
+- Protect super admin routes with role check.
+- Ensure server-side role check uses service role key where needed.
+- If role is missing, block dashboard access and show a clear CTA: “Contact support to configure access.”
+
+IMPLEMENTATION STEPS (execute in order)
+
+PHASE 1: Confirm existing auth utilities
+1) Locate existing Supabase client and auth helpers in the repo.
+2) Identify how sessions are stored and retrieved (cookies, local storage, middleware).
+3) Identify existing role model (if any). Reuse it rather than inventing a parallel system.
+
+PHASE 2: Build the UI (premium)
+1) Create the login page with the required styling.
+2) Implement sign-in form:
+   - Email input
+   - Password input (with show/hide icon)
+   - “Sign in” button
+   - “Forgot password?” link
+3) Implement sign-up form:
+   - Email input
+   - Password + confirm password
+   - “Create account” button
+   - On success: show “Check your email to confirm” if Supabase requires email confirmation.
+4) Add proper loading and error states:
+   - Disabled button while submitting
+   - Inline error message (clean and minimal)
+   - Success message for password reset
+
+PHASE 3: Wire to Supabase Auth
+1) Sign in: supabase.auth.signInWithPassword
+2) Sign up: supabase.auth.signUp
+3) Forgot password: supabase.auth.resetPasswordForEmail with redirect URL back to /reset-password
+4) Reset password page: supabase.auth.updateUser({ password })
+
+PHASE 4: Role routing + profile provisioning
+1) On first login, ensure profile exists:
+   - If no profile row exists for user_id, create one with:
+     - role = developer_admin
+     - developer_id = null initially (unless you have an invite flow)
+2) Redirect logic:
+   - Fetch profile role
+   - developer_admin -> /developer/overview
+   - super_admin -> /super/overview
+   - else -> /access-pending
+3) Create /access-pending page explaining:
+   - “Your account is created, but access has not been linked to a developer yet.”
+   - Provide a mailto link to sam@openhouseai.ie (or configured support email) and show their user email.
+
+PHASE 5: Link from marketing site
+- Output at the end:
+  - The final URL path for the login page (e.g. https://portal.openhouseai.ie/login)
+  - The exact link to place on the marketing site “Login” button.
+
+PHASE 6: Polish + QA
+- Validate:
+  - Desktop + mobile responsiveness
+  - Keyboard navigation
+  - Error states (wrong password, unconfirmed email)
+  - Redirects correct for developer role
+  - No possibility for self-upgrading to super_admin
+- Add a short markdown doc:
+  - LOGIN_FLOW.md describing setup, routes, and how to test.
+
+DELIVERABLES
+1) New premium login UI page(s)
+2) Fully working Supabase auth integration (sign in, sign up, forgot password, reset password)
+3) Role-based redirects to developer dashboard
+4) Access-pending safe state if developer_id not assigned
+5) Documentation + the marketing-site link target
+
+START NOW
+Implement Phase 1 then Phase 2 immediately, commit working UI quickly, then wire auth and role logic.
