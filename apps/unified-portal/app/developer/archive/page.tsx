@@ -357,8 +357,16 @@ export default function SmartArchivePage() {
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
   const showClassifyBanner = unclassifiedCount > 0;
   const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
-  const hasNoDevelopments = developments.length === 0;
+  const hasSchemes = developments.length > 0;
+  const hasDocuments = totalDocuments > 0;
   const uploadSchemeId = selectedUploadSchemeId || developmentId;
+  
+  console.log('[Archive] Render state:', { 
+    schemes: developments.length, 
+    documents: totalDocuments, 
+    scope: scopeToString(archiveScope),
+    isLoading
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
@@ -404,15 +412,13 @@ export default function SmartArchivePage() {
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
-              {!hasNoDevelopments && (
-                <button
-                  onClick={handleUploadClick}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Upload</span>
-                </button>
-              )}
+              <button
+                onClick={handleUploadClick}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Upload</span>
+              </button>
             </div>
           </div>
           
@@ -454,7 +460,7 @@ export default function SmartArchivePage() {
         </div>
       </div>
 
-      {isViewingAllSchemes && totalDocuments > 0 && (
+      {isViewingAllSchemes && (hasDocuments || isLoading) && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
           <div className="bg-gradient-to-r from-emerald-900/30 to-teal-800/20 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
@@ -463,7 +469,7 @@ export default function SmartArchivePage() {
             <div>
               <p className="text-white font-medium">Viewing All Schemes</p>
               <p className="text-gray-400 text-sm">
-                Documents from all {developments.length} scheme{developments.length !== 1 ? 's' : ''} are shown below
+                {totalDocuments} documents across all schemes are shown below
               </p>
             </div>
           </div>
@@ -565,7 +571,7 @@ export default function SmartArchivePage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
-          hasNoDevelopments ? (
+          !hasSchemes && !hasDocuments && !isLoading ? (
             <div className="text-center py-20">
               <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="w-10 h-10 text-gray-600" />
@@ -573,6 +579,16 @@ export default function SmartArchivePage() {
               <h3 className="text-xl font-semibold text-white mb-2">No Schemes Found</h3>
               <p className="text-gray-400 max-w-md mx-auto">
                 No schemes have been created for your organisation yet. Create a scheme to start uploading documents.
+              </p>
+            </div>
+          ) : !hasDocuments && !isLoading ? (
+            <div className="text-center py-20">
+              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <FolderArchive className="w-10 h-10 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">No Documents Yet</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                Upload your first documents to get started with the Smart Archive.
               </p>
             </div>
           ) : (
