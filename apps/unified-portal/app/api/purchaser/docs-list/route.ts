@@ -16,7 +16,16 @@ const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 function getSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      db: { schema: 'public' },
+      global: {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'x-request-id': `docs-${Date.now()}`
+        }
+      }
+    }
   );
 }
 

@@ -1,0 +1,104 @@
+You are fixing data-layer parity between two schemes in OpenHouse:
+• Longview Park (gold standard)
+• Rathard Park (new scheme)
+
+GOAL
+-----
+Ensure Rathard Park:
+1. Answers chat questions with the SAME depth as Longview Park
+2. Recognises Waste Collection and all shared scheme info
+3. Shows all relevant documents in the Purchaser Portal Docs tab
+4. Uses the same RAG, embeddings, and visibility rules
+
+DO NOT change UI.
+DO NOT change prompt logic.
+DO NOT invent content.
+This is a wiring + indexing fix only.
+
+--------------------------------------------------
+STEP 1 — AUDIT EMBEDDINGS PARITY
+--------------------------------------------------
+Compare:
+• Longview Park documents
+• Rathard Park documents
+
+For each NON-ARCHITECTURAL document copied from Longview Park:
+• Confirm embedding exists
+• Confirm embedding metadata includes:
+    - scheme_id = Rathard Park
+    - discipline
+    - importance flags (must_read / important)
+
+If embeddings are scheme-scoped:
+• Generate embeddings for Rathard Park copies
+• Store them under Rathard Park scheme_id
+
+If embeddings are reusable:
+• Ensure retrieval query includes both schemes correctly
+
+--------------------------------------------------
+STEP 2 — FIX WASTE COLLECTION VISIBILITY
+--------------------------------------------------
+Locate Waste Collection document(s) in Longview Park.
+
+Mirror ALL of the following to Rathard Park:
+• discipline
+• category
+• tags
+• importance flags
+• inclusion in chat retrieval scope
+
+Verify:
+• A direct chat query "What day is waste collection?"
+  returns an answer in Rathard Park.
+
+--------------------------------------------------
+STEP 3 — PURCHASER PORTAL DOCS TAB
+--------------------------------------------------
+Update purchaser docs query so that:
+
+Purchasers see:
+• Unit-specific documents (architectural → house_type scoped)
+• PLUS scheme-level documents where:
+    - discipline IN ('handover', 'mechanical', 'electrical', 'waste', etc.)
+    - visibility = purchaser
+
+DO NOT expose:
+• Other house types
+• Admin-only documents
+
+Result:
+• Rathard Park purchasers see the SAME docs (minus architecture)
+  as Longview Park purchasers.
+
+--------------------------------------------------
+STEP 4 — CHAT RETRIEVAL CONSISTENCY CHECK
+--------------------------------------------------
+Run identical questions against:
+• Longview Park
+• Rathard Park
+
+Questions:
+• Waste collection
+• Parking
+• Fire safety
+• General estate rules
+
+Ensure:
+• Response length
+• Structure
+• Detail level
+are materially the same.
+
+--------------------------------------------------
+STEP 5 — LOG & LOCK
+--------------------------------------------------
+Log:
+• Embeddings created
+• Docs exposed to purchaser portal
+• Waste Collection verified
+
+Mark Rathard Park as:
+✔ RAG-ready
+✔ Purchaser-ready
+✔ Parity-complete
