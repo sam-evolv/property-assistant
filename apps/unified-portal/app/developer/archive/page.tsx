@@ -232,7 +232,14 @@ export default function SmartArchivePage() {
 
   const handleUploadClick = () => {
     if (isViewingAllSchemes) {
+      if (developments.length === 0) {
+        alert('No schemes available. Please create a scheme first.');
+        return;
+      }
       setShowSchemeSelectionModal(true);
+    } else if (!developmentId) {
+      alert('Select a scheme before uploading documents.');
+      return;
     } else {
       setShowUploadModal(true);
     }

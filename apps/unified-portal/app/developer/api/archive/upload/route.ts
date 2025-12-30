@@ -22,7 +22,7 @@ function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+// Scheme ID is now passed dynamically - no hardcoded default
 
 async function generateEmbedding(text: string): Promise<number[]> {
   const response = await getOpenAI().embeddings.create({
@@ -50,13 +50,14 @@ function chunkText(text: string, chunkSize = 1000, overlap = 100): string[] {
 async function verifyDocumentIndexed(
   supabase: ReturnType<typeof getSupabaseClient>,
   fileName: string,
-  expectedMinChunks: number
+  expectedMinChunks: number,
+  schemeId: string
 ): Promise<{ verified: boolean; sectionsCount: number; error?: string }> {
   try {
     const { data: sections, error: sectionsError } = await supabase
       .from('document_sections')
       .select('id')
-      .eq('project_id', PROJECT_ID)
+      .eq('project_id', schemeId)
       .contains('metadata', { file_name: fileName });
 
     if (sectionsError) {
@@ -85,6 +86,18 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
+    const developmentId = formData.get('developmentId') as string;
+    
+    if (!developmentId) {
+      console.error('[Upload] Missing developmentId - upload rejected');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'schemeId is required',
+        files: [] 
+      }, { status: 400 });
+    }
+    
+    console.log('[Upload] Uploading to scheme:', developmentId);
     
     let discipline = (formData.get('discipline') as string) || (formData.get('category') as string) || '';
     const metadataStr = formData.get('metadata') as string;
@@ -108,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       if (!file || !(file instanceof File)) continue;
-      const result = await processFile(supabase, file, discipline);
+      const result = await processFile(supabase, file, discipline, developmentId);
       results.push(result);
     }
 
@@ -149,7 +162,8 @@ export async function POST(request: NextRequest) {
 async function processFile(
   supabase: ReturnType<typeof getSupabaseClient>,
   file: File,
-  discipline: string
+  discipline: string,
+  schemeId: string
 ): Promise<FileUploadResult> {
   const fileName = file.name;
   const logger = createUploadLogger(fileName);
@@ -161,7 +175,7 @@ async function processFile(
   logger.logStart({
     size: fileBuffer.length,
     mimeType,
-    projectId: PROJECT_ID,
+    projectId: schemeId,
     discipline,
   });
 
@@ -169,7 +183,7 @@ async function processFile(
   let fileUrl: string | undefined;
 
   try {
-    storagePath = `${PROJECT_ID}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    storagePath = `${schemeId}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     
     const { error: uploadError } = await supabase.storage
       .from('development_docs')
@@ -247,7 +261,7 @@ async function processFile(
       const { error: insertError } = await supabase
         .from('document_sections')
         .insert({
-          project_id: PROJECT_ID,
+          project_id: schemeId,
           content: chunks[i],
           embedding: embedding,
           metadata: {
@@ -293,7 +307,7 @@ async function processFile(
     );
   }
 
-  const verificationResult = await verifyDocumentIndexed(supabase, fileName, totalChunks);
+  const verificationResult = await verifyDocumentIndexed(supabase, fileName, totalChunks, schemeId);
 
   if (!verificationResult.verified) {
     logger.logVerificationFailure(verificationResult.error || 'Verification failed');
