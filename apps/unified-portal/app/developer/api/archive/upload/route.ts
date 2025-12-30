@@ -8,8 +8,15 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-import * as pdfParseModule from 'pdf-parse';
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+// pdf-parse is a CommonJS module - use dynamic require for Node.js runtime
+let pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  pdfParse = require('pdf-parse');
+} catch (e) {
+  console.error('[Upload] pdf-parse module not available:', e);
+  pdfParse = async () => ({ text: '', numpages: 0 });
+}
 
 function getSupabaseClient() {
   return createClient(
@@ -244,9 +251,43 @@ async function processFile(
     }
   }
 
+  // Even if no readable text, create a minimal record so document appears in archive
   if (skipIndexing) {
-    console.log('[Upload] Skipping AI indexing - no readable text');
-    return logger.logComplete(true, undefined, 0, 0, 'Document saved - AI indexing skipped (no readable text)');
+    console.log('[Upload] Creating minimal record - no readable text for embeddings');
+    try {
+      const { error: insertError } = await supabase
+        .from('document_sections')
+        .insert({
+          project_id: schemeId,
+          content: `[Document: ${fileName}]`,
+          embedding: null,
+          metadata: {
+            source: docName,
+            file_name: fileName,
+            storage_path: storagePath,
+            file_url: fileUrl,
+            discipline: discipline,
+            chunk_index: 0,
+            total_chunks: 1,
+            upload_date: new Date().toISOString(),
+            mime_type: mimeType,
+            page_count: pageCount,
+            has_text: false,
+            drawing_classification: drawingClassification,
+          },
+        });
+
+      if (insertError) {
+        console.error('[Upload] Failed to insert minimal record:', insertError);
+        return logger.logComplete(false, undefined, 0, 0, 'Failed to save document record: ' + insertError.message);
+      }
+      
+      console.log('[Upload] Minimal record created for:', fileName);
+      return logger.logComplete(true, undefined, 1, 1, 'Document saved (no AI indexing - no readable text)');
+    } catch (err) {
+      console.error('[Upload] Exception creating minimal record:', err);
+      return logger.logComplete(false, undefined, 0, 0, 'Document saved to storage but database insert failed');
+    }
   }
 
   const chunks = chunkText(extractedText);
