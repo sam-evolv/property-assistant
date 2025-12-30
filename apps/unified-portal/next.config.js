@@ -11,14 +11,20 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb'
+      bodySizeLimit: '10mb',
+      allowedOrigins: [
+        'localhost:5000',
+        '*.riker.replit.dev',
+        '*.replit.dev',
+      ],
     },
   },
   allowedDevOrigins: [
-    'http://localhost:5000',
-    'http://0.0.0.0:5000',
-    'http://127.0.0.1:5000',
-    'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev',
+    'localhost:5000',
+    '0.0.0.0:5000',
+    '127.0.0.1:5000',
+    '*.riker.replit.dev',
+    '*.replit.dev',
   ],
   images: {
     remotePatterns: [
