@@ -4,6 +4,7 @@ export type RouteResolution = {
   route: string;
   reason: string;
   effectiveRole: AdminRole | null;
+  allRoles: AdminRole[];
 };
 
 const ROLE_PRECEDENCE: Record<AdminRole, number> = {
@@ -28,32 +29,36 @@ export function getEffectiveRole(roles: AdminRole[]): AdminRole | null {
     return priorityA - priorityB;
   });
   
-  console.log('[ROLE_PRECEDENCE] Multiple roles detected:', roles, '-> effective:', sorted[0]);
+  console.log('[ROLE_PRECEDENCE] Multiple roles detected:', roles, '-> landing role:', sorted[0]);
   return sorted[0];
 }
 
 export function resolvePostLoginRoute(roleOrRoles: AdminRole | AdminRole[] | null | undefined): RouteResolution {
-  let effectiveRole: AdminRole | null = null;
+  let allRoles: AdminRole[] = [];
   
   if (!roleOrRoles) {
     return {
       route: '/access-pending',
       reason: 'No role assigned - account not provisioned',
-      effectiveRole: null
+      effectiveRole: null,
+      allRoles: []
     };
   }
   
   if (Array.isArray(roleOrRoles)) {
-    effectiveRole = getEffectiveRole(roleOrRoles);
+    allRoles = roleOrRoles;
   } else {
-    effectiveRole = roleOrRoles;
+    allRoles = [roleOrRoles];
   }
+  
+  const effectiveRole = getEffectiveRole(allRoles);
   
   if (!effectiveRole) {
     return {
       route: '/access-pending',
       reason: 'No valid role found',
-      effectiveRole: null
+      effectiveRole: null,
+      allRoles
     };
   }
 
@@ -61,15 +66,17 @@ export function resolvePostLoginRoute(roleOrRoles: AdminRole | AdminRole[] | nul
     case 'super_admin':
       return {
         route: '/super',
-        reason: 'Super admin landing',
-        effectiveRole
+        reason: 'Super admin landing (only role)',
+        effectiveRole,
+        allRoles
       };
     
     case 'developer':
       return {
         route: '/developer',
         reason: 'Developer dashboard landing (highest precedence)',
-        effectiveRole
+        effectiveRole,
+        allRoles
       };
     
     case 'admin':
@@ -77,14 +84,16 @@ export function resolvePostLoginRoute(roleOrRoles: AdminRole | AdminRole[] | nul
       return {
         route: '/developer',
         reason: 'Admin/tenant_admin defaults to developer dashboard',
-        effectiveRole
+        effectiveRole,
+        allRoles
       };
     
     default:
       return {
         route: '/access-pending',
         reason: `Unknown role: ${effectiveRole}`,
-        effectiveRole: null
+        effectiveRole: null,
+        allRoles
       };
   }
 }
@@ -104,21 +113,27 @@ export function getRoleAllowedPaths(role: AdminRole): string[] {
   }
 }
 
+export function isAnyRoleAllowedForPath(roles: AdminRole[], pathname: string): boolean {
+  if (!roles || roles.length === 0) {
+    return false;
+  }
+  
+  for (const role of roles) {
+    const allowedPaths = getRoleAllowedPaths(role);
+    if (allowedPaths.some(path => pathname.startsWith(path))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export function isRoleAllowedForPath(role: AdminRole, pathname: string): boolean {
   const allowedPaths = getRoleAllowedPaths(role);
   return allowedPaths.some(path => pathname.startsWith(path));
 }
 
-export function getRedirectForUnauthorizedAccess(role: AdminRole, attemptedPath: string): string {
-  const { route: defaultRoute } = resolvePostLoginRoute(role);
-  
-  if (attemptedPath.startsWith('/super') && role !== 'super_admin') {
-    return defaultRoute;
-  }
-  
-  if (attemptedPath.startsWith('/admin') && role !== 'super_admin') {
-    return defaultRoute;
-  }
-  
+export function getRedirectForUnauthorizedAccess(roles: AdminRole[], attemptedPath: string): string {
+  const { route: defaultRoute } = resolvePostLoginRoute(roles);
   return defaultRoute;
 }

@@ -2,9 +2,19 @@
 
 This document outlines how to verify that post-login routing works correctly based on user roles with multi-role support.
 
-## Role Precedence (Developer First)
+## Two Concepts: Landing vs Authorization
 
-When a user has **multiple roles**, the system applies precedence to determine the landing page:
+**Landing** = Where the user goes after login (uses precedence, developer-first)
+**Authorization** = What paths the user can access (checks ALL roles)
+
+| Concept | Logic | Example |
+|---------|-------|---------|
+| Landing | Developer-first precedence | super_admin + developer → lands on `/developer` |
+| Authorization | Any role grants access | super_admin + developer → CAN access `/super` |
+
+## Role Precedence for Landing (Developer First)
+
+When a user has **multiple roles**, the system applies precedence to determine the **landing page**:
 
 | Priority | Role | Default Landing |
 |----------|------|-----------------|
@@ -14,18 +24,28 @@ When a user has **multiple roles**, the system applies precedence to determine t
 | 4 | `super_admin` | `/super` |
 | - | No role / Not provisioned | `/access-pending` |
 
-**Key Principle**: Developer role always wins. If a user has both `developer` and `admin` roles, they land on `/developer`.
+**Key Principle**: Developer role determines the landing page, but users retain ALL their role privileges.
+
+## Authorization (Access Control)
+
+Authorization checks ALL roles the user has. If ANY role grants access to a path, access is allowed.
+
+| Path | Required Role (any of) |
+|------|------------------------|
+| `/super` | `super_admin` |
+| `/developer` | `developer`, `admin`, `tenant_admin`, `super_admin` |
+| `/portal` | `developer`, `admin`, `tenant_admin`, `super_admin` |
+| `/admin` | `super_admin` |
 
 ## Multi-Role Examples
 
-| User Roles | Effective Role | Landing Page |
-|------------|----------------|--------------|
-| `['developer', 'admin']` | `developer` | `/developer` |
-| `['admin', 'developer']` | `developer` | `/developer` |
-| `['super_admin', 'developer']` | `developer` | `/developer` |
-| `['admin']` only | `admin` | `/developer` |
-| `['super_admin']` only | `super_admin` | `/super` |
-| `[]` empty | None | `/access-pending` |
+| User Roles | Landing Page | Can Access `/super`? | Can Access `/developer`? |
+|------------|--------------|----------------------|--------------------------|
+| `['developer', 'admin']` | `/developer` | No | Yes |
+| `['super_admin', 'developer']` | `/developer` | **Yes** | Yes |
+| `['super_admin']` only | `/super` | Yes | Yes |
+| `['admin']` only | `/developer` | No | Yes |
+| `[]` empty | `/access-pending` | No | No |
 
 ## Verification Steps
 
@@ -38,46 +58,57 @@ When a user has **multiple roles**, the system applies precedence to determine t
 **Expected Result:**
 - User lands at `/developer` (NOT `/admin`)
 - Developer dashboard is displayed
-- Console log shows: `[ROLE_PRECEDENCE] Multiple roles detected: [...] -> effective: developer`
+- User CAN manually navigate to other authorized paths
 
-### 2. Pure Developer Login
-
-**Steps:**
-1. Sign in with an account that only has `developer` role
-2. Do NOT specify a `redirectTo` parameter
-
-**Expected Result:**
-- User lands at `/developer`
-
-### 3. Admin-Only Login
-
-**Steps:**
-1. Sign in with an account that only has `admin` role
-2. Do NOT specify a `redirectTo` parameter
-
-**Expected Result:**
-- User lands at `/developer` (admin defaults to developer dashboard)
-
-### 4. Super Admin Only Login
-
-**Steps:**
-1. Sign in with an account that only has `super_admin` role
-2. Do NOT specify a `redirectTo` parameter
-
-**Expected Result:**
-- User lands at `/super`
-- Super admin dashboard is displayed
-
-### 5. Super Admin with Developer Access
+### 2. Super Admin with Developer Access
 
 **Steps:**
 1. Sign in with an account that has both `super_admin` + `developer` roles
 2. Do NOT specify a `redirectTo` parameter
 
 **Expected Result:**
-- User lands at `/developer` (developer takes precedence)
+- User lands at `/developer` (developer takes precedence for landing)
+- User CAN still manually navigate to `/super` (authorized via super_admin role)
 
-### 6. Unprovisioned Account Login
+### 3. Pure Developer Login
+
+**Steps:**
+1. Sign in with an account that only has `developer` role
+
+**Expected Result:**
+- User lands at `/developer`
+- User CANNOT access `/super` (no super_admin role)
+
+### 4. Super Admin Only Login
+
+**Steps:**
+1. Sign in with an account that only has `super_admin` role
+
+**Expected Result:**
+- User lands at `/super` (no developer role to take precedence)
+- User CAN access `/developer` (super_admin has access everywhere)
+
+### 5. Admin-Only Login
+
+**Steps:**
+1. Sign in with an account that only has `admin` role
+
+**Expected Result:**
+- User lands at `/developer`
+- User CANNOT access `/super`
+
+### 6. Cross-Dashboard Navigation (Super Admin + Developer)
+
+**Steps:**
+1. Sign in with super_admin + developer account
+2. Land on `/developer` (expected)
+3. Manually navigate to `/super`
+
+**Expected Result:**
+- Navigation to `/super` succeeds (super_admin role grants access)
+- No redirect back to `/developer`
+
+### 7. Unprovisioned Account Login
 
 **Steps:**
 1. Sign up with a new email at `/login`
@@ -85,75 +116,58 @@ When a user has **multiple roles**, the system applies precedence to determine t
 
 **Expected Result:**
 - User lands at `/access-pending`
-- Message explains that account is not yet provisioned
-
-### 7. Cross-Dashboard Access Prevention
-
-**Developer trying to access Super Admin:**
-1. Sign in as a user with developer role only
-2. Manually navigate to `/super`
-
-**Expected Result:**
-- User is redirected to `/developer`
 
 ## Implementation Details
-
-### Role Aggregation
-- All admin records for a user's email are fetched
-- Multiple roles are collected into an array
-- Precedence is applied to select the effective role
-
-### Canonical Route Resolver
-Location: `lib/auth/resolvePostLoginRoute.ts`
-
-This module provides:
-- `getEffectiveRole(roles[])` - Applies precedence to select winning role
-- `resolvePostLoginRoute(roleOrRoles)` - Returns route for single role or role array
-- `isRoleAllowedForPath(role, pathname)` - Checks if a role can access a path
-
-### Precedence Logic
-```typescript
-const ROLE_PRECEDENCE: Record<AdminRole, number> = {
-  'developer': 1,      // Highest priority
-  'tenant_admin': 2,
-  'admin': 3,
-  'super_admin': 4,    // Lowest priority (only wins if alone)
-};
-```
-
-### Middleware Enforcement
-Location: `middleware.ts`
-
-The middleware:
-1. Fetches ALL admin records for the user's email
-2. Builds role array from all records
-3. Applies precedence to determine effective role
-4. Enforces role-based access for protected paths
-5. Redirects users to their correct dashboard if accessing wrong one
 
 ### Session Structure
 ```typescript
 interface AdminSession {
   id: string;
   email: string;
-  role: AdminRole;      // Effective role after precedence
-  roles: AdminRole[];   // All roles the user has
+  role: AdminRole;      // Effective role for landing
+  roles: AdminRole[];   // ALL roles for authorization
   tenantId: string;
 }
+```
+
+### Canonical Route Resolver
+Location: `lib/auth/resolvePostLoginRoute.ts`
+
+- `getEffectiveRole(roles[])` - Applies precedence for landing page
+- `resolvePostLoginRoute(roles)` - Returns landing route
+- `isAnyRoleAllowedForPath(roles[], pathname)` - Checks ALL roles for authorization
+
+### Middleware Authorization
+Location: `middleware.ts`
+
+Uses `isAnyRoleAllowedForPath()` which:
+1. Checks if ANY role in the array grants access
+2. Super admin in roles = access to everything
+3. Developer/admin/tenant_admin = access to `/developer`, `/portal`
+
+### Precedence Logic (Landing Only)
+```typescript
+const ROLE_PRECEDENCE: Record<AdminRole, number> = {
+  'developer': 1,      // Highest priority for landing
+  'tenant_admin': 2,
+  'admin': 3,
+  'super_admin': 4,    // Lowest priority for landing (not authorization!)
+};
 ```
 
 ## Troubleshooting
 
 **User lands on wrong dashboard:**
-1. Check the `admins` table for duplicate/multiple entries for that email
+1. Check the `admins` table for all entries for that email
 2. Verify which roles are assigned
-3. Confirm precedence logic is applying correctly in logs
+3. Developer role should cause landing on `/developer`
 
-**User stuck on access-pending:**
-1. Verify at least one row exists in `admins` table for that email
-2. Check the `role` column has a valid value
+**Super admin can't access /super:**
+1. Verify `super_admin` role exists in their roles array
+2. Check middleware logs for role detection
+3. Authorization should check ALL roles, not just effective role
 
 **Console Debug:**
 Look for these log patterns:
-- `[ROLE_PRECEDENCE] Multiple roles detected: [...] -> effective: developer`
+- `[Middleware] Multiple roles detected: [...] -> landing role: developer`
 - `[AUTH] Admin found in Drizzle DB: email roles: [...] effective: developer`

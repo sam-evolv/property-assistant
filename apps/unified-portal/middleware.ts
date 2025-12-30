@@ -48,7 +48,7 @@ const ROLE_PRECEDENCE: Record<AdminRole, number> = {
   'super_admin': 4,
 };
 
-function getEffectiveRole(roles: AdminRole[]): AdminRole | null {
+function getEffectiveRoleForLanding(roles: AdminRole[]): AdminRole | null {
   if (!roles || roles.length === 0) {
     return null;
   }
@@ -63,16 +63,18 @@ function getEffectiveRole(roles: AdminRole[]): AdminRole | null {
     return priorityA - priorityB;
   });
   
-  console.log('[Middleware] Multiple roles detected:', roles, '-> effective:', sorted[0]);
+  console.log('[Middleware] Multiple roles detected:', roles, '-> landing role:', sorted[0]);
   return sorted[0];
 }
 
-function resolveDefaultRoute(role: AdminRole | null): string {
-  if (!role) {
+function resolveDefaultRoute(roles: AdminRole[]): string {
+  const effectiveRole = getEffectiveRoleForLanding(roles);
+  
+  if (!effectiveRole) {
     return '/access-pending';
   }
   
-  switch (role) {
+  switch (effectiveRole) {
     case 'super_admin':
       return '/super';
     case 'developer':
@@ -84,13 +86,15 @@ function resolveDefaultRoute(role: AdminRole | null): string {
   }
 }
 
-function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean {
-  if (!role) {
+function isAnyRoleAllowedForPath(roles: AdminRole[], pathname: string): boolean {
+  if (!roles || roles.length === 0) {
     return false;
   }
   
-  if (role === 'super_admin') {
-    return true;
+  for (const role of roles) {
+    if (role === 'super_admin') {
+      return true;
+    }
   }
   
   if (pathname.startsWith('/super')) {
@@ -101,8 +105,12 @@ function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean
     return false;
   }
   
-  if (role === 'developer' || role === 'admin' || role === 'tenant_admin') {
-    return pathname.startsWith('/developer') || pathname.startsWith('/portal');
+  for (const role of roles) {
+    if (role === 'developer' || role === 'admin' || role === 'tenant_admin') {
+      if (pathname.startsWith('/developer') || pathname.startsWith('/portal')) {
+        return true;
+      }
+    }
   }
   
   return false;
@@ -177,10 +185,8 @@ export async function middleware(req: NextRequest) {
       console.error('[Middleware] Error fetching admin roles:', e);
     }
     
-    const effectiveRole = getEffectiveRole(roles);
-    
-    if (!isRoleAllowedForPath(effectiveRole, pathname)) {
-      const correctRoute = resolveDefaultRoute(effectiveRole);
+    if (!isAnyRoleAllowedForPath(roles, pathname)) {
+      const correctRoute = resolveDefaultRoute(roles);
       return NextResponse.redirect(new URL(correctRoute, req.url));
     }
   }

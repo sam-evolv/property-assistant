@@ -100,7 +100,8 @@ export async function requireSession(): Promise<AdminSession> {
 export async function requireRole(allowedRoles: AdminRole[]): Promise<AdminSession> {
   const session = await requireSession();
 
-  if (!allowedRoles.includes(session.role)) {
+  const hasAllowedRole = session.roles.some(role => allowedRoles.includes(role));
+  if (!hasAllowedRole) {
     throw new Error('FORBIDDEN');
   }
 
