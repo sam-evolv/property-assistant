@@ -67,12 +67,14 @@ export async function GET(request: NextRequest) {
         drizzleErr instanceof Error ? drizzleErr.message : 'Unknown error');
     }
 
+    // Query ALL projects from Supabase (organization_id filter was causing 0 results)
+    // Projects may not have organization_id set, so we fetch all and the user can see all available
     const supabaseResult = await supabaseAdmin
       .from('projects')
       .select('id, name, address, organization_id, created_at')
-      .eq('organization_id', tenantId);
+      .order('name', { ascending: true });
 
-    console.log('[Developer Developments API] Supabase:', supabaseResult.data?.length || 0);
+    console.log('[Developer Developments API] Supabase projects found:', supabaseResult.data?.length || 0);
 
     if (supabaseResult.error) {
       console.warn('[Developer Developments API] Supabase fetch failed (non-blocking):', supabaseResult.error.message);
