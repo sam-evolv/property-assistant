@@ -1,0 +1,101 @@
+You are a senior frontend engineer fixing Smart Archive async state handling.
+
+GOAL:
+Prevent Smart Archive from rendering fatal empty states
+before schemes have finished loading.
+
+---
+
+STEP 1: FIX SCHEMES LOADING STATE
+
+Where schemes are fetched (likely useSchemes or similar):
+
+Add:
+- schemesLoading (true while fetching)
+- schemesResolved (true only after fetch completes)
+
+Example:
+const { data: schemes, isLoading } = useSchemes()
+
+Define:
+const schemesResolved = !isLoading
+
+---
+
+STEP 2: BLOCK EMPTY STATES UNTIL RESOLVED
+
+In SmartArchivePage.tsx (or equivalent):
+
+DELETE any logic like:
+if (schemes.length === 0) return <NoSchemesFound />
+
+REPLACE with:
+
+if (!schemesResolved) {
+  return <SmartArchiveSkeleton /> // or nothing
+}
+
+if (schemesResolved && schemes.length === 0) {
+  return <NoSchemesFound />
+}
+
+---
+
+STEP 3: DOCUMENT-DRIVEN RENDERING
+
+After schemesResolved === true:
+
+const hasDocuments = documents.length > 0
+
+Render rules:
+
+- If schemesResolved && schemes.length > 0:
+  → ALWAYS render folder grid
+
+- documents.length === 0:
+  → show zero-count folders + subtle “No documents yet”
+
+NEVER gate rendering on schemes.length unless schemesResolved === true.
+
+---
+
+STEP 4: FIX HEADER BANNER (“No developments found”)
+
+That banner must use the SAME rule:
+
+Show ONLY if:
+schemesResolved && schemes.length === 0
+
+NEVER show it:
+- while loading
+- when a scheme is selected
+- when documents exist
+
+FILES:
+- SmartArchiveHeader.tsx
+
+---
+
+STEP 5: SAFETY LOGGING (TEMP)
+
+Add:
+console.log("schemesResolved", schemesResolved)
+console.log("schemes.length", schemes.length)
+console.log("documents.length", documents.length)
+
+Verify:
+- On All Schemes → schemesResolved=true, schemes.length>0
+- No fatal empty state flashes
+
+---
+
+EXPECTED RESULT:
+
+- All Schemes renders folders immediately
+- Longview Park renders correctly
+- Rathard Park renders zero-count folders
+- No “No Schemes Found” unless developer truly has zero schemes
+- No flicker / collapse during loads
+
+This is a state-handling fix only.
+Do not touch backend.
