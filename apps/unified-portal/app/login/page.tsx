@@ -75,7 +75,7 @@ function LoginForm() {
         let finalRedirect = redirectTo;
         if (!finalRedirect) {
           const { resolvePostLoginRoute } = await import('@/lib/auth/resolvePostLoginRoute');
-          const resolution = resolvePostLoginRoute(userData.role);
+          const resolution = resolvePostLoginRoute(userData.role, userData.preferredRole);
           finalRedirect = resolution.route;
         }
 

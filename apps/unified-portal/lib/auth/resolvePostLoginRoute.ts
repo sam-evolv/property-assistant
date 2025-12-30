@@ -5,7 +5,10 @@ export type RouteResolution = {
   reason: string;
 };
 
-export function resolvePostLoginRoute(role: AdminRole | null | undefined): RouteResolution {
+export function resolvePostLoginRoute(
+  role: AdminRole | null | undefined,
+  preferredRole?: AdminRole | null
+): RouteResolution {
   if (!role) {
     return {
       route: '/access-pending',
@@ -13,11 +16,13 @@ export function resolvePostLoginRoute(role: AdminRole | null | undefined): Route
     };
   }
 
-  switch (role) {
+  const routingRole = preferredRole || role;
+
+  switch (routingRole) {
     case 'super_admin':
       return {
         route: '/super',
-        reason: 'Super admin landing'
+        reason: preferredRole ? 'Preferred landing: super admin' : 'Super admin landing'
       };
     
     case 'developer':
@@ -25,13 +30,13 @@ export function resolvePostLoginRoute(role: AdminRole | null | undefined): Route
     case 'tenant_admin':
       return {
         route: '/developer',
-        reason: 'Developer dashboard landing'
+        reason: preferredRole ? 'Preferred landing: developer dashboard' : 'Developer dashboard landing'
       };
     
     default:
       return {
         route: '/access-pending',
-        reason: `Unknown role: ${role}`
+        reason: `Unknown role: ${routingRole}`
       };
   }
 }

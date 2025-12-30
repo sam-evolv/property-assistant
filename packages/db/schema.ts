@@ -68,6 +68,7 @@ export const admins = pgTable('admins', {
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   role: varchar('role', { length: 50 }).notNull().default('admin'),
+  preferred_role: varchar('preferred_role', { length: 50 }),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('admins_tenant_idx').on(table.tenant_id),

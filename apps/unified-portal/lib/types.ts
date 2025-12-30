@@ -4,5 +4,6 @@ export interface AdminSession {
   id: string;
   email: string;
   role: AdminRole;
+  preferredRole?: AdminRole | null;
   tenantId: string;
 }

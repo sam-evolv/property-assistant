@@ -41,12 +41,14 @@ function isProtectedPath(pathname: string): boolean {
 
 type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
 
-function resolveDefaultRoute(role: AdminRole | null): string {
+function resolveDefaultRoute(role: AdminRole | null, preferredRole?: AdminRole | null): string {
   if (!role) {
     return '/access-pending';
   }
   
-  switch (role) {
+  const routingRole = preferredRole || role;
+  
+  switch (routingRole) {
     case 'super_admin':
       return '/super';
     case 'developer':
@@ -133,23 +135,25 @@ export async function middleware(req: NextRequest) {
 
   if (isAuthenticated && isProtectedPath(pathname)) {
     let role: AdminRole | null = null;
+    let preferredRole: AdminRole | null = null;
     
     try {
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
-        .select('role')
+        .select('role, preferred_role')
         .eq('email', user!.email)
         .single();
       
       if (!adminError && adminData?.role) {
         role = adminData.role as AdminRole;
+        preferredRole = adminData.preferred_role as AdminRole | null;
       }
     } catch (e) {
       console.error('[Middleware] Error fetching admin role:', e);
     }
     
     if (!isRoleAllowedForPath(role, pathname)) {
-      const correctRoute = resolveDefaultRoute(role);
+      const correctRoute = resolveDefaultRoute(role, preferredRole);
       return NextResponse.redirect(new URL(correctRoute, req.url));
     }
   }

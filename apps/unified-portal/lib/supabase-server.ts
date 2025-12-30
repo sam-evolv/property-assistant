@@ -39,6 +39,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
           id: true,
           email: true,
           role: true,
+          preferred_role: true,
           tenant_id: true,
         },
       });
@@ -52,13 +53,14 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         };
       }
 
-      console.log('[AUTH] Admin found in Drizzle DB:', admin.email, 'role:', admin.role);
+      console.log('[AUTH] Admin found in Drizzle DB:', admin.email, 'role:', admin.role, 'preferred_role:', admin.preferred_role);
       return {
         status: 'authenticated',
         session: {
           id: admin.id,
           email: admin.email,
           role: admin.role as AdminRole,
+          preferredRole: admin.preferred_role as AdminRole | null,
           tenantId: admin.tenant_id,
         }
       };
