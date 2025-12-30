@@ -1,0 +1,206 @@
+You are a senior engineer fixing Smart Archive deterministically.
+Do NOT change architecture, UX, or storage strategy.
+
+This is a wiring and enforcement fix only.
+
+===============================
+NON-NEGOTIABLE INVARIANTS
+===============================
+
+1. ALL documents (ALL schemes) live in ONE Supabase table
+2. scheme_id is the ONLY differentiator
+3. Upload, read, header, and UI must ALL read from the SAME scheme source
+4. “Viewing All Schemes” may ONLY appear when ALL_SCHEMES is selected
+5. If a scheme is selected, NOTHING may behave like ALL_SCHEMES
+
+===============================
+PART 1 — SINGLE SCHEME SOURCE OF TRUTH
+===============================
+
+In CurrentContext.tsx:
+
+- The active scheme MUST come from React state only
+- sessionStorage is WRITE-ONLY persistence
+- sessionStorage MUST NEVER override React state
+
+❌ REMOVE COMPLETELY:
+- any read from sessionStorage during render
+- any fallback to ALL_SCHEMES
+
+✅ Context shape must be:
+
+{
+  scope: "ALL_SCHEMES" | "SCHEME",
+  schemeId: string | null,
+  schemeName: string | null
+}
+
+FILES:
+- context/CurrentContext.tsx
+
+===============================
+PART 2 — HEADER BADGE (FIX THIS PROPERLY)
+===============================
+
+In SmartArchiveHeader.tsx:
+
+Render badge using ONLY CurrentContext.
+
+Logic MUST be:
+
+IF scope === "ALL_SCHEMES":
+  show "Viewing All Schemes"
+ELSE:
+  show schemeName
+
+❌ DO NOT:
+- infer from document count
+- infer from API response
+- read from storage
+
+This badge must NEVER appear in Longview Park or Rathard Park.
+
+FILES:
+- components/SmartArchiveHeader.tsx
+
+===============================
+PART 3 — UPLOAD MUST BE SCHEME-LOCKED
+===============================
+
+In SmartArchiveUploader.tsx:
+
+- Read schemeId ONLY from CurrentContext
+- Block upload if scope !== "SCHEME"
+
+IF scope !== "SCHEME":
+  disable upload
+  show error: "Select a scheme before uploading documents"
+
+FILES:
+- components/SmartArchiveUploader.tsx
+
+===============================
+PART 4 — PDF UPLOAD (IDENTICAL FOR ALL SCHEMES)
+===============================
+
+There must be EXACTLY ONE upload pipeline.
+
+In upload handler:
+
+- Accept PDF
+- Store metadata
+- Store scheme_id
+- Extract text
+
+DO NOT branch logic by scheme name.
+DO NOT special-case Rathard Park.
+
+FILES:
+- api/smart-archive/upload.ts
+
+Payload MUST ALWAYS be:
+
+{
+  scheme_id: string,
+  discipline: string,
+  file
+}
+
+If scheme_id is missing → FAIL.
+
+===============================
+PART 5 — BACKEND HARD GUARD
+===============================
+
+In upload API:
+
+IF scheme_id is null or undefined:
+  return 400
+  message: "scheme_id is required"
+
+This prevents ghost uploads that end up in ALL_SCHEMES.
+
+FILES:
+- api/smart-archive/upload.ts
+
+===============================
+PART 6 — FETCHING DOCUMENTS (NO LEAKAGE)
+===============================
+
+When scope === "SCHEME":
+
+Query MUST be:
+
+SELECT *
+FROM documents
+WHERE scheme_id = :schemeId
+
+NO:
+- OR scheme_id IS NULL
+- developer-wide fallback
+- ALL_SCHEMES reuse
+
+When scope === "ALL_SCHEMES":
+
+SELECT *
+FROM documents
+WHERE developer_id = :developerId
+
+FILES:
+- api/smart-archive/list.ts
+- hooks/useSmartArchive.ts
+
+===============================
+PART 7 — ZERO-STATE IS NOT AN ERROR
+===============================
+
+If scheme exists but has zero documents:
+
+- SHOW all discipline cards
+- SHOW 0 files
+- DO NOT show:
+  - "No schemes found"
+  - "No developments found"
+
+Those messages ONLY apply when the developer has zero schemes total.
+
+FILES:
+- components/SmartArchiveGrid.tsx
+
+===============================
+PART 8 — POST-UPLOAD CACHE INVALIDATION
+===============================
+
+After upload success:
+
+invalidateQueries([
+  "smart-archive",
+  schemeId
+])
+
+DO NOT invalidate ALL_SCHEMES.
+
+FILES:
+- hooks/useSmartArchive.ts
+
+===============================
+EXPECTED RESULT (MUST HOLD)
+===============================
+
+✔ Upload PDF to Rathard Park
+  → appears immediately in Rathard Park
+  → scheme_id = Rathard Park
+  → NOT visible in Longview Park
+
+✔ Header:
+  - Longview Park → shows "Longview Park"
+  - Rathard Park → shows "Rathard Park"
+  - ALL_SCHEMES → shows "Viewing All Schemes"
+
+✔ Same Supabase table
+✔ Same upload code
+✔ Same extraction logic
+✔ Zero branching by scheme name
+
+This is a wiring fix.
+Do not introduce new abstractions.

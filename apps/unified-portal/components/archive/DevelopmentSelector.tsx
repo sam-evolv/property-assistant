@@ -151,11 +151,13 @@ export function DevelopmentSelector({
     );
   }
 
+  // PART 7: Zero-state - when developer has no schemes, show appropriate message
+  // Do NOT show "Viewing All Schemes" here - that's only for scope=ALL_SCHEMES
   if (developments.length === 0) {
     return (
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 ${className}`}>
-        <Layers className="w-4 h-4 text-emerald-400" />
-        <span className="text-sm">Viewing All Schemes</span>
+        <Building2 className="w-4 h-4" />
+        <span className="text-sm">No schemes available</span>
       </div>
     );
   }
