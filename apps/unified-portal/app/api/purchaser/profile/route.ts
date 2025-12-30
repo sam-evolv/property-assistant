@@ -24,7 +24,12 @@ const KNOWN_DEVELOPMENTS: Record<string, { id: string; name: string; address: st
   '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': {
     id: '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91', 
     name: 'Rathard Park',
-    address: 'Rathard Park, Cork',
+    address: 'Rathard Park, Laherdan, Ballymoulin, Cork City',
+  },
+  '6d3789de-2e46-430c-bf31-22224bd878da': {
+    id: '6d3789de-2e46-430c-bf31-22224bd878da',
+    name: 'Rathard Park',
+    address: 'Rathard Park, Laherdan, Ballymoulin, Cork City',
   },
 };
 
@@ -104,16 +109,39 @@ export async function GET(request: NextRequest) {
 
     console.log('[Profile] Found unit:', supabaseUnit.id, 'Address:', supabaseUnit.address, 'unit_type_id:', supabaseUnit.unit_type_id);
 
-    const development = KNOWN_DEVELOPMENTS[supabaseUnit.project_id] || {
+    let developmentName = 'Unknown Development';
+    let developmentAddress = '';
+    
+    const knownDev = KNOWN_DEVELOPMENTS[supabaseUnit.project_id];
+    if (knownDev) {
+      developmentName = knownDev.name;
+      developmentAddress = knownDev.address;
+    } else {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('name, address, city, county')
+        .eq('id', supabaseUnit.project_id)
+        .single();
+      
+      if (project) {
+        developmentName = project.name || 'Unknown Development';
+        const addressParts = [project.address, project.city, project.county].filter(Boolean);
+        developmentAddress = addressParts.length > 0 
+          ? `${developmentName}, ${addressParts.join(', ')}`
+          : developmentName;
+      }
+    }
+
+    const development = {
       id: supabaseUnit.project_id,
-      name: 'Development',
-      address: '',
+      name: developmentName,
+      address: developmentAddress,
     };
 
-    let houseTypeCode = 'BD01';
-    let houseTypeName = 'Semi-Detached';
-    let bedrooms: number | null = 3;
-    let bathrooms: number | null = 2;
+    let houseTypeCode = '';
+    let houseTypeName = '';
+    let bedrooms: number | null = null;
+    let bathrooms: number | null = null;
     let floorAreaSqm: number | null = null;
     
     if (supabaseUnit.unit_type_id) {
@@ -124,19 +152,22 @@ export async function GET(request: NextRequest) {
         .single();
       
       if (unitType) {
-        houseTypeCode = unitType.name || houseTypeCode;
-        houseTypeName = unitType.name || houseTypeName;
+        houseTypeCode = unitType.name || '';
+        houseTypeName = unitType.name || '';
         
         const specs = unitType.specification_json as any;
         if (specs) {
-          bedrooms = parseNumericValue(specs.bedrooms) ?? bedrooms;
-          bathrooms = parseNumericValue(specs.bathrooms) ?? bathrooms;
+          bedrooms = parseNumericValue(specs.bedrooms);
+          bathrooms = parseNumericValue(specs.bathrooms);
+          floorAreaSqm = parseNumericValue(specs.floor_area_sqm) || parseNumericValue(specs.floor_area);
           if (specs.property_type) {
             houseTypeName = specs.property_type;
           }
         }
       }
     }
+    
+    console.log('[Profile] Unit type data - bedrooms:', bedrooms, 'bathrooms:', bathrooms, 'from unit_type_id:', supabaseUnit.unit_type_id);
 
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
     const fullAddress = supabaseUnit.address || development.address || 'Address not available';

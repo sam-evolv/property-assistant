@@ -1,0 +1,106 @@
+You are fixing incorrect data binding and UI presentation
+in the Purchaser Portal → My Home profile modal.
+
+DO NOT redesign.
+DO NOT refactor unrelated logic.
+ONLY correct data source + display composition.
+
+====================================
+PROBLEMS TO FIX (SOURCE OF TRUTH)
+====================================
+
+Unit: BS06
+Scheme: Rathard Park
+Location: Laherdan, Ballymoulin, Cork City
+
+Correct facts:
+- Bedrooms: 3
+- Bathrooms: 3
+- Development name must NOT be generic
+- Address must be explicit and human-readable
+
+====================================
+PART 1 — FIX DATA SOURCE (CRITICAL)
+====================================
+
+Current issue:
+- Bedrooms / bathrooms are incorrect
+- Development label is generic ("Development")
+
+Cause:
+- My Home card is NOT pulling from unit record
+- Likely using:
+  - hardcoded defaults
+  - scheme-level fallback
+  - incomplete house-type metadata
+
+FIX:
+- My Home must derive values in this order:
+
+1️⃣ Unit record (highest priority)
+   - unit.bedrooms
+   - unit.bathrooms
+   - unit.house_type_code
+
+2️⃣ Scheme record (for address only)
+   - scheme.name
+   - scheme.locality
+   - scheme.city
+   - scheme.county
+
+DO NOT infer counts from house type text.
+
+FILES:
+- api/purchaser/unit.ts
+- api/purchaser/home.ts
+- services/unitResolver.ts
+
+ACCEPTANCE:
+- BS06 shows 3 bedrooms, 3 bathrooms
+- No hardcoded values remain
+
+====================================
+PART 2 — FIX DEVELOPMENT NAME + ADDRESS
+====================================
+
+Replace this:
+"Development"
+
+With:
+"Rathard Park, Laherdan, Ballymoulin, Cork City"
+
+UI RULES:
+- Line 1 (bold):
+  Welcome, Longview Estates
+
+- Line 2 (subtle / muted):
+  Rathard Park, Laherdan, Ballymoulin, Cork City
+
+FILES:
+- components/MyHomeModal.tsx
+- components/MyHomeHeader.tsx
+
+ACCEPTANCE:
+- Address always reflects scheme location
+- No placeholders or generic labels
+
+====================================
+PART 3 — UI CONSISTENCY GUARARDS
+====================================
+
+Add safeguards:
+- If bedrooms/bathrooms missing → display "—"
+- NEVER guess or default to 2
+- NEVER show "Development" as a label
+
+FILES:
+- components/MyHomeStats.tsx
+
+====================================
+DELIVERABLE
+====================================
+
+- Correct My Home card for BS06
+- Confirm data is pulled from unit record
+- List files modified
+- Confirm no other areas affected
