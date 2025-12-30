@@ -197,6 +197,16 @@ interface DrawingData {
   explanation: string;
 }
 
+interface AttachmentData {
+  id: string;
+  title: string;
+  fileName: string;
+  previewUrl: string;
+  downloadUrl: string;
+  docType?: string;
+  houseTypeCode?: string | null;
+}
+
 interface ClarificationOption {
   id: string;
   label: string;
@@ -218,6 +228,7 @@ interface Message {
   content: string;
   floorPlanUrl?: string | null;
   drawing?: DrawingData | null;
+  attachments?: AttachmentData[] | null;
   clarification?: ClarificationData | null;
   sources?: SourceDocument[] | null;
   isNoInfo?: boolean;
@@ -671,6 +682,7 @@ export default function PurchaserChatTab({
               content: data.answer,
               floorPlanUrl: data.floorPlanUrl || null,
               drawing: data.drawing || null,
+              attachments: data.attachments || null,
               clarification: data.clarification || null,
             },
           ]);
@@ -920,6 +932,61 @@ export default function PurchaserChatTab({
                             Download
                           </a>
                         </div>
+                      </div>
+                    )}
+                    
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {msg.attachments.map((attachment, attachIdx) => (
+                          <div 
+                            key={attachment.id || attachIdx}
+                            className={`rounded-xl border overflow-hidden ${
+                              isDarkMode 
+                                ? 'border-gray-700 bg-gray-800/50' 
+                                : 'border-gray-200 bg-gray-50'
+                            }`}
+                          >
+                            <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <div className="flex items-center gap-2">
+                                <FileText className={`h-4 w-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                                <span className={`text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {attachment.title.includes('Ground') ? 'Ground Floor Plan' :
+                                   attachment.title.includes('First') ? 'First Floor Plan' :
+                                   attachment.title.includes('Second') ? 'Second Floor Plan' :
+                                   'Floor Plan'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex">
+                              <a
+                                href={attachment.previewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition border-r ${
+                                  isDarkMode
+                                    ? 'border-gray-700 text-gold-400 hover:bg-gray-700/50'
+                                    : 'border-gray-200 text-gold-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                <Eye className="h-4 w-4" />
+                                Preview
+                              </a>
+                              <a
+                                href={attachment.downloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
+                                  isDarkMode
+                                    ? 'text-gold-400 hover:bg-gray-700/50'
+                                    : 'text-gold-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                <Download className="h-4 w-4" />
+                                Download
+                              </a>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                     
