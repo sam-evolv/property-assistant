@@ -12,7 +12,6 @@ export async function GET() {
         id: result.session.id,
         email: result.session.email,
         role: result.session.role,
-        roles: result.session.roles,
         tenantId: result.session.tenantId,
       });
     }

@@ -4,7 +4,6 @@ import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AdminRole, AdminSession } from './types';
-import { getEffectiveRole } from './auth/resolvePostLoginRoute';
 
 export type { AdminRole, AdminSession } from './types';
 
@@ -34,7 +33,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     const userEmail = user.email as string;
     
     try {
-      const adminRecords = await db.query.admins.findMany({
+      const admin = await db.query.admins.findFirst({
         where: eq(admins.email, userEmail),
         columns: {
           id: true,
@@ -44,7 +43,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         },
       });
 
-      if (!adminRecords || adminRecords.length === 0) {
+      if (!admin) {
         console.log('[AUTH] User authenticated but not provisioned:', user.email);
         return { 
           status: 'not_provisioned', 
@@ -53,20 +52,14 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         };
       }
 
-      const roles = adminRecords.map(a => a.role as AdminRole);
-      const effectiveRole = getEffectiveRole(roles);
-      const primaryAdmin = adminRecords[0];
-
-      console.log('[AUTH] Admin found in Drizzle DB:', primaryAdmin.email, 'roles:', roles, 'effective:', effectiveRole);
-      
+      console.log('[AUTH] Admin found in Drizzle DB:', admin.email, 'role:', admin.role);
       return {
         status: 'authenticated',
         session: {
-          id: primaryAdmin.id,
-          email: primaryAdmin.email,
-          role: effectiveRole || (roles[0] as AdminRole),
-          roles: roles,
-          tenantId: primaryAdmin.tenant_id,
+          id: admin.id,
+          email: admin.email,
+          role: admin.role as AdminRole,
+          tenantId: admin.tenant_id,
         }
       };
     } catch (dbError: any) {
@@ -100,8 +93,7 @@ export async function requireSession(): Promise<AdminSession> {
 export async function requireRole(allowedRoles: AdminRole[]): Promise<AdminSession> {
   const session = await requireSession();
 
-  const hasAllowedRole = session.roles.some(role => allowedRoles.includes(role));
-  if (!hasAllowedRole) {
+  if (!allowedRoles.includes(session.role)) {
     throw new Error('FORBIDDEN');
   }
 

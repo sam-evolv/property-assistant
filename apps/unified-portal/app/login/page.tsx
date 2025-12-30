@@ -61,12 +61,25 @@ function LoginForm() {
           throw new Error(data.error || 'Login failed');
         }
 
-        const postLoginUrl = redirectTo 
-          ? `/api/auth/post-login?redirectTo=${encodeURIComponent(redirectTo)}`
-          : '/api/auth/post-login';
-        
-        console.log('[LOGIN] Redirecting to server post-login handler:', postLoginUrl);
-        window.location.href = postLoginUrl;
+        const meRes = await fetch('/api/auth/me');
+        const userData = await meRes.json();
+
+        if (!meRes.ok) {
+          if (userData.error === 'not_provisioned') {
+            router.push(`/access-pending?email=${encodeURIComponent(userData.email || email)}`);
+            return;
+          }
+          throw new Error(userData.message || 'Unable to verify account access.');
+        }
+
+        let finalRedirect = redirectTo;
+        if (!finalRedirect) {
+          const { resolvePostLoginRoute } = await import('@/lib/auth/resolvePostLoginRoute');
+          const resolution = resolvePostLoginRoute(userData.role);
+          finalRedirect = resolution.route;
+        }
+
+        window.location.href = finalRedirect;
       } else if (mode === 'signup') {
         if (password !== confirmPassword) {
           throw new Error('Passwords do not match.');

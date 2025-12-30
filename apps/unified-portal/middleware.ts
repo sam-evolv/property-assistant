@@ -41,52 +41,45 @@ function isProtectedPath(pathname: string): boolean {
 
 type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
 
-function isAnyRoleAllowedForPath(roles: AdminRole[], pathname: string): boolean {
-  if (!roles || roles.length === 0) {
-    console.log('[Middleware] No roles, blocking access');
+function resolveDefaultRoute(role: AdminRole | null): string {
+  if (!role) {
+    return '/access-pending';
+  }
+  
+  switch (role) {
+    case 'super_admin':
+      return '/super';
+    case 'developer':
+    case 'admin':
+    case 'tenant_admin':
+      return '/developer';
+    default:
+      return '/access-pending';
+  }
+}
+
+function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean {
+  if (!role) {
     return false;
   }
   
-  const hasSuperAdmin = roles.includes('super_admin');
-  const hasDeveloper = roles.includes('developer');
-  const hasAdmin = roles.includes('admin');
-  const hasTenantAdmin = roles.includes('tenant_admin');
+  if (role === 'super_admin') {
+    return true;
+  }
   
   if (pathname.startsWith('/super')) {
-    const allowed = hasSuperAdmin;
-    console.log('[Middleware] /super access:', allowed, 'roles:', roles);
-    return allowed;
+    return false;
   }
   
   if (pathname.startsWith('/admin')) {
-    const allowed = hasSuperAdmin || hasAdmin;
-    console.log('[Middleware] /admin access:', allowed, 'roles:', roles);
-    return allowed;
+    return false;
   }
   
-  if (pathname.startsWith('/developer') || pathname.startsWith('/portal')) {
-    const allowed = hasSuperAdmin || hasDeveloper || hasAdmin || hasTenantAdmin;
-    console.log('[Middleware] /developer access:', allowed, 'roles:', roles);
-    return allowed;
+  if (role === 'developer' || role === 'admin' || role === 'tenant_admin') {
+    return pathname.startsWith('/developer') || pathname.startsWith('/portal');
   }
   
   return false;
-}
-
-function getDefaultRouteForRoles(roles: AdminRole[]): string {
-  if (roles.includes('developer')) {
-    return '/developer';
-  }
-  if (roles.includes('tenant_admin')) {
-    return '/developer';
-  }
-  if (roles.includes('admin')) {
-    return '/developer';
-  }
-  if (roles.includes('super_admin')) {
-    return '/super';
-  }
-  return '/access-pending';
 }
 
 export async function middleware(req: NextRequest) {
@@ -129,35 +122,34 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAuthenticated && isLoginPage) {
-    console.log('[Middleware] Authenticated user on /login, redirecting to /api/auth/post-login');
-    return NextResponse.redirect(new URL('/api/auth/post-login', req.url));
+    const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
+    
+    if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
+      return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
+    }
+    
+    return res;
   }
 
   if (isAuthenticated && isProtectedPath(pathname)) {
-    const roles: AdminRole[] = [];
+    let role: AdminRole | null = null;
     
     try {
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('role')
-        .eq('email', user!.email);
+        .eq('email', user!.email)
+        .single();
       
-      if (!adminError && adminData && adminData.length > 0) {
-        for (const record of adminData) {
-          if (record.role) {
-            roles.push(record.role as AdminRole);
-          }
-        }
+      if (!adminError && adminData?.role) {
+        role = adminData.role as AdminRole;
       }
-      
-      console.log('[Middleware] Path:', pathname, 'Email:', user!.email, 'Roles:', roles);
     } catch (e) {
-      console.error('[Middleware] Error fetching admin roles:', e);
+      console.error('[Middleware] Error fetching admin role:', e);
     }
     
-    if (!isAnyRoleAllowedForPath(roles, pathname)) {
-      const correctRoute = getDefaultRouteForRoles(roles);
-      console.log('[Middleware] Access denied, redirecting to:', correctRoute);
+    if (!isRoleAllowedForPath(role, pathname)) {
+      const correctRoute = resolveDefaultRoute(role);
       return NextResponse.redirect(new URL(correctRoute, req.url));
     }
   }
