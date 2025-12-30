@@ -156,22 +156,60 @@ function LoginForm() {
         @keyframes logoBreath {
           0%, 100% {
             transform: scale(1);
-            filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.3));
           }
           50% {
-            transform: scale(1.02);
-            filter: drop-shadow(0 0 35px rgba(212, 175, 55, 0.5));
+            transform: scale(1.16);
+          }
+        }
+        @keyframes auraBreath {
+          0%, 100% {
+            opacity: 0.12;
+            transform: scale(0.85);
+          }
+          50% {
+            opacity: 0.22;
+            transform: scale(1.1);
           }
         }
         @keyframes subtleFloat {
           0%, 100% { opacity: 0.03; transform: translateY(0); }
           50% { opacity: 0.06; transform: translateY(-20px); }
         }
+        .logo-breathing-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .logo-breathing-wrapper::before {
+          content: '';
+          position: absolute;
+          width: 200%;
+          height: 200%;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) scale(0.85);
+          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.35) 0%, rgba(184, 147, 76, 0.15) 35%, transparent 70%);
+          border-radius: 50%;
+          pointer-events: none;
+          animation: auraBreath 8s ease-in-out infinite;
+        }
         .logo-breathe {
-          animation: logoBreath 7s ease-in-out infinite;
+          animation: logoBreath 8s ease-in-out infinite;
+          will-change: transform;
         }
         .particle-line {
           animation: subtleFloat 12s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .logo-breathe,
+          .logo-breathing-wrapper::before {
+            animation: none;
+          }
+          .logo-breathing-wrapper::before {
+            opacity: 0.15;
+            transform: translate(-50%, -50%) scale(0.9);
+          }
         }
       `}</style>
       
@@ -198,13 +236,15 @@ function LoginForm() {
             boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), 0 0 60px -30px rgba(212, 175, 55, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
           }}
         >
-          <div className="flex justify-center mb-10">
-            <div className="logo-breathe">
-              <img
-                src="/branding/openhouse-ai-logo.png"
-                alt="OpenHouse AI"
-                className="h-20 md:h-24 w-auto object-contain"
-              />
+          <div className="flex justify-center mb-12">
+            <div className="logo-breathing-wrapper">
+              <div className="logo-breathe">
+                <img
+                  src="/branding/openhouse-ai-logo.png"
+                  alt="OpenHouse AI"
+                  className="h-[6.5rem] md:h-32 w-auto object-contain"
+                />
+              </div>
             </div>
           </div>
 

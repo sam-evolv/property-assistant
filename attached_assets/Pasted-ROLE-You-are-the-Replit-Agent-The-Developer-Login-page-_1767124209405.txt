@@ -1,0 +1,79 @@
+ROLE: You are the Replit Agent. The Developer Login page design is approved in structure and styling. Your task is to FINALISE the OpenHouse AI logo treatment so it feels premium, alive, and unmistakably first-class.
+
+DO NOT change layout, colours, inputs, or card styling. Only address the logo size and animation.
+
+TARGET STATE (VERY IMPORTANT)
+The OpenHouse AI logo should feel:
+- Prominent
+- Calm
+- Expensive
+- Gently “alive”
+Not flashy. Not gimmicky. Not tech-demo-ish.
+
+SPECIFIC CHANGES TO MAKE
+
+1) LOGO SIZE (MANDATORY)
+- Increase the logo size by ~33% relative to its current rendered size.
+- Do NOT let it dominate the card, but it should clearly anchor the page.
+- Desktop target: visually strong but still leaving air before “Developer Login”.
+- Mobile: scale proportionally (no overflow, no crowding).
+
+2) BREATHING / PULSE MOTION (CORE REQUIREMENT)
+Add a **slow breathing animation** to the logo container:
+
+- Scale animation:
+  - From: scale(1)
+  - To: scale(1.15–1.18) at peak (this gives the “almost 50% presence” feeling without actually being aggressive)
+  - Back to: scale(1)
+- Timing:
+  - Duration: 7–9 seconds
+  - Easing: ease-in-out
+  - Infinite loop
+- This must feel organic, not mechanical.
+
+3) GOLD RADIANT HUE / AURA
+Add a **soft gold radiating glow** that breathes in sync with the scale:
+
+- Use a radial box-shadow or pseudo-element (::before or ::after) behind the logo.
+- Glow colour:
+  - Warm gold (close to brand gold, but softer and slightly diffused).
+- Opacity:
+  - Very subtle (think 10–20%, not neon).
+- Behaviour:
+  - Glow expands slightly and brightens as the logo scales up.
+  - Glow contracts and dims as the logo scales back down.
+- NO sharp edges.
+- NO visible rings.
+- NO flicker.
+
+4) IMPLEMENTATION DETAILS (DO THIS CLEANLY)
+- Wrap the logo in a dedicated container (e.g. `.logo-breathing-wrapper`).
+- Apply animation to the wrapper, not directly to the image if needed.
+- Ensure GPU-friendly transforms (transform + opacity only).
+- Respect reduced motion:
+  - If `prefers-reduced-motion` is enabled, disable the animation and show static logo.
+
+5) ABSOLUTE NO-GOS
+- No bouncing
+- No rotation
+- No sparkle particles
+- No lens flares
+- No CSS “pulse” that looks like Material UI
+- No SVG stroke animations
+
+ACCEPTANCE CRITERIA
+When the page loads:
+- The logo immediately reads as the focal point.
+- The motion is noticeable only after a second or two.
+- It feels like a luxury product, not a startup template.
+- If this were Apple, it would pass.
+
+STOP WHEN DONE
+Once the logo:
+- Is ~33% larger
+- Breathes slowly
+- Emits a subtle gold aura in sync
+
+…do not add anything else.
+
+SHIP THAT.
