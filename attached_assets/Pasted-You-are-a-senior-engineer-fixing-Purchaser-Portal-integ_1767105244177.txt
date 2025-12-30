@@ -1,0 +1,183 @@
+You are a senior engineer fixing Purchaser Portal integration issues.
+Do NOT redesign UI or change product scope.
+This is a wiring, filtering, and retrieval fix.
+
+====================================
+CONTEXT
+====================================
+
+- Schemes: Rathard Park, Longview Park
+- Units: e.g. BS06 (BSO6)
+- Documents uploaded:
+  - Architectural drawings (per house type / unit)
+- Smart Archive is now working correctly at developer level
+
+The Purchaser Portal is NOT correctly:
+1) Scoping documents to the purchaser’s unit
+2) Passing the correct document set to AI Q&A
+3) Returning links to documents
+4) Using the correct scheme location for maps
+5) Allowing noticeboard posts
+
+====================================
+PART 1 — UNIT-SCOPED DOCUMENT FILTERING (CRITICAL)
+====================================
+
+In Purchaser Documents section:
+
+Documents MUST be filtered by:
+- scheme_id
+- AND (unit_uid OR house_type)
+
+RULES:
+- If document.house_type matches purchaser.house_type → show
+- If document.unit_uid matches purchaser.unit_uid → show
+- Otherwise → HIDE
+
+DO NOT show:
+- All architectural plans for the scheme
+- Other house types
+- Other units
+
+FILES:
+- api/purchaser/documents.ts
+- components/PurchaserDocuments.tsx
+
+====================================
+PART 2 — AI Q&A MUST USE UNIT DOCUMENT SET
+====================================
+
+When purchaser asks a question (e.g. “What size is my living room?”):
+
+AI context MUST include:
+- Only documents returned by the same unit-scoped filter above
+- NOT all scheme documents
+- NOT all architectural documents
+
+If no matching documents:
+- Respond with: “I don’t have that information yet for your home.”
+
+FILES:
+- api/chat/purchaser.ts
+- services/documentContextBuilder.ts
+
+====================================
+PART 3 — FLOOR PLAN DETECTION (LABEL ROBUSTNESS)
+====================================
+
+Floor plans may be labelled:
+- “Ground & First Floor”
+- “First and Second Floor”
+- “Plans”
+- “GA Drawing”
+
+Do NOT rely on filename containing “floor plan”.
+
+Instead:
+- Treat any Architectural PDF as eligible spatial context
+- Allow AI to infer room sizes if dimensions exist on drawing
+- If dimensions not extractable → say so clearly
+
+FILES:
+- services/documentClassifier.ts
+- services/textExtraction.ts
+
+====================================
+PART 4 — DOCUMENT LINKS IN AI RESPONSES
+====================================
+
+When user asks:
+“Can you give me a link to my floor plans?”
+
+AI must:
+- Identify relevant document(s)
+- Return signed URL(s)
+- Label clearly (e.g. “Ground & First Floor Plan – BS06”)
+
+FILES:
+- api/chat/purchaser.ts
+- services/documentLinkResolver.ts
+
+====================================
+PART 5 — MAPS LOCATION IS WRONG (SCHEME SOURCE OF TRUTH)
+====================================
+
+Maps MUST use:
+- scheme.latitude
+- scheme.longitude
+
+NOT:
+- purchaser address fallback
+- developer HQ
+- hardcoded defaults
+
+Fix:
+- Fetch scheme by purchaser.scheme_id
+- Use scheme geo for map centre
+
+FILES:
+- api/purchaser/map.ts
+- components/PurchaserMap.tsx
+
+====================================
+PART 6 — NOTICEBOARD: CREATE POST IS MISSING
+====================================
+
+Purchasers must be able to:
+- Create a post in the noticeboard
+- Post must be scoped to:
+  - scheme_id
+  - optionally unit_uid
+
+Fix:
+- Add “Create Post” button (role: purchaser)
+- Wire to POST /api/noticeboard/create
+- Refresh list after post
+
+FILES:
+- components/Noticeboard.tsx
+- api/noticeboard/create.ts
+
+====================================
+PART 7 — ACCEPTANCE TESTS (MUST PASS)
+====================================
+
+1) Purchaser in Rathard Park, unit BS06:
+   - Documents tab shows ONLY BS06 plans
+   - No other house types visible
+
+2) Ask:
+   “What size is my living room?”
+   - AI answers using architectural plan OR
+   - Clearly states dimensions are not available
+
+3) Ask:
+   “Can you give me a link to my floor plans?”
+   - AI returns correct signed link(s)
+
+4) Maps:
+   - Centre on Rathard Park (not Dublin/Wicklow)
+
+5) Noticeboard:
+   - “Create Post” visible
+   - Post appears immediately after submission
+
+====================================
+IMPORTANT CONSTRAINTS
+====================================
+
+- Do NOT change Smart Archive logic
+- Do NOT broaden AI context
+- Do NOT infer unit from filename alone
+- Use explicit unit_uid / house_type matching
+
+====================================
+DELIVERABLE
+====================================
+
+Implement all fixes.
+Report:
+- Files changed
+- How unit scoping is enforced
+- How AI context is built
+- Confirmation of acceptance tests

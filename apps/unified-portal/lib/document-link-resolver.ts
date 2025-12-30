@@ -8,6 +8,33 @@ function getSupabaseClient() {
   );
 }
 
+function extractHouseTypeFromFilename(filename: string): string | null {
+  const patterns = [
+    /House-Type-([A-Z]{1,3}\d{1,2})/i,
+    /Type-([A-Z]{1,3}\d{1,2})/i,
+    /[-_]([A-Z]{1,3}\d{1,2})[-_]/i,
+    /^([A-Z]{1,3}\d{1,2})[-_]/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = filename.match(pattern);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+  }
+  
+  return null;
+}
+
+function getMetadataHouseTypeCode(metadata: any): string | null {
+  const drawingClassification = metadata?.drawing_classification || {};
+  const fileName = metadata?.file_name || metadata?.source || '';
+  
+  return metadata?.house_type_code || 
+         drawingClassification?.houseTypeCode || 
+         extractHouseTypeFromFilename(fileName);
+}
+
 export interface ResolvedDocument {
   id: string;
   fileName: string;
@@ -139,7 +166,7 @@ export async function findDocumentForLink(
     
     const key = metadata.file_name || metadata.file_url;
     if (!uniqueDocs.has(key)) {
-      const docHouseType = metadata.house_type_code;
+      const docHouseType = getMetadataHouseTypeCode(metadata);
       const normalizedDocHouseType = (docHouseType || '').toLowerCase().trim();
       
       if (normalizedDocHouseType && normalizedHouseType) {
@@ -147,7 +174,7 @@ export async function findDocumentForLink(
           continue;
         }
       }
-      uniqueDocs.set(key, metadata);
+      uniqueDocs.set(key, { ...metadata, house_type_code: docHouseType });
     }
   }
   

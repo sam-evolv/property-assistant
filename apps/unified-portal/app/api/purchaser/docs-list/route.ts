@@ -20,6 +20,25 @@ function getSupabaseClient() {
   );
 }
 
+function extractHouseTypeFromFilename(filename: string): string | null {
+  // Common house type patterns: BD06, BS06, A1, B2, Type-A, House-Type-BD06, etc.
+  const patterns = [
+    /House-Type-([A-Z]{1,3}\d{1,2})/i,  // House-Type-BD06
+    /Type-([A-Z]{1,3}\d{1,2})/i,         // Type-BD06
+    /[-_]([A-Z]{1,3}\d{1,2})[-_]/i,      // -BD06- or _BD06_
+    /^([A-Z]{1,3}\d{1,2})[-_]/i,         // BD06- at start
+  ];
+  
+  for (const pattern of patterns) {
+    const match = filename.match(pattern);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+  }
+  
+  return null;
+}
+
 function mapDisciplineToCategory(discipline: string, title: string): string {
   const lowerTitle = title.toLowerCase();
   const lowerDiscipline = discipline.toLowerCase();
@@ -235,7 +254,12 @@ export async function GET(request: NextRequest) {
     for (const section of sections || []) {
       const metadata = section.metadata || {};
       const source = metadata.source || metadata.file_name || 'Unknown';
-      const docHouseTypeCode = metadata.house_type_code;
+      
+      // Check multiple locations for house type code
+      const drawingClassification = metadata.drawing_classification || {};
+      const docHouseTypeCode = metadata.house_type_code || 
+                               drawingClassification.houseTypeCode || 
+                               extractHouseTypeFromFilename(source);
       const normalizedDocHouseType = (docHouseTypeCode || '').toLowerCase().trim();
       
       // SECURITY CHECK: Filter by house type

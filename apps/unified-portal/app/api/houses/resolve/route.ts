@@ -177,7 +177,9 @@ export async function POST(req: Request) {
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
-              d.logo_url as dev_logo_url
+              d.logo_url as dev_logo_url,
+              d.latitude as dev_latitude,
+              d.longitude as dev_longitude
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
             WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
@@ -200,7 +202,9 @@ export async function POST(req: Request) {
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
-              d.logo_url as dev_logo_url
+              d.logo_url as dev_logo_url,
+              d.latitude as dev_latitude,
+              d.longitude as dev_longitude
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
             WHERE u.unit_uid = ${token}
@@ -223,8 +227,15 @@ export async function POST(req: Request) {
 
       console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress);
 
-      const coordinates = fullAddress ? await geocodeAddress(fullAddress) : 
-        (unit.latitude && unit.longitude ? { lat: unit.latitude, lng: unit.longitude } : null);
+      // Coordinate resolution order: geocode address -> unit lat/lng -> development lat/lng
+      let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+      if (!coordinates && unit.latitude && unit.longitude) {
+        coordinates = { lat: unit.latitude, lng: unit.longitude };
+      }
+      if (!coordinates && unit.dev_latitude && unit.dev_longitude) {
+        console.log("[Resolve] Using development coordinates as fallback:", unit.dev_latitude, unit.dev_longitude);
+        coordinates = { lat: unit.dev_latitude, lng: unit.dev_longitude };
+      }
 
       const responseData = {
         success: true,
@@ -276,7 +287,21 @@ export async function POST(req: Request) {
         console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address);
         
         const fullAddress = supabaseUnit.address || '';
-        const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+        let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+        
+        // Fallback: Try to get project coordinates from Supabase projects table
+        if (!coordinates && supabaseUnit.project_id) {
+          const { data: project } = await supabase
+            .from('projects')
+            .select('latitude, longitude')
+            .eq('id', supabaseUnit.project_id)
+            .single();
+          
+          if (project?.latitude && project?.longitude) {
+            console.log("[Resolve] Using project coordinates as fallback:", project.latitude, project.longitude);
+            coordinates = { lat: project.latitude, lng: project.longitude };
+          }
+        }
         
         // Use development resolver to get both Supabase and Drizzle IDs
         const resolved = await resolveDevelopment(supabaseUnit.project_id, fullAddress);
@@ -374,7 +399,9 @@ export async function POST(req: Request) {
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
-              d.logo_url as dev_logo_url
+              d.logo_url as dev_logo_url,
+              d.latitude as dev_latitude,
+              d.longitude as dev_longitude
             FROM homeowners h
             LEFT JOIN developments d ON h.development_id = d.id
             WHERE h.id = ${token}::uuid 
@@ -394,7 +421,9 @@ export async function POST(req: Request) {
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
-              d.logo_url as dev_logo_url
+              d.logo_url as dev_logo_url,
+              d.latitude as dev_latitude,
+              d.longitude as dev_longitude
             FROM homeowners h
             LEFT JOIN developments d ON h.development_id = d.id
             WHERE h.unique_qr_token = ${token}
@@ -427,8 +456,12 @@ export async function POST(req: Request) {
 
       console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress);
 
-      // Geocode the address to get coordinates for the map
-      const coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+      // Geocode the address to get coordinates for the map, with development fallback
+      let coordinates = fullAddress ? await geocodeAddress(fullAddress) : null;
+      if (!coordinates && homeowner.dev_latitude && homeowner.dev_longitude) {
+        console.log("[Resolve] Using development coordinates as fallback:", homeowner.dev_latitude, homeowner.dev_longitude);
+        coordinates = { lat: homeowner.dev_latitude, lng: homeowner.dev_longitude };
+      }
 
       recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(

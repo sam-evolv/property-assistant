@@ -64,8 +64,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Use tenant from unit directly
-    const tenantId = unit.tenant_id;
+    if (!unit.tenant_id) {
+      console.error('[Noticeboard] Unit has no tenant association:', unitUid);
+      return NextResponse.json(
+        { error: 'Unit not linked to a tenant' },
+        { status: 400 }
+      );
+    }
+
+    const tenantId: string = unit.tenant_id;
     const now = new Date();
     
     console.log('[Noticeboard GET] Fetching posts for tenant:', tenantId, 'unit:', unitUid);
@@ -176,7 +183,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tenantId = unit.tenant_id;
+    if (!unit.tenant_id) {
+      console.error('[Noticeboard POST] Unit has no tenant association:', unitUid);
+      return NextResponse.json(
+        { error: 'Unit not linked to a tenant' },
+        { status: 400 }
+      );
+    }
+
+    const tenantId: string = unit.tenant_id;
     const developmentId = unit.development_id;
     const unitAddress = unit.address;
     
@@ -308,7 +323,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const tenantId = unit.tenant_id;
+    if (!unit.tenant_id) {
+      return NextResponse.json(
+        { error: 'Unit not linked to a tenant' },
+        { status: 400 }
+      );
+    }
+
+    const tenantId: string = unit.tenant_id;
 
     const existingPost = await db
       .select()
@@ -426,7 +448,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const tenantId = unit.tenant_id;
+    if (!unit.tenant_id) {
+      return NextResponse.json(
+        { error: 'Unit not linked to a tenant' },
+        { status: 400 }
+      );
+    }
+
+    const tenantId: string = unit.tenant_id;
 
     const existingPost = await db
       .select()

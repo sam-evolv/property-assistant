@@ -283,6 +283,36 @@ async function getUserUnitDetails(unitUid: string): Promise<{ address: string | 
   }
 }
 
+// Extract house type code from filename patterns
+function extractHouseTypeFromFilename(filename: string): string | null {
+  const patterns = [
+    /House-Type-([A-Z]{1,3}\d{1,2})/i,  // House-Type-BD06
+    /Type-([A-Z]{1,3}\d{1,2})/i,         // Type-BD06
+    /[-_]([A-Z]{1,3}\d{1,2})[-_]/i,      // -BD06- or _BD06_
+    /^([A-Z]{1,3}\d{1,2})[-_]/i,         // BD06- at start
+  ];
+  
+  for (const pattern of patterns) {
+    const match = filename.match(pattern);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+  }
+  
+  return null;
+}
+
+// Get house type code from chunk metadata (checks multiple locations)
+function getChunkHouseTypeCode(chunk: any): string | null {
+  const metadata = chunk.metadata || {};
+  const drawingClassification = metadata.drawing_classification || {};
+  const fileName = metadata.file_name || metadata.source || '';
+  
+  return metadata.house_type_code || 
+         drawingClassification.houseTypeCode || 
+         extractHouseTypeFromFilename(fileName);
+}
+
 // Parse embedding from Supabase (may be string, array, or object)
 function parseEmbedding(emb: any): number[] | null {
   if (!emb) return null;
@@ -757,7 +787,7 @@ export async function POST(request: NextRequest) {
         const discipline = (chunk.metadata?.discipline || '').toLowerCase();
         const fileName = (chunk.metadata?.file_name || chunk.metadata?.source || '');
         const fileNameLower = fileName.toLowerCase();
-        const chunkHouseTypeCode = chunk.metadata?.house_type_code;
+        const chunkHouseTypeCode = getChunkHouseTypeCode(chunk);
         
         // Exclude superseded documents
         if (docId && supersededDocIds.has(docId)) {
@@ -767,9 +797,12 @@ export async function POST(request: NextRequest) {
         // CRITICAL HOUSE TYPE FILTERING: When user has a known house type, 
         // filter house-type-specific documents to ONLY their house type.
         // This prevents returning floor plans/specs for BS02 when user has BD01.
+        // Compare case-insensitively for robustness
         if (userHouseTypeCode && chunkHouseTypeCode) {
+          const userHouseTypeLower = userHouseTypeCode.toLowerCase();
+          const chunkHouseTypeLower = chunkHouseTypeCode.toLowerCase();
           // This document is house-type-specific - only include if it matches user's house type
-          if (chunkHouseTypeCode !== userHouseTypeCode) {
+          if (chunkHouseTypeLower !== userHouseTypeLower) {
             return false;
           }
         }

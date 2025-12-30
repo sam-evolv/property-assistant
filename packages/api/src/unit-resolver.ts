@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { db } from '@openhouse/db/client';
-import { units, developments } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
 
 export interface ResolvedUnit {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   development_id: string | null;
   address: string;
+  house_type_code?: string;
+  unit_type_id?: string;
 }
 
 function getSupabaseClient() {
@@ -18,72 +17,55 @@ function getSupabaseClient() {
 }
 
 export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null> {
-  const drizzleUnit = await db.query.units.findFirst({
-    where: eq(units.id, unitUid),
-    columns: { id: true, tenant_id: true, development_id: true, address_line_1: true },
-  });
-
-  if (drizzleUnit) {
-    return {
-      id: drizzleUnit.id,
-      tenant_id: drizzleUnit.tenant_id,
-      development_id: drizzleUnit.development_id,
-      address: drizzleUnit.address_line_1 || 'Unknown Unit',
-    };
-  }
-
   const supabase = getSupabaseClient();
-  console.log('[UnitResolver] Unit not in Drizzle, checking Supabase...');
+  
   const { data: supabaseUnit, error } = await supabase
     .from('units')
-    .select('id, address, project_id')
+    .select('id, address, project_id, unit_type_id')
     .eq('id', unitUid)
     .single();
 
   if (error || !supabaseUnit) {
+    console.log('[UnitResolver] Unit not found:', unitUid, error?.message);
     return null;
   }
 
-  console.log('[UnitResolver] Found in Supabase:', supabaseUnit.id);
+  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'project:', supabaseUnit.project_id);
+
+  let tenantId: string | null = null;
+  let houseTypeCode: string | undefined;
+
+  if (supabaseUnit.unit_type_id) {
+    const { data: unitType } = await supabase
+      .from('unit_types')
+      .select('id, code, project_id')
+      .eq('id', supabaseUnit.unit_type_id)
+      .single();
+    
+    if (unitType) {
+      houseTypeCode = unitType.code;
+      console.log('[UnitResolver] House type code:', houseTypeCode);
+    }
+  }
 
   if (supabaseUnit.project_id) {
-    const dev = await db.query.developments.findFirst({
-      where: eq(developments.id, supabaseUnit.project_id),
-      columns: { id: true, tenant_id: true },
-    });
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, tenant_id')
+      .eq('id', supabaseUnit.project_id)
+      .single();
 
-    if (dev) {
-      return {
-        id: supabaseUnit.id,
-        tenant_id: dev.tenant_id,
-        development_id: dev.id,
-        address: supabaseUnit.address || 'Unknown Unit',
-      };
+    if (project) {
+      tenantId = project.tenant_id;
     }
   }
 
-  if (supabaseUnit.address) {
-    const addressLower = supabaseUnit.address.toLowerCase();
-    const allDevs = await db.query.developments.findMany({
-      columns: { id: true, tenant_id: true, name: true },
-    });
-    
-    for (const dev of allDevs) {
-      const devNameLower = dev.name.toLowerCase();
-      const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
-      for (const word of devWords) {
-        if (addressLower.includes(word)) {
-          console.log('[UnitResolver] Matched development by address pattern:', dev.name);
-          return {
-            id: supabaseUnit.id,
-            tenant_id: dev.tenant_id,
-            development_id: dev.id,
-            address: supabaseUnit.address || 'Unknown Unit',
-          };
-        }
-      }
-    }
-  }
-
-  return null;
+  return {
+    id: supabaseUnit.id,
+    tenant_id: tenantId,
+    development_id: supabaseUnit.project_id || null,
+    address: supabaseUnit.address || 'Unknown Unit',
+    house_type_code: houseTypeCode,
+    unit_type_id: supabaseUnit.unit_type_id,
+  };
 }
