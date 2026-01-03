@@ -69,13 +69,13 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
       {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
         {/* Header */}
-        <div className="p-4 border-b border-gold-900/20">
+        <div className="p-6 border-b border-gold-900/20 flex items-center justify-center">
           <Image
             src="/branding/openhouse-logo.png"
             alt="OpenHouse AI"
-            width={180}
-            height={36}
-            className="h-9 w-auto object-contain"
+            width={220}
+            height={80}
+            className="h-20 w-auto object-contain"
             priority
           />
         </div>
@@ -118,7 +118,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         {/* Footer */}
         <div className="p-4 border-t border-gold-900/20">
           <div className="px-4 py-2 text-xs text-grey-600 text-center">
-            <p className="font-medium text-grey-500">OpenHouse ai</p>
+            <p className="font-medium text-grey-500">OpenHouseAi</p>
             <p className="text-grey-600 mt-0.5">v1.0.0</p>
           </div>
         </div>
