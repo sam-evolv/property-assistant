@@ -68,6 +68,18 @@ export function HomeownersList({
     }
   };
 
+  // Helper function to check if a unit has acknowledged docs
+  const hasUnitAcknowledged = (unit: any) => {
+    const agreedVersion = unit.important_docs_agreed_version || 0;
+    // Check against the unit's own development version, or use a fallback
+    const devVersion = unit.development?.important_docs_version || development?.important_docs_version || 0;
+    // If no version is set anywhere, check if they've acknowledged at least version 1
+    if (devVersion === 0) {
+      return agreedVersion >= 1;
+    }
+    return agreedVersion >= devVersion;
+  };
+
   const currentVersion = development?.important_docs_version || 0;
 
   const filteredAndSorted = useMemo(() => {
@@ -85,8 +97,7 @@ export function HomeownersList({
 
     if (filterStatus !== 'all') {
       result = result.filter(unit => {
-        const agreedVersion = unit.important_docs_agreed_version || 0;
-        const hasAgreed = agreedVersion >= currentVersion && currentVersion > 0;
+        const hasAgreed = hasUnitAcknowledged(unit);
         return filterStatus === 'acknowledged' ? hasAgreed : !hasAgreed;
       });
     }
@@ -114,17 +125,14 @@ export function HomeownersList({
   }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion]);
 
   const stats = useMemo(() => {
-    const acknowledged = homeowners.filter(u => {
-      const agreedVersion = u.important_docs_agreed_version || 0;
-      return agreedVersion >= currentVersion && currentVersion > 0;
-    }).length;
+    const acknowledged = homeowners.filter(u => hasUnitAcknowledged(u)).length;
     
     return {
       total: homeowners.length,
       acknowledged,
-      pending: currentVersion > 0 ? homeowners.length - acknowledged : 0
+      pending: homeowners.length - acknowledged
     };
-  }, [homeowners, currentVersion]);
+  }, [homeowners, development]);
 
   return (
     <div className="min-h-full bg-gradient-to-br from-white via-grey-50 to-white flex flex-col">
@@ -275,8 +283,7 @@ export function HomeownersList({
                 const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
                 const residentName = unit.purchaser_name || unit.resident_name || unit.name || 'Unassigned';
                 
-                const agreedVersion = unit.important_docs_agreed_version || 0;
-                const hasAgreed = agreedVersion >= currentVersion && currentVersion > 0;
+                const hasAgreed = hasUnitAcknowledged(unit);
                 const developmentName = unit.development?.name || 'Unknown';
                 
                 return (
@@ -309,19 +316,17 @@ export function HomeownersList({
                           </div>
                         </div>
 
-                        {currentVersion > 0 && (
-                          <div className="flex-shrink-0">
-                            {hasAgreed ? (
-                              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center" title="Documents acknowledged">
-                                <CheckCircle className="w-4 h-4 text-green-600" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center" title="Pending acknowledgement">
-                                <Clock className="w-4 h-4 text-amber-600" />
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex-shrink-0">
+                          {hasAgreed ? (
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center" title="Documents acknowledged">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center" title="Pending acknowledgement">
+                              <Clock className="w-4 h-4 text-amber-600" />
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-gold-100 flex items-center justify-between text-xs text-grey-500">
