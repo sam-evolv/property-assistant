@@ -136,6 +136,17 @@ export async function GET(request: Request) {
     const windowFilter = sql`AND created_at > now() - make_interval(days => ${days})`;
     const combinedWithWindow = sql.join([combinedFilter, windowFilter], sql.raw(' '));
 
+    // Build filters for messages table (uses development_id -> developments.tenant_id)
+    const messagesProjectFilter = project_id
+      ? sql`AND m.development_id = ${project_id}::uuid`
+      : sql``;
+    const messagesDeveloperFilter = developer_id
+      ? sql`AND d.tenant_id = ${developer_id}::uuid`
+      : sql``;
+    const messagesCombinedFilter = sql.join([messagesProjectFilter, messagesDeveloperFilter], sql.raw(' '));
+    const messagesWindowFilter = sql`AND m.created_at > now() - make_interval(days => ${days})`;
+    const messagesCombinedWithWindow = sql.join([messagesCombinedFilter, messagesWindowFilter], sql.raw(' '));
+
     const queries = [
       db.execute(sql`
         SELECT COUNT(*)::int as count FROM analytics_events
@@ -145,25 +156,34 @@ export async function GET(request: Request) {
         return { rows: [{ count: 0 }] }; 
       }),
 
+      // Get total questions from messages table (more reliable than analytics_events)
       db.execute(sql`
-        SELECT COUNT(*)::int as count FROM analytics_events
-        WHERE event_type = 'chat_question' ${combinedFilter}
+        SELECT COUNT(*)::int as count 
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.user_message IS NOT NULL ${messagesCombinedFilter}
       `).catch(e => { 
         errors.push({ metric: 'total_questions', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
       }),
 
+      // Get questions in time window from messages table
       db.execute(sql`
-        SELECT COUNT(*)::int as count FROM analytics_events
-        WHERE event_type = 'chat_question' ${combinedWithWindow}
+        SELECT COUNT(*)::int as count 
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.user_message IS NOT NULL ${messagesCombinedWithWindow}
       `).catch(e => { 
         errors.push({ metric: 'questions_in_window', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
       }),
 
+      // Get active users from messages table (distinct unit_ids)
       db.execute(sql`
-        SELECT COUNT(DISTINCT event_data->>'unit_id')::int as count FROM analytics_events
-        WHERE event_data ? 'unit_id' ${combinedWithWindow}
+        SELECT COUNT(DISTINCT m.unit_id)::int as count 
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.unit_id IS NOT NULL ${messagesCombinedWithWindow}
       `).catch(e => { 
         errors.push({ metric: 'active_units_in_window', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
