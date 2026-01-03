@@ -1,0 +1,49 @@
+Goal: Introduce a small set of enhancements across multiple pages to improve usability and insight. All changes should reuse existing components/styles and avoid altering core logic or database schemas.
+
+1. Homeowners Page
+
+Add status labels: Next to each resident card’s status icon (green check or pending), insert a small text label such as “Acknowledged” or “Pending” so the meaning is explicit.
+
+Expose filters: Display filter chips for “Acknowledged”, “Pending” and “All” near the search bar. Toggling a chip should apply a simple query parameter and filter the list client‑side; default is “All”.
+
+Clean up card fields: Remove the duplicated unit number; show it once at the top left of each card. Standardise address formatting (e.g., always include street and development) using existing formatters.
+
+2. Smart Archive
+
+Must‑Read tab improvements: In the Must‑Read tab, list available documents from the archive with a “star” button to add them to the must‑read list. Do not require users to switch back to the Documents tab to select a file.
+
+Classification progress: When documents need classification, show a progress bar (e.g., 40/103 classified) above the “Classify All” button. Use existing colour tokens and update after classification completes.
+
+Theme alignment: Apply the light theme classes used on other pages to the Smart Archive container to ensure visual consistency.
+
+3. Noticeboard
+
+Basic scheduling: Extend the post creation form to include an optional “Publish Date & Time” field. If set, schedule the post for that date; otherwise publish immediately. Use the built‑in date/time picker component already used for other forms.
+
+Post categories: Add a simple category dropdown (e.g., Announcement, Maintenance, Event). Store the category as a string on the post object and display it as a badge on each notice.
+
+4. Analytics
+
+Date range selector: Introduce a small date‑range picker (Last 7 days / Last 30 days / Custom) at the top of the Analytics & Insights page. When changed, re‑query or filter the displayed metrics accordingly. Default to last 30 days.
+
+Populate question metrics: For the “Question Categories” and “Most Frequent Questions” sections, display sample data if available; otherwise show an informative empty state (e.g., “No questions recorded in this period”).
+
+5. AI Insights
+
+Surface unresolved queries: Under the “Unanswered Queries” metric, add a table listing the most recent unanswered homeowner questions (limit 5) with a link/button to “Add to Knowledge Base”. Clicking the link opens the Add FAQ dialog pre‑filled with the question text.
+
+6. Error Dashboard
+
+Error log list: Below the summary metrics, insert a table that lists the latest 20 errors (if any) with columns: Timestamp, Type, Message and Status (Unresolved/Resolved). Each row should be collapsible to show stack trace or details. If there are no errors, keep the existing “No errors found” message.
+
+Implementation Notes
+
+Use existing React/Vue components and style tokens; do not introduce new dependencies or global CSS.
+
+Keep API calls consistent with current patterns; add simple GET/POST endpoints only if necessary.
+
+Protect against null/undefined data by using the current empty‑state components.
+
+Test each feature behind a feature flag or in a staging environment to ensure the main application remains stable.
+
+This curated set of enhancements should materially improve the clarity and usability of your dashboard without requiring a large refactor.

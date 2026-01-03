@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
-import { AlertTriangle, CheckCircle, Clock, RefreshCw, Filter, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, RefreshCw, Filter, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ErrorLog {
   id: string;
@@ -13,6 +13,8 @@ interface ErrorLog {
   severity: string;
   resolved: boolean;
   created_at: string;
+  stack_trace?: string | null;
+  context?: string | null;
 }
 
 interface ErrorStats {
@@ -28,10 +30,23 @@ export default function ErrorDashboardPage() {
   const [errors, setErrors] = useState<ErrorLog[]>([]);
   const [stats, setStats] = useState<ErrorStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState({
     unresolvedOnly: false,
     errorType: '',
   });
+  
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const fetchErrors = async () => {
     if (!tenantId) return;
@@ -210,8 +225,12 @@ export default function ErrorDashboardPage() {
         </div>
       </div>
 
-      {/* Error List */}
+      {/* Error Log Table */}
       <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <h3 className="text-sm font-semibold text-gray-900">Error Log (Last 20)</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Click a row to expand details</p>
+        </div>
         {loading ? (
           <div className="p-8 text-center text-gray-500">Loading errors...</div>
         ) : errors.length === 0 ? (
@@ -221,45 +240,104 @@ export default function ErrorDashboardPage() {
             <p className="text-gray-500">The system is running smoothly</p>
           </div>
         ) : (
-          <div className="divide-y">
-            {errors.map((error) => (
-              <div key={error.id} className={`p-4 ${error.resolved ? 'opacity-60' : ''}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{getTypeIcon(error.error_type)}</span>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getSeverityColor(error.severity)}`}>
-                          {error.severity}
-                        </span>
-                        <span className="text-xs text-gray-500 font-mono">
-                          {error.error_type}
-                          {error.error_code && ` / ${error.error_code}`}
-                        </span>
-                        {error.endpoint && (
-                          <span className="text-xs text-gray-400 font-mono">{error.endpoint}</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-900 font-medium">{error.error_message}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatTime(error.created_at)}</p>
-                    </div>
-                  </div>
-                  {!error.resolved && (
-                    <button
-                      onClick={() => resolveError(error.id)}
-                      className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                    >
-                      Mark Resolved
-                    </button>
-                  )}
-                  {error.resolved && (
-                    <span className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg">
-                      Resolved
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="w-8 px-4 py-3"></th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Message</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {errors.slice(0, 20).map((error) => {
+                  const isExpanded = expandedIds.has(error.id);
+                  return (
+                    <>
+                      <tr 
+                        key={error.id} 
+                        className={`hover:bg-gray-50 cursor-pointer transition ${error.resolved ? 'opacity-60' : ''}`}
+                        onClick={() => toggleExpanded(error.id)}
+                      >
+                        <td className="px-4 py-3 text-gray-400">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          {new Date(error.created_at).toLocaleString('en-GB', { 
+                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
+                          })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{getTypeIcon(error.error_type)}</span>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getSeverityColor(error.severity)}`}>
+                              {error.severity}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm text-gray-900 font-medium truncate max-w-md">{error.error_message}</p>
+                          {error.endpoint && (
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">{error.endpoint}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            error.resolved ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {error.resolved ? 'Resolved' : 'Unresolved'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {!error.resolved && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); resolveError(error.id); }}
+                              className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                            >
+                              Resolve
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${error.id}-details`} className="bg-gray-50">
+                          <td colSpan={6} className="px-4 py-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Error Details</p>
+                                <div className="bg-white rounded-lg border border-gray-200 p-3 font-mono text-xs">
+                                  <p><span className="text-gray-500">Type:</span> {error.error_type}</p>
+                                  {error.error_code && <p><span className="text-gray-500">Code:</span> {error.error_code}</p>}
+                                  <p><span className="text-gray-500">Endpoint:</span> {error.endpoint || 'N/A'}</p>
+                                  <p><span className="text-gray-500">Time:</span> {new Date(error.created_at).toLocaleString()}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Full Message</p>
+                                <div className="bg-white rounded-lg border border-gray-200 p-3">
+                                  <p className="text-gray-800 text-sm">{error.error_message}</p>
+                                </div>
+                              </div>
+                            </div>
+                            {error.stack_trace && (
+                              <div className="mt-3">
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Stack Trace</p>
+                                <pre className="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs overflow-x-auto max-h-48">
+                                  {error.stack_trace}
+                                </pre>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

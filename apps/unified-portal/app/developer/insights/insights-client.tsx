@@ -269,7 +269,7 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
                   <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full">Needs Help</span>
                 </div>
                 <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Unanswered Queries</p>
-                <p className={`text-3xl font-bold ${textColor}`}>{data.unansweredQueries}</p>
+                <p className={`text-3xl font-bold ${textColor}`}>{infoRequests.filter(r => r.status === 'pending').length}</p>
               </div>
 
               <div className={`rounded-lg border p-6 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>
@@ -279,6 +279,47 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
                 </div>
                 <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Chats Resolved (AI)</p>
                 <p className={`text-3xl font-bold ${textColor}`}>{data.chatResolutionRate}%</p>
+              </div>
+            </div>
+          )}
+
+          {/* Quick View: Recent Unanswered Queries */}
+          {infoRequests.filter(r => r.status === 'pending').length > 0 && (
+            <div className={`rounded-lg border backdrop-blur-sm ${cardBg}`}>
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                  <h3 className={`text-sm font-semibold ${textColor}`}>Recent Unanswered Queries</h3>
+                </div>
+                <button
+                  onClick={() => setActiveTab('requests')}
+                  className="text-xs text-gold-500 hover:text-gold-600 font-medium"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {infoRequests.filter(r => r.status === 'pending').slice(0, 5).map((req) => (
+                  <div key={req.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${textColor} truncate`}>{req.question}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedRequest(req);
+                        setResponseText('');
+                        setAddToKnowledge(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gold-50 text-gold-600 rounded-lg hover:bg-gold-100 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add to KB
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}

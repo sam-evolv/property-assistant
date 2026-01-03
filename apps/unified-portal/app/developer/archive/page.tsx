@@ -483,37 +483,51 @@ export default function SmartArchivePage() {
 
       {showClassifyBanner && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-500/30 rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-purple-400" />
+          <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-500/30 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">
+                    {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Use AI to automatically organise documents into disciplines
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-white font-medium">
-                  {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
-                </p>
-                <p className="text-gray-400 text-sm">
-                  Use AI to automatically organise documents into disciplines
-                </p>
+              <button
+                onClick={handleBulkClassify}
+                disabled={isClassifying}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-400 transition-colors disabled:opacity-50"
+              >
+                {isClassifying ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>{classifyProgress || 'Classifying...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Classify All</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                <span>Classification progress</span>
+                <span>{totalDocuments - unclassifiedCount} / {totalDocuments} classified</span>
+              </div>
+              <div className="h-2 bg-purple-900/50 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-500"
+                  style={{ width: totalDocuments > 0 ? `${((totalDocuments - unclassifiedCount) / totalDocuments) * 100}%` : '0%' }}
+                />
               </div>
             </div>
-            <button
-              onClick={handleBulkClassify}
-              disabled={isClassifying}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-400 transition-colors disabled:opacity-50"
-            >
-              {isClassifying ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{classifyProgress || 'Classifying...'}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>Classify All</span>
-                </>
-              )}
-            </button>
           </div>
         </div>
       )}

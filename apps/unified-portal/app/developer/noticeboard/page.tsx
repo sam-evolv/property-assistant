@@ -31,7 +31,7 @@ interface Comment {
   development_id?: string;
 }
 
-type PostCategory = 'Announcement' | 'Reminder' | 'Update' | 'Event';
+type PostCategory = 'Announcement' | 'Reminder' | 'Update' | 'Event' | 'Maintenance';
 
 export default function NoticeboardPage() {
   const [posts, setPosts] = useState<NoticeboardPost[]>([]);
@@ -231,6 +231,8 @@ export default function NoticeboardPage() {
         return 'bg-green-100 text-green-800';
       case 'Event':
         return 'bg-purple-100 text-purple-800';
+      case 'Maintenance':
+        return 'bg-orange-100 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -447,6 +449,7 @@ export default function NoticeboardPage() {
                       <option value="Reminder">Reminder</option>
                       <option value="Update">Update</option>
                       <option value="Event">Event</option>
+                      <option value="Maintenance">Maintenance</option>
                     </select>
                   </div>
 
@@ -465,29 +468,34 @@ export default function NoticeboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date (Optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.start_date}
-                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    />
-                  </div>
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Scheduling</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Publish Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500 text-sm"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Leave empty to publish immediately</p>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date (Optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.end_date}
-                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    />
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Expire Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formData.end_date}
+                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500 text-sm"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Leave empty to show indefinitely</p>
+                    </div>
                   </div>
                 </div>
 
@@ -500,7 +508,7 @@ export default function NoticeboardPage() {
                     className="w-4 h-4 text-gold-500 rounded border-gray-300 focus:ring-gold-500"
                   />
                   <label htmlFor="active" className="ml-2 text-sm font-medium text-gray-700">
-                    Publish immediately
+                    {formData.start_date ? 'Publish when scheduled' : 'Publish immediately'}
                   </label>
                 </div>
 

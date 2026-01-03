@@ -220,6 +220,40 @@ export function HomeownersList({
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gold-200/50 bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-400 text-grey-900 placeholder-grey-400"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                  filterStatus === 'all' 
+                    ? 'bg-gold-500 text-white' 
+                    : 'bg-white border border-gold-200/50 text-grey-600 hover:border-gold-300'
+                }`}
+              >
+                All ({stats.total})
+              </button>
+              <button
+                onClick={() => setFilterStatus('acknowledged')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  filterStatus === 'acknowledged' 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-white border border-green-200/50 text-green-700 hover:border-green-300'
+                }`}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Acknowledged ({stats.acknowledged})
+              </button>
+              <button
+                onClick={() => setFilterStatus('pending')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  filterStatus === 'pending' 
+                    ? 'bg-amber-500 text-white' 
+                    : 'bg-white border border-amber-200/50 text-amber-700 hover:border-amber-300'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Pending ({stats.pending})
+              </button>
+            </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition ${
@@ -227,25 +261,13 @@ export function HomeownersList({
               }`}
             >
               <Filter className="w-4 h-4" />
-              <span>Filters</span>
+              <span>Sort</span>
               <ChevronDown className={`w-4 h-4 transition ${showFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
 
           {showFilters && (
             <div className="mt-4 flex items-center gap-4 p-4 bg-white/80 rounded-lg border border-gold-200/30">
-              <div>
-                <label className="text-xs font-medium text-grey-500 mb-1 block">Status</label>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="px-3 py-2 rounded-lg border border-gold-200/50 bg-white text-grey-900 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/20"
-                >
-                  <option value="all">All</option>
-                  <option value="acknowledged">Acknowledged</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
               <div>
                 <label className="text-xs font-medium text-grey-500 mb-1 block">Sort By</label>
                 <select
@@ -318,12 +340,14 @@ export function HomeownersList({
 
                         <div className="flex-shrink-0">
                           {hasAgreed ? (
-                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center" title="Documents acknowledged">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-green-100" title="Documents acknowledged">
                               <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-xs font-medium text-green-700">Acknowledged</span>
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center" title="Pending acknowledgement">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-100" title="Pending acknowledgement">
                               <Clock className="w-4 h-4 text-amber-600" />
+                              <span className="text-xs font-medium text-amber-700">Pending</span>
                             </div>
                           )}
                         </div>

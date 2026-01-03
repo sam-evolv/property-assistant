@@ -63,20 +63,42 @@ interface AnalyticsClientProps {
   tenantId: string;
 }
 
+type DateRange = '7' | '30' | '90' | 'custom';
+
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const { archiveScope, developmentId } = useCurrentContext();
   const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
   const [schemeName, setSchemeName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>('30');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  
+  const daysToQuery = useMemo(() => {
+    if (dateRange === 'custom') {
+      if (!customStartDate || !customEndDate) {
+        return 30; // Default fallback while dates are being selected
+      }
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+        return 30; // Invalid range, use default
+      }
+      // Add 1 to include both start and end date
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return Math.max(1, days); // Ensure at least 1 day
+    }
+    return parseInt(dateRange);
+  }, [dateRange, customStartDate, customEndDate]);
   
   const { data: metrics, isLoading: metricsLoading } = useOverviewMetrics({ 
     tenantId, 
     developmentId: effectiveDevelopmentId,
-    days: 30 
+    days: daysToQuery 
   });
   const { data: homeowners, isLoading: homeownersLoading } = useHomeownerMetrics({ 
     tenantId, 
     developmentId: effectiveDevelopmentId,
-    days: 30 
+    days: daysToQuery 
   });
   const [questionData, setQuestionData] = useState<QuestionAnalysisData | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
@@ -103,9 +125,10 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
 
   useEffect(() => {
     async function loadQuestions() {
+      setQuestionsLoading(true);
       try {
         const devIdParam = effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : '';
-        const res = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20${devIdParam}`);
+        const res = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=${daysToQuery}&limit=20${devIdParam}`);
         if (res.ok) {
           const data = await res.json();
           setQuestionData(data);
@@ -117,7 +140,7 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
       }
     }
     loadQuestions();
-  }, [tenantId, effectiveDevelopmentId]);
+  }, [tenantId, effectiveDevelopmentId, daysToQuery]);
 
   const isLoading = metricsLoading || homeownersLoading || questionsLoading;
 
@@ -157,6 +180,68 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
             </h1>
             <p className={`${secondaryText} text-sm mt-1`}>Deep dive into your development metrics and homeowner engagement</p>
           </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-white rounded-lg border border-gold-200/50 shadow-sm">
+              <button
+                onClick={() => setDateRange('7')}
+                className={`px-3 py-2 text-sm font-medium transition ${
+                  dateRange === '7' ? 'bg-gold-500 text-white rounded-l-lg' : 'text-grey-600 hover:bg-grey-50 rounded-l-lg'
+                }`}
+              >
+                7 days
+              </button>
+              <button
+                onClick={() => setDateRange('30')}
+                className={`px-3 py-2 text-sm font-medium border-l border-gold-200/50 transition ${
+                  dateRange === '30' ? 'bg-gold-500 text-white' : 'text-grey-600 hover:bg-grey-50'
+                }`}
+              >
+                30 days
+              </button>
+              <button
+                onClick={() => setDateRange('90')}
+                className={`px-3 py-2 text-sm font-medium border-l border-gold-200/50 transition ${
+                  dateRange === '90' ? 'bg-gold-500 text-white' : 'text-grey-600 hover:bg-grey-50'
+                }`}
+              >
+                90 days
+              </button>
+              <button
+                onClick={() => setDateRange('custom')}
+                className={`px-3 py-2 text-sm font-medium border-l border-gold-200/50 transition rounded-r-lg ${
+                  dateRange === 'custom' ? 'bg-gold-500 text-white' : 'text-grey-600 hover:bg-grey-50'
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+            {dateRange === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className={`px-2 py-1.5 text-sm border rounded-lg text-grey-900 ${
+                    !customStartDate ? 'border-amber-300 bg-amber-50' : 'border-gold-200/50'
+                  }`}
+                  max={customEndDate || undefined}
+                />
+                <span className="text-grey-400">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className={`px-2 py-1.5 text-sm border rounded-lg text-grey-900 ${
+                    !customEndDate ? 'border-amber-300 bg-amber-50' : 'border-gold-200/50'
+                  }`}
+                  min={customStartDate || undefined}
+                />
+                {(!customStartDate || !customEndDate) && (
+                  <span className="text-xs text-amber-600">Select dates</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -172,7 +257,7 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               </div>
               <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Total Messages</p>
               <p className={`text-3xl font-bold ${textColor}`}>{metrics?.totalMessages?.toLocaleString() || 0}</p>
-              <p className={`${secondaryText} text-xs mt-2`}>Last 30 days</p>
+              <p className={`${secondaryText} text-xs mt-2`}>Last {daysToQuery} days</p>
             </div>
 
             <div className={`rounded-lg border p-6 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>
