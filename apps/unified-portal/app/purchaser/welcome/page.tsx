@@ -22,7 +22,9 @@ export default function PurchaserWelcomePage() {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            router.replace('/purchaser/app');
+            // Redirect to the same /homes/[unitId] route that QR codes use
+            const portalUrl = `/homes/${session.unitId}?token=${encodeURIComponent(session.token)}`;
+            router.replace(portalUrl);
             return 0;
           }
           return prev - 1;
