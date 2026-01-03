@@ -8,17 +8,18 @@ import { Home, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function PurchaserLoginPage() {
   const router = useRouter();
-  const { session, isLoading, login } = usePurchaserSession();
+  const { session, isLoading, login, logout } = usePurchaserSession();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && session) {
-      // Redirect to the same /homes portal that QR codes use
-      router.replace(`/homes/${session.unitId}?token=${encodeURIComponent(session.token)}`);
+    // Clear any existing session when visiting the login page
+    // This allows users to log in with a different code
+    if (session) {
+      logout();
     }
-  }, [isLoading, session, router]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
