@@ -73,9 +73,9 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
           <Image
             src="/branding/openhouse-logo.png"
             alt="OpenHouse AI"
-            width={320}
-            height={120}
-            className="h-[120px] w-auto object-contain"
+            width={220}
+            height={80}
+            className="h-20 w-auto object-contain"
             priority
           />
         </div>
