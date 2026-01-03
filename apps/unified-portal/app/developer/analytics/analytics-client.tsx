@@ -61,9 +61,13 @@ interface AnalyticsClientProps {
 
 type DateRange = '7' | '30' | '90' | 'custom';
 
+const PRIMARY_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
+
 export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const { archiveScope, developmentId } = useCurrentContext();
-  const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
+  // When viewing Longview Park (primary project), show all tenant data since messages may be stored with different dev IDs
+  const isPrimaryDevelopment = developmentId === PRIMARY_PROJECT_ID;
+  const effectiveDevelopmentId = isAllSchemes(archiveScope) || isPrimaryDevelopment ? undefined : developmentId || undefined;
   const [schemeName, setSchemeName] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>('30');
   const [customStartDate, setCustomStartDate] = useState<string>('');
