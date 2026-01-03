@@ -269,6 +269,21 @@ export async function GET(request: NextRequest) {
       ? Math.round((mustRead.acknowledged / mustRead.total_units) * 100)
       : 0;
 
+    // Calculate previous period rates for comparison
+    // Engagement has historical data via previousActive from messages table
+    const previousEngagementRate = totalUnits > 0 
+      ? Math.round((previousActive / totalUnits) * 100)
+      : 0;
+    
+    // Calculate deltas (percentage points difference)
+    // Engagement delta is always calculated when we have units (even if previous was 0)
+    const engagementDelta = totalUnits > 0 ? engagementRate - previousEngagementRate : undefined;
+    
+    // Onboarding and Must-Read don't have historical snapshots yet
+    // Return undefined to indicate no comparison available (UI will not show badge)
+    const onboardingDelta = undefined;
+    const mustReadDelta = undefined;
+
     const formatTopicLabel = (topic: string): string => {
       if (!topic) return 'General';
       return topic
@@ -322,6 +337,8 @@ export async function GET(request: NextRequest) {
           label: 'Onboarding Rate',
           description: `${registeredHomeowners} of ${totalUnits} units onboarded`,
           suffix: '%',
+          delta: onboardingDelta,
+          inactiveCount: totalUnits - registeredHomeowners,
         },
         engagementRate: {
           value: engagementRate,
@@ -329,6 +346,8 @@ export async function GET(request: NextRequest) {
           description: `${activeHomeowners} of ${totalUnits} active (7d)`,
           suffix: '%',
           growth: activeGrowth,
+          delta: engagementDelta,
+          inactiveCount: totalUnits - activeHomeowners,
         },
         documentCoverage: {
           value: documentCoverageRate,
@@ -341,6 +360,8 @@ export async function GET(request: NextRequest) {
           label: 'Must-Read Compliance',
           description: `${mustRead?.acknowledged || 0} of ${mustRead?.total_units || 0} units acknowledged`,
           suffix: '%',
+          delta: mustReadDelta,
+          pendingCount: (mustRead?.total_units || 0) - (mustRead?.acknowledged || 0),
         },
       },
       questionTopics,

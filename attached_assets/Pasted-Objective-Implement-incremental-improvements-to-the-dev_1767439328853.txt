@@ -1,0 +1,49 @@
+Objective: Implement incremental improvements to the developer dashboard that enhance clarity and drive engagement, while preserving existing functionality and styling.
+
+Scope of Work (highest ROI tasks)
+
+Add period comparisons to summary cards
+
+For Onboarding Rate, Engagement Rate and Must‑Read Compliance, compute the same metric for the previous 30‑day period (or another reasonable default). Display the difference as a small badge with a +/– value, e.g. “+2 pp vs previous period”.
+
+Remove the current ambiguous “+100 %” badge.
+
+Introduce call‑to‑action links for low engagement/compliance
+
+Under the Engagement Rate and Must‑Read Compliance cards, add a small text link like “Send reminder to inactive homeowners” or “View units without acknowledgement”.
+
+Clicking the link should navigate to the existing homeowners list with a filter applied (e.g. ?active=false or ?compliance=false). Use internal routing; do not add new pages.
+
+Clean up chart labels
+
+In the “What Homeowners Ask About” bar chart, shorten or wrap long labels gracefully to avoid line breaks in the middle of words (“Waste Collection” instead of “Waste / Collection”; “Document Link Request” on one line if space permits).
+
+Ensure the chart is responsive; use ellipses with a tooltip on hover if the label exceeds the available width.
+
+Retain the existing color palette and bar spacing.
+
+Expose unit counts in the “Your Developments” list
+
+Augment each development entry with a small badge or line of text indicating the total number of units and the number of active units (e.g. “129 units / 28 active”).
+
+Use a muted text color to avoid overpowering the existing “Active” badge.
+
+Pull this data from the same source used for the onboarding metrics; no new API calls should be required.
+
+Add simple hover tooltips to Chat Activity graph
+
+Implement tooltips that display the exact date and number of chat interactions when hovering over points on the “Chat Activity” line chart.
+
+Keep the interaction lightweight—tooltips should fade in/out and not alter the graph layout.
+
+Implementation Notes
+
+Use existing CSS classes and components wherever possible to maintain consistent styling.
+
+Any new text strings should be internationalization‑ready (use existing i18n methods if present).
+
+Do not remove or rename current components, APIs, or routes; simply extend them.
+
+Test each change in isolation on a development branch and verify that the dashboard continues to load without console errors.
+
+By focusing on these specific enhancements, you will deliver meaningful value—better insight into trends, actionable paths for improving engagement/compliance, clearer charts and more informative development listings—without destabilising the existing application.

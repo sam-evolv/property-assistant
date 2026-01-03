@@ -70,11 +70,44 @@ export async function GET(request: NextRequest) {
 
     const allDevelopments = [...normalizedDrizzleDevs, ...supabaseProjects];
     
+    // Fetch unit counts per development using aggregation
+    const unitCounts: Record<string, { total: number; active: number }> = {};
+    
+    // Get total counts per project
+    for (const dev of allDevelopments) {
+      try {
+        const { count: totalCount } = await supabaseAdmin
+          .from('units')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', dev.id);
+        
+        const { count: activeCount } = await supabaseAdmin
+          .from('units')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', dev.id)
+          .not('purchaser_name', 'is', null);
+        
+        unitCounts[dev.id] = {
+          total: totalCount || 0,
+          active: activeCount || 0,
+        };
+      } catch (e) {
+        console.log(`[Developments API] Failed to get unit counts for ${dev.id}`);
+        unitCounts[dev.id] = { total: 0, active: 0 };
+      }
+    }
+    
+    const developmentsWithCounts = allDevelopments.map(dev => ({
+      ...dev,
+      unitCount: unitCounts[dev.id]?.total || 0,
+      activeUnitCount: unitCounts[dev.id]?.active || 0,
+    }));
+    
     console.log('[Developments API] Total merged developments:', allDevelopments.length);
     
     return NextResponse.json({ 
       success: true, 
-      developments: allDevelopments 
+      developments: developmentsWithCounts 
     });
   } catch (error) {
     console.error('[Developments API] Error:', error);

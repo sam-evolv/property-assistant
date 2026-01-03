@@ -21,13 +21,24 @@ const ChatActivityChart = dynamic(
   { ssr: false, loading: () => <ChartLoadingSkeleton height={200} /> }
 );
 
+interface KpiData {
+  value: number;
+  label: string;
+  description: string;
+  suffix: string;
+  growth?: number;
+  delta?: number;
+  inactiveCount?: number;
+  pendingCount?: number;
+}
+
 interface DashboardData {
   requestId?: string;
   kpis: {
-    onboardingRate: { value: number; label: string; description: string; suffix: string };
-    engagementRate: { value: number; label: string; description: string; suffix: string; growth?: number };
-    documentCoverage: { value: number; label: string; description: string; suffix: string };
-    mustReadCompliance: { value: number; label: string; description: string; suffix: string };
+    onboardingRate: KpiData;
+    engagementRate: KpiData;
+    documentCoverage: KpiData;
+    mustReadCompliance: KpiData;
   };
   questionTopics: Array<{ topic: string; label: string; count: number }>;
   chatActivity: Array<{ date: string; count: number }>;
@@ -59,6 +70,9 @@ function KpiCard({
   description, 
   suffix = '', 
   growth,
+  delta,
+  actionLink,
+  actionLabel,
   isDarkMode 
 }: { 
   icon: any; 
@@ -68,6 +82,9 @@ function KpiCard({
   description: string; 
   suffix?: string;
   growth?: number;
+  delta?: number;
+  actionLink?: string;
+  actionLabel?: string;
   isDarkMode: boolean;
 }) {
   const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
@@ -80,7 +97,16 @@ function KpiCard({
         <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
           <Icon className={`w-5 h-5 ${iconColour}`} />
         </div>
-        {growth !== undefined && (
+        {delta !== undefined && delta !== 0 && (
+          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+            delta > 0 
+              ? 'text-green-600 bg-green-500/10' 
+              : 'text-amber-600 bg-amber-500/10'
+          }`} title="vs previous 30 days">
+            {delta > 0 ? '+' : ''}{delta} pp
+          </span>
+        )}
+        {(delta === undefined || delta === 0) && growth !== undefined && growth !== 0 && (
           <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
             growth >= 0 
               ? 'text-green-600 bg-green-500/10' 
@@ -95,6 +121,11 @@ function KpiCard({
         {value}{suffix}
       </p>
       <p className={`${secondaryText} text-xs mt-2`}>{description}</p>
+      {actionLink && actionLabel && (
+        <Link href={actionLink} className="text-xs text-gold-500 hover:text-gold-600 mt-3 inline-block hover:underline">
+          {actionLabel} →
+        </Link>
+      )}
     </div>
   );
 }
@@ -164,6 +195,8 @@ interface Development {
   name: string;
   address: string | null;
   is_active: boolean;
+  unitCount?: number;
+  activeUnitCount?: number;
 }
 
 function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
@@ -274,6 +307,11 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
                     <div>
                       <h3 className={`font-medium ${textColor}`}>{dev.name}</h3>
                       <p className={`text-sm ${secondaryText}`}>{dev.address || 'Address pending'}</p>
+                      {dev.unitCount !== undefined && dev.unitCount > 0 && (
+                        <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
+                          {dev.unitCount} units / {dev.activeUnitCount || 0} active
+                        </p>
+                      )}
                     </div>
                     <span className={`px-2 py-1 rounded text-xs ${
                       dev.is_active ? 'bg-green-900/30 text-green-400' : 'bg-gray-700 text-gray-400'
@@ -620,6 +658,7 @@ export default function DeveloperDashboardClient({
               label={data.kpis.onboardingRate.label}
               description={data.kpis.onboardingRate.description}
               suffix={data.kpis.onboardingRate.suffix}
+              delta={data.kpis.onboardingRate.delta}
               isDarkMode={isDarkMode}
             />
             <KpiCard 
@@ -630,6 +669,9 @@ export default function DeveloperDashboardClient({
               description={data.kpis.engagementRate.description}
               suffix={data.kpis.engagementRate.suffix}
               growth={data.kpis.engagementRate.growth}
+              delta={data.kpis.engagementRate.delta}
+              actionLink={data.kpis.engagementRate.inactiveCount && data.kpis.engagementRate.inactiveCount > 0 ? '/developer/homeowners?active=false' : undefined}
+              actionLabel={data.kpis.engagementRate.inactiveCount && data.kpis.engagementRate.inactiveCount > 0 ? 'View inactive homeowners' : undefined}
               isDarkMode={isDarkMode}
             />
             <KpiCard 
@@ -648,6 +690,9 @@ export default function DeveloperDashboardClient({
               label={data.kpis.mustReadCompliance.label}
               description={data.kpis.mustReadCompliance.description}
               suffix={data.kpis.mustReadCompliance.suffix}
+              delta={data.kpis.mustReadCompliance.delta}
+              actionLink={data.kpis.mustReadCompliance.pendingCount && data.kpis.mustReadCompliance.pendingCount > 0 ? '/developer/homeowners?compliance=false' : undefined}
+              actionLabel={data.kpis.mustReadCompliance.pendingCount && data.kpis.mustReadCompliance.pendingCount > 0 ? 'View pending acknowledgements' : undefined}
               isDarkMode={isDarkMode}
             />
           </div>
