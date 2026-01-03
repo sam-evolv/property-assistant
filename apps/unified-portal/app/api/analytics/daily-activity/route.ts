@@ -35,21 +35,19 @@ export async function GET(request: Request) {
     const { developer_id, project_id, days } = parseResult.data;
 
     const projectFilter = project_id 
-      ? sql`AND m.development_id = ${project_id}::uuid` 
+      ? sql`AND development_id = ${project_id}::uuid` 
       : sql``;
 
     const result = await db.execute(sql`
       SELECT 
-        TO_CHAR(DATE_TRUNC('day', m.created_at), 'YYYY-MM-DD') as date,
-        COUNT(DISTINCT m.house_id)::int as chats,
+        TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') as date,
+        COUNT(*)::int as chats,
         COUNT(*)::int as messages
-      FROM messages m
-      INNER JOIN developments d ON m.development_id = d.id
-      WHERE d.tenant_id = ${developer_id}::uuid
-        AND m.user_message IS NOT NULL
-        AND m.created_at > NOW() - MAKE_INTERVAL(days => ${days})
+      FROM messages
+      WHERE tenant_id = ${developer_id}::uuid
+        AND created_at > NOW() - MAKE_INTERVAL(days => ${days})
         ${projectFilter}
-      GROUP BY DATE_TRUNC('day', m.created_at)
+      GROUP BY DATE_TRUNC('day', created_at)
       ORDER BY date ASC
     `);
 
