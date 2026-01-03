@@ -1,0 +1,113 @@
+Objective: Make three precise UI refinements to the developer sidebar to improve professionalism and clarity. Do not modify routing, permissions, analytics, or layout structure beyond what is explicitly requested.
+
+1) Replace Text Header with OpenHouse Logo
+
+Current state:
+
+Sidebar header shows text:
+
+“OH Developer”
+
+“OpenHouse Platform”
+
+Change required:
+
+Replace the text header entirely with the OpenHouse logo image provided.
+
+The logo should:
+
+Be left-aligned within the sidebar header area
+
+Maintain proper padding (visually balanced, not touching edges)
+
+Scale responsively (max height ~32–36px on desktop)
+
+Preserve dark-theme contrast (no background box unless already present)
+
+Implementation notes:
+
+Use the existing sidebar header container
+
+Import the logo asset correctly (no broken paths)
+
+Remove or comment out the old text nodes, do not hide with CSS
+
+2) Fix Current Scheme Dropdown Text Contrast
+
+Current state:
+
+Dropdown options (e.g. “Rathard Park”, “Longview Park”, “All Schemes”) render as black text on a dark background, making them unreadable.
+
+Change required:
+
+Update dropdown menu styles so:
+
+All scheme names render in white text
+
+Hover and selected states remain clearly legible
+
+No regression to other dropdowns elsewhere in the app
+
+Implementation notes:
+
+Target only the Current Scheme selector
+
+Prefer scoped styles or component-level styling
+
+Do not globally override dropdown styles
+
+3) Footer Text Formatting Adjustment
+
+Current state:
+
+Sidebar footer shows:
+
+“OpenHouse AI v1.0.0”
+
+Change required:
+
+Update text to:
+
+“OpenHouse ai v1.0.0”
+
+“OpenHouse” as one word
+
+“ai” lowercase
+
+Implementation notes:
+
+This is a text-only change
+
+No version logic changes required
+
+Ensure consistency across sidebar renders
+
+Constraints (Important)
+
+❌ Do NOT touch:
+
+Authentication
+
+Role routing
+
+API calls
+
+Sidebar navigation structure
+
+❌ Do NOT introduce new dependencies
+
+✅ Keep changes minimal, explicit, and scoped
+
+Completion Criteria
+
+Sidebar header displays the OpenHouse logo cleanly
+
+Current Scheme dropdown text is clearly readable (white on dark)
+
+Footer reads exactly: OpenHouse ai v1.0.0
+
+No console errors
+
+No visual regressions elsewhere in the portal
+
+Proceed carefully and implement only what is specified above.

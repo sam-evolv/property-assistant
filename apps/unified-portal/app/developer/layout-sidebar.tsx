@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler, FolderArchive, MessageSquare, Shield, AlertTriangle } from 'lucide-react';
@@ -68,14 +69,15 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
       {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
         {/* Header */}
-        <div className="p-6 border-b border-gold-900/20">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-white font-bold text-sm">
-              OH
-            </div>
-            <h2 className="text-white font-bold text-lg">Developer</h2>
-          </div>
-          <p className="text-grey-400 text-xs">OpenHouse Platform</p>
+        <div className="p-4 border-b border-gold-900/20">
+          <Image
+            src="/branding/openhouse-logo.png"
+            alt="OpenHouse AI"
+            width={180}
+            height={36}
+            className="h-9 w-auto object-contain"
+            priority
+          />
         </div>
 
         {/* Development Switcher */}
@@ -116,7 +118,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         {/* Footer */}
         <div className="p-4 border-t border-gold-900/20">
           <div className="px-4 py-2 text-xs text-grey-600 text-center">
-            <p className="font-medium text-grey-500">OpenHouse AI</p>
+            <p className="font-medium text-grey-500">OpenHouse ai</p>
             <p className="text-grey-600 mt-0.5">v1.0.0</p>
           </div>
         </div>
