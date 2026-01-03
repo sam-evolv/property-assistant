@@ -37,27 +37,23 @@ interface QuestionAnalysisData {
   }>;
 }
 
-const mockActivityData = [
-  { date: 'Mon', chats: 24, messages: 12 },
-  { date: 'Tue', chats: 32, messages: 18 },
-  { date: 'Wed', chats: 28, messages: 15 },
-  { date: 'Thu', chats: 41, messages: 22 },
-  { date: 'Fri', chats: 35, messages: 19 },
-  { date: 'Sat', chats: 18, messages: 10 },
-  { date: 'Sun', chats: 12, messages: 8 },
-];
+interface ActivityData {
+  date: string;
+  chats: number;
+  messages: number;
+}
 
-// Mock response time data over 30 days
-const mockResponseTimeData = [
-  { date: 'Day 1', avgTime: 245, maxTime: 512 },
-  { date: 'Day 2', avgTime: 238, maxTime: 498 },
-  { date: 'Day 3', avgTime: 251, maxTime: 535 },
-  { date: 'Day 4', avgTime: 229, maxTime: 468 },
-  { date: 'Day 5', avgTime: 242, maxTime: 520 },
-  { date: 'Day 6', avgTime: 235, maxTime: 490 },
-  { date: 'Day 7', avgTime: 248, maxTime: 545 },
-  { date: 'Day 8', avgTime: 226, maxTime: 451 },
-];
+interface ResponseTimeData {
+  date: string;
+  avgTime: number;
+  maxTime: number;
+}
+
+interface ApiHealthData {
+  uptimePercent: number;
+  avgTokensPerMessage: number;
+  apiCallsPerMinute: number;
+}
 
 interface AnalyticsClientProps {
   tenantId: string;
@@ -102,6 +98,10 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   });
   const [questionData, setQuestionData] = useState<QuestionAnalysisData | null>(null);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [activityData, setActivityData] = useState<ActivityData[]>([]);
+  const [responseTimeData, setResponseTimeData] = useState<ResponseTimeData[]>([]);
+  const [apiHealth, setApiHealth] = useState<ApiHealthData>({ uptimePercent: 100, avgTokensPerMessage: 0, apiCallsPerMinute: 0 });
+  const [responseTimeStats, setResponseTimeStats] = useState({ avgOverall: 0, maxOverall: 0 });
   
   useEffect(() => {
     async function fetchDevelopmentName() {
@@ -140,6 +140,55 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
       }
     }
     loadQuestions();
+  }, [tenantId, effectiveDevelopmentId, daysToQuery]);
+
+  useEffect(() => {
+    async function loadActivityData() {
+      try {
+        const projectParam = effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/analytics/daily-activity?developer_id=${tenantId}&days=${daysToQuery}${projectParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          setActivityData(data.activity || []);
+        }
+      } catch (error) {
+        console.error('Failed to load activity data:', error);
+      }
+    }
+    loadActivityData();
+  }, [tenantId, effectiveDevelopmentId, daysToQuery]);
+
+  useEffect(() => {
+    async function loadResponseTimes() {
+      try {
+        const projectParam = effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/analytics/response-times?developer_id=${tenantId}&days=${daysToQuery}${projectParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResponseTimeData(data.responseTimes || []);
+          setResponseTimeStats({ avgOverall: data.avgOverall || 0, maxOverall: data.maxOverall || 0 });
+        }
+      } catch (error) {
+        console.error('Failed to load response times:', error);
+      }
+    }
+    loadResponseTimes();
+  }, [tenantId, effectiveDevelopmentId, daysToQuery]);
+
+  useEffect(() => {
+    async function loadApiHealth() {
+      try {
+        const projectParam = effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/analytics/api-health?developer_id=${tenantId}&days=${daysToQuery}${projectParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          setApiHealth(data);
+        }
+      } catch (error) {
+        console.error('Failed to load API health:', error);
+      }
+    }
+    loadApiHealth();
   }, [tenantId, effectiveDevelopmentId, daysToQuery]);
 
   const isLoading = metricsLoading || homeownersLoading || questionsLoading;
@@ -297,21 +346,33 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               {/* Activity Chart */}
               <div className={`rounded-lg border p-6 backdrop-blur-sm ${cardBg}`}>
                 <h2 className={`text-lg font-semibold ${textColor} mb-4`}>Chat Activity</h2>
-                <ActivityChart data={mockActivityData} height={280} />
+                {activityData.length > 0 ? (
+                  <ActivityChart data={activityData} height={280} />
+                ) : (
+                  <div className="h-[280px] flex items-center justify-center bg-grey-50 rounded-lg">
+                    <p className="text-grey-500 text-sm">No chat activity data available for this period</p>
+                  </div>
+                )}
               </div>
 
               {/* Response Time Performance */}
               <div className={`rounded-lg border p-6 backdrop-blur-sm ${cardBg}`}>
                 <h2 className={`text-lg font-semibold ${textColor} mb-4`}>Response Time Performance</h2>
-                <ResponseTimeChart data={mockResponseTimeData} height={200} />
+                {responseTimeData.length > 0 && responseTimeData.some(d => d.avgTime > 0) ? (
+                  <ResponseTimeChart data={responseTimeData} height={200} />
+                ) : (
+                  <div className="h-[200px] flex items-center justify-center bg-grey-50 rounded-lg">
+                    <p className="text-grey-500 text-sm">No response time data available for this period</p>
+                  </div>
+                )}
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-grey-50 rounded-lg">
                     <p className="text-xs text-grey-600">Avg Response Time</p>
-                    <p className="text-xl font-bold text-grey-900 mt-1">245ms</p>
+                    <p className="text-xl font-bold text-grey-900 mt-1">{responseTimeStats.avgOverall}ms</p>
                   </div>
                   <div className="text-center p-3 bg-gold-50 rounded-lg">
                     <p className="text-xs text-grey-600">Peak Response Time</p>
-                    <p className="text-xl font-bold text-gold-500 mt-1">545ms</p>
+                    <p className="text-xl font-bold text-gold-500 mt-1">{responseTimeStats.maxOverall}ms</p>
                   </div>
                 </div>
               </div>
@@ -324,16 +385,16 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
                 <h2 className={`text-lg font-semibold ${textColor} mb-4`}>API Health</h2>
                 <div className="space-y-4">
                   <div className="pb-3 border-b border-grey-200">
-                    <p className={`${secondaryText} text-xs`}>Uptime This Month</p>
-                    <p className={`text-xl font-bold ${textColor} mt-1`}>99.8%</p>
+                    <p className={`${secondaryText} text-xs`}>Uptime This Period</p>
+                    <p className={`text-xl font-bold ${textColor} mt-1`}>{apiHealth.uptimePercent}%</p>
                   </div>
                   <div className="pb-3 border-b border-grey-200">
                     <p className={`${secondaryText} text-xs`}>Avg Tokens/Message</p>
-                    <p className={`text-xl font-bold ${textColor} mt-1`}>347</p>
+                    <p className={`text-xl font-bold ${textColor} mt-1`}>{apiHealth.avgTokensPerMessage}</p>
                   </div>
                   <div>
                     <p className={`${secondaryText} text-xs`}>API Calls/Min</p>
-                    <p className={`text-xl font-bold ${textColor} mt-1`}>285</p>
+                    <p className={`text-xl font-bold ${textColor} mt-1`}>{apiHealth.apiCallsPerMinute}</p>
                   </div>
                 </div>
               </div>

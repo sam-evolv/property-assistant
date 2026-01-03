@@ -61,6 +61,7 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
   const [responseText, setResponseText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [addToKnowledge, setAddToKnowledge] = useState(true);
+  const [chatResolutionRate, setChatResolutionRate] = useState(0);
 
   useEffect(() => {
     const loadInsights = async () => {
@@ -88,14 +89,25 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
           qData = await qRes.json();
         }
         
+        // Fetch chat resolution data
+        const projectParam = effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : '';
+        const resolutionRes = await fetch(`/api/analytics/chat-resolution?developer_id=${tenantId}&days=30${projectParam}`, { cache: 'no-store' });
+        let resolutionData = { resolutionRate: 0, pendingInfoRequests: 0 };
+        if (resolutionRes.ok) {
+          resolutionData = await resolutionRes.json();
+          setChatResolutionRate(resolutionData.resolutionRate);
+        }
+
         // Extract real data from API or use defaults
         const topQuestion = qData.topQuestions?.[0]?.question || 'No questions yet';
-        const questionCount = qData.topQuestions?.length || 0;
+        
+        // Get pending info requests count from the resolution data
+        const pendingCount = resolutionData.pendingInfoRequests || 0;
         
         const insights: InsightsData = {
           topRecurringQuestion: topQuestion,
-          unansweredQueries: questionCount > 0 ? Math.floor(Math.random() * 5) : 0,
-          chatResolutionRate: 87,
+          unansweredQueries: pendingCount,
+          chatResolutionRate: resolutionData.resolutionRate,
           topQuestions: (qData.topQuestions || []).slice(0, 10),
           knowledgeGaps: (qData.topQuestions || []).filter((q: Question) => q.count < 5).slice(0, 5).map((q: Question, idx: number) => ({
             question: q.question,
