@@ -12,14 +12,18 @@ export default function PurchaserLoginPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionCleared, setSessionCleared] = useState(false);
 
   useEffect(() => {
     // Clear any existing session when visiting the login page
     // This allows users to log in with a different code
-    if (session) {
-      logout();
+    if (!isLoading) {
+      if (session) {
+        logout();
+      }
+      setSessionCleared(true);
     }
-  }, []);
+  }, [isLoading, session, logout]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,16 +54,12 @@ export default function PurchaserLoginPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !sessionCleared) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
       </div>
     );
-  }
-
-  if (session) {
-    return null;
   }
 
   return (
