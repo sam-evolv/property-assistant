@@ -3,7 +3,7 @@
 import { ReactNode, Suspense } from 'react';
 import { CurrentContextProvider } from '@/contexts/CurrentContext';
 import { ProjectContextProvider } from '@/contexts/ProjectContext';
-import { AdminEnterpriseNav } from './nav-client';
+import { AdminEnterpriseNav, SuperMobileNav } from './nav-client';
 
 interface SuperLayoutClientProps {
   children: ReactNode;
@@ -14,11 +14,14 @@ export function SuperLayoutClient({ children }: SuperLayoutClientProps) {
     <CurrentContextProvider>
       <Suspense fallback={null}>
         <ProjectContextProvider>
-          <div className="flex h-screen bg-gray-50">
+          <div className="flex h-screen bg-black">
             <AdminEnterpriseNav />
-            <main className="flex-1 overflow-y-auto">
-              {children}
-            </main>
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <SuperMobileNav />
+              <main className="flex-1 overflow-auto bg-gradient-to-br from-white via-grey-50 to-white">
+                {children}
+              </main>
+            </div>
           </div>
         </ProjectContextProvider>
       </Suspense>
