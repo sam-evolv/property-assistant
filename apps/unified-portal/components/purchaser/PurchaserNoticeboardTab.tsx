@@ -1001,7 +1001,7 @@ export default function PurchaserNoticeboardTab({
         )}
 
         {/* Floating Action Button - positioned above mobile nav */}
-        <div className="fixed bottom-20 left-0 right-0 flex justify-center z-40 pointer-events-none">
+        <div className="fixed bottom-24 left-0 right-0 flex justify-center z-40 pointer-events-none">
           <button
             onClick={handleCreateClick}
             className="pointer-events-auto flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl hover:from-gold-600 hover:to-gold-700 transition-all active:scale-95"
