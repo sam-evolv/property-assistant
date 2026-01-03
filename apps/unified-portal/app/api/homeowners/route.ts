@@ -138,32 +138,37 @@ export async function GET(request: NextRequest) {
     }
 
     if (includeStats && homeownersList.length > 0) {
-      const homeownerUnitMap = new Map<string, string>();
-      const unitIds: string[] = [];
+      // Map homeowner IDs to their Supabase unit IDs (extracted from email)
+      const homeownerToUnitMap = new Map<string, string>();
+      const supabaseUnitIds: string[] = [];
       
       for (const h of homeownersList) {
         const unitId = extractSupabaseUnitId(h.email);
         if (unitId) {
-          homeownerUnitMap.set(h.id, unitId);
-          unitIds.push(unitId);
+          homeownerToUnitMap.set(h.id, unitId);
+          supabaseUnitIds.push(unitId);
+        } else {
+          // If no unit ID in email, use the homeowner ID as fallback
+          homeownerToUnitMap.set(h.id, h.id);
+          supabaseUnitIds.push(h.id);
         }
       }
 
       const [messageStats, acknowledgementStats] = await Promise.all([
-        unitIds.length > 0 ? db.execute(sql`
+        supabaseUnitIds.length > 0 ? db.execute(sql`
           SELECT 
             user_id,
             COUNT(*)::int as message_count,
             MAX(created_at) as last_activity
           FROM messages
-          WHERE user_id = ANY(${unitIds})
+          WHERE user_id = ANY(${supabaseUnitIds})
           GROUP BY user_id
         `) : { rows: [] },
-        db.select({
-          unit_id: purchaserAgreements.unit_id,
-        })
-        .from(purchaserAgreements)
-        .groupBy(purchaserAgreements.unit_id),
+        supabaseUnitIds.length > 0 ? db.execute(sql`
+          SELECT DISTINCT unit_id
+          FROM purchaser_agreements
+          WHERE unit_id = ANY(${supabaseUnitIds})
+        `) : { rows: [] },
       ]);
 
       const messageMap = new Map<string, { message_count: number; last_activity: string | null }>();
@@ -174,15 +179,20 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const acknowledgedUnits = new Set(acknowledgementStats.map(a => a.unit_id));
+      const acknowledgedUnits = new Set(
+        (acknowledgementStats.rows as any[] || []).map(a => a.unit_id)
+      );
 
       homeownersList = homeownersList.map(h => {
-        const unitId = homeownerUnitMap.get(h.id);
+        const unitId = homeownerToUnitMap.get(h.id);
+        const stats = unitId ? messageMap.get(unitId) : null;
+        const hasAcknowledged = unitId ? acknowledgedUnits.has(unitId) : false;
+        
         return {
           ...h,
-          message_count: unitId ? (messageMap.get(unitId)?.message_count || 0) : 0,
-          last_activity: unitId ? (messageMap.get(unitId)?.last_activity || null) : null,
-          has_acknowledged: unitId ? acknowledgedUnits.has(unitId) : false,
+          message_count: stats?.message_count || 0,
+          last_activity: stats?.last_activity || null,
+          has_acknowledged: hasAcknowledged,
         };
       });
     }
