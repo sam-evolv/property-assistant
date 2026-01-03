@@ -61,6 +61,7 @@ export interface CanonicalAnalyticsSummary {
   qr_scans_in_window: number;
   signups_in_window: number;
   document_opens_in_window: number;
+  avg_response_time_ms: number;
   last_analytics_event_at: string | null;
   computed_at: string;
   time_window: string;
@@ -178,12 +179,12 @@ export async function GET(request: Request) {
         return { rows: [{ count: 0 }] }; 
       }),
 
-      // Get active users from messages table (distinct house_ids - homeowner units)
+      // Get active users from messages table (distinct user_ids - homeowner conversations)
       db.execute(sql`
-        SELECT COUNT(DISTINCT m.house_id)::int as count 
+        SELECT COUNT(DISTINCT m.user_id)::int as count 
         FROM messages m
         INNER JOIN developments d ON m.development_id = d.id
-        WHERE m.house_id IS NOT NULL ${messagesCombinedWithWindow}
+        WHERE m.user_id IS NOT NULL AND m.user_id != 'anonymous' ${messagesCombinedWithWindow}
       `).catch(e => { 
         errors.push({ metric: 'active_units_in_window', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
@@ -279,6 +280,17 @@ export async function GET(request: Request) {
         errors.push({ metric: 'last_analytics_event_at', reason: e.message }); 
         return { rows: [] }; 
       }),
+
+      // Get average response time from messages table
+      db.execute(sql`
+        SELECT COALESCE(AVG(m.latency_ms), 0)::int as avg_ms 
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.latency_ms IS NOT NULL AND m.latency_ms > 0 ${messagesCombinedWithWindow}
+      `).catch(e => { 
+        errors.push({ metric: 'avg_response_time_ms', reason: e.message }); 
+        return { rows: [{ avg_ms: 0 }] }; 
+      }),
     ];
 
     const results = await Promise.all(queries);
@@ -289,6 +301,9 @@ export async function GET(request: Request) {
           ? lastEventRow.created_at.toISOString() 
           : String(lastEventRow.created_at))
       : null;
+
+    const avgResponseRow = results[15]?.rows[0] as { avg_ms?: number } | undefined;
+    const avgResponseTimeMs = Number(avgResponseRow?.avg_ms) || 0;
 
     const summary: CanonicalAnalyticsSummary = {
       total_events: Number(results[0].rows[0]?.count) || 0,
@@ -305,6 +320,7 @@ export async function GET(request: Request) {
       qr_scans_in_window: Number(results[11].rows[0]?.count) || 0,
       signups_in_window: Number(results[12].rows[0]?.count) || 0,
       document_opens_in_window: Number(results[13].rows[0]?.count) || 0,
+      avg_response_time_ms: avgResponseTimeMs,
       last_analytics_event_at: lastEventAt,
       computed_at: computedAt,
       time_window,

@@ -157,8 +157,8 @@ export function useOverviewMetrics(params: FetchOptions) {
     const data = await res.json();
     return {
       totalMessages: data.questions_in_window || 0,
-      activeUsers: data.active_units_in_window || 0,
-      avgResponseTime: 0,
+      activeUsers: data.active_units_in_window || data.active_tenants_in_window || 0,
+      avgResponseTime: data.avg_response_time_ms || 0,
       totalDocuments: data.total_document_opens || 0,
       embeddingChunks: 0,
       avgCostPerMessage: 0,
