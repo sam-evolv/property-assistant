@@ -15,7 +15,8 @@ export default function PurchaserLoginPage() {
 
   useEffect(() => {
     if (!isLoading && session) {
-      router.replace('/purchaser/app');
+      // Redirect to the same /homes portal that QR codes use
+      router.replace(`/homes/${session.unitId}?token=${encodeURIComponent(session.token)}`);
     }
   }, [isLoading, session, router]);
 
@@ -40,7 +41,8 @@ export default function PurchaserLoginPage() {
       }
 
       login(data.session);
-      router.push('/purchaser/welcome');
+      // Redirect directly to the same /homes portal that QR codes use
+      router.push(`/homes/${data.session.unitId}?token=${encodeURIComponent(data.session.token)}`);
     } catch (err) {
       setError('Connection error. Please try again.');
       setIsSubmitting(false);
