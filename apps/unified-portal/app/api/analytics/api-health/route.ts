@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       db.execute(sql`
         SELECT 
           COUNT(*)::int as total_messages,
-          COALESCE(AVG(prompt_tokens + completion_tokens), 0)::int as avg_tokens
+          COALESCE(AVG(token_count), 0)::int as avg_tokens
         FROM messages
         WHERE development_id IN (
           SELECT id FROM developments WHERE tenant_id = ${developer_id}::uuid

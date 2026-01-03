@@ -178,12 +178,12 @@ export async function GET(request: Request) {
         return { rows: [{ count: 0 }] }; 
       }),
 
-      // Get active users from messages table (distinct unit_ids)
+      // Get active users from messages table (distinct house_ids - homeowner units)
       db.execute(sql`
-        SELECT COUNT(DISTINCT m.unit_id)::int as count 
+        SELECT COUNT(DISTINCT m.house_id)::int as count 
         FROM messages m
         INNER JOIN developments d ON m.development_id = d.id
-        WHERE m.unit_id IS NOT NULL ${messagesCombinedWithWindow}
+        WHERE m.house_id IS NOT NULL ${messagesCombinedWithWindow}
       `).catch(e => { 
         errors.push({ metric: 'active_units_in_window', reason: e.message }); 
         return { rows: [{ count: 0 }] }; 
