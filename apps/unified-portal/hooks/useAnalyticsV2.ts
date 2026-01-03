@@ -199,7 +199,7 @@ export function useHomeownerMetrics(params: FetchOptions) {
       throw new Error('Failed to fetch analytics summary');
     }
     const data = await res.json();
-    const activeUnits = data.active_units_in_window || 0;
+    const activeUnits = data.active_units_in_window || data.active_tenants_in_window || 0;
     const totalQuestions = data.questions_in_window || 0;
     return {
       totalHomeowners: activeUnits,
