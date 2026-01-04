@@ -453,7 +453,29 @@ export default function HomeResidentPage() {
   // Main app render - consent already handled above
   return (
     <>
-      <div className={`flex flex-col h-[100dvh] overflow-hidden ${bgColor}`}>
+      {/* Landscape Warning Overlay - shown on mobile landscape */}
+      <div className={`landscape-warning fixed inset-0 z-[100] items-center justify-center ${
+        isDarkMode ? 'bg-gray-900' : 'bg-white'
+      }`}>
+        <div className="flex flex-col items-center gap-4 p-8 text-center">
+          <svg 
+            className={`w-16 h-16 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`}
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+          </svg>
+          <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Please Rotate Your Device
+          </h2>
+          <p className={`text-sm max-w-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            This app works best in portrait mode. Please rotate your phone to continue.
+          </p>
+        </div>
+      </div>
+
+      <div className={`flex flex-col h-[100dvh] overflow-hidden landscape-hide ${bgColor}`}>
         {/* Premium Top Bar with Blur - Logo Left, Language/Theme Right */}
         <header 
           className={`sticky top-0 z-20 border-b px-4 flex items-center justify-between ${
@@ -480,7 +502,7 @@ export default function HomeResidentPage() {
         </div>
 
         {/* Right: Language Selector + Dark/Light Mode Toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 header-actions">
           {/* Language Dropdown */}
           <div className="relative">
             <button

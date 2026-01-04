@@ -428,9 +428,14 @@ export default function PurchaserChatTab({
     if (!el) return;
     
     const updateHeight = () => {
+      const height = el.offsetHeight;
       document.documentElement.style.setProperty(
         '--purchaser-inputbar-h',
-        `${el.offsetHeight}px`
+        `${height}px`
+      );
+      document.documentElement.style.setProperty(
+        '--input-bar-h',
+        `${height}px`
       );
     };
     

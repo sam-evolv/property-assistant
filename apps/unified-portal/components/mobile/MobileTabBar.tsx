@@ -34,6 +34,10 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
         '--mobile-tab-bar-h',
         `${height}px`
       );
+      document.documentElement.style.setProperty(
+        '--tab-bar-h',
+        `${height}px`
+      );
     };
 
     const ro = new ResizeObserver(updateHeight);
@@ -62,10 +66,11 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-around',
-    height: '64px',
-    paddingLeft: '8px',
-    paddingRight: '8px',
-    paddingBottom: 'calc(16px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))',
+    minHeight: '64px',
+    paddingLeft: 'max(8px, env(safe-area-inset-left, 0px))',
+    paddingRight: 'max(8px, env(safe-area-inset-right, 0px))',
+    paddingTop: '8px',
+    paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
   };
 
   return (
