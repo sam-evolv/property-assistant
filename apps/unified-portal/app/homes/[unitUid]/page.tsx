@@ -81,6 +81,7 @@ export default function HomeResidentPage() {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   const [validatedToken, setValidatedToken] = useState<string | null>(null);
   
@@ -586,6 +587,7 @@ export default function HomeResidentPage() {
               selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
               userId={house.user_id}
+              onKeyboardChange={setIsKeyboardOpen}
             />
           </Tabs.Content>
 
@@ -621,12 +623,14 @@ export default function HomeResidentPage() {
 
       </Tabs.Root>
 
-      {/* Mobile Bottom Tab Bar - Frosted Glass Native Feel */}
-      <MobileTabBar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        isDarkMode={isDarkMode}
-      />
+      {/* Mobile Bottom Tab Bar - Frosted Glass Native Feel - Hidden when keyboard is open */}
+      {!isKeyboardOpen && (
+        <MobileTabBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isDarkMode={isDarkMode}
+        />
+      )}
       </div>
 
       {/* Profile Panel */}
