@@ -477,7 +477,23 @@ export default function PurchaserNoticeboardTab({
   const [pendingAction, setPendingAction] = useState<'post' | 'comment' | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  // iOS Capacitor-only state - DOES NOT affect web app
+  const [isIOSNative, setIsIOSNative] = useState(false);
+  const IOS_TAB_BAR_HEIGHT = 72;
+
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
+
+  // Detect iOS Capacitor native platform - runs once on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const cap = (window as any).Capacitor;
+    if (cap && typeof cap.isNativePlatform === 'function' && typeof cap.getPlatform === 'function') {
+      if (cap.isNativePlatform() && cap.getPlatform() === 'ios') {
+        setIsIOSNative(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchNotices();
@@ -1001,7 +1017,12 @@ export default function PurchaserNoticeboardTab({
         )}
 
         {/* Floating Action Button - positioned above mobile nav */}
-        <div className="fixed bottom-24 left-0 right-0 flex justify-center z-40 pointer-events-none">
+        <div 
+          className="fixed left-0 right-0 flex justify-center z-40 pointer-events-none"
+          style={{
+            bottom: isIOSNative ? IOS_TAB_BAR_HEIGHT + 24 : 96
+          }}
+        >
           <button
             onClick={handleCreateClick}
             className="pointer-events-auto flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl hover:from-gold-600 hover:to-gold-700 transition-all active:scale-95"
