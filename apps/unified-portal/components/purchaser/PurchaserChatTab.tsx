@@ -423,6 +423,45 @@ export default function PurchaserChatTab({
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
 
+  // iOS Capacitor-only state - DOES NOT affect web app
+  const [isIOSNative, setIsIOSNative] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const IOS_TAB_BAR_HEIGHT = 72;
+
+  // Detect iOS Capacitor native platform - runs once on mount
+  // Uses window.Capacitor which is injected by Capacitor runtime in native apps
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Check for Capacitor on window object (injected by native runtime)
+    const cap = (window as any).Capacitor;
+    if (cap && typeof cap.isNativePlatform === 'function' && typeof cap.getPlatform === 'function') {
+      if (cap.isNativePlatform() && cap.getPlatform() === 'ios') {
+        setIsIOSNative(true);
+      }
+    }
+  }, []);
+
+  // Track keyboard state for iOS native ONLY
+  useEffect(() => {
+    if (!isIOSNative || typeof window === 'undefined') return;
+    
+    const vv = window.visualViewport;
+    if (!vv) return;
+    
+    const checkKeyboard = () => {
+      // Keyboard is open if visual viewport is significantly smaller than window
+      const keyboardThreshold = 150;
+      const keyboardOpen = (window.innerHeight - vv.height) > keyboardThreshold;
+      setIsKeyboardOpen(keyboardOpen);
+    };
+    
+    vv.addEventListener('resize', checkKeyboard);
+    checkKeyboard();
+    
+    return () => vv.removeEventListener('resize', checkKeyboard);
+  }, [isIOSNative]);
+
   useEffect(() => {
     const el = inputBarRef.current;
     if (!el) return;
@@ -1075,7 +1114,9 @@ export default function PurchaserChatTab({
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
+          bottom: isIOSNative 
+            ? (isKeyboardOpen ? 0 : IOS_TAB_BAR_HEIGHT) 
+            : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
