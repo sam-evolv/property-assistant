@@ -5,6 +5,16 @@
 @tailwind utilities;
 
 :root {
+  /* iOS Safe Area Variables */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  
+  /* Layout Constants */
+  --mobile-tab-bar-h: 80px;
+  --purchaser-inputbar-h: 88px;
+  
   --radius-xs: 6px;
   --radius-sm: 10px;
   --radius-md: 14px;

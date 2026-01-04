@@ -1,0 +1,44 @@
+You are working in my OpenHouse portal web app (Replit project). Goal: Fix iOS safe-area + chat layout overlap issues without breaking developer login or purchaser portal routing.
+
+Context:
+- The Capacitor iOS wrapper is working and loads https://portal.openhouseai.ie/purchaser successfully.
+- Current bugs on iOS simulator:
+  1) Top UI elements (profile/language dropdown) sit too high, not respecting the iOS safe-area.
+  2) In chat screens, long assistant replies render behind/under the message composer input and/or bottom tab bar (content overlaps input area).
+
+Hard constraints:
+- Do NOT change routing/auth logic for developer login or purchaser login.
+- Do NOT touch backend APIs.
+- Do NOT make any changes in Xcode. Fix must be in web app CSS/layout.
+- Keep UI the same visually except for correct spacing/scroll behavior.
+- Avoid one-off hacks per device. Use safe-area env variables and structural layout fixes.
+
+Tasks:
+1) Add global safe-area CSS variables:
+   - Find the global stylesheet (e.g. src/index.css / src/global.css / app/globals.css).
+   - Add:
+     :root { --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
+
+2) Identify the main app shell layout component that wraps pages + bottom tab bar (and likely header/top controls).
+   - Convert it to a strict flex-column full-height layout:
+     - Root container should be min-height: 100vh (or 100dvh), display:flex, flex-direction:column.
+     - Apply padding-top: calc(16px + var(--safe-top)) at the shell level (or the main page container level) so content never touches the status bar area.
+   - Ensure only the content area scrolls (overflow:auto on the flex:1 content region).
+
+3) Fix chat screen overlap:
+   - Find the chat screen component and the message list container.
+   - Ensure message list container is flex:1 and overflow-y:auto.
+   - Add bottom padding to the message list container so messages never render under the composer or tab bar:
+     - Use a CSS variable or constant for tab bar height (e.g. 72px) and composer height (e.g. 64px).
+     - Set padding-bottom: calc( (TABBAR_PX + COMPOSER_PX) + var(--safe-bottom) + 12px ).
+   - Ensure the composer is pinned/sticky and not part of the scroll area.
+
+4) Keep the fix localized:
+   - Safe-area top padding should apply globally to mobile app shell.
+   - The extra bottom padding that accounts for composer should apply only on chat screens (not globally).
+
+Verification steps (must do):
+- Provide the exact files changed and diffs.
+- Confirm developer login route still works.
+- Confirm purchaser route /purchaser still works.
+- Confirm in mobile viewport: top UI is below status bar and chat messages never go behind the composer/tab bar.

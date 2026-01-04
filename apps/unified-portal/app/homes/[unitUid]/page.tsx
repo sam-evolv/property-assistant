@@ -455,11 +455,17 @@ export default function HomeResidentPage() {
     <>
       <div className={`flex flex-col h-[100dvh] overflow-hidden ${bgColor}`}>
         {/* Premium Top Bar with Blur - Logo Left, Language/Theme Right */}
-        <header className={`sticky top-0 z-20 border-b px-4 py-3 flex items-center justify-between ${
-        isDarkMode 
-          ? 'border-white/5 bg-gray-900/80 backdrop-blur-xl' 
-          : 'border-black/5 bg-white/80 backdrop-blur-xl'
-      }`}>
+        <header 
+          className={`sticky top-0 z-20 border-b px-4 flex items-center justify-between ${
+            isDarkMode 
+              ? 'border-white/5 bg-gray-900/80 backdrop-blur-xl' 
+              : 'border-black/5 bg-white/80 backdrop-blur-xl'
+          }`}
+          style={{
+            paddingTop: 'calc(12px + var(--safe-top, env(safe-area-inset-top, 0px)))',
+            paddingBottom: '12px',
+          }}
+        >
         {/* Left: Longview Logo */}
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-auto items-center justify-center">
