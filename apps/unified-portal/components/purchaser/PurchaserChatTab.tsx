@@ -806,25 +806,27 @@ export default function PurchaserChatTab({
     }
   }, [messages.length]);
 
-  // Auto-scroll when keyboard opens to keep messages visible
-  useEffect(() => {
-    if (isKeyboardOpen && messagesEndRef.current && messages.length > 0) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      }, 100);
-    }
-  }, [isKeyboardOpen, messages.length]);
-
   // Track visual viewport height for consistent sizing
+  // Scroll sync happens here via requestAnimationFrame - no timeouts
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const hasMessagesRef = useRef(false);
+  hasMessagesRef.current = messages.length > 0;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
     
     const updateViewportHeight = () => {
       const vv = window.visualViewport;
       if (vv) {
         setViewportHeight(vv.height);
+        // Guarded scroll sync on viewport resize (keyboard animation)
+        if (hasMessagesRef.current) {
+          requestAnimationFrame(scrollToBottom);
+        }
       } else {
         setViewportHeight(window.innerHeight);
       }
