@@ -245,7 +245,6 @@ interface PurchaserChatTabProps {
   selectedLanguage: string;
   isDarkMode: boolean;
   userId?: string | null;
-  onKeyboardChange?: (isOpen: boolean) => void;
 }
 
 // Translations for UI and prompts
@@ -407,7 +406,6 @@ export default function PurchaserChatTab({
   selectedLanguage,
   isDarkMode,
   userId,
-  onKeyboardChange,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -424,8 +422,6 @@ export default function PurchaserChatTab({
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [inputBarHeight, setInputBarHeight] = useState(88);
 
   useEffect(() => {
     const el = inputBarRef.current;
@@ -433,7 +429,6 @@ export default function PurchaserChatTab({
     
     const updateHeight = () => {
       const height = el.offsetHeight;
-      setInputBarHeight(height);
       document.documentElement.style.setProperty(
         '--purchaser-inputbar-h',
         `${height}px`
@@ -457,11 +452,9 @@ export default function PurchaserChatTab({
     
     if (vv) {
       const onResize = () => {
-        const kbHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-        setKeyboardHeight(kbHeight);
+        const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
-        document.documentElement.style.setProperty('--vv-offset', `${kbHeight}px`);
-        document.documentElement.style.setProperty('--keyboard-height', `${kbHeight}px`);
+        document.documentElement.style.setProperty('--vv-offset', `${offset}px`);
       };
       
       vv.addEventListener('resize', onResize);
@@ -474,23 +467,14 @@ export default function PurchaserChatTab({
       };
     } else {
       const fallback = () => {
-        setKeyboardHeight(0);
         document.documentElement.style.setProperty('--vvh', `${window.innerHeight}px`);
         document.documentElement.style.setProperty('--vv-offset', '0px');
-        document.documentElement.style.setProperty('--keyboard-height', '0px');
       };
       window.addEventListener('resize', fallback);
       fallback();
       return () => window.removeEventListener('resize', fallback);
     }
   }, []);
-
-  const isKeyboardOpen = keyboardHeight > 50;
-
-  // Notify parent component when keyboard state changes
-  useEffect(() => {
-    onKeyboardChange?.(isKeyboardOpen);
-  }, [isKeyboardOpen, onKeyboardChange]);
 
   useEffect(() => {
     // Initialize Web Speech API
@@ -806,64 +790,10 @@ export default function PurchaserChatTab({
     }
   }, [messages.length]);
 
-  // Track visual viewport height for consistent sizing
-  // Scroll sync happens here via requestAnimationFrame - no timeouts
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
-  const hasMessagesRef = useRef(false);
-  hasMessagesRef.current = messages.length > 0;
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    };
-    
-    const updateViewportHeight = () => {
-      const vv = window.visualViewport;
-      if (vv) {
-        setViewportHeight(vv.height);
-        // Guarded scroll sync on viewport resize (keyboard animation)
-        if (hasMessagesRef.current) {
-          requestAnimationFrame(scrollToBottom);
-        }
-      } else {
-        setViewportHeight(window.innerHeight);
-      }
-    };
-    
-    const vv = window.visualViewport;
-    if (vv) {
-      vv.addEventListener('resize', updateViewportHeight);
-      vv.addEventListener('scroll', updateViewportHeight);
-    }
-    window.addEventListener('resize', updateViewportHeight);
-    updateViewportHeight();
-    
-    return () => {
-      if (vv) {
-        vv.removeEventListener('resize', updateViewportHeight);
-        vv.removeEventListener('scroll', updateViewportHeight);
-      }
-      window.removeEventListener('resize', updateViewportHeight);
-    };
-  }, []);
-
-  // Always use viewport-based height so layout stays anchored
-  const containerStyle: React.CSSProperties = viewportHeight 
-    ? { 
-        height: `${viewportHeight}px`,
-        maxHeight: `${viewportHeight}px`,
-      }
-    : { 
-        height: '100dvh',
-      };
-
   return (
     <div 
       ref={messagesContainerRef}
-      className={`flex flex-col min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
-      style={containerStyle}
+      className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
@@ -871,7 +801,7 @@ export default function PurchaserChatTab({
         <div 
           className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
           style={{
-            paddingBottom: '12px'
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--mobile-tab-bar-h, 80px) + env(safe-area-inset-bottom, 0px) + 12px)'
           }}
         >
           <style>{ANIMATION_STYLES}</style>
@@ -923,8 +853,9 @@ export default function PurchaserChatTab({
         /* MESSAGES AREA - This is the only scrollable region */
         <div 
           ref={scrollContainerRef}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3 pb-3"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
+            paddingBottom: 'calc(var(--purchaser-inputbar-h, 88px) + var(--mobile-tab-bar-h, 80px) + env(safe-area-inset-bottom, 0px) + 12px)',
             overflowAnchor: 'auto',
             overscrollBehaviorY: 'contain',
           }}
@@ -1135,18 +1066,17 @@ export default function PurchaserChatTab({
           </div>
       )}
 
-      {/* INPUT BAR - Flex item at bottom, respects safe area and tab bar */}
+      {/* INPUT BAR - Fixed above bottom nav, glass feel */}
       <div 
         ref={inputBarRef}
-        className={`flex-shrink-0 px-4 pt-3 ${
+        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
           isDarkMode 
             ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
-          paddingBottom: isKeyboardOpen 
-            ? 'calc(8px + env(safe-area-inset-bottom, 0px))'
-            : 'calc(8px + var(--mobile-tab-bar-h, 80px) + env(safe-area-inset-bottom, 0px))',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
+          transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
