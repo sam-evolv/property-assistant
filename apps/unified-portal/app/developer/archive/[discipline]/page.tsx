@@ -66,16 +66,8 @@ export default function DisciplineDetailPage() {
         console.log('[Archive Page] No developmentId - will show "Select a Development" message');
       }
       
-      // Try primary endpoint first
-      let response = await fetch(`/api/archive/documents?${urlParams}`);
-      console.log('[Archive Page] Primary API response status:', response.status);
-      
-      // If primary fails with 404, try alternate endpoint under disciplines path
-      if (response.status === 404) {
-        console.log('[Archive Page] Primary endpoint not available, trying alternate...');
-        response = await fetch(`/api/archive/disciplines/documents?${urlParams}`);
-        console.log('[Archive Page] Alternate API response status:', response.status);
-      }
+      const response = await fetch(`/api/archive/documents?${urlParams}`);
+      console.log('[Archive Page] API response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();

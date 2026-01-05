@@ -1,0 +1,40 @@
+layout-89f52cbeee709362.js:1 [DevelopmentSwitcher] Fetching developments...
+layout-89f52cbeee709362.js:1 [CurrentContext] Initial hydration from storage: ALL_SCHEMES
+layout-89f52cbeee709362.js:1 [CurrentContext] Initial hydration: ALL_SCHEMES
+2670.5dd9bd6bc2c91bae.js:1 [AuthContext] Hydrating Object
+2670.5dd9bd6bc2c91bae.js:1 [DevelopmentContext] Hydrating Object
+2670.5dd9bd6bc2c91bae.js:1 [AuthContext] Hydrating Object
+2670.5dd9bd6bc2c91bae.js:1 [AuthContext] Hydrating Object
+/favicon.ico:1  Failed to load resource: the server responded with a status of 404 ()
+layout-89f52cbeee709362.js:1 [DevelopmentSwitcher] Loaded developments: 2
+page-1c395e45fd8c0401.js:1 [Archive] Render state: Object
+page-1c395e45fd8c0401.js:1 [Archive] Outgoing archive query payload: Object
+page-1c395e45fd8c0401.js:1 [Archive] Render state: Object
+/api/archive/folders?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&discipline=__root__:1  Failed to load resource: the server responded with a status of 400 ()
+page-1c395e45fd8c0401.js:1 [Archive] Backend response status: 200
+page-1c395e45fd8c0401.js:1 [Archive] Render state: Object
+page-1c395e45fd8c0401.js:1 [Archive] Render state: Object
+page-1c395e45fd8c0401.js:1 [Archive] Render state: Object
+page-195ca6dce81767fd.js:1 [Archive Page] loadDocuments called: Object
+page-195ca6dce81767fd.js:1 [Archive Page] No developmentId - will show "Select a Development" message
+/api/archive/documents?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&discipline=architectural&pageSize=500:1  Failed to load resource: the server responded with a status of 404 ()
+page-195ca6dce81767fd.js:1 [Archive Page] Primary API response status: 404
+page-195ca6dce81767fd.js:1 [Archive Page] Primary endpoint not available, trying alternate...
+/api/archive/disciplines/documents?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&discipline=architectural&pageSize=500:1  Failed to load resource: the server responded with a status of 404 ()
+page-195ca6dce81767fd.js:1 [Archive Page] Alternate API response status: 404
+main-app-b2f6358d432c531c.js:1 [Archive Page] API error: 404
+window.console.error @ main-app-b2f6358d432c531c.js:1
+layout-89f52cbeee709362.js:1 [DevelopmentSwitcher] Selecting development: 57dc3919-2725-4575-8046-9179075ac88e
+layout-89f52cbeee709362.js:1 [DevelopmentSwitcher] Available developments: Array(2)
+layout-89f52cbeee709362.js:1 [CurrentContext] Scope changed: Object
+layout-89f52cbeee709362.js:1 [CurrentContext] Persisted to storage: Object
+layout-89f52cbeee709362.js:1 [DevelopmentSwitcher] Selection complete
+page-195ca6dce81767fd.js:1 [Archive Page] loadDocuments called: Object
+page-195ca6dce81767fd.js:1 [Archive Page] Fetching documents for developmentId: 57dc3919-2725-4575-8046-9179075ac88e
+/api/archive/documents?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&discipline=architectural&pageSize=500&developmentId=57dc3919-2725-4575-8046-9179075ac88e:1  Failed to load resource: the server responded with a status of 404 ()
+page-195ca6dce81767fd.js:1 [Archive Page] Primary API response status: 404
+page-195ca6dce81767fd.js:1 [Archive Page] Primary endpoint not available, trying alternate...
+/api/archive/disciplines/documents?tenantId=fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d&discipline=architectural&pageSize=500&developmentId=57dc3919-2725-4575-8046-9179075ac88e:1  Failed to load resource: the server responded with a status of 404 ()
+page-195ca6dce81767fd.js:1 [Archive Page] Alternate API response status: 404
+main-app-b2f6358d432c531c.js:1 [Archive Page] API error: 404
+window.console.error @ main-app-b2f6358d432c531c.js:1
