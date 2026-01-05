@@ -33,6 +33,33 @@ function getSupabaseClient() {
   );
 }
 
+/**
+ * Maps Drizzle development IDs to Supabase project IDs
+ * This is needed because the local database uses different UUIDs than Supabase
+ */
+const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
+  // Longview Park: Drizzle development ID -> Supabase project ID
+  '34316432-f1e8-4297-b993-d9b5c88ee2d8': '57dc3919-2725-4575-8046-9179075ac88e',
+  // Rathard Park: Drizzle development ID -> Supabase project ID  
+  'e0833063-55ac-4201-a50e-f329c090fbd6': '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91',
+  // Alternate Rathard Park ID
+  '6d3789de-2e46-430c-bf31-22224bd878da': '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91',
+};
+
+/**
+ * Translates a Drizzle development ID to the corresponding Supabase project ID
+ * Falls back to the original ID if no mapping exists (for backwards compatibility)
+ */
+function getSupabaseProjectId(developmentId: string): string {
+  const mapped = DEVELOPMENT_TO_SUPABASE_PROJECT[developmentId];
+  if (mapped) {
+    console.log('[Archive] Mapped developmentId', developmentId, 'to Supabase project_id', mapped);
+    return mapped;
+  }
+  // If not in mapping, assume it's already a valid Supabase project ID
+  return developmentId;
+}
+
 // REMOVED: No default project ID - schemeId must be passed explicitly or query ALL
 const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electrical', 'plumbing', 'civil', 'landscape', 'handover', 'other'];
 
@@ -54,8 +81,9 @@ export async function fetchArchiveDisciplines({
     let query = supabase.from('document_sections').select('id, metadata, project_id');
     
     if (developmentId) {
-      console.log('[Archive] Fetching disciplines for SCHEME:', developmentId);
-      query = query.eq('project_id', developmentId);
+      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      console.log('[Archive] Fetching disciplines for SCHEME:', developmentId, '-> project_id:', supabaseProjectId);
+      query = query.eq('project_id', supabaseProjectId);
     } else {
       console.log('[Archive] Fetching disciplines for ALL_SCHEMES (no filter)');
     }
@@ -189,7 +217,8 @@ export async function fetchDocumentsByDiscipline({
       .select('id, metadata, content, project_id');
     
     if (developmentId) {
-      query = query.eq('project_id', developmentId);
+      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      query = query.eq('project_id', supabaseProjectId);
     }
     
     const { data: sections, error } = await query;
@@ -276,7 +305,8 @@ export async function countArchiveDocuments({
       .select('id, metadata');
     
     if (developmentId) {
-      query = query.eq('project_id', developmentId);
+      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      query = query.eq('project_id', supabaseProjectId);
     }
     
     const { data: sections, error } = await query;
@@ -386,7 +416,8 @@ export async function searchArchiveDocuments({
       .select('id, metadata, content, project_id');
     
     if (developmentId) {
-      dbQuery = dbQuery.eq('project_id', developmentId);
+      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      dbQuery = dbQuery.eq('project_id', supabaseProjectId);
     }
     
     const { data: sections, error } = await dbQuery;
