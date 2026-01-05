@@ -46,7 +46,11 @@ export default function DisciplineDetailPage() {
   const disciplineInfo = DISCIPLINES[discipline as DisciplineType];
 
   const loadDocuments = useCallback(async () => {
-    if (!tenantId) return;
+    console.log('[Archive Page] loadDocuments called:', { tenantId, developmentId, discipline });
+    if (!tenantId) {
+      console.log('[Archive Page] No tenantId, skipping load');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -57,12 +61,19 @@ export default function DisciplineDetailPage() {
       
       if (developmentId) {
         urlParams.set('developmentId', developmentId);
+        console.log('[Archive Page] Fetching documents for developmentId:', developmentId);
+      } else {
+        console.log('[Archive Page] No developmentId - will show "Select a Development" message');
       }
       
       const response = await fetch(`/api/archive/documents?${urlParams}`);
+      console.log('[Archive Page] API response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('[Archive Page] Loaded documents:', data.documents?.length || 0);
         setAllDocuments(data.documents || []);
+      } else {
+        console.error('[Archive Page] API error:', response.status);
       }
     } catch (error) {
       console.error('[Archive] Failed to load documents:', error);

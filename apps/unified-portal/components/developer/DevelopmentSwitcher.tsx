@@ -76,9 +76,11 @@ export function DevelopmentSwitcher() {
   const displayName = currentDevelopment?.name || 'All Schemes';
 
   const handleSelect = (id: string | null) => {
+    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes');
+    console.log('[DevelopmentSwitcher] Available developments:', developments.map(d => ({ id: d.id, name: d.name })));
     setDevelopmentId(id);
     setIsOpen(false);
-    console.log('[DevelopmentSwitcher] Selected:', id || 'All Schemes');
+    console.log('[DevelopmentSwitcher] Selection complete');
   };
 
   if (isLoading) {
