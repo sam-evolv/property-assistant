@@ -551,18 +551,37 @@ export default function DisciplineDetailPage() {
               </div>
             )}
             
-            {!showFolderView && customFolders.length === 0 && (
+            {/* Always show document grid when no folder grouping is possible */}
+            {!showFolderView && customFolders.length === 0 && allDocuments.length > 0 && (
               <DocumentGrid
-                documents={currentDocs}
+                documents={allDocuments}
                 isLoading={false}
                 page={1}
                 totalPages={1}
-                totalCount={currentDocs.length}
+                totalCount={allDocuments.length}
                 onPageChange={() => {}}
                 onDocumentDeleted={loadDocuments}
                 onMoveToFolder={handleMoveToFolder}
                 viewMode="grid"
               />
+            )}
+            
+            {/* Show empty state when no documents at all */}
+            {!showFolderView && customFolders.length === 0 && allDocuments.length === 0 && (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                  <FolderOpen className="w-8 h-8 text-gray-600" />
+                </div>
+                <h3 className="text-lg font-medium text-white mb-2">No Documents Yet</h3>
+                <p className="text-gray-400 mb-4">Upload your first document to get started</p>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-black font-medium hover:bg-gold-400 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Upload Document
+                </button>
+              </div>
             )}
           </div>
         ) : (
