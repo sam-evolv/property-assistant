@@ -66,8 +66,15 @@ export default function DisciplineDetailPage() {
         console.log('[Archive Page] No developmentId - will show "Select a Development" message');
       }
       
-      const response = await fetch(`/api/archive/documents?${urlParams}`);
-      console.log('[Archive Page] API response status:', response.status);
+      let response = await fetch(`/api/archive/documents?${urlParams}`);
+      console.log('[Archive Page] Primary API response status:', response.status);
+      
+      if (response.status === 404) {
+        console.log('[Archive Page] Primary endpoint not available, using disciplines endpoint...');
+        urlParams.set('action', 'documents');
+        response = await fetch(`/api/archive/disciplines?${urlParams}`);
+        console.log('[Archive Page] Disciplines API response status:', response.status);
+      }
       
       if (response.ok) {
         const data = await response.json();
