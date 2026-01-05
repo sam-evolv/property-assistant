@@ -62,10 +62,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[API /archive/folders] Error:', error instanceof Error ? error.message : error);
     console.error('[API /archive/folders] Stack:', error instanceof Error ? error.stack : 'N/A');
-    return NextResponse.json(
-      { error: 'Failed to fetch folders' },
-      { status: 500 }
-    );
+    // Return empty folders array on database error to allow documents to display
+    console.log('[API /archive/folders] Returning empty folders due to database error');
+    return NextResponse.json({ folders: [] });
   }
 }
 
