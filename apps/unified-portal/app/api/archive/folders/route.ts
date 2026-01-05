@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     const discipline = searchParams.get('discipline');
     const parentFolderId = searchParams.get('parentFolderId');
 
+    console.log('[API /archive/folders] GET request:', { tenantId, developmentId, discipline, parentFolderId });
+
     if (!tenantId || !developmentId || !discipline) {
+      console.log('[API /archive/folders] Missing required params');
       return NextResponse.json(
         { error: 'tenantId, developmentId, and discipline are required' },
         { status: 400 }
@@ -53,10 +56,12 @@ export async function GET(request: NextRequest) {
     }
 
     const folders = await query;
+    console.log('[API /archive/folders] Found', folders.length, 'folders');
 
     return NextResponse.json({ folders });
   } catch (error) {
-    console.error('[API] Error fetching folders:', error);
+    console.error('[API /archive/folders] Error:', error instanceof Error ? error.message : error);
+    console.error('[API /archive/folders] Stack:', error instanceof Error ? error.stack : 'N/A');
     return NextResponse.json(
       { error: 'Failed to fetch folders' },
       { status: 500 }
