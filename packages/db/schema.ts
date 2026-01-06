@@ -4,6 +4,7 @@ import { relations, sql } from 'drizzle-orm';
 
 export const archiveModeEnum = pgEnum('archive_mode_enum', ['shared', 'isolated']);
 export const uploadStatusEnum = pgEnum('upload_status_enum', ['pending', 'indexed', 'failed']);
+export const videoProviderEnum = pgEnum('video_provider_enum', ['youtube', 'vimeo', 'other']);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -1306,6 +1307,34 @@ export const analyticsEvents = pgTable('analytics_events', {
   tenantEventDateIdx: index('analytics_tenant_event_date_idx').on(table.tenant_id, table.event_type, table.created_at),
 }));
 
+// Video resources - embedded video links (YouTube/Vimeo) for scheme documentation
+export const video_resources = pgTable('video_resources', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  provider: videoProviderEnum('provider').notNull(),
+  video_url: text('video_url').notNull(),
+  embed_url: text('embed_url').notNull(),
+  video_id: text('video_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  thumbnail_url: text('thumbnail_url'),
+  duration_seconds: integer('duration_seconds'),
+  sort_order: integer('sort_order').default(0).notNull(),
+  is_active: boolean('is_active').default(true).notNull(),
+  created_by: uuid('created_by').references(() => admins.id),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('video_resources_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('video_resources_development_idx').on(table.development_id),
+  tenantDevIdx: index('video_resources_tenant_dev_idx').on(table.tenant_id, table.development_id),
+  providerIdx: index('video_resources_provider_idx').on(table.provider),
+  activeIdx: index('video_resources_active_idx').on(table.is_active),
+  sortIdx: index('video_resources_sort_idx').on(table.development_id, table.sort_order),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
+export const videoResources = video_resources;
