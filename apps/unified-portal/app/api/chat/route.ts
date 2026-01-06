@@ -25,6 +25,7 @@ import {
   type IntentClassification,
   type AnswerStrategy,
 } from '@/lib/assistant/os';
+import { getNearbyPOIs, formatPOIResponse, detectPOICategory, type POICategory } from '@/lib/places/poi';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -674,6 +675,8 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+      
+      // NOTE: Location/Amenities intent is handled after user context is established (see below)
     }
     
     // SAFETY-CRITICAL PRE-FILTER (fallback for non-OS mode or missed patterns)
@@ -817,6 +820,65 @@ export async function POST(request: NextRequest) {
         source: 'gdpr_protection',
         gdprBlocked: true,
       });
+    }
+
+    // Handle Location/Amenities intent - use POI engine (now that we have user context)
+    if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
+      const poiCategory = detectPOICategory(message);
+      
+      if (poiCategory) {
+        console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
+        
+        try {
+          const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
+          const poiResponse = formatPOIResponse(poiData, poiCategory, 5);
+          
+          console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
+          
+          await db.insert(messages).values({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            user_id: clientUnitUid || userId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: poiResponse,
+            question_topic: `poi_${poiCategory}`,
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: intentClassification.intent,
+              poiCategory,
+              fromCache: poiData.from_cache,
+              resultCount: poiData.results.length,
+              schemeId: userSupabaseProjectId,
+              unitUid: clientUnitUid || null,
+              userId: userId || null,
+            },
+          });
+          
+          return NextResponse.json({
+            success: true,
+            answer: poiResponse,
+            source: 'google_places',
+            safetyIntercept: false,
+            isNoInfo: false,
+            metadata: {
+              intent: intentClassification.intent,
+              poiCategory,
+              fromCache: poiData.from_cache,
+              fetchedAt: poiData.fetched_at.toISOString(),
+              answerMode: answerStrategy?.mode,
+            },
+          });
+        } catch (poiError) {
+          console.error('[Chat] POI engine error:', poiError);
+          // Fall through to regular RAG if POI fails
+        }
+      }
     }
 
     // STEP 0: Load conversation history for context-aware responses

@@ -73,6 +73,34 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Google Places POI Engine (January 2026)
+
+**Cache-first amenity search for Assistant OS location queries:**
+
+**Features:**
+- Supports 8 POI categories: supermarket, pharmacy, gp, childcare, primary_school, secondary_school, train_station, bus_stop
+- Distance Matrix integration for walking/driving time estimates
+- Multi-source location resolution with geocoding fallback
+- 30-day TTL cache with max 10 results per category
+
+**Location Resolution Order:**
+1. Geocode Supabase project address via Google Geocoding API
+2. scheme_profile table coordinates (set via Developer Setup Form)
+3. developments table coordinates
+
+**Architecture Note:**
+- scheme_profile.id IS the Supabase project UUID (set during Developer Setup Form save)
+- poi_cache has FK to scheme_profile; caching works when developers complete the setup form
+- Engine gracefully handles FK errors if scheme_profile doesn't exist for a project
+
+**Key Files:**
+- `apps/unified-portal/lib/places/poi.ts` - Core POI engine
+- `apps/unified-portal/app/api/chat/route.ts` - Assistant OS integration (location_amenities intent)
+- `docs/places.md` - Comprehensive documentation
+
+**Environment Variables Required:**
+- `GOOGLE_MAPS_API_KEY` - For Places, Distance Matrix, and Geocoding APIs
+
 ### Developer Setup Form Security Hardening (January 2026)
 
 **Security fixes for scheme profile API:**
