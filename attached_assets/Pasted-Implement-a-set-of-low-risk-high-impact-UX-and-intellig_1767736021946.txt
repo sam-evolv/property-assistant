@@ -1,0 +1,74 @@
+Implement a set of low-risk, high-impact UX and intelligence upgrades to the OpenHouse assistant before the next QA test cycle.
+
+GOALS
+- Improve perceived intelligence, trust, and usability
+- Do NOT change core architecture, schemas, or safety rules
+- All changes must be additive and reversible
+
+UPGRADE 1: Answer Source Transparency
+- Extend the assistant response formatter to optionally include a short source hint at the end of answers when appropriate.
+- Source labels:
+  - scheme_profile → “Based on the development information provided”
+  - unit_profile → “Based on your home’s details”
+  - smart_archive → “Based on your homeowner documentation”
+  - google_places → “Based on nearby amenities (last updated <date>)”
+  - playbook → “General guidance”
+- Do NOT expose internal confidence scores to users.
+- Ensure no em dashes are used in user-visible text.
+
+UPGRADE 2: Micro-Feedback Capture (Dev/Test Mode Only)
+- Add optional thumbs-up / thumbs-down capture after assistant responses when:
+  - X-Test-Mode header is present OR
+  - user role is developer/admin
+- Log feedback to a new table or existing logging mechanism with:
+  - scheme_id
+  - unit_id (if available)
+  - user_question
+  - assistant_response
+  - source_type
+  - feedback_value (up/down)
+  - timestamp
+- No UI changes required beyond minimal buttons or links.
+
+UPGRADE 3: Gap-to-Action Suggestions
+- Extend answer_gap_log processing to generate a suggested remediation action based on gap_reason:
+  - missing_scheme_data → suggest which scheme_profile field to fill
+  - no_documents_found → suggest uploading relevant doc category
+  - low_doc_confidence → suggest tagging or replacing document
+- Surface this suggestion as a derived field:
+  - suggested_fix (string)
+- Update the assistant-gaps dashboard to display suggested_fix inline.
+
+UPGRADE 4: Confidence-Weighted Language
+- Use existing document confidence and source type to subtly adjust language:
+  - High confidence → direct factual statements
+  - Medium confidence → “Based on the information available…”
+  - Low confidence → “In most developments…” + guidance
+- This should be handled in the response rendering layer, not the intent classifier.
+
+UPGRADE 5: Related Question Suggestions
+- After answering, optionally append 1–2 related follow-up questions based on intent type.
+- Use a small static mapping:
+  - location_amenities → other nearby amenity types
+  - heating → efficiency tips, controls
+  - waste → recycling rules, bin locations
+  - parking → visitor parking, permits
+- Ensure suggestions are optional and not shown for emergency or sensitive queries.
+
+IMPLEMENTATION NOTES
+- Keep changes modular.
+- Do not break existing tests.
+- Add unit tests for:
+  - source label rendering
+  - feedback logging
+  - confidence-weighted phrasing
+- Feature-flag all upgrades behind ASSISTANT_UX_ENHANCEMENTS = true.
+
+DELIVERABLES
+- Updated response formatter module
+- Feedback logging hook
+- Gap suggestion mapper
+- Minor dashboard enhancement
+- Tests
+
+Do not refactor unrelated code. Focus on incremental improvements only.
