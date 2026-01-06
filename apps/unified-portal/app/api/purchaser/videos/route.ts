@@ -106,39 +106,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ videos: [], requestId });
     }
 
-    const { data: supabaseProject } = await supabase
-      .from('projects')
-      .select('id, name')
-      .eq('id', supabaseProjectId)
-      .single();
-
-    if (!supabaseProject) {
-      console.warn('[PurchaserVideosAPI] No project found for project_id:', supabaseProjectId);
-      return NextResponse.json({ videos: [], requestId });
-    }
-
-    const { rows: devRows } = await db.execute(sql`
-      SELECT id, tenant_id, name FROM developments 
-      WHERE LOWER(name) = LOWER(${supabaseProject.name})
-    `);
-
-    if (devRows.length === 0) {
-      console.warn('[PurchaserVideosAPI] No development found for project name:', supabaseProject.name);
-      return NextResponse.json({ videos: [], requestId });
-    }
-
-    const development = devRows[0] as { id: string; tenant_id: string; name: string };
-
+    // Videos are stored with development_id = Supabase project_id
+    // Query videos directly by the project_id (no need to look up Drizzle developments)
     const videos = await db.query.video_resources.findMany({
       where: and(
-        eq(video_resources.tenant_id, development.tenant_id),
-        eq(video_resources.development_id, development.id),
+        eq(video_resources.development_id, supabaseProjectId),
         eq(video_resources.is_active, true)
       ),
       orderBy: [desc(video_resources.sort_order), desc(video_resources.created_at)],
     });
 
-    console.log(`[PurchaserVideosAPI] Found ${videos.length} videos for unit ${unitUid}, development ${development.id}`);
+    console.log(`[PurchaserVideosAPI] Found ${videos.length} videos for unit ${unitUid}, project ${supabaseProjectId}`);
 
     const safeVideos = videos.map(v => ({
       id: v.id,
