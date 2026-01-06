@@ -214,16 +214,16 @@ export default function PurchaserDocumentsTab({
     }
   }, [unitUid, doFetch]);
 
-  const fetchVideos = useCallback(async () => {
-    if (!PURCHASER_VIDEOS_ENABLED || videosFetched) return;
+  const doVideosFetch = useCallback(async (currentUnitUid: string) => {
+    if (!PURCHASER_VIDEOS_ENABLED) return;
     
     setVideosLoading(true);
     try {
-      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-      const token = storedToken || unitUid;
+      const storedToken = sessionStorage.getItem(`house_token_${currentUnitUid}`);
+      const token = storedToken || currentUnitUid;
 
       const res = await fetch(
-        `/api/purchaser/videos?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
+        `/api/purchaser/videos?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
       );
 
       if (res.ok) {
@@ -239,15 +239,24 @@ export default function PurchaserDocumentsTab({
       setVideosLoading(false);
       setVideosFetched(true);
     }
-  }, [unitUid, videosFetched]);
+  }, []);
 
   useEffect(() => {
+    setVideos([]);
+    setVideosFetched(false);
+    setVideosLoading(false);
+    
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
     
-    debounceTimerRef.current = setTimeout(() => {
-      fetchDocuments();
+    const currentUnitUid = unitUid;
+    
+    debounceTimerRef.current = setTimeout(async () => {
+      await fetchDocuments();
+      if (PURCHASER_VIDEOS_ENABLED) {
+        doVideosFetch(currentUnitUid);
+      }
     }, 200);
 
     return () => {
@@ -258,13 +267,7 @@ export default function PurchaserDocumentsTab({
         abortControllerRef.current.abort();
       }
     };
-  }, [unitUid, houseType]);
-
-  useEffect(() => {
-    if (selectedCategory === 'videos' && !videosFetched) {
-      fetchVideos();
-    }
-  }, [selectedCategory, videosFetched, fetchVideos]);
+  }, [unitUid, houseType, fetchDocuments, doVideosFetch]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -393,7 +396,7 @@ export default function PurchaserDocumentsTab({
   const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
 
-  const categories = PURCHASER_VIDEOS_ENABLED && videos.length > 0 
+  const categories = PURCHASER_VIDEOS_ENABLED && videos.length > 0
     ? [...BASE_CATEGORIES, VIDEOS_CATEGORY] 
     : BASE_CATEGORIES;
 
