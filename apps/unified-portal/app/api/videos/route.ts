@@ -7,7 +7,15 @@ import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import { parseVideoUrl } from '@/lib/video-parser';
 import { db } from '@openhouse/db/client';
 import { video_resources } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,13 +85,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const devCheck = await db.execute(sql`
-      SELECT id FROM developments 
-      WHERE id = ${developmentId}::uuid AND tenant_id = ${adminContext.tenantId}::uuid
-      LIMIT 1
-    `);
+    // Check development exists in Supabase projects table (primary source of truth)
+    const supabase = getSupabaseAdmin();
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', developmentId)
+      .single();
 
-    if (!devCheck.rows || devCheck.rows.length === 0) {
+    if (projectError || !project) {
+      console.log('[VIDEOS API] Development not found in Supabase projects:', developmentId);
       return NextResponse.json(
         { error: 'Development not found or access denied' },
         { status: 403 }
