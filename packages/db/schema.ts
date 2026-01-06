@@ -1308,10 +1308,11 @@ export const analyticsEvents = pgTable('analytics_events', {
 }));
 
 // Video resources - embedded video links (YouTube/Vimeo) for scheme documentation
+// Note: development_id intentionally has no FK constraint - developments may exist in Supabase projects table
 export const video_resources = pgTable('video_resources', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
-  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  development_id: uuid('development_id').notNull(),
   provider: videoProviderEnum('provider').notNull(),
   video_url: text('video_url').notNull(),
   embed_url: text('embed_url').notNull(),
