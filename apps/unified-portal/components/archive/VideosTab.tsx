@@ -244,11 +244,6 @@ function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
 function trackVideoEvent(eventType: string, data: Record<string, any>) {
   if (typeof window === 'undefined') return;
   console.log(`[Videos Analytics] ${eventType}`, data);
-  fetch('/api/analytics/event', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ eventType, ...data }),
-  }).catch(() => {});
 }
 
 export function VideosTab() {

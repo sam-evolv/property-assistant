@@ -6,7 +6,7 @@ import { getAdminContextFromSession } from '@/lib/api-auth';
 import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import { parseVideoUrl } from '@/lib/video-parser';
 import { db } from '@openhouse/db/client';
-import { video_resources } from '@openhouse/db/schema';
+import { video_resources, developments } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
@@ -69,6 +69,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid video URL. Only YouTube and Vimeo links are supported.' },
         { status: 400 }
+      );
+    }
+
+    const development = await db.query.developments.findFirst({
+      where: and(
+        eq(developments.id, developmentId),
+        eq(developments.tenant_id, adminContext.tenantId)
+      ),
+    });
+
+    if (!development) {
+      return NextResponse.json(
+        { error: 'Development not found or access denied' },
+        { status: 403 }
       );
     }
 

@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video } from 'lucide-react';
 import Link from 'next/link';
-import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal, VideosTab } from '@/components/archive';
+import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope, scopeToString } from '@/lib/archive-scope';
-import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
+
+const LazyVideosTab = lazy(() => import('@/components/archive/VideosTab').then(m => ({ default: m.VideosTab })));
+const VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
 
 interface HouseType {
   id: string;
@@ -462,7 +464,7 @@ export default function SmartArchivePage() {
               <BarChart3 className="w-4 h-4" />
               <span>Insights</span>
             </button>
-            {isVideosFeatureEnabled() && (
+            {VIDEOS_ENABLED && (
               <button
                 onClick={() => setActiveTab('videos')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -627,8 +629,10 @@ export default function SmartArchivePage() {
           </>
         ) : activeTab === 'important' ? (
           <ImportantDocsTab onRefresh={handleRefresh} />
-        ) : activeTab === 'videos' ? (
-          <VideosTab />
+        ) : activeTab === 'videos' && VIDEOS_ENABLED ? (
+          <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 text-gold-500 animate-spin" /></div>}>
+            <LazyVideosTab />
+          </Suspense>
         ) : (
           <InsightsTab />
         )}
