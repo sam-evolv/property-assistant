@@ -13,6 +13,18 @@ import { createErrorLogger, logAnalyticsEvent } from '@openhouse/api';
 import { getUnitInfo, UnitInfo } from '@/lib/unit-lookup';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
+import { 
+  classifyIntent, 
+  getAnswerStrategy, 
+  getTier1Response, 
+  getTier2Response, 
+  getTier3Response,
+  detectWarrantyType,
+  getWarrantyGuidance,
+  isAssistantOSEnabled,
+  type IntentClassification,
+  type AnswerStrategy,
+} from '@/lib/assistant/os';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -517,13 +529,158 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM or RAG
+    // ASSISTANT OS: Intent classification and tiered emergency handling
+    let intentClassification: IntentClassification | null = null;
+    let answerStrategy: AnswerStrategy | null = null;
+    
+    if (isAssistantOSEnabled()) {
+      intentClassification = classifyIntent(message);
+      answerStrategy = getAnswerStrategy(intentClassification);
+      
+      console.log('[Chat] Assistant OS intent:', intentClassification.intent, 'tier:', intentClassification.emergencyTier, 'mode:', answerStrategy.mode);
+      
+      // Handle tiered emergency responses
+      if (intentClassification.emergencyTier === 1) {
+        const tier1Response = getTier1Response();
+        console.log('[Chat] TIER 1 EMERGENCY: Life safety risk detected');
+        
+        try {
+          await db.insert(messages).values({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: clientUnitUid || userId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: tier1Response,
+            question_topic: 'emergency_tier1',
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: intentClassification.intent,
+              emergencyTier: 1,
+              answerMode: answerStrategy.mode,
+              unitUid: clientUnitUid || null,
+              userId: userId || null,
+            },
+          });
+        } catch (logError) {
+          console.error('[Chat] Failed to log tier 1 emergency:', logError);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          answer: tier1Response,
+          source: 'emergency_tier1',
+          safetyIntercept: true,
+          isNoInfo: false,
+          metadata: {
+            intent: intentClassification.intent,
+            emergencyTier: 1,
+            answerMode: answerStrategy.mode,
+          },
+        });
+      }
+      
+      if (intentClassification.emergencyTier === 2) {
+        const tier2Response = getTier2Response();
+        console.log('[Chat] TIER 2 EMERGENCY: Property emergency detected');
+        
+        try {
+          await db.insert(messages).values({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: clientUnitUid || userId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: tier2Response,
+            question_topic: 'emergency_tier2',
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: intentClassification.intent,
+              emergencyTier: 2,
+              answerMode: answerStrategy.mode,
+              unitUid: clientUnitUid || null,
+              userId: userId || null,
+            },
+          });
+        } catch (logError) {
+          console.error('[Chat] Failed to log tier 2 emergency:', logError);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          answer: tier2Response,
+          source: 'emergency_tier2',
+          safetyIntercept: true,
+          isNoInfo: false,
+          metadata: {
+            intent: intentClassification.intent,
+            emergencyTier: 2,
+            answerMode: answerStrategy.mode,
+          },
+        });
+      }
+      
+      if (intentClassification.emergencyTier === 3) {
+        const tier3Response = getTier3Response();
+        console.log('[Chat] TIER 3: Non-urgent maintenance issue detected');
+        
+        try {
+          await db.insert(messages).values({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: clientUnitUid || userId || 'anonymous',
+            content: message,
+            user_message: message,
+            ai_message: tier3Response,
+            question_topic: 'maintenance_tier3',
+            sender: 'conversation',
+            source: 'purchaser_portal',
+            token_count: 0,
+            cost_usd: '0',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: intentClassification.intent,
+              emergencyTier: 3,
+              answerMode: answerStrategy.mode,
+              unitUid: clientUnitUid || null,
+              userId: userId || null,
+            },
+          });
+        } catch (logError) {
+          console.error('[Chat] Failed to log tier 3 issue:', logError);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          answer: tier3Response,
+          source: 'maintenance_tier3',
+          safetyIntercept: false,
+          isNoInfo: false,
+          metadata: {
+            intent: intentClassification.intent,
+            emergencyTier: 3,
+            answerMode: answerStrategy.mode,
+          },
+        });
+      }
+    }
+    
+    // SAFETY-CRITICAL PRE-FILTER (fallback for non-OS mode or missed patterns)
     const safetyCheck = isSafetyCriticalQuery(message);
-    if (safetyCheck.isCritical) {
+    if (safetyCheck.isCritical && (!isAssistantOSEnabled() || !intentClassification?.emergencyTier)) {
       console.log('[Chat] SAFETY INTERCEPT: Query blocked by pre-filter, matched keyword:', safetyCheck.matchedKeyword);
       
-      // Log the safety intercept for analytics/monitoring
-      // Note: Using defaults here since we don't have unit context for safety intercepts
       try {
         await db.insert(messages).values({
           tenant_id: DEFAULT_TENANT_ID,
@@ -550,7 +707,6 @@ export async function POST(request: NextRequest) {
         console.error('[Chat] Failed to log safety intercept:', logError);
       }
       
-      // Return standard safe response WITHOUT calling RAG or LLM
       return NextResponse.json({
         success: true,
         answer: SAFETY_INTERCEPT_RESPONSE,

@@ -1,0 +1,95 @@
+Implement Supabase schema changes to support scheme setup profiles, unit profiles, section authority flags, POI caching, and answer gap logging.
+
+Create SQL migrations (or a single idempotent SQL script) for the following tables:
+
+1) scheme_profile
+- id (uuid, pk, default gen_random_uuid())
+- developer_org_id (uuid or text, indexed)
+- scheme_name (text)
+- scheme_address (text)
+- scheme_lat (double precision)
+- scheme_lng (double precision)
+- scheme_status (text enum: under_construction, partially_occupied, fully_occupied)
+- homes_count (int)
+
+Contacts:
+- managing_agent_name (text)
+- contact_email (text)
+- contact_phone (text)
+- emergency_contact_phone (text, nullable)
+- emergency_contact_notes (text, nullable)
+- snag_reporting_method (text enum: email, portal, form, developer_contact, unknown)
+- snag_reporting_details (text, nullable)
+
+Core facts:
+- heating_type (text enum: air_to_water, gas_boiler, district, mixed, unknown)
+- heating_controls (text enum: central_controller, zoned_thermostats, unknown)
+- broadband_type (text enum: siro, openeir, other, unknown)
+- water_billing (text enum: direct, via_management, unknown)
+
+Waste:
+- waste_setup (text enum: individual_bins, communal_store, mixed, unknown)
+- bin_storage_notes (text, nullable)
+- waste_provider (text, nullable)
+
+Parking:
+- parking_type (text enum: allocated, unallocated, permit, mixed, unknown)
+- visitor_parking (text enum: yes_designated, limited, none, unknown)
+- parking_notes (text, nullable)
+
+Rules:
+- has_house_rules (boolean)
+- exterior_changes_require_approval (text enum: yes, no, case_by_case, unknown)
+- rules_notes (text, nullable)
+
+Authority flags (section-level):
+- authority_contacts (text enum: form, documents, unknown)
+- authority_core_facts (text enum: form, documents, unknown)
+- authority_waste_parking (text enum: form, documents, unknown)
+- authority_rules (text enum: form, documents, unknown)
+- authority_snagging (text enum: form, documents, unknown)
+
+Timestamps:
+- created_at, updated_at
+
+2) unit_profile
+- id (uuid pk)
+- scheme_id (uuid fk -> scheme_profile.id, indexed)
+- unit_code (text, indexed)
+- house_type (text, nullable)
+- heating_overrides (jsonb nullable) [optional per unit if differs from scheme]
+- broadband_overrides (jsonb nullable)
+- shutoff_location_notes (text nullable)
+- meter_location_notes (text nullable)
+- created_at, updated_at
+
+3) poi_cache
+- id (uuid pk)
+- scheme_id (uuid fk)
+- category (text indexed)
+- provider (text default 'google_places')
+- results_json (jsonb)
+- fetched_at (timestamptz)
+- ttl_days (int default 30)
+
+4) answer_gap_log
+- id (uuid pk)
+- scheme_id (uuid fk)
+- unit_id (uuid fk nullable)
+- user_question (text)
+- intent_type (text)
+- attempted_sources (jsonb)
+- final_source (text)
+- gap_reason (text) [missing_scheme_data, missing_docs, low_doc_confidence, etc]
+- created_at (timestamptz)
+
+Add indexes for scheme_id + category on poi_cache and scheme_id on answer_gap_log.
+
+Add RLS policies:
+- Developers can access only their scheme rows.
+- Purchaser users can read only the scheme_profile fields needed for answering, not admin-only fields if any exist.
+- Keep it simple, use existing auth patterns in the project.
+
+Deliver:
+- Migration SQL file(s)
+- Brief notes in /docs/schema-notes.md describing each table and intended usage.

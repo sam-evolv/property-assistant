@@ -1,0 +1,38 @@
+You are working on the OpenHouse AI codebase. Implement a robust assistant governance layer that prevents hallucinations, removes overused safety disclaimers, and enforces deterministic answer behavior.
+
+GOAL
+- The assistant must be consistently useful and accurate across all developments.
+- It must not invent facts (names, fees, deadlines, opening hours, policies).
+- It must prefer structured scheme data, then Smart Archive docs, then Google Places (location), then playbooks, then escalation.
+
+REQUIREMENTS
+1) Create an "Assistant Operating System" spec and implement it as a central configuration used by the chat responder. It must enforce:
+   - Intent classification into: Scheme Fact, Unit Fact, Document Answer, Location/Amenities, How-To Playbook, Sensitive/Subjective
+   - Answer modes: Grounded, Guided, Neutral
+   - Source priority: Structured Data (scheme_profile / unit_profile) -> Smart Archive (validated) -> Google Places (cached) -> Playbooks -> Escalation
+2) Emergency triage logic must be implemented:
+   - Tier 1 (life risk): fire, gas smell, sparking, electrocution, serious flooding near electrics -> advise 999/112 and immediate safety steps
+   - Tier 2 (property emergency): major leak, outage, alarm fault, no heating in cold conditions -> advise scheme emergency contact if available, otherwise managing agent/developer
+   - Tier 3 (non-urgent): use snagging and standard reporting channels
+   - Do NOT show generic disclaimer text unless Tier 1 hazard is present.
+3) Warranty boundary logic:
+   - Appliance warranty belongs to manufacturer/retailer terms
+   - Home defects or structural issues belong to developer/contract documentation
+   - Do not mention time periods unless sourced from scheme_profile or docs
+4) Output formatting rules:
+   - Every answer must include "Source: ..." internally as a metadata field (not necessarily shown to user). Source types: scheme_profile, unit_profile, smart_archive, google_places, playbook, escalation.
+   - If not grounded, the assistant must explicitly say what is unknown and the next best path.
+
+IMPLEMENTATION DETAILS
+- Locate the chat response handler (server route or API function).
+- Add an intent classifier function (simple keyword + pattern approach first, then optionally model-based later).
+- Add an answer strategy function that orchestrates sources based on intent type.
+- Ensure no use of em dashes in user-visible text.
+
+DELIVERABLES
+- New module: /src/lib/assistant/os.ts (or similar) containing the rules, intent types, and orchestration logic.
+- Update the chat handler to use the OS orchestrator.
+- Add unit tests for: emergency triage, warranty boundary, no-invented-facts checks.
+- Add a feature flag to fall back to current behavior if needed, default to new behavior in dev.
+
+Do not break existing chat functionality. Keep changes incremental and well isolated.
