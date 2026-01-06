@@ -73,6 +73,39 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Observability and QA Suite (January 2026)
+
+**Gap logging and automated testing for assistant quality:**
+
+**Gap Logging:**
+- Logs when assistant cannot answer grounded (playbook fallback, defer to developer/OMC, validation failed)
+- Stored in `answer_gap_log` table with scheme_id, question, intent, sources, reason
+- Dashboard at `/developer/schemes/[schemeId]/assistant-gaps`
+
+**QA Test Suite:**
+- 50 test questions across 8 categories (scheme_facts, documents, location_amenities, playbooks, snagging, emergencies, safety, escalation)
+- Automated scoring for hallucination, escalation correctness, doc usage, safety
+- Dashboard at `/developer/schemes/[schemeId]/assistant-tests`
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/gap-logger.ts` - Gap logging utility
+- `apps/unified-portal/tests/assistant/test-suite.json` - 50-question test suite
+- `apps/unified-portal/scripts/run-assistant-tests.ts` - Test runner with scorecard
+
+**Usage:**
+```typescript
+import { logAnswerGap } from '@/lib/assistant/gap-logger';
+
+await logAnswerGap({
+  scheme_id: schemeId,
+  user_question: message,
+  intent_type: 'heating',
+  attempted_sources: ['smart_archive', 'scheme_profile'],
+  final_source: 'playbook',
+  gap_reason: 'playbook_fallback',
+});
+```
+
 ### Playbooks Library (January 2026)
 
 **Deterministic fallback responses when documents/facts are unavailable:**
