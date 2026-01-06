@@ -1,0 +1,53 @@
+1) Scope lock
+
+“Can you confirm Phase 1 is strictly link-based embeds (YouTube/Vimeo) and we are not building uploads, storage, transcoding, or streaming?”
+
+“Can you confirm push notifications are excluded from pre-launch scope and will be a separate Phase 2?”
+
+2) Zero-regression guarantee
+
+“With FEATURE_VIDEOS=false, can you guarantee there is zero runtime impact on existing Docs (queries, components, loading performance) and no changes to current behaviour?”
+
+“Which exact files will you modify to add the Videos tab, and can you confirm you will not touch the ‘DO NOT MODIFY’ list?”
+
+3) Architecture sanity check
+
+“Can you confirm the videos feature will be implemented as a new table and new API routes only, with no edits to archive/RAG pipelines, document_sections queries, or Smart Archive logic?”
+
+“Can you confirm this will work across multi-scheme tenancy, using the same scheme context as Docs, with RLS matching existing access patterns?”
+
+4) iOS in-app playback reality check
+
+“Can you demonstrate in a test build that a YouTube/Vimeo embed plays fully in-app (WKWebView) without opening Safari, including on iOS Low Power Mode and typical network conditions?”
+
+“What is the fallback behaviour if embedding is blocked (video owner disables embedding, removed video, restricted content)? What will the homeowner see?”
+
+5) Operational UX (developer friction)
+
+“Can you confirm the developer workflow is: paste link, auto-detect provider, preview, publish - with validation that the link is embeddable before saving?”
+
+“How many clicks from ‘Add Video’ to ‘homeowners can watch it in-app’ in the final UI?”
+
+6) Performance and stability
+
+“Will the Videos tab introduce any new heavy client bundles, dependencies, or render-blocking scripts that could worsen load time or the scrolling issues we had previously?”
+
+“Will any third-party scripts (YouTube/Vimeo) load only when the Videos tab or video modal is opened (lazy-loaded), not on initial page load?”
+
+7) Security, privacy, and compliance
+
+“Can you confirm videos are scheme-scoped and cannot be accessed cross-scheme even if someone guesses a resource ID (RLS enforced, not just UI hidden)?”
+
+“Can you confirm we are not exposing private homeowner identifiers to YouTube/Vimeo beyond standard embed behaviour, and we are not sending user data to third parties unnecessarily?”
+
+8) Delivery confidence and rollback
+
+“What is the smallest shippable increment you can deliver first (DB + read-only list + playback), and can we deploy it behind flags without enabling it for any live scheme?”
+
+“If anything goes wrong, what is the rollback plan - can we disable with a single env var flip and redeploy, and does that fully remove the surface area (UI and API)?”
+
+“What are the top 3 realistic failure modes you foresee in our codebase, and how will you mitigate each?”
+
+9) ROI proof built in (to make it worth it)
+
+“Can you add minimal analytics events (video page opened, video started, acknowledged watched) without risking stability, so we can prove reduction in callouts and justify expansion?”
