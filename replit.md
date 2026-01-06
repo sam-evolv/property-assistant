@@ -73,6 +73,42 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Playbooks Library (January 2026)
+
+**Deterministic fallback responses when documents/facts are unavailable:**
+
+**Topics Covered:**
+1. utilities_setup - MPRN/GPRN guidance, meter reading, supplier setup
+2. waste_recycling - Collection info, bin types, recycling exclusions
+3. parking - Allocation, visitor parking, etiquette
+4. heating_principles - Heat pump vs boiler guidance
+5. snagging_process - Documentation, reporting, escalation
+6. warranties - Structural vs appliance, claim procedures
+7. emergencies - Tiered escalation with scheme contacts
+
+**Features:**
+- Structured JSON templates with scheme field injection
+- No em dashes in output (sanitized)
+- Generic fallback when scheme fields unavailable
+- Topic detection from user queries
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/playbooks.ts` - Template definitions
+- `apps/unified-portal/lib/assistant/renderPlaybook.ts` - Renderer with interpolation
+- `apps/unified-portal/lib/assistant/playbooks/index.ts` - Module exports
+
+**Usage:**
+```typescript
+import { detectPlaybookTopic, generatePlaybookResponse } from '@/lib/assistant/playbooks';
+
+const topic = detectPlaybookTopic(userQuery);
+if (topic) {
+  const response = generatePlaybookResponse(topic, schemeContext);
+  // response.content contains the rendered playbook
+  // response.isGenericFallback indicates if scheme fields were missing
+}
+```
+
 ### Smart Archive Reliability Upgrade (January 2026)
 
 **Document validation and retrieval confidence scoring:**
