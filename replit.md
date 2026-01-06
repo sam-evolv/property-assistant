@@ -73,6 +73,52 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Smart Archive Reliability Upgrade (January 2026)
+
+**Document validation and retrieval confidence scoring:**
+
+**Features:**
+- DocCategory enum: heating, electrical, plumbing, warranties, house_rules, snagging, welcome_pack, waste_parking, other
+- validateDocMatch() function with confidence scoring (0-100)
+- filterByValidation() for threshold-based filtering (requires isValid AND >= threshold)
+- Guided fallback responses for low-confidence scenarios
+- Answer gap logging for analytics on failed retrievals
+
+**Validation Scoring:**
+- Scheme match: 40 points (exact) or 20 points (null/unspecified)
+- Category match: 40 points (exact) or 10 points (other/fallback)
+- Unit match: 20 points (exact unit_code), 15 points (house_type), 10 points (unscoped)
+- Threshold: 50 points minimum + isValid required
+
+**Security:**
+- Documents MUST have matching scheme_id or be unscoped (null) to pass validation
+- Cross-scheme leakage prevented by requiring both isValid and threshold
+
+**Key Files:**
+- `apps/unified-portal/lib/smart-archive/validate.ts` - Core validation logic
+- `apps/unified-portal/lib/smart-archive/validated-search.ts` - Search with validation
+- `apps/unified-portal/lib/smart-archive/index.ts` - Module exports
+
+**Usage:**
+```typescript
+import { searchWithValidation, detectIntentCategory } from '@/lib/smart-archive';
+
+const result = await searchWithValidation({
+  schemeId: 'uuid',
+  query: 'how do I control my heating',
+  queryEmbedding: [...],
+  intentCategory: detectIntentCategory(query),
+  houseType: 'BD01',
+  threshold: 50,
+});
+
+if (result.fallback) {
+  // Show guided response
+} else {
+  // Use result.chunks
+}
+```
+
 ### Google Places POI Engine (January 2026)
 
 **Cache-first amenity search for Assistant OS location queries:**

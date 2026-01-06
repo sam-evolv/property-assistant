@@ -23,6 +23,17 @@ export interface DisciplineSummary {
   lastUpdated: string | null;
 }
 
+export type DocCategory = 
+  | 'heating'
+  | 'electrical'
+  | 'plumbing'
+  | 'warranties'
+  | 'house_rules'
+  | 'snagging'
+  | 'welcome_pack'
+  | 'waste_parking'
+  | 'other';
+
 export interface ArchiveDocument {
   id: string;
   title: string;
@@ -41,6 +52,10 @@ export interface ArchiveDocument {
   size_kb: number | null;
   created_at: string | null;
   updated_at: string | null;
+  scheme_id?: string | null;
+  category?: DocCategory | null;
+  unit_code?: string | null;
+  version_label?: string | null;
 }
 
 export interface FetchDocumentsResult {
