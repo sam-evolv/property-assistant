@@ -98,6 +98,8 @@ export default function PurchaserDocumentsTab({
   const [videos, setVideos] = useState<VideoResource[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
   const [videosFetched, setVideosFetched] = useState(false);
+  const [hasVideos, setHasVideos] = useState(false);
+  const [videosCountFetched, setVideosCountFetched] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<VideoResource | null>(null);
   const [embedError, setEmbedError] = useState(false);
   
@@ -214,8 +216,33 @@ export default function PurchaserDocumentsTab({
     }
   }, [unitUid, doFetch]);
 
-  const doVideosFetch = useCallback(async (currentUnitUid: string) => {
+  const doVideosCountFetch = useCallback(async (currentUnitUid: string) => {
     if (!PURCHASER_VIDEOS_ENABLED) return;
+    
+    try {
+      const storedToken = sessionStorage.getItem(`house_token_${currentUnitUid}`);
+      const token = storedToken || currentUnitUid;
+
+      const res = await fetch(
+        `/api/purchaser/videos/count?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setHasVideos(data.hasVideos === true);
+      } else {
+        setHasVideos(false);
+      }
+    } catch (err) {
+      console.error('[PurchaserDocumentsTab] Videos count fetch error:', err);
+      setHasVideos(false);
+    } finally {
+      setVideosCountFetched(true);
+    }
+  }, []);
+
+  const doVideosFetch = useCallback(async (currentUnitUid: string) => {
+    if (!PURCHASER_VIDEOS_ENABLED || videosFetched) return;
     
     setVideosLoading(true);
     try {
@@ -239,12 +266,14 @@ export default function PurchaserDocumentsTab({
       setVideosLoading(false);
       setVideosFetched(true);
     }
-  }, []);
+  }, [videosFetched]);
 
   useEffect(() => {
     setVideos([]);
     setVideosFetched(false);
     setVideosLoading(false);
+    setHasVideos(false);
+    setVideosCountFetched(false);
     
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -255,7 +284,7 @@ export default function PurchaserDocumentsTab({
     debounceTimerRef.current = setTimeout(async () => {
       await fetchDocuments();
       if (PURCHASER_VIDEOS_ENABLED) {
-        doVideosFetch(currentUnitUid);
+        doVideosCountFetch(currentUnitUid);
       }
     }, 200);
 
@@ -267,7 +296,13 @@ export default function PurchaserDocumentsTab({
         abortControllerRef.current.abort();
       }
     };
-  }, [unitUid, houseType, fetchDocuments, doVideosFetch]);
+  }, [unitUid, houseType, fetchDocuments, doVideosCountFetch]);
+
+  useEffect(() => {
+    if (selectedCategory === 'videos' && hasVideos && !videosFetched && !videosLoading) {
+      doVideosFetch(unitUid);
+    }
+  }, [selectedCategory, hasVideos, videosFetched, videosLoading, doVideosFetch, unitUid]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -396,7 +431,7 @@ export default function PurchaserDocumentsTab({
   const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
 
-  const categories = PURCHASER_VIDEOS_ENABLED && videos.length > 0
+  const categories = PURCHASER_VIDEOS_ENABLED && hasVideos
     ? [...BASE_CATEGORIES, VIDEOS_CATEGORY] 
     : BASE_CATEGORIES;
 
