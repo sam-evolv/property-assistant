@@ -73,6 +73,18 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Developer Setup Form Security Hardening (January 2026)
+
+**Security fixes for scheme profile API:**
+- **MapLocationPicker Component:** Interactive Google Maps modal for clicking/dragging to set lat/lng coordinates
+- **Ownership Validation:** `verifySchemeOwnership()` function verifies scheme belongs to caller's organization before allowing profile creation
+- **Strict Enforcement:** Returns 403 if project has no `organization_id` or if it doesn't match the caller's tenant
+- **Field Whitelist:** `WRITABLE_FIELDS` array prevents `developer_org_id` tampering via request body
+
+**API Routes Updated:**
+- `POST /api/schemes/[schemeId]/profile` - Validates ownership before insert
+- `PUT /api/schemes/[schemeId]/profile` - Validates ownership before insert (when creating new profile)
+
 ### Smart Archive Scope Stabilization (December 2025)
 
 **Production stabilization** - Normalized scope contract using explicit `mode` field:

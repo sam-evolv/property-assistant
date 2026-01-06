@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp, FileText, Building2, Phone, Flame, Trash2, Car, ClipboardList, MapPin } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, AlertCircle, ChevronDown, ChevronUp, FileText, Building2, Phone, Flame, Trash2, Car, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
+import { MapLocationPicker } from '@/components/common/MapLocationPicker';
 
 type AuthoritySource = 'form' | 'documents' | 'unknown';
 type SchemeStatus = 'under_construction' | 'partially_occupied' | 'fully_occupied';
@@ -331,25 +332,16 @@ export function SchemeSetupForm({ schemeId }: { schemeId: string }) {
               </select>
             </FormField>
             
-            <div className="flex gap-4">
-              <FormField label="Latitude">
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={profile.scheme_lat ?? ''}
-                  onChange={(e) => updateField('scheme_lat', e.target.value ? parseFloat(e.target.value) : null)}
-                  className={inputClass}
-                  placeholder="53.3498"
-                />
-              </FormField>
-              <FormField label="Longitude">
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={profile.scheme_lng ?? ''}
-                  onChange={(e) => updateField('scheme_lng', e.target.value ? parseFloat(e.target.value) : null)}
-                  className={inputClass}
-                  placeholder="-6.2603"
+            <div className="md:col-span-2">
+              <FormField label="Location (for nearby places)">
+                <MapLocationPicker
+                  latitude={profile.scheme_lat}
+                  longitude={profile.scheme_lng}
+                  address={profile.scheme_address}
+                  onLocationChange={(lat, lng) => {
+                    updateField('scheme_lat', lat);
+                    updateField('scheme_lng', lng);
+                  }}
                 />
               </FormField>
             </div>
