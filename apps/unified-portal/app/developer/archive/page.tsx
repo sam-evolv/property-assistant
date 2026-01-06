@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video } from 'lucide-react';
 import Link from 'next/link';
-import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
+import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal, VideosTab } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope, scopeToString } from '@/lib/archive-scope';
+import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
 
@@ -32,7 +33,7 @@ interface EmbeddingStats {
   errors: number;
 }
 
-type TabType = 'archive' | 'important' | 'insights';
+type TabType = 'archive' | 'important' | 'insights' | 'videos';
 
 export default function SmartArchivePage() {
   const { tenantId, archiveScope, setArchiveScope, isHydrated } = useSafeCurrentContext();
@@ -461,6 +462,19 @@ export default function SmartArchivePage() {
               <BarChart3 className="w-4 h-4" />
               <span>Insights</span>
             </button>
+            {isVideosFeatureEnabled() && (
+              <button
+                onClick={() => setActiveTab('videos')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'videos'
+                    ? 'bg-gray-800 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                <Video className="w-4 h-4" />
+                <span>Videos</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -613,6 +627,8 @@ export default function SmartArchivePage() {
           </>
         ) : activeTab === 'important' ? (
           <ImportantDocsTab onRefresh={handleRefresh} />
+        ) : activeTab === 'videos' ? (
+          <VideosTab />
         ) : (
           <InsightsTab />
         )}

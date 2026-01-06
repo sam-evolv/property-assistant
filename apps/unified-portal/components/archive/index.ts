@@ -9,4 +9,5 @@ export { CreateFolderModal } from './CreateFolderModal';
 export { MoveToFolderModal } from './MoveToFolderModal';
 export { DevelopmentSelector } from './DevelopmentSelector';
 export { SchemeSelectionModal } from './SchemeSelectionModal';
+export { VideosTab } from './VideosTab';
 export type { ArchiveFolder } from './FolderCard';
