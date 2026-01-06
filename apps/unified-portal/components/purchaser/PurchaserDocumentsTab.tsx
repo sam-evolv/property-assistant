@@ -432,7 +432,7 @@ export default function PurchaserDocumentsTab({
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
 
   const categories = PURCHASER_VIDEOS_ENABLED && hasVideos
-    ? [...BASE_CATEGORIES, VIDEOS_CATEGORY] 
+    ? [...BASE_CATEGORIES.slice(0, 3), VIDEOS_CATEGORY, ...BASE_CATEGORIES.slice(3)] 
     : BASE_CATEGORIES;
 
   const getCategoryCount = (categoryId: string) => {
