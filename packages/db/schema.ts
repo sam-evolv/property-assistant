@@ -1335,7 +1335,133 @@ export const video_resources = pgTable('video_resources', {
   sortIdx: index('video_resources_sort_idx').on(table.development_id, table.sort_order),
 }));
 
+// === ASSISTANT OS SCHEMA ADDITIONS ===
+
+// Enums for scheme_profile
+export const schemeStatusEnum = pgEnum('scheme_status_enum', ['under_construction', 'partially_occupied', 'fully_occupied']);
+export const snagReportingMethodEnum = pgEnum('snag_reporting_method_enum', ['email', 'portal', 'form', 'developer_contact', 'unknown']);
+export const heatingTypeEnum = pgEnum('heating_type_enum', ['air_to_water', 'gas_boiler', 'district', 'mixed', 'unknown']);
+export const heatingControlsEnum = pgEnum('heating_controls_enum', ['central_controller', 'zoned_thermostats', 'unknown']);
+export const broadbandTypeEnum = pgEnum('broadband_type_enum', ['siro', 'openeir', 'other', 'unknown']);
+export const waterBillingEnum = pgEnum('water_billing_enum', ['direct', 'via_management', 'unknown']);
+export const wasteSetupEnum = pgEnum('waste_setup_enum', ['individual_bins', 'communal_store', 'mixed', 'unknown']);
+export const parkingTypeEnum = pgEnum('parking_type_enum', ['allocated', 'unallocated', 'permit', 'mixed', 'unknown']);
+export const visitorParkingEnum = pgEnum('visitor_parking_enum', ['yes_designated', 'limited', 'none', 'unknown']);
+export const approvalRequiredEnum = pgEnum('approval_required_enum', ['yes', 'no', 'case_by_case', 'unknown']);
+export const authoritySourceEnum = pgEnum('authority_source_enum', ['form', 'documents', 'unknown']);
+
+// scheme_profile - Structured data for each development/scheme used by the assistant
+// Note: developer_org_id references Supabase tenants - no FK constraint
+export const scheme_profile = pgTable('scheme_profile', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  developer_org_id: uuid('developer_org_id').notNull(),
+  scheme_name: text('scheme_name').notNull(),
+  scheme_address: text('scheme_address'),
+  scheme_lat: doublePrecision('scheme_lat'),
+  scheme_lng: doublePrecision('scheme_lng'),
+  scheme_status: schemeStatusEnum('scheme_status').default('under_construction'),
+  homes_count: integer('homes_count'),
+  
+  // Contacts
+  managing_agent_name: text('managing_agent_name'),
+  contact_email: text('contact_email'),
+  contact_phone: text('contact_phone'),
+  emergency_contact_phone: text('emergency_contact_phone'),
+  emergency_contact_notes: text('emergency_contact_notes'),
+  snag_reporting_method: snagReportingMethodEnum('snag_reporting_method').default('unknown'),
+  snag_reporting_details: text('snag_reporting_details'),
+  
+  // Core facts
+  heating_type: heatingTypeEnum('heating_type').default('unknown'),
+  heating_controls: heatingControlsEnum('heating_controls').default('unknown'),
+  broadband_type: broadbandTypeEnum('broadband_type').default('unknown'),
+  water_billing: waterBillingEnum('water_billing').default('unknown'),
+  
+  // Waste
+  waste_setup: wasteSetupEnum('waste_setup').default('unknown'),
+  bin_storage_notes: text('bin_storage_notes'),
+  waste_provider: text('waste_provider'),
+  
+  // Parking
+  parking_type: parkingTypeEnum('parking_type').default('unknown'),
+  visitor_parking: visitorParkingEnum('visitor_parking').default('unknown'),
+  parking_notes: text('parking_notes'),
+  
+  // Rules
+  has_house_rules: boolean('has_house_rules').default(false),
+  exterior_changes_require_approval: approvalRequiredEnum('exterior_changes_require_approval').default('unknown'),
+  rules_notes: text('rules_notes'),
+  
+  // Authority flags (section-level source priority)
+  authority_contacts: authoritySourceEnum('authority_contacts').default('unknown'),
+  authority_core_facts: authoritySourceEnum('authority_core_facts').default('unknown'),
+  authority_waste_parking: authoritySourceEnum('authority_waste_parking').default('unknown'),
+  authority_rules: authoritySourceEnum('authority_rules').default('unknown'),
+  authority_snagging: authoritySourceEnum('authority_snagging').default('unknown'),
+  
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  developerOrgIdx: index('scheme_profile_developer_org_idx').on(table.developer_org_id),
+  schemeNameIdx: index('scheme_profile_name_idx').on(table.scheme_name),
+}));
+
+// unit_profile - Per-unit overrides and specific information
+export const unit_profile = pgTable('unit_profile', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  scheme_id: uuid('scheme_id').references(() => scheme_profile.id).notNull(),
+  unit_code: text('unit_code').notNull(),
+  house_type: text('house_type'),
+  heating_overrides: jsonb('heating_overrides'),
+  broadband_overrides: jsonb('broadband_overrides'),
+  shutoff_location_notes: text('shutoff_location_notes'),
+  meter_location_notes: text('meter_location_notes'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schemeIdx: index('unit_profile_scheme_idx').on(table.scheme_id),
+  unitCodeIdx: index('unit_profile_unit_code_idx').on(table.unit_code),
+  schemeUnitIdx: index('unit_profile_scheme_unit_idx').on(table.scheme_id, table.unit_code),
+}));
+
+// poi_cache - Cached Google Places results per scheme
+export const poi_cache = pgTable('poi_cache', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  scheme_id: uuid('scheme_id').references(() => scheme_profile.id).notNull(),
+  category: text('category').notNull(),
+  provider: text('provider').default('google_places').notNull(),
+  results_json: jsonb('results_json').notNull(),
+  fetched_at: timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+  ttl_days: integer('ttl_days').default(30).notNull(),
+}, (table) => ({
+  schemeIdx: index('poi_cache_scheme_idx').on(table.scheme_id),
+  categoryIdx: index('poi_cache_category_idx').on(table.category),
+  schemeCategoryIdx: index('poi_cache_scheme_category_idx').on(table.scheme_id, table.category),
+}));
+
+// answer_gap_log - Track questions the assistant couldn't answer
+export const answer_gap_log = pgTable('answer_gap_log', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  scheme_id: uuid('scheme_id').references(() => scheme_profile.id).notNull(),
+  unit_id: uuid('unit_id'),
+  user_question: text('user_question').notNull(),
+  intent_type: text('intent_type'),
+  attempted_sources: jsonb('attempted_sources'),
+  final_source: text('final_source'),
+  gap_reason: text('gap_reason').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  schemeIdx: index('answer_gap_log_scheme_idx').on(table.scheme_id),
+  intentTypeIdx: index('answer_gap_log_intent_type_idx').on(table.intent_type),
+  gapReasonIdx: index('answer_gap_log_gap_reason_idx').on(table.gap_reason),
+  createdAtIdx: index('answer_gap_log_created_at_idx').on(table.created_at),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
 export const videoResources = video_resources;
+export const schemeProfile = scheme_profile;
+export const unitProfile = unit_profile;
+export const poiCache = poi_cache;
+export const answerGapLog = answer_gap_log;
