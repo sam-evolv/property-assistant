@@ -6,8 +6,8 @@ import { getAdminContextFromSession } from '@/lib/api-auth';
 import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import { parseVideoUrl } from '@/lib/video-parser';
 import { db } from '@openhouse/db/client';
-import { video_resources, developments } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { video_resources } from '@openhouse/db/schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,9 +37,14 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ videos });
-  } catch (error) {
+  } catch (error: any) {
+    const isDev = process.env.NODE_ENV !== 'production';
     console.error('[VIDEOS API] Error fetching videos:', error);
-    return NextResponse.json({ error: 'Failed to fetch videos' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to fetch videos',
+      where: 'GET /api/videos',
+      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+    }, { status: 500 });
   }
 }
 
@@ -72,14 +77,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const development = await db.query.developments.findFirst({
-      where: and(
-        eq(developments.id, developmentId),
-        eq(developments.tenant_id, adminContext.tenantId)
-      ),
-    });
+    const devCheck = await db.execute(sql`
+      SELECT id FROM developments 
+      WHERE id = ${developmentId}::uuid AND tenant_id = ${adminContext.tenantId}::uuid
+      LIMIT 1
+    `);
 
-    if (!development) {
+    if (!devCheck.rows || devCheck.rows.length === 0) {
       return NextResponse.json(
         { error: 'Development not found or access denied' },
         { status: 403 }
@@ -102,9 +106,14 @@ export async function POST(request: NextRequest) {
     console.log(`[VIDEOS API] Created video: ${video.id} for development ${developmentId}`);
 
     return NextResponse.json({ video });
-  } catch (error) {
+  } catch (error: any) {
+    const isDev = process.env.NODE_ENV !== 'production';
     console.error('[VIDEOS API] Error creating video:', error);
-    return NextResponse.json({ error: 'Failed to create video' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to create video',
+      where: 'POST /api/videos',
+      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+    }, { status: 500 });
   }
 }
 
@@ -144,8 +153,13 @@ export async function DELETE(request: NextRequest) {
     console.log(`[VIDEOS API] Deleted video: ${videoId}`);
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    const isDev = process.env.NODE_ENV !== 'production';
     console.error('[VIDEOS API] Error deleting video:', error);
-    return NextResponse.json({ error: 'Failed to delete video' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to delete video',
+      where: 'DELETE /api/videos',
+      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+    }, { status: 500 });
   }
 }

@@ -1300,11 +1300,11 @@ export const analyticsEvents = pgTable('analytics_events', {
   session_hash: varchar('session_hash', { length: 64 }), // Hashed session ID for grouping, not tracking
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
-  tenantIdx: index('analytics_tenant_idx').on(table.tenant_id),
-  developmentIdx: index('analytics_development_idx').on(table.development_id),
-  eventTypeIdx: index('analytics_event_type_idx').on(table.event_type),
-  createdAtIdx: index('analytics_created_at_idx').on(table.created_at),
-  tenantEventDateIdx: index('analytics_tenant_event_date_idx').on(table.tenant_id, table.event_type, table.created_at),
+  tenantIdx: index('analytics_events_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('analytics_events_development_idx').on(table.development_id),
+  eventTypeIdx: index('analytics_events_type_idx').on(table.event_type),
+  createdAtIdx: index('analytics_events_created_at_idx').on(table.created_at),
+  tenantEventDateIdx: index('analytics_events_tenant_date_idx').on(table.tenant_id, table.event_type, table.created_at),
 }));
 
 // Video resources - embedded video links (YouTube/Vimeo) for scheme documentation

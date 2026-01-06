@@ -1,0 +1,102 @@
+You are the Replit Agent working in the OpenHouse unified-portal Next.js app.
+
+GOAL
+Fix the Videos Phase 1 feature so that:
+- GET /api/videos?developmentId=... returns 200 with a JSON list (possibly empty)
+- POST /api/videos returns 201/200 on success, and returns 4xx (not 500) on validation/auth failures
+- The UI can successfully add a YouTube URL like https://www.youtube.com/watch?v=kKRji-bDDos and then list it.
+- Keep scope locked: link-based embeds only, no push, no uploads.
+- Do not modify protected files: lib/archive.ts, lib/archive-documents.ts, app/api/archive/*, AuthContext/DevelopmentContext, components/archive/* (except VideosTab if needed). Only touch video-related code and new API routes.
+
+CONTEXT / SYMPTOMS
+Currently the client shows:
+- GET /api/videos?developmentId=<uuid> -> 500
+- POST /api/videos -> 500
+This blocks loading the list and adding videos. Console hydration warnings are pre-existing and not relevant.
+
+TASKS (DO IN ORDER)
+
+1) Add robust error reporting in the videos API route(s)
+- Locate the videos API route file(s): typically apps/unified-portal/app/api/videos/route.ts (and any nested routes).
+- Wrap GET/POST/DELETE handlers in try/catch.
+- On error, return JSON with:
+  - error: string
+  - where: "GET /api/videos" | "POST /api/videos" | "DELETE /api/videos"
+  - developmentId (if present)
+  - tenantId (if available)
+  - message and stack ONLY when NODE_ENV !== "production"
+- Ensure failures are never raw 500 without a JSON body.
+
+2) Identify root cause of 500 by reproducing locally in the Replit console
+- Use curl against the running dev server:
+  - curl -i "<baseUrl>/api/videos?developmentId=<knownDevId>"
+  - curl -i -X POST "<baseUrl>/api/videos" -H "Content-Type: application/json" -d '{"developmentId":"<knownDevId>","videoUrl":"https://www.youtube.com/watch?v=kKRji-bDDos","title":"Test","description":"Test"}'
+- Inspect the JSON error response + server logs.
+
+3) Fix the most likely underlying causes (check all)
+A) Database migration/table mismatch
+- Confirm the database has the expected table name used by the code (video_resources).
+- If the code expects video_resources but the DB migration created a different name, reconcile by either:
+  - updating the code to the actual table name in this environment, OR
+  - applying the migration so video_resources exists.
+- Add a startup-safe check in GET that fails with a clear 500 JSON like "video_resources table missing" if the relation is absent, to prevent silent failures.
+
+B) RLS / tenant-setting issues
+- Determine if RLS is enabled on video_resources and whether policies reference current_setting('app.tenant_id').
+- If RLS is enabled but app.tenant_id is not being set per request, the DB will error or return zero rows.
+- For THIS FIX (close to launch), prefer stability:
+  - Do NOT enable new RLS now.
+  - If RLS is already enabled and breaking queries, either:
+    - temporarily disable RLS on video_resources in this preview env, OR
+    - adjust queries to use Supabase service role / server-side admin client that bypasses RLS, OR
+    - set app.tenant_id safely per request (only if already doing this elsewhere and you can guarantee correctness).
+- Whatever you do, ensure GET/POST/DELETE work without 500s and remain tenant-isolated using server-side adminContext.tenantId filtering.
+
+C) Auth/adminContext null errors
+- Ensure the videos route obtains adminContext/auth before using tenantId.
+- If unauthenticated, return 401 JSON (not 500).
+- If developmentId missing/invalid, return 400 JSON.
+
+D) Ownership validation returning 500
+- The "development belongs to tenant" check must return:
+  - 403 JSON if not owned
+  - never throw
+- Add explicit guardrails around that lookup.
+
+E) YouTube parsing errors
+- In apps/unified-portal/lib/video-parser.ts (or equivalent), ensure it supports:
+  - youtube.com/watch?v=ID
+  - youtu.be/ID
+  - extra query params (t=, si=)
+- If parsing fails, return 400 JSON "Unsupported or invalid YouTube/Vimeo URL" instead of throwing.
+
+4) Confirm API behavior (acceptance tests)
+- GET with valid developmentId returns 200 and JSON array.
+- POST with valid developmentId + valid YouTube URL returns 201/200 and JSON object including:
+  - provider, video_id, embed_url (must use youtube-nocookie embed with playsinline=1)
+- POST with invalid URL returns 400.
+- POST with devId not owned returns 403.
+- DELETE returns 200 and soft-deletes (is_active=false) OR 204; if not owned returns 403.
+- No handler returns 500 for expected validation failures.
+
+5) Confirm UI now works end-to-end
+- In the developer archive page where the Videos tab exists and in the homeowner Docs videos section:
+  - videos list loads without errors
+  - adding the test YouTube URL succeeds
+  - the newly added video appears in the list
+  - clicking it opens the embed and plays
+
+6) Keep changes minimal and safe
+- No changes to archive/RAG/doc pipelines.
+- No new heavy dependencies.
+- Do not implement push notifications.
+- Prefer small, reversible changes.
+
+DELIVERABLES
+- Code changes committed.
+- Short summary in the PR/commit message:
+  - root cause found (table missing / RLS issue / auth null / parser bug)
+  - fix implemented
+  - curl commands + results confirming 200/201/4xx behavior.
+
+Start with steps 1-3 and do not proceed to UI changes until the API returns 200/201 correctly.
