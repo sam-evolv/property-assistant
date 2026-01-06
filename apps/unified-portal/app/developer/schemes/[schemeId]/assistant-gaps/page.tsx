@@ -13,6 +13,8 @@ interface GapLog {
   final_source: string | null;
   gap_reason: string;
   created_at: string;
+  suggested_fix?: string;
+  fix_priority?: string;
 }
 
 interface GapSummary {
@@ -172,6 +174,18 @@ export default function AssistantGapsPage() {
                     <span>Tried: {log.attempted_sources.join(', ')}</span>
                   )}
                 </div>
+                {log.suggested_fix && (
+                  <div className={`mt-2 p-2 rounded text-sm ${
+                    log.fix_priority === 'high' 
+                      ? 'bg-red-900/30 text-red-300 border border-red-800' 
+                      : log.fix_priority === 'medium'
+                      ? 'bg-amber-900/30 text-amber-300 border border-amber-800'
+                      : 'bg-zinc-700/50 text-zinc-300'
+                  }`}>
+                    <span className="font-medium">Suggested fix: </span>
+                    {log.suggested_fix}
+                  </div>
+                )}
               </div>
             ))}
           </div>

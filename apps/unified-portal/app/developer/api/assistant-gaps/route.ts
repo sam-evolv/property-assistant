@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGapLogsByScheme, getGapSummary } from '@/lib/assistant/gap-logger';
+import { enrichGapLogWithSuggestion } from '@/lib/assistant/gap-suggestions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,8 +32,13 @@ export async function GET(request: NextRequest) {
       endDate: endDateStr ? new Date(endDateStr) : undefined,
     });
     
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      ...enrichGapLogWithSuggestion(log),
+    }));
+    
     return NextResponse.json({
-      logs,
+      logs: enrichedLogs,
       totalCount,
       page: Math.floor(offset / limit) + 1,
       pageSize: limit,

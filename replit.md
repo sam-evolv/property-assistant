@@ -73,6 +73,47 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### UX Intelligence Upgrades (January 2026)
+
+**Low-risk, high-impact improvements to assistant responses:**
+
+**Features (all behind ASSISTANT_UX_ENHANCEMENTS=true flag):**
+
+1. **Source Transparency** - Answers include source hints:
+   - scheme_profile → "Based on the development information provided"
+   - unit_profile → "Based on your home's details"
+   - smart_archive → "Based on your homeowner documentation"
+   - google_places → "Based on nearby amenities (last updated <date>)"
+   - playbook → "General guidance"
+
+2. **Confidence-Weighted Language**:
+   - High confidence (≥80%) → Direct factual statements
+   - Medium confidence (50-79%) → "Based on the information available..."
+   - Low confidence (<50%) → "In most developments..."
+
+3. **Related Question Suggestions** - 1-2 follow-ups based on intent:
+   - heating → efficiency tips, controls info
+   - waste → recycling rules, bin locations
+   - parking → visitor parking, permits
+   - (Disabled for emergency/sensitive queries)
+
+4. **Micro-Feedback Capture** (Dev/Test mode only):
+   - Thumbs up/down logging to `assistant_feedback` table
+   - Available when X-Test-Mode header or developer/admin role
+   - Summary stats by source type
+
+5. **Gap-to-Action Suggestions**:
+   - missing_scheme_data → suggests scheme profile fields
+   - no_documents_found → suggests document categories
+   - low_doc_confidence → suggests re-tagging
+   - Displayed inline on gaps dashboard
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/response-formatter.ts` - Source hints, confidence language, related questions
+- `apps/unified-portal/lib/assistant/feedback-logger.ts` - Feedback capture
+- `apps/unified-portal/lib/assistant/gap-suggestions.ts` - Remediation suggestions
+- `apps/unified-portal/tests/assistant/ux-upgrades.test.ts` - Unit tests
+
 ### Observability and QA Suite (January 2026)
 
 **Gap logging and automated testing for assistant quality:**

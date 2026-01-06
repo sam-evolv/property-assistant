@@ -1457,6 +1457,27 @@ export const answer_gap_log = pgTable('answer_gap_log', {
   createdAtIdx: index('answer_gap_log_created_at_idx').on(table.created_at),
 }));
 
+// assistant_feedback - Track thumbs up/down on assistant responses
+export const assistant_feedback = pgTable('assistant_feedback', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  scheme_id: uuid('scheme_id').references(() => scheme_profile.id).notNull(),
+  unit_id: uuid('unit_id'),
+  user_question: text('user_question').notNull(),
+  assistant_response: text('assistant_response').notNull(),
+  source_type: text('source_type'),
+  feedback_value: text('feedback_value').notNull(),
+  user_role: text('user_role'),
+  session_id: text('session_id'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('assistant_feedback_tenant_idx').on(table.tenant_id),
+  schemeIdx: index('assistant_feedback_scheme_idx').on(table.scheme_id),
+  tenantSchemeIdx: index('assistant_feedback_tenant_scheme_idx').on(table.tenant_id, table.scheme_id),
+  feedbackValueIdx: index('assistant_feedback_value_idx').on(table.feedback_value),
+  createdAtIdx: index('assistant_feedback_created_at_idx').on(table.created_at),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
@@ -1465,3 +1486,4 @@ export const schemeProfile = scheme_profile;
 export const unitProfile = unit_profile;
 export const poiCache = poi_cache;
 export const answerGapLog = answer_gap_log;
+export const assistantFeedback = assistant_feedback;
