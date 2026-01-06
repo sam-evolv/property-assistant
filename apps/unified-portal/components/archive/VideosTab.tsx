@@ -241,6 +241,16 @@ function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
   );
 }
 
+function trackVideoEvent(eventType: string, data: Record<string, any>) {
+  if (typeof window === 'undefined') return;
+  console.log(`[Videos Analytics] ${eventType}`, data);
+  fetch('/api/analytics/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventType, ...data }),
+  }).catch(() => {});
+}
+
 export function VideosTab() {
   const { tenantId, archiveScope } = useSafeCurrentContext();
   const developmentId = getSchemeId(archiveScope);
@@ -251,6 +261,14 @@ export function VideosTab() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoResource | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [hasTrackedView, setHasTrackedView] = useState(false);
+
+  useEffect(() => {
+    if (developmentId && !hasTrackedView) {
+      trackVideoEvent('video_tab_opened', { developmentId });
+      setHasTrackedView(true);
+    }
+  }, [developmentId, hasTrackedView]);
 
   const loadVideos = useCallback(async () => {
     if (!developmentId) {
@@ -294,6 +312,12 @@ export function VideosTab() {
   };
 
   const handleVideoClick = (video: VideoResource) => {
+    trackVideoEvent('video_started', { 
+      developmentId, 
+      videoId: video.id, 
+      provider: video.provider,
+      title: video.title 
+    });
     setSelectedVideo(video);
   };
 
