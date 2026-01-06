@@ -8,6 +8,13 @@
       "when": 1767706102036,
       "tag": "0000_strange_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767721854211,
+      "tag": "0001_chief_karnak",
+      "breakpoints": true
     }
   ]
 }
