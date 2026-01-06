@@ -2,8 +2,20 @@
 
 ## Confirmations
 
-### Videos Location
-**Confirmed**: Videos tab is located under **Smart Archive** (`/developer/archive`) as a sibling tab to Documents, Important Docs, and Insights.
+### Videos Locations
+
+**Developer Portal (Smart Archive)**:
+- Route: `/developer/archive`
+- Tab: Videos (sibling to Documents, Important Docs, Insights)
+- API: `GET/POST/DELETE /api/videos`
+- Flag: `FEATURE_VIDEOS` / `NEXT_PUBLIC_FEATURE_VIDEOS`
+
+**Purchaser/Homeowner Portal (Docs)**:
+- Route: `/purchaser/app` (Docs tab)
+- Component: Expandable Videos section at top of Docs tab
+- API: `GET /api/purchaser/videos`
+- Flag: `FEATURE_VIDEOS_PURCHASER` / `NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER`
+- Note: Falls back to `FEATURE_VIDEOS` if purchaser-specific flag not set
 
 ### DELETE Endpoint Security
 **Confirmed**: DELETE `/api/videos?id=<uuid>` validates tenant ownership:
@@ -27,15 +39,23 @@ if (!existing) {
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `FEATURE_VIDEOS` | `false` | Server-side flag |
-| `NEXT_PUBLIC_FEATURE_VIDEOS` | `false` | Client-side flag (build-time) |
+| `FEATURE_VIDEOS` | `false` | Developer videos server-side |
+| `NEXT_PUBLIC_FEATURE_VIDEOS` | `false` | Developer videos client-side |
+| `FEATURE_VIDEOS_PURCHASER` | `false` | Purchaser videos server-side |
+| `NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER` | `false` | Purchaser videos client-side |
 
 ### Preview Environment (Testing - Feature ON)
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `FEATURE_VIDEOS` | `true` | Server-side flag |
-| `NEXT_PUBLIC_FEATURE_VIDEOS` | `true` | Client-side flag (build-time) |
+| `FEATURE_VIDEOS` | `true` | Developer videos server-side |
+| `NEXT_PUBLIC_FEATURE_VIDEOS` | `true` | Developer videos client-side |
+| `FEATURE_VIDEOS_PURCHASER` | `true` | Purchaser videos server-side |
+| `NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER` | `true` | Purchaser videos client-side |
+
+### Flag Hierarchy
+- Setting `FEATURE_VIDEOS=true` enables BOTH developer and purchaser videos
+- Setting `FEATURE_VIDEOS_PURCHASER=true` enables ONLY purchaser videos (independent control)
 
 ### All Environments (Required)
 

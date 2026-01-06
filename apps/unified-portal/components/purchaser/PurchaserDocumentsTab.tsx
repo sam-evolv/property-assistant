@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame, RefreshCw, Loader2 } from 'lucide-react';
 import SessionExpiredModal from './SessionExpiredModal';
+
+const PURCHASER_VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER === 'true' || process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
+const LazyPurchaserVideosSection = lazy(() => import('./PurchaserVideosSection'));
 import { 
   getCachedDocuments, 
   setCachedDocuments, 
@@ -430,6 +433,15 @@ export default function PurchaserDocumentsTab({
           })}
         </div>
       </div>
+
+      {/* Videos Section */}
+      {PURCHASER_VIDEOS_ENABLED && (
+        <div className="px-4 pt-4">
+          <Suspense fallback={<div className="flex items-center gap-2 p-4"><Loader2 className="w-4 h-4 animate-spin text-gold-500" /><span className="text-sm text-grey-400">Loading videos...</span></div>}>
+            <LazyPurchaserVideosSection unitUid={unitUid} isDarkMode={isDarkMode} />
+          </Suspense>
+        </div>
+      )}
 
       {/* Documents Grid */}
       {filteredDocs.length === 0 ? (
