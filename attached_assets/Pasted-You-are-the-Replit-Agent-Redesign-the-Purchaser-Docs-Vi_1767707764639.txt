@@ -1,0 +1,57 @@
+You are the Replit Agent. Redesign the Purchaser Docs Videos section so it is production-quality, compact, and consistent with the Docs UI.
+
+CONTEXT
+Current implementation renders a large "Videos (1)" block with an oversized thumbnail area that looks like a banner and breaks the Docs layout. This must be reformatted so it looks intentional and premium.
+
+GOALS
+1) Make Videos feel like a first-class Docs category, not an awkward block.
+2) Prevent Videos from dominating vertical space.
+3) Responsive, clean layout: 2-column grid on desktop, 1-column on mobile.
+4) Clicking a video opens a responsive modal player (not inline giant banner).
+5) No regressions: do not touch archive/RAG protected files. Keep changes isolated to purchaser docs UI and video components.
+
+REQUIREMENTS
+- Keep existing data and API. Only change UI rendering and component structure.
+- Videos section should render only when at least 1 video exists.
+- If 0 videos, do not render the section at all.
+- Use Tailwind + existing design tokens if present.
+- Ensure accessibility: keyboard focus trap for modal, ESC to close, close button visible.
+- Ensure embed is responsive and does not overflow.
+
+IMPLEMENTATION PLAN
+A) Locate purchaser Docs page/component where Videos is rendered (likely apps/unified-portal/app/purchaser/app/* docs tab component).
+B) Replace current Videos block UI with:
+   - Header row: "Handover Videos" + count badge (e.g. 1)
+   - Subtext: "Short walkthroughs that help you use your home systems correctly."
+   - Grid of cards:
+     - Thumbnail (16:9) with play icon overlay
+     - Title
+     - Description (clamp to 2 lines)
+     - Metadata row: duration (if known) + provider badge (YouTube/Vimeo)
+     - CTA button: Watch
+C) Modal player:
+   - Opens on Watch or card click
+   - Shows title, description
+   - Responsive iframe embed (max width 900px, height maintains 16:9)
+   - Close button top-right, ESC closes, click backdrop closes
+   - If embed fails, show fallback text + "Open in browser" link
+D) Visual polish:
+   - Card hover: subtle lift/shadow
+   - Consistent spacing with existing Docs cards
+   - Avoid huge empty containers
+   - Use skeleton loader while fetching videos
+
+EDGE CASES
+- Long titles and descriptions: clamp and avoid layout shift.
+- Mobile: single column, modal fits viewport, video scales correctly.
+- Ensure Videos section does not push the category chips off-screen or create horizontal scroll.
+
+ACCEPTANCE TESTS
+1) On purchaser Docs, videos show as compact grid cards, not banner.
+2) Layout remains clean with category chips and doc cards visible above/below.
+3) Clicking Watch opens modal and plays video, closes cleanly.
+4) With 0 videos, no Videos section appears.
+5) Mobile view: no horizontal scroll, video modal responsive.
+6) No changes to protected archive/RAG files.
+
+Deliver the updated components and confirm which files were modified.
