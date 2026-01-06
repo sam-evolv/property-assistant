@@ -1,11 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Home, Wrench, Shield, Truck, AlertTriangle, MapPin, FileCheck, Flame, RefreshCw, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Wrench, Shield, AlertTriangle, MapPin, FileCheck, Flame, Video, Play, X, ExternalLink, Loader2 } from 'lucide-react';
 import SessionExpiredModal from './SessionExpiredModal';
-
-const PURCHASER_VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER === 'true' || process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
-const LazyPurchaserVideosSection = lazy(() => import('./PurchaserVideosSection'));
 import { 
   getCachedDocuments, 
   setCachedDocuments, 
@@ -13,6 +10,8 @@ import {
   getInFlightRequest,
   setInFlightRequest
 } from '../../lib/documentCache';
+
+const PURCHASER_VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER === 'true' || process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
 
 interface Document {
   id: string;
@@ -26,6 +25,15 @@ interface Document {
   important_rank?: number | null;
   must_read?: boolean;
   source?: 'drizzle' | 'supabase';
+}
+
+interface VideoResource {
+  id: string;
+  title: string;
+  description?: string;
+  provider: string;
+  embed_url: string;
+  thumbnail_url?: string;
 }
 
 interface DocsApiResponse {
@@ -47,9 +55,10 @@ interface CategoryInfo {
   label: string;
   icon: React.ReactNode;
   keywords: string[];
+  isVideo?: boolean;
 }
 
-const CATEGORIES: CategoryInfo[] = [
+const BASE_CATEGORIES: CategoryInfo[] = [
   { id: 'all', label: 'All', icon: <Folder className="w-5 h-5" />, keywords: [] },
   { id: 'mustread', label: 'Must Read', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
   { id: 'important', label: 'Important', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
@@ -62,6 +71,14 @@ const CATEGORIES: CategoryInfo[] = [
   { id: 'specifications', label: 'Specifications', icon: <FileText className="w-5 h-5" />, keywords: [] },
   { id: 'general', label: 'General', icon: <File className="w-5 h-5" />, keywords: [] },
 ];
+
+const VIDEOS_CATEGORY: CategoryInfo = { 
+  id: 'videos', 
+  label: 'Videos', 
+  icon: <Video className="w-5 h-5" />, 
+  keywords: [],
+  isVideo: true
+};
 
 export default function PurchaserDocumentsTab({
   unitUid,
@@ -77,6 +94,12 @@ export default function PurchaserDocumentsTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sessionExpired, setSessionExpired] = useState(false);
+  
+  const [videos, setVideos] = useState<VideoResource[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [videosFetched, setVideosFetched] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState<VideoResource | null>(null);
+  const [embedError, setEmbedError] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -191,6 +214,33 @@ export default function PurchaserDocumentsTab({
     }
   }, [unitUid, doFetch]);
 
+  const fetchVideos = useCallback(async () => {
+    if (!PURCHASER_VIDEOS_ENABLED || videosFetched) return;
+    
+    setVideosLoading(true);
+    try {
+      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = storedToken || unitUid;
+
+      const res = await fetch(
+        `/api/purchaser/videos?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data.videos || []);
+      } else {
+        setVideos([]);
+      }
+    } catch (err) {
+      console.error('[PurchaserDocumentsTab] Videos fetch error:', err);
+      setVideos([]);
+    } finally {
+      setVideosLoading(false);
+      setVideosFetched(true);
+    }
+  }, [unitUid, videosFetched]);
+
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -210,32 +260,52 @@ export default function PurchaserDocumentsTab({
     };
   }, [unitUid, houseType]);
 
+  useEffect(() => {
+    if (selectedCategory === 'videos' && !videosFetched) {
+      fetchVideos();
+    }
+  }, [selectedCategory, videosFetched, fetchVideos]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && playingVideo) {
+        setPlayingVideo(null);
+        setEmbedError(false);
+      }
+    };
+
+    if (playingVideo) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [playingVideo]);
+
   const handleDownload = async (doc: Document) => {
     try {
-      // For Supabase documents with direct file_url, open in new tab
       if (doc.source === 'supabase' && doc.file_url) {
         window.open(doc.file_url, '_blank');
         return;
       }
       
-      // For Drizzle documents, use the download API
       const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
       const token = storedToken || unitUid;
 
       const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       
-      // First check if the download will succeed
       const response = await fetch(downloadUrl);
       
       if (!response.ok) {
-        // Try to get error details
         const errorData = await response.json().catch(() => ({ error: 'Download failed' }));
         const errorMessage = errorData.details || errorData.error || 'Failed to download document';
         alert(errorMessage);
         return;
       }
       
-      // If successful, download the file
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -263,10 +333,28 @@ export default function PurchaserDocumentsTab({
     return <File className="w-5 h-5 text-gray-500" />;
   };
 
+  const getProviderBadge = (provider: string) => {
+    const p = provider.toLowerCase();
+    if (p === 'youtube') return { label: 'YouTube', color: 'bg-red-600' };
+    if (p === 'vimeo') return { label: 'Vimeo', color: 'bg-blue-500' };
+    return { label: provider, color: 'bg-gray-600' };
+  };
+
+  const getOriginalUrl = (video: VideoResource) => {
+    const embedUrl = video.embed_url;
+    if (embedUrl.includes('youtube.com/embed/')) {
+      const videoId = embedUrl.split('/embed/')[1]?.split('?')[0];
+      return `https://www.youtube.com/watch?v=${videoId}`;
+    } else if (embedUrl.includes('player.vimeo.com/video/')) {
+      const videoId = embedUrl.split('/video/')[1]?.split('?')[0];
+      return `https://vimeo.com/${videoId}`;
+    }
+    return embedUrl;
+  };
+
   const filterDocuments = () => {
     let filtered = documents;
 
-    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(doc =>
@@ -274,30 +362,23 @@ export default function PurchaserDocumentsTab({
       );
     }
 
-    // Category filter
     if (selectedCategory === 'mustread') {
       filtered = filtered.filter(doc => doc.must_read);
     } else if (selectedCategory === 'important') {
       filtered = filtered.filter(doc => doc.is_important);
-    } else if (selectedCategory !== 'all') {
+    } else if (selectedCategory !== 'all' && selectedCategory !== 'videos') {
       filtered = filtered.filter(doc => {
         const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
-        const categoryLabel = CATEGORIES.find(c => c.id === selectedCategory)?.label.toLowerCase() || '';
+        const categoryLabel = BASE_CATEGORIES.find(c => c.id === selectedCategory)?.label.toLowerCase() || '';
         return docCategory === categoryLabel;
       });
     }
 
-    // Sort: must_read first, then is_important, then by created_at (newest first)
     filtered = [...filtered].sort((a, b) => {
-      // Must read documents first
       if (a.must_read && !b.must_read) return -1;
       if (!a.must_read && b.must_read) return 1;
-      
-      // Then important documents
       if (a.is_important && !b.is_important) return -1;
       if (!a.is_important && b.is_important) return 1;
-      
-      // Then by created_at (newest first)
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
@@ -311,6 +392,23 @@ export default function PurchaserDocumentsTab({
   const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
   const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
+
+  const categories = PURCHASER_VIDEOS_ENABLED && videos.length > 0 
+    ? [...BASE_CATEGORIES, VIDEOS_CATEGORY] 
+    : BASE_CATEGORIES;
+
+  const getCategoryCount = (categoryId: string) => {
+    if (categoryId === 'videos') return videos.length;
+    if (categoryId === 'all') return documents.length;
+    if (categoryId === 'mustread') return documents.filter(doc => doc.must_read).length;
+    if (categoryId === 'important') return documents.filter(doc => doc.is_important).length;
+    
+    const categoryLabel = BASE_CATEGORIES.find(c => c.id === categoryId)?.label.toLowerCase() || '';
+    return documents.filter(doc => {
+      const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
+      return docCategory === categoryLabel;
+    }).length;
+  };
 
   if (sessionExpired) {
     return (
@@ -359,28 +457,19 @@ export default function PurchaserDocumentsTab({
     );
   }
 
-  // Get document counts per category
-  const getCategoryCount = (categoryId: string) => {
-    if (categoryId === 'all') return documents.length;
-    if (categoryId === 'mustread') return documents.filter(doc => doc.must_read).length;
-    if (categoryId === 'important') return documents.filter(doc => doc.is_important).length;
-    
-    const categoryLabel = CATEGORIES.find(c => c.id === categoryId)?.label.toLowerCase() || '';
-    return documents.filter(doc => {
-      const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
-      return docCategory === categoryLabel;
-    }).length;
-  };
+  const isVideosTab = selectedCategory === 'videos';
+
+  const cardBaseClasses = `${cardBg} border rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group relative`;
+  const iconBgBase = 'bg-gradient-to-br from-gold-100 to-gold-200';
 
   return (
     <div className={`flex flex-col h-full ${bgColor}`}>
-      {/* Search Bar */}
       <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3`}>
         <div className="relative max-w-2xl mx-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search documents..."
+            placeholder={isVideosTab ? "Search videos..." : "Search documents..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={`w-full pl-10 pr-4 py-2 ${inputBg} border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
@@ -388,19 +477,21 @@ export default function PurchaserDocumentsTab({
         </div>
       </div>
 
-      {/* Category Pills */}
       <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3 overflow-x-auto`}>
         <div className="flex gap-2 min-w-max">
-          {CATEGORIES.map(cat => {
+          {categories.map(cat => {
             const count = getCategoryCount(cat.id);
             const isMustRead = cat.id === 'mustread';
             const isImportant = cat.id === 'important';
+            const isVideo = cat.id === 'videos';
             
             let buttonStyle = '';
             if (selectedCategory === cat.id) {
               buttonStyle = isMustRead 
                 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md'
-                : 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md';
+                : isVideo
+                  ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-md'
+                  : 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md';
             } else if (isMustRead) {
               buttonStyle = isDarkMode
                 ? 'bg-red-900/20 text-red-400 hover:bg-red-900/30 border border-red-500/30'
@@ -409,6 +500,10 @@ export default function PurchaserDocumentsTab({
               buttonStyle = isDarkMode
                 ? 'bg-gold-900/20 text-gold-400 hover:bg-gold-900/30 border border-gold-500/30'
                 : 'bg-gold-50 text-gold-700 hover:bg-gold-100 border border-gold-200';
+            } else if (isVideo) {
+              buttonStyle = isDarkMode
+                ? 'bg-purple-900/20 text-purple-400 hover:bg-purple-900/30 border border-purple-500/30'
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200';
             } else {
               buttonStyle = isDarkMode
                 ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -434,17 +529,87 @@ export default function PurchaserDocumentsTab({
         </div>
       </div>
 
-      {/* Videos Section */}
-      {PURCHASER_VIDEOS_ENABLED && (
-        <div className="px-4 pt-4">
-          <Suspense fallback={<div className="flex items-center gap-2 p-4"><Loader2 className="w-4 h-4 animate-spin text-gold-500" /><span className="text-sm text-grey-400">Loading videos...</span></div>}>
-            <LazyPurchaserVideosSection unitUid={unitUid} isDarkMode={isDarkMode} />
-          </Suspense>
-        </div>
-      )}
-
-      {/* Documents Grid */}
-      {filteredDocs.length === 0 ? (
+      {isVideosTab ? (
+        videosLoading ? (
+          <div className={`flex items-center justify-center flex-1 ${bgColor}`}>
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-gold-500" />
+              <span className={subtextColor}>Loading videos...</span>
+            </div>
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
+            <div className="p-4 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full mb-4">
+              <Video className="w-8 h-8 text-purple-700" />
+            </div>
+            <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
+              No Videos Available
+            </h3>
+            <p className={`${subtextColor} max-w-md text-sm`}>
+              There are no handover videos available for your property yet.
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 pb-24">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {videos
+                .filter(v => !searchQuery.trim() || v.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((video) => {
+                  const badge = getProviderBadge(video.provider);
+                  return (
+                    <div
+                      key={video.id}
+                      className={cardBaseClasses}
+                      onClick={() => {
+                        console.log('[Videos Analytics] video_started', { videoId: video.id, provider: video.provider });
+                        setPlayingVideo(video);
+                        setEmbedError(false);
+                      }}
+                    >
+                      <div className={`absolute top-2 right-2 px-2 py-0.5 text-xs font-bold rounded ${badge.color} text-white shadow-sm`}>
+                        {badge.label}
+                      </div>
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`p-2 ${iconBgBase} rounded-lg flex-shrink-0 relative`}>
+                          <Video className="w-5 h-5 text-gold-600" />
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gold-500 rounded-full flex items-center justify-center">
+                            <Play className="w-2.5 h-2.5 text-white fill-white ml-0.5" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0 pr-16">
+                          <h3 className={`text-sm font-semibold ${textColor} line-clamp-2 group-hover:text-gold-600 transition-colors`}>
+                            {video.title}
+                          </h3>
+                          {video.description && (
+                            <p className={`text-xs ${subtextColor} line-clamp-1 mt-1`}>
+                              {video.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs ${subtextColor}`}>
+                          Handover Video
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPlayingVideo(video);
+                            setEmbedError(false);
+                          }}
+                          className="p-2 rounded-lg bg-gradient-to-r from-gold-500 to-gold-600 text-white hover:from-gold-600 hover:to-gold-700 transition-all"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )
+      ) : filteredDocs.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
           <div className="p-4 bg-gradient-to-br from-gold-100 to-gold-200 rounded-full mb-4">
             <Folder className="w-8 h-8 text-gold-700" />
@@ -472,7 +637,7 @@ export default function PurchaserDocumentsTab({
                 ? 'bg-gradient-to-br from-red-200 to-red-300'
                 : doc.is_important 
                   ? 'bg-gradient-to-br from-gold-200 to-gold-300' 
-                  : 'bg-gradient-to-br from-gold-100 to-gold-200';
+                  : iconBgBase;
               
               return (
                 <div
@@ -522,6 +687,88 @@ export default function PurchaserDocumentsTab({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {playingVideo && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => {
+            setPlayingVideo(null);
+            setEmbedError(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="video-modal-title"
+        >
+          <div
+            className="relative w-full max-w-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setPlayingVideo(null);
+                setEmbedError(false);
+              }}
+              className="absolute -top-12 right-0 p-2 text-white hover:text-gold-500 transition-colors rounded-lg hover:bg-white/10"
+              aria-label="Close video"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {!embedError ? (
+              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black shadow-2xl">
+                <iframe
+                  src={playingVideo.embed_url}
+                  title={playingVideo.title}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  onError={() => setEmbedError(true)}
+                />
+              </div>
+            ) : (
+              <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
+                <Video className="w-16 h-16 text-gray-600 mb-4" />
+                <p className="text-white text-lg font-medium mb-2">Unable to load video</p>
+                <p className="text-gray-400 text-sm mb-4">The video embed could not be loaded.</p>
+                <a
+                  href={getOriginalUrl(playingVideo)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gold-500 text-black font-medium rounded-lg hover:bg-gold-400 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open in Browser
+                </a>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <h3 id="video-modal-title" className="text-white text-lg font-semibold">
+                {playingVideo.title}
+              </h3>
+              {playingVideo.description && (
+                <p className="text-gray-400 text-sm mt-2 line-clamp-3">
+                  {playingVideo.description}
+                </p>
+              )}
+              <div className="flex items-center gap-3 mt-3">
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${getProviderBadge(playingVideo.provider).color} text-white`}>
+                  {getProviderBadge(playingVideo.provider).label}
+                </span>
+                <a
+                  href={getOriginalUrl(playingVideo)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-gray-400 hover:text-gold-500 transition-colors flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Open in new tab
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}

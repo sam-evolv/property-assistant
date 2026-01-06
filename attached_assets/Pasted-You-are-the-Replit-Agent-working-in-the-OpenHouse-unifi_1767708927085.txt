@@ -1,0 +1,81 @@
+You are the Replit Agent working in the OpenHouse unified-portal.
+
+PROBLEM
+The purchaser Docs page currently renders “Handover Videos” as a large inline embedded video, which looks worse and breaks the Docs layout. The user wants:
+- A dedicated “Videos” tab (chip) alongside the existing Docs category chips (All, Must Read, Important, Floorplans, etc.)
+- When “Videos” is selected, videos display as cards/tiles the SAME SIZE and style as the existing PDF/doc tiles.
+- Clicking a video tile opens the video in a modal (or existing doc viewer pattern), not inline.
+- Must be fully consistent with current app styling and not break existing Docs logic.
+
+NON-NEGOTIABLES
+- NO giant inline video embeds on the Docs page.
+- NO changes to protected archive/RAG files.
+- Keep it additive and isolated to purchaser Docs UI + video components.
+- Keep feature flags working (FEATURE_VIDEOS_PURCHASER / NEXT_PUBLIC variants).
+
+HIGH-LEVEL APPROACH
+1) Integrate a “Videos” category tab (chip) into the purchaser Docs category selector.
+2) When Videos tab is active, reuse the same grid/list layout used for document cards.
+3) Render each video as a “document-like card”:
+   - Left: thumbnail/icon (same dimensions as doc icon area)
+   - Title + optional description (same typography + truncation rules as doc cards)
+   - Badges aligned like existing labels (“Important”, etc.) if applicable (optional)
+4) On click, open a modal viewer:
+   - Title + description
+   - Responsive iframe player in a bounded container
+   - Close button, ESC to close, click outside to close
+   - If embed fails, show fallback: “Open in browser” link
+5) When a non-video tab is active, current Docs behavior stays EXACTLY as-is.
+
+IMPLEMENTATION DETAILS
+
+A) Locate purchaser Docs UI components:
+- Find the purchaser Docs tab component that renders the category chips and the document grid.
+- Identify the document card component used for PDFs/docs (the one that produces the default “boxes”).
+
+B) Add “Videos” chip/tab:
+- Add a new chip labeled “Videos” with a count badge (number of active videos for the current development).
+- It should appear alongside other chips in the same row.
+- Only show it if there is at least 1 video OR if FEATURE_VIDEOS_PURCHASER is enabled (choose the safer UX: show only if count > 0).
+
+C) Data fetch:
+- Reuse the existing purchaser videos endpoint already built (GET /api/videos?developmentId=... or purchaser equivalent).
+- Fetch videos only when:
+  - FEATURE_VIDEOS_PURCHASER is enabled AND
+  - either the chip row is rendered (for count) OR Videos tab is selected (prefer lazy: fetch only when Videos is selected, and show count as “•” until loaded if needed).
+- Avoid adding heavy prefetch that impacts initial Docs load.
+
+D) Render videos in the SAME grid as docs:
+- When Videos chip is selected:
+  - Hide the PDF/doc list
+  - Show a grid of “video cards” using the same container classes (gap, columns, padding) as the docs grid.
+- Video card styling must match doc cards:
+  - Same height, same border radius, same hover, same padding
+  - Thumbnail should fit into the doc icon/preview slot (do NOT render a full-width 16:9 preview inside the card)
+  - Use line-clamp/ellipsis exactly like doc titles
+
+E) Open in modal viewer:
+- On card click:
+  - Open a modal component (reuse existing modal if present in app)
+  - Render video in a bounded player area (max width similar to doc viewer)
+  - Use the stored embed_url
+  - Ensure player is responsive but not oversized; maintain 16:9 within modal
+- Do NOT embed the iframe in the card grid view.
+
+F) Remove the current inline “Handover Videos” block:
+- Delete/disable the section that renders the big inline video at the top of Docs.
+- The ONLY entry point should be the “Videos” chip/tab.
+
+ACCEPTANCE CRITERIA
+1) Purchaser Docs shows a “Videos” chip aligned with existing chips.
+2) When “Videos” is selected, videos appear as standard doc tiles (same size/style).
+3) No inline giant video embed exists on the Docs page.
+4) Clicking a video opens a modal viewer with embed player.
+5) All existing Docs tabs (All, Must Read, etc.) are unchanged.
+6) Mobile: Videos tab shows 1-column list of standard tiles; modal fits screen without overflow.
+7) Feature flags OFF: Videos chip and all video UI vanish; no API calls.
+
+DELIVERABLE
+- Implement the above.
+- Provide the file paths you modified.
+- Include before/after screenshots (or describe the visual results precisely) confirming the layout matches doc tiles.
