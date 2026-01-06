@@ -1,0 +1,49 @@
+Implement a lightweight purchaser videos count endpoint and use it to control Videos chip visibility without background fetching full videos.
+
+SCOPE
+- Add /api/purchaser/videos/count endpoint returning { hasVideos, count }.
+- Update purchaser Docs category chip rendering to call count endpoint (lightweight) rather than fetching full videos just to decide visibility.
+- Keep existing /api/purchaser/videos list endpoint unchanged.
+- Do not touch protected archive/RAG files.
+
+IMPLEMENTATION
+
+1) API: /api/purchaser/videos/count
+- Create apps/unified-portal/app/api/purchaser/videos/count/route.ts (or equivalent in your routing structure).
+- Reuse the same purchaser auth/token validation + unitUid → development lookup used by the existing purchaser videos endpoint.
+- Run a COUNT query against video_resources:
+  - WHERE tenant_id = resolvedTenantId (if available)
+  - AND development_id = resolvedDevelopmentId
+  - AND is_active = true
+- Return JSON: { hasVideos: count > 0, count }
+- Add Cache-Control: private, max-age=60
+- Error handling:
+  - 401 if invalid token/auth
+  - 404 if development resolution fails
+  - Never throw raw 500 without JSON
+
+2) Purchaser Docs UI
+- Update the purchaser Docs category selector (PurchaserDocumentsTab.tsx or where chips are rendered):
+  - On initial load (after purchaser context resolves), call /api/purchaser/videos/count.
+  - Show Videos chip only if FEATURE_VIDEOS_PURCHASER enabled AND hasVideos true.
+  - Do NOT fetch full videos unless user clicks Videos chip.
+- Ensure no layout flicker:
+  - Either reserve chip slot with loading shimmer and then remove if hasVideos false,
+    OR delay rendering chips until count resolves (keep under 200ms if possible).
+  - Choose the option that best matches current UI behavior.
+
+3) Verification
+- With videos present: Videos chip appears immediately (or after brief load) without fetching full list.
+- With no videos: Videos chip never appears and no list endpoint is called.
+- Clicking Videos chip fetches full /api/purchaser/videos and renders cards.
+- Switching properties resets correctly.
+
+4) Invalid Hook Call investigation (separate)
+- Provide instructions in a short note:
+  - reproduce in incognito with extensions disabled
+  - if persists, run npm/pnpm command to detect duplicate react/react-dom and report results
+
+DELIVERABLES
+- File paths changed
+- curl examples for the count endpoint
+- Confirmation that list fetch only occurs when Videos tab selected
