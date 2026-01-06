@@ -88,8 +88,8 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: isDev
-              ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https:; connect-src 'self' https://*.supabase.co https://*.googleapis.com https://*.google.com; frame-src 'self' https://www.google.com;"
-              : "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https:; connect-src 'self' https://*.supabase.co https://*.googleapis.com https://*.google.com; frame-src 'self' https://www.google.com;",
+              ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https:; connect-src 'self' https://*.supabase.co https://*.googleapis.com https://*.google.com; frame-src 'self' https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com;"
+              : "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https:; connect-src 'self' https://*.supabase.co https://*.googleapis.com https://*.google.com; frame-src 'self' https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com;",
           },
           {
             key: 'X-Content-Type-Options',

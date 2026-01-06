@@ -1,0 +1,63 @@
+You are the Replit Agent. Fix in-app video playback in the purchaser modal. The iframe currently renders as a broken blank box.
+
+GOAL
+Videos must play inside the app modal (no new tab required), for YouTube and Vimeo, on web and iOS WKWebView where possible.
+
+SCOPE
+- Fix embed URL generation and iframe configuration.
+- Fix CSP/frame-src if it is blocking the iframe.
+- Do not change archive/RAG protected files.
+
+STEPS
+
+1) Confirm the embed URL being used
+- Locate the modal player component (purchaser video modal).
+- Log/inspect the iframe src being set.
+- Ensure we are NOT using:
+  - https://www.youtube.com/watch?v=VIDEO_ID
+- Ensure we ARE using:
+  - https://www.youtube-nocookie.com/embed/VIDEO_ID?playsinline=1&rel=0&modestbranding=1
+- For Vimeo:
+  - https://player.vimeo.com/video/VIDEO_ID
+
+2) Harden the URL parser
+- In lib/video-parser.ts (or equivalent), ensure it supports:
+  - youtube.com/watch?v=ID
+  - youtu.be/ID
+  - extra params (&t=, &si=, etc.)
+- Store and use embed_url consistently (modal must use embed_url, not video_url).
+
+3) Fix iframe attributes for playback
+In the modal iframe, set:
+- allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+- allowFullScreen
+- referrerPolicy="strict-origin-when-cross-origin"
+- loading="eager"
+- style/class to ensure responsive 16:9 and not collapsed
+
+4) Fix CSP so iframe is allowed (likely root cause)
+Search the codebase for CSP headers, e.g.:
+- middleware.ts
+- next.config.js headers()
+- any server response header setting
+
+Update CSP to include:
+- frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com
+- child-src same as frame-src if present
+- connect-src as needed (usually not required for iframe embeds)
+
+If there is no CSP today, confirm whether any platform proxy is injecting one. If CSP exists, patch it. Do not remove CSP entirely unless necessary.
+
+5) Add a clear fallback
+If iframe fails to load (onError or timeout), show:
+- “This video cannot be played in-app. Open in YouTube.”
+with a button that opens the video_url in a new tab as a last resort.
+
+ACCEPTANCE TESTS
+- The Daikin YouTube URL https://www.youtube.com/watch?v=kKRji-bDDos plays inside the modal.
+- A Vimeo test video plays inside the modal.
+- No CSP console errors on modal open.
+- On iPhone Safari, playback starts with a user click and stays in-app (no forced new tab).
+- If embedding is disabled, fallback appears with Open in YouTube.
+
+Deliver: list of files changed + confirmation of CSP header update location.

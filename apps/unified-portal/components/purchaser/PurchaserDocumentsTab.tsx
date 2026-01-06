@@ -761,8 +761,10 @@ export default function PurchaserDocumentsTab({
                   src={playingVideo.embed_url}
                   title={playingVideo.title}
                   className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  loading="eager"
                   onError={() => setEmbedError(true)}
                 />
               </div>
