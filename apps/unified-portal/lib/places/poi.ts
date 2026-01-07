@@ -83,7 +83,8 @@ export type POICategory =
   | 'restaurant'
   | 'sports'
   | 'bar'
-  | 'convenience_store';
+  | 'convenience_store'
+  | 'golf_course';
 
 const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: string[] }> = {
   supermarket: { types: ['supermarket', 'grocery_or_supermarket', 'grocery_store', 'department_store'] },
@@ -104,6 +105,7 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
   sports: { types: ['stadium', 'gym'], keywords: ['sports', 'fitness', 'athletic', 'swimming', 'pool'] },
   bar: { types: ['bar', 'night_club'] },
   convenience_store: { types: ['convenience_store'] },
+  golf_course: { types: ['golf_course'] },
 };
 
 const DEFAULT_TTL_DAYS = 30;
@@ -738,8 +740,18 @@ const INTRO_VARIANTS: Record<string, string[]> = {
     "There are some local shops within easy reach.",
     "You've got options nearby for quick errands.",
     "The area has a few corner shops close by.",
-    "For milk, bread, and essentials – there are shops nearby.",
+    "For milk, bread, and essentials, there are shops nearby.",
     "There are convenience stores within reach.",
+  ],
+  golf_course: [
+    "If you're into golf, there are courses within a short drive.",
+    "You've got golf options within reach of the area.",
+    "For golfers, there are a few courses you can get to easily.",
+    "The area has some golf courses within driving distance.",
+    "You're well placed for golf, there are courses nearby.",
+    "If you enjoy a round of golf, you've got options close enough.",
+    "There are golf clubs within a reasonable drive.",
+    "For golf, you've got a few courses to choose from.",
   ],
 };
 
@@ -751,6 +763,7 @@ function getVariedIntro(category: POICategory, developmentName?: string, session
   else if (category === 'train_station' || category === 'bus_stop') variantKey = 'transport';
   else if (category === 'bar') variantKey = 'bar';
   else if (category === 'convenience_store') variantKey = 'convenience_store';
+  else if (category === 'golf_course') variantKey = 'golf_course';
   
   const variants = INTRO_VARIANTS[variantKey] || INTRO_VARIANTS.amenities;
   const seed = sessionSeed ?? Math.floor(Math.random() * variants.length);
@@ -760,7 +773,13 @@ function getVariedIntro(category: POICategory, developmentName?: string, session
   return selected.replace('{schemeName}', schemeName);
 }
 
-function formatBulletItem(poi: POIResult): string {
+const DRIVE_ONLY_CATEGORIES: POICategory[] = ['golf_course', 'hospital', 'sports', 'leisure'];
+
+function isDriveOnlyCategory(category: POICategory): boolean {
+  return DRIVE_ONLY_CATEGORIES.includes(category);
+}
+
+function formatBulletItem(poi: POIResult, driveOnly: boolean = false): string {
   let line = `- ${poi.name}`;
   
   if (poi.address) {
@@ -769,10 +788,18 @@ function formatBulletItem(poi: POIResult): string {
   
   const extras: string[] = [];
   
-  if (poi.drive_time_min) {
-    extras.push(`approx. ${poi.drive_time_min} min drive`);
-  } else if (poi.walk_time_min) {
-    extras.push(`approx. ${poi.walk_time_min} min walk`);
+  if (driveOnly) {
+    if (poi.drive_time_min) {
+      extras.push(`approx. ${poi.drive_time_min} min drive`);
+    } else if (poi.distance_km) {
+      extras.push(`approx. ${Math.round(poi.distance_km * 2)} min drive`);
+    }
+  } else {
+    if (poi.drive_time_min) {
+      extras.push(`approx. ${poi.drive_time_min} min drive`);
+    } else if (poi.walk_time_min) {
+      extras.push(`approx. ${poi.walk_time_min} min walk`);
+    }
   }
   
   if (poi.open_now !== undefined) {
@@ -807,14 +834,15 @@ export function formatPOIResponse(data: POICacheResult, options: FormatPOIOption
     if (data.diagnostics?.failure_reason === 'places_no_location') {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any ${formatCategoryName(category)} close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
+    return `I couldn't find any ${formatCategoryName(category)} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;
   }
 
   const topResults = data.results.slice(0, resultLimit);
   
   const intro = getVariedIntro(category, developmentName, sessionSeed);
   
-  const bullets = topResults.map(formatBulletItem).join('\n');
+  const driveOnly = isDriveOnlyCategory(category);
+  const bullets = topResults.map(poi => formatBulletItem(poi, driveOnly)).join('\n');
   
   const sourceHint = getSourceHint(data.fetched_at);
   
@@ -849,13 +877,14 @@ function getConversationalOpener(category: POICategory, placeAck: string): strin
     sports: `${placeAck}'ve sports facilities in the area.\n\n`,
     bar: `${placeAck}'ve some good pubs and bars nearby.\n\n`,
     convenience_store: `${placeAck}'ve local shops close by.\n\n`,
+    golf_course: `${placeAck}'ve golf courses within a short drive.\n\n`,
   };
   return openers[category] || `${placeAck}'ve some ${formatCategoryName(category)} nearby.\n\n`;
 }
 
 function getFollowUp(category: POICategory): string {
   const followUps: Record<POICategory, string> = {
-    supermarket: "\n\nIf you're looking for something specific like convenience stores or cafés, I can help with that too.",
+    supermarket: "\n\nIf you're looking for something specific like convenience stores or cafes, I can help with that too.",
     pharmacy: "\n\nIf you need GP information or anything else, just let me know.",
     gp: "\n\nI can also point out pharmacies or hospitals if that would help.",
     hospital: "\n\nLet me know if you'd like GP or pharmacy information too.",
@@ -871,8 +900,9 @@ function getFollowUp(category: POICategory): string {
     cafe: "\n\nIf you're also interested in restaurants, I can help with that.",
     restaurant: "\n\nLet me know if there's anything else about the local area you'd like to know.",
     sports: "\n\nI can also point out gyms or leisure centres if you're interested.",
-    bar: "\n\nIf you'd like restaurant or café recommendations too, just ask.",
+    bar: "\n\nIf you'd like restaurant or cafe recommendations too, just ask.",
     convenience_store: "\n\nI can also help with supermarkets or pharmacies if you need.",
+    golf_course: "\n\nI can also look up other sports facilities or leisure centres if you'd like.",
   };
   return followUps[category] || "\n\nLet me know if there's anything else about the area I can help with.";
 }
@@ -897,6 +927,7 @@ function formatCategoryName(category: POICategory): string {
     sports: 'sports facilities',
     bar: 'pubs and bars',
     convenience_store: 'local shops',
+    golf_course: 'golf courses',
   };
   return names[category] || category;
 }
@@ -1023,6 +1054,11 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
     return { category: 'bar' };
   }
   
+  // GOLF - explicit concrete amenity (never trigger clarification)
+  if (/\b(golf|golf\s*course|golf\s*club|driving\s*range)\b/i.test(q)) {
+    return { category: 'golf_course' };
+  }
+  
   // Specific category detection
   if (/supermarket|grocery|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) {
     return { category: 'supermarket' };
@@ -1122,6 +1158,7 @@ export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
   'chemist': ['pharmacy'],
   'coffee': ['cafe'],
   'cafes': ['cafe'],
+  'cafe': ['cafe'],
   'restaurants': ['restaurant'],
   'dining': ['restaurant'],
   'takeaway': ['restaurant'],
@@ -1133,6 +1170,7 @@ export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
   'secondary schools': ['secondary_school'],
   'gyms': ['gym'],
   'gym': ['gym'],
+  'fitness': ['gym'],
   'hospital': ['hospital'],
   'hospitals': ['hospital'],
   'gp': ['gp'],
@@ -1146,12 +1184,17 @@ export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
   'creche': ['childcare'],
   'crèche': ['childcare'],
   'playgrounds': ['playground'],
+  'playground': ['playground'],
   'pub': ['bar'],
   'pubs': ['bar'],
   'bar': ['bar'],
   'bars': ['bar'],
   'pint': ['bar'],
   'drink': ['bar'],
+  'golf': ['golf_course'],
+  'golf course': ['golf_course'],
+  'golf courses': ['golf_course'],
+  'golf club': ['golf_course'],
 };
 
 export async function canAnswerFollowUp(followUpPhrase: string, schemeId: string): Promise<boolean> {

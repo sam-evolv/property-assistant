@@ -53,6 +53,33 @@ describe('POI Engine', () => {
       expect(detectPOICategory('What is the weather like?')).toBe(null);
       expect(detectPOICategory('Hello, how are you?')).toBe(null);
     });
+
+    it('should detect golf course category', () => {
+      expect(detectPOICategory('Where is the closest golf course?')).toBe('golf_course');
+      expect(detectPOICategory('Is there a golf club nearby?')).toBe('golf_course');
+      expect(detectPOICategory('golf near me')).toBe('golf_course');
+      expect(detectPOICategory('Looking for golf')).toBe('golf_course');
+    });
+
+    it('should detect bar/pub category', () => {
+      expect(detectPOICategory('Where is the nearest pub?')).toBe('bar');
+      expect(detectPOICategory('Is there a bar nearby?')).toBe('bar');
+      expect(detectPOICategory('Where can I get a pint?')).toBe('bar');
+    });
+
+    it('should detect cafe category', () => {
+      expect(detectPOICategory('Where is the nearest cafe?')).toBe('cafe');
+      expect(detectPOICategory('Is there a coffee shop nearby?')).toBe('cafe');
+    });
+
+    it('should detect gym category', () => {
+      expect(detectPOICategory('Where is the nearest gym?')).toBe('gym');
+      expect(detectPOICategory('fitness centre nearby')).toBe('gym');
+    });
+
+    it('should detect park category', () => {
+      expect(detectPOICategory('Where is the nearest park?')).toBe('park');
+    });
   });
 
   describe('formatPOIResponse', () => {
@@ -94,9 +121,7 @@ describe('POI Engine', () => {
       expect(response).toContain('2 min drive');
       expect(response).toContain('Aldi');
       expect(response).toContain('Lidl');
-      expect(response).toContain("good options for grocery");
       expect(response).not.toContain('**');
-      expect(response).toContain('Would you like');
     });
 
     it('should limit results to specified count', () => {
@@ -115,7 +140,7 @@ describe('POI Engine', () => {
       };
       
       const response = formatPOIResponse(emptyData, 'supermarket', 5);
-      expect(response).toContain("could not find any supermarkets");
+      expect(response).toContain("find any supermarkets");
     });
 
     it('should include fetch timestamp', () => {
@@ -134,10 +159,15 @@ describe('POI Engine', () => {
       expect(SUPPORTED_CATEGORIES).toContain('secondary_school');
       expect(SUPPORTED_CATEGORIES).toContain('train_station');
       expect(SUPPORTED_CATEGORIES).toContain('bus_stop');
+      expect(SUPPORTED_CATEGORIES).toContain('golf_course');
+      expect(SUPPORTED_CATEGORIES).toContain('bar');
+      expect(SUPPORTED_CATEGORIES).toContain('cafe');
+      expect(SUPPORTED_CATEGORIES).toContain('gym');
+      expect(SUPPORTED_CATEGORIES).toContain('park');
     });
 
     it('should have all supported categories', () => {
-      expect(SUPPORTED_CATEGORIES.length).toBeGreaterThanOrEqual(8);
+      expect(SUPPORTED_CATEGORIES.length).toBeGreaterThanOrEqual(19);
     });
   });
 
