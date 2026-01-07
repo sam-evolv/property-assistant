@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
+import { assertSchemeAccess, AuthContext } from '@/lib/security/scheme-access';
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    return null;
-  }
+  if (!url || !key) return null;
   return createClient(url, key);
 }
 
@@ -20,7 +19,7 @@ function isValidUUID(str: string): boolean {
   return uuidRegex.test(str);
 }
 
-async function getAuthContext() {
+async function getAuthContext(): Promise<AuthContext> {
   const cookieStore = cookies();
   const adminId = cookieStore.get('admin_id')?.value;
   const tenantId = cookieStore.get('tenant_id')?.value;
@@ -109,99 +108,37 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
 
-  const supabase = getServiceClient();
-  if (!supabase) {
+  if (schemeName && !isTestMode) {
     return NextResponse.json({
       success: false,
-      error: 'db_env_mismatch',
-      message: 'Database configuration missing',
-      ...(isTestMode ? { debug: { supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'configured' : 'missing', service_key: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'configured' : 'missing' } } : {}),
-    }, { status: 500 });
+      error: 'test_mode_required',
+      message: 'schemeName lookup requires X-Test-Mode header',
+    }, { status: 400 });
   }
 
-  console.log('[PlacesHealth] Request:', { schemeId, schemeName, role: auth.role, tenantId: auth.tenantId });
+  console.log('[PlacesHealth] Authorized request from role:', auth.role);
 
-  let projectData: { id: string; name: string; address?: string; organization_id?: string } | null = null;
-  let schemeProfileData: { id: string; scheme_lat?: number; scheme_lng?: number; developer_org_id?: string } | null = null;
-  let lookupMethod: string = '';
-  let lookupError: string | null = null;
+  const schemeAccess = await assertSchemeAccess(
+    { schemeId: schemeId || undefined, schemeName: schemeName || undefined },
+    auth
+  );
 
-  if (schemeId) {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, name, address, organization_id')
-      .eq('id', schemeId)
-      .single();
-
-    if (error) {
-      console.error('[PlacesHealth] Projects lookup error:', error.message);
-      lookupError = error.message;
-    } else if (data) {
-      projectData = data;
-      lookupMethod = 'projects_by_id';
+  if (!schemeAccess.success) {
+    if (schemeAccess.error === 'forbidden') {
+      return NextResponse.json({
+        success: false,
+        error: 'forbidden',
+        message: 'Access denied',
+      }, { status: 403 });
     }
 
-    const { data: spData, error: spError } = await supabase
-      .from('scheme_profile')
-      .select('id, scheme_lat, scheme_lng, developer_org_id')
-      .eq('id', schemeId)
-      .single();
-
-    if (spError) {
-      console.error('[PlacesHealth] scheme_profile lookup error:', spError.message);
-      if (!lookupError) lookupError = spError.message;
-    } else if (spData) {
-      schemeProfileData = spData;
-      if (!lookupMethod) lookupMethod = 'scheme_profile_by_id';
-    }
-  }
-
-  if (!projectData && schemeName && isTestMode && isAuthenticated) {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, name, address, organization_id')
-      .ilike('name', `%${schemeName}%`)
-      .limit(5);
-
-    if (!error && data && data.length > 0) {
-      projectData = data[0];
-      lookupMethod = 'projects_by_name';
-      
-      if (data.length > 1) {
-        return NextResponse.json({
-          success: false,
-          error: 'multiple_matches',
-          message: `Found ${data.length} projects matching "${schemeName}"`,
-          matches: data.map(p => ({ id: p.id, name: p.name })),
-        });
-      }
-    }
-  }
-
-  if (!projectData && !schemeProfileData) {
     return NextResponse.json({
       success: false,
       error: 'scheme_not_found',
       message: schemeId 
-        ? `No scheme found with id: ${schemeId}` 
-        : `No scheme found matching name: ${schemeName}`,
-      ...(isTestMode ? {
-        debug: {
-          lookup_error: lookupError,
-          auth_role: auth.role,
-          auth_tenant: auth.tenantId,
-        },
-      } : {}),
+        ? 'No scheme found with that id' 
+        : 'No scheme found matching that name',
     }, { status: 404 });
-  }
-
-  const schemeOrgId = projectData?.organization_id || schemeProfileData?.developer_org_id;
-  if (auth.role === 'developer' && schemeOrgId && schemeOrgId !== auth.tenantId) {
-    return NextResponse.json({
-      success: false,
-      error: 'forbidden',
-      message: 'You do not have access to this scheme',
-    }, { status: 403 });
   }
 
   let hasLocation = false;
@@ -209,15 +146,15 @@ export async function GET(request: NextRequest) {
   let lng: number | undefined;
   let locationSource: string | undefined;
 
-  if (schemeProfileData?.scheme_lat && schemeProfileData?.scheme_lng) {
+  if (schemeAccess.schemeLat && schemeAccess.schemeLng) {
     hasLocation = true;
-    lat = schemeProfileData.scheme_lat;
-    lng = schemeProfileData.scheme_lng;
+    lat = schemeAccess.schemeLat;
+    lng = schemeAccess.schemeLng;
     locationSource = 'scheme_profile';
-  } else if (projectData?.address) {
+  } else if (schemeAccess.schemeAddress) {
     const apiKey = getGoogleMapsApiKey();
     if (apiKey) {
-      const geocoded = await geocodeAddress(projectData.address, apiKey);
+      const geocoded = await geocodeAddress(schemeAccess.schemeAddress, apiKey);
       if (geocoded) {
         hasLocation = true;
         lat = geocoded.lat;
@@ -239,15 +176,21 @@ export async function GET(request: NextRequest) {
     liveCallError = testResult.error;
   }
 
-  const { data: cacheData } = await supabase
-    .from('poi_cache')
-    .select('category')
-    .eq('scheme_id', schemeId || projectData?.id);
+  const supabase = getServiceClient();
+  let cacheCategories: string[] = [];
+
+  if (supabase && schemeAccess.schemeId) {
+    const { data: cacheData } = await supabase
+      .from('poi_cache')
+      .select('category')
+      .eq('scheme_id', schemeAccess.schemeId);
+    cacheCategories = cacheData?.map(c => c.category) || [];
+  }
 
   const response: Record<string, any> = {
     success: true,
-    schemeId: schemeId || projectData?.id,
-    schemeName: projectData?.name,
+    schemeId: schemeAccess.schemeId,
+    schemeName: schemeAccess.schemeName,
     health: {
       location: {
         present: hasLocation,
@@ -264,19 +207,17 @@ export async function GET(request: NextRequest) {
         error: liveCallError,
       },
       cache: {
-        exists: (cacheData?.length || 0) > 0,
-        categories: cacheData?.map(c => c.category) || [],
+        exists: cacheCategories.length > 0,
+        categories: cacheCategories,
       },
     },
     checkedAt: new Date().toISOString(),
   };
 
-  if (isTestMode && isAuthenticated) {
+  if (isTestMode) {
     response.debug = {
-      lookup_method: lookupMethod,
-      project_address: projectData?.address,
-      project_org_id: projectData?.organization_id,
-      scheme_profile_org_id: schemeProfileData?.developer_org_id,
+      lookup_method: schemeAccess.lookupMethod,
+      scheme_address: schemeAccess.schemeAddress,
       auth_role: auth.role,
       auth_tenant_id: auth.tenantId,
       supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL?.split('.')[0] + '...',

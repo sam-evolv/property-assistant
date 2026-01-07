@@ -1,0 +1,57 @@
+Harden tenant ownership enforcement for /developer/api/places-health and ensure no scheme enumeration is possible.
+
+CURRENT STATE
+Endpoint uses Supabase service role. Tenant checks are done in code.
+
+GOALS
+- Developers can only access schemes owned by their tenant/org
+- No scheme existence enumeration (do not reveal whether a schemeId exists outside tenant)
+- Ensure all lookup modes (schemeId, schemeName, fallback queries) are tenant-safe
+- Ensure cache/doc lookups are scheme-scoped and tenant-scoped
+
+CHANGES REQUIRED
+
+1) Normalize scheme access rule
+- Implement a shared helper: assertSchemeAccess({schemeId?, schemeName?}, {tenant_id, role})
+- Must resolve scheme ONLY through a tenant-scoped query.
+- Never query scheme_profile directly without tenant constraint.
+
+2) Tenant-scoped scheme resolution (mandatory)
+- If using projects table, require a join that guarantees tenant ownership:
+  - projects.tenant_id = current tenant_id
+  - projects.scheme_id = scheme_profile.id (or equivalent)
+- If fallback is needed, fallback query must still enforce tenant_id:
+  - by joining through projects or a scheme_tenants table (whatever exists)
+- Remove any resolution path that can return scheme_profile row without a tenant join.
+
+3) Prevent scheme enumeration
+- If a developer attempts access to a scheme outside their tenant, return:
+  { success:false, error:"scheme_not_found" }
+- Only return "forbidden" for role mismatch, not tenant mismatch.
+
+4) schemeName lookup hardening
+- schemeName lookup allowed only in X-Test-Mode and must still be tenant-scoped.
+- If multiple matches within tenant, return multiple_matches.
+- If matches exist outside tenant but none inside tenant, return scheme_not_found.
+
+5) Ensure downstream lookups remain scoped
+- Cache lookup: must be keyed by resolved schemeId only (no global cache keys).
+- Any document augmentation used by this endpoint must enforce schemeId and tenantId (if docs are tenant-scoped).
+
+6) Logging hygiene
+- Do not log full scheme IDs or scheme names on unauthorized or scheme_not_found responses.
+- In test mode for authorized users, allow debug fields.
+
+7) Add tests
+- Unit/integration tests for:
+  - dev cannot access other tenant schemeId => scheme_not_found
+  - schemeName lookup cannot reveal other tenant schemeId
+  - valid schemeId in same tenant returns success
+  - role mismatch returns forbidden
+
+DELIVERABLE
+- Updated /developer/api/places-health with strict tenant-safe resolution, no enumeration
+- Shared helper used for other developer endpoints in future (optional)
+- Tests added and passing
+
+No em dashes in user-visible text. Keep changes isolated.
