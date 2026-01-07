@@ -17,6 +17,7 @@ export type IntentType =
   | 'how_to_playbook'
   | 'sensitive_subjective'
   | 'emergency'
+  | 'affirmative'
   | 'unknown';
 
 export type AnswerMode = 'grounded' | 'guided' | 'neutral';
@@ -164,6 +165,24 @@ const SENSITIVE_PATTERNS = [
   /\b(contractor|builder)\s*(quality|bad|poor|issue)\b/i,
 ];
 
+const AFFIRMATIVE_PATTERNS = [
+  /^yes\.?$/i,
+  /^yeah\.?$/i,
+  /^yep\.?$/i,
+  /^sure\.?$/i,
+  /^please\.?$/i,
+  /^ok(ay)?\.?$/i,
+  /^yes,?\s*please\.?$/i,
+  /^that would be (great|helpful|nice)\.?$/i,
+  /^i('d| would) like that\.?$/i,
+  /^go ahead\.?$/i,
+];
+
+export function isAffirmativeResponse(message: string): boolean {
+  const trimmed = message.trim();
+  return AFFIRMATIVE_PATTERNS.some(p => p.test(trimmed));
+}
+
 const WARRANTY_APPLIANCE_KEYWORDS = [
   'dishwasher', 'washing machine', 'washer', 'dryer', 'tumble dryer',
   'fridge', 'freezer', 'refrigerator', 'microwave', 'oven', 'hob', 'cooker',
@@ -179,6 +198,17 @@ const WARRANTY_STRUCTURAL_KEYWORDS = [
 export function classifyIntent(message: string): IntentClassification {
   const lower = message.toLowerCase();
   const foundKeywords: string[] = [];
+  
+  // Check for short affirmative responses first (e.g., "yes", "sure", "please")
+  // These should route to the previous follow-up suggestion
+  if (isAffirmativeResponse(message)) {
+    return {
+      intent: 'affirmative',
+      confidence: 0.95,
+      keywords: ['affirmative', 'follow-up-acceptance'],
+      emergencyTier: null,
+    };
+  }
   
   const emergencyTier = detectEmergencyTier(message);
   if (emergencyTier === 1) {

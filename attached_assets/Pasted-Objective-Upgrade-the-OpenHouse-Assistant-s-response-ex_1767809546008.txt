@@ -1,0 +1,149 @@
+Objective:
+Upgrade the OpenHouse Assistant’s response experience globally (all schemes) to feel like a helpful human, not a chatbot. Fix three issues:
+1) Formatting and structure readability
+2) Follow-up question integrity (never ask follow-ups the system cannot answer)
+3) Reduce repetitive templated phrasing; increase natural variation and conversational tone while remaining accurate and grounded.
+
+Scope:
+Applies to all assistant responses, especially location_amenities answers from Google Places and follow-up suggestion flows.
+Do not change core safety logic, intent detection, or tenancy isolation.
+
+--------------------------------------------
+A) Response Formatting Standard (Clean, consistent, professional)
+--------------------------------------------
+
+Implement a shared formatter for amenity lists and similar multi-item answers:
+
+- Always use bullet points for lists of places.
+- Each item must be on one bullet line, no awkward indents.
+- Preferred format:
+
+  - Lidl, Ballyhooly Road, Cork (open now)
+  - Dunnes Stores, Blackpool, Cork (open now)
+  - ALDI, Blackpool Shopping Centre, Cork (open now)
+
+Rules:
+- No markdown bold for venue names.
+- No italics.
+- No nested indentation.
+- Keep parenthetical status simple: (open now) or (currently closed) only if the field exists from Places.
+- If we can compute road distance reliably, show it as: "approx. 6 min drive" or "approx. 18 min walk".
+- If we cannot compute travel time reliably, omit distances entirely (do not say "nearby" for each item, just list them).
+
+Add a short 1-2 sentence intro before the list, then list, then one-line source hint at end:
+"Based on Google Places, last updated {date}."
+
+--------------------------------------------
+B) Distance / Travel Time Policy (No wrong numbers)
+--------------------------------------------
+
+Current problem: distances differ from Google Maps. Fix by enforcing this policy:
+
+- Never show numeric km distances unless they are calculated using Google Distance Matrix API (road network).
+- If Distance Matrix is not implemented or fails, show no km.
+- If Distance Matrix works, show travel time instead of km:
+  - "approx. 6 min drive" and/or "approx. 18 min walk"
+- If user asks “how far”, and we do not have road distance, respond:
+  "I can show approximate travel times if the development location is configured. Otherwise, I recommend checking Google Maps for exact directions."
+
+Implement as a helper:
+getTravelTimes(origin_latlng, place_latlng) with caching.
+If not available, omit.
+
+--------------------------------------------
+C) Follow-up Question Integrity (No dead ends)
+--------------------------------------------
+
+Current problem: assistant asks "Want local convenience stores too?" then user says "yes" and assistant replies "I don't have that information".
+
+Fix:
+1) Follow-up suggestions must be generated only from capabilities that are definitely available.
+2) If the answer came from Google Places amenity engine, and we suggest a follow-up like "local convenience stores", that follow-up must route back into the amenity engine with a mapped category.
+3) Add a capability map:
+
+- "convenience stores" -> convenience_store + grocery_store
+- "pharmacies" -> pharmacy
+- "coffee" -> cafe
+- "restaurants" -> restaurant
+- "parks" -> park
+- "schools" -> primary_school + secondary_school (and optionally preschool if user asks specifically)
+- "gyms" -> gym
+- "hospital" -> hospital / health
+- "bus stops" -> transit_station (or fallback to web search if Places type is weak)
+
+4) If a suggested follow-up cannot be satisfied (missing scheme location, Places unavailable, etc.), do not ask it.
+Instead, ask a safe alternative like:
+"Would you like me to share the developer contact details for local services setup?"
+But only if we actually have those details.
+
+Implementation:
+- Create a function canAnswerFollowUp(intent, schemeId) => boolean.
+- Only append follow-ups that return true.
+
+Also enforce a conversational rule:
+- If user replies "yes" or "sure", interpret it as accepting the immediately previous follow-up suggestion.
+- That should trigger the corresponding handler directly, not a generic fallback.
+
+--------------------------------------------
+D) Conversational Variation (Stop sounding templated)
+--------------------------------------------
+
+Current problem: answers start the same way each time.
+
+Fix:
+- Implement a small library of 8-12 intro variants per major intent class (amenities, utilities, snagging, heating, emergencies).
+- Randomly select among them with deterministic seeding per session so it feels natural but not chaotic.
+- Examples for amenities intros (pick 1):
+  1) "You have a few handy options close to {schemeName}."
+  2) "{schemeName} is well placed for day-to-day essentials."
+  3) "There are a few good choices nearby for that."
+
+Guidelines:
+- Keep tone friendly and conversational, but not slangy or informal.
+- Avoid repetitive phrases like "Living in {schemeName}" every time.
+- Keep it short, 1-2 sentences max before the list.
+- Always remain grounded; variation is only in phrasing, never in facts.
+
+--------------------------------------------
+E) Schools question interpretation (Primary + secondary by default)
+--------------------------------------------
+
+For user query "schools nearby" (without specifying type):
+- Return two grouped lists: Primary and Secondary.
+- If fewer than 2 results for one category, say so.
+- Do not mention preschools unless user asks.
+
+Format:
+
+Primary schools:
+- ...
+Secondary schools:
+- ...
+
+--------------------------------------------
+F) Acceptance Tests
+--------------------------------------------
+
+Update test-suite.json to include:
+1) Ask "Are there any schools nearby?"
+- Expect grouped Primary + Secondary structure
+- Expect bullet list formatting
+- No km distances unless Distance Matrix enabled
+2) Ask "Any supermarkets nearby?"
+- Expect bullet list
+- No bold
+3) Follow-up integrity test:
+- Assistant suggests "convenience stores"
+- User responds "yes"
+- Expect convenience store list from Places (not "I don't have that information")
+4) Variation test:
+- Run same question twice; intro phrasing should not be identical every time (within a session, vary occasionally)
+
+Deliverables:
+- Shared formatter and variation library
+- Follow-up capability gate + yes-intent routing
+- Optional Distance Matrix support (or ensure distances omitted consistently)
+- Updated tests verifying these behaviours
+
+Do not break existing dashboards, logging, or tenant isolation.
+No em dashes in user-visible text.

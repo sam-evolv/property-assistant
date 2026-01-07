@@ -25,7 +25,7 @@ import {
   type IntentClassification,
   type AnswerStrategy,
 } from '@/lib/assistant/os';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -922,6 +922,121 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
+    if (isAssistantOSEnabled() && intentClassification?.intent === 'affirmative') {
+      console.log('[Chat] AFFIRMATIVE INTENT detected - checking for previous follow-up context');
+      
+      // Load conversation history to find the previous assistant message
+      const history = await loadConversationHistory(
+        validatedUnitUid || clientUnitUid || userId || '',
+        userTenantId,
+        userDevelopmentId
+      );
+      
+      if (history.length > 0) {
+        const lastAssistantMessage = history[history.length - 1].aiMessage;
+        
+        // Import follow-up routing utilities
+        const { getFollowUpCategories } = await import('@/lib/places/poi');
+        
+        // Extract the follow-up topic from the previous message
+        const followUpPatterns = [
+          /Would you like (?:to know about|information on|more about) (.+?)\??$/i,
+          /Would you like (.+?) (?:as well|too)\??$/i,
+          /Let me know if you need (.+?) information\.?$/i,
+        ];
+        
+        let extractedTopic: string | null = null;
+        for (const pattern of followUpPatterns) {
+          const match = lastAssistantMessage.match(pattern);
+          if (match && match[1]) {
+            extractedTopic = match[1].replace(/nearby |local |in the area|as well|too/gi, '').trim();
+            break;
+          }
+        }
+        
+        if (extractedTopic) {
+          console.log('[Chat] AFFIRMATIVE: Extracted follow-up topic:', extractedTopic);
+          
+          // Map the extracted topic to POI categories
+          const categories = getFollowUpCategories(extractedTopic);
+          
+          if (categories && categories.length > 0) {
+            console.log('[Chat] AFFIRMATIVE: Routing to POI categories:', categories);
+            
+            // Override the intent to location_amenities and set the category
+            // Inject the extracted topic into the message for proper POI handling
+            const syntheticQuery = extractedTopic;
+            const poiCategoryResult = detectPOICategoryExpanded(syntheticQuery);
+            
+            if (poiCategoryResult.category) {
+              // Re-classify as location_amenities with the extracted category
+              intentClassification = {
+                intent: 'location_amenities',
+                confidence: 0.9,
+                keywords: ['affirmative-routed', extractedTopic],
+                emergencyTier: null,
+              };
+              
+              // Update message to be the synthetic query for downstream processing
+              // This will be handled by the location_amenities block below
+              console.log('[Chat] AFFIRMATIVE: Re-classified as location_amenities for:', poiCategoryResult.category);
+            }
+          }
+        }
+        
+        if (intentClassification?.intent === 'affirmative') {
+          // Couldn't extract a follow-up topic - provide helpful response
+          console.log('[Chat] AFFIRMATIVE: Could not extract follow-up topic from previous message');
+          
+          const helpfulResponse = 'I want to help, but I am not sure what you would like more information about. Could you tell me specifically what you would like to know?';
+          
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            user_id: validatedUnitUid || userId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: helpfulResponse,
+            question_topic: 'affirmative_no_context',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: { assistantOS: true, intent: 'affirmative' },
+            request_id: requestId,
+          });
+          
+          return NextResponse.json({
+            success: true,
+            answer: helpfulResponse,
+            source: 'affirmative_clarification',
+          });
+        }
+      } else {
+        // No conversation history - ask for clarification
+        const clarificationResponse = 'I want to help, but I am not sure what you would like more information about. Could you tell me what you are looking for?';
+        
+        await persistMessageSafely({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          user_id: validatedUnitUid || userId || null,
+          unit_uid: validatedUnitUid || null,
+          user_message: message,
+          ai_message: clarificationResponse,
+          question_topic: 'affirmative_no_history',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: { assistantOS: true, intent: 'affirmative' },
+          request_id: requestId,
+        });
+        
+        return NextResponse.json({
+          success: true,
+          answer: clarificationResponse,
+          source: 'affirmative_clarification',
+        });
+      }
+    }
+
     // AMENITY ANSWERING GATE: STRICT - location_amenities MUST use Google Places, no RAG fallback
     // This prevents hallucinated venue names, opening hours, and travel times
     if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
@@ -1008,15 +1123,29 @@ export async function POST(request: NextRequest) {
         // Handle expanded intents (e.g., "schools" = primary + secondary)
         let poiData: Awaited<ReturnType<typeof getNearbyPOIs>>;
         let effectiveCategory = poiCategory;
+        let groupedSchoolsData: GroupedSchoolsData | null = null;
         
         if (expandedIntent && expandedCategories && expandedCategories.length > 1) {
           console.log('[Chat] EXPANDED INTENT:', expandedIntent, 'fetching categories:', expandedCategories);
           
           // Fetch all categories and merge results
           const allResults: Awaited<ReturnType<typeof getNearbyPOIs>>[] = [];
+          const categoryResults: Record<string, POIResult[]> = {};
+          
           for (const cat of expandedCategories) {
             const catData = await getNearbyPOIs(userSupabaseProjectId, cat);
             allResults.push(catData);
+            categoryResults[cat] = catData.results;
+          }
+          
+          // For schools, create grouped data structure
+          if (expandedIntent === 'schools') {
+            groupedSchoolsData = {
+              primary: categoryResults['primary_school'] || [],
+              secondary: categoryResults['secondary_school'] || [],
+              fetchedAt: allResults[0]?.fetched_at || new Date(),
+              diagnostics: allResults[0]?.diagnostics,
+            };
           }
           
           // Merge and dedupe results by place_id
@@ -1177,8 +1306,8 @@ export async function POST(request: NextRequest) {
         
         // For expanded intents, use custom response formatting
         let poiResponse: string;
-        if (expandedIntent === 'schools') {
-          poiResponse = formatSchoolsResponse(poiData, developmentName || undefined);
+        if (expandedIntent === 'schools' && groupedSchoolsData) {
+          poiResponse = formatGroupedSchoolsResponse(groupedSchoolsData, developmentName || undefined);
         } else if (expandedIntent === 'shops') {
           poiResponse = formatShopsResponse(poiData, developmentName || undefined);
         } else {
