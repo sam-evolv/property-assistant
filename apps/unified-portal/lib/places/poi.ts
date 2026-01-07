@@ -113,6 +113,10 @@ const MAX_RESULTS = 10;
 const SEARCH_RADIUS_METERS = 5000;
 const PLACES_TIMEOUT_MS = 10000;
 
+// Cache version - bump this when making breaking changes to type filtering logic
+// Any cached results with older versions will be considered stale
+const POI_CACHE_VERSION = 2; // v2: Added type filtering to prevent mismatched results (hotels for golf, etc)
+
 function getGoogleMapsApiKey(): string | null {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || null;
 }
@@ -230,6 +234,37 @@ interface CacheEntry {
   is_fresh: boolean;
 }
 
+// Validation keywords to detect cached results that don't match expected types
+// If a category has validation keywords, at least one result should contain one of them
+const CACHE_VALIDATION_KEYWORDS: Partial<Record<POICategory, string[]>> = {
+  golf_course: ['golf', 'links', 'club'],
+  pharmacy: ['pharmacy', 'chemist', 'boots', 'lloyds'],
+  supermarket: ['tesco', 'aldi', 'lidl', 'dunnes', 'supervalu', 'spar', 'centra', 'supermarket', 'grocery'],
+};
+
+function isCacheContentValid(results: POIResult[], category: POICategory): boolean {
+  const keywords = CACHE_VALIDATION_KEYWORDS[category];
+  if (!keywords || results.length === 0) {
+    return true; // No validation needed or no results to validate
+  }
+  
+  // Check if at least one result contains a validation keyword
+  const hasValidResult = results.some(poi => {
+    const name = poi.name.toLowerCase();
+    return keywords.some(kw => name.includes(kw.toLowerCase()));
+  });
+  
+  if (!hasValidResult && results.length > 0) {
+    console.warn(`[POI] Cache content validation failed for ${category}`, {
+      category,
+      expectedKeywords: keywords,
+      actualNames: results.slice(0, 3).map(r => r.name),
+    });
+  }
+  
+  return hasValidResult;
+}
+
 async function getCachedPOIs(schemeId: string, category: POICategory): Promise<CacheEntry | null> {
   const cached = await db
     .select()
@@ -248,10 +283,19 @@ async function getCachedPOIs(schemeId: string, category: POICategory): Promise<C
   const now = new Date();
   const fetchedAt = new Date(record.fetched_at);
   const ttlMs = record.ttl_days * 24 * 60 * 60 * 1000;
-  const isFresh = now.getTime() - fetchedAt.getTime() <= ttlMs;
+  const isTTLFresh = now.getTime() - fetchedAt.getTime() <= ttlMs;
+  
+  const results = record.results_json as POIResult[];
+  
+  // CRITICAL: Validate cached content matches expected type
+  // This catches stale caches with mismatched results (e.g., hotels cached as golf_course)
+  const isContentValid = isCacheContentValid(results, category);
+  
+  // Cache is only fresh if both TTL and content validation pass
+  const isFresh = isTTLFresh && isContentValid;
 
   return {
-    results: record.results_json as POIResult[],
+    results,
     fetched_at: fetchedAt,
     is_fresh: isFresh,
   };
