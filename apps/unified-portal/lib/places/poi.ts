@@ -81,7 +81,9 @@ export type POICategory =
   | 'leisure'
   | 'cafe'
   | 'restaurant'
-  | 'sports';
+  | 'sports'
+  | 'bar'
+  | 'convenience_store';
 
 const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: string[] }> = {
   supermarket: { types: ['supermarket', 'grocery_or_supermarket', 'grocery_store', 'department_store'] },
@@ -100,6 +102,8 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
   cafe: { types: ['cafe'] },
   restaurant: { types: ['restaurant'] },
   sports: { types: ['stadium', 'gym'], keywords: ['sports', 'fitness', 'athletic', 'swimming', 'pool'] },
+  bar: { types: ['bar', 'night_club'] },
+  convenience_store: { types: ['convenience_store'] },
 };
 
 const DEFAULT_TTL_DAYS = 30;
@@ -717,6 +721,26 @@ const INTRO_VARIANTS: Record<string, string[]> = {
     "Transport-wise, you're in a convenient spot.",
     "You've got good access to buses and trains from here.",
   ],
+  bar: [
+    "There are a few good spots for a drink nearby.",
+    "You've got some nice pubs close by.",
+    "For a pint, you've got options within easy reach.",
+    "There are pubs and bars in the local area.",
+    "You're well placed for a night out – there are bars nearby.",
+    "The area has a few locals you could try.",
+    "For drinks, you've got some handy options close by.",
+    "There are a few pubs within reach.",
+  ],
+  convenience_store: [
+    "There are a few handy shops nearby for everyday bits.",
+    "You've got local shops close by for quick essentials.",
+    "For convenience stores, you're in a good spot.",
+    "There are some local shops within easy reach.",
+    "You've got options nearby for quick errands.",
+    "The area has a few corner shops close by.",
+    "For milk, bread, and essentials – there are shops nearby.",
+    "There are convenience stores within reach.",
+  ],
 };
 
 function getVariedIntro(category: POICategory, developmentName?: string, sessionSeed?: number): string {
@@ -725,6 +749,8 @@ function getVariedIntro(category: POICategory, developmentName?: string, session
   else if (category === 'pharmacy') variantKey = 'pharmacy';
   else if (category === 'primary_school' || category === 'secondary_school') variantKey = 'schools';
   else if (category === 'train_station' || category === 'bus_stop') variantKey = 'transport';
+  else if (category === 'bar') variantKey = 'bar';
+  else if (category === 'convenience_store') variantKey = 'convenience_store';
   
   const variants = INTRO_VARIANTS[variantKey] || INTRO_VARIANTS.amenities;
   const seed = sessionSeed ?? Math.floor(Math.random() * variants.length);
@@ -821,6 +847,8 @@ function getConversationalOpener(category: POICategory, placeAck: string): strin
     cafe: `${placeAck}'ve cafes nearby.\n\n`,
     restaurant: `${placeAck}'ve dining options nearby.\n\n`,
     sports: `${placeAck}'ve sports facilities in the area.\n\n`,
+    bar: `${placeAck}'ve some good pubs and bars nearby.\n\n`,
+    convenience_store: `${placeAck}'ve local shops close by.\n\n`,
   };
   return openers[category] || `${placeAck}'ve some ${formatCategoryName(category)} nearby.\n\n`;
 }
@@ -843,6 +871,8 @@ function getFollowUp(category: POICategory): string {
     cafe: "\n\nIf you're also interested in restaurants, I can help with that.",
     restaurant: "\n\nLet me know if there's anything else about the local area you'd like to know.",
     sports: "\n\nI can also point out gyms or leisure centres if you're interested.",
+    bar: "\n\nIf you'd like restaurant or café recommendations too, just ask.",
+    convenience_store: "\n\nI can also help with supermarkets or pharmacies if you need.",
   };
   return followUps[category] || "\n\nLet me know if there's anything else about the area I can help with.";
 }
@@ -865,6 +895,8 @@ function formatCategoryName(category: POICategory): string {
     cafe: 'cafes',
     restaurant: 'restaurants',
     sports: 'sports facilities',
+    bar: 'pubs and bars',
+    convenience_store: 'local shops',
   };
   return names[category] || category;
 }
@@ -969,23 +1001,42 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
     };
   }
   
-  // "shops" = supermarkets + convenience
-  if (/\bshops?\b/i.test(q) && !/supermarket|grocery|grocer/i.test(q)) {
+  // "shops" (generic) = convenience stores (Irish colloquial: "local shop", "corner shop")
+  // Only match truly generic shop requests, NOT compound phrases like "coffee shop", "bike shop"
+  if (/\b(local\s+shop|corner\s+shop)\b/i.test(q)) {
+    return { category: 'convenience_store' };
+  }
+  
+  // Generic "shops" or "shop" as standalone (without preceding noun like "coffee")
+  // Match: "any shops", "nearby shops", "where's a shop", but NOT "coffee shop"
+  if (/(?:^|\s)(shops?)\s*(?:\?|$|near|around|close|by)/i.test(q) && 
+      !/supermarket|grocery|grocer|coffee|bike|pet|book|gift|flower/i.test(q)) {
     return { 
-      category: 'supermarket', 
+      category: 'convenience_store', 
       expandedIntent: 'shops',
-      categories: ['supermarket']
+      categories: ['supermarket', 'convenience_store']
     };
+  }
+  
+  // IRISH/COLLOQUIAL NORMALISATION - pub, bar, pint
+  if (/\b(pub|pubs|local\s*pub|pint|place\s*for\s*a\s*drink|bar|bars)\b/i.test(q)) {
+    return { category: 'bar' };
   }
   
   // Specific category detection
   if (/supermarket|grocery|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) {
     return { category: 'supermarket' };
   }
+  
+  // IRISH NORMALISATION - chemist → pharmacy (already handled, but explicit)
   if (/pharmac|chemist|boots|lloyds/i.test(q)) return { category: 'pharmacy' };
+  
   if (/\bhospital\b/i.test(q)) return { category: 'hospital' };
   if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return { category: 'gp' };
-  if (/childcare|creche|montessori|nursery|daycare|preschool/i.test(q)) return { category: 'childcare' };
+  
+  // IRISH NORMALISATION - crèche, childcare
+  if (/childcare|cr[eè]che|montessori|nursery|daycare|preschool/i.test(q)) return { category: 'childcare' };
+  
   if (/primary\s*school|national\s*school/i.test(q)) return { category: 'primary_school' };
   if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return { category: 'secondary_school' };
   if (/train|rail|dart|luas|station/i.test(q)) return { category: 'train_station' };
@@ -995,7 +1046,13 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (/\bgym\b|fitness|workout/i.test(q)) return { category: 'gym' };
   if (/leisure|swimming|pool|spa/i.test(q)) return { category: 'leisure' };
   if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
-  if (/restaurant|takeaway|food|dining|eat/i.test(q)) return { category: 'restaurant' };
+  
+  // IRISH NORMALISATION - takeaway, food nearby → restaurant
+  if (/restaurant|takeaway|take\s*away|food\s*nearby|dining|eat/i.test(q)) return { category: 'restaurant' };
+  
+  // Convenience store explicit match
+  if (/convenience\s*store|centra|mace|costcutter|londis/i.test(q)) return { category: 'convenience_store' };
+  
   if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return { category: 'sports' };
   
   if (/near(by|est)?\s+(amenities|facilities|services)/i.test(q)) return { category: 'supermarket' };
@@ -1051,16 +1108,24 @@ export async function testPlacesHealth(schemeId: string): Promise<{
 }
 
 export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
-  'convenience stores': ['supermarket'],
-  'convenience store': ['supermarket'],
-  'local shops': ['supermarket'],
-  'shops': ['supermarket'],
+  'convenience stores': ['convenience_store'],
+  'convenience store': ['convenience_store'],
+  'local shops': ['convenience_store'],
+  'shops': ['convenience_store'],
+  'corner shop': ['convenience_store'],
+  'shop': ['convenience_store'],
+  'supermarkets': ['supermarket'],
+  'supermarket': ['supermarket'],
+  'groceries': ['supermarket'],
   'pharmacies': ['pharmacy'],
   'pharmacy': ['pharmacy'],
+  'chemist': ['pharmacy'],
   'coffee': ['cafe'],
   'cafes': ['cafe'],
   'restaurants': ['restaurant'],
   'dining': ['restaurant'],
+  'takeaway': ['restaurant'],
+  'food': ['restaurant'],
   'parks': ['park'],
   'park': ['park'],
   'schools': ['primary_school', 'secondary_school'],
@@ -1079,7 +1144,14 @@ export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
   'transport': ['train_station', 'bus_stop'],
   'childcare': ['childcare'],
   'creche': ['childcare'],
+  'crèche': ['childcare'],
   'playgrounds': ['playground'],
+  'pub': ['bar'],
+  'pubs': ['bar'],
+  'bar': ['bar'],
+  'bars': ['bar'],
+  'pint': ['bar'],
+  'drink': ['bar'],
 };
 
 export async function canAnswerFollowUp(followUpPhrase: string, schemeId: string): Promise<boolean> {
