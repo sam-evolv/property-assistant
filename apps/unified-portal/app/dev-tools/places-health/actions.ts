@@ -29,7 +29,7 @@ export async function runPlacesHealthcheck(
     return { success: false, error: 'Either schemeId or schemeName is required' };
   }
 
-  const url = `http://localhost:5000/developer/api/places-health?${params.toString()}`;
+  const url = `http://localhost:5000/api/developer/places-health?${params.toString()}`;
 
   try {
     const response = await fetch(url, {
