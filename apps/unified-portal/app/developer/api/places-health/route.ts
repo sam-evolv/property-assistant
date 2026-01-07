@@ -19,12 +19,104 @@ function isValidUUID(str: string): boolean {
   return uuidRegex.test(str);
 }
 
-async function getAuthContext(): Promise<AuthContext> {
+interface ResolvedAuth {
+  authenticated: boolean;
+  context: AuthContext;
+  method: 'supabase_session' | 'bearer_token' | 'cookie' | 'test_secret' | 'none';
+}
+
+async function resolveAuth(request: NextRequest): Promise<ResolvedAuth> {
+  const isTestMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
+  const testSecret = request.headers.get('X-Test-Secret');
+  const expectedSecret = process.env.ASSISTANT_TEST_SECRET || process.env.TEST_SECRET;
+
+  if (isTestMode && testSecret && expectedSecret && testSecret === expectedSecret) {
+    return {
+      authenticated: true,
+      context: { adminId: 'test-mode', tenantId: 'test-mode', role: 'super_admin' },
+      method: 'test_secret',
+    };
+  }
+
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const supabase = getServiceClient();
+    if (supabase) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (!error && user) {
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('id, organization_id, role')
+            .eq('auth_id', user.id)
+            .single();
+
+          if (adminData) {
+            return {
+              authenticated: true,
+              context: {
+                adminId: adminData.id,
+                tenantId: adminData.organization_id,
+                role: adminData.role,
+              },
+              method: 'bearer_token',
+            };
+          }
+        }
+      } catch {
+      }
+    }
+  }
+
   const cookieStore = cookies();
+  const sbAccessToken = cookieStore.get('sb-access-token')?.value;
+  if (sbAccessToken) {
+    const supabase = getServiceClient();
+    if (supabase) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser(sbAccessToken);
+        if (!error && user) {
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('id, organization_id, role')
+            .eq('auth_id', user.id)
+            .single();
+
+          if (adminData) {
+            return {
+              authenticated: true,
+              context: {
+                adminId: adminData.id,
+                tenantId: adminData.organization_id,
+                role: adminData.role,
+              },
+              method: 'supabase_session',
+            };
+          }
+        }
+      } catch {
+      }
+    }
+  }
+
   const adminId = cookieStore.get('admin_id')?.value;
   const tenantId = cookieStore.get('tenant_id')?.value;
   const role = cookieStore.get('user_role')?.value;
-  return { adminId, tenantId, role };
+
+  if (adminId && tenantId && role) {
+    return {
+      authenticated: true,
+      context: { adminId, tenantId, role },
+      method: 'cookie',
+    };
+  }
+
+  return {
+    authenticated: false,
+    context: {},
+    method: 'none',
+  };
 }
 
 async function geocodeAddress(address: string, apiKey: string): Promise<{ lat: number; lng: number } | null> {
@@ -71,18 +163,19 @@ export async function GET(request: NextRequest) {
   const schemeName = searchParams.get('schemeName');
   const isTestMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
 
-  const auth = await getAuthContext();
-  const isAuthenticated = !!auth.adminId && !!auth.tenantId;
-  const allowedRoles = ['developer', 'admin', 'super_admin'];
-  const hasAllowedRole = auth.role && allowedRoles.includes(auth.role);
+  const resolvedAuth = await resolveAuth(request);
 
-  if (!isAuthenticated) {
+  if (!resolvedAuth.authenticated) {
     return NextResponse.json({
       success: false,
       error: 'unauthorized',
       message: 'Authentication required',
     }, { status: 401 });
   }
+
+  const auth = resolvedAuth.context;
+  const allowedRoles = ['developer', 'admin', 'super_admin'];
+  const hasAllowedRole = auth.role && allowedRoles.includes(auth.role);
 
   if (!hasAllowedRole) {
     return NextResponse.json({
@@ -116,7 +209,7 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
 
-  console.log('[PlacesHealth] Authorized request from role:', auth.role);
+  console.log('[PlacesHealth] Authorized request via', resolvedAuth.method, 'role:', auth.role);
 
   const schemeAccess = await assertSchemeAccess(
     { schemeId: schemeId || undefined, schemeName: schemeName || undefined },
@@ -216,10 +309,11 @@ export async function GET(request: NextRequest) {
 
   if (isTestMode) {
     response.debug = {
+      auth_method: resolvedAuth.method,
       lookup_method: schemeAccess.lookupMethod,
       scheme_address: schemeAccess.schemeAddress,
       auth_role: auth.role,
-      auth_tenant_id: auth.tenantId,
+      auth_tenant_id: resolvedAuth.method === 'test_secret' ? '[test-mode]' : auth.tenantId,
       supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL?.split('.')[0] + '...',
     };
   }
