@@ -91,16 +91,12 @@ describe('POI Engine', () => {
       const response = formatPOIResponse(mockFreshData, 'supermarket', 3);
       
       expect(response).toContain('Tesco Express');
-      expect(response).toContain('0.5km');
-      expect(response).toContain('6 min walk');
       expect(response).toContain('2 min drive');
-      expect(response).toContain('Open now');
       expect(response).toContain('Aldi');
-      expect(response).toContain('Currently closed');
       expect(response).toContain('Lidl');
-      expect(response).toContain('Based on Google Places');
-      expect(response).toContain("You've a few convenient supermarkets");
+      expect(response).toContain("good options for grocery");
       expect(response).not.toContain('**');
+      expect(response).toContain('Would you like');
     });
 
     it('should limit results to specified count', () => {

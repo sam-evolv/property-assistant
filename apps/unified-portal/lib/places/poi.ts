@@ -658,73 +658,117 @@ export async function getNearbyPOIs(
   };
 }
 
-export function formatPOIResponse(data: POICacheResult, category: POICategory, limit: number = 5): string {
+export interface FormatPOIOptions {
+  developmentName?: string;
+  category: POICategory;
+  limit?: number;
+}
+
+export function formatPOIResponse(data: POICacheResult, options: FormatPOIOptions | POICategory, limit: number = 5): string {
+  // Handle legacy signature
+  const opts: FormatPOIOptions = typeof options === 'string' 
+    ? { category: options, limit } 
+    : { ...options, limit: options.limit ?? limit };
+  
+  const { developmentName, category } = opts;
+  const resultLimit = opts.limit ?? 5;
+
   if (data.results.length === 0) {
     if (data.diagnostics?.failure_reason === 'places_no_location') {
       return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
     }
-    return `I could not find any ${formatCategoryName(category)} nearby. There may be none within 5km of the development.`;
+    const placeAck = developmentName ? `Living in ${developmentName}, ` : '';
+    return `${placeAck}I was not able to find any ${formatCategoryName(category)} within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
   }
 
-  const topResults = data.results.slice(0, limit);
-  const lines = topResults.map((poi, idx) => {
-    let line = `${idx + 1}. ${poi.name} - ${poi.distance_km}km away`;
+  const topResults = data.results.slice(0, resultLimit);
+  
+  // Format each venue with qualitative distance when road distance unavailable
+  const lines = topResults.map((poi) => {
+    let distancePhrase: string;
     
-    const times: string[] = [];
-    if (poi.walk_time_min) times.push(`${poi.walk_time_min} min walk`);
-    if (poi.drive_time_min) times.push(`${poi.drive_time_min} min drive`);
-    if (times.length > 0) {
-      line += ` (${times.join(', ')})`;
+    // Prefer road-based time over raw distance
+    if (poi.drive_time_min) {
+      distancePhrase = `${poi.drive_time_min} min drive`;
+    } else if (poi.walk_time_min) {
+      distancePhrase = `${poi.walk_time_min} min walk`;
+    } else {
+      // Fallback to qualitative phrasing when no road distance
+      distancePhrase = getQualitativeDistance(poi.distance_km);
     }
+    
+    let line = `${poi.name} (${distancePhrase})`;
     
     if (poi.address) {
       line += `\n   ${poi.address}`;
     }
     
-    if (poi.open_now !== undefined) {
-      line += poi.open_now ? ' - Open now' : ' - Currently closed';
-    }
-    
     return line;
   });
 
-  const header = getConversationalOpener(category);
+  // Acknowledge the place first
+  const placeAck = developmentName ? `Living in ${developmentName}, you` : 'You';
+  const header = getConversationalOpener(category, placeAck);
   
-  let dateNote = data.fetched_at.toLocaleDateString('en-IE', { 
-    day: 'numeric', 
-    month: 'short', 
-    year: 'numeric' 
-  });
+  // Group information meaningfully
+  const body = lines.join('\n\n');
   
-  const staleNote = data.is_stale 
-    ? ', though details may have changed'
-    : '';
+  // Gentle follow-up
+  const followUp = getFollowUp(category);
   
-  const footer = `\n\nBased on Google Places, last updated ${dateNote}${staleNote}.`;
-
-  return header + lines.join('\n\n') + footer;
+  return header + body + followUp;
 }
 
-function getConversationalOpener(category: POICategory): string {
+function getQualitativeDistance(km: number): string {
+  if (km <= 0.5) return 'a short walk away';
+  if (km <= 1) return 'within walking distance';
+  if (km <= 2) return 'nearby';
+  if (km <= 5) return 'a short drive away';
+  return 'a few kilometres away';
+}
+
+function getConversationalOpener(category: POICategory, placeAck: string): string {
   const openers: Record<POICategory, string> = {
-    supermarket: "You've a few convenient supermarkets close to your home.\n\n",
-    pharmacy: "You've got several pharmacies nearby.\n\n",
-    gp: "You've some GP surgeries in your area.\n\n",
-    hospital: "The nearest hospitals to your home are listed below.\n\n",
-    childcare: "You've got childcare options nearby.\n\n",
-    primary_school: "You've some primary schools in the area.\n\n",
-    secondary_school: "You've got secondary schools nearby.\n\n",
-    train_station: "You've good train access from your location.\n\n",
-    bus_stop: "You've bus stops within easy reach.\n\n",
-    park: "You've parks and green spaces nearby.\n\n",
-    playground: "You've playgrounds close by for children.\n\n",
-    gym: "You've several gyms to choose from nearby.\n\n",
-    leisure: "You've got leisure facilities in the area.\n\n",
-    cafe: "You've cafes nearby for a coffee or bite.\n\n",
-    restaurant: "You've several dining options nearby.\n\n",
-    sports: "You've got sports facilities in the area.\n\n",
+    supermarket: `${placeAck}'ve good options for grocery shopping nearby.\n\n`,
+    pharmacy: `${placeAck}'ve several pharmacies within easy reach.\n\n`,
+    gp: `${placeAck}'ve some GP surgeries in the area.\n\n`,
+    hospital: `${placeAck}'ve hospital access nearby.\n\n`,
+    childcare: `${placeAck}'ve childcare options in the area.\n\n`,
+    primary_school: `${placeAck}'ve some primary schools nearby.\n\n`,
+    secondary_school: `${placeAck}'ve secondary schools in the area.\n\n`,
+    train_station: `${placeAck}'ve good train access.\n\n`,
+    bus_stop: `${placeAck}'ve bus stops within easy reach.\n\n`,
+    park: `${placeAck}'ve parks and green spaces nearby.\n\n`,
+    playground: `${placeAck}'ve playgrounds close by for children.\n\n`,
+    gym: `${placeAck}'ve several gyms to choose from.\n\n`,
+    leisure: `${placeAck}'ve leisure facilities in the area.\n\n`,
+    cafe: `${placeAck}'ve cafes nearby.\n\n`,
+    restaurant: `${placeAck}'ve dining options nearby.\n\n`,
+    sports: `${placeAck}'ve sports facilities in the area.\n\n`,
   };
-  return openers[category] || `You've some nearby ${formatCategoryName(category)}.\n\n`;
+  return openers[category] || `${placeAck}'ve some ${formatCategoryName(category)} nearby.\n\n`;
+}
+
+function getFollowUp(category: POICategory): string {
+  const followUps: Record<POICategory, string> = {
+    supermarket: '\n\nWould you like to know about local shops or convenience stores as well?',
+    pharmacy: '\n\nLet me know if you need directions or GP information.',
+    gp: '\n\nWould you like information on nearby pharmacies or hospitals?',
+    hospital: '\n\nLet me know if you need GP or urgent care information.',
+    childcare: '\n\nWould you like to know about nearby primary schools too?',
+    primary_school: '\n\nWould you like information on secondary schools in the area?',
+    secondary_school: '\n\nLet me know if you need information on other local amenities.',
+    train_station: '\n\nWould you like to know about bus routes as well?',
+    bus_stop: '\n\nWould you like to know about train stations nearby?',
+    park: '\n\nWould you like to know about playgrounds for children?',
+    playground: '\n\nLet me know if you need information on other family amenities.',
+    gym: '\n\nWould you like to know about other leisure facilities?',
+    leisure: '\n\nLet me know if you need any other local information.',
+    cafe: '\n\nWould you like restaurant recommendations as well?',
+    restaurant: '\n\nLet me know if you need any other local information.',
+    sports: '\n\nWould you like to know about gyms or leisure centres?',
+  };
+  return followUps[category] || '\n\nLet me know if you need any other local information.';
 }
 
 function formatCategoryName(category: POICategory): string {
@@ -749,30 +793,145 @@ function formatCategoryName(category: POICategory): string {
   return names[category] || category;
 }
 
+export function formatSchoolsResponse(data: POICacheResult, developmentName?: string): string {
+  if (data.results.length === 0) {
+    if (data.diagnostics?.failure_reason === 'places_no_location') {
+      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+    }
+    const placeAck = developmentName ? `Living in ${developmentName}, ` : '';
+    return `${placeAck}I was not able to find any schools within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+  }
+
+  const topResults = data.results.slice(0, 5);
+  
+  const lines = topResults.map((poi) => {
+    let distancePhrase: string;
+    
+    if (poi.drive_time_min) {
+      distancePhrase = `${poi.drive_time_min} min drive`;
+    } else if (poi.walk_time_min) {
+      distancePhrase = `${poi.walk_time_min} min walk`;
+    } else {
+      distancePhrase = getQualitativeDistance(poi.distance_km);
+    }
+    
+    let line = `${poi.name} (${distancePhrase})`;
+    
+    if (poi.address) {
+      line += `\n   ${poi.address}`;
+    }
+    
+    return line;
+  });
+
+  const placeAck = developmentName ? `Living in ${developmentName}, you` : 'You';
+  const header = `${placeAck}'ve schools nearby, including both primary and secondary options.\n\n`;
+  
+  const body = lines.join('\n\n');
+  
+  const followUp = '\n\nWould you like more details on any particular school, or information on childcare options?';
+  
+  return header + body + followUp;
+}
+
+export function formatShopsResponse(data: POICacheResult, developmentName?: string): string {
+  if (data.results.length === 0) {
+    if (data.diagnostics?.failure_reason === 'places_no_location') {
+      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+    }
+    const placeAck = developmentName ? `Living in ${developmentName}, ` : '';
+    return `${placeAck}I was not able to find any shops within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+  }
+
+  const topResults = data.results.slice(0, 5);
+  
+  const lines = topResults.map((poi) => {
+    let distancePhrase: string;
+    
+    if (poi.drive_time_min) {
+      distancePhrase = `${poi.drive_time_min} min drive`;
+    } else if (poi.walk_time_min) {
+      distancePhrase = `${poi.walk_time_min} min walk`;
+    } else {
+      distancePhrase = getQualitativeDistance(poi.distance_km);
+    }
+    
+    let line = `${poi.name} (${distancePhrase})`;
+    
+    if (poi.address) {
+      line += `\n   ${poi.address}`;
+    }
+    
+    return line;
+  });
+
+  const placeAck = developmentName ? `Living in ${developmentName}, you` : 'You';
+  const header = `${placeAck}'ve good shopping options nearby.\n\n`;
+  
+  const body = lines.join('\n\n');
+  
+  const followUp = '\n\nWould you like more specific information on supermarkets or other local amenities?';
+  
+  return header + body + followUp;
+}
+
+export type ExpandedIntent = 'schools' | 'shops';
+
+export interface POICategoryResult {
+  category: POICategory | null;
+  expandedIntent?: ExpandedIntent;
+  categories?: POICategory[];
+}
+
 export function detectPOICategory(query: string): POICategory | null {
+  return detectPOICategoryExpanded(query).category;
+}
+
+export function detectPOICategoryExpanded(query: string): POICategoryResult {
   const q = query.toLowerCase();
   
-  if (/supermarket|grocery|shop|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) return 'supermarket';
-  if (/pharmac|chemist|boots|lloyds/i.test(q)) return 'pharmacy';
-  if (/\bhospital\b/i.test(q)) return 'hospital';
-  if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return 'gp';
-  if (/childcare|creche|montessori|nursery|daycare|preschool/i.test(q)) return 'childcare';
-  if (/primary\s*school|national\s*school/i.test(q)) return 'primary_school';
-  if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return 'secondary_school';
-  if (/train|rail|dart|luas|station/i.test(q)) return 'train_station';
-  if (/bus|bus\s*stop|transit/i.test(q)) return 'bus_stop';
-  if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return 'playground';
-  if (/\bpark\b/i.test(q)) return 'park';
-  if (/\bgym\b|fitness|workout/i.test(q)) return 'gym';
-  if (/leisure|swimming|pool|spa/i.test(q)) return 'leisure';
-  if (/\bcafe\b|coffee/i.test(q)) return 'cafe';
-  if (/restaurant|takeaway|food|dining|eat/i.test(q)) return 'restaurant';
-  if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return 'sports';
+  // Check for expanded intents first
+  // "schools" = primary + secondary by default
+  if (/\bschools?\b/i.test(q) && !/primary|secondary|national|high|post.?primary/i.test(q)) {
+    return { 
+      category: 'primary_school', 
+      expandedIntent: 'schools',
+      categories: ['primary_school', 'secondary_school']
+    };
+  }
   
-  if (/school/i.test(q)) return 'primary_school';
-  if (/near(by|est)?\s+(amenities|facilities|shops|services)/i.test(q)) return 'supermarket';
+  // "shops" = supermarkets + convenience
+  if (/\bshops?\b/i.test(q) && !/supermarket|grocery|grocer/i.test(q)) {
+    return { 
+      category: 'supermarket', 
+      expandedIntent: 'shops',
+      categories: ['supermarket']
+    };
+  }
   
-  return null;
+  // Specific category detection
+  if (/supermarket|grocery|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) {
+    return { category: 'supermarket' };
+  }
+  if (/pharmac|chemist|boots|lloyds/i.test(q)) return { category: 'pharmacy' };
+  if (/\bhospital\b/i.test(q)) return { category: 'hospital' };
+  if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return { category: 'gp' };
+  if (/childcare|creche|montessori|nursery|daycare|preschool/i.test(q)) return { category: 'childcare' };
+  if (/primary\s*school|national\s*school/i.test(q)) return { category: 'primary_school' };
+  if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return { category: 'secondary_school' };
+  if (/train|rail|dart|luas|station/i.test(q)) return { category: 'train_station' };
+  if (/bus|bus\s*stop|transit/i.test(q)) return { category: 'bus_stop' };
+  if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return { category: 'playground' };
+  if (/\bpark\b/i.test(q)) return { category: 'park' };
+  if (/\bgym\b|fitness|workout/i.test(q)) return { category: 'gym' };
+  if (/leisure|swimming|pool|spa/i.test(q)) return { category: 'leisure' };
+  if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
+  if (/restaurant|takeaway|food|dining|eat/i.test(q)) return { category: 'restaurant' };
+  if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return { category: 'sports' };
+  
+  if (/near(by|est)?\s+(amenities|facilities|services)/i.test(q)) return { category: 'supermarket' };
+  
+  return { category: null };
 }
 
 export const SUPPORTED_CATEGORIES = Object.keys(CATEGORY_MAPPINGS) as POICategory[];

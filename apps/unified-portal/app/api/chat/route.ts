@@ -25,7 +25,7 @@ import {
   type IntentClassification,
   type AnswerStrategy,
 } from '@/lib/assistant/os';
-import { getNearbyPOIs, formatPOIResponse, detectPOICategory, type POICategory } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions } from '@/lib/places/poi';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -925,8 +925,12 @@ export async function POST(request: NextRequest) {
     // AMENITY ANSWERING GATE: STRICT - location_amenities MUST use Google Places, no RAG fallback
     // This prevents hallucinated venue names, opening hours, and travel times
     if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
-      const poiCategory = detectPOICategory(message);
+      const poiCategoryResult = detectPOICategoryExpanded(message);
+      const poiCategory = poiCategoryResult.category;
+      const expandedIntent = poiCategoryResult.expandedIntent;
+      const expandedCategories = poiCategoryResult.categories;
       const schemeAddress = userUnitDetails?.address || 'your development';
+      const developmentName = userUnitDetails?.unitInfo?.development_name || null;
       
       // Populate intent diagnostics
       chatDiagnostics.intent_detected = true;
@@ -992,7 +996,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(fallbackResponseObj);
       }
       
-      console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
+      console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'expandedIntent:', expandedIntent, 'for scheme:', userSupabaseProjectId);
       chatDiagnostics.places_call.category = poiCategory;
       
       // Check for test mode header for diagnostics
@@ -1000,7 +1004,50 @@ export async function POST(request: NextRequest) {
       
       try {
         chatDiagnostics.places_call.attempted = true;
-        const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
+        
+        // Handle expanded intents (e.g., "schools" = primary + secondary)
+        let poiData: Awaited<ReturnType<typeof getNearbyPOIs>>;
+        let effectiveCategory = poiCategory;
+        
+        if (expandedIntent && expandedCategories && expandedCategories.length > 1) {
+          console.log('[Chat] EXPANDED INTENT:', expandedIntent, 'fetching categories:', expandedCategories);
+          
+          // Fetch all categories and merge results
+          const allResults: Awaited<ReturnType<typeof getNearbyPOIs>>[] = [];
+          for (const cat of expandedCategories) {
+            const catData = await getNearbyPOIs(userSupabaseProjectId, cat);
+            allResults.push(catData);
+          }
+          
+          // Merge and dedupe results by place_id
+          const seenPlaceIds = new Set<string>();
+          const mergedResults: typeof allResults[0]['results'] = [];
+          
+          for (const catData of allResults) {
+            for (const result of catData.results) {
+              if (!seenPlaceIds.has(result.place_id)) {
+                seenPlaceIds.add(result.place_id);
+                mergedResults.push(result);
+              }
+            }
+          }
+          
+          // Sort by distance
+          mergedResults.sort((a, b) => a.distance_km - b.distance_km);
+          
+          // Use the first category's diagnostics as base
+          poiData = {
+            ...allResults[0],
+            results: mergedResults,
+          };
+          
+          // Use a display category name for expanded intents
+          if (expandedIntent === 'schools') {
+            effectiveCategory = 'primary_school'; // Will show "schools" in response
+          }
+        } else {
+          poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
+        }
         
         // Use diagnostics to determine appropriate gap reason
         const diagnostics = poiData.diagnostics;
@@ -1120,7 +1167,23 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(noResultsResponseObj);
         }
         
-        let poiResponse = formatPOIResponse(poiData, poiCategory, 5);
+        // Use effectiveCategory for display (handles expanded intents)
+        const displayCategory = effectiveCategory || poiCategory;
+        const formatOptions: FormatPOIOptions = {
+          developmentName: developmentName || undefined,
+          category: displayCategory,
+          limit: 5,
+        };
+        
+        // For expanded intents, use custom response formatting
+        let poiResponse: string;
+        if (expandedIntent === 'schools') {
+          poiResponse = formatSchoolsResponse(poiData, developmentName || undefined);
+        } else if (expandedIntent === 'shops') {
+          poiResponse = formatShopsResponse(poiData, developmentName || undefined);
+        } else {
+          poiResponse = formatPOIResponse(poiData, formatOptions);
+        }
         
         console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
         

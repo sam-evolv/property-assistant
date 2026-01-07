@@ -19,6 +19,7 @@ export interface UnitInfo {
   purchaser_name?: string;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  development_name?: string;
 }
 
 export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
@@ -48,6 +49,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
 
     let drizzleDevelopmentId: string | null = null;
     let tenantId: string | null = null;
+    let developmentName: string | null = null;
 
     if (supabaseUnit.project_id) {
       const { data: supabaseProject } = await supabase
@@ -58,6 +60,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       
       if (supabaseProject) {
         console.log('[UnitLookup] Supabase project name:', supabaseProject.name);
+        developmentName = supabaseProject.name;
         
         try {
           const { rows: devRows } = await db.execute(sql`
@@ -69,6 +72,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
             const dev = devRows[0] as any;
             drizzleDevelopmentId = dev.id;
             tenantId = dev.tenant_id;
+            developmentName = dev.name;
             console.log('[UnitLookup] Matched Drizzle development by name:', dev.name);
           }
         } catch (dbError) {
@@ -99,6 +103,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       purchaser_name: supabaseUnit.purchaser_name,
       bedrooms,
       bathrooms,
+      development_name: developmentName || undefined,
     };
   } catch (err) {
     console.error('[UnitLookup] Error:', err);
