@@ -389,6 +389,26 @@ async function fetchFromGooglePlaces(
     return true;
   });
 
+  // CRITICAL: Filter by Google Places types to prevent mismatched results
+  // This ensures e.g. golf_course queries don't return hotels/lodging
+  const typeFiltered = filteredResults.filter(place => {
+    const placeTypes = place.types || [];
+    return mapping.types.some(requiredType => placeTypes.includes(requiredType));
+  });
+  
+  // Only use type-filtered results if we got matches, otherwise log and return empty
+  if (typeFiltered.length > 0) {
+    filteredResults = typeFiltered;
+  } else if (filteredResults.length > 0) {
+    // Google returned results but none matched our required types - this is a type mismatch
+    console.warn('[POI] Type mismatch: Google returned results but none matched required types', {
+      category,
+      requiredTypes: mapping.types,
+      returnedTypes: filteredResults.slice(0, 3).map(p => ({ name: p.name, types: p.types })),
+    });
+    filteredResults = []; // Clear mismatched results
+  }
+
   if (mapping.keywords && mapping.keywords.length > 0) {
     const keywordFiltered = filteredResults.filter(place => {
       const name = (place.name || '').toLowerCase();
@@ -636,17 +656,10 @@ export async function getNearbyPOIs(
   if (results.length === 0) {
     diagnostics.failure_reason = 'no_places_results';
     
-    if (cached && cached.results.length > 0) {
-      console.log('[POI] No new results, returning stale cache');
-      diagnostics.is_stale_cache = true;
-      return {
-        results: cached.results,
-        fetched_at: cached.fetched_at,
-        from_cache: true,
-        is_stale: true,
-        diagnostics,
-      };
-    }
+    // CRITICAL: Cache empty results to prevent serving stale mismatched data
+    // This handles the case where type filtering removed all results (e.g., hotels returned for golf_course)
+    await storePOICache(schemeId, category, []);
+    console.log('[POI] Cached empty results (type filtering or no matches)');
   }
 
   if (results.length > 0) {
@@ -956,7 +969,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
   
   if (hasPrimary) {
     body += 'Primary schools:\n';
-    body += data.primary.slice(0, 3).map(formatBulletItem).join('\n');
+    body += data.primary.slice(0, 3).map(poi => formatBulletItem(poi)).join('\n');
   } else {
     body += 'Primary schools:\nNone found close by.';
   }
@@ -965,7 +978,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
   
   if (hasSecondary) {
     body += 'Secondary schools:\n';
-    body += data.secondary.slice(0, 3).map(formatBulletItem).join('\n');
+    body += data.secondary.slice(0, 3).map(poi => formatBulletItem(poi)).join('\n');
   } else {
     body += 'Secondary schools:\nNone found close by.';
   }
@@ -985,7 +998,7 @@ export function formatSchoolsResponse(data: POICacheResult, developmentName?: st
 
   const topResults = data.results.slice(0, 5);
   const intro = getVariedIntro('primary_school', developmentName, sessionSeed);
-  const bullets = topResults.map(formatBulletItem).join('\n');
+  const bullets = topResults.map(poi => formatBulletItem(poi)).join('\n');
   const sourceHint = getSourceHint(data.fetched_at);
   
   return `${intro}\n\n${bullets}${sourceHint}`;
@@ -1001,7 +1014,7 @@ export function formatShopsResponse(data: POICacheResult, developmentName?: stri
 
   const topResults = data.results.slice(0, 5);
   const intro = getVariedIntro('supermarket', developmentName, sessionSeed);
-  const bullets = topResults.map(formatBulletItem).join('\n');
+  const bullets = topResults.map(poi => formatBulletItem(poi)).join('\n');
   const sourceHint = getSourceHint(data.fetched_at);
   
   return `${intro}\n\n${bullets}${sourceHint}`;
