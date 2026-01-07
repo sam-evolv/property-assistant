@@ -84,7 +84,7 @@ export type POICategory =
   | 'sports';
 
 const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: string[] }> = {
-  supermarket: { types: ['supermarket', 'grocery_or_supermarket'] },
+  supermarket: { types: ['supermarket', 'grocery_or_supermarket', 'grocery_store', 'department_store'] },
   pharmacy: { types: ['pharmacy'] },
   gp: { types: ['doctor'] },
   hospital: { types: ['hospital'] },
@@ -668,7 +668,7 @@ export function formatPOIResponse(data: POICacheResult, category: POICategory, l
 
   const topResults = data.results.slice(0, limit);
   const lines = topResults.map((poi, idx) => {
-    let line = `${idx + 1}. **${poi.name}** - ${poi.distance_km}km away`;
+    let line = `${idx + 1}. ${poi.name} - ${poi.distance_km}km away`;
     
     const times: string[] = [];
     if (poi.walk_time_min) times.push(`${poi.walk_time_min} min walk`);
@@ -682,13 +682,13 @@ export function formatPOIResponse(data: POICacheResult, category: POICategory, l
     }
     
     if (poi.open_now !== undefined) {
-      line += poi.open_now ? ' - *Open now*' : ' - *Currently closed*';
+      line += poi.open_now ? ' - Open now' : ' - Currently closed';
     }
     
     return line;
   });
 
-  const header = `Here are the nearest ${formatCategoryName(category)}:\n\n`;
+  const header = getConversationalOpener(category);
   
   let dateNote = data.fetched_at.toLocaleDateString('en-IE', { 
     day: 'numeric', 
@@ -697,12 +697,34 @@ export function formatPOIResponse(data: POICacheResult, category: POICategory, l
   });
   
   const staleNote = data.is_stale 
-    ? ` - may be out of date`
+    ? ', though details may have changed'
     : '';
   
-  const footer = `\n\n*Last updated: ${dateNote}${staleNote}*`;
+  const footer = `\n\nBased on Google Places, last updated ${dateNote}${staleNote}.`;
 
   return header + lines.join('\n\n') + footer;
+}
+
+function getConversationalOpener(category: POICategory): string {
+  const openers: Record<POICategory, string> = {
+    supermarket: "You've a few convenient supermarkets close to your home.\n\n",
+    pharmacy: "You've got several pharmacies nearby.\n\n",
+    gp: "You've some GP surgeries in your area.\n\n",
+    hospital: "The nearest hospitals to your home are listed below.\n\n",
+    childcare: "You've got childcare options nearby.\n\n",
+    primary_school: "You've some primary schools in the area.\n\n",
+    secondary_school: "You've got secondary schools nearby.\n\n",
+    train_station: "You've good train access from your location.\n\n",
+    bus_stop: "You've bus stops within easy reach.\n\n",
+    park: "You've parks and green spaces nearby.\n\n",
+    playground: "You've playgrounds close by for children.\n\n",
+    gym: "You've several gyms to choose from nearby.\n\n",
+    leisure: "You've got leisure facilities in the area.\n\n",
+    cafe: "You've cafes nearby for a coffee or bite.\n\n",
+    restaurant: "You've several dining options nearby.\n\n",
+    sports: "You've got sports facilities in the area.\n\n",
+  };
+  return openers[category] || `You've some nearby ${formatCategoryName(category)}.\n\n`;
 }
 
 function formatCategoryName(category: POICategory): string {

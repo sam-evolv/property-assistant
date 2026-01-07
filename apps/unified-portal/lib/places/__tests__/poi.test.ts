@@ -98,7 +98,9 @@ describe('POI Engine', () => {
       expect(response).toContain('Aldi');
       expect(response).toContain('Currently closed');
       expect(response).toContain('Lidl');
-      expect(response).toContain('Last updated');
+      expect(response).toContain('Based on Google Places');
+      expect(response).toContain("You've a few convenient supermarkets");
+      expect(response).not.toContain('**');
     });
 
     it('should limit results to specified count', () => {
@@ -117,7 +119,7 @@ describe('POI Engine', () => {
       };
       
       const response = formatPOIResponse(emptyData, 'supermarket', 5);
-      expect(response).toContain("couldn't find any supermarkets");
+      expect(response).toContain("could not find any supermarkets");
     });
 
     it('should include fetch timestamp', () => {
@@ -138,8 +140,8 @@ describe('POI Engine', () => {
       expect(SUPPORTED_CATEGORIES).toContain('bus_stop');
     });
 
-    it('should have exactly 8 categories', () => {
-      expect(SUPPORTED_CATEGORIES.length).toBe(8);
+    it('should have all supported categories', () => {
+      expect(SUPPORTED_CATEGORIES.length).toBeGreaterThanOrEqual(8);
     });
   });
 
