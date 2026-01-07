@@ -116,6 +116,38 @@ export function getSuggestedFix(
       };
     }
     
+    case 'google_places_failed': {
+      return {
+        action: 'Google Places API call failed. Check API key is valid and Places API is enabled in Google Cloud Console.',
+        field: 'google_places_api',
+        priority: 'high',
+      };
+    }
+    
+    case 'no_places_results': {
+      return {
+        action: 'No nearby amenities found. Verify scheme latitude/longitude coordinates are correctly set.',
+        field: 'scheme_lat_lng',
+        priority: 'high',
+      };
+    }
+    
+    case 'amenities_fallback_used': {
+      return {
+        action: 'Amenity query fell back to generic response. Check Google Places integration and scheme location.',
+        category: 'amenities',
+        priority: 'medium',
+      };
+    }
+    
+    case 'places_no_location': {
+      return {
+        action: 'Scheme is missing latitude/longitude coordinates. Update scheme profile with scheme_lat and scheme_lng.',
+        field: 'scheme_lat, scheme_lng',
+        priority: 'high',
+      };
+    }
+    
     default: {
       return {
         action: 'Review the query type and consider adding relevant scheme data or documents.',

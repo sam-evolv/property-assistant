@@ -132,10 +132,13 @@ const LOCATION_PATTERNS = [
   /\bnearest\s*(to\s*(me|us|here))?\b/i,
   /\bnearby\b/i,
   /\bclose\s*(to|by)\b/i,
+  /\bclosest\b/i,
   /\bwhere\s*(is|are)\s*(the\s*)?(nearest|closest)\b/i,
-  /\b(supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\s*office|train|bus|tube|station)\b/i,
-  /\bwhat'?s?\s*(around|nearby)\b/i,
-  /\blocal\s*(amenities?|facilities?|shops?|services?)\b/i,
+  /\bwhat'?s?\s*(around|nearby|close\s*by)\b/i,
+  /\blocal\s*(amenities?|facilities?|shops?|services?|area)\b/i,
+  /\bnear\s*(me|here|us|the\s*(development|estate|scheme))\b/i,
+  /\b(nearest|closest)\s+(supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\s*cent(re|er))\b/i,
+  /\b(supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\s*cent(re|er))\s+(nearby|near\s*(me|here|us)|close\s*by|closest|nearest)\b/i,
 ];
 
 const PLAYBOOK_PATTERNS = [

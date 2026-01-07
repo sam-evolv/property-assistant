@@ -20,6 +20,10 @@ export type GapReason =
   | 'scheme_mismatch'
   | 'missing_scheme_data'
   | 'validation_failed'
+  | 'google_places_failed'
+  | 'no_places_results'
+  | 'amenities_fallback_used'
+  | 'places_no_location'
   | 'unknown';
 
 export interface GapLogEntry {

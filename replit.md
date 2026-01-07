@@ -73,6 +73,36 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Amenity Answering Gate (January 2026)
+
+**Strict enforcement to prevent hallucinated location/amenity responses:**
+
+**Problem Solved:**
+- Location/amenity questions (e.g., "nearest supermarket") were returning hallucinated answers like "SuperValu" + opening hours instead of using Google Places
+
+**Implementation:**
+1. **Hardened Intent Classifier**: Comprehensive patterns for "nearest", "closest", "nearby", "near me", "close by" + amenity types
+2. **Strict Gate**: `location_amenities` intent MUST use Google Places - no RAG fallback allowed
+3. **Controlled Fallbacks**:
+   - Unknown POI category → "ask about specific amenity type"
+   - No Places results → "couldn't retrieve, check Google Maps"
+   - Places API error → "try again later, check Google Maps"
+4. **Gap Logging**: New reasons: `google_places_failed`, `no_places_results`, `amenities_fallback_used`, `places_no_location`
+5. **Response Validator**: Detects ungrounded venue names, opening hours, and travel times
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/os.ts` - Intent classification patterns
+- `apps/unified-portal/app/api/chat/route.ts` - Amenity gate implementation
+- `apps/unified-portal/lib/assistant/amenities-validator.ts` - Response validation
+- `apps/unified-portal/lib/assistant/gap-logger.ts` - Gap reasons
+- `apps/unified-portal/lib/assistant/gap-suggestions.ts` - Fix suggestions
+
+**Confirmed Behavior:**
+- "nearest supermarket" returns actual Places results (Dunnes/Lidl/etc) with last-updated date
+- No opening hours unless `open_now` is returned by Places
+- No travel times unless from Distance Matrix API
+- No hardcoded store names in fallback responses
+
 ### UX Intelligence Upgrades (January 2026)
 
 **Low-risk, high-impact improvements to assistant responses:**

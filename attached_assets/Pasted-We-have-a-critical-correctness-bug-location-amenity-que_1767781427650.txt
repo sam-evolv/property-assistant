@@ -1,0 +1,68 @@
+We have a critical correctness bug: location/amenity questions (e.g., “nearest supermarket”) are returning hallucinated answers (e.g., “SuperValu” + opening hours) instead of using Google Places.
+
+Implement a strict, deterministic “Amenity Answering Gate” so that any Location/Amenities intent MUST use Google Places cache-first results and MUST NOT guess venue names, opening hours, or travel time.
+
+REQUIREMENTS
+
+1) Intent classification hardening
+- In the intent classifier, add explicit patterns for location/amenities queries:
+  - nearest|closest|nearby + supermarket|shop|grocery|school|pharmacy|GP|doctor|hospital|train|bus|park
+  - “where is the nearest …”, “what’s close by”, “near me”
+- Ensure these always classify as intent_type = "location_amenities".
+- Add unit tests asserting “nearest supermarket” => location_amenities.
+
+2) Amenity Answering Gate (hard rule)
+- In the assistant orchestrator, implement:
+  - if intent_type == location_amenities:
+      a) call getNearbyPOIs(schemeId, resolved_category)
+      b) if results returned (>=1):
+          - respond ONLY from these results
+          - include last_updated from cache
+          - DO NOT mention opening hours unless Places explicitly returns open_now (boolean)
+          - DO NOT output hardcoded store names
+      c) if results empty OR Places call fails:
+          - respond with a controlled fallback:
+            “I could not retrieve nearby amenities right now. Please try again, or check Google Maps for <scheme address>.”
+          - log answer gap with gap_reason = "google_places_failed" or "no_places_results"
+          - do not guess any store names
+- This gate must override any Smart Archive/doc-based local amenities content to avoid stale/hallucinated POIs.
+
+3) Prohibit ungrounded opening hours and specific venue claims
+- Add a validation step in the response pipeline:
+  - If response source is NOT google_places, reject any mention of:
+    - specific supermarket chains/venue names (allow only if sourced from docs explicitly and validated as such)
+    - opening hours patterns (e.g., “8am to 10pm”)
+    - travel-time claims (“5-minute walk”) unless from distance matrix
+- If detected, either:
+  - regenerate response using safe playbook language OR
+  - strip those claims and add a neutral guidance line.
+- Add tests that “SuperValu”/opening hours/travel time cannot appear unless source == google_places.
+
+4) Source hint enforcement for amenities
+- Ensure that when intent_type == location_amenities and results exist,
+  the UI/source hint always shows:
+  “Based on nearby amenities (last updated <date>)”
+- If Places fails, the source hint should be “General guidance”.
+
+5) Logging + observability
+- Add gap reasons:
+  - google_places_failed
+  - no_places_results
+  - amenities_fallback_used
+- Ensure these show in the gaps dashboard with fix suggestions:
+  - “Check scheme lat/lng pin”
+  - “Verify Google Places API key and enabled services”
+  - “Check POI category mapping”
+
+6) Remove/override stale amenity data from documents
+- If Smart Archive has any “local area / amenities” document category, do not use it for nearest/closest queries.
+- Only allow docs for amenities if the user explicitly asks for an “information pack” or “local guide document”.
+
+DELIVERABLES
+- Updated intent classifier + tests
+- Orchestrator “amenity answering gate”
+- Response validator preventing ungrounded POI claims
+- New gap reasons + dashboard mapping
+- Confirmed behavior: “nearest supermarket” returns Dunnes/Lidl (or similar actual Places results), with last-updated date, and no opening hours unless open_now is returned.
+
+Do not refactor unrelated code. Keep changes isolated and safe.

@@ -822,18 +822,87 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Handle Location/Amenities intent - use POI engine (now that we have user context)
+    // AMENITY ANSWERING GATE: STRICT - location_amenities MUST use Google Places, no RAG fallback
+    // This prevents hallucinated venue names, opening hours, and travel times
     if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
       const poiCategory = detectPOICategory(message);
+      const schemeAddress = userUnitDetails?.address || 'your development';
       
-      if (poiCategory) {
-        console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
+      // Import gap logger for observability
+      const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+      
+      if (!poiCategory) {
+        // Could not determine POI category - provide generic response, DO NOT fall through to RAG
+        console.log('[Chat] LOCATION_AMENITIES: Could not determine POI category, using fallback');
         
-        try {
-          const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
-          const poiResponse = formatPOIResponse(poiData, poiCategory, 5);
+        const fallbackResponse = `I couldn't determine which type of amenity you're looking for. Please ask about a specific type of location such as "nearest supermarket", "closest pharmacy", "nearby train station", or "schools near here". You can also check Google Maps for ${schemeAddress}.`;
+        
+        await logAnswerGap({
+          scheme_id: userSupabaseProjectId,
+          unit_id: clientUnitUid || null,
+          user_question: message,
+          intent_type: 'location_amenities',
+          attempted_sources: ['google_places'],
+          final_source: 'fallback',
+          gap_reason: 'amenities_fallback_used',
+        });
+        
+        await db.insert(messages).values({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          user_id: clientUnitUid || userId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: fallbackResponse,
+          question_topic: 'poi_category_unknown',
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            amenityGateFallback: true,
+            unitUid: clientUnitUid || null,
+            userId: userId || null,
+          },
+        });
+        
+        return NextResponse.json({
+          success: true,
+          answer: fallbackResponse,
+          source: 'amenities_fallback',
+          safetyIntercept: false,
+          isNoInfo: true,
+          metadata: {
+            intent: intentClassification.intent,
+            answerMode: answerStrategy?.mode,
+            sourceHint: 'General guidance',
+          },
+        });
+      }
+      
+      console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
+      
+      try {
+        const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
+        
+        // STRICT GATE: If no results, DO NOT fall through to RAG - provide controlled fallback
+        if (poiData.results.length === 0) {
+          console.log('[Chat] AMENITY GATE: No Places results, using controlled fallback');
           
-          console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
+          const noResultsResponse = `I couldn't retrieve nearby ${poiCategory.replace(/_/g, ' ')} information right now. This may be because the development's location isn't set, or there are none within 5km. Please try Google Maps for ${schemeAddress} for accurate local amenities.`;
+          
+          await logAnswerGap({
+            scheme_id: userSupabaseProjectId,
+            unit_id: clientUnitUid || null,
+            user_question: message,
+            intent_type: 'location_amenities',
+            attempted_sources: ['google_places'],
+            final_source: 'fallback',
+            gap_reason: 'no_places_results',
+          });
           
           await db.insert(messages).values({
             tenant_id: userTenantId,
@@ -841,8 +910,8 @@ export async function POST(request: NextRequest) {
             user_id: clientUnitUid || userId || 'anonymous',
             content: message,
             user_message: message,
-            ai_message: poiResponse,
-            question_topic: `poi_${poiCategory}`,
+            ai_message: noResultsResponse,
+            question_topic: `poi_${poiCategory}_no_results`,
             sender: 'conversation',
             source: 'purchaser_portal',
             token_count: 0,
@@ -852,8 +921,7 @@ export async function POST(request: NextRequest) {
               assistantOS: true,
               intent: intentClassification.intent,
               poiCategory,
-              fromCache: poiData.from_cache,
-              resultCount: poiData.results.length,
+              amenityGateNoResults: true,
               schemeId: userSupabaseProjectId,
               unitUid: clientUnitUid || null,
               userId: userId || null,
@@ -862,22 +930,117 @@ export async function POST(request: NextRequest) {
           
           return NextResponse.json({
             success: true,
-            answer: poiResponse,
-            source: 'google_places',
+            answer: noResultsResponse,
+            source: 'amenities_fallback',
             safetyIntercept: false,
-            isNoInfo: false,
+            isNoInfo: true,
             metadata: {
               intent: intentClassification.intent,
               poiCategory,
-              fromCache: poiData.from_cache,
-              fetchedAt: poiData.fetched_at.toISOString(),
               answerMode: answerStrategy?.mode,
+              sourceHint: 'General guidance',
             },
           });
-        } catch (poiError) {
-          console.error('[Chat] POI engine error:', poiError);
-          // Fall through to regular RAG if POI fails
         }
+        
+        const poiResponse = formatPOIResponse(poiData, poiCategory, 5);
+        
+        console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
+        
+        await db.insert(messages).values({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          user_id: clientUnitUid || userId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: poiResponse,
+          question_topic: `poi_${poiCategory}`,
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            poiCategory,
+            fromCache: poiData.from_cache,
+            resultCount: poiData.results.length,
+            schemeId: userSupabaseProjectId,
+            unitUid: clientUnitUid || null,
+            userId: userId || null,
+          },
+        });
+        
+        return NextResponse.json({
+          success: true,
+          answer: poiResponse,
+          source: 'google_places',
+          safetyIntercept: false,
+          isNoInfo: false,
+          metadata: {
+            intent: intentClassification.intent,
+            poiCategory,
+            fromCache: poiData.from_cache,
+            fetchedAt: poiData.fetched_at.toISOString(),
+            answerMode: answerStrategy?.mode,
+            sourceHint: `Based on nearby amenities (last updated ${poiData.fetched_at.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })})`,
+          },
+        });
+      } catch (poiError) {
+        // STRICT GATE: On Places API error, DO NOT fall through to RAG - provide controlled fallback
+        console.error('[Chat] AMENITY GATE: POI engine error, using controlled fallback:', poiError);
+        
+        const errorResponse = `I couldn't retrieve nearby amenities right now. Please try again later, or check Google Maps for ${schemeAddress}.`;
+        
+        await logAnswerGap({
+          scheme_id: userSupabaseProjectId,
+          unit_id: clientUnitUid || null,
+          user_question: message,
+          intent_type: 'location_amenities',
+          attempted_sources: ['google_places'],
+          final_source: 'fallback',
+          gap_reason: 'google_places_failed',
+        });
+        
+        await db.insert(messages).values({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          user_id: clientUnitUid || userId || 'anonymous',
+          content: message,
+          user_message: message,
+          ai_message: errorResponse,
+          question_topic: `poi_${poiCategory}_error`,
+          sender: 'conversation',
+          source: 'purchaser_portal',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            poiCategory,
+            amenityGateError: true,
+            errorMessage: poiError instanceof Error ? poiError.message : 'Unknown error',
+            schemeId: userSupabaseProjectId,
+            unitUid: clientUnitUid || null,
+            userId: userId || null,
+          },
+        });
+        
+        return NextResponse.json({
+          success: true,
+          answer: errorResponse,
+          source: 'amenities_fallback',
+          safetyIntercept: false,
+          isNoInfo: true,
+          metadata: {
+            intent: intentClassification.intent,
+            poiCategory,
+            answerMode: answerStrategy?.mode,
+            sourceHint: 'General guidance',
+          },
+        });
       }
     }
 

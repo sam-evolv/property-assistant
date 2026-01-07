@@ -1,0 +1,71 @@
+We have a bug and a product requirement:
+
+BUG: “nearest supermarket” is being answered from Smart Archive source “Local Amenities” instead of Google Places, causing stale/hallucinated venue claims (e.g., SuperValu, opening hours).
+
+REQUIREMENT: Implement a universal amenities pipeline for queries such as supermarkets, schools, parks, gyms/leisure, pharmacies, GPs, transport, etc., using:
+- Google Places + Distance Matrix (cache-first) as the authoritative source for ranking and “nearest”
+- Optional scheme documents (Local Amenities / Welcome Pack) as supporting context ONLY, never overriding ranking
+
+Implement the following.
+
+1) Create a universal “Amenity Intent” classifier
+- Ensure all of these map to intent_type = location_amenities:
+  - nearest|closest|nearby|close by|near me + {supermarket, shop, grocery, school, childcare, creche, park, playground, gym, leisure, pharmacy, GP, doctor, hospital, bus, train, cafe, restaurant}
+- Add tests that confirm these queries classify correctly.
+
+2) Implement an “Amenity Answering Gate” in the assistant orchestrator
+If intent_type == location_amenities:
+  a) Resolve category from the query (supermarket, primary_school, secondary_school, childcare, park, playground, gym, pharmacy, gp, etc.)
+  b) Call getNearbyPOIs(schemeId, category) (cache-first). This must happen every time.
+  c) If results exist:
+     - Build the ranked “nearest” list strictly from Places results (top 3–5).
+     - Include distance/time only if computed via Distance Matrix or consistent calculation.
+     - Never output opening hours. At most, include “Open now” if open_now boolean is returned.
+  d) Then optionally augment with documents:
+     - Search Smart Archive only for docs in category local_amenities or welcome_pack that match scheme_id and pass validateDocMatch with confidence >= 50.
+     - Extract only supportive context like “mentioned in your welcome pack” or “estate recommendation”.
+     - DO NOT let doc content replace place names, distances, or ranking.
+  e) If Places fails or returns empty:
+     - Respond with controlled fallback: “I couldn’t retrieve nearby amenities right now. Please try again or check Google Maps.”
+     - Log gap reason google_places_failed or no_places_results
+     - Do NOT guess any venue names.
+
+3) Introduce Multi-Source Hinting (fix the UI source line)
+- If the answer used Places (even if documents also used), the source hint must include:
+  - “Nearby amenities (Google Places, last updated <date>)”
+- If documents were also used for augmentation, append:
+  - “and your homeowner documentation”
+- If Places failed, show “General guidance” and log the failure.
+
+4) Deprecate “Local Amenities” as a primary answer source for “nearest” queries
+- Ensure that Smart Archive “Local Amenities” cannot directly answer location_amenities queries.
+- It can only augment a Places-derived list.
+
+5) Add additional amenity categories now (low effort, high ROI)
+Add category mappings and support for:
+- parks/playgrounds
+- gyms/leisure
+- cafes
+- restaurants/takeaway (optional)
+- sports facilities (optional)
+Ensure mappings use valid Google Places types.
+
+6) Logging and troubleshooting
+- Add gap reasons:
+  - google_places_failed
+  - no_places_results
+  - amenities_doc_augment_used
+- In gap-to-action suggestions, include:
+  - “Check scheme map pin lat/lng”
+  - “Verify Places API services enabled and key configured”
+  - “Upload/retag Local Amenities or Welcome Pack documents”
+
+DELIVERABLES
+- Updated intent classifier + tests
+- Updated orchestrator with Amenity Answering Gate
+- Updated Smart Archive integration: local_amenities docs used only for augmentation
+- Updated source hint logic for multi-source responses
+- Updated POI category mapping to include parks/leisure/schools etc
+- No em dashes in user-visible text
+
+Do not refactor unrelated code. Keep changes isolated and safe.
