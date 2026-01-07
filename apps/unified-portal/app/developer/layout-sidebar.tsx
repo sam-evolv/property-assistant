@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler, FolderArchive, MessageSquare, Shield, AlertTriangle } from 'lucide-react';
+import { BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler, FolderArchive, MessageSquare, Shield, AlertTriangle, Settings } from 'lucide-react';
 import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
 
 interface SidebarMenuProps {
@@ -30,6 +30,7 @@ const navSections: NavSection[] = [
   {
     title: 'Management',
     items: [
+      { label: 'Scheme Setup', href: '/developer/scheme-setup', icon: Settings },
       { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
       { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
       { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
