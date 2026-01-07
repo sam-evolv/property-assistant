@@ -1,0 +1,43 @@
+Fix /developer/api/places-health because it is failing to query scheme_profile.
+
+Current error:
+Failed query: select "id", "scheme_lat", "scheme_lng" from "scheme_profile" where "scheme_profile"."id" = $1 limit $2
+
+Implement the following:
+
+1) Input validation
+- If schemeId is missing, return 400 with message.
+- Validate schemeId format:
+  - If schema uses UUIDs: check UUID format and return 400 if invalid.
+  - If schema uses text ids: accept text.
+- Log (server-side) the received schemeId and the authenticated user id/role (dev/test only).
+
+2) Confirm correct DB client and auth context
+- Ensure the endpoint uses the same Supabase server client used by other developer API routes that successfully read scheme_profile.
+- If other developer routes use service role for server-side reads, mirror that pattern here.
+- Do NOT expose service role to the client.
+
+3) RLS handling
+- If this endpoint is developer-authenticated, either:
+  A) Use the user session and ensure RLS policy permits developer to read scheme_profile for their tenant, OR
+  B) Use service role and enforce tenant check in code (recommended for diagnostics endpoints).
+
+4) Add a fallback query to locate scheme by slug/name (dev-only helper)
+- If schemeId lookup fails, and X-Test-Mode is present, allow querying by scheme_name or a scheme_slug param to help locate the row:
+  - /developer/api/places-health?schemeName=Longview%20Park
+- Return the matched scheme id to help debugging.
+- This must be dev-only and behind authentication.
+
+5) Return structured error codes
+- If no row found: return { success:false, error:"scheme_not_found" }
+- If permission denied: { success:false, error:"rls_denied" }
+- If db connection/env mismatch: { success:false, error:"db_env_mismatch" }
+- Include a debug object in X-Test-Mode only:
+  - supabase_url (redacted domain ok)
+  - schema name if available
+  - auth role/tenant_id
+
+6) After fixing, verify:
+- Call the endpoint with a real schemeId from the setup page URL and confirm it returns hasCoordinates and hasApiKeyConfigured booleans.
+
+Keep changes isolated. No em dashes in user-visible text.
