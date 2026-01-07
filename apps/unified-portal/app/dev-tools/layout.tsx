@@ -4,10 +4,8 @@ export default function DevToolsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-900 min-h-screen">
-        {children}
-      </body>
-    </html>
+    <div className="bg-gray-900 min-h-screen">
+      {children}
+    </div>
   );
 }

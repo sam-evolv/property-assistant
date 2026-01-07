@@ -21,6 +21,7 @@ const PUBLIC_PATHS = [
   '/api/public',
   '/archive',
   '/smart-archive',
+  '/dev-tools',
 ];
 
 const PROTECTED_PATHS = [
