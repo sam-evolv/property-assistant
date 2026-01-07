@@ -129,7 +129,7 @@ const DOCUMENT_ANSWER_PATTERNS = [
   /\b(download|get|access)\s*(the|my)?\s*(document|file|pdf)\b/i,
 ];
 
-const AMENITY_TYPES = 'supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\\s*cent(?:re|er)|park|playground|leisure|swimming|pool|sports|fitness|golf|golf\\s*course|golf\\s*club';
+const AMENITY_TYPES = 'supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\\s*cent(?:re|er)|park|playground|leisure|swimming|pool|sports|fitness|golf|golf\\s*course|golf\\s*club|cinema|movie\\s*theat(?:re|er)|pictures|films?';
 
 const LOCATION_PATTERNS = [
   /\bnearest\s*(to\s*(me|us|here))?\b/i,

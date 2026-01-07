@@ -84,7 +84,8 @@ export type POICategory =
   | 'sports'
   | 'bar'
   | 'convenience_store'
-  | 'golf_course';
+  | 'golf_course'
+  | 'cinema';
 
 const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: string[] }> = {
   supermarket: { types: ['supermarket', 'grocery_or_supermarket', 'grocery_store', 'department_store'] },
@@ -106,6 +107,7 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
   bar: { types: ['bar', 'night_club'] },
   convenience_store: { types: ['convenience_store'] },
   golf_course: { types: ['golf_course'] },
+  cinema: { types: ['movie_theater'] },
 };
 
 const DEFAULT_TTL_DAYS = 30;
@@ -240,6 +242,7 @@ const CACHE_VALIDATION_KEYWORDS: Partial<Record<POICategory, string[]>> = {
   golf_course: ['golf', 'links', 'club'],
   pharmacy: ['pharmacy', 'chemist', 'boots', 'lloyds'],
   supermarket: ['tesco', 'aldi', 'lidl', 'dunnes', 'supervalu', 'spar', 'centra', 'supermarket', 'grocery'],
+  cinema: ['cinema', 'odeon', 'vue', 'cineworld', 'imax', 'movie', 'multiplex', 'gate'],
 };
 
 function isCacheContentValid(results: POIResult[], category: POICategory): boolean {
@@ -810,6 +813,16 @@ const INTRO_VARIANTS: Record<string, string[]> = {
     "There are golf clubs within a reasonable drive.",
     "For golf, you've got a few courses to choose from.",
   ],
+  cinema: [
+    "For a night at the cinema, there are options within reach.",
+    "You've got cinema options not too far away.",
+    "There are a few cinemas you can get to from here.",
+    "If you fancy catching a film, there are cinemas nearby.",
+    "The area has cinema options within driving distance.",
+    "For films, you've got a few screens to choose from.",
+    "There are cinemas within easy reach of the area.",
+    "You're well placed if you enjoy a trip to the pictures.",
+  ],
 };
 
 function getVariedIntro(category: POICategory, developmentName?: string, sessionSeed?: number): string {
@@ -821,6 +834,7 @@ function getVariedIntro(category: POICategory, developmentName?: string, session
   else if (category === 'bar') variantKey = 'bar';
   else if (category === 'convenience_store') variantKey = 'convenience_store';
   else if (category === 'golf_course') variantKey = 'golf_course';
+  else if (category === 'cinema') variantKey = 'cinema';
   
   const variants = INTRO_VARIANTS[variantKey] || INTRO_VARIANTS.amenities;
   const seed = sessionSeed ?? Math.floor(Math.random() * variants.length);
@@ -935,6 +949,7 @@ function getConversationalOpener(category: POICategory, placeAck: string): strin
     bar: `${placeAck}'ve some good pubs and bars nearby.\n\n`,
     convenience_store: `${placeAck}'ve local shops close by.\n\n`,
     golf_course: `${placeAck}'ve golf courses within a short drive.\n\n`,
+    cinema: `${placeAck}'ve cinemas within reach.\n\n`,
   };
   return openers[category] || `${placeAck}'ve some ${formatCategoryName(category)} nearby.\n\n`;
 }
@@ -960,6 +975,7 @@ function getFollowUp(category: POICategory): string {
     bar: "\n\nIf you'd like restaurant or cafe recommendations too, just ask.",
     convenience_store: "\n\nI can also help with supermarkets or pharmacies if you need.",
     golf_course: "\n\nI can also look up other sports facilities or leisure centres if you'd like.",
+    cinema: "\n\nI can also help with restaurants or bars nearby if you'd like.",
   };
   return followUps[category] || "\n\nLet me know if there's anything else about the area I can help with.";
 }
@@ -985,6 +1001,7 @@ function formatCategoryName(category: POICategory): string {
     bar: 'pubs and bars',
     convenience_store: 'local shops',
     golf_course: 'golf courses',
+    cinema: 'cinemas',
   };
   return names[category] || category;
 }
@@ -1114,6 +1131,11 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   // GOLF - explicit concrete amenity (never trigger clarification)
   if (/\b(golf|golf\s*course|golf\s*club|driving\s*range)\b/i.test(q)) {
     return { category: 'golf_course' };
+  }
+  
+  // CINEMA - explicit concrete amenity
+  if (/\b(cinema|movie\s*theat(?:re|er)|pictures|films?)\b/i.test(q)) {
+    return { category: 'cinema' };
   }
   
   // Specific category detection
