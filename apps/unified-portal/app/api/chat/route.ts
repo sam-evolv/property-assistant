@@ -57,6 +57,52 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
+// Resilient message persistence - never fails the chat response
+interface MessagePersistParams {
+  tenant_id: string;
+  development_id: string;
+  unit_uid?: string | null;
+  user_message: string;
+  ai_message: string;
+  question_topic: string;
+  source: string;
+  latency_ms: number;
+  metadata: Record<string, any>;
+  request_id?: string;
+}
+
+async function persistMessageSafely(params: MessagePersistParams): Promise<{ success: boolean; error?: string }> {
+  try {
+    await db.insert(messages).values({
+      tenant_id: params.tenant_id,
+      development_id: params.development_id,
+      user_id: null, // DB column is UUID, use null instead of string
+      content: params.user_message,
+      user_message: params.user_message,
+      ai_message: params.ai_message,
+      question_topic: params.question_topic,
+      sender: 'conversation',
+      source: params.source,
+      token_count: 0,
+      cost_usd: '0',
+      latency_ms: params.latency_ms,
+      metadata: {
+        ...params.metadata,
+        unitUid: params.unit_uid || null,
+      },
+    });
+    return { success: true };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Chat] Message persist failed:', {
+      request_id: params.request_id,
+      unit_uid: params.unit_uid,
+      error: errorMsg,
+    });
+    return { success: false, error: errorMsg };
+  }
+}
+
 // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM
 // Uses both exact keywords and regex patterns for robust matching
 function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedKeyword: string | null } {
@@ -1131,32 +1177,7 @@ export async function POST(request: NextRequest) {
         // Build multi-source hint
         const sourceHint = buildMultiSourceHint(true, poiData.fetched_at, docAugmentUsed);
         
-        await db.insert(messages).values({
-          tenant_id: userTenantId,
-          development_id: userDevelopmentId,
-          user_id: clientUnitUid || userId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: poiResponse,
-          question_topic: `poi_${poiCategory}`,
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            assistantOS: true,
-            intent: intentClassification.intent,
-            poiCategory,
-            fromCache: poiData.from_cache,
-            resultCount: poiData.results.length,
-            docAugmented: docAugmentUsed,
-            schemeId: userSupabaseProjectId,
-            unitUid: clientUnitUid || null,
-            userId: userId || null,
-          },
-        });
-        
+        // Generate response first, then persist safely (never fail the response)
         const successResponseObj: any = {
           success: true,
           answer: poiResponse,
@@ -1175,6 +1196,33 @@ export async function POST(request: NextRequest) {
           },
         };
         
+        // Persist message safely - don't let DB errors fail the response
+        const persistResult = await persistMessageSafely({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          unit_uid: clientUnitUid,
+          user_message: message,
+          ai_message: poiResponse,
+          question_topic: `poi_${poiCategory}`,
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            poiCategory,
+            fromCache: poiData.from_cache,
+            resultCount: poiData.results.length,
+            docAugmented: docAugmentUsed,
+            schemeId: userSupabaseProjectId,
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
+        
+        if (!persistResult.success) {
+          successResponseObj.metadata.messagePersistFailed = true;
+        }
+        
         // Include unified diagnostics in test mode only (authenticated)
         if (isDiagnosticsAuthenticated) {
           successResponseObj.debug = chatDiagnostics;
@@ -1187,28 +1235,34 @@ export async function POST(request: NextRequest) {
         
         const errorResponse = `I couldn't retrieve nearby amenities right now. Please try again later, or check Google Maps for ${schemeAddress}.`;
         
-        await logAnswerGap({
-          scheme_id: userSupabaseProjectId,
-          unit_id: clientUnitUid || null,
-          user_question: message,
-          intent_type: 'location_amenities',
-          attempted_sources: ['google_places'],
-          final_source: 'fallback',
-          gap_reason: 'google_places_failed',
-        });
+        // Update diagnostics for error case
+        chatDiagnostics.fallback_reason = 'api_error';
+        chatDiagnostics.places_result.error_message = poiError instanceof Error ? poiError.message : 'Unknown error';
         
-        await db.insert(messages).values({
+        // Log gap (non-critical, wrapped in try/catch)
+        try {
+          await logAnswerGap({
+            scheme_id: userSupabaseProjectId,
+            unit_id: clientUnitUid || null,
+            user_question: message,
+            intent_type: 'location_amenities',
+            attempted_sources: ['google_places'],
+            final_source: 'fallback',
+            gap_reason: 'google_places_failed',
+          });
+        } catch (gapLogError) {
+          console.error('[Chat] Gap log failed:', gapLogError);
+        }
+        
+        // Persist message safely - don't let DB errors fail the response
+        const persistResult = await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
-          user_id: clientUnitUid || userId || 'anonymous',
-          content: message,
+          unit_uid: clientUnitUid,
           user_message: message,
           ai_message: errorResponse,
           question_topic: `poi_${poiCategory}_error`,
-          sender: 'conversation',
           source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
           latency_ms: Date.now() - startTime,
           metadata: {
             assistantOS: true,
@@ -1217,14 +1271,10 @@ export async function POST(request: NextRequest) {
             amenityGateError: true,
             errorMessage: poiError instanceof Error ? poiError.message : 'Unknown error',
             schemeId: userSupabaseProjectId,
-            unitUid: clientUnitUid || null,
             userId: userId || null,
           },
+          request_id: requestId,
         });
-        
-        // Update diagnostics for error case
-        chatDiagnostics.fallback_reason = 'api_error';
-        chatDiagnostics.places_result.error_message = poiError instanceof Error ? poiError.message : 'Unknown error';
         
         const errorResponseObj: any = {
           success: true,
@@ -1239,6 +1289,10 @@ export async function POST(request: NextRequest) {
             sourceHint: 'General guidance',
           },
         };
+        
+        if (!persistResult.success) {
+          errorResponseObj.metadata.messagePersistFailed = true;
+        }
         
         // Include unified diagnostics in test mode only (authenticated)
         if (isDiagnosticsAuthenticated) {
