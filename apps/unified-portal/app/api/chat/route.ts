@@ -885,8 +885,29 @@ export async function POST(request: NextRequest) {
       
       console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
       
+      // Check for test mode header for diagnostics
+      const isTestMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
+      
       try {
         const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
+        
+        // Use diagnostics to determine appropriate gap reason
+        const diagnostics = poiData.diagnostics;
+        const gapReason = diagnostics?.failure_reason || (poiData.results.length === 0 ? 'no_places_results' : undefined);
+        
+        // If stale cache was used, log it
+        if (poiData.is_stale && diagnostics?.failure_reason) {
+          await logAnswerGap({
+            scheme_id: userSupabaseProjectId,
+            unit_id: clientUnitUid || null,
+            user_question: message,
+            intent_type: 'location_amenities',
+            attempted_sources: ['google_places'],
+            final_source: 'stale_cache',
+            gap_reason: 'google_places_stale_cache_used',
+          });
+          console.log('[Chat] AMENITY GATE: Serving stale cache due to:', diagnostics.failure_reason);
+        }
         
         // STRICT GATE: If no results, DO NOT fall through to RAG - provide controlled fallback
         if (poiData.results.length === 0) {
@@ -901,7 +922,7 @@ export async function POST(request: NextRequest) {
             intent_type: 'location_amenities',
             attempted_sources: ['google_places'],
             final_source: 'fallback',
-            gap_reason: 'no_places_results',
+            gap_reason: gapReason || 'no_places_results',
           });
           
           await db.insert(messages).values({
@@ -928,7 +949,7 @@ export async function POST(request: NextRequest) {
             },
           });
           
-          return NextResponse.json({
+          const noResultsResponseObj: any = {
             success: true,
             answer: noResultsResponse,
             source: 'amenities_fallback',
@@ -940,7 +961,27 @@ export async function POST(request: NextRequest) {
               answerMode: answerStrategy?.mode,
               sourceHint: 'General guidance',
             },
-          });
+          };
+          
+          // Include diagnostics in test mode only
+          if (isTestMode && diagnostics) {
+            noResultsResponseObj.debug = {
+              scheme_id: diagnostics.scheme_id,
+              scheme_lat: diagnostics.scheme_lat,
+              scheme_lng: diagnostics.scheme_lng,
+              category: diagnostics.category,
+              cache_hit: diagnostics.cache_hit,
+              is_stale_cache: diagnostics.is_stale_cache,
+              places_request_url: diagnostics.places_request_url,
+              places_http_status: diagnostics.places_http_status,
+              places_error_message: diagnostics.places_error_message,
+              places_api_error_code: diagnostics.places_api_error_code,
+              failure_reason: diagnostics.failure_reason,
+              timestamp: diagnostics.timestamp,
+            };
+          }
+          
+          return NextResponse.json(noResultsResponseObj);
         }
         
         let poiResponse = formatPOIResponse(poiData, poiCategory, 5);
@@ -1003,7 +1044,7 @@ export async function POST(request: NextRequest) {
           },
         });
         
-        return NextResponse.json({
+        const successResponseObj: any = {
           success: true,
           answer: poiResponse,
           source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
@@ -1013,12 +1054,31 @@ export async function POST(request: NextRequest) {
             intent: intentClassification.intent,
             poiCategory,
             fromCache: poiData.from_cache,
+            isStale: poiData.is_stale || false,
             fetchedAt: poiData.fetched_at.toISOString(),
             docAugmented: docAugmentUsed,
             answerMode: answerStrategy?.mode,
             sourceHint,
           },
-        });
+        };
+        
+        // Include diagnostics in test mode only
+        if (isTestMode && diagnostics) {
+          successResponseObj.debug = {
+            scheme_id: diagnostics.scheme_id,
+            scheme_lat: diagnostics.scheme_lat,
+            scheme_lng: diagnostics.scheme_lng,
+            category: diagnostics.category,
+            cache_hit: diagnostics.cache_hit,
+            is_stale_cache: diagnostics.is_stale_cache,
+            places_request_url: diagnostics.places_request_url,
+            places_http_status: diagnostics.places_http_status,
+            places_api_error_code: diagnostics.places_api_error_code,
+            timestamp: diagnostics.timestamp,
+          };
+        }
+        
+        return NextResponse.json(successResponseObj);
       } catch (poiError) {
         // STRICT GATE: On Places API error, DO NOT fall through to RAG - provide controlled fallback
         console.error('[Chat] AMENITY GATE: POI engine error, using controlled fallback:', poiError);

@@ -1,0 +1,51 @@
+We are seeing controlled fallbacks for all amenity queries: “I couldn't retrieve nearby amenities right now...”.
+This indicates Google Places is failing at runtime or returning no results.
+
+Implement diagnostics and resilience for the Places handler and amenity gate.
+
+REQUIREMENTS
+
+1) Add test-mode diagnostics (no purchaser exposure)
+- When request contains X-Test-Mode header, include a debug object in the API response (or server logs) with:
+  - scheme_id
+  - scheme_lat, scheme_lng
+  - category requested
+  - cache_hit (true/false)
+  - places_request_url (without exposing API key)
+  - places_http_status
+  - places_error_message (sanitized)
+  - places_api_error_code if present (e.g. REQUEST_DENIED, OVER_QUERY_LIMIT)
+- Ensure debug data is never shown to normal end users.
+
+2) Improve server logging for Places failures
+- Log structured error payload:
+  - timestamp, scheme_id, category, lat/lng
+  - http status
+  - response body status/message from Google (sanitized)
+- Add gap_reason mapping:
+  - REQUEST_DENIED -> google_places_request_denied
+  - OVER_QUERY_LIMIT -> google_places_rate_limited
+  - invalid lat/lng -> google_places_invalid_coordinates
+  - network/timeouts -> google_places_network_error
+  - empty results -> no_places_results
+
+3) Add a resilient fallback: cached last-known-good
+- If the API call fails but poi_cache has ANY previous results for that category (even stale), return them with a note:
+  - “Based on nearby amenities (last updated <date> - may be out of date)”
+- Only use this if the previous results exist.
+- Still log the failure reason so we can fix root cause.
+
+4) Add a basic healthcheck endpoint
+- Create /developer/api/places-health?schemeId=...
+- Returns:
+  - lat/lng presence
+  - whether API key is configured (boolean only)
+  - whether a live Places call succeeds (status only)
+  - whether cache exists
+- This endpoint must be developer-authenticated.
+
+DELIVERABLES
+- Updated Places module and amenity gate with diagnostics and stale-cache fallback
+- New healthcheck endpoint
+- Updated gap reason mapping and suggested fix messaging
+- No em dashes in user-visible text

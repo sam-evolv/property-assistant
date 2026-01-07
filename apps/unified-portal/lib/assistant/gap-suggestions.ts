@@ -124,6 +124,46 @@ export function getSuggestedFix(
       };
     }
     
+    case 'google_places_request_denied': {
+      return {
+        action: 'Google Places API request was denied. Check API key has Places API enabled and billing is active in Google Cloud Console.',
+        field: 'google_places_api_key',
+        priority: 'high',
+      };
+    }
+    
+    case 'google_places_rate_limited': {
+      return {
+        action: 'Google Places API rate limit exceeded. Consider upgrading quota or implementing request throttling.',
+        field: 'google_places_quota',
+        priority: 'high',
+      };
+    }
+    
+    case 'google_places_invalid_coordinates': {
+      return {
+        action: 'Invalid latitude/longitude coordinates for scheme. Verify scheme_lat and scheme_lng are valid decimal numbers.',
+        field: 'scheme_lat, scheme_lng',
+        priority: 'high',
+      };
+    }
+    
+    case 'google_places_network_error': {
+      return {
+        action: 'Network error when calling Google Places API. This may be a temporary issue - retry later.',
+        field: 'network',
+        priority: 'medium',
+      };
+    }
+    
+    case 'google_places_stale_cache_used': {
+      return {
+        action: 'Stale cached results were served due to API failure. Check Google Places API status and resolve root cause.',
+        field: 'google_places_api',
+        priority: 'medium',
+      };
+    }
+    
     case 'no_places_results': {
       return {
         action: 'No nearby amenities found. Verify scheme latitude/longitude coordinates are correctly set.',

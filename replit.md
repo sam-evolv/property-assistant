@@ -73,6 +73,35 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Places Diagnostics and Resilience (January 2026)
+
+**Enhanced Places API handling with diagnostics, stale-cache fallback, and healthcheck:**
+
+**Problem Solved:**
+- All amenity queries were returning controlled fallbacks due to Places API failures
+
+**Implementation:**
+1. **Structured Diagnostics**: PlacesDiagnostics object tracks scheme_id, lat/lng, category, cache_hit, is_stale_cache, places_request_url (redacted), http_status, error_code, failure_reason
+
+2. **Failure Classification**:
+   - google_places_request_denied: API key/billing issue
+   - google_places_rate_limited: OVER_QUERY_LIMIT
+   - google_places_invalid_coordinates: Invalid lat/lng
+   - google_places_network_error: Timeout/network failure
+   - google_places_stale_cache_used: API failed but stale results served
+
+3. **Stale Cache Fallback**: If API fails but previous results exist, serve them with "may be out of date" note
+
+4. **Test Mode Diagnostics**: X-Test-Mode: places-diagnostics header returns debug object in API response (never exposed to users)
+
+5. **Healthcheck Endpoint**: /developer/api/places-health?schemeId=... returns location presence, API key status, live call result, cache status
+
+**Key Files:**
+- `apps/unified-portal/lib/places/poi.ts` - Refactored with diagnostics and stale-cache support
+- `apps/unified-portal/lib/assistant/gap-logger.ts` - New failure reasons
+- `apps/unified-portal/lib/assistant/gap-suggestions.ts` - Fix suggestions
+- `apps/unified-portal/app/developer/api/places-health/route.ts` - Healthcheck endpoint
+
 ### Amenity Engine Upgrade (January 2026)
 
 **Universal amenities pipeline with Places-first, document-augmentation approach:**

@@ -21,8 +21,14 @@ export type GapReason =
   | 'missing_scheme_data'
   | 'validation_failed'
   | 'google_places_failed'
+  | 'google_places_request_denied'
+  | 'google_places_rate_limited'
+  | 'google_places_invalid_coordinates'
+  | 'google_places_network_error'
+  | 'google_places_stale_cache_used'
   | 'no_places_results'
   | 'amenities_fallback_used'
+  | 'amenities_doc_augment_used'
   | 'places_no_location'
   | 'unknown';
 

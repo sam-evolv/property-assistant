@@ -24,7 +24,43 @@ export interface POICacheResult {
   results: POIResult[];
   fetched_at: Date;
   from_cache: boolean;
+  is_stale?: boolean;
+  diagnostics?: PlacesDiagnostics;
 }
+
+export interface PlacesDiagnostics {
+  scheme_id: string;
+  scheme_lat?: number | null;
+  scheme_lng?: number | null;
+  category: string;
+  cache_hit: boolean;
+  is_stale_cache: boolean;
+  places_request_url?: string;
+  places_http_status?: number;
+  places_error_message?: string;
+  places_api_error_code?: PlacesErrorCode;
+  failure_reason?: PlacesFailureReason;
+  timestamp: string;
+}
+
+export type PlacesErrorCode = 
+  | 'OK'
+  | 'ZERO_RESULTS'
+  | 'REQUEST_DENIED'
+  | 'OVER_QUERY_LIMIT'
+  | 'INVALID_REQUEST'
+  | 'UNKNOWN_ERROR'
+  | 'NETWORK_ERROR'
+  | 'TIMEOUT';
+
+export type PlacesFailureReason =
+  | 'google_places_request_denied'
+  | 'google_places_rate_limited'
+  | 'google_places_invalid_coordinates'
+  | 'google_places_network_error'
+  | 'google_places_failed'
+  | 'no_places_results'
+  | 'places_no_location';
 
 export type POICategory = 
   | 'supermarket'
@@ -66,13 +102,27 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
 const DEFAULT_TTL_DAYS = 30;
 const MAX_RESULTS = 10;
 const SEARCH_RADIUS_METERS = 5000;
+const PLACES_TIMEOUT_MS = 10000;
 
-function getGoogleMapsApiKey(): string {
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-  if (!key) {
-    throw new Error('Google Maps API key not configured');
-  }
-  return key;
+function getGoogleMapsApiKey(): string | null {
+  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || null;
+}
+
+function isApiKeyConfigured(): boolean {
+  return getGoogleMapsApiKey() !== null;
+}
+
+function maskApiKeyInUrl(url: string): string {
+  return url.replace(/key=[^&]+/, 'key=***REDACTED***');
+}
+
+function isValidCoordinate(lat: number | null | undefined, lng: number | null | undefined): boolean {
+  if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+  if (isNaN(lat) || isNaN(lng)) return false;
+  if (lat < -90 || lat > 90) return false;
+  if (lng < -180 || lng > 180) return false;
+  return true;
 }
 
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -84,6 +134,19 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 100) / 100;
+}
+
+function mapGoogleStatusToFailureReason(status: string): PlacesFailureReason {
+  switch (status) {
+    case 'REQUEST_DENIED':
+      return 'google_places_request_denied';
+    case 'OVER_QUERY_LIMIT':
+      return 'google_places_rate_limited';
+    case 'INVALID_REQUEST':
+      return 'google_places_invalid_coordinates';
+    default:
+      return 'google_places_failed';
+  }
 }
 
 async function getSchemeLocation(supabaseProjectId: string): Promise<{ lat: number; lng: number; schemeProfileId?: string } | null> {
@@ -154,6 +217,8 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<{ lat: numb
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const apiKey = getGoogleMapsApiKey();
+    if (!apiKey) return null;
+    
     const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
     url.searchParams.set('address', address);
     url.searchParams.set('key', apiKey);
@@ -171,7 +236,13 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   return null;
 }
 
-async function getCachedPOIs(schemeId: string, category: POICategory): Promise<POICacheResult | null> {
+interface CacheEntry {
+  results: POIResult[];
+  fetched_at: Date;
+  is_fresh: boolean;
+}
+
+async function getCachedPOIs(schemeId: string, category: POICategory): Promise<CacheEntry | null> {
   const cached = await db
     .select()
     .from(poi_cache)
@@ -189,28 +260,58 @@ async function getCachedPOIs(schemeId: string, category: POICategory): Promise<P
   const now = new Date();
   const fetchedAt = new Date(record.fetched_at);
   const ttlMs = record.ttl_days * 24 * 60 * 60 * 1000;
-  const isStale = now.getTime() - fetchedAt.getTime() > ttlMs;
-
-  if (isStale) {
-    console.log(`[POI] Cache stale for ${category} in scheme ${schemeId}`);
-    return null;
-  }
+  const isFresh = now.getTime() - fetchedAt.getTime() <= ttlMs;
 
   return {
     results: record.results_json as POIResult[],
     fetched_at: fetchedAt,
-    from_cache: true,
+    is_fresh: isFresh,
   };
+}
+
+interface PlacesFetchResult {
+  results: POIResult[];
+  success: boolean;
+  httpStatus?: number;
+  errorCode?: PlacesErrorCode;
+  errorMessage?: string;
+  requestUrl?: string;
+  failureReason?: PlacesFailureReason;
 }
 
 async function fetchFromGooglePlaces(
   lat: number,
   lng: number,
   category: POICategory
-): Promise<POIResult[]> {
+): Promise<PlacesFetchResult> {
   const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) {
+    return {
+      results: [],
+      success: false,
+      errorCode: 'REQUEST_DENIED',
+      errorMessage: 'Google Maps API key not configured',
+      failureReason: 'google_places_request_denied',
+    };
+  }
+
+  if (!isValidCoordinate(lat, lng)) {
+    return {
+      results: [],
+      success: false,
+      errorCode: 'INVALID_REQUEST',
+      errorMessage: `Invalid coordinates: lat=${lat}, lng=${lng}`,
+      failureReason: 'google_places_invalid_coordinates',
+    };
+  }
+
   const mapping = CATEGORY_MAPPINGS[category];
   const allResults: any[] = [];
+  let lastHttpStatus: number | undefined;
+  let lastErrorCode: PlacesErrorCode | undefined;
+  let lastErrorMessage: string | undefined;
+  let lastRequestUrl: string | undefined;
+  let lastFailureReason: PlacesFailureReason | undefined;
 
   for (const placeType of mapping.types) {
     const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
@@ -219,18 +320,78 @@ async function fetchFromGooglePlaces(
     url.searchParams.set('type', placeType);
     url.searchParams.set('key', apiKey);
 
+    lastRequestUrl = maskApiKeyInUrl(url.toString());
+
     try {
-      const response = await fetch(url.toString());
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), PLACES_TIMEOUT_MS);
+
+      const response = await fetch(url.toString(), { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      lastHttpStatus = response.status;
       const data = await response.json();
+
+      console.log('[POI] Places API response:', {
+        type: placeType,
+        status: data.status,
+        resultCount: data.results?.length || 0,
+        httpStatus: response.status,
+      });
 
       if (data.status === 'OK' && data.results) {
         allResults.push(...data.results);
-      } else if (data.status !== 'ZERO_RESULTS') {
-        console.error(`[POI] Google Places API error for ${placeType}:`, data.status, data.error_message);
+        lastErrorCode = 'OK';
+      } else if (data.status === 'ZERO_RESULTS') {
+        lastErrorCode = 'ZERO_RESULTS';
+      } else {
+        lastErrorCode = data.status as PlacesErrorCode;
+        lastErrorMessage = data.error_message || `Google Places returned ${data.status}`;
+        lastFailureReason = mapGoogleStatusToFailureReason(data.status);
+        
+        console.error('[POI] Google Places API error:', {
+          timestamp: new Date().toISOString(),
+          schemeId: 'unknown',
+          category,
+          lat,
+          lng,
+          httpStatus: response.status,
+          status: data.status,
+          errorMessage: lastErrorMessage,
+        });
       }
-    } catch (error) {
-      console.error(`[POI] Failed to fetch ${placeType}:`, error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        lastErrorCode = 'TIMEOUT';
+        lastErrorMessage = 'Request timed out';
+        lastFailureReason = 'google_places_network_error';
+      } else {
+        lastErrorCode = 'NETWORK_ERROR';
+        lastErrorMessage = error.message || 'Network error';
+        lastFailureReason = 'google_places_network_error';
+      }
+      
+      console.error('[POI] Places fetch error:', {
+        timestamp: new Date().toISOString(),
+        category,
+        lat,
+        lng,
+        errorType: error.name,
+        errorMessage: error.message,
+      });
     }
+  }
+
+  if (allResults.length === 0 && lastErrorCode && lastErrorCode !== 'OK' && lastErrorCode !== 'ZERO_RESULTS') {
+    return {
+      results: [],
+      success: false,
+      httpStatus: lastHttpStatus,
+      errorCode: lastErrorCode,
+      errorMessage: lastErrorMessage,
+      requestUrl: lastRequestUrl,
+      failureReason: lastFailureReason,
+    };
   }
 
   const seen = new Set<string>();
@@ -260,7 +421,14 @@ async function fetchFromGooglePlaces(
   }));
 
   results.sort((a, b) => a.distance_km - b.distance_km);
-  return results.slice(0, MAX_RESULTS);
+  
+  return {
+    results: results.slice(0, MAX_RESULTS),
+    success: true,
+    httpStatus: lastHttpStatus,
+    errorCode: 'OK',
+    requestUrl: lastRequestUrl,
+  };
 }
 
 async function fetchTravelTimes(
@@ -271,6 +439,8 @@ async function fetchTravelTimes(
   if (places.length === 0) return places;
 
   const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) return places;
+
   const destinations = places.map(p => `place_id:${p.place_id}`).join('|');
 
   const results = [...places];
@@ -355,37 +525,151 @@ export async function getNearbyPOIs(
 ): Promise<POICacheResult> {
   console.log(`[POI] getNearbyPOIs called for scheme=${schemeId}, category=${category}`);
 
+  const diagnostics: PlacesDiagnostics = {
+    scheme_id: schemeId,
+    category,
+    cache_hit: false,
+    is_stale_cache: false,
+    timestamp: new Date().toISOString(),
+  };
+
   const cached = await getCachedPOIs(schemeId, category);
-  if (cached) {
-    console.log(`[POI] Returning ${cached.results.length} cached results`);
-    return cached;
+  if (cached && cached.is_fresh) {
+    console.log(`[POI] Returning ${cached.results.length} fresh cached results`);
+    diagnostics.cache_hit = true;
+    return {
+      results: cached.results,
+      fetched_at: cached.fetched_at,
+      from_cache: true,
+      diagnostics,
+    };
   }
 
   const location = await getSchemeLocation(schemeId);
+  diagnostics.scheme_lat = location?.lat;
+  diagnostics.scheme_lng = location?.lng;
+
   if (!location) {
     console.error(`[POI] Scheme ${schemeId} has no location set`);
+    diagnostics.failure_reason = 'places_no_location';
+    
+    if (cached && cached.results.length > 0) {
+      console.log('[POI] Returning stale cache due to no location');
+      diagnostics.is_stale_cache = true;
+      diagnostics.failure_reason = 'places_no_location';
+      return {
+        results: cached.results,
+        fetched_at: cached.fetched_at,
+        from_cache: true,
+        is_stale: true,
+        diagnostics,
+      };
+    }
+
     return {
       results: [],
       fetched_at: new Date(),
       from_cache: false,
+      diagnostics,
+    };
+  }
+
+  if (!isValidCoordinate(location.lat, location.lng)) {
+    diagnostics.failure_reason = 'google_places_invalid_coordinates';
+    diagnostics.places_error_message = `Invalid coordinates: lat=${location.lat}, lng=${location.lng}`;
+    
+    if (cached && cached.results.length > 0) {
+      diagnostics.is_stale_cache = true;
+      return {
+        results: cached.results,
+        fetched_at: cached.fetched_at,
+        from_cache: true,
+        is_stale: true,
+        diagnostics,
+      };
+    }
+
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
     };
   }
 
   console.log(`[POI] Fetching fresh data from Google Places at ${location.lat}, ${location.lng}`);
-  let results = await fetchFromGooglePlaces(location.lat, location.lng, category);
+  const fetchResult = await fetchFromGooglePlaces(location.lat, location.lng, category);
+
+  diagnostics.places_request_url = fetchResult.requestUrl;
+  diagnostics.places_http_status = fetchResult.httpStatus;
+  diagnostics.places_error_message = fetchResult.errorMessage;
+  diagnostics.places_api_error_code = fetchResult.errorCode;
+
+  if (!fetchResult.success) {
+    diagnostics.failure_reason = fetchResult.failureReason;
+    
+    console.error('[POI] Structured failure log:', {
+      timestamp: new Date().toISOString(),
+      scheme_id: schemeId,
+      category,
+      lat: location.lat,
+      lng: location.lng,
+      http_status: fetchResult.httpStatus,
+      api_status: fetchResult.errorCode,
+      error_message: fetchResult.errorMessage,
+      failure_reason: fetchResult.failureReason,
+    });
+
+    if (cached && cached.results.length > 0) {
+      console.log('[POI] API failed, returning stale cache with', cached.results.length, 'results');
+      diagnostics.is_stale_cache = true;
+      return {
+        results: cached.results,
+        fetched_at: cached.fetched_at,
+        from_cache: true,
+        is_stale: true,
+        diagnostics,
+      };
+    }
+
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  }
+
+  let results = fetchResult.results;
+
+  if (results.length === 0) {
+    diagnostics.failure_reason = 'no_places_results';
+    
+    if (cached && cached.results.length > 0) {
+      console.log('[POI] No new results, returning stale cache');
+      diagnostics.is_stale_cache = true;
+      return {
+        results: cached.results,
+        fetched_at: cached.fetched_at,
+        from_cache: true,
+        is_stale: true,
+        diagnostics,
+      };
+    }
+  }
 
   if (results.length > 0) {
     console.log(`[POI] Fetching travel times for ${results.length} places`);
     results = await fetchTravelTimes(location.lat, location.lng, results);
+    await storePOICache(schemeId, category, results);
+    console.log(`[POI] Cached ${results.length} results`);
   }
-
-  await storePOICache(schemeId, category, results);
-  console.log(`[POI] Cached ${results.length} results`);
 
   return {
     results,
     fetched_at: new Date(),
     from_cache: false,
+    diagnostics,
   };
 }
 
@@ -417,11 +701,18 @@ export function formatPOIResponse(data: POICacheResult, category: POICategory, l
   });
 
   const header = `Here are the nearest ${formatCategoryName(category)}:\n\n`;
-  const footer = `\n\n*Last updated: ${data.fetched_at.toLocaleDateString('en-IE', { 
+  
+  let dateNote = data.fetched_at.toLocaleDateString('en-IE', { 
     day: 'numeric', 
     month: 'short', 
     year: 'numeric' 
-  })}*`;
+  });
+  
+  const staleNote = data.is_stale 
+    ? ` - may be out of date`
+    : '';
+  
+  const footer = `\n\n*Last updated: ${dateNote}${staleNote}*`;
 
   return header + lines.join('\n\n') + footer;
 }
@@ -475,3 +766,48 @@ export function detectPOICategory(query: string): POICategory | null {
 }
 
 export const SUPPORTED_CATEGORIES = Object.keys(CATEGORY_MAPPINGS) as POICategory[];
+
+export async function testPlacesHealth(schemeId: string): Promise<{
+  hasLocation: boolean;
+  lat?: number;
+  lng?: number;
+  apiKeyConfigured: boolean;
+  liveCallSuccess: boolean;
+  liveCallStatus?: string;
+  liveCallError?: string;
+  cacheExists: boolean;
+  cacheCategories?: string[];
+}> {
+  const location = await getSchemeLocation(schemeId);
+  const apiKeyConfigured = isApiKeyConfigured();
+  
+  let liveCallSuccess = false;
+  let liveCallStatus: string | undefined;
+  let liveCallError: string | undefined;
+
+  if (location && apiKeyConfigured) {
+    const testResult = await fetchFromGooglePlaces(location.lat, location.lng, 'supermarket');
+    liveCallSuccess = testResult.success;
+    liveCallStatus = testResult.errorCode;
+    if (!testResult.success) {
+      liveCallError = testResult.errorMessage;
+    }
+  }
+
+  const cached = await db
+    .select({ category: poi_cache.category })
+    .from(poi_cache)
+    .where(eq(poi_cache.scheme_id, schemeId));
+
+  return {
+    hasLocation: !!location,
+    lat: location?.lat,
+    lng: location?.lng,
+    apiKeyConfigured,
+    liveCallSuccess,
+    liveCallStatus,
+    liveCallError,
+    cacheExists: cached.length > 0,
+    cacheCategories: cached.map(c => c.category),
+  };
+}
