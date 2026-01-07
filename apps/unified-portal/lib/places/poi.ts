@@ -516,27 +516,8 @@ export async function getNearbyPOIs(
     timestamp: new Date().toISOString(),
   };
 
-  const cached = await getCachedPOIs(schemeId, category);
-  if (cached && cached.is_fresh) {
-    console.log(`[POI] Returning ${cached.results.length} fresh cached results`);
-    diagnostics.cache_hit = true;
-    // Still look up location for diagnostics even for cache hits
-    const locationForDiag = await getSchemeLocation(schemeId);
-    if (locationForDiag) {
-      diagnostics.scheme_location_present = true;
-      diagnostics.scheme_lat = locationForDiag.lat;
-      diagnostics.scheme_lng = locationForDiag.lng;
-      diagnostics.scheme_address = locationForDiag.address;
-      diagnostics.scheme_location_source = locationForDiag.source;
-    }
-    return {
-      results: cached.results,
-      fetched_at: cached.fetched_at,
-      from_cache: true,
-      diagnostics,
-    };
-  }
-
+  // STEP 1: Check scheme location FIRST - this is the authoritative gate
+  // If scheme_profile has no coordinates, fail deterministically (no cache fallback)
   const location = await getSchemeLocation(schemeId);
   
   // Populate diagnostics with location info
@@ -551,16 +532,29 @@ export async function getNearbyPOIs(
     diagnostics.scheme_location_source = null;
   }
 
+  // DETERMINISTIC GATE: If no location in scheme_profile, fail immediately
+  // Do NOT serve cached results - this ensures consistent behavior
   if (!location) {
-    console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile`);
+    console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile - returning deterministic failure`);
     diagnostics.failure_reason = 'places_no_location';
     
-    // Do NOT return stale cache for missing location - be deterministic
-    // Return empty results with clear failure reason
     return {
       results: [],
       fetched_at: new Date(),
       from_cache: false,
+      diagnostics,
+    };
+  }
+
+  // STEP 2: Check cache only after location is confirmed
+  const cached = await getCachedPOIs(schemeId, category);
+  if (cached && cached.is_fresh) {
+    console.log(`[POI] Returning ${cached.results.length} fresh cached results`);
+    diagnostics.cache_hit = true;
+    return {
+      results: cached.results,
+      fetched_at: cached.fetched_at,
+      from_cache: true,
       diagnostics,
     };
   }
