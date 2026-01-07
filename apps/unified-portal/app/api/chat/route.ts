@@ -943,9 +943,39 @@ export async function POST(request: NextRequest) {
           });
         }
         
-        const poiResponse = formatPOIResponse(poiData, poiCategory, 5);
+        let poiResponse = formatPOIResponse(poiData, poiCategory, 5);
         
         console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
+        
+        // OPTIONAL DOCUMENT AUGMENTATION: Enhance Places response with scheme documentation
+        // Documents can ONLY augment, never replace place names, distances, or rankings
+        const { getAmenityDocContext, formatAugmentedResponse, buildMultiSourceHint } = await import('@/lib/assistant/amenity-augmenter');
+        
+        let docAugmentUsed = false;
+        try {
+          const docContext = await getAmenityDocContext(userDevelopmentId, poiCategory, message);
+          if (docContext.found) {
+            poiResponse = formatAugmentedResponse(poiResponse, docContext);
+            docAugmentUsed = true;
+            console.log('[Chat] Amenity response augmented with docs:', docContext.documentTitles);
+            
+            // Log augmentation for observability
+            await logAnswerGap({
+              scheme_id: userSupabaseProjectId,
+              unit_id: clientUnitUid || null,
+              user_question: message,
+              intent_type: 'location_amenities',
+              attempted_sources: ['google_places', 'smart_archive'],
+              final_source: 'google_places',
+              gap_reason: 'amenities_doc_augment_used',
+            });
+          }
+        } catch (augmentError) {
+          console.log('[Chat] Document augmentation skipped:', augmentError);
+        }
+        
+        // Build multi-source hint
+        const sourceHint = buildMultiSourceHint(true, poiData.fetched_at, docAugmentUsed);
         
         await db.insert(messages).values({
           tenant_id: userTenantId,
@@ -966,6 +996,7 @@ export async function POST(request: NextRequest) {
             poiCategory,
             fromCache: poiData.from_cache,
             resultCount: poiData.results.length,
+            docAugmented: docAugmentUsed,
             schemeId: userSupabaseProjectId,
             unitUid: clientUnitUid || null,
             userId: userId || null,
@@ -975,7 +1006,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           answer: poiResponse,
-          source: 'google_places',
+          source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
           safetyIntercept: false,
           isNoInfo: false,
           metadata: {
@@ -983,8 +1014,9 @@ export async function POST(request: NextRequest) {
             poiCategory,
             fromCache: poiData.from_cache,
             fetchedAt: poiData.fetched_at.toISOString(),
+            docAugmented: docAugmentUsed,
             answerMode: answerStrategy?.mode,
-            sourceHint: `Based on nearby amenities (last updated ${poiData.fetched_at.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })})`,
+            sourceHint,
           },
         });
       } catch (poiError) {

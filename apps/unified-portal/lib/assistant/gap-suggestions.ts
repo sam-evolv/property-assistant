@@ -140,6 +140,14 @@ export function getSuggestedFix(
       };
     }
     
+    case 'amenities_doc_augment_used': {
+      return {
+        action: 'Amenity response was augmented with document context. Verify Local Amenities or Welcome Pack documents are accurate and up to date.',
+        category: 'local_amenities',
+        priority: 'low',
+      };
+    }
+    
     case 'places_no_location': {
       return {
         action: 'Scheme is missing latitude/longitude coordinates. Update scheme profile with scheme_lat and scheme_lng.',

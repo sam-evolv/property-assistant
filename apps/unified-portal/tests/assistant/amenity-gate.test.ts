@@ -9,6 +9,8 @@ import {
   getAmenityFallbackResponse,
 } from '../../lib/assistant/amenities-validator';
 import { getSuggestedFix } from '../../lib/assistant/gap-suggestions';
+import { detectPOICategory } from '../../lib/places/poi';
+import { buildMultiSourceHint } from '../../lib/assistant/amenity-augmenter';
 
 describe('Intent Classification - Location/Amenities', () => {
   const locationQueries = [
@@ -27,6 +29,12 @@ describe('Intent Classification - Location/Amenities', () => {
     'local amenities',
     'what\'s around here',
     'what is close by',
+    'nearest park',
+    'closest gym',
+    'cafes nearby',
+    'restaurants near me',
+    'where can i find the nearest playground',
+    'leisure facilities close by',
   ];
 
   locationQueries.forEach(query => {
@@ -166,5 +174,63 @@ describe('Amenity Gate Behavior', () => {
   it('should not contain any travel times in fallback response', () => {
     const fallback = getAmenityFallbackResponse('Longview Park', 'supermarket');
     expect(fallback).not.toMatch(/\d+\s*(?:minute|min)\s*walk/i);
+  });
+});
+
+describe('POI Category Detection - Expanded Categories', () => {
+  it('should detect park category', () => {
+    expect(detectPOICategory('nearest park')).toBe('park');
+  });
+
+  it('should detect playground category', () => {
+    expect(detectPOICategory('where is the closest playground')).toBe('playground');
+  });
+
+  it('should detect gym category', () => {
+    expect(detectPOICategory('gyms nearby')).toBe('gym');
+  });
+
+  it('should detect cafe category', () => {
+    expect(detectPOICategory('nearest cafe')).toBe('cafe');
+  });
+
+  it('should detect restaurant category', () => {
+    expect(detectPOICategory('restaurants near me')).toBe('restaurant');
+  });
+
+  it('should detect leisure category', () => {
+    expect(detectPOICategory('swimming pool nearby')).toBe('leisure');
+  });
+
+  it('should detect hospital category', () => {
+    expect(detectPOICategory('nearest hospital')).toBe('hospital');
+  });
+});
+
+describe('Multi-Source Hinting', () => {
+  it('should show Places source hint when only Places used', () => {
+    const hint = buildMultiSourceHint(true, new Date('2026-01-07'), false);
+    expect(hint).toContain('Google Places');
+    expect(hint).toContain('7 Jan 2026');
+    expect(hint).not.toContain('documentation');
+  });
+
+  it('should show combined hint when docs also used', () => {
+    const hint = buildMultiSourceHint(true, new Date('2026-01-07'), true);
+    expect(hint).toContain('Google Places');
+    expect(hint).toContain('homeowner documentation');
+  });
+
+  it('should show general guidance when Places not used', () => {
+    const hint = buildMultiSourceHint(false, null, false);
+    expect(hint).toBe('General guidance');
+  });
+});
+
+describe('Gap Suggestions - Document Augmentation', () => {
+  it('should provide low priority for doc augmentation', () => {
+    const suggestion = getSuggestedFix('amenities_doc_augment_used', 'location_amenities');
+    expect(suggestion.priority).toBe('low');
+    expect(suggestion.action).toContain('Local Amenities');
   });
 });

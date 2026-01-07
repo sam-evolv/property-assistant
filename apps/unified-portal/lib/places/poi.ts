@@ -30,21 +30,37 @@ export type POICategory =
   | 'supermarket'
   | 'pharmacy'
   | 'gp'
+  | 'hospital'
   | 'childcare'
   | 'primary_school'
   | 'secondary_school'
   | 'train_station'
-  | 'bus_stop';
+  | 'bus_stop'
+  | 'park'
+  | 'playground'
+  | 'gym'
+  | 'leisure'
+  | 'cafe'
+  | 'restaurant'
+  | 'sports';
 
 const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: string[] }> = {
   supermarket: { types: ['supermarket', 'grocery_or_supermarket'] },
   pharmacy: { types: ['pharmacy'] },
   gp: { types: ['doctor'] },
+  hospital: { types: ['hospital'] },
   childcare: { types: ['school'], keywords: ['creche', 'montessori', 'preschool', 'daycare', 'childcare', 'nursery'] },
   primary_school: { types: ['primary_school', 'school'], keywords: ['primary', 'national school', 'n.s.', 'ns'] },
   secondary_school: { types: ['secondary_school', 'school'], keywords: ['secondary', 'college', 'post-primary', 'high school'] },
   train_station: { types: ['train_station'] },
   bus_stop: { types: ['bus_station', 'transit_station'] },
+  park: { types: ['park'] },
+  playground: { types: ['park'], keywords: ['playground', 'play area', 'play ground'] },
+  gym: { types: ['gym'] },
+  leisure: { types: ['gym', 'spa', 'bowling_alley', 'movie_theater'] },
+  cafe: { types: ['cafe'] },
+  restaurant: { types: ['restaurant'] },
+  sports: { types: ['stadium', 'gym'], keywords: ['sports', 'fitness', 'athletic', 'swimming', 'pool'] },
 };
 
 const DEFAULT_TTL_DAYS = 30;
@@ -415,11 +431,19 @@ function formatCategoryName(category: POICategory): string {
     supermarket: 'supermarkets',
     pharmacy: 'pharmacies',
     gp: 'GP surgeries',
+    hospital: 'hospitals',
     childcare: 'childcare facilities',
     primary_school: 'primary schools',
     secondary_school: 'secondary schools',
     train_station: 'train stations',
     bus_stop: 'bus stops',
+    park: 'parks',
+    playground: 'playgrounds',
+    gym: 'gyms',
+    leisure: 'leisure facilities',
+    cafe: 'cafes',
+    restaurant: 'restaurants',
+    sports: 'sports facilities',
   };
   return names[category] || category;
 }
@@ -429,12 +453,20 @@ export function detectPOICategory(query: string): POICategory | null {
   
   if (/supermarket|grocery|shop|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) return 'supermarket';
   if (/pharmac|chemist|boots|lloyds/i.test(q)) return 'pharmacy';
+  if (/\bhospital\b/i.test(q)) return 'hospital';
   if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return 'gp';
   if (/childcare|creche|montessori|nursery|daycare|preschool/i.test(q)) return 'childcare';
   if (/primary\s*school|national\s*school/i.test(q)) return 'primary_school';
   if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return 'secondary_school';
   if (/train|rail|dart|luas|station/i.test(q)) return 'train_station';
   if (/bus|bus\s*stop|transit/i.test(q)) return 'bus_stop';
+  if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return 'playground';
+  if (/\bpark\b/i.test(q)) return 'park';
+  if (/\bgym\b|fitness|workout/i.test(q)) return 'gym';
+  if (/leisure|swimming|pool|spa/i.test(q)) return 'leisure';
+  if (/\bcafe\b|coffee/i.test(q)) return 'cafe';
+  if (/restaurant|takeaway|food|dining|eat/i.test(q)) return 'restaurant';
+  if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return 'sports';
   
   if (/school/i.test(q)) return 'primary_school';
   if (/near(by|est)?\s+(amenities|facilities|shops|services)/i.test(q)) return 'supermarket';

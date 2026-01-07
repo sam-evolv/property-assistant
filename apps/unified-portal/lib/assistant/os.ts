@@ -128,17 +128,22 @@ const DOCUMENT_ANSWER_PATTERNS = [
   /\b(download|get|access)\s*(the|my)?\s*(document|file|pdf)\b/i,
 ];
 
+const AMENITY_TYPES = 'supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\\s*cent(?:re|er)|park|playground|leisure|swimming|pool|sports|fitness';
+
 const LOCATION_PATTERNS = [
   /\bnearest\s*(to\s*(me|us|here))?\b/i,
   /\bnearby\b/i,
   /\bclose\s*(to|by)\b/i,
   /\bclosest\b/i,
+  /\bnear\s+me\b/i,
   /\bwhere\s*(is|are)\s*(the\s*)?(nearest|closest)\b/i,
   /\bwhat'?s?\s*(around|nearby|close\s*by)\b/i,
   /\blocal\s*(amenities?|facilities?|shops?|services?|area)\b/i,
   /\bnear\s*(me|here|us|the\s*(development|estate|scheme))\b/i,
-  /\b(nearest|closest)\s+(supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\s*cent(re|er))\b/i,
-  /\b(supermarket|grocery|shop|store|pharmacy|chemist|doctor|gp|hospital|dentist|school|nursery|gym|restaurant|cafe|pub|bar|bank|atm|post\s*office|train|bus|tube|station|creche|montessori|childcare|preschool|medical|health\s*cent(re|er))\s+(nearby|near\s*(me|here|us)|close\s*by|closest|nearest)\b/i,
+  new RegExp(`\\b(nearest|closest)\\s+(${AMENITY_TYPES})\\b`, 'i'),
+  new RegExp(`\\b(${AMENITY_TYPES})\\s+(nearby|near\\s*(me|here|us)|close\\s*by|closest|nearest)\\b`, 'i'),
+  new RegExp(`\\bwhere\\s+(is|are|can\\s+i\\s+find)\\s+(the\\s+)?(nearest|closest)\\s+(${AMENITY_TYPES})\\b`, 'i'),
+  new RegExp(`\\b(what|which)\\s+(${AMENITY_TYPES})s?\\s+(are|is)\\s+(nearby|near\\s*(me|here)|close)\\b`, 'i'),
 ];
 
 const PLAYBOOK_PATTERNS = [
