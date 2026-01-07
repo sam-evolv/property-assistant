@@ -1,7 +1,5 @@
 'use server';
 
-import { cookies } from 'next/headers';
-
 interface PlacesHealthResult {
   success: boolean;
   data?: any;
@@ -12,23 +10,13 @@ export async function runPlacesHealthcheck(
   schemeId?: string,
   schemeName?: string
 ): Promise<PlacesHealthResult> {
-  const cookieStore = cookies();
-  const adminId = cookieStore.get('admin_id')?.value;
-  const tenantId = cookieStore.get('tenant_id')?.value;
-  const role = cookieStore.get('user_role')?.value;
-
-  if (!adminId || !tenantId) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  const allowedRoles = ['developer', 'admin', 'super_admin'];
-  if (!role || !allowedRoles.includes(role)) {
-    return { success: false, error: 'Insufficient permissions' };
+  if (process.env.DEV_TOOLS !== 'true') {
+    return { success: false, error: 'DEV_TOOLS not enabled' };
   }
 
   const testSecret = process.env.ASSISTANT_TEST_SECRET;
   if (!testSecret) {
-    return { success: false, error: 'Test secret not configured' };
+    return { success: false, error: 'ASSISTANT_TEST_SECRET not configured' };
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
@@ -60,4 +48,11 @@ export async function runPlacesHealthcheck(
   } catch (err: any) {
     return { success: false, error: err.message || 'Request failed' };
   }
+}
+
+export async function getGateStatus(): Promise<{ devToolsEnabled: boolean; secretPresent: boolean }> {
+  return {
+    devToolsEnabled: process.env.DEV_TOOLS === 'true',
+    secretPresent: !!process.env.ASSISTANT_TEST_SECRET,
+  };
 }

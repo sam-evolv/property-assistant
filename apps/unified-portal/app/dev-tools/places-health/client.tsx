@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import { runPlacesHealthcheck } from './actions';
 
-export default function PlacesHealthPage() {
+interface Props {
+  gateStatus: {
+    devToolsEnabled: boolean;
+    secretPresent: boolean;
+  };
+}
+
+export default function PlacesHealthClient({ gateStatus }: Props) {
   const [schemeName, setSchemeName] = useState('Longview Park');
   const [schemeId, setSchemeId] = useState('');
   const [result, setResult] = useState<any>(null);
@@ -36,7 +43,25 @@ export default function PlacesHealthPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">Places Healthcheck Tool</h1>
+      <h1 className="text-2xl font-bold text-white mb-4">Places Healthcheck Tool</h1>
+      
+      <div className="mb-6 p-3 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+        <div className="flex gap-4 text-gray-400">
+          <span>
+            DEV_TOOLS enabled:{' '}
+            <span className={gateStatus.devToolsEnabled ? 'text-green-400' : 'text-red-400'}>
+              {gateStatus.devToolsEnabled ? 'true' : 'false'}
+            </span>
+          </span>
+          <span>
+            ASSISTANT_TEST_SECRET present:{' '}
+            <span className={gateStatus.secretPresent ? 'text-green-400' : 'text-red-400'}>
+              {gateStatus.secretPresent ? 'true' : 'false'}
+            </span>
+          </span>
+        </div>
+      </div>
+
       <p className="text-gray-400 mb-6">
         Run the Places API healthcheck with test-mode authentication. This tool checks location data, API key configuration, and cache status for a scheme.
       </p>
