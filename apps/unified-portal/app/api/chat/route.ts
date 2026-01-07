@@ -493,6 +493,56 @@ export async function POST(request: NextRequest) {
     console.log('[Chat] TEST MODE ENABLED - will return JSON instead of streaming');
   }
 
+  // DIAGNOSTIC MODE: Enable debug output for places-diagnostics testing
+  const isPlacesDiagnosticsMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
+  const testSecret = request.headers.get('X-Test-Secret');
+  const expectedSecret = process.env.ASSISTANT_TEST_SECRET || process.env.TEST_SECRET;
+  const isDiagnosticsAuthenticated = isPlacesDiagnosticsMode && testSecret && expectedSecret && testSecret === expectedSecret;
+  
+  if (isDiagnosticsAuthenticated) {
+    console.log('[Chat] DIAGNOSTICS MODE ENABLED - will include debug info in response');
+  }
+
+  // Diagnostic tracking object - populated throughout the request
+  interface ChatDiagnostics {
+    intent_detected: boolean;
+    intent_type?: string;
+    resolved_identifiers: {
+      unit_uid?: string | null;
+      scheme_id?: string | null;
+      development_id?: string | null;
+      tenant_id?: string | null;
+    };
+    scheme_location: {
+      present: boolean;
+      lat?: number | null;
+      lng?: number | null;
+      address?: string | null;
+      source?: string;
+    };
+    places_call: {
+      attempted: boolean;
+      category?: string;
+    };
+    places_result: {
+      google_status?: string;
+      http_status?: number;
+      result_count?: number;
+      error_message?: string;
+    };
+    fallback_reason?: string;
+    cache_hit?: boolean;
+    scheme_resolution_path?: string;
+  }
+
+  const chatDiagnostics: ChatDiagnostics = {
+    intent_detected: false,
+    resolved_identifiers: {},
+    scheme_location: { present: false },
+    places_call: { attempted: false },
+    places_result: {},
+  };
+
   try {
     const contentLength = request.headers.get('content-length');
     const maxPayloadBytes = 100 * 1024; // 100KB max payload
@@ -760,13 +810,40 @@ export async function POST(request: NextRequest) {
     const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id 
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null);
     
+    // Determine scheme resolution path for diagnostics
+    let schemeResolutionPath = 'unknown';
+    if (userUnitDetails.unitInfo?.supabase_project_id) {
+      schemeResolutionPath = 'unit_info.supabase_project_id';
+    } else if (userTenantId === DEFAULT_TENANT_ID) {
+      schemeResolutionPath = 'default_project_id_fallback';
+    } else {
+      schemeResolutionPath = 'failed';
+    }
+
+    // Populate diagnostics with resolved identifiers
+    chatDiagnostics.resolved_identifiers = {
+      unit_uid: effectiveUnitUid,
+      scheme_id: userSupabaseProjectId,
+      development_id: userDevelopmentId,
+      tenant_id: userTenantId,
+    };
+    chatDiagnostics.scheme_resolution_path = schemeResolutionPath;
+    
     if (!userSupabaseProjectId) {
-      console.log('[Chat] Cannot determine Supabase project_id for tenant:', userTenantId);
-      return NextResponse.json({
+      console.log('[Chat] SCHEME RESOLUTION FAILED: Cannot determine Supabase project_id for tenant:', userTenantId, 'unitUid:', effectiveUnitUid);
+      chatDiagnostics.fallback_reason = 'missing_scheme_id';
+      
+      const errorResponse: any = {
         success: true,
         answer: "I'm unable to access your development's knowledge base at the moment. Please try again later or contact your management company for assistance.",
         source: 'tenant_config_error',
-      }, { headers: { 'x-request-id': requestId } });
+      };
+      
+      if (isDiagnosticsAuthenticated) {
+        errorResponse.debug = chatDiagnostics;
+      }
+      
+      return NextResponse.json(errorResponse, { headers: { 'x-request-id': requestId } });
     }
     
     console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
@@ -828,12 +905,18 @@ export async function POST(request: NextRequest) {
       const poiCategory = detectPOICategory(message);
       const schemeAddress = userUnitDetails?.address || 'your development';
       
+      // Populate intent diagnostics
+      chatDiagnostics.intent_detected = true;
+      chatDiagnostics.intent_type = 'location_amenities';
+      chatDiagnostics.scheme_location.address = schemeAddress;
+      
       // Import gap logger for observability
       const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
       
       if (!poiCategory) {
         // Could not determine POI category - provide generic response, DO NOT fall through to RAG
         console.log('[Chat] LOCATION_AMENITIES: Could not determine POI category, using fallback');
+        chatDiagnostics.fallback_reason = 'unknown_poi_category';
         
         const fallbackResponse = `I couldn't determine which type of amenity you're looking for. Please ask about a specific type of location such as "nearest supermarket", "closest pharmacy", "nearby train station", or "schools near here". You can also check Google Maps for ${schemeAddress}.`;
         
@@ -869,7 +952,7 @@ export async function POST(request: NextRequest) {
           },
         });
         
-        return NextResponse.json({
+        const fallbackResponseObj: any = {
           success: true,
           answer: fallbackResponse,
           source: 'amenities_fallback',
@@ -880,20 +963,47 @@ export async function POST(request: NextRequest) {
             answerMode: answerStrategy?.mode,
             sourceHint: 'General guidance',
           },
-        });
+        };
+        
+        if (isDiagnosticsAuthenticated) {
+          fallbackResponseObj.debug = chatDiagnostics;
+        }
+        
+        return NextResponse.json(fallbackResponseObj);
       }
       
       console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'for scheme:', userSupabaseProjectId);
+      chatDiagnostics.places_call.category = poiCategory;
       
       // Check for test mode header for diagnostics
       const isTestMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
       
       try {
+        chatDiagnostics.places_call.attempted = true;
         const poiData = await getNearbyPOIs(userSupabaseProjectId, poiCategory);
         
         // Use diagnostics to determine appropriate gap reason
         const diagnostics = poiData.diagnostics;
         const gapReason = diagnostics?.failure_reason || (poiData.results.length === 0 ? 'no_places_results' : undefined);
+        
+        // Populate chatDiagnostics with places result info
+        if (diagnostics) {
+          chatDiagnostics.scheme_location = {
+            present: diagnostics.scheme_lat !== null && diagnostics.scheme_lat !== undefined && diagnostics.scheme_lng !== null && diagnostics.scheme_lng !== undefined,
+            lat: diagnostics.scheme_lat,
+            lng: diagnostics.scheme_lng,
+            address: schemeAddress,
+            source: diagnostics.scheme_lat ? 'scheme_profile' : undefined,
+          };
+          chatDiagnostics.places_result = {
+            google_status: diagnostics.places_api_error_code,
+            http_status: diagnostics.places_http_status,
+            result_count: poiData.results.length,
+            error_message: diagnostics.places_error_message,
+          };
+          chatDiagnostics.cache_hit = diagnostics.cache_hit;
+          chatDiagnostics.fallback_reason = diagnostics.failure_reason;
+        }
         
         // If stale cache was used, log it
         if (poiData.is_stale && diagnostics?.failure_reason) {
@@ -971,23 +1081,18 @@ export async function POST(request: NextRequest) {
             },
           };
           
-          // Include diagnostics in test mode only
-          if (isTestMode && diagnostics) {
-            noResultsResponseObj.debug = {
-              scheme_id: diagnostics.scheme_id,
-              scheme_lat: diagnostics.scheme_lat,
-              scheme_lng: diagnostics.scheme_lng,
-              category: diagnostics.category,
-              cache_hit: diagnostics.cache_hit,
-              is_stale_cache: diagnostics.is_stale_cache,
-              places_request_url: diagnostics.places_request_url,
-              places_http_status: diagnostics.places_http_status,
-              places_error_message: diagnostics.places_error_message,
-              places_api_error_code: diagnostics.places_api_error_code,
-              failure_reason: diagnostics.failure_reason,
-              timestamp: diagnostics.timestamp,
-            };
+          // Include unified diagnostics in test mode only (authenticated)
+          if (isDiagnosticsAuthenticated) {
+            noResultsResponseObj.debug = chatDiagnostics;
           }
+          
+          // Log fallback reason to server logs
+          console.log('[Chat] AMENITY FALLBACK:', {
+            schemeId: userSupabaseProjectId,
+            fallback_reason: chatDiagnostics.fallback_reason || gapReason,
+            category: poiCategory,
+            location_present: chatDiagnostics.scheme_location.present,
+          });
           
           return NextResponse.json(noResultsResponseObj);
         }
@@ -1070,20 +1175,9 @@ export async function POST(request: NextRequest) {
           },
         };
         
-        // Include diagnostics in test mode only
-        if (isTestMode && diagnostics) {
-          successResponseObj.debug = {
-            scheme_id: diagnostics.scheme_id,
-            scheme_lat: diagnostics.scheme_lat,
-            scheme_lng: diagnostics.scheme_lng,
-            category: diagnostics.category,
-            cache_hit: diagnostics.cache_hit,
-            is_stale_cache: diagnostics.is_stale_cache,
-            places_request_url: diagnostics.places_request_url,
-            places_http_status: diagnostics.places_http_status,
-            places_api_error_code: diagnostics.places_api_error_code,
-            timestamp: diagnostics.timestamp,
-          };
+        // Include unified diagnostics in test mode only (authenticated)
+        if (isDiagnosticsAuthenticated) {
+          successResponseObj.debug = chatDiagnostics;
         }
         
         return NextResponse.json(successResponseObj);
@@ -1128,7 +1222,11 @@ export async function POST(request: NextRequest) {
           },
         });
         
-        return NextResponse.json({
+        // Update diagnostics for error case
+        chatDiagnostics.fallback_reason = 'api_error';
+        chatDiagnostics.places_result.error_message = poiError instanceof Error ? poiError.message : 'Unknown error';
+        
+        const errorResponseObj: any = {
           success: true,
           answer: errorResponse,
           source: 'amenities_fallback',
@@ -1140,7 +1238,22 @@ export async function POST(request: NextRequest) {
             answerMode: answerStrategy?.mode,
             sourceHint: 'General guidance',
           },
+        };
+        
+        // Include unified diagnostics in test mode only (authenticated)
+        if (isDiagnosticsAuthenticated) {
+          errorResponseObj.debug = chatDiagnostics;
+        }
+        
+        // Log fallback reason to server logs
+        console.log('[Chat] AMENITY API ERROR:', {
+          schemeId: userSupabaseProjectId,
+          fallback_reason: 'api_error',
+          category: poiCategory,
+          error: poiError instanceof Error ? poiError.message : 'Unknown error',
         });
+        
+        return NextResponse.json(errorResponseObj);
       }
     }
 
