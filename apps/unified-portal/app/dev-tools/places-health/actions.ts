@@ -19,7 +19,6 @@ export async function runPlacesHealthcheck(
     return { success: false, error: 'ASSISTANT_TEST_SECRET not configured' };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
   const params = new URLSearchParams();
   
   if (schemeId) {
@@ -30,7 +29,7 @@ export async function runPlacesHealthcheck(
     return { success: false, error: 'Either schemeId or schemeName is required' };
   }
 
-  const url = `${baseUrl}/developer/api/places-health?${params.toString()}`;
+  const url = `http://localhost:5000/developer/api/places-health?${params.toString()}`;
 
   try {
     const response = await fetch(url, {
@@ -42,6 +41,15 @@ export async function runPlacesHealthcheck(
       },
       cache: 'no-store',
     });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      return { 
+        success: false, 
+        error: `API returned non-JSON response (status ${response.status}): ${text.substring(0, 200)}...` 
+      };
+    }
 
     const data = await response.json();
     return { success: true, data };
