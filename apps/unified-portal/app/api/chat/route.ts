@@ -22,9 +22,11 @@ import {
   detectWarrantyType,
   getWarrantyGuidance,
   isAssistantOSEnabled,
+  isHumorRequest,
   type IntentClassification,
   type AnswerStrategy,
 } from '@/lib/assistant/os';
+import { formatJokeResponse } from '@/lib/assistant/jokes';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 
@@ -765,6 +767,40 @@ export async function POST(request: NextRequest) {
       }
       
       // NOTE: Location/Amenities intent is handled after user context is established (see below)
+      
+      // Handle humor requests after safety checks - adds personality to the assistant
+      if (isHumorRequest(message)) {
+        const jokeResponse = formatJokeResponse();
+        console.log('[Chat] Humor request detected - serving joke');
+        
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: clientUnitUid || userId || null,
+          unit_uid: clientUnitUid || null,
+          user_message: message,
+          ai_message: jokeResponse,
+          question_topic: 'humor',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: 'humor',
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
+        
+        return NextResponse.json({
+          success: true,
+          answer: jokeResponse,
+          source: 'humor',
+          isNoInfo: false,
+          metadata: {
+            intent: 'humor',
+          },
+        });
+      }
     }
     
     // SAFETY-CRITICAL PRE-FILTER (fallback for non-OS mode or missed patterns)

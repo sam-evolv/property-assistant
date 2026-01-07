@@ -18,6 +18,7 @@ export type IntentType =
   | 'sensitive_subjective'
   | 'emergency'
   | 'affirmative'
+  | 'humor'
   | 'unknown';
 
 export type AnswerMode = 'grounded' | 'guided' | 'neutral';
@@ -177,6 +178,28 @@ const AFFIRMATIVE_PATTERNS = [
   /^i('d| would) like that\.?$/i,
   /^go ahead\.?$/i,
 ];
+
+const HUMOR_PATTERNS = [
+  /tell\s*(me\s*)?(a\s*)?joke/i,
+  /say\s*something\s*funny/i,
+  /make\s*me\s*laugh/i,
+  /got\s*(any\s*)?jokes/i,
+  /know\s*(any\s*)?jokes/i,
+  /be\s*funny/i,
+  /do\s*you\s*have\s*(a\s*)?(sense\s*of\s*)?humo(u)?r/i,
+  /cheer\s*me\s*up/i,
+  /lighten\s*the\s*mood/i,
+  /anything\s*funny/i,
+  /crack\s*(a\s*)?joke/i,
+  /humor\s*me/i,
+  /^joke$/i,
+  /^funny$/i,
+];
+
+export function isHumorRequest(message: string): boolean {
+  const trimmed = message.trim();
+  return HUMOR_PATTERNS.some(p => p.test(trimmed));
+}
 
 export function isAffirmativeResponse(message: string): boolean {
   const trimmed = message.trim();
