@@ -32,6 +32,9 @@ export interface PlacesDiagnostics {
   scheme_id: string;
   scheme_lat?: number | null;
   scheme_lng?: number | null;
+  scheme_address?: string | null;
+  scheme_location_source?: 'scheme_profile' | 'developments' | 'geocoded' | null;
+  scheme_location_present: boolean;
   category: string;
   cache_hit: boolean;
   is_stale_cache: boolean;
@@ -149,68 +152,47 @@ function mapGoogleStatusToFailureReason(status: string): PlacesFailureReason {
   }
 }
 
-async function getSchemeLocation(supabaseProjectId: string): Promise<{ lat: number; lng: number; schemeProfileId?: string } | null> {
+export interface SchemeLocationResult {
+  lat: number;
+  lng: number;
+  address?: string;
+  source: 'scheme_profile' | 'developments' | 'geocoded';
+  schemeProfileId?: string;
+}
+
+async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocationResult | null> {
   console.log('[POI] Looking up location for supabaseProjectId:', supabaseProjectId);
   
-  try {
-    const supabase = getSupabaseClient();
-    const { data: projectData, error: projectError } = await supabase
-      .from('projects')
-      .select('name, address')
-      .eq('id', supabaseProjectId)
-      .single();
-
-    if (projectError || !projectData) {
-      console.error('[POI] Supabase project lookup failed:', projectError);
-    } else {
-      console.log('[POI] Found Supabase project:', projectData.name);
-      
-      if (projectData.address) {
-        const geocoded = await geocodeAddress(projectData.address);
-        if (geocoded) {
-          console.log('[POI] Geocoded address:', projectData.address, '->', geocoded.lat, geocoded.lng);
-          return geocoded;
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[POI] Supabase lookup error:', err);
-  }
-
+  // SINGLE SOURCE OF TRUTH: scheme_profile is the authoritative source for amenity locations
+  // This ensures deterministic, scheme-scoped resolution
   const schemes = await db
     .select({ 
       id: scheme_profile.id,
       lat: scheme_profile.scheme_lat, 
-      lng: scheme_profile.scheme_lng 
+      lng: scheme_profile.scheme_lng,
+      address: scheme_profile.scheme_address,
     })
     .from(scheme_profile)
     .where(eq(scheme_profile.id, supabaseProjectId))
     .limit(1);
 
   if (schemes.length > 0 && schemes[0].lat && schemes[0].lng) {
-    console.log('[POI] Found location in scheme_profile by ID');
+    console.log('[POI] Found location in scheme_profile:', {
+      id: schemes[0].id,
+      lat: schemes[0].lat,
+      lng: schemes[0].lng,
+      address: schemes[0].address,
+    });
     return {
       lat: schemes[0].lat,
       lng: schemes[0].lng,
+      address: schemes[0].address || undefined,
+      source: 'scheme_profile',
       schemeProfileId: schemes[0].id,
     };
   }
 
-  const devs = await db
-    .select({ lat: developments.latitude, lng: developments.longitude })
-    .from(developments)
-    .where(eq(developments.id, supabaseProjectId))
-    .limit(1);
-
-  if (devs.length > 0 && devs[0].lat && devs[0].lng) {
-    console.log('[POI] Found location in developments table');
-    return {
-      lat: parseFloat(devs[0].lat),
-      lng: parseFloat(devs[0].lng),
-    };
-  }
-
-  console.log('[POI] No location found for:', supabaseProjectId);
+  console.log('[POI] No location found in scheme_profile for:', supabaseProjectId);
   return null;
 }
 
@@ -530,6 +512,7 @@ export async function getNearbyPOIs(
     category,
     cache_hit: false,
     is_stale_cache: false,
+    scheme_location_present: false,
     timestamp: new Date().toISOString(),
   };
 
@@ -537,6 +520,15 @@ export async function getNearbyPOIs(
   if (cached && cached.is_fresh) {
     console.log(`[POI] Returning ${cached.results.length} fresh cached results`);
     diagnostics.cache_hit = true;
+    // Still look up location for diagnostics even for cache hits
+    const locationForDiag = await getSchemeLocation(schemeId);
+    if (locationForDiag) {
+      diagnostics.scheme_location_present = true;
+      diagnostics.scheme_lat = locationForDiag.lat;
+      diagnostics.scheme_lng = locationForDiag.lng;
+      diagnostics.scheme_address = locationForDiag.address;
+      diagnostics.scheme_location_source = locationForDiag.source;
+    }
     return {
       results: cached.results,
       fetched_at: cached.fetched_at,
@@ -546,26 +538,25 @@ export async function getNearbyPOIs(
   }
 
   const location = await getSchemeLocation(schemeId);
-  diagnostics.scheme_lat = location?.lat;
-  diagnostics.scheme_lng = location?.lng;
+  
+  // Populate diagnostics with location info
+  if (location) {
+    diagnostics.scheme_location_present = true;
+    diagnostics.scheme_lat = location.lat;
+    diagnostics.scheme_lng = location.lng;
+    diagnostics.scheme_address = location.address;
+    diagnostics.scheme_location_source = location.source;
+  } else {
+    diagnostics.scheme_location_present = false;
+    diagnostics.scheme_location_source = null;
+  }
 
   if (!location) {
-    console.error(`[POI] Scheme ${schemeId} has no location set`);
+    console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile`);
     diagnostics.failure_reason = 'places_no_location';
     
-    if (cached && cached.results.length > 0) {
-      console.log('[POI] Returning stale cache due to no location');
-      diagnostics.is_stale_cache = true;
-      diagnostics.failure_reason = 'places_no_location';
-      return {
-        results: cached.results,
-        fetched_at: cached.fetched_at,
-        from_cache: true,
-        is_stale: true,
-        diagnostics,
-      };
-    }
-
+    // Do NOT return stale cache for missing location - be deterministic
+    // Return empty results with clear failure reason
     return {
       results: [],
       fetched_at: new Date(),

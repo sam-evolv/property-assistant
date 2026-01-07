@@ -298,7 +298,7 @@ export const messages = pgTable('messages', {
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
   development_id: uuid('development_id').references(() => developments.id),
   house_id: uuid('house_id').references(() => homeowners.id, { onDelete: 'set null' }),
-  user_id: varchar('user_id', { length: 255 }).notNull(),
+  user_id: uuid('user_id'),  // Nullable UUID - unit identifiers stored in metadata.unitUid
   sender: varchar('sender', { length: 20 }),
   content: text('content').notNull(),
   user_message: text('user_message'),

@@ -80,8 +80,9 @@ function isValidUUID(str: string | null | undefined): boolean {
 
 async function persistMessageSafely(params: MessagePersistParams): Promise<{ success: boolean; error?: string }> {
   try {
-    // Only use user_id if it's a valid UUID, otherwise null (DB column is UUID type)
-    const validUserId: string | null = isValidUUID(params.user_id) ? params.user_id! : null;
+    // Only use user_id if it's a valid UUID, otherwise null
+    // Unit identifiers like "LV-PARK-008" are stored in metadata.unitUid
+    const validUserId = isValidUUID(params.user_id) ? params.user_id! : null;
     
     await db.insert(messages).values({
       tenant_id: params.tenant_id,
@@ -1005,14 +1006,14 @@ export async function POST(request: NextRequest) {
         const diagnostics = poiData.diagnostics;
         const gapReason = diagnostics?.failure_reason || (poiData.results.length === 0 ? 'no_places_results' : undefined);
         
-        // Populate chatDiagnostics with places result info
+        // Populate chatDiagnostics with places result info from POI engine
         if (diagnostics) {
           chatDiagnostics.scheme_location = {
-            present: diagnostics.scheme_lat !== null && diagnostics.scheme_lat !== undefined && diagnostics.scheme_lng !== null && diagnostics.scheme_lng !== undefined,
+            present: diagnostics.scheme_location_present,
             lat: diagnostics.scheme_lat,
             lng: diagnostics.scheme_lng,
-            address: schemeAddress,
-            source: diagnostics.scheme_lat ? 'scheme_profile' : undefined,
+            address: diagnostics.scheme_address || schemeAddress,
+            source: diagnostics.scheme_location_source || undefined,
           };
           chatDiagnostics.places_result = {
             google_status: diagnostics.places_api_error_code,
@@ -1022,6 +1023,12 @@ export async function POST(request: NextRequest) {
           };
           chatDiagnostics.cache_hit = diagnostics.cache_hit;
           chatDiagnostics.fallback_reason = diagnostics.failure_reason;
+          // Update scheme_resolution_path to reflect actual source
+          if (diagnostics.scheme_location_source) {
+            chatDiagnostics.scheme_resolution_path = diagnostics.scheme_location_source;
+          } else if (diagnostics.failure_reason === 'places_no_location') {
+            chatDiagnostics.scheme_resolution_path = 'missing_scheme_location';
+          }
         }
         
         // If stale cache was used, log it
