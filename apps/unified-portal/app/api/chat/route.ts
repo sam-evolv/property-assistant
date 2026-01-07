@@ -913,7 +913,15 @@ export async function POST(request: NextRequest) {
         if (poiData.results.length === 0) {
           console.log('[Chat] AMENITY GATE: No Places results, using controlled fallback');
           
-          const noResultsResponse = `I couldn't retrieve nearby ${poiCategory.replace(/_/g, ' ')} information right now. This may be because the development's location isn't set, or there are none within 5km. Please try Google Maps for ${schemeAddress} for accurate local amenities.`;
+          const isMissingLocation = diagnostics?.failure_reason === 'places_no_location';
+          const categoryName = poiCategory.replace(/_/g, ' ');
+          
+          let noResultsResponse: string;
+          if (isMissingLocation) {
+            noResultsResponse = `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+          } else {
+            noResultsResponse = `I could not find any ${categoryName} nearby. There may be none within 5km of the development. Please try Google Maps for ${schemeAddress || 'the development address'} for accurate local amenities.`;
+          }
           
           await logAnswerGap({
             scheme_id: userSupabaseProjectId,

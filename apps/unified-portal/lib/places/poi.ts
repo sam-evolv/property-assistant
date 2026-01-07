@@ -675,7 +675,10 @@ export async function getNearbyPOIs(
 
 export function formatPOIResponse(data: POICacheResult, category: POICategory, limit: number = 5): string {
   if (data.results.length === 0) {
-    return `I couldn't find any ${formatCategoryName(category)} nearby. The scheme may not have location coordinates set, or there are none within 5km.`;
+    if (data.diagnostics?.failure_reason === 'places_no_location') {
+      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+    }
+    return `I could not find any ${formatCategoryName(category)} nearby. There may be none within 5km of the development.`;
   }
 
   const topResults = data.results.slice(0, limit);
