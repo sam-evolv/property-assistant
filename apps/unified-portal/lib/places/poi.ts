@@ -1087,6 +1087,7 @@ export interface POICategoryResult {
   category: POICategory | null;
   expandedIntent?: ExpandedIntent;
   categories?: POICategory[];
+  dynamicKeyword?: string; // For amenities not in our predefined list
 }
 
 export function detectPOICategory(query: string): POICategory | null {
@@ -1172,10 +1173,218 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   
   if (/near(by|est)?\s+(amenities|facilities|services)/i.test(q)) return { category: 'supermarket' };
   
+  // DYNAMIC FALLBACK: Extract amenity keyword for unknown place types
+  // This allows handling of any amenity query like "bowling", "laser tag", "escape room", etc.
+  const dynamicKeyword = extractAmenityKeyword(q);
+  if (dynamicKeyword) {
+    return { category: null, dynamicKeyword };
+  }
+  
   return { category: null };
 }
 
+// Extract the amenity/place type keyword from a query for dynamic search
+function extractAmenityKeyword(query: string): string | null {
+  const q = query.toLowerCase().trim();
+  
+  // Common patterns for amenity queries
+  const patterns = [
+    /(?:where(?:'s| is| are)?|find|closest|nearest|any|looking for(?: a)?)\s+(?:the\s+)?(?:nearest\s+)?(.+?)(?:\s+near(?:by)?|\s+close|\s+around|\?|$)/i,
+    /(?:is there|are there)\s+(?:a|an|any)\s+(.+?)\s+(?:near(?:by)?|close|around|\?|$)/i,
+    /(.+?)\s+(?:near(?:by)?|close by|around here|in the area)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = q.match(pattern);
+    if (match && match[1]) {
+      let keyword = cleanKeyword(match[1]);
+      if (keyword) return keyword;
+    }
+  }
+  
+  // FALLBACK: For simple noun phrases like "bowling alley", "laser tag", "escape room"
+  // If the query looks like a simple amenity request, use the whole query as keyword
+  let cleaned = q
+    .replace(/\?+$/g, '')
+    .replace(/^(where(?:'s| is| are)?|find(?: me)?|show(?: me)?|looking for|is there|are there|any|nearest|closest)\s*/gi, '')
+    .replace(/^(the|a|an|some)\s+/gi, '')
+    .replace(/\s+(near(?:by)?|close(?:\s*by)?|around(?:\s*here)?|in the area)$/gi, '')
+    .replace(/\s+(please|thanks|thank you)$/gi, '')
+    .trim();
+  
+  // If after cleaning we have something that looks like an amenity (2+ chars, not a question word)
+  if (cleaned.length >= 3 && 
+      !/^(how|what|when|why|who|which|can|do|does|is|are|will|would|should|could)$/i.test(cleaned) &&
+      !/^(it|me|us|here|there|this|that|one|ones)$/i.test(cleaned)) {
+    return cleaned;
+  }
+  
+  return null;
+}
+
+function cleanKeyword(raw: string): string | null {
+  let keyword = raw.trim()
+    .replace(/^(the|a|an|some|any)\s+/i, '')
+    .replace(/\s+(here|there|me|us)$/i, '')
+    .replace(/\s+to\s+.+$/i, '')
+    .replace(/\?+$/g, '')
+    .trim();
+  
+  // Skip if it's too short or too generic
+  if (keyword.length < 3) return null;
+  if (/^(it|me|us|here|there|place|thing|stuff)$/i.test(keyword)) return null;
+  
+  // Skip if it looks like a non-amenity question
+  if (/^(how|what|when|why|who|which)$/i.test(keyword)) return null;
+  
+  return keyword;
+}
+
 export const SUPPORTED_CATEGORIES = Object.keys(CATEGORY_MAPPINGS) as POICategory[];
+
+// Dynamic keyword-based search for amenities not in our predefined categories
+export async function searchNearbyByKeyword(
+  schemeId: string,
+  keyword: string
+): Promise<POICacheResult> {
+  console.log(`[POI] searchNearbyByKeyword called for scheme=${schemeId}, keyword="${keyword}"`);
+
+  const diagnostics: PlacesDiagnostics = {
+    scheme_id: schemeId,
+    category: `dynamic:${keyword}`,
+    cache_hit: false,
+    is_stale_cache: false,
+    scheme_location_present: false,
+    timestamp: new Date().toISOString(),
+  };
+
+  const location = await getSchemeLocation(schemeId);
+  
+  if (!location) {
+    diagnostics.failure_reason = 'places_no_location';
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  }
+
+  diagnostics.scheme_location_present = true;
+  diagnostics.scheme_lat = location.lat;
+  diagnostics.scheme_lng = location.lng;
+
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) {
+    diagnostics.failure_reason = 'google_places_request_denied';
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  }
+
+  // Use Google Places Text Search for more flexible keyword matching
+  const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+  url.searchParams.set('query', `${keyword} near ${location.address || `${location.lat},${location.lng}`}`);
+  url.searchParams.set('location', `${location.lat},${location.lng}`);
+  url.searchParams.set('radius', SEARCH_RADIUS_METERS.toString());
+  url.searchParams.set('key', apiKey);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PLACES_TIMEOUT_MS);
+
+    const response = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    console.log('[POI] Text Search API response:', {
+      keyword,
+      status: data.status,
+      resultCount: data.results?.length || 0,
+    });
+
+    if (data.status === 'OK' && data.results) {
+      let results: POIResult[] = data.results.slice(0, MAX_RESULTS).map((place: any) => ({
+        name: place.name,
+        address: place.formatted_address || place.vicinity || '',
+        place_id: place.place_id,
+        distance_km: calculateDistance(location.lat, location.lng, place.geometry.location.lat, place.geometry.location.lng),
+        rating: place.rating,
+        open_now: place.opening_hours?.open_now,
+      }));
+
+      results.sort((a, b) => a.distance_km - b.distance_km);
+
+      // Fetch travel times
+      if (results.length > 0) {
+        results = await fetchTravelTimes(location.lat, location.lng, results);
+      }
+
+      return {
+        results,
+        fetched_at: new Date(),
+        from_cache: false,
+        diagnostics,
+      };
+    }
+
+    diagnostics.failure_reason = 'no_places_results';
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  } catch (error: any) {
+    console.error('[POI] Keyword search error:', error);
+    diagnostics.failure_reason = 'google_places_network_error';
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  }
+}
+
+// Format response for dynamic keyword searches
+export function formatDynamicPOIResponse(
+  data: POICacheResult,
+  keyword: string,
+  developmentName?: string,
+  sessionSeed?: number
+): string {
+  if (data.results.length === 0) {
+    if (data.diagnostics?.failure_reason === 'places_no_location') {
+      return `The development location hasn't been set up yet, so I'm not able to search for ${keyword} at the moment. Your developer should be able to sort that out.`;
+    }
+    return `I couldn't find any ${keyword} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;
+  }
+
+  const topResults = data.results.slice(0, 5);
+  
+  const intros = [
+    `For ${keyword}, here's what I found nearby.`,
+    `You've got some options for ${keyword} in the area.`,
+    `There are a few ${keyword} within reach.`,
+    `Looking for ${keyword}? Here's what's close by.`,
+    `I found some ${keyword} options near you.`,
+  ];
+  
+  const seed = sessionSeed ?? Math.floor(Math.random() * intros.length);
+  const intro = intros[seed % intros.length];
+  
+  // Use standard formatting (not drive-only since we don't know the amenity type)
+  const bullets = topResults.map(poi => formatBulletItem(poi, false)).join('\n');
+  
+  const sourceHint = getSourceHint(data.fetched_at);
+  
+  return `${intro}\n\n${bullets}${sourceHint}`;
+}
 
 export async function testPlacesHealth(schemeId: string): Promise<{
   hasLocation: boolean;

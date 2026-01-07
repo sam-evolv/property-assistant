@@ -1045,6 +1045,7 @@ export async function POST(request: NextRequest) {
       const poiCategory = poiCategoryResult.category;
       const expandedIntent = poiCategoryResult.expandedIntent;
       const expandedCategories = poiCategoryResult.categories;
+      const dynamicKeyword = poiCategoryResult.dynamicKeyword;
       const schemeAddress = userUnitDetails?.address || 'your development';
       const developmentName = userUnitDetails?.unitInfo?.development_name || null;
       
@@ -1055,6 +1056,67 @@ export async function POST(request: NextRequest) {
       
       // Import gap logger for observability
       const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+      
+      // DYNAMIC KEYWORD SEARCH: If no predefined category but we extracted a keyword, use text search
+      if (!poiCategory && dynamicKeyword) {
+        console.log('[Chat] LOCATION_AMENITIES: Using dynamic keyword search for:', dynamicKeyword);
+        chatDiagnostics.places_call.category = `dynamic:${dynamicKeyword}`;
+        
+        try {
+          const { searchNearbyByKeyword, formatDynamicPOIResponse } = await import('@/lib/places/poi');
+          const dynamicResults = await searchNearbyByKeyword(userSupabaseProjectId, dynamicKeyword);
+          
+          const dynamicResponse = formatDynamicPOIResponse(
+            dynamicResults,
+            dynamicKeyword,
+            developmentName || undefined,
+            undefined // Let the function use random seed
+          );
+          
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            user_id: clientUnitUid || userId || null,
+            unit_uid: clientUnitUid || null,
+            user_message: message,
+            ai_message: dynamicResponse,
+            question_topic: 'poi_dynamic_search',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: intentClassification.intent,
+              dynamicKeyword,
+              resultsCount: dynamicResults.results.length,
+              userId: userId || null,
+            },
+            request_id: requestId,
+          });
+          
+          const dynamicResponseObj: any = {
+            success: true,
+            answer: dynamicResponse,
+            source: 'google_places_dynamic',
+            safetyIntercept: false,
+            isNoInfo: dynamicResults.results.length === 0,
+            metadata: {
+              intent: intentClassification.intent,
+              answerMode: 'dynamic_poi',
+              sourceHint: 'Based on Google Places',
+              dynamicKeyword,
+            },
+          };
+          
+          if (isDiagnosticsAuthenticated) {
+            dynamicResponseObj.debug = chatDiagnostics;
+          }
+          
+          return NextResponse.json(dynamicResponseObj);
+        } catch (err) {
+          console.error('[Chat] Dynamic keyword search failed:', err);
+          // Fall through to generic fallback
+        }
+      }
       
       if (!poiCategory) {
         // Could not determine POI category - provide generic response, DO NOT fall through to RAG
