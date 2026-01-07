@@ -61,6 +61,7 @@ const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 interface MessagePersistParams {
   tenant_id: string;
   development_id: string;
+  user_id?: string | null;  // Must be valid UUID or null
   unit_uid?: string | null;
   user_message: string;
   ai_message: string;
@@ -71,12 +72,21 @@ interface MessagePersistParams {
   request_id?: string;
 }
 
+// Validate UUID format
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUUID(str: string | null | undefined): boolean {
+  return !!str && UUID_REGEX.test(str);
+}
+
 async function persistMessageSafely(params: MessagePersistParams): Promise<{ success: boolean; error?: string }> {
   try {
+    // Only use user_id if it's a valid UUID, otherwise null (DB column is UUID type)
+    const validUserId: string | null = isValidUUID(params.user_id) ? params.user_id! : null;
+    
     await db.insert(messages).values({
       tenant_id: params.tenant_id,
       development_id: params.development_id,
-      user_id: null, // DB column is UUID, use null instead of string
+      user_id: validUserId,
       content: params.user_message,
       user_message: params.user_message,
       ai_message: params.ai_message,
@@ -97,6 +107,7 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
     console.error('[Chat] Message persist failed:', {
       request_id: params.request_id,
       unit_uid: params.unit_uid,
+      user_id: params.user_id,
       error: errorMsg,
     });
     return { success: false, error: errorMsg };
@@ -641,32 +652,25 @@ export async function POST(request: NextRequest) {
         const tier1Response = getTier1Response();
         console.log('[Chat] TIER 1 EMERGENCY: Life safety risk detected');
         
-        try {
-          await db.insert(messages).values({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
-            user_id: clientUnitUid || userId || 'anonymous',
-            content: message,
-            user_message: message,
-            ai_message: tier1Response,
-            question_topic: 'emergency_tier1',
-            sender: 'conversation',
-            source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              assistantOS: true,
-              intent: intentClassification.intent,
-              emergencyTier: 1,
-              answerMode: answerStrategy.mode,
-              unitUid: clientUnitUid || null,
-              userId: userId || null,
-            },
-          });
-        } catch (logError) {
-          console.error('[Chat] Failed to log tier 1 emergency:', logError);
-        }
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: clientUnitUid || userId || null,
+          unit_uid: clientUnitUid || null,
+          user_message: message,
+          ai_message: tier1Response,
+          question_topic: 'emergency_tier1',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            emergencyTier: 1,
+            answerMode: answerStrategy.mode,
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
         
         return NextResponse.json({
           success: true,
@@ -686,32 +690,25 @@ export async function POST(request: NextRequest) {
         const tier2Response = getTier2Response();
         console.log('[Chat] TIER 2 EMERGENCY: Property emergency detected');
         
-        try {
-          await db.insert(messages).values({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
-            user_id: clientUnitUid || userId || 'anonymous',
-            content: message,
-            user_message: message,
-            ai_message: tier2Response,
-            question_topic: 'emergency_tier2',
-            sender: 'conversation',
-            source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              assistantOS: true,
-              intent: intentClassification.intent,
-              emergencyTier: 2,
-              answerMode: answerStrategy.mode,
-              unitUid: clientUnitUid || null,
-              userId: userId || null,
-            },
-          });
-        } catch (logError) {
-          console.error('[Chat] Failed to log tier 2 emergency:', logError);
-        }
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: clientUnitUid || userId || null,
+          unit_uid: clientUnitUid || null,
+          user_message: message,
+          ai_message: tier2Response,
+          question_topic: 'emergency_tier2',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            emergencyTier: 2,
+            answerMode: answerStrategy.mode,
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
         
         return NextResponse.json({
           success: true,
@@ -731,32 +728,25 @@ export async function POST(request: NextRequest) {
         const tier3Response = getTier3Response();
         console.log('[Chat] TIER 3: Non-urgent maintenance issue detected');
         
-        try {
-          await db.insert(messages).values({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
-            user_id: clientUnitUid || userId || 'anonymous',
-            content: message,
-            user_message: message,
-            ai_message: tier3Response,
-            question_topic: 'maintenance_tier3',
-            sender: 'conversation',
-            source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              assistantOS: true,
-              intent: intentClassification.intent,
-              emergencyTier: 3,
-              answerMode: answerStrategy.mode,
-              unitUid: clientUnitUid || null,
-              userId: userId || null,
-            },
-          });
-        } catch (logError) {
-          console.error('[Chat] Failed to log tier 3 issue:', logError);
-        }
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: clientUnitUid || userId || null,
+          unit_uid: clientUnitUid || null,
+          user_message: message,
+          ai_message: tier3Response,
+          question_topic: 'maintenance_tier3',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: intentClassification.intent,
+            emergencyTier: 3,
+            answerMode: answerStrategy.mode,
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
         
         return NextResponse.json({
           success: true,
@@ -780,31 +770,24 @@ export async function POST(request: NextRequest) {
     if (safetyCheck.isCritical && (!isAssistantOSEnabled() || !intentClassification?.emergencyTier)) {
       console.log('[Chat] SAFETY INTERCEPT: Query blocked by pre-filter, matched keyword:', safetyCheck.matchedKeyword);
       
-      try {
-        await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: clientUnitUid || userId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: SAFETY_INTERCEPT_RESPONSE,
-          question_topic: 'safety_intercept',
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            safetyIntercept: true,
-            matchedKeyword: safetyCheck.matchedKeyword,
-            unitUid: clientUnitUid || null,
-            userId: userId || null,
-          },
-        });
-        console.log('[Chat] Safety intercept logged to database');
-      } catch (logError) {
-        console.error('[Chat] Failed to log safety intercept:', logError);
-      }
+      await persistMessageSafely({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: clientUnitUid || userId || null,
+        unit_uid: clientUnitUid || null,
+        user_message: message,
+        ai_message: SAFETY_INTERCEPT_RESPONSE,
+        question_topic: 'safety_intercept',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          safetyIntercept: true,
+          matchedKeyword: safetyCheck.matchedKeyword,
+          userId: userId || null,
+        },
+        request_id: requestId,
+      });
+      console.log('[Chat] Safety intercept logged to database');
       
       return NextResponse.json({
         success: true,
@@ -912,30 +895,23 @@ export async function POST(request: NextRequest) {
         : `I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes. Is there anything I can help you with regarding your own property or the development as a whole?`;
       
       // Save the GDPR-blocked interaction to database for analytics
-      try {
-        await db.insert(messages).values({
-          tenant_id: userTenantId,
-          development_id: userDevelopmentId,
-          user_id: validatedUnitUid || userId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: gdprResponse,
-          question_topic: 'gdpr_blocked',
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            unitUid: validatedUnitUid || null,
-            userId: userId || null,
-            gdprBlocked: true,
-            mentionedUnit: gdprCheck.mentionedUnit,
-          },
-        });
-      } catch (dbError) {
-        console.error('[Chat] Failed to save GDPR-blocked message:', dbError);
-      }
+      await persistMessageSafely({
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        user_id: validatedUnitUid || userId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: gdprResponse,
+        question_topic: 'gdpr_blocked',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          userId: userId || null,
+          gdprBlocked: true,
+          mentionedUnit: gdprCheck.mentionedUnit,
+        },
+        request_id: requestId,
+      });
       
       return NextResponse.json({
         success: true,
@@ -976,26 +952,23 @@ export async function POST(request: NextRequest) {
           gap_reason: 'amenities_fallback_used',
         });
         
-        await db.insert(messages).values({
+        await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
-          user_id: clientUnitUid || userId || 'anonymous',
-          content: message,
+          user_id: clientUnitUid || userId || null,
+          unit_uid: clientUnitUid || null,
           user_message: message,
           ai_message: fallbackResponse,
           question_topic: 'poi_category_unknown',
-          sender: 'conversation',
           source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
           latency_ms: Date.now() - startTime,
           metadata: {
             assistantOS: true,
             intent: intentClassification.intent,
             amenityGateFallback: true,
-            unitUid: clientUnitUid || null,
             userId: userId || null,
           },
+          request_id: requestId,
         });
         
         const fallbackResponseObj: any = {
@@ -1089,18 +1062,15 @@ export async function POST(request: NextRequest) {
             gap_reason: gapReason || 'no_places_results',
           });
           
-          await db.insert(messages).values({
+          await persistMessageSafely({
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
-            user_id: clientUnitUid || userId || 'anonymous',
-            content: message,
+            user_id: clientUnitUid || userId || null,
+            unit_uid: clientUnitUid || null,
             user_message: message,
             ai_message: noResultsResponse,
             question_topic: `poi_${poiCategory}_no_results`,
-            sender: 'conversation',
             source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
             latency_ms: Date.now() - startTime,
             metadata: {
               assistantOS: true,
@@ -1108,9 +1078,9 @@ export async function POST(request: NextRequest) {
               poiCategory,
               amenityGateNoResults: true,
               schemeId: userSupabaseProjectId,
-              unitUid: clientUnitUid || null,
               userId: userId || null,
             },
+            request_id: requestId,
           });
           
           const noResultsResponseObj: any = {
@@ -1200,6 +1170,7 @@ export async function POST(request: NextRequest) {
         const persistResult = await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
           ai_message: poiResponse,
@@ -1214,7 +1185,6 @@ export async function POST(request: NextRequest) {
             resultCount: poiData.results.length,
             docAugmented: docAugmentUsed,
             schemeId: userSupabaseProjectId,
-            userId: userId || null,
           },
           request_id: requestId,
         });
@@ -1258,6 +1228,7 @@ export async function POST(request: NextRequest) {
         const persistResult = await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
           ai_message: errorResponse,
@@ -1271,7 +1242,6 @@ export async function POST(request: NextRequest) {
             amenityGateError: true,
             errorMessage: poiError instanceof Error ? poiError.message : 'Unknown error',
             schemeId: userSupabaseProjectId,
-            userId: userId || null,
           },
           request_id: requestId,
         });
@@ -1895,28 +1865,21 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       const clarificationResponse = "Would you like to see the internal floor plans (showing room layouts and dimensions) or the external elevations (showing the outside appearance of your home)?";
       
       // Save clarification interaction
-      try {
-        await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: conversationUserId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: clarificationResponse,
-          question_topic: 'clarification_needed',
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            unitUid: effectiveUnitUid,
-            clarificationType: 'drawing_type',
-          },
-        });
-      } catch (dbError) {
-        console.error('[Chat] Failed to save clarification message:', dbError);
-      }
+      await persistMessageSafely({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: conversationUserId || null,
+        unit_uid: effectiveUnitUid || null,
+        user_message: message,
+        ai_message: clarificationResponse,
+        question_topic: 'clarification_needed',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          clarificationType: 'drawing_type',
+        },
+        request_id: requestId,
+      });
       
       return NextResponse.json({
         success: true,
@@ -2009,29 +1972,22 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         const linkAnswer = `${documentLinkExplanation} You can view or download it using the button below.`;
         
         // Save to database
-        try {
-          await db.insert(messages).values({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
-            user_id: conversationUserId || 'anonymous',
-            content: message,
-            user_message: message,
-            ai_message: linkAnswer,
-            question_topic: 'document_link_request',
-            sender: 'conversation',
-            source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              unitUid: effectiveUnitUid,
-              documentRequested: linkRequest.documentHint,
-              documentProvided: documentLink.fileName,
-            },
-          });
-        } catch (dbError) {
-          console.error('[Chat] Failed to save document link message:', dbError);
-        }
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || null,
+          unit_uid: effectiveUnitUid || null,
+          user_message: message,
+          ai_message: linkAnswer,
+          question_topic: 'document_link_request',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            documentRequested: linkRequest.documentHint,
+            documentProvided: documentLink.fileName,
+          },
+          request_id: requestId,
+        });
         
         return NextResponse.json({
           success: true,
@@ -2072,28 +2028,21 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         console.log('[Chat] Returning', floorPlanResult.attachments.length, 'floor plan attachments');
         
         // Save to database
-        try {
-          await db.insert(messages).values({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
-            user_id: conversationUserId || 'anonymous',
-            content: message,
-            user_message: message,
-            ai_message: floorPlanAnswer,
-            question_topic: 'floor_plan_link',
-            sender: 'conversation',
-            source: 'purchaser_portal',
-            token_count: 0,
-            cost_usd: '0',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              unitUid: effectiveUnitUid,
-              floorPlanCount: floorPlanResult.attachments.length,
-            },
-          });
-        } catch (dbError) {
-          console.error('[Chat] Failed to save floor plan link message:', dbError);
-        }
+        await persistMessageSafely({
+          tenant_id: DEFAULT_TENANT_ID,
+          development_id: DEFAULT_DEVELOPMENT_ID,
+          user_id: conversationUserId || null,
+          unit_uid: effectiveUnitUid || null,
+          user_message: message,
+          ai_message: floorPlanAnswer,
+          question_topic: 'floor_plan_link',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            floorPlanCount: floorPlanResult.attachments.length,
+          },
+          request_id: requestId,
+        });
         
         return NextResponse.json({
           success: true,
@@ -2150,31 +2099,24 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       console.log('[Chat] Dimension question detected - enforced floor plan response for liability');
       
       // Save to database
-      try {
-        await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: conversationUserId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: liabilityAnswer,
-          question_topic: questionTopic,
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            unitUid: validatedUnitUid || null,
-            userId: userId || null,
-            chunksUsed: chunks?.length || 0,
-            model: 'gpt-4o-mini',
-            liabilityOverride: true,
-          },
-        });
-      } catch (dbError) {
-        console.error('[Chat] Failed to save message:', dbError);
-      }
+      await persistMessageSafely({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: conversationUserId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: liabilityAnswer,
+        question_topic: questionTopic,
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          userId: userId || null,
+          chunksUsed: chunks?.length || 0,
+          model: 'gpt-4o-mini',
+          liabilityOverride: true,
+        },
+        request_id: requestId,
+      });
 
       return NextResponse.json({
         success: true,
@@ -2220,32 +2162,25 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       }
       
       // Save to database
-      try {
-        await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: conversationUserId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: dimensionAnswer,
-          question_topic: questionTopic,
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: 0,
-          cost_usd: '0',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            unitUid: validatedUnitUid || null,
-            userId: userId || null,
-            chunksUsed: chunks?.length || 0,
-            model: 'gpt-4o-mini',
-            dimensionQuestionNoDrawing: true,
-            floorPlanFallback: floorPlanAttachments.length > 0,
-          },
-        });
-      } catch (dbError) {
-        console.error('[Chat] Failed to save message:', dbError);
-      }
+      await persistMessageSafely({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: conversationUserId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: dimensionAnswer,
+        question_topic: questionTopic,
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          userId: userId || null,
+          chunksUsed: chunks?.length || 0,
+          model: 'gpt-4o-mini',
+          dimensionQuestionNoDrawing: true,
+          floorPlanFallback: floorPlanAttachments.length > 0,
+        },
+        request_id: requestId,
+      });
 
       return NextResponse.json({
         success: true,
@@ -2281,31 +2216,24 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       console.log('[Chat] TEST MODE: Response generated. Length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
       
       // Save to database
-      try {
-        await db.insert(messages).values({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
-          user_id: conversationUserId || 'anonymous',
-          content: message,
-          user_message: message,
-          ai_message: fullAnswer,
-          question_topic: questionTopic,
-          sender: 'conversation',
-          source: 'purchaser_portal',
-          token_count: completion.usage?.total_tokens || 0,
-          cost_usd: '0',
-          latency_ms: latencyMs,
-          metadata: {
-            unitUid: validatedUnitUid || null,
-            userId: userId || null,
-            chunksUsed: chunks?.length || 0,
-            model: 'gpt-4o-mini',
-            testMode: true,
-          },
-        });
-      } catch (dbError) {
-        console.error('[Chat] Failed to save message:', dbError);
-      }
+      await persistMessageSafely({
+        tenant_id: DEFAULT_TENANT_ID,
+        development_id: DEFAULT_DEVELOPMENT_ID,
+        user_id: conversationUserId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: fullAnswer,
+        question_topic: questionTopic,
+        source: 'purchaser_portal',
+        latency_ms: latencyMs,
+        metadata: {
+          userId: userId || null,
+          chunksUsed: chunks?.length || 0,
+          model: 'gpt-4o-mini',
+          testMode: true,
+        },
+        request_id: requestId,
+      });
       
       return NextResponse.json({
         success: true,
@@ -2480,32 +2408,25 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           const latencyMs = Date.now() - startTime;
           console.log('[Chat] Streaming complete. Answer length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
 
-          try {
-            await db.insert(messages).values({
-              tenant_id: DEFAULT_TENANT_ID,
-              development_id: DEFAULT_DEVELOPMENT_ID,
-              user_id: conversationUserId || 'anonymous',
-              content: message,
-              user_message: message,
-              ai_message: fullAnswer,
-              question_topic: questionTopic,
-              sender: 'conversation',
-              source: 'purchaser_portal',
-              token_count: 0, // Not available in streaming mode
-              cost_usd: '0',
-              latency_ms: latencyMs,
-              metadata: {
-                unitUid: validatedUnitUid || null,
-                userId: userId || null,
-                chunksUsed: chunks?.length || 0,
-                model: 'gpt-4o-mini',
-                streaming: true,
-              },
-            });
-            console.log('[Chat] Message saved to database');
-          } catch (dbError) {
-            console.error('[Chat] Failed to save message:', dbError);
-          }
+          await persistMessageSafely({
+            tenant_id: DEFAULT_TENANT_ID,
+            development_id: DEFAULT_DEVELOPMENT_ID,
+            user_id: conversationUserId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: fullAnswer,
+            question_topic: questionTopic,
+            source: 'purchaser_portal',
+            latency_ms: latencyMs,
+            metadata: {
+              userId: userId || null,
+              chunksUsed: chunks?.length || 0,
+              model: 'gpt-4o-mini',
+              streaming: true,
+            },
+            request_id: requestId,
+          });
+          console.log('[Chat] Message saved to database');
         } catch (error) {
           console.error('[Chat] Streaming error:', error);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Streaming failed' })}\n\n`));
