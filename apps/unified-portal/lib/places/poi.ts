@@ -805,9 +805,9 @@ export function formatPOIResponse(data: POICacheResult, options: FormatPOIOption
 
   if (data.results.length === 0) {
     if (data.diagnostics?.failure_reason === 'places_no_location') {
-      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+      return `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
     }
-    return `I was not able to find any ${formatCategoryName(category)} within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+    return `I couldn't find any ${formatCategoryName(category)} close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
   }
 
   const topResults = data.results.slice(0, resultLimit);
@@ -914,9 +914,9 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
   
   if (!hasPrimary && !hasSecondary) {
     if (data.diagnostics?.failure_reason === 'places_no_location') {
-      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+      return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
-    return `I was not able to find any schools within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+    return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
   }
 
   const intro = getVariedIntro('primary_school', developmentName, sessionSeed);
@@ -927,7 +927,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
     body += 'Primary schools:\n';
     body += data.primary.slice(0, 3).map(formatBulletItem).join('\n');
   } else {
-    body += 'Primary schools:\nNo primary schools found within the search area.';
+    body += 'Primary schools:\nNone found close by.';
   }
   
   body += '\n\n';
@@ -936,7 +936,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
     body += 'Secondary schools:\n';
     body += data.secondary.slice(0, 3).map(formatBulletItem).join('\n');
   } else {
-    body += 'Secondary schools:\nNo secondary schools found within the search area.';
+    body += 'Secondary schools:\nNone found close by.';
   }
   
   const sourceHint = getSourceHint(data.fetchedAt);
@@ -947,9 +947,9 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
 export function formatSchoolsResponse(data: POICacheResult, developmentName?: string, sessionSeed?: number): string {
   if (data.results.length === 0) {
     if (data.diagnostics?.failure_reason === 'places_no_location') {
-      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+      return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
-    return `I was not able to find any schools within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+    return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
   }
 
   const topResults = data.results.slice(0, 5);
@@ -963,9 +963,9 @@ export function formatSchoolsResponse(data: POICacheResult, developmentName?: st
 export function formatShopsResponse(data: POICacheResult, developmentName?: string, sessionSeed?: number): string {
   if (data.results.length === 0) {
     if (data.diagnostics?.failure_reason === 'places_no_location') {
-      return `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+      return `The development location hasn't been set up yet, so I'm not able to search for nearby shops at the moment. Your developer should be able to sort that out.`;
     }
-    return `I was not able to find any shops within the local area. This may mean there are none within a reasonable distance, or the data is temporarily unavailable.`;
+    return `I couldn't find any shops close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
   }
 
   const topResults = data.results.slice(0, 5);

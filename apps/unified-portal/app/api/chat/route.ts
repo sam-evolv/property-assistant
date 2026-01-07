@@ -1060,7 +1060,7 @@ export async function POST(request: NextRequest) {
         console.log('[Chat] LOCATION_AMENITIES: Could not determine POI category, using fallback');
         chatDiagnostics.fallback_reason = 'unknown_poi_category';
         
-        const fallbackResponse = `I couldn't determine which type of amenity you're looking for. Please ask about a specific type of location such as "nearest supermarket", "closest pharmacy", "nearby train station", or "schools near here". You can also check Google Maps for ${schemeAddress}.`;
+        const fallbackResponse = `I'd be happy to help with that – are you looking for shops, restaurants, schools, or something else nearby? Just let me know and I'll point you in the right direction.`;
         
         await logAnswerGap({
           scheme_id: userSupabaseProjectId,
@@ -1230,9 +1230,9 @@ export async function POST(request: NextRequest) {
           
           let noResultsResponse: string;
           if (isMissingLocation) {
-            noResultsResponse = `Nearby amenities are not enabled for this scheme yet because the development location has not been set. Ask the developer or admin to set the scheme location in Scheme Setup.`;
+            noResultsResponse = `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
           } else {
-            noResultsResponse = `I could not find any ${categoryName} nearby. There may be none within 5km of the development. Please try Google Maps for ${schemeAddress || 'the development address'} for accurate local amenities.`;
+            noResultsResponse = `I couldn't find any ${categoryName} close by – it's possible there aren't any within a reasonable distance. You could try Google Maps for a wider search around ${schemeAddress || 'the area'}.`;
           }
           
           await logAnswerGap({
@@ -1826,7 +1826,7 @@ ${referenceData}
 
 CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - ONLY answer based on the REFERENCE DATA provided above. Do NOT make up, guess, or infer information that is not explicitly stated.
-- If the answer is NOT in the reference data, you MUST say: "I don't have that information to hand. I'd recommend contacting your developer or management company directly for accurate details."
+- If the answer is NOT in the reference data, explain gracefully that you don't have those specific details, and suggest they check with their developer or management company. Keep the tone helpful and conversational, not robotic.
 - NEVER fabricate specifications, dates, contact details, prices, or any factual claims
 - If you're uncertain whether something is accurate, err on the side of caution and direct the user to verify with the appropriate party
 - It is better to admit you don't know than to provide incorrect information
@@ -1899,7 +1899,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development that answer this question. 
 
 CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
-- You do NOT have reference data for this question. You MUST say: "I don't have that information to hand. I'd recommend contacting your developer or management company directly for accurate details."
+- You do NOT have reference data for this question. Explain gracefully that you don't have those specific details, and suggest they check with their developer or management company. Keep the tone helpful and conversational, not robotic.
 - NEVER make up, guess, or infer any information whatsoever
 - Do not provide any factual claims about the property, development, or any specifications
 
