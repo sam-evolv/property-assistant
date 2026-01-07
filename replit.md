@@ -73,6 +73,29 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Tenant Isolation Hardening (January 2026)
+
+**Hardened scheme access to prevent enumeration and enforce tenant isolation:**
+
+**Security Controls:**
+1. **assertSchemeAccess helper** (`lib/security/scheme-access.ts`): Reusable function for tenant-scoped scheme resolution
+   - Developers can only access schemes in their organization
+   - Admin/super_admin can access all schemes
+   - Cross-tenant access returns `scheme_not_found` (not forbidden) to prevent enumeration
+
+2. **All lookups are tenant-scoped**:
+   - schemeId lookup checks `projects.organization_id` or `scheme_profile.developer_org_id`
+   - schemeName lookup filters by tenant before returning matches
+
+3. **Enumeration prevention**:
+   - Cross-tenant access returns same error as non-existent scheme
+   - No positive/negative signaling for enumeration attacks
+   - Sensitive data only in X-Test-Mode debug responses
+
+4. **Logging hygiene**:
+   - No scheme IDs logged on unauthorized responses
+   - Debug object only included for authenticated test mode
+
 ### Places Diagnostics and Resilience (January 2026)
 
 **Enhanced Places API handling with diagnostics, stale-cache fallback, and healthcheck:**
