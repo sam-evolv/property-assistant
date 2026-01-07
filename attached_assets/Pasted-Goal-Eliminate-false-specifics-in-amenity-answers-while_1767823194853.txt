@@ -1,0 +1,66 @@
+Goal:
+Eliminate false specifics in amenity answers while keeping the improved friendly tone.
+
+Problem:
+Assistant produced a confident, human-sounding answer with incorrect café name/location and made-up walking time. This must never happen.
+
+Implement strict grounding rules for location/amenities (cafes, pubs, restaurants, schools, supermarkets, parks, pharmacies, gyms, etc.):
+
+1) Hard rule: No invented specifics
+- The assistant must NEVER output:
+  - a venue name
+  - an address/suburb/shopping centre claim
+  - an opening status
+  - a walk/drive time or distance
+unless that specific datum exists in the retrieved sources:
+  a) Google Places response (name/vicinity/place_id/open_now/latlng)
+  b) Distance Matrix response (walk/drive duration)
+  c) Uploaded scheme docs marked as "Local Amenities" / "Welcome Pack" (explicitly stated)
+
+2) Enforce with a validator (amenity_answer_validator)
+- After drafting an amenity answer, validate:
+  - Every venue name mentioned must match a place_id/name returned by the Places call OR cited doc snippet.
+  - Any “X-minute walk/drive” requires Distance Matrix data.
+  - Any claim like “in Ballyvolane Shopping Centre” requires Places vicinity text or doc citation.
+- If validation fails, auto-rewrite into a safe format:
+  - Friendly intro
+  - List only grounded venues from Places (name + vicinity + open_now if present)
+  - No travel times if not grounded
+  - Source hint line
+
+3) Clarification logic for cafes/pubs/restaurants
+- Add synonym map:
+  - cafe/coffee/coffee shop -> cafe
+  - pub/pint/bar -> bar
+  - food/eat/restaurant -> restaurant
+- Never ask “which type of amenity” for these obvious terms.
+- If user asks broadly (“any nice cafes?”), return Places list and then ask a preference follow-up:
+  - “More of a sit-in café, or grab-and-go?”
+Only ask follow-ups that the system can answer.
+
+4) Distance accuracy
+- Remove any km or “5-minute walk” language unless Distance Matrix returns a duration.
+- If Distance Matrix is not configured or fails, omit distances entirely.
+- If user requests distance/time explicitly, respond:
+  “I can show approximate walk/drive times when route data is available. For exact directions, Google Maps is best.”
+
+5) Logging
+- When the validator blocks invented specifics, log a gap event:
+  reason=validation_failed
+  intent=location_amenities
+  details={blocked_claim_types:[...], poiCategory:...}
+
+6) Tests
+Add/extend test-suite cases:
+- “Any cafés nearby?” must:
+  - have no venue not present in Places
+  - have no travel time unless Distance Matrix present
+  - include sourceHint “Google Places” when Places used
+- Add regression test for “Costa Coffee in Ballyvolane Shopping Centre” to ensure it never appears unless Places returns it.
+
+Deliverables:
+- amenity_answer_validator.ts
+- integration into amenity response pipeline
+- updated tests
+- ensure tone improvements remain intact
+No em dashes in user-visible text.

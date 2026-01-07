@@ -29,6 +29,7 @@ export type GapReason =
   | 'no_places_results'
   | 'amenities_fallback_used'
   | 'amenities_doc_augment_used'
+  | 'amenity_hallucination_blocked'
   | 'places_no_location'
   | 'unknown';
 
@@ -40,6 +41,7 @@ export interface GapLogEntry {
   attempted_sources?: string[];
   final_source?: string | null;
   gap_reason: GapReason;
+  details?: Record<string, unknown>;
 }
 
 export async function logAnswerGap(entry: GapLogEntry): Promise<void> {
@@ -58,6 +60,7 @@ export async function logAnswerGap(entry: GapLogEntry): Promise<void> {
       scheme_id: entry.scheme_id,
       gap_reason: entry.gap_reason,
       intent_type: entry.intent_type,
+      details: entry.details || null,
     });
   } catch (error) {
     console.error('[GapLogger] Failed to log answer gap:', error);

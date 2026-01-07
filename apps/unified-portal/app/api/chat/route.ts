@@ -26,6 +26,7 @@ import {
   type AnswerStrategy,
 } from '@/lib/assistant/os';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
+import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -1831,6 +1832,13 @@ CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - If you're uncertain whether something is accurate, err on the side of caution and direct the user to verify with the appropriate party
 - It is better to admit you don't know than to provide incorrect information
 
+CRITICAL - NEARBY AMENITIES (STRICT PROHIBITION):
+- NEVER invent, guess, or name specific businesses, shops, cafes, pubs, restaurants, or any other venues
+- NEVER provide walking/driving times or distances to any place unless you have explicit data
+- NEVER claim a business is "in X Shopping Centre" or "on X Street" unless explicitly stated in the reference data
+- If asked about local cafes, shops, pubs, restaurants, or any nearby amenities: say you can help if they ask specifically about nearby places, or suggest they check Google Maps for the most up-to-date local information
+- Do NOT make up names like "Costa Coffee" or locations like "Ballyvolane Shopping Centre" - this causes serious user distrust
+
 CRITICAL - HIGH-RISK TOPICS (SAFETY & LEGAL REQUIREMENT):
 You are NOT qualified to advise on the following topics. For these, provide only general guidance and redirect to appropriate professionals:
 
@@ -1902,6 +1910,12 @@ CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - You do NOT have reference data for this question. Explain gracefully that you don't have those specific details, and suggest they check with their developer or management company. Keep the tone helpful and conversational, not robotic.
 - NEVER make up, guess, or infer any information whatsoever
 - Do not provide any factual claims about the property, development, or any specifications
+
+CRITICAL - NEARBY AMENITIES (STRICT PROHIBITION):
+- NEVER invent, guess, or name specific businesses, shops, cafes, pubs, restaurants, or any other venues
+- NEVER provide walking/driving times or distances to any place
+- If asked about local cafes, shops, pubs, restaurants, or any nearby amenities: say you can help if they ask specifically about nearby places, or suggest they check Google Maps for the most up-to-date local information
+- Do NOT make up names like "Costa Coffee" or locations like "Ballyvolane Shopping Centre"
 
 FOLLOW-UP OFFERS (STRICTLY FORBIDDEN):
 - You do NOT have information on this topic
@@ -2410,9 +2424,37 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         stream: false,
       });
       
-      const fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
+      let fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
       const latencyMs = Date.now() - startTime;
       console.log('[Chat] TEST MODE: Response generated. Length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
+      
+      // AMENITY HALLUCINATION CHECK: Block fabricated venue names, travel times, distances
+      // CRITICAL: If we're in the LLM path, we do NOT have grounded POI data - never bypass validation
+      // The POI path returns early via formatPOIResponse, so if we're here, we don't have real venue data
+      const hasAmenityContext = false; // LLM path never has grounded POI context
+      const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
+      
+      if (hallucinationCheck.hasHallucination) {
+        console.log('[Chat] AMENITY HALLUCINATION BLOCKED:', hallucinationCheck.detectedIssues);
+        fullAnswer = hallucinationCheck.cleanedAnswer || fullAnswer;
+        
+        // Log the blocked hallucination
+        try {
+          const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+          await logAnswerGap({
+            scheme_id: userSupabaseProjectId,
+            unit_id: clientUnitUid || null,
+            user_question: message,
+            intent_type: 'validation_failed',
+            attempted_sources: ['llm'],
+            final_source: 'validation_rewrite',
+            gap_reason: 'amenity_hallucination_blocked',
+            details: { blocked_claims: hallucinationCheck.detectedIssues },
+          });
+        } catch (logError) {
+          console.error('[Chat] Failed to log hallucination block:', logError);
+        }
+      }
       
       // Save to database
       await persistMessageSafely({
@@ -2607,13 +2649,42 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           const latencyMs = Date.now() - startTime;
           console.log('[Chat] Streaming complete. Answer length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
 
+          // STREAMING HALLUCINATION CHECK: Detect and log fabricated venue names in streamed responses
+          // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
+          // The POI path returns early, so if we're here, never bypass validation
+          const streamHasAmenityContext = false; // Streaming LLM path never has grounded POI context
+          const streamHallucinationCheck = detectAmenityHallucinations(fullAnswer, streamHasAmenityContext);
+          
+          let answerToStore = fullAnswer;
+          if (streamHallucinationCheck.hasHallucination) {
+            console.log('[Chat] STREAMING HALLUCINATION DETECTED (already sent to client):', streamHallucinationCheck.detectedIssues);
+            answerToStore = streamHallucinationCheck.cleanedAnswer || fullAnswer;
+            
+            // Log the hallucination for observability
+            try {
+              const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+              await logAnswerGap({
+                scheme_id: userSupabaseProjectId,
+                unit_id: clientUnitUid || null,
+                user_question: message,
+                intent_type: 'validation_failed',
+                attempted_sources: ['llm_streaming'],
+                final_source: 'validation_detected',
+                gap_reason: 'amenity_hallucination_blocked',
+                details: { blocked_claims: streamHallucinationCheck.detectedIssues, already_sent: true },
+              });
+            } catch (logError) {
+              console.error('[Chat] Failed to log streaming hallucination:', logError);
+            }
+          }
+
           await persistMessageSafely({
             tenant_id: DEFAULT_TENANT_ID,
             development_id: DEFAULT_DEVELOPMENT_ID,
             user_id: conversationUserId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,
-            ai_message: fullAnswer,
+            ai_message: answerToStore,
             question_topic: questionTopic,
             source: 'purchaser_portal',
             latency_ms: latencyMs,
@@ -2622,6 +2693,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
               chunksUsed: chunks?.length || 0,
               model: 'gpt-4o-mini',
               streaming: true,
+              hallucinationDetected: streamHallucinationCheck.hasHallucination,
             },
             request_id: requestId,
           });
