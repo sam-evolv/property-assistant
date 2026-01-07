@@ -73,35 +73,50 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
-### Amenity Answering Gate (January 2026)
+### Amenity Engine Upgrade (January 2026)
 
-**Strict enforcement to prevent hallucinated location/amenity responses:**
+**Universal amenities pipeline with Places-first, document-augmentation approach:**
 
 **Problem Solved:**
-- Location/amenity questions (e.g., "nearest supermarket") were returning hallucinated answers like "SuperValu" + opening hours instead of using Google Places
+- BUG: "nearest supermarket" was answered from Smart Archive "Local Amenities" instead of Google Places, causing stale/hallucinated venue claims
 
-**Implementation:**
-1. **Hardened Intent Classifier**: Comprehensive patterns for "nearest", "closest", "nearby", "near me", "close by" + amenity types
-2. **Strict Gate**: `location_amenities` intent MUST use Google Places - no RAG fallback allowed
-3. **Controlled Fallbacks**:
-   - Unknown POI category → "ask about specific amenity type"
-   - No Places results → "couldn't retrieve, check Google Maps"
-   - Places API error → "try again later, check Google Maps"
-4. **Gap Logging**: New reasons: `google_places_failed`, `no_places_results`, `amenities_fallback_used`, `places_no_location`
-5. **Response Validator**: Detects ungrounded venue names, opening hours, and travel times
+**Architecture:**
+1. **Universal Intent Classifier**: Dynamic regex patterns covering all amenity types
+   - Patterns: "nearest/closest/nearby/near me/close by" + all amenity categories
+   - Categories: supermarket, pharmacy, GP, hospital, school, childcare, train, bus, park, playground, gym, leisure, cafe, restaurant, sports
+
+2. **Strict Amenity Gate**: `location_amenities` intent MUST use Google Places
+   - Places results ranked by distance (cache-first, 30-day TTL)
+   - Distance Matrix for walk/drive times
+   - Only `open_now` boolean used (no opening hours)
+
+3. **Document Augmentation** (Optional):
+   - Searches `local_amenities`, `welcome_pack`, `homeowner_guide` docs
+   - Documents can ONLY augment, never override place names/rankings
+   - Adds supportive context like "mentioned in your welcome pack"
+
+4. **Multi-Source Hinting**:
+   - Places only: "Nearby amenities (Google Places, last updated 7 Jan 2026)"
+   - With docs: "...and your homeowner documentation"
+   - Fallback: "General guidance"
+
+5. **Gap Logging**: `google_places_failed`, `no_places_results`, `amenities_fallback_used`, `places_no_location`, `amenities_doc_augment_used`
+
+**Expanded POI Categories:**
+- parks, playgrounds, gyms, leisure, cafes, restaurants, sports facilities, hospitals
 
 **Key Files:**
-- `apps/unified-portal/lib/assistant/os.ts` - Intent classification patterns
-- `apps/unified-portal/app/api/chat/route.ts` - Amenity gate implementation
+- `apps/unified-portal/lib/places/poi.ts` - POI engine with 16 categories
+- `apps/unified-portal/lib/assistant/os.ts` - Intent classification
+- `apps/unified-portal/lib/assistant/amenity-augmenter.ts` - Document augmentation
+- `apps/unified-portal/app/api/chat/route.ts` - Amenity gate
 - `apps/unified-portal/lib/assistant/amenities-validator.ts` - Response validation
-- `apps/unified-portal/lib/assistant/gap-logger.ts` - Gap reasons
-- `apps/unified-portal/lib/assistant/gap-suggestions.ts` - Fix suggestions
+- `apps/unified-portal/tests/assistant/amenity-gate.test.ts` - Unit tests
 
 **Confirmed Behavior:**
-- "nearest supermarket" returns actual Places results (Dunnes/Lidl/etc) with last-updated date
-- No opening hours unless `open_now` is returned by Places
-- No travel times unless from Distance Matrix API
-- No hardcoded store names in fallback responses
+- Smart Archive "Local Amenities" cannot directly answer location queries
+- All venue names, distances, rankings come from Google Places
+- No hallucinated opening hours or travel times in responses
 
 ### UX Intelligence Upgrades (January 2026)
 
