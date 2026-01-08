@@ -28,6 +28,16 @@ import {
 } from '@/lib/assistant/os';
 import { formatJokeResponse } from '@/lib/assistant/jokes';
 import { isLocalHistoryQuery, detectHistoryCategory, formatLocalHistoryResponse, isLongviewOrRathardScheme } from '@/lib/assistant/local-history';
+import { 
+  isSessionMemoryEnabled, 
+  getSessionMemory, 
+  updateSessionFromMessage, 
+  getMemoryContext, 
+  hasRelevantMemory,
+  getMemoryDebugInfo,
+  type SessionMemory,
+  type MemoryDebugInfo
+} from '@/lib/assistant/session-memory';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 
@@ -1000,6 +1010,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // SESSION MEMORY: Extract and update session-scoped context
+    let sessionMemory: SessionMemory | null = null;
+    let sessionMemoryDebug: MemoryDebugInfo | null = null;
+    let sessionMemoryUpdatedKeys: string[] = [];
+    
+    if (isSessionMemoryEnabled() && effectiveUnitUid && userSupabaseProjectId) {
+      // Get existing memory first
+      sessionMemory = getSessionMemory(userTenantId, userSupabaseProjectId, effectiveUnitUid);
+      
+      // Extract memory from current message and update
+      const memoryResult = updateSessionFromMessage(
+        userTenantId,
+        userSupabaseProjectId,
+        effectiveUnitUid,
+        message,
+        intentClassification?.intent || null,
+        null // followup_topic will be set after response generation
+      );
+      
+      sessionMemory = memoryResult.memory;
+      sessionMemoryUpdatedKeys = memoryResult.updatedKeys;
+      
+      if (sessionMemoryUpdatedKeys.length > 0) {
+        console.log('[Chat] Session memory updated:', sessionMemoryUpdatedKeys.join(', '));
+      }
+      
+      if (hasRelevantMemory(sessionMemory)) {
+        console.log('[Chat] Session memory context available:', 
+          sessionMemory.block ? `block=${sessionMemory.block}` : '',
+          sessionMemory.room ? `room=${sessionMemory.room}` : '',
+          sessionMemory.appliance ? `appliance=${sessionMemory.appliance}` : '',
+          sessionMemory.issue ? `issue=${sessionMemory.issue}` : ''
+        );
+      }
+      
+      // Generate debug info for observability
+      sessionMemoryDebug = getMemoryDebugInfo(sessionMemory, sessionMemoryUpdatedKeys);
+    }
+
     // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
     if (isAssistantOSEnabled() && intentClassification?.intent === 'affirmative') {
       console.log('[Chat] AFFIRMATIVE INTENT detected - checking for previous follow-up context');
@@ -1945,7 +1994,10 @@ PERSONALITY & TONE:
 GREETING BEHAVIOUR:
 ${isFirstMessage ? `- This is the homeowner's first message. Start with a brief, warm welcome (one sentence max), then answer their question directly.` : `- This is a follow-up message. Do NOT repeat any welcome or greeting - just answer the question directly.`}
 
-ANSWERING STYLE:
+${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}
+Use this context naturally when relevant - don't explicitly mention "you mentioned earlier" unless it adds value.
+
+` : ''}ANSWERING STYLE:
 - Get straight to the point - answer the question first, then add helpful context if needed
 - Only use bullet points or headings when they genuinely improve clarity, not by default
 - Reference the homeowner's house type or development context when it's clearly useful, but don't repeat their full address every time
@@ -2045,7 +2097,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     } else {
       systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development that answer this question. 
 
-CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
+${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}
+Use this context naturally when relevant.
+
+` : ''}CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - You do NOT have reference data for this question. Explain gracefully that you don't have those specific details, and suggest they check with their developer or management company. Keep the tone helpful and conversational, not robotic.
 - NEVER make up, guess, or infer any information whatsoever
 - Do not provide any factual claims about the property, development, or any specifications
