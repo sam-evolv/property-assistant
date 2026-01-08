@@ -718,16 +718,21 @@ export default function PurchaserNoticeboardTab({
         setSessionExpired(true);
         return;
       }
+      
+      const data = await res.json().catch(() => ({}));
+      
       if (res.ok) {
         setShowCreateModal(false);
         setFormData({ title: '', message: '', category: 'general', priority: 'low' });
         setNoticeAuthorName('');
         fetchNotices();
       } else {
-        alert(t.submitFailed);
+        console.error('[Noticeboard POST] Server error:', res.status, data);
+        const errorMsg = data?.error || t.submitFailed;
+        alert(errorMsg);
       }
     } catch (error) {
-      console.error('Failed to create notice:', error);
+      console.error('[Noticeboard POST] Network error:', error);
       alert(t.submitFailed);
     } finally {
       setCreating(false);
