@@ -1,0 +1,165 @@
+We are formalising a platform-wide assistant persona for OpenHouse.
+
+This persona must be globally shared, centrally managed, and iterated over time.
+All developments must automatically use the currently active persona.
+
+This is a hard requirement for launch.
+
+Implement the following architecture and guardrails.
+
+--------------------------------------------------
+1. GLOBAL PERSONA (SINGLE SOURCE OF TRUTH)
+--------------------------------------------------
+
+Create a single global assistant persona object:
+
+OPENHOUSE_ASSISTANT_PERSONA
+
+Key rules:
+- There is exactly ONE active persona at runtime.
+- All developments consume the active persona.
+- No development may own, copy, or override persona logic.
+
+Persona properties:
+- version (e.g. v1, v1.1, v2, etc.)
+- behaviour rules
+- tone and language style
+- safety and hallucination controls
+- escalation logic
+- response formatting conventions
+- humour ceiling (very light, optional)
+
+The persona must define ONLY behaviour.
+It must NOT contain or reference:
+- Any estate (Longview Park, Rathard Park, Rathard Lawn, etc.)
+- Any developer
+- Any documents
+- Any locations
+- Any factual data
+- Any assumptions about warranties, contractors, systems, or layouts
+
+The persona is development-agnostic and plug-and-play.
+
+--------------------------------------------------
+2. RUNTIME INJECTION MODEL (NON-NEGOTIABLE)
+--------------------------------------------------
+
+At runtime, every assistant response must be generated as:
+
+Assistant Response =
+  OPENHOUSE_ASSISTANT_PERSONA (active)
+  + Scheme Configuration
+  + Injected Documents (Smart Archive)
+  + Available Tools (maps, notices, APIs)
+
+Behaviour MUST come from the persona.
+Knowledge MUST come only from injected data.
+
+No scheme-specific knowledge may leak into persona logic.
+
+--------------------------------------------------
+3. PERSONA ITERATION & GLOBAL UPDATES
+--------------------------------------------------
+
+Persona iteration rules:
+- Updating the persona updates behaviour across ALL schemes automatically.
+- Existing schemes must NOT be frozen on old persona versions.
+- There is no per-scheme persona selection.
+
+Versioning exists for:
+- Auditability
+- Rollback if needed
+- Change tracking
+
+NOT for:
+- Running multiple personas in parallel
+- Scheme-specific behaviour divergence
+
+When the persona is updated:
+- Increment the version
+- Deploy
+- All schemes immediately reflect the change
+
+--------------------------------------------------
+4. STRICT PROHIBITIONS (VERY IMPORTANT)
+--------------------------------------------------
+
+The system must NOT allow the following:
+
+- Copying persona text into scheme configuration
+- Embedding persona logic inside estate setup flows
+- “Fixing” assistant behaviour locally for one scheme
+- Hardcoding behaviour differences per development
+- Training or tuning the assistant differently per estate
+
+Persona logic must exist in ONE place only.
+
+--------------------------------------------------
+5. DEVELOPER & ESTATE DATA SEPARATION
+--------------------------------------------------
+
+Data layers must remain cleanly separated:
+
+A) Global Persona
+- Behaviour only
+
+B) Developer Document Library (optional, per developer)
+- Reusable docs across that developer’s estates only
+- Never shared across different developers
+
+C) Estate-Specific Data
+- Architectural plans
+- House types
+- Unit metadata
+- Location and branding
+- Notices
+
+Persona behaviour must never depend on which layer data comes from.
+
+--------------------------------------------------
+6. GUARDRAILS & DEFENSIVE CHECKS
+--------------------------------------------------
+
+Add the following safeguards:
+
+- Hard fail if OPENHOUSE_ASSISTANT_PERSONA is missing at runtime
+- Log error if persona logic is duplicated anywhere else
+- Block any attempt by a scheme to override persona behaviour
+- Graceful error messaging if documents or scheme data are missing
+- Clear separation between behaviour errors and data errors
+
+--------------------------------------------------
+7. RATHARD LAWN AS VALIDATION CASE
+--------------------------------------------------
+
+Rathard Lawn will be onboarded using:
+- The global persona
+- The same developer document library as Longview Park and Rathard Park
+- Different architectural plans and branding only
+
+Its similarity must NOT influence persona behaviour.
+
+--------------------------------------------------
+8. FUTURE-PROOFING (DO NOT IMPLEMENT YET)
+--------------------------------------------------
+
+Design the persona system so that in the future we could add:
+- Persona rollback if a release causes issues
+- Staged rollout (optional enterprise feature)
+- Persona changelog for internal review
+
+Do NOT implement these yet.
+Just ensure the architecture does not block them.
+
+--------------------------------------------------
+9. SCOPE CONTROL
+--------------------------------------------------
+
+Do not refactor unrelated code.
+Do not change existing live behaviour.
+Do not introduce new abstractions unless required.
+
+This is a structural isolation and guardrail exercise,
+not a redesign.
+
+Confirm once this architecture is enforced.
