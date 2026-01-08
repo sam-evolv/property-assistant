@@ -38,6 +38,15 @@ import {
   type SessionMemory,
   type MemoryDebugInfo
 } from '@/lib/assistant/session-memory';
+import {
+  isNextBestActionEnabled,
+  buildCapabilityContext,
+  appendNextBestAction,
+  detectIntentFromMessage,
+  type CapabilityContext,
+  type NextBestActionResult
+} from '@/lib/assistant/next-best-action';
+import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 
@@ -906,6 +915,9 @@ export async function POST(request: NextRequest) {
       tenant_id: userTenantId,
     };
     chatDiagnostics.scheme_resolution_path = schemeResolutionPath;
+    
+    // Capability context will be built after sessionMemory and developmentName are defined
+    let capabilityContext: CapabilityContext | null = null;
     
     if (!userSupabaseProjectId) {
       console.log('[Chat] SCHEME RESOLUTION FAILED: Cannot determine Supabase project_id for tenant:', userTenantId, 'unitUid:', effectiveUnitUid);
@@ -2094,7 +2106,30 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - You are NOT allowed to discuss: any specific unit that is not the logged-in user's home, other residents' details, neighbour's properties`;
 
       console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
+      
+      // Update capability context now that we know documents are available
+      capabilityContext = buildCapabilityContext({
+        hasDocuments: true,
+        hasSchemeLocation: !!userUnitDetails?.address,
+        placesApiWorking: !!process.env.GOOGLE_PLACES_API_KEY,
+        hasSessionMemory: isSessionMemoryEnabled() && hasRelevantMemory(sessionMemory),
+        hasUnitInfo: !!userUnitDetails?.unitInfo,
+        hasFloorPlans: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('floor')),
+        hasDrawings: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('drawing')),
+        isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
+      });
     } else {
+      // No documents - build capability context with limited capabilities
+      capabilityContext = buildCapabilityContext({
+        hasDocuments: false,
+        hasSchemeLocation: !!userUnitDetails?.address,
+        placesApiWorking: !!process.env.GOOGLE_PLACES_API_KEY,
+        hasSessionMemory: isSessionMemoryEnabled() && hasRelevantMemory(sessionMemory),
+        hasUnitInfo: !!userUnitDetails?.unitInfo,
+        hasFloorPlans: false,
+        hasDrawings: false,
+        isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
+      });
       systemMessage = `You are a friendly on-site concierge for a residential development. Unfortunately, there are no documents uploaded yet for this development that answer this question. 
 
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}
@@ -2650,6 +2685,23 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         }
       }
       
+      // NEXT BEST ACTION: Append capability-safe follow-up suggestions
+      let nbaDebugInfo: NextBestActionResult | null = null;
+      let nbaSuggestionUsed: string | null = null;
+      const responseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
+      
+      if (capabilityContext && isNextBestActionEnabled()) {
+        const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext);
+        fullAnswer = nbaResult.response;
+        nbaSuggestionUsed = nbaResult.suggestionUsed;
+        nbaDebugInfo = nbaResult.debugInfo;
+        
+        if (nbaSuggestionUsed) {
+          console.log('[Chat] Next Best Action appended:', nbaSuggestionUsed.substring(0, 50) + '...');
+        }
+      }
+      
       // Save to database
       await persistMessageSafely({
         tenant_id: DEFAULT_TENANT_ID,
@@ -2666,6 +2718,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
           testMode: true,
+          nextBestAction: nbaSuggestionUsed,
         },
         request_id: requestId,
       });
@@ -2673,7 +2726,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       return NextResponse.json({
         success: true,
         answer: fullAnswer,
-        source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
+        source: responseSource,
         chunksUsed: chunks?.length || 0,
         safetyIntercept: false,
       });
@@ -2835,6 +2888,23 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             }
           }
 
+          // NEXT BEST ACTION: Append capability-safe follow-up suggestions to streaming response
+          const streamResponseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
+          let streamNbaSuggestion: string | null = null;
+          
+          if (capabilityContext && isNextBestActionEnabled()) {
+            const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext);
+            
+            if (streamNbaResult.suggestionUsed) {
+              streamNbaSuggestion = streamNbaResult.suggestionUsed;
+              const nbaContent = '\n\n' + streamNbaSuggestion;
+              fullAnswer += nbaContent;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: nbaContent })}\n\n`));
+              console.log('[Chat] Next Best Action streamed:', streamNbaSuggestion.substring(0, 50) + '...');
+            }
+          }
+          
           // Send completion signal
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
           controller.close();
