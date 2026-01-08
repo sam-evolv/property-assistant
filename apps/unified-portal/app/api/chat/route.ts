@@ -54,6 +54,12 @@ import {
   type SchemeContacts,
   type EscalationOutput
 } from '@/lib/assistant/escalation';
+import {
+  isToneGuardrailsEnabled,
+  wrapResponse,
+  shouldBlockHumor,
+  type ResponseStyleInput,
+} from '@/lib/assistant/response-style';
 import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
@@ -797,7 +803,15 @@ export async function POST(request: NextRequest) {
       // NOTE: Location/Amenities intent is handled after user context is established (see below)
       
       // Handle humor requests after safety checks - adds personality to the assistant
-      if (isHumorRequest(message)) {
+      // TONE GUARDRAILS: Block humor if safety mode is active
+      const humorBlocked = isToneGuardrailsEnabled() && shouldBlockHumor({
+        intentType: intentClassification?.intent || 'general',
+        safetyIntercept: false,
+        confidence: 'high',
+        sourceType: 'general',
+      });
+      
+      if (isHumorRequest(message) && !humorBlocked) {
         const jokeResponse = formatJokeResponse();
         console.log('[Chat] Humor request detected - serving joke');
         
@@ -2739,6 +2753,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         }
       }
       
+      // TONE GUARDRAILS: Apply consistent "local guide" voice
+      if (isToneGuardrailsEnabled()) {
+        const toneInput: ResponseStyleInput = {
+          intentType: intentClassification?.intent || detectIntentFromMessage(message) || 'general',
+          safetyIntercept: false,
+          confidence: chunks && chunks.length > 0 ? 'high' : 'low',
+          sourceType: responseSource === 'semantic_search' ? 'docs' : 'general',
+          schemeName: developmentName,
+          includeSourceHint: true,
+        };
+        fullAnswer = wrapResponse(fullAnswer, toneInput);
+        console.log('[Chat] Tone guardrails applied');
+      }
+      
       // Save to database
       await persistMessageSafely({
         tenant_id: DEFAULT_TENANT_ID,
@@ -2950,6 +2978,13 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: nbaContent })}\n\n`));
               console.log('[Chat] Next Best Action streamed:', streamNbaSuggestion.substring(0, 50) + '...');
             }
+          }
+          
+          // TONE GUARDRAILS: Add source hint at end of streaming response
+          if (isToneGuardrailsEnabled() && streamResponseSource === 'semantic_search') {
+            const sourceHintContent = '\n\nSource: Your home documentation' + (developmentName ? ` for ${developmentName}` : '');
+            fullAnswer += sourceHintContent;
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: sourceHintContent })}\n\n`));
           }
           
           // Send completion signal
