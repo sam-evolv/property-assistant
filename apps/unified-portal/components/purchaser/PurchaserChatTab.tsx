@@ -426,7 +426,7 @@ export default function PurchaserChatTab({
   // iOS Capacitor-only state - DOES NOT affect web app
   const [isIOSNative, setIsIOSNative] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const IOS_TAB_BAR_HEIGHT = 72;
+  const [iosTabBarHeight, setIosTabBarHeight] = useState(96); // Dynamic height, fallback 96px
 
   // Detect iOS Capacitor native platform - runs once on mount
   // Uses window.Capacitor which is injected by Capacitor runtime in native apps
@@ -460,6 +460,54 @@ export default function PurchaserChatTab({
     checkKeyboard();
     
     return () => vv.removeEventListener('resize', checkKeyboard);
+  }, [isIOSNative]);
+
+  // Measure actual tab bar height from DOM for iOS native
+  useEffect(() => {
+    if (!isIOSNative || typeof window === 'undefined') return;
+    
+    const measureTabBarHeight = () => {
+      // Try to find the tab bar nav element directly in DOM using data attribute
+      const tabBarEl = document.querySelector('[data-mobile-tab-bar="true"]') as HTMLElement;
+      if (tabBarEl && tabBarEl.offsetHeight > 0) {
+        setIosTabBarHeight(tabBarEl.offsetHeight);
+        return;
+      }
+      
+      // Fallback: try CSS variable
+      const cssValue = getComputedStyle(document.documentElement)
+        .getPropertyValue('--mobile-tab-bar-h')
+        .trim();
+      if (cssValue) {
+        const parsed = parseFloat(cssValue);
+        if (!isNaN(parsed) && parsed > 0) {
+          setIosTabBarHeight(Math.ceil(parsed));
+        }
+      }
+    };
+    
+    // MutationObserver to detect when tab bar is added to DOM
+    const observer = new MutationObserver(() => {
+      measureTabBarHeight();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Read initially and on resize
+    measureTabBarHeight();
+    window.addEventListener('resize', measureTabBarHeight);
+    
+    // Poll a few times for late-mounted tab bars
+    const timers = [
+      setTimeout(measureTabBarHeight, 100),
+      setTimeout(measureTabBarHeight, 500),
+      setTimeout(measureTabBarHeight, 1000),
+    ];
+    
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measureTabBarHeight);
+      timers.forEach(clearTimeout);
+    };
   }, [isIOSNative]);
 
   useEffect(() => {
@@ -1115,7 +1163,7 @@ export default function PurchaserChatTab({
         }`}
         style={{ 
           bottom: isIOSNative 
-            ? (isKeyboardOpen ? 0 : IOS_TAB_BAR_HEIGHT) 
+            ? (isKeyboardOpen ? 0 : iosTabBarHeight) 
             : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}

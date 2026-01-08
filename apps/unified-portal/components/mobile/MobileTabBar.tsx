@@ -82,6 +82,7 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBa
         className=""
         role="navigation"
         aria-label="Mobile navigation"
+        data-mobile-tab-bar="true"
       >
         <div style={containerStyles}>
           {TABS.map((tab) => {
