@@ -73,6 +73,34 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Tone Guardrails (January 2026)
+
+**Consistent "friendly local guide" voice across all response modes:**
+
+**Feature Flag: ASSISTANT_TONE_GUARDRAILS**
+
+**Core Components:**
+1. `phrases.ts`: Banned phrase replacements and 8+ intro variants per 12 intent families
+   - BANNED_PHRASES: 30+ AI-sounding phrases mapped to human alternatives (e.g., "I'm sorry to hear" → "That sounds frustrating")
+   - INTRO_VARIANTS: Intent-specific intros (amenities, schools, transport, etc.) that avoid repetitive openers
+   
+2. `response-style.ts`: Mode selection and streaming guardrails
+   - Three modes: normal (with intro variants), friendly_guidance (low confidence), safety (blocks humor/follow-ups)
+   - wrapResponse(): Full processing for test mode responses
+   - createStreamingGuardrail(): Chunk processing with getIntroChunk(), processChunk(), finalize()
+   - processStreamedResponse(): Final cleanup for stored transcripts
+
+**Key Features:**
+- Intent-family intro variants streamed at start of response
+- Em-dash removal on all chunks (live streaming)
+- Banned phrase replacements applied on chunks and finalized
+- Source hints appended for document-grounded responses
+- Safety mode strips humor and follow-up prompts for emergency topics
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/phrases.ts`
+- `apps/unified-portal/lib/assistant/response-style.ts`
+
 ### Next Best Action + Concierge Escalation (January 2026)
 
 **Two new assistant features for improved user guidance:**
