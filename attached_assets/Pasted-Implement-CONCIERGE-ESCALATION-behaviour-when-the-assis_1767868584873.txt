@@ -1,0 +1,62 @@
+Implement CONCIERGE ESCALATION behaviour when the assistant cannot answer with sufficient confidence.
+
+Goal:
+When the assistant cannot confirm something, it should still help by:
+- identifying the correct party to contact (developer vs OMC vs installer)
+- providing a message template and what info to include
+- never inventing contact details
+- using scheme contacts only when present in data
+
+Constraints:
+- Never hallucinate phone numbers or email addresses.
+- If no contacts exist, provide role-based guidance and what to ask for.
+- Must be Ireland appropriate.
+- Must be safe behind a feature flag.
+
+Implementation Plan:
+1) Add feature flag:
+   ASSISTANT_CONCIERGE_ESCALATION=true
+
+2) Create escalation router:
+   /lib/assistant/escalation.ts
+
+Inputs:
+- intent
+- confidence
+- gap_reason
+- scheme contacts (from scheme config or docs)
+- session memory context (block, issue type)
+
+Outputs:
+- escalation_target: "developer" | "omc" | "installer" | "emergency_services"
+- message_template: a short copy-paste message
+- required_fields: [unit_uid, block, issue_summary, photos?, preferred_contact_time?]
+- disclaimer: only when needed
+
+3) Integrate with existing gap logger:
+   When gap reason is:
+   - missing_scheme_data
+   - no_documents_found
+   - low_doc_confidence
+   - validation_failed
+   auto-append escalation guidance.
+
+4) Add scheme contacts structure:
+   Prefer to read from scheme_profile or a scheme_contacts table if you have one.
+   If not present, do not invent. Use placeholders:
+   "Contact the management company (OMC) using the details in your welcome pack."
+
+5) Output style:
+   - Friendly, calm.
+   - Short.
+   - Include "What to include" as a short list.
+
+6) Tests:
+   - If no contacts exist, template must not contain fake emails/phones.
+   - If contacts exist, must cite them accurately.
+
+Deliverables:
+- /lib/assistant/escalation.ts
+- /lib/assistant/escalation-templates.ts (Ireland-specific)
+- integration into response composer when low confidence
+- test coverage

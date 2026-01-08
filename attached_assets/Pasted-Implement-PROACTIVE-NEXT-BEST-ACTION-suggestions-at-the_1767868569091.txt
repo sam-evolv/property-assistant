@@ -1,0 +1,60 @@
+Implement PROACTIVE NEXT BEST ACTION suggestions at the end of assistant responses.
+
+Goal:
+End most responses with 1-2 helpful follow-ons that the assistant can actually fulfil next, based on intent and available data. Never suggest actions the system cannot support.
+
+Constraints:
+- Must be disabled for emergencies and safety intercept responses.
+- Must not produce dead-end follow-ups.
+- Must respect feature flags.
+- No spammy tone, keep it crisp.
+
+Implementation Plan:
+1) Add feature flag:
+   ASSISTANT_NEXT_BEST_ACTION=true
+
+2) Build a deterministic capability map:
+   /lib/assistant/capability-map.ts
+
+Example structure:
+capabilityMap = {
+  heating: {
+    requires: ["docs:heating", "scheme_data:heating_type?"],
+    suggestions: [
+      "If you tell me which room or zone is affected, I can point you to the exact control settings.",
+      "If you share your unit code, I can pull the correct heating manual section."
+    ]
+  },
+  snagging: { ... },
+  amenities: {
+    requires: ["scheme_location", "places_api"],
+    suggestions: [
+      "If you tell me what you're looking for (pubs, cafes, gyms), I can list the closest options.",
+      "Want places that are walkable, or is a short drive fine?"
+    ]
+  }
+}
+
+3) Add a suggestion gate:
+   shouldSuggest(intent, context) returns true only if all required capabilities are met.
+   Example:
+   - For amenities, require scheme_location.present AND places_api working.
+   - If missing, do not suggest amenity follow-ups.
+
+4) Add yes-intent routing integration:
+   If the assistant asks a follow-up question, store last_followup_topic into session memory.
+   If the user replies "yes / sure / please", route to that follow-up handler.
+
+5) Formatting:
+   - Append a "Next:" line with 1-2 suggestions.
+   - Keep it short, no bullets if it looks messy, or use clean bullets if consistent.
+
+6) Tests:
+   - Emergency queries must never contain suggestions.
+   - Amenity suggestions must not appear when location is missing or Places fails.
+
+Deliverables:
+- /lib/assistant/capability-map.ts
+- /lib/assistant/next-best-action.ts (gate + render)
+- integration into assistant response composer
+- tests in /tests/assistant
