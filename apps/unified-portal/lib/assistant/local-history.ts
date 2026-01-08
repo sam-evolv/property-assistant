@@ -315,19 +315,44 @@ export function getLocalHistoryFact(category?: HistoricalFact['category'] | null
 export function formatLocalHistoryResponse(category?: HistoricalFact['category'] | null): string {
   const { intro, fact } = getLocalHistoryFact(category);
   
-  let response = `${intro}\n\n**${fact.title}**\n\n${fact.content}`;
+  let response = `${intro}\n\n${fact.title}\n\n${fact.content}`;
   
   if (fact.funFact) {
-    response += `\n\n*${fact.funFact}*`;
+    response += `\n\n${fact.funFact}`;
   }
   
   if (fact.period) {
-    response += `\n\n_(${fact.period})_`;
+    response += `\n\n(${fact.period})`;
   }
   
   response += '\n\nWould you like to hear another interesting fact about the area?';
   
   return response;
+}
+
+const YES_INTENT_PATTERNS = [
+  /^yes\b/i,
+  /^yeah\b/i,
+  /^yep\b/i,
+  /^sure\b/i,
+  /^ok(ay)?\b/i,
+  /^please\b/i,
+  /^go\s*(ahead|on)\b/i,
+  /^tell\s*me\s*(more|another)\b/i,
+  /^another\s*(one|fact|story)?\b/i,
+  /^i('d| would)\s*(like|love)\b/i,
+  /^absolutely\b/i,
+  /^definitely\b/i,
+  /^of\s*course\b/i,
+  /^why\s*not\b/i,
+  /^sounds?\s*(good|great|interesting)\b/i,
+  /^let('s| us)\s*(hear|go)\b/i,
+  /^more\s*(please|facts?)?\b/i,
+];
+
+export function isYesIntent(message: string): boolean {
+  const trimmed = message.trim();
+  return YES_INTENT_PATTERNS.some(p => p.test(trimmed));
 }
 
 export function getFactsByCategory(category: HistoricalFact['category']): HistoricalFact[] {

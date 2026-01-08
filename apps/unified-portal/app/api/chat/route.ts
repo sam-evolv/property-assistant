@@ -27,7 +27,7 @@ import {
   type AnswerStrategy,
 } from '@/lib/assistant/os';
 import { formatJokeResponse } from '@/lib/assistant/jokes';
-import { isLocalHistoryQuery, detectHistoryCategory, formatLocalHistoryResponse, isLongviewOrRathardScheme } from '@/lib/assistant/local-history';
+import { isLocalHistoryQuery, detectHistoryCategory, formatLocalHistoryResponse, isLongviewOrRathardScheme, isYesIntent } from '@/lib/assistant/local-history';
 import { 
   isSessionMemoryEnabled, 
   getSessionMemory, 
@@ -1098,7 +1098,8 @@ export async function POST(request: NextRequest) {
     }
 
     // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
-    if (isAssistantOSEnabled() && intentClassification?.intent === 'affirmative') {
+    const isAffirmativeMessage = intentClassification?.intent === 'affirmative' || isYesIntent(message);
+    if (isAssistantOSEnabled() && isAffirmativeMessage) {
       console.log('[Chat] AFFIRMATIVE INTENT detected - checking for previous follow-up context');
       
       // Load conversation history to find the previous assistant message
@@ -1110,6 +1111,43 @@ export async function POST(request: NextRequest) {
       
       if (history.length > 0) {
         const lastAssistantMessage = history[history.length - 1].aiMessage;
+        
+        // LOCAL HISTORY FOLLOW-UP: Check if last message offered another history fact
+        const isLocalHistoryFollowUp = lastAssistantMessage.includes('Would you like to hear another interesting fact about the area');
+        if (isLocalHistoryFollowUp && isLongviewOrRathardScheme(developmentName)) {
+          console.log('[Chat] AFFIRMATIVE: Routing to local history follow-up');
+          
+          const historyResponse = formatLocalHistoryResponse(null);
+          
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            user_id: validatedUnitUid || userId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: historyResponse,
+            question_topic: 'local_history',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              assistantOS: true,
+              intent: 'local_history_followup',
+              developmentName: developmentName,
+              userId: userId || null,
+            },
+            request_id: requestId,
+          });
+          
+          return NextResponse.json({
+            success: true,
+            answer: historyResponse,
+            source: 'local_history',
+            isNoInfo: false,
+            metadata: {
+              intent: 'local_history_followup',
+            },
+          });
+        }
         
         // Import follow-up routing utilities
         const { getFollowUpCategories } = await import('@/lib/places/poi');
