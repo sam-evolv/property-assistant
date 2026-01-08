@@ -46,6 +46,14 @@ import {
   type CapabilityContext,
   type NextBestActionResult
 } from '@/lib/assistant/next-best-action';
+import {
+  isEscalationEnabled,
+  shouldTriggerEscalation,
+  routeEscalation,
+  formatEscalationGuidance,
+  type SchemeContacts,
+  type EscalationOutput
+} from '@/lib/assistant/escalation';
 import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
@@ -918,6 +926,9 @@ export async function POST(request: NextRequest) {
     
     // Capability context will be built after sessionMemory and developmentName are defined
     let capabilityContext: CapabilityContext | null = null;
+    
+    // Escalation guidance for when documents are not found
+    let escalationGuidance: EscalationOutput | null = null;
     
     if (!userSupabaseProjectId) {
       console.log('[Chat] SCHEME RESOLUTION FAILED: Cannot determine Supabase project_id for tenant:', userTenantId, 'unitUid:', effectiveUnitUid);
@@ -2203,6 +2214,23 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
   "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
       console.log('[Chat] No relevant documents found for this query');
       
+      // ESCALATION GUIDANCE: When no documents, provide helpful escalation path
+      if (isEscalationEnabled()) {
+        const detectedIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+        escalationGuidance = routeEscalation({
+          intent: detectedIntent,
+          confidence: 'none',
+          gapReason: 'no_documents_found',
+          sessionContext: {
+            block: sessionMemory?.block,
+            unitNumber: userUnitDetails?.address?.split(',')[0] || undefined,
+            developmentName: developmentName,
+            issueType: sessionMemory?.issue,
+          },
+        });
+        console.log('[Chat] Escalation guidance prepared:', escalationGuidance.escalationTarget);
+      }
+      
       // Log unanswered event with full question context for training insights
       logAnalyticsEvent({
         tenantId: userTenantId,
@@ -2214,6 +2242,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           reason: 'low_similarity_or_no_chunks',
           question_preview: message.substring(0, 200), // Capture more context for training
           conversationDepth: conversationHistory.length + 1,
+          escalationTarget: escalationGuidance?.escalationTarget,
         },
         sessionId: validatedUnitUid || conversationUserId,
         unitId: effectiveUnitUid,
@@ -2685,10 +2714,18 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         }
       }
       
+      // ESCALATION GUIDANCE: Append helpful contact guidance when no documents
+      const responseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
+      
+      if (escalationGuidance && responseSource === 'no_documents' && isEscalationEnabled()) {
+        const escalationText = formatEscalationGuidance(escalationGuidance);
+        fullAnswer = fullAnswer.trim() + '\n\n---\n\n' + escalationText;
+        console.log('[Chat] Escalation guidance appended for:', escalationGuidance.escalationTarget);
+      }
+      
       // NEXT BEST ACTION: Append capability-safe follow-up suggestions
       let nbaDebugInfo: NextBestActionResult | null = null;
       let nbaSuggestionUsed: string | null = null;
-      const responseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
       
       if (capabilityContext && isNextBestActionEnabled()) {
         const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
@@ -2888,8 +2925,18 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             }
           }
 
-          // NEXT BEST ACTION: Append capability-safe follow-up suggestions to streaming response
+          // ESCALATION GUIDANCE: Append helpful contact guidance when no documents (streaming)
           const streamResponseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
+          
+          if (escalationGuidance && streamResponseSource === 'no_documents' && isEscalationEnabled()) {
+            const escalationText = formatEscalationGuidance(escalationGuidance);
+            const escalationContent = '\n\n---\n\n' + escalationText;
+            fullAnswer += escalationContent;
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: escalationContent })}\n\n`));
+            console.log('[Chat] Escalation guidance streamed for:', escalationGuidance.escalationTarget);
+          }
+          
+          // NEXT BEST ACTION: Append capability-safe follow-up suggestions to streaming response
           let streamNbaSuggestion: string | null = null;
           
           if (capabilityContext && isNextBestActionEnabled()) {
