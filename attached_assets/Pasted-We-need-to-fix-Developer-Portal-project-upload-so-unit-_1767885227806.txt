@@ -1,0 +1,62 @@
+We need to fix Developer Portal project upload so "unit_types" are always created correctly.
+
+Current behaviour:
+- Excel import parses "units" successfully.
+- Review step shows Unit Types = 0 even when a "unit_types" sheet exists.
+- This means unit types are not being created during import.
+
+Goal (new standard):
+- Unit types must be materialised automatically as part of project creation/import.
+- Excel may optionally include a "unit_types" sheet, but the system must not depend on it.
+- Unit Types should always be derived from distinct unit_type values in the imported units, and enriched from the optional sheet if provided.
+
+Hard requirements:
+1) No database corruption:
+   - The operation must be idempotent (re-running import must not create duplicates).
+   - Use an upsert strategy or unique constraint.
+   - Wrap project creation + import in a transaction. If anything fails, roll back.
+
+2) No impact to RAG / Smart Archive:
+   - Do not change any embedding/document ingestion code.
+   - Do not modify scheme document tables, embeddings, or retrieval.
+
+3) Backwards compatible:
+   - Existing projects with units but no unit_types should be backfillable with a safe script.
+
+Implementation steps:
+A) Identify current import pipeline and where Excel parsing occurs for "units" and "unit_types".
+   - Locate the code used for "Create New Project" upload.
+   - Confirm whether "unit_types" sheet is ignored or parsed but never persisted.
+
+B) Implement "materialiseUnitTypesFromUnits(projectId)" as part of import:
+   - After importing units (before review/complete), compute distinct unit_type codes from the imported units.
+   - For each distinct code, create a unit_type row for the project.
+   - Enforce uniqueness per project:
+       unique(project_id, unit_type_code) or unique(project_id, unit_type)
+   - If "unit_types" sheet exists, use it to enrich optional fields (designation, bedrooms, baths, sqm), but do not require it.
+
+C) Ensure units are linked to unit types if you have a foreign key:
+   - If units table has unit_type_id, populate it by matching code.
+   - If units only store unit_type string, leave as-is for now, but ensure unit_types are created for UI and future linkage.
+
+D) Add defensive validation:
+   - If a unit has a missing unit_type, fail validation with a clear error.
+   - Log counts:
+       imported units count
+       distinct unit_type count
+       created/updated unit_types count
+
+E) Add a backfill script:
+   - For existing projects where unit_types count is 0 but units exist, generate unit_types from distinct units.unit_type.
+   - Idempotent.
+
+F) Tests (minimum):
+   - Import workbook with units only -> unit_types auto-created.
+   - Import workbook with units + unit_types -> unit_types created and enriched, no duplicates.
+   - Re-import same workbook -> no duplicate unit_types.
+   - Review step displays correct counts.
+
+Deliverables:
+- PR/code changes with file paths
+- Confirmation of DB constraint/upsert logic used
+- Confirmation RAG/Smart Archive code untouched
