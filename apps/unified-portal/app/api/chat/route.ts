@@ -58,6 +58,8 @@ import {
   isToneGuardrailsEnabled,
   wrapResponse,
   shouldBlockHumor,
+  processStreamedResponse,
+  createStreamingGuardrail,
   type ResponseStyleInput,
 } from '@/lib/assistant/response-style';
 import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
@@ -2942,19 +2944,39 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
 
-          // Stream the AI response (clean asterisks from each chunk)
+          // TONE GUARDRAILS: Create streaming guardrail for chunk processing
+          const streamResponseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
+          const streamToneInput: ResponseStyleInput = {
+            intentType: intentClassification?.intent || detectIntentFromMessage(message) || 'general',
+            safetyIntercept: false,
+            confidence: chunks && chunks.length > 0 ? 'high' : 'low',
+            sourceType: streamResponseSource === 'semantic_search' ? 'docs' : 'general',
+            schemeName: developmentName,
+            includeSourceHint: true,
+          };
+          const streamingGuardrail = createStreamingGuardrail(streamToneInput);
+          
+          // Stream the intro chunk first (before LLM response)
+          const introChunk = streamingGuardrail.getIntroChunk();
+          if (introChunk) {
+            fullAnswer += introChunk;
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: introChunk })}\n\n`));
+          }
+          
+          // Stream the AI response (clean asterisks and apply tone guardrails from each chunk)
           for await (const chunk of stream) {
             const rawContent = chunk.choices[0]?.delta?.content || '';
             if (rawContent) {
               // Clean markdown formatting from streamed content
-              const content = cleanMarkdownFormatting(rawContent);
+              let content = cleanMarkdownFormatting(rawContent);
+              // Apply streaming guardrail (removes em-dashes on-the-fly)
+              content = streamingGuardrail.processChunk(content);
               fullAnswer += content;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content })}\n\n`));
             }
           }
 
           // ESCALATION GUIDANCE: Append helpful contact guidance when no documents (streaming)
-          const streamResponseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
           
           if (escalationGuidance && streamResponseSource === 'no_documents' && isEscalationEnabled()) {
             const escalationText = formatEscalationGuidance(escalationGuidance);
@@ -2994,6 +3016,13 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           // Save to database after streaming completes
           const latencyMs = Date.now() - startTime;
           console.log('[Chat] Streaming complete. Answer length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
+          
+          // TONE GUARDRAILS: Apply final cleanup to complete response for storage
+          // Uses processStreamedResponse to apply phrase replacements, em-dash removal, and formatting
+          if (isToneGuardrailsEnabled()) {
+            fullAnswer = processStreamedResponse(fullAnswer, streamToneInput);
+            console.log('[Chat] Tone guardrails finalized for streamed response storage');
+          }
 
           // STREAMING HALLUCINATION CHECK: Detect and log fabricated venue names in streamed responses
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data

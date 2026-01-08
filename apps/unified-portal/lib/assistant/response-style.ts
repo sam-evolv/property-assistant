@@ -109,6 +109,8 @@ export function getResponseStyle(input: ResponseStyleInput): ResponseStyleOutput
     intro = getRandomSafetyIntro();
   } else if (mode === 'friendly_guidance') {
     intro = getRandomLowConfidenceIntro();
+  } else {
+    intro = getRandomIntro(intentFamily);
   }
   
   let sourceHint: string | null = null;
@@ -153,12 +155,18 @@ export function applyToneGuardrails(
   let result = response;
   
   result = applyPhraseReplacements(result);
-  
   result = removeEmDashes(result);
-  
   result = normalizeFormatting(result);
   
   const style = getResponseStyle(input);
+  
+  if (!style.allowHumor) {
+    result = stripHumorFromResponse(result);
+  }
+  
+  if (!style.allowFollowUp) {
+    result = stripFollowUpSuggestions(result);
+  }
   
   if (style.intro && !response.trim().startsWith(style.intro)) {
     const needsNewline = result.trim().length > 0;
@@ -242,12 +250,54 @@ export function wrapResponse(
   
   let result = response;
   
+  result = applyPhraseReplacements(result);
+  result = removeEmDashes(result);
+  result = normalizeFormatting(result);
+  
   if (style.mode === 'safety') {
     result = applySafetyMode(result);
-  } else {
-    result = applyPhraseReplacements(result);
-    result = removeEmDashes(result);
   }
+  
+  if (!style.allowHumor) {
+    result = stripHumorFromResponse(result);
+  }
+  
+  if (!style.allowFollowUp) {
+    result = stripFollowUpSuggestions(result);
+  }
+  
+  if (style.intro && !result.trim().startsWith(style.intro)) {
+    const needsNewline = result.trim().length > 0;
+    result = style.intro + (needsNewline ? '\n\n' : '') + result.trim();
+  }
+  
+  if (style.sourceHint && !result.includes('Source:')) {
+    result = result.trimEnd() + '\n\n' + style.sourceHint;
+  }
+  
+  return result;
+}
+
+export function shouldBlockHumor(input: ResponseStyleInput): boolean {
+  const style = getResponseStyle(input);
+  return !style.allowHumor;
+}
+
+export function processStreamedResponse(
+  response: string,
+  input: ResponseStyleInput
+): string {
+  if (!isToneGuardrailsEnabled()) {
+    return response;
+  }
+  
+  let result = response;
+  
+  result = applyPhraseReplacements(result);
+  result = removeEmDashes(result);
+  result = normalizeFormatting(result);
+  
+  const style = getResponseStyle(input);
   
   if (!style.allowHumor) {
     result = stripHumorFromResponse(result);
@@ -260,9 +310,73 @@ export function wrapResponse(
   return result;
 }
 
-export function shouldBlockHumor(input: ResponseStyleInput): boolean {
+export function processStreamingChunk(chunk: string): string {
+  if (!isToneGuardrailsEnabled()) {
+    return chunk;
+  }
+  
+  let result = chunk;
+  result = removeEmDashes(result);
+  
+  return result;
+}
+
+export function createStreamingGuardrail(input: ResponseStyleInput): {
+  processChunk: (chunk: string) => string;
+  getBufferedContent: () => string;
+  finalize: () => string;
+  getIntroChunk: () => string | null;
+} {
+  let buffer = '';
+  let introSent = false;
   const style = getResponseStyle(input);
-  return !style.allowHumor;
+  
+  return {
+    getIntroChunk: (): string | null => {
+      if (!isToneGuardrailsEnabled() || introSent || !style.intro) {
+        return null;
+      }
+      introSent = true;
+      const intro = style.intro + '\n\n';
+      buffer += intro;
+      return intro;
+    },
+    
+    processChunk: (chunk: string): string => {
+      if (!isToneGuardrailsEnabled()) {
+        buffer += chunk;
+        return chunk;
+      }
+      
+      let processed = removeEmDashes(chunk);
+      processed = applyPhraseReplacements(processed);
+      buffer += processed;
+      return processed;
+    },
+    
+    getBufferedContent: (): string => buffer,
+    
+    finalize: (): string => {
+      if (!isToneGuardrailsEnabled()) {
+        return buffer;
+      }
+      
+      let result = buffer;
+      result = applyPhraseReplacements(result);
+      result = removeEmDashes(result);
+      result = normalizeFormatting(result);
+      
+      if (!style.allowHumor) {
+        result = stripHumorFromResponse(result);
+      }
+      
+      if (!style.allowFollowUp) {
+        result = stripFollowUpSuggestions(result);
+      }
+      
+      return result;
+    },
+  };
 }
 
 export function shouldBlockFollowUp(input: ResponseStyleInput): boolean {
