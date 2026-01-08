@@ -1,0 +1,132 @@
+We have a critical issue: the assistant is hallucinating local history facts and producing ungrounded statements. This must be eliminated. Implement a "Hallucination Firewall" that prevents any specific factual claims unless grounded in an approved source.
+
+Scope:
+- Purchaser chat assistant responses across all schemes
+- Must be global, multi-tenant safe
+- Must not break existing RAG, Places, playbooks, or safety responses
+- Must be behind a feature flag so we can roll out safely
+
+Add feature flag:
+ASSISTANT_HALLUCINATION_FIREWALL=true
+
+A) Define Allowed Source Types (Grounding Policy)
+Create /lib/assistant/grounding-policy.ts
+
+Allowed sources:
+1) smart_archive_docs (validated match, confidence >= threshold)
+2) google_places (and optionally distance matrix)
+3) deterministic_playbook (your playbook templates)
+4) scheme_profile_data (explicit scheme setup fields)
+5) developer_entered_facts (new optional facts table, see section C)
+
+Disallowed sources for specific factual claims:
+- "general knowledge" for local facts, venue names, opening hours, distances, historical details
+General knowledge is allowed only for generic advice (eg "how to set up electricity in Ireland") and must not include scheme-specific claims.
+
+B) Implement the Hallucination Firewall (Response Validator)
+Create /lib/assistant/hallucination-firewall.ts
+
+Function:
+enforceGrounding({
+  answerText,
+  intent,
+  source,
+  metadata,
+  citations
+}) -> { safeAnswerText, modified: boolean, violationType?: string }
+
+Rules:
+1) If intent is location_amenities:
+   - Must use google_places. If not, replace with a helpful prompt that asks what type of place, or suggests enabling scheme location. No venue names allowed unless from Places.
+2) If intent is "local_area_fact" or "area_trivia" or similar:
+   - Must use developer_entered_facts OR smart_archive_docs with a cited snippet.
+   - If not grounded, do not provide any specific historical facts. Provide a safe alternative:
+     "I don’t have a verified local history note for this development yet. If you want, I can share a general pointer to local history resources, or the developer can add a few approved area facts."
+3) If the model output contains markers of ungrounded specificity and source is not grounded:
+   - Example triggers (simple heuristics):
+     - Specific years (eg 1770, 18th century)
+     - Definitive claims about "largest in the world", "founded in"
+     - Named venues in non-places responses
+     - Opening hours, exact walk times, exact distances
+   Then replace with safe answer as per the intent.
+
+Do not silently invent. Do not "sound confident" when not grounded.
+
+Integrate enforceGrounding() into the final response composer just before sending the answer back.
+
+Add logging:
+- If firewall modifies output, log a record to answer_gap_log with reason = validation_failed or playbook_fallback and include violationType in metadata.
+- In test mode diagnostics, include firewall_modified true/false and violationType.
+
+C) Fix the "Area Facts" Feature Properly (No hallucinated trivia)
+Right now the assistant is generating "Did you know" facts with no data. We must harden.
+
+Option 1 (recommended): Disable it by default
+- Add flag ASSISTANT_AREA_FACTS=true
+- If false, never show trivia.
+- If true, trivia can ONLY come from approved facts store.
+
+Create a simple table:
+area_facts (
+  id uuid pk,
+  scheme_id uuid,
+  tenant_id uuid,
+  title text,
+  body text,
+  source_url text null,
+  approved boolean default false,
+  created_at timestamp
+)
+
+Behaviour:
+- Only show facts where approved=true
+- If none exist, do not generate. Show nothing or show a prompt:
+  "Want local recommendations instead (shops, schools, cafes)?"
+
+The "tell me more" follow-up:
+- Must reference the last fact id (store in session memory: last_area_fact_id)
+- If no next approved fact exists, respond:
+  "I don’t have another verified area fact queued for this development yet. If you want, I can help with nearby amenities or local services."
+
+No escalation template should trigger for area facts.
+
+D) Stop Concierge Escalation From Firing on Non-actionable Topics
+The assistant currently outputs "contact the relevant party" placeholders. This is unacceptable.
+
+Implement in /lib/assistant/escalation.ts:
+- Escalation is only allowed for intents in an allowlist:
+  [snagging, warranties, defects, emergencies, utilities_setup, management_company, payments/fees]
+- Explicitly disallow escalation for:
+  [area_trivia, local_area_fact, amenities results, general chat, chit-chat]
+
+Template hygiene:
+- If escalation_target is null or contact not found, do NOT render "relevant party".
+- Remove all placeholder strings from templates. Add a strict check:
+  If template contains "relevant party" or similar placeholder tokens, fail closed and return a safe non-template answer.
+
+E) Remove Markdown From Assistant Output (UI cleanliness)
+Implement /lib/assistant/formatting.ts:
+sanitizeForChat(answerText):
+- Remove markdown bold/italics markers: **, __, *, _
+- Remove horizontal rules: --- 
+- Remove fenced code blocks
+- Convert numbered lists to clean bullets if needed
+- Keep paragraphs and bullet points only
+
+Apply sanitizeForChat() right before returning the answer.
+
+F) Tests
+Add tests covering:
+1) Area fact request returns no specific historical fact unless approved fact exists
+2) "tell me more" after a fact does not escalate and does not hallucinate
+3) Amenities intent always uses Places or safe fallback, never makes up venues/hours
+4) Escalation templates never output placeholders
+5) Output contains no markdown tokens
+
+Deliverables:
+- /lib/assistant/grounding-policy.ts
+- /lib/assistant/hallucination-firewall.ts
+- /lib/assistant/formatting.ts
+- area_facts table migration + minimal admin insert path (can be manual for now)
+- Integration in purchaser chat API response composer
+- Tests

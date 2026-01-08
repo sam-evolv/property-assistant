@@ -11,6 +11,7 @@ import {
   FALLBACK_CONTACT_GUIDANCE,
   getTemplateForIssueType,
 } from './escalation-templates';
+import { sanitizeForChat } from './formatting';
 
 export interface SchemeContacts {
   developer?: {
@@ -61,7 +62,72 @@ export function isEscalationEnabled(): boolean {
   return process.env[ESCALATION_FEATURE_FLAG] === 'true';
 }
 
-export function shouldTriggerEscalation(confidence: string, gapReason?: string): boolean {
+const ESCALATION_ALLOWED_INTENTS = [
+  'snagging',
+  'snag',
+  'warranty',
+  'warranties',
+  'defect',
+  'defects',
+  'emergency',
+  'emergencies',
+  'utilities_setup',
+  'utilities',
+  'management_company',
+  'omc',
+  'management',
+  'payments',
+  'fees',
+  'service_charge',
+  'heat_pump',
+  'ev_charger',
+  'appliance',
+  'alarm',
+  'solar',
+  'ventilation',
+  'mvhr',
+  'structural',
+  'construction',
+  'gas_leak',
+  'fire',
+  'flood',
+  'water_leak',
+];
+
+const ESCALATION_BLOCKED_INTENTS = [
+  'area_trivia',
+  'local_area_fact',
+  'local_history',
+  'amenities',
+  'nearby_places',
+  'general_chat',
+  'chit_chat',
+  'greeting',
+  'thanks',
+  'goodbye',
+  'did_you_know',
+  'restaurants',
+  'cafes',
+  'shops',
+  'schools',
+  'transport',
+];
+
+export function isEscalationAllowedForIntent(intent: string): boolean {
+  const normalizedIntent = intent.toLowerCase();
+  
+  if (ESCALATION_BLOCKED_INTENTS.some(blocked => normalizedIntent.includes(blocked))) {
+    return false;
+  }
+  
+  return ESCALATION_ALLOWED_INTENTS.some(allowed => normalizedIntent.includes(allowed));
+}
+
+export function shouldTriggerEscalation(confidence: string, gapReason?: string, intent?: string): boolean {
+  if (intent && !isEscalationAllowedForIntent(intent)) {
+    return false;
+  }
+  
   const lowConfidenceReasons = [
     'missing_scheme_data',
     'no_documents_found',
@@ -208,25 +274,54 @@ export function routeEscalation(input: EscalationInput): EscalationOutput {
   };
 }
 
-export function formatEscalationGuidance(escalation: EscalationOutput): string {
+const FORBIDDEN_PLACEHOLDER_TOKENS = [
+  'relevant party',
+  'appropriate party',
+  'the party',
+  '[CONTACT]',
+  '[NAME]',
+  '[EMAIL]',
+  '[PHONE]',
+  '[ADDRESS]',
+  'contact the relevant',
+  'reach out to the relevant',
+  'speak to the relevant',
+];
+
+function containsForbiddenPlaceholders(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return FORBIDDEN_PLACEHOLDER_TOKENS.some(token => lowerText.includes(token.toLowerCase()));
+}
+
+const SAFE_FALLBACK_RESPONSE = "I don't have the specific contact details for this. You can usually find the right contact in your welcome pack or development documentation.";
+
+export function formatEscalationGuidance(escalation: EscalationOutput): string | null {
+  if (escalation.escalationTarget === 'unknown') {
+    return null;
+  }
+  
   const lines: string[] = [];
   
   if (escalation.urgencyLevel === 'emergency') {
-    lines.push('**IMPORTANT SAFETY INFORMATION:**');
+    lines.push('IMPORTANT SAFETY INFORMATION:');
     lines.push('');
     lines.push(escalation.messageTemplate);
     if (escalation.disclaimer) {
       lines.push('');
-      lines.push(`*${escalation.disclaimer}*`);
+      lines.push(`Note: ${escalation.disclaimer}`);
     }
-    return lines.join('\n');
+    const result = lines.join('\n');
+    if (containsForbiddenPlaceholders(result)) {
+      return null;
+    }
+    return sanitizeForChat(result);
   }
   
-  lines.push(`For this matter, I'd recommend contacting **${escalation.targetDescription}**.`);
+  lines.push(`For this matter, I'd recommend contacting ${escalation.targetDescription}.`);
   lines.push('');
   
   if (escalation.contactInfo) {
-    lines.push('**Contact Details:**');
+    lines.push('Contact Details:');
     lines.push(escalation.contactInfo);
     lines.push('');
   } else {
@@ -234,7 +329,7 @@ export function formatEscalationGuidance(escalation: EscalationOutput): string {
     lines.push('');
   }
   
-  lines.push('**What to include in your message:**');
+  lines.push('What to include in your message:');
   const allFields = [...escalation.requiredFields];
   const fieldDescriptions: Record<string, string> = {
     unit_number: 'Your unit/house number',
@@ -256,31 +351,49 @@ export function formatEscalationGuidance(escalation: EscalationOutput): string {
   
   if (escalation.disclaimer) {
     lines.push('');
-    lines.push(`*Note: ${escalation.disclaimer}*`);
+    lines.push(`Note: ${escalation.disclaimer}`);
   }
   
   lines.push('');
-  lines.push('**Sample message you can use:**');
+  lines.push('Sample message you can use:');
   lines.push('');
   lines.push('```');
   lines.push(escalation.messageTemplate);
   lines.push('```');
   
-  return lines.join('\n');
+  const result = lines.join('\n');
+  
+  if (containsForbiddenPlaceholders(result)) {
+    console.warn('[Escalation] Blocked output containing forbidden placeholder tokens');
+    return null;
+  }
+  
+  return sanitizeForChat(result);
 }
+
+export { containsForbiddenPlaceholders, SAFE_FALLBACK_RESPONSE };
 
 export function appendEscalationToResponse(
   response: string,
-  escalation: EscalationOutput
+  escalation: EscalationOutput,
+  intent?: string
 ): string {
+  if (intent && !isEscalationAllowedForIntent(intent)) {
+    return response;
+  }
+  
   const guidance = formatEscalationGuidance(escalation);
+  
+  if (!guidance) {
+    return response;
+  }
   
   const cleanResponse = response.trim();
   const separator = cleanResponse.endsWith('?') || cleanResponse.endsWith('.') || cleanResponse.endsWith('!') 
     ? '\n\n' 
     : ' \n\n';
   
-  return `${cleanResponse}${separator}---\n\n**How to get further help:**\n\n${guidance}`;
+  return `${cleanResponse}${separator}How to get further help:\n\n${guidance}`;
 }
 
 export function createEscalationForGapReason(
@@ -293,7 +406,12 @@ export function createEscalationForGapReason(
     return null;
   }
   
-  if (!shouldTriggerEscalation('low', gapReason)) {
+  if (!isEscalationAllowedForIntent(intent)) {
+    console.log('[Escalation] Blocked for non-actionable intent:', intent);
+    return null;
+  }
+  
+  if (!shouldTriggerEscalation('low', gapReason, intent)) {
     return null;
   }
   

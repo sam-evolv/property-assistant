@@ -65,6 +65,15 @@ import {
 import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
+import { 
+  enforceGrounding, 
+  getFirewallDiagnostics,
+  type FirewallInput,
+  type FirewallResult
+} from '@/lib/assistant/hallucination-firewall';
+import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
+import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
+import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -2734,9 +2743,19 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       const responseSource = chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents';
       
       if (escalationGuidance && responseSource === 'no_documents' && isEscalationEnabled()) {
-        const escalationText = formatEscalationGuidance(escalationGuidance);
-        fullAnswer = fullAnswer.trim() + '\n\n---\n\n' + escalationText;
-        console.log('[Chat] Escalation guidance appended for:', escalationGuidance.escalationTarget);
+        const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+        if (isEscalationAllowedForIntent(effectiveIntent)) {
+          const escalationText = formatEscalationGuidance(escalationGuidance);
+          if (escalationText) {
+            const cleanEscalationText = cleanForDisplay(escalationText);
+            fullAnswer = fullAnswer.trim() + '\n\n' + cleanEscalationText;
+            console.log('[Chat] Escalation guidance appended for:', escalationGuidance.escalationTarget);
+          } else {
+            console.log('[Chat] Escalation guidance blocked (placeholder tokens or unknown target)');
+          }
+        } else {
+          console.log('[Chat] Escalation skipped for non-actionable intent:', effectiveIntent);
+        }
       }
       
       // NEXT BEST ACTION: Append capability-safe follow-up suggestions
@@ -2768,6 +2787,37 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         fullAnswer = wrapResponse(fullAnswer, toneInput);
         console.log('[Chat] Tone guardrails applied');
       }
+      
+      // HALLUCINATION FIREWALL: Validate grounding and block unverified claims
+      let firewallResult: FirewallResult | null = null;
+      if (isHallucinationFirewallEnabled()) {
+        const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+        const firewallInput: FirewallInput = {
+          answerText: fullAnswer,
+          intent: effectiveIntent,
+          source: responseSource,
+          metadata: {
+            hasPlacesData: false,
+            hasArchiveMatch: chunks && chunks.length > 0,
+            archiveConfidence: chunks?.[0]?.similarity,
+            hasApprovedFacts: false,
+            schemeId: DEFAULT_DEVELOPMENT_ID,
+            isPlaybook: false,
+            isSchemeProfile: false,
+          },
+          citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+        };
+        
+        firewallResult = enforceGrounding(firewallInput);
+        
+        if (firewallResult.modified) {
+          console.log('[Chat] Hallucination firewall modified response:', firewallResult.violationType);
+          fullAnswer = firewallResult.safeAnswerText;
+        }
+      }
+      
+      // MARKDOWN CLEANUP: Remove any remaining markdown tokens
+      fullAnswer = cleanForDisplay(fullAnswer);
       
       // Save to database
       await persistMessageSafely({
@@ -2979,11 +3029,21 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           // ESCALATION GUIDANCE: Append helpful contact guidance when no documents (streaming)
           
           if (escalationGuidance && streamResponseSource === 'no_documents' && isEscalationEnabled()) {
-            const escalationText = formatEscalationGuidance(escalationGuidance);
-            const escalationContent = '\n\n---\n\n' + escalationText;
-            fullAnswer += escalationContent;
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: escalationContent })}\n\n`));
-            console.log('[Chat] Escalation guidance streamed for:', escalationGuidance.escalationTarget);
+            const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+            if (isEscalationAllowedForIntent(streamEffectiveIntent)) {
+              const escalationText = formatEscalationGuidance(escalationGuidance);
+              if (escalationText) {
+                const cleanEscalationText = cleanForDisplay(escalationText);
+                const escalationContent = '\n\n' + cleanEscalationText;
+                fullAnswer += escalationContent;
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: escalationContent })}\n\n`));
+                console.log('[Chat] Escalation guidance streamed for:', escalationGuidance.escalationTarget);
+              } else {
+                console.log('[Chat] Escalation guidance blocked in stream (placeholder tokens or unknown target)');
+              }
+            } else {
+              console.log('[Chat] Escalation skipped in stream for non-actionable intent:', streamEffectiveIntent);
+            }
           }
           
           // NEXT BEST ACTION: Append capability-safe follow-up suggestions to streaming response
@@ -3023,6 +3083,57 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             fullAnswer = processStreamedResponse(fullAnswer, streamToneInput);
             console.log('[Chat] Tone guardrails finalized for streamed response storage');
           }
+          
+          // HALLUCINATION FIREWALL: Validate grounding for stored response
+          // Note: Cannot block content already streamed, but logs violations and cleans stored version
+          let streamFirewallResult: FirewallResult | null = null;
+          if (isHallucinationFirewallEnabled()) {
+            const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+            const streamFirewallInput: FirewallInput = {
+              answerText: fullAnswer,
+              intent: streamEffectiveIntent,
+              source: streamResponseSource,
+              metadata: {
+                hasPlacesData: false,
+                hasArchiveMatch: chunks && chunks.length > 0,
+                archiveConfidence: chunks?.[0]?.similarity,
+                hasApprovedFacts: false,
+                schemeId: DEFAULT_DEVELOPMENT_ID,
+              },
+              citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+            };
+            
+            streamFirewallResult = enforceGrounding(streamFirewallInput);
+            
+            if (streamFirewallResult.modified) {
+              console.log('[Chat] Hallucination firewall detected violation in streamed response:', streamFirewallResult.violationType);
+              fullAnswer = streamFirewallResult.safeAnswerText;
+              
+              // Log the violation for observability
+              try {
+                const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+                await logAnswerGap({
+                  scheme_id: userSupabaseProjectId,
+                  unit_id: clientUnitUid || null,
+                  user_question: message,
+                  intent_type: 'validation_failed',
+                  attempted_sources: ['llm_streaming'],
+                  final_source: 'firewall_blocked',
+                  gap_reason: 'validation_failed',
+                  details: { 
+                    violations: streamFirewallResult.violations,
+                    already_sent: true,
+                    firewall_diagnostics: getFirewallDiagnostics(streamFirewallResult)
+                  },
+                });
+              } catch (logError) {
+                console.error('[Chat] Failed to log firewall violation:', logError);
+              }
+            }
+          }
+          
+          // MARKDOWN CLEANUP: Remove any remaining markdown tokens from stored response
+          fullAnswer = cleanForDisplay(fullAnswer);
 
           // STREAMING HALLUCINATION CHECK: Detect and log fabricated venue names in streamed responses
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
