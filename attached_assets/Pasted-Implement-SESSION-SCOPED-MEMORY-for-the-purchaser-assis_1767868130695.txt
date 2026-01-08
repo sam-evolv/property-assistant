@@ -1,0 +1,53 @@
+Implement SESSION-SCOPED MEMORY for the purchaser assistant. This must not persist across sessions and must not leak across tenants or schemes.
+
+Goal:
+If a user says "I'm in Block B" or "my boiler is making noise", the assistant should carry that forward for the rest of the current session and use it to answer follow-up questions without re-asking.
+
+Constraints:
+- Session memory must be per conversation/session only.
+- Do NOT write these memory keys into permanent "user profile" storage.
+- Do NOT share memory across different unit_uids, schemes, or tenants.
+- Must be safe to roll out behind a feature flag.
+
+Implementation Plan:
+1) Add feature flag:
+   ASSISTANT_SESSION_MEMORY=true
+
+2) Create a small memory store keyed by:
+   tenant_id + scheme_id + unit_uid + conversation_id (or a stable session id)
+   Store should be in server memory (Map) and auto-expire.
+
+3) Define memory schema:
+   memory = {
+     unit_uid,
+     block: string | null,
+     house_type: string | null,
+     room: string | null,
+     issue: string | null,            // e.g. "boiler noise"
+     last_intent: string | null,      // e.g. "heating", "snagging", "amenities"
+     last_followup_topic: string | null, // used for yes-intent routing
+     updated_at: number
+   }
+
+4) Extract memory candidates:
+   - Parse user text with lightweight patterns:
+     "Block A/B/C", "I'm in Block X", "house type", "utility room", "hot press"
+     "boiler", "heat pump", "heating", "leak", "trip", "snag"
+   - If detected, update memory.
+
+5) Use memory during intent resolution:
+   - If user asks "Where is the shutoff valve?" and memory has "hot press" or "air to water", use it.
+   - If user asks "Who do I contact?" and memory has issue type, pick the correct escalation template.
+
+6) TTL:
+   - Expire entries after 2 hours of inactivity.
+   - Add cleanup interval or lazy eviction on read.
+
+7) Observability:
+   - In test mode only, include a debug section: memory_used, memory_updated_keys
+   - Log memory updates with reason=session_memory_update (no personal data beyond unit_uid, scheme_id).
+
+Deliverables:
+- /lib/assistant/session-memory.ts (store + get/set + TTL)
+- Integration in the main purchaser chat handler
+- Minimal unit tests for TTL and scoping
