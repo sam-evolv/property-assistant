@@ -73,6 +73,31 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Next Best Action + Concierge Escalation (January 2026)
+
+**Two new assistant features for improved user guidance:**
+
+**1. Next Best Action (Feature Flag: ASSISTANT_NEXT_BEST_ACTION)**
+- Capability-safe follow-up suggestions that only suggest what the system can actually fulfill
+- `capability-map.ts`: Deterministic capability definitions based on context (documents, location, session memory)
+- `next-best-action.ts`: Suggestion gate and renderer with 30+ natural variations
+- Blocked for emergencies/safety-critical topics
+- Integrated into both test mode and streaming response paths
+
+**2. Concierge Escalation (Feature Flag: ASSISTANT_CONCIERGE_ESCALATION)**
+- Helpful guidance when assistant cannot answer confidently
+- Routes users to correct party: developer, OMC, installer, or emergency services
+- `escalation-templates.ts`: Ireland-specific message templates with copy-paste guidance
+- `escalation.ts`: Router that never hallucinations contact details
+- Uses scheme-provided contacts when available, or neutral fallback copy
+- Integrated into no-documents response path with analytics logging
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/capability-map.ts`
+- `apps/unified-portal/lib/assistant/next-best-action.ts`
+- `apps/unified-portal/lib/assistant/escalation-templates.ts`
+- `apps/unified-portal/lib/assistant/escalation.ts`
+
 ### Tenant Isolation Hardening (January 2026)
 
 **Hardened scheme access to prevent enumeration and enforce tenant isolation:**
