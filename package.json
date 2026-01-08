@@ -76,7 +76,6 @@
     "leaflet": "^1.9.4",
     "mammoth": "^1.11.0",
     "nanoid": "^5.1.6",
-    "next": "^14.2.18",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.4.394",
