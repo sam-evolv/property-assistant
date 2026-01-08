@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAdminContextFromSession, isSuperAdmin, AdminContext } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,60 @@ function getSupabaseAdmin() {
       db: { schema: 'public' }
     }
   );
+}
+
+async function deriveOrganizationId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  adminContext: AdminContext,
+  requestedOrgId?: string
+): Promise<{ organizationId: string | null; error?: string }> {
+  if (adminContext.tenantId) {
+    return { organizationId: adminContext.tenantId };
+  }
+  
+  if (isSuperAdmin(adminContext)) {
+    if (requestedOrgId) {
+      const { data: org } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('id', requestedOrgId)
+        .single();
+      
+      if (org) {
+        console.log(`[deriveOrganizationId] Super-admin using selected org: ${requestedOrgId}`);
+        return { organizationId: requestedOrgId };
+      }
+    }
+    
+    const { data: orgs } = await supabase
+      .from('tenants')
+      .select('id, name')
+      .order('created_at', { ascending: true })
+      .limit(5);
+    
+    if (orgs && orgs.length === 1) {
+      console.log(`[deriveOrganizationId] Super-admin fallback to single org: ${orgs[0].id} (${orgs[0].name})`);
+      return { organizationId: orgs[0].id };
+    }
+    
+    if (orgs && orgs.length > 1) {
+      console.warn(`[deriveOrganizationId] Super-admin has multiple orgs available, none selected`);
+      return { 
+        organizationId: null, 
+        error: 'Multiple organisations available. Please select an organisation to create a project.' 
+      };
+    }
+    
+    return { 
+      organizationId: null, 
+      error: 'No organisations available. Please contact an admin.' 
+    };
+  }
+  
+  return { 
+    organizationId: null, 
+    error: 'Cannot create project: no organisation set for your account. Contact an admin.' 
+  };
 }
 
 interface ProjectInput {
@@ -146,16 +201,42 @@ export async function POST(request: Request) {
   let projectId: string | null = null;
   
   try {
+    const adminContext = await getAdminContextFromSession();
+    
+    if (!adminContext) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in.' },
+        { status: 401 }
+      );
+    }
+    
     const body = await request.json();
-    const { project, unitTypes, units } = body as {
+    const { project, unitTypes, units, organizationId: requestedOrgId } = body as {
       project: ProjectInput;
       unitTypes: UnitTypeInput[];
       units: UnitInput[];
+      organizationId?: string;
     };
 
     if (!project?.name) {
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
     }
+
+    const { organizationId, error: orgError } = await deriveOrganizationId(
+      supabaseAdmin,
+      adminContext,
+      requestedOrgId
+    );
+    
+    if (!organizationId || orgError) {
+      console.error(`[API /projects/create] Organization derivation failed for user ${adminContext.email}:`, orgError);
+      return NextResponse.json(
+        { error: orgError || 'Cannot determine organisation for project creation.' },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`[API /projects/create] User: ${adminContext.email} (${adminContext.id}), Org: ${organizationId}, Project: ${project.name}`);
 
     const { data: projectData, error: projectError } = await supabaseAdmin
       .from('projects')
@@ -163,6 +244,7 @@ export async function POST(request: Request) {
         name: project.name,
         address: project.address || null,
         image_url: project.image_url || null,
+        organization_id: organizationId,
       })
       .select()
       .single();

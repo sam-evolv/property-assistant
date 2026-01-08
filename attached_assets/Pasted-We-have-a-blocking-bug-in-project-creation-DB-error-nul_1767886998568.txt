@@ -1,0 +1,46 @@
+We have a blocking bug in project creation:
+
+DB error: null value in column "organization_id" of relation "projects" violates not-null constraint.
+
+Context:
+- Excel parsing works (units + unit types show in Review)
+- Failure happens only when pressing "Create Project"
+- Existing projects (Longview Park, Rathard Park) have organization_id populated
+
+Goal:
+- Make organization_id always set on projects insert.
+- Ensure this works for both admin users and super-admin users.
+- Do not touch RAG/Smart Archive logic.
+
+Implement the following:
+
+1) Server-side enforcement (required)
+- In the projects/create route (the POST handler that inserts into `projects`), set:
+  organization_id = derived from authenticated session context.
+- Never accept null organization_id.
+- Do NOT rely on the frontend payload for organization_id as the sole source of truth.
+
+2) Super-admin behaviour (required)
+- If user is super-admin:
+  - Use selected organization from the UI (organization picker), OR
+  - If none selected, default to the first organization the user has access to.
+  - If user has access to multiple orgs and none selected, return a clear error:
+    "Select an organisation to create a project."
+
+3) UI support (required if not already present)
+- In Create New Project flow (Details step), include an Organization selector ONLY for super-admin.
+- For normal org-admin users, the org is implied and hidden.
+- Ensure the selected organization_id is carried through to the final POST request.
+
+4) Defensive checks and logging (required)
+- Before insert, assert organization_id exists. If missing, return 400 with a clear message.
+- Log: user_id, user_email, organization_id, project_name when attempting creation.
+
+5) Tests (recommended)
+- Create project as org-admin -> organization_id set automatically.
+- Create project as super-admin with org selected -> success.
+- Create project as super-admin with no org selected -> returns actionable error, no DB insert attempt.
+
+Deliverables:
+- Identify exactly where organization_id was being lost (frontend not sending vs backend not deriving).
+- Provide file paths changed.

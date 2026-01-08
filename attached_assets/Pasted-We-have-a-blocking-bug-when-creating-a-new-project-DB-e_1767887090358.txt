@@ -1,0 +1,51 @@
+We have a blocking bug when creating a new project:
+
+DB error on Create Project:
+null value in column "organization_id" of relation "projects" violates not-null constraint
+
+UI Details step has NO Organisation/Company selector, so the server MUST infer organization_id from the authenticated session.
+
+Goal:
+- Always set projects.organization_id on insert.
+- Do not change RAG/Smart Archive/embeddings.
+- Make behaviour consistent for org-admin and super-admin.
+
+Tasks:
+
+1) Locate the API route that handles the final "Create Project" action in the Create New Project flow.
+   - This is the POST route called from the Review step.
+   - Identify where the project row is inserted into `projects`.
+
+2) Server-side organisation derivation (required):
+   - Derive `organization_id` from the current authenticated user/session.
+   - Do NOT rely on any client payload for organization_id.
+   - If user belongs to multiple orgs:
+       a) choose the user's "active organization" if your auth/session model supports it
+       b) else choose the first org membership deterministically
+       c) if none exists, return 400 with a clear message and do not attempt insert.
+
+3) Super-admin handling (required):
+   - If user is super-admin and has no org membership context:
+       - Provide a safe default: use the platform "OpenHouse" org (if exists), OR require selection.
+   - Since the UI has no org selector, implement a backend fallback:
+       - If super-admin has exactly one org membership -> use it
+       - If multiple -> pick the most recently used org if tracked; otherwise pick the first and log a warning
+       - If none -> return 400 "No organisation available for this user."
+
+4) Defensive validation (required):
+   - Before inserting the project, assert organization_id exists.
+   - If missing, return an actionable error to the UI:
+     "Cannot create project: no organisation set for your account. Contact an admin."
+
+5) Logging (required):
+   - Log user_id, user_email, derived organization_id, project_name whenever a project creation is attempted.
+   - If falling back to a default for super-admin, log that explicitly.
+
+6) Regression tests / quick validation path (recommended):
+   - Create project as normal org-admin -> succeeds
+   - Create project as super-admin -> succeeds with derived org
+   - Create project as user with no org -> returns 400 with clear message (no DB insert)
+
+Deliverables:
+- Point to exact file(s) modified and the function that derives organization_id.
+- Confirm RAG/Smart Archive code untouched.
