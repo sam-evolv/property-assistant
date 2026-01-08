@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { scheme_profile } from '@repo/db/schema';
+import { db, scheme_profile } from '@db/client';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
