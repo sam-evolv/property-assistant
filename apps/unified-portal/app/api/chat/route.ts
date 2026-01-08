@@ -27,6 +27,7 @@ import {
   type AnswerStrategy,
 } from '@/lib/assistant/os';
 import { formatJokeResponse } from '@/lib/assistant/jokes';
+import { isLocalHistoryQuery, detectHistoryCategory, formatLocalHistoryResponse, isLongviewOrRathardScheme } from '@/lib/assistant/local-history';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 
@@ -956,6 +957,46 @@ export async function POST(request: NextRequest) {
         answer: gdprResponse,
         source: 'gdpr_protection',
         gdprBlocked: true,
+      });
+    }
+
+    // LOCAL HISTORY: Handle history/heritage queries for Longview Park and Rathard Park
+    const developmentName = userUnitDetails?.unitInfo?.development_name || null;
+    if (isLocalHistoryQuery(message) && isLongviewOrRathardScheme(developmentName)) {
+      console.log('[Chat] Local history query detected for:', developmentName);
+      
+      const historyCategory = detectHistoryCategory(message);
+      const historyResponse = formatLocalHistoryResponse(historyCategory);
+      
+      await persistMessageSafely({
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        user_id: validatedUnitUid || userId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: historyResponse,
+        question_topic: 'local_history',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          assistantOS: true,
+          intent: 'local_history',
+          historyCategory: historyCategory,
+          developmentName: developmentName,
+          userId: userId || null,
+        },
+        request_id: requestId,
+      });
+      
+      return NextResponse.json({
+        success: true,
+        answer: historyResponse,
+        source: 'local_history',
+        isNoInfo: false,
+        metadata: {
+          intent: 'local_history',
+          historyCategory: historyCategory,
+        },
       });
     }
 
