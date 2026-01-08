@@ -15,6 +15,7 @@
     "test:stability": "npm run typecheck && npm run build && npm run smoke"
   },
   "dependencies": {
+    "@babel/runtime": "^7.28.4",
     "@openhouse/api": "1.0.0",
     "@openhouse/db": "0.1.0",
     "@radix-ui/react-tabs": "^1.0.4",
@@ -42,6 +43,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",
+    "react-transition-group": "^4.4.5",
     "recharts": "^2.13.3",
     "recharts-scale": "^0.4.5",
     "set-cookie-parser": "^2.7.2",
