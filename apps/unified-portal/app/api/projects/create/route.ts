@@ -22,9 +22,9 @@ async function deriveOrganizationId(
 ): Promise<{ organizationId: string | null; error?: string }> {
   // First check if the adminContext has a tenantId
   if (adminContext.tenantId) {
-    // Verify the tenant exists in the organizations table (projects FK references organizations, not tenants)
+    // Verify the tenant exists in the organisations table (projects FK references organisations, not tenants)
     const { data: org } = await supabase
-      .from('organizations')
+      .from('organisations')
       .select('id')
       .eq('id', adminContext.tenantId)
       .single();
@@ -35,14 +35,14 @@ async function deriveOrganizationId(
     }
     
     // Fallback: check tenants table and see if there's a matching org
-    console.warn(`[deriveOrganizationId] tenantId ${adminContext.tenantId} not found in organizations table, checking tenants...`);
+    console.warn(`[deriveOrganizationId] tenantId ${adminContext.tenantId} not found in organisations table, checking tenants...`);
   }
   
   if (isSuperAdmin(adminContext)) {
     if (requestedOrgId) {
-      // Check organizations table first (this is what projects FK references)
+      // Check organisations table first (this is what projects FK references)
       const { data: org } = await supabase
-        .from('organizations')
+        .from('organisations')
         .select('id')
         .eq('id', requestedOrgId)
         .single();
@@ -60,14 +60,14 @@ async function deriveOrganizationId(
         .single();
       
       if (tenant) {
-        console.log(`[deriveOrganizationId] Super-admin using tenant as org (may fail if not in organizations table): ${requestedOrgId}`);
+        console.log(`[deriveOrganizationId] Super-admin using tenant as org (may fail if not in organisations table): ${requestedOrgId}`);
         return { organizationId: requestedOrgId };
       }
     }
     
-    // Try organizations table first
+    // Try organisations table first
     const { data: orgs } = await supabase
-      .from('organizations')
+      .from('organisations')
       .select('id, name')
       .order('created_at', { ascending: true })
       .limit(5);
@@ -85,7 +85,7 @@ async function deriveOrganizationId(
       };
     }
     
-    // If no organizations found, try tenants as fallback
+    // If no organisations found, try tenants as fallback
     const { data: tenants } = await supabase
       .from('tenants')
       .select('id, name')
