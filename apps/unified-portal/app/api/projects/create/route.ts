@@ -209,6 +209,9 @@ async function materialiseUnitTypes(
         project_id: projectId,
         name: originalName,
         floor_plan_pdf_url: enrichment?.floor_plan_pdf_url || null,
+        bedrooms: enrichment?.bedrooms || null,
+        bathrooms: enrichment?.bathrooms || null,
+        sqm: enrichment?.sqm || null,
       };
       
       const { data: inserted, error: insertError } = await supabase

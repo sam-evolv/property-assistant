@@ -69,11 +69,18 @@ export async function POST(req: NextRequest) {
       });
       
       if (exactMatch) {
-        const { data: projectData } = await supabase
+        console.log('[Purchaser Auth] Found unit:', exactMatch.id, 'with project_id:', exactMatch.project_id);
+        
+        const { data: projectData, error: projectError } = await supabase
           .from('projects')
           .select('id, name, developer_id')
           .eq('id', exactMatch.project_id)
           .single();
+        
+        if (projectError) {
+          console.error('[Purchaser Auth] Project lookup error:', projectError.message);
+        }
+        console.log('[Purchaser Auth] Project data:', projectData);
         
         project = projectData;
         unit = {

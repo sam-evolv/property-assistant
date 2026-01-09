@@ -14,7 +14,6 @@ function getSupabaseClient() {
   );
 }
 
-const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const PUBLIC_DISCIPLINES = ['handover', 'other'];
 
 export async function GET(request: NextRequest) {
@@ -46,6 +45,25 @@ export async function GET(request: NextRequest) {
     if (!isAuthenticated) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
+    
+    // Get the unit's project_id to scope documents correctly
+    const { data: unitData, error: unitError } = await supabase
+      .from('units')
+      .select('project_id')
+      .eq('id', unitUid)
+      .single();
+    
+    if (unitError || !unitData?.project_id) {
+      console.log('[Important Docs] Could not find unit project_id for:', unitUid);
+      return NextResponse.json({
+        requiresConsent: false,
+        importantDocuments: [],
+        importantDocsCount: 0,
+      });
+    }
+    
+    const projectId = unitData.project_id;
+    console.log('[Important Docs] Using project_id:', projectId, 'for unit:', unitUid);
 
     // Check if user has already agreed using the purchaserAgreements table
     // Wrap in try-catch in case table doesn't exist in current database
@@ -71,11 +89,11 @@ export async function GET(request: NextRequest) {
       console.log('[Important Docs] Could not check agreements (table may not exist), continuing...');
     }
 
-    // Fetch important documents from Supabase document_sections
+    // Fetch important documents from Supabase document_sections for THIS unit's project
     const { data: sections, error } = await supabase
       .from('document_sections')
       .select('id, metadata')
-      .eq('project_id', PROJECT_ID);
+      .eq('project_id', projectId);
 
     if (error) {
       console.error('[Important Docs] Supabase error:', error.message);
