@@ -27,34 +27,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unit UID required' }, { status: 400 });
     }
 
-    // Validate token - try QR token first, then fallback to unitUid match for demo
+    // Validate token - try QR token first
     let isAuthenticated = false;
+    let supabaseUnitId: string | null = null;
+    
     if (token) {
       const payload = await validateQRToken(token);
-      if (payload && payload.supabaseUnitId === unitUid) {
+      if (payload && payload.supabaseUnitId) {
         isAuthenticated = true;
+        supabaseUnitId = payload.supabaseUnitId;
       }
     }
     
-    // Fallback: Allow demo access if token matches unitUid (UUID format)
+    // Fallback: Allow access if token matches unitUid AND unitUid is a valid UUID format
+    // This maintains security by requiring the token to match the requested unit
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!isAuthenticated && token && uuidPattern.test(token) && token === unitUid) {
+    if (!isAuthenticated && token && unitUid && uuidPattern.test(unitUid) && token === unitUid) {
       isAuthenticated = true;
+      supabaseUnitId = unitUid;
     }
     
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !supabaseUnitId) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
     
-    // Get the unit's project_id to scope documents correctly
+    // Get the unit's project_id to scope documents correctly (using Supabase UUID, not the QR code)
     const { data: unitData, error: unitError } = await supabase
       .from('units')
       .select('project_id')
-      .eq('id', unitUid)
+      .eq('id', supabaseUnitId)
       .single();
     
     if (unitError || !unitData?.project_id) {
-      console.log('[Important Docs] Could not find unit project_id for:', unitUid);
+      console.log('[Important Docs] Could not find unit project_id for supabaseUnitId:', supabaseUnitId);
       return NextResponse.json({
         requiresConsent: false,
         importantDocuments: [],
@@ -63,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
     
     const projectId = unitData.project_id;
-    console.log('[Important Docs] Using project_id:', projectId, 'for unit:', unitUid);
+    console.log('[Important Docs] Using project_id:', projectId, 'for supabaseUnitId:', supabaseUnitId);
 
     // Check if user has already agreed using the purchaserAgreements table
     // Wrap in try-catch in case table doesn't exist in current database
@@ -71,7 +76,7 @@ export async function GET(request: NextRequest) {
       const existingAgreement = await db
         .select()
         .from(purchaserAgreements)
-        .where(eq(purchaserAgreements.unit_id, unitUid))
+        .where(eq(purchaserAgreements.unit_id, supabaseUnitId))
         .limit(1);
 
       if (existingAgreement.length > 0) {

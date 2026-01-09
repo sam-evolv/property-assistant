@@ -17,6 +17,8 @@ interface UnitRow {
   unit_type_name: string;
   purchaser_name: string;
   handover_date: string;
+  bedrooms?: number;
+  bathrooms?: number;
 }
 
 function normalizeTypeName(name: string): string {
@@ -47,13 +49,17 @@ export async function POST(request: Request) {
       for (const row of unitTypesData) {
         const name = row.name || row.Name || row.type || row.Type;
         if (name) {
+          const bedroomsRaw = row.bedrooms || row.Bedrooms || row.beds || row.Beds || row.bed_count || row.bedroom_count;
+          const bathroomsRaw = row.bathrooms || row.Bathrooms || row.baths || row.Baths || row.bath_count || row.bathroom_count;
+          const sqmRaw = row.sqm || row.Sqm || row.floor_area || row.FloorArea || row.area || row.Area || row.size || row.Size;
+          
           unitTypesFromSheet.push({
             name: String(name).trim(),
-            floor_plan_pdf_url: row.floor_plan_pdf_url || row.floor_plan_url || '',
+            floor_plan_pdf_url: row.floor_plan_pdf_url || row.floor_plan_url || row.FloorPlanUrl || '',
             designation: row.designation || row.Designation || undefined,
-            bedrooms: row.bedrooms ? Number(row.bedrooms) : undefined,
-            bathrooms: row.bathrooms ? Number(row.bathrooms) : undefined,
-            sqm: row.sqm || row.floor_area ? Number(row.sqm || row.floor_area) : undefined,
+            bedrooms: bedroomsRaw ? Number(bedroomsRaw) : undefined,
+            bathrooms: bathroomsRaw ? Number(bathroomsRaw) : undefined,
+            sqm: sqmRaw ? Number(sqmRaw) : undefined,
           });
         }
       }
@@ -76,20 +82,30 @@ export async function POST(request: Request) {
           continue;
         }
         
+        const bedroomsRaw = row.bedrooms || row.Bedrooms || row.beds || row.Beds || row.bed_count || row.bedroom_count;
+        const bathroomsRaw = row.bathrooms || row.Bathrooms || row.baths || row.Baths || row.bath_count || row.bathroom_count;
+        
         units.push({
           address: String(address).trim(),
           unit_type_name: String(unitTypeName).trim(),
           purchaser_name: row.purchaser_name || row.purchaser || row.owner || row.buyer || '',
           handover_date: row.handover_date || row.handover || '',
+          bedrooms: bedroomsRaw ? Number(bedroomsRaw) : undefined,
+          bathrooms: bathroomsRaw ? Number(bathroomsRaw) : undefined,
         });
       }
     }
     
-    const distinctUnitTypesFromUnits = new Map<string, string>();
+    // Map normalized type name to: { originalName, bedrooms, bathrooms } from first unit encountered
+    const distinctUnitTypesFromUnits = new Map<string, { originalName: string; bedrooms?: number; bathrooms?: number }>();
     for (const unit of units) {
       const normalized = normalizeTypeName(unit.unit_type_name);
       if (!distinctUnitTypesFromUnits.has(normalized)) {
-        distinctUnitTypesFromUnits.set(normalized, unit.unit_type_name);
+        distinctUnitTypesFromUnits.set(normalized, {
+          originalName: unit.unit_type_name,
+          bedrooms: unit.bedrooms,
+          bathrooms: unit.bathrooms,
+        });
       }
     }
     
@@ -101,14 +117,22 @@ export async function POST(request: Request) {
     const unitTypes: UnitTypeRow[] = [];
     const addedNormalized = new Set<string>();
     
-    distinctUnitTypesFromUnits.forEach((originalName, normalized) => {
+    distinctUnitTypesFromUnits.forEach((unitTypeInfo, normalized) => {
       const enrichment = enrichmentMap.get(normalized);
       if (enrichment) {
-        unitTypes.push(enrichment);
-      } else {
+        // Use enrichment data but fallback to unit data for bedrooms/bathrooms if not in enrichment
         unitTypes.push({
-          name: originalName,
+          ...enrichment,
+          bedrooms: enrichment.bedrooms ?? unitTypeInfo.bedrooms,
+          bathrooms: enrichment.bathrooms ?? unitTypeInfo.bathrooms,
+        });
+      } else {
+        // No explicit unit_types sheet entry - use data from units
+        unitTypes.push({
+          name: unitTypeInfo.originalName,
           floor_plan_pdf_url: '',
+          bedrooms: unitTypeInfo.bedrooms,
+          bathrooms: unitTypeInfo.bathrooms,
         });
       }
       addedNormalized.add(normalized);
