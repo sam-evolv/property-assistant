@@ -860,22 +860,36 @@ export default function PurchaserChatTab({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [showHome, messages.length > 0]);
 
-  // Scroll to bottom when messages change - only if user is at bottom
+  // Scroll to bottom when messages change or when sending/streaming
   useEffect(() => {
-    if (messagesEndRef.current && messages.length > 0) {
-      // Always scroll on initial load or when user hasn't scrolled up
-      if (isInitialLoad.current || !userScrolledUp.current) {
+    if (messagesEndRef.current && (messages.length > 0 || sending)) {
+      // Always scroll when user sends a message (sending becomes true)
+      // or on initial load, or when user hasn't manually scrolled up
+      if (sending || isInitialLoad.current || !userScrolledUp.current) {
         messagesEndRef.current.scrollIntoView({ 
           behavior: isInitialLoad.current ? 'auto' : 'smooth', 
           block: 'end' 
         });
+        // Reset userScrolledUp when sending so we follow the response
+        if (sending) {
+          userScrolledUp.current = false;
+        }
       }
       // After first scroll, switch to smooth for subsequent messages
       if (isInitialLoad.current) {
         isInitialLoad.current = false;
       }
     }
-  }, [messages.length]);
+  }, [messages.length, sending]);
+  
+  // Auto-scroll during streaming (when last message content updates)
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageContent = lastMessage?.content || '';
+  useEffect(() => {
+    if (messagesEndRef.current && lastMessage?.role === 'assistant' && !userScrolledUp.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [lastMessageContent]);
 
   return (
     <div 
