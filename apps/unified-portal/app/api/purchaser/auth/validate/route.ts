@@ -102,8 +102,18 @@ export async function POST(req: NextRequest) {
     }
     
     // Find unit matching the address number
+    // Handle both formats: "1 Longview Park..." and just "1" or "10"
     const matchedUnit = projectUnits?.find((u: any) => {
-      const addrMatch = u.address?.match(/^(\d+)\s/);
+      const addr = u.address?.trim();
+      if (!addr) return false;
+      
+      // Match addresses that are just a number (e.g., "1", "10")
+      if (/^\d+$/.test(addr)) {
+        return parseInt(addr, 10) === unitNum;
+      }
+      
+      // Match addresses starting with a number followed by space (e.g., "1 Longview Park")
+      const addrMatch = addr.match(/^(\d+)\s/);
       return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
     });
     
