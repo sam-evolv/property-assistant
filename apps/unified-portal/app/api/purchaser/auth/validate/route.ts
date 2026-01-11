@@ -39,43 +39,88 @@ export async function POST(req: NextRequest) {
     let unit: any = null;
     let project: any = null;
 
-    // CRITICAL: First try exact match on unit_uid (the QR code)
-    // This ensures RA-LAWN-001 only matches Rathard Lawn, LV-PARK-001 only matches Longview Park
-    const { data: exactUnitMatch, error: exactMatchError } = await supabase
-      .from('units')
-      .select('id, project_id, address, purchaser_name, unit_uid, house_type_code, bedrooms, bathrooms')
-      .eq('unit_uid', trimmedCode)
-      .single();
-
-    if (exactMatchError && exactMatchError.code !== 'PGRST116') {
-      console.error('[Purchaser Auth] Supabase error during unit_uid lookup:', exactMatchError);
+    // Parse QR code format: PREFIX-XXX where PREFIX identifies the project
+    // LV-PARK-XXX = Longview Park, RA-PARK-XXX = Rathard Park, RA-LAWN-XXX = Rathard Lawn
+    const codeMatch = trimmedCode.match(/^([A-Z]+-[A-Z]+)-(\d{3})$/);
+    
+    if (!codeMatch) {
+      console.log('[Purchaser Auth] Invalid code format:', trimmedCode);
+      return NextResponse.json(
+        { error: 'Invalid code format. Please check and try again.' },
+        { status: 400 }
+      );
     }
-
-    if (exactUnitMatch) {
-      console.log('[Purchaser Auth] Found exact unit_uid match:', exactUnitMatch.id, 'unit_uid:', exactUnitMatch.unit_uid);
-      
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .select('id, name, developer_id')
-        .eq('id', exactUnitMatch.project_id)
-        .single();
-      
-      if (projectError) {
-        console.error('[Purchaser Auth] Project lookup error:', projectError.message);
-      }
-      console.log('[Purchaser Auth] Project data:', projectData);
+    
+    const [, prefix, unitNumStr] = codeMatch;
+    const unitNum = parseInt(unitNumStr, 10);
+    
+    // Map prefix to project name
+    const prefixToProjectName: Record<string, string> = {
+      'LV-PARK': 'Longview Park',
+      'RA-PARK': 'Rathard Park',
+      'RA-LAWN': 'Rathard Lawn',
+    };
+    
+    const expectedProjectName = prefixToProjectName[prefix];
+    if (!expectedProjectName) {
+      console.log('[Purchaser Auth] Unknown project prefix:', prefix);
+      return NextResponse.json(
+        { error: 'Invalid code. Please check and try again.' },
+        { status: 400 }
+      );
+    }
+    
+    // Find the project by name
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .select('id, name')
+      .ilike('name', expectedProjectName)
+      .single();
+    
+    if (projectError || !projectData) {
+      console.log('[Purchaser Auth] Project not found for:', expectedProjectName);
+      return NextResponse.json(
+        { error: 'Development not found. Please check your code.' },
+        { status: 404 }
+      );
+    }
+    
+    console.log('[Purchaser Auth] Found project:', projectData.id, projectData.name, 'for prefix:', prefix);
+    
+    // Find the unit by address number within this specific project
+    const { data: projectUnits, error: unitsError } = await supabase
+      .from('units')
+      .select('id, project_id, address, purchaser_name')
+      .eq('project_id', projectData.id);
+    
+    if (unitsError) {
+      console.error('[Purchaser Auth] Error fetching units:', unitsError);
+      return NextResponse.json(
+        { error: 'Something went wrong. Please try again.' },
+        { status: 500 }
+      );
+    }
+    
+    // Find unit matching the address number
+    const matchedUnit = projectUnits?.find((u: any) => {
+      const addrMatch = u.address?.match(/^(\d+)\s/);
+      return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+    });
+    
+    if (matchedUnit) {
+      console.log('[Purchaser Auth] Found unit:', matchedUnit.id, 'in project:', projectData.name);
       
       project = projectData;
       unit = {
-        id: exactUnitMatch.id,
-        development_id: exactUnitMatch.project_id,
-        address: exactUnitMatch.address,
-        purchaser_name: exactUnitMatch.purchaser_name,
-        tenant_id: projectData?.developer_id || exactUnitMatch.project_id,
-        development_name: projectData?.name || 'Your Development',
-        house_type_code: exactUnitMatch.house_type_code,
-        bedrooms: exactUnitMatch.bedrooms,
-        bathrooms: exactUnitMatch.bathrooms,
+        id: matchedUnit.id,
+        development_id: matchedUnit.project_id,
+        address: matchedUnit.address,
+        purchaser_name: matchedUnit.purchaser_name,
+        tenant_id: projectData.id,
+        development_name: projectData.name,
+        house_type_code: null,
+        bedrooms: null,
+        bathrooms: null,
       };
     }
 
