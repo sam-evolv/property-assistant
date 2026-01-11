@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
 // Animation styles for typing indicator and logo hover
@@ -860,16 +860,29 @@ export default function PurchaserChatTab({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [showHome, messages.length > 0]);
 
+  // Helper function to scroll to bottom - uses scrollTop for iOS compatibility
+  const scrollToBottom = useCallback((smooth = true) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    // Use requestAnimationFrame for smoother iOS scrolling
+    requestAnimationFrame(() => {
+      if (smooth && !isIOSNative) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      } else {
+        // For iOS native, use direct scrollTop (more reliable in WebView)
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  }, [isIOSNative]);
+
   // Scroll to bottom when messages change or when sending/streaming
   useEffect(() => {
-    if (messagesEndRef.current && (messages.length > 0 || sending)) {
+    if ((messages.length > 0 || sending) && scrollContainerRef.current) {
       // Always scroll when user sends a message (sending becomes true)
       // or on initial load, or when user hasn't manually scrolled up
       if (sending || isInitialLoad.current || !userScrolledUp.current) {
-        messagesEndRef.current.scrollIntoView({ 
-          behavior: isInitialLoad.current ? 'auto' : 'smooth', 
-          block: 'end' 
-        });
+        scrollToBottom(!isInitialLoad.current);
         // Reset userScrolledUp when sending so we follow the response
         if (sending) {
           userScrolledUp.current = false;
@@ -880,16 +893,16 @@ export default function PurchaserChatTab({
         isInitialLoad.current = false;
       }
     }
-  }, [messages.length, sending]);
+  }, [messages.length, sending, scrollToBottom]);
   
   // Auto-scroll during streaming (when last message content updates)
   const lastMessage = messages[messages.length - 1];
   const lastMessageContent = lastMessage?.content || '';
   useEffect(() => {
-    if (messagesEndRef.current && lastMessage?.role === 'assistant' && !userScrolledUp.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (scrollContainerRef.current && lastMessage?.role === 'assistant' && !userScrolledUp.current) {
+      scrollToBottom(true);
     }
-  }, [lastMessageContent]);
+  }, [lastMessageContent, scrollToBottom]);
 
   return (
     <div 
