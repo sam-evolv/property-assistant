@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
     let unit: any = null;
     let project: any = null;
 
-    // Parse QR code format: PREFIX-XXX where PREFIX identifies the project
+    // Parse QR code format: PREFIX-N where PREFIX identifies the project and N is 1-3 digits
     // LV-PARK-XXX = Longview Park, RA-PARK-XXX = Rathard Park, RA-LAWN-XXX = Rathard Lawn
-    const codeMatch = trimmedCode.match(/^([A-Z]+-[A-Z]+)-(\d{3})$/);
+    const codeMatch = trimmedCode.match(/^([A-Z]+-[A-Z]+)-(\d{1,3})$/);
     
     if (!codeMatch) {
       console.log('[Purchaser Auth] Invalid code format:', trimmedCode);
