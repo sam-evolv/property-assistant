@@ -39,59 +39,44 @@ export async function POST(req: NextRequest) {
     let unit: any = null;
     let project: any = null;
 
-    const numMatch = trimmedCode.match(/(\d+)/);
-    const unitNum = numMatch ? parseInt(numMatch[1], 10) : null;
-
-    if (!unitNum) {
-      console.log('[Purchaser Auth] No unit number found in code:', trimmedCode);
-      return NextResponse.json(
-        { error: 'Invalid code format. Please check and try again.' },
-        { status: 400 }
-      );
-    }
-
-    const { data: allUnits, error: unitError } = await supabase
+    // CRITICAL: First try exact match on unit_uid (the QR code)
+    // This ensures RA-LAWN-001 only matches Rathard Lawn, LV-PARK-001 only matches Longview Park
+    const { data: exactUnitMatch, error: exactMatchError } = await supabase
       .from('units')
-      .select('id, project_id, address, purchaser_name');
-    
-    if (unitError) {
-      console.error('[Purchaser Auth] Supabase error:', unitError);
-      return NextResponse.json(
-        { error: 'Something went wrong. Please try again.' },
-        { status: 500 }
-      );
+      .select('id, project_id, address, purchaser_name, unit_uid, house_type_code, bedrooms, bathrooms')
+      .eq('unit_uid', trimmedCode)
+      .single();
+
+    if (exactMatchError && exactMatchError.code !== 'PGRST116') {
+      console.error('[Purchaser Auth] Supabase error during unit_uid lookup:', exactMatchError);
     }
 
-    if (allUnits && allUnits.length > 0) {
-      const exactMatch = allUnits.find((u: any) => {
-        const addrMatch = u.address?.match(/^(\d+)\s/);
-        return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
-      });
+    if (exactUnitMatch) {
+      console.log('[Purchaser Auth] Found exact unit_uid match:', exactUnitMatch.id, 'unit_uid:', exactUnitMatch.unit_uid);
       
-      if (exactMatch) {
-        console.log('[Purchaser Auth] Found unit:', exactMatch.id, 'with project_id:', exactMatch.project_id);
-        
-        const { data: projectData, error: projectError } = await supabase
-          .from('projects')
-          .select('id, name, developer_id')
-          .eq('id', exactMatch.project_id)
-          .single();
-        
-        if (projectError) {
-          console.error('[Purchaser Auth] Project lookup error:', projectError.message);
-        }
-        console.log('[Purchaser Auth] Project data:', projectData);
-        
-        project = projectData;
-        unit = {
-          id: exactMatch.id,
-          development_id: exactMatch.project_id,
-          address: exactMatch.address,
-          purchaser_name: exactMatch.purchaser_name,
-          tenant_id: projectData?.developer_id || exactMatch.project_id,
-          development_name: projectData?.name || 'Your Development',
-        };
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('id, name, developer_id')
+        .eq('id', exactUnitMatch.project_id)
+        .single();
+      
+      if (projectError) {
+        console.error('[Purchaser Auth] Project lookup error:', projectError.message);
       }
+      console.log('[Purchaser Auth] Project data:', projectData);
+      
+      project = projectData;
+      unit = {
+        id: exactUnitMatch.id,
+        development_id: exactUnitMatch.project_id,
+        address: exactUnitMatch.address,
+        purchaser_name: exactUnitMatch.purchaser_name,
+        tenant_id: projectData?.developer_id || exactUnitMatch.project_id,
+        development_name: projectData?.name || 'Your Development',
+        house_type_code: exactUnitMatch.house_type_code,
+        bedrooms: exactUnitMatch.bedrooms,
+        bathrooms: exactUnitMatch.bathrooms,
+      };
     }
 
     if (!unit) {
@@ -117,7 +102,9 @@ export async function POST(req: NextRequest) {
       developmentLogoUrl: null,
       purchaserName: unit.purchaser_name || 'Homeowner',
       address: unit.address || '',
-      houseType: '',
+      houseType: unit.house_type_code || '',
+      bedrooms: unit.bedrooms || null,
+      bathrooms: unit.bathrooms || null,
       latitude: null,
       longitude: null,
       token: tokenResult.token,
