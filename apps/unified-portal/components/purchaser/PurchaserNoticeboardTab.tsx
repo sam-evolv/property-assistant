@@ -1025,7 +1025,7 @@ export default function PurchaserNoticeboardTab({
         <div 
           className="fixed left-0 right-0 flex justify-center z-40 pointer-events-none"
           style={{
-            bottom: isIOSNative ? IOS_TAB_BAR_HEIGHT + 24 : 96
+            bottom: isIOSNative ? IOS_TAB_BAR_HEIGHT + 48 : 96
           }}
         >
           <button
