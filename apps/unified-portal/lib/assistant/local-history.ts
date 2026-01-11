@@ -221,6 +221,7 @@ const LOCAL_HISTORY_INTROS = [
 export const LONGVIEW_RATHARD_SCHEME_IDS = [
   'longview-park',
   'rathard-park',
+  'rathard-lawn',
   'longview',
   'rathard',
 ];
