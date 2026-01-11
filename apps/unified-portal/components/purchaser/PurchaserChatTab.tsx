@@ -254,7 +254,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
     prompts: [
       "Public Transport",
-      "Waste collection",
+      "Floor Plans",
       "Parking rules",
       "Local area"
     ],
@@ -270,7 +270,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Szybkie odpowiedzi na co dzień: plany pięter, udogodnienia, lokalne usługi i więcej.',
     prompts: [
       "Transport publiczny",
-      "Odbiór śmieci",
+      "Plany pięter",
       "Zasady parkowania",
       "Okolica"
     ],
@@ -286,7 +286,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Respuestas rápidas para la vida diaria: planos, comodidades, servicios locales y más.',
     prompts: [
       "Transporte público",
-      "Recogida de basura",
+      "Planos",
       "Reglas de estacionamiento",
       "Área local"
     ],
@@ -302,7 +302,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Быстрые ответы на повседневные вопросы: планировки, удобства, местные услуги и многое другое.',
     prompts: [
       "Общественный транспорт",
-      "Вывоз мусора",
+      "Планировки",
       "Правила парковки",
       "Местность"
     ],
@@ -318,7 +318,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Respostas rápidas para o dia a dia: plantas, comodidades, serviços locais e mais.',
     prompts: [
       "Transporte público",
-      "Coleta de lixo",
+      "Plantas",
       "Regras de estacionamento",
       "Área local"
     ],
@@ -334,7 +334,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Ātras atbildes ikdienai: plāni, ērtības, vietējie pakalpojumi un vairāk.',
     prompts: [
       "Sabiedriskais transports",
-      "Atkritumu savākšana",
+      "Stāvu plāni",
       "Stāvvietas noteikumi",
       "Vietējā apkārtne"
     ],
@@ -350,7 +350,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Greiti atsakymai kasdienybei: planai, patogumai, vietinės paslaugos ir daugiau.',
     prompts: [
       "Viešasis transportas",
-      "Šiukšlių surinkimas",
+      "Aukštų planai",
       "Parkavimo taisyklės",
       "Vietovė"
     ],
@@ -366,7 +366,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Răspunsuri rapide pentru viața de zi cu zi: planuri, facilități, servicii locale și multe altele.',
     prompts: [
       "Transport public",
-      "Colectare gunoi",
+      "Planuri etaje",
       "Reguli parcare",
       "Zona locală"
     ],
@@ -382,7 +382,7 @@ const TRANSLATIONS: Record<string, any> = {
     subtitle: 'Freagraí tapa don saol laethúil: pleananna urláir, áiseanna, seirbhísí áitiúla, agus tuilleadh.',
     prompts: [
       "Iompar Poiblí",
-      "Bailiú Dramhaíola",
+      "Pleananna Urláir",
       "Rialacha Páirceála",
       "An Ceantar Áitiúil"
     ],
@@ -821,8 +821,26 @@ export default function PurchaserChatTab({
     }
   };
 
+  // Floor plan prompt keys in different languages
+  const FLOOR_PLAN_PROMPTS = [
+    'Floor Plans',      // English
+    'Plany pięter',     // Polish
+    'Planos',           // Spanish
+    'Планировки',       // Russian
+    'Plantas',          // Portuguese
+    'Stāvu plāni',      // Latvian
+    'Aukštų planai',    // Lithuanian
+    'Planuri etaje',    // Romanian
+    'Pleananna Urláir'  // Irish
+  ];
+  
   const handleQuickPrompt = (prompt: string) => {
-    sendMessage(prompt);
+    // Check if this is a floor plan prompt - send a specific query
+    if (FLOOR_PLAN_PROMPTS.includes(prompt)) {
+      sendMessage('Show me the floor plans for my home');
+    } else {
+      sendMessage(prompt);
+    }
   };
 
   const handleHomeClick = () => {
