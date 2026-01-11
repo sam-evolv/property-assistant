@@ -8,10 +8,10 @@ import { validateQRToken } from '@openhouse/api/qr-tokens';
 export const dynamic = 'force-dynamic';
 
 function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  console.log('[Important Docs] Supabase URL:', url?.slice(0, 30) + '...', 'Key exists:', !!key);
+  return createClient(url!, key!);
 }
 
 const PUBLIC_DISCIPLINES = ['handover', 'other'];
@@ -95,18 +95,33 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch important documents from Supabase document_sections for THIS unit's project
-    const { data: sections, error } = await supabase
-      .from('document_sections')
-      .select('id, metadata')
-      .eq('project_id', projectId);
-
-    if (error) {
-      console.error('[Important Docs] Supabase error:', error.message);
+    console.log('[Important Docs] Fetching sections for project_id:', projectId);
+    
+    // Use direct REST API call to bypass any client caching issues
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/document_sections?project_id=eq.${projectId}&select=id,metadata`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        cache: 'no-store',
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('[Important Docs] REST API error:', response.status, response.statusText);
       return NextResponse.json({
         requiresConsent: false,
         importantDocuments: [],
       });
     }
+    
+    const sections = await response.json();
+    console.log('[Important Docs] REST API returned:', sections?.length || 0, 'sections');
 
     // Find unique documents marked as important AND in public disciplines only
     const importantDocsMap = new Map<string, {
