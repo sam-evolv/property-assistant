@@ -944,7 +944,7 @@ export default function PurchaserChatTab({
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn" 
-                className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-[52px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
               <img 
