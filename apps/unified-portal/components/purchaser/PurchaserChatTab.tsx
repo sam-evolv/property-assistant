@@ -940,11 +940,19 @@ export default function PurchaserChatTab({
           
           {/* Logo */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
-            <img 
-              src="/longview-logo.png" 
-              alt="Longview Estates" 
-              className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-            />
+            {developmentName?.toLowerCase().includes('rathard lawn') ? (
+              <img 
+                src="/rathard-lawn-logo.png" 
+                alt="Rathard Lawn" 
+                className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
+            ) : (
+              <img 
+                src="/longview-logo.png" 
+                alt="Longview Estates" 
+                className={`h-10 w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
+            )}
           </div>
 
           {/* Welcome Headline */}
