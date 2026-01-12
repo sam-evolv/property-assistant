@@ -946,6 +946,12 @@ export default function PurchaserChatTab({
                 alt="Rathard Lawn" 
                 className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
+            ) : developmentName?.toLowerCase().includes('rathard park') ? (
+              <img 
+                src="/rathard-park-logo.png" 
+                alt="Rathard Park" 
+                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
             ) : (
               <img 
                 src="/longview-logo.png" 

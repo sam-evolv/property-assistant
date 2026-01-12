@@ -499,6 +499,14 @@ export default function HomeResidentPage() {
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
+            ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
+              <img 
+                src="/rathard-park-logo.png" 
+                alt="Rathard Park logo"
+                width={150}
+                height={45}
+                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
             ) : (
               <img 
                 src="/longview-logo.png" 
