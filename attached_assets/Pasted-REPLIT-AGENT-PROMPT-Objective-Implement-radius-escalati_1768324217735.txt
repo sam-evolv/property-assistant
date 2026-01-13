@@ -1,0 +1,58 @@
+REPLIT AGENT PROMPT
+
+Objective
+Implement radius escalation for Local Amenities Google Places search so each category returns meaningful results across urban + rural schemes, without breaking caching or increasing noise.
+
+Repo context (confirmed)
+- Core handler: apps/unified-portal/lib/places/poi.ts
+- Orchestrator: getNearbyPOIs() at poi.ts:577
+- Places call: fetchFromGooglePlaces() at poi.ts:317
+- Current fixed radius: SEARCH_RADIUS_METERS = 5000 at poi.ts:115
+- Caching: getCachedPOIs() / storePOICache()
+- TTL: 7 days
+- Deduplication already exists in apps/unified-portal/app/api/chat/route.ts by place_id Set - do not change.
+
+Requirements
+1) Add radius escalation per category:
+   - Try 2000m, if <2 results then 4000m, if still <2 then 7000m.
+   - Stop once results >=2 OR after final radius.
+   - Keep MAX_RESULTS cap unchanged.
+2) Caching must be radius-aware:
+   - Cache entries for different radii must not collide.
+   - Prefer non-breaking approach: include radius in the cache key without DB migrations.
+     Example: treat cacheCategoryKey = `${category}:${radiusMeters}`
+   - Ensure both getCachedPOIs() and storePOICache() use the same key.
+3) Maintain existing behaviour:
+   - No UI changes.
+   - No changes to formatter aside from optional subtle note if radius escalated.
+4) Performance and spend:
+   - Only escalate when needed (<2 results).
+   - Respect 7-day TTL caching.
+   - Do not run Distance Matrix if Places returned 0 results for that radius.
+5) Safety:
+   - Do not claim “closest” unless we compute travel times or distance.
+   - Do not invent amenities if none exist.
+
+Implementation guidance
+- Implement in poi.ts, inside getNearbyPOIs() (or a helper called by it).
+- Use a constant array: ESCALATION_RADII = [2000, 4000, 7000]
+- For each radius:
+  a) check cache using cacheCategoryKey
+  b) if cache miss/stale -> call fetchFromGooglePlaces() with radius
+  c) if results length >0 -> call fetchTravelTimes() for those results
+  d) store cache under cacheCategoryKey
+  e) if results length >=2 -> return
+- If all radii fail, return best available (likely empty).
+- Ensure all callers still pass plain category; getNearbyPOIs handles the rest.
+
+Validation steps
+- Test an urban scheme: should return results at 2km and not escalate.
+- Test a rural scheme: should escalate to 4km or 7km and return results.
+- Verify cache entries differ per radius (no collisions).
+- Verify Local Amenities response still grouped correctly and does not list development name.
+
+Deliverable
+- Commit code changes
+- Provide a short summary of files changed and key logic
+
+END
