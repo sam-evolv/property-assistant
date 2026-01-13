@@ -73,6 +73,52 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Suggested Pills V2 (January 2026)
+
+**Sector-diverse rotating question pills with intent routing and Global Safety Contract:**
+
+**Feature Flag: NEXT_PUBLIC_SUGGESTED_PILLS_V2**
+
+**Core Components:**
+1. `suggested-pills/registry.ts`: 19 pill definitions across 7 sectors
+   - HOME_LAYOUT: Kitchen layout, storage ideas, living room, home upgrades
+   - GARDEN_EXTERIOR: Garden setup, outdoor improvements
+   - ENERGY_TECHNOLOGY: Heating system, energy savings, EV charging, smart home
+   - MAINTENANCE_OWNERSHIP: First-year maintenance, long-term maintenance, warranties
+   - SERVICES_SETUP: Utilities setup, broadband setup
+   - AREA_PLANNING: Public transport, local amenities, the area, planning rules
+   - INSURANCE: Home insurance
+
+2. `suggested-pills/selector.ts`: Sector-diverse selection algorithm
+   - Ensures max 1 pill per sector in any selection
+   - Priority ordering: HOME_LAYOUT > MAINTENANCE_OWNERSHIP > ENERGY_TECHNOLOGY > others
+   - Seeded randomness using session ID for 24-hour consistency
+
+3. `suggested-pills/safety-contract.ts`: Global Safety and Scope Contract
+   - Always prepended when intent metadata is present
+   - Scope boundaries: new-home questions only, no legal/medical/financial advice
+   - Certainty levels: Grounded vs General Knowledge indicators
+   - Emergency override protocol
+
+4. `suggested-pills/intent-playbooks.ts`: Structured response templates
+   - 19 playbooks with objective, assumptions, priorities, response structure
+   - Hard constraints per intent (e.g., EV charging must mention SEAI grants)
+   - Clarifying question triggers for ambiguous queries
+
+**Key Features:**
+- 24-hour session persistence via localStorage
+- Backward-compatible fallback to quick prompts when flag is off
+- Intent metadata plumbing through chat API (source, intentKey, templateId, pillId)
+- Follow-up intent carryover using lastIntentKey in conversation state
+- Pills rendered as sector-diverse rotating suggestions in chat UI
+
+**Key Files:**
+- `apps/unified-portal/lib/assistant/suggested-pills/registry.ts`
+- `apps/unified-portal/lib/assistant/suggested-pills/selector.ts`
+- `apps/unified-portal/lib/assistant/suggested-pills/safety-contract.ts`
+- `apps/unified-portal/lib/assistant/suggested-pills/intent-playbooks.ts`
+- `apps/unified-portal/hooks/useSuggestedPills.ts`
+
 ### Tone Guardrails (January 2026)
 
 **Consistent "friendly local guide" voice across all response modes:**
