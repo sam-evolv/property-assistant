@@ -73,6 +73,37 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Demo Portal Seed System (January 2026)
+
+**Safe demo data for App Store review with OpenHouse branding:**
+
+**Access Code:** `OH-PARK-009`
+**Development Name:** OpenHouse Park
+**Purchaser:** Keely O'Grady
+
+**Scripts:**
+- `npm run seed:demo` - Create/repair demo data (idempotent)
+- `npm run seed:demo:remove` - Remove demo data
+
+**Demo Data Created:**
+- Tenant: OpenHouse Demo Tenant (a0000000-0000-0000-0000-000000000001)
+- Organisation: OpenHouse Demo Org (a1000000-0000-0000-0000-000000000001)
+- Project: OpenHouse Park (b0000000-0000-0000-0000-000000000001)
+- Development: OpenHouse Park (b0000000-0000-0000-0000-000000000001)
+- Unit: 9 OpenHouse Way, Cork (c0000000-0000-0000-0000-000000000001)
+
+**OpenHouse Logo Integration:**
+- Logo file: `apps/unified-portal/public/brand/openhouse-logo.png`
+- Displayed in chat UI and page header when development name contains "openhouse"
+- No dark mode inversion (displays full color)
+
+**Environment Variable:** `DEMO_SEED_ENABLED=true` (set in shared env)
+
+**Key Files:**
+- `apps/unified-portal/scripts/seed-demo.ts` - Idempotent seed script
+- `apps/unified-portal/components/purchaser/PurchaserChatTab.tsx` - Logo detection
+- `apps/unified-portal/app/homes/[unitUid]/page.tsx` - Header logo detection
+
 ### Suggested Pills V2 (January 2026)
 
 **Sector-diverse rotating question pills with intent routing and Global Safety Contract:**

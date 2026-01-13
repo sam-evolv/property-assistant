@@ -1,0 +1,146 @@
+Objective: Produce a full, Apple-ready brief covering (1) analytics collection and (2) the app’s primary purpose, written clearly enough to be reused for App Store Connect, Privacy Nutrition Labels, and App Review notes.
+
+Context you must assume
+
+The app requires login, but not via username/password.
+
+Access is granted via a unique identification code (one-time or assigned), used solely to identify and associate a user/session with a property, development, or portal.
+
+The app does collect analytics.
+
+The UI is final; iteration will primarily occur at the backend/service layer.
+
+This is a production SaaS-style app, not a demo or content app.
+
+Your tasks (do not skip any)
+1. Define the Primary Purpose of the App (Apple-facing)
+
+Produce:
+
+A 1-sentence primary purpose statement (plain English, no marketing fluff).
+
+A short paragraph (3–4 sentences) expanding on the purpose, written in a way that would pass Apple App Review scrutiny.
+
+A “what the app does NOT do” clarification (important for review risk reduction).
+
+This must clearly explain:
+
+Why the app exists
+
+Who it is for
+
+What problem it solves
+
+Why login via a unique code is necessary and justified
+
+Avoid:
+
+Vague phrases like “enhanced experience” or “smart platform”
+
+Over-promising or future features not currently live
+
+2. Analytics Collection – Full Disclosure Inventory
+
+Create a structured analytics brief that includes:
+
+A. Categories of analytics collected
+Explicitly list and describe:
+
+Usage analytics (screens viewed, feature usage)
+
+Interaction analytics (button taps, navigation flows)
+
+Performance analytics (latency, errors, crashes)
+
+Device/contextual data (OS version, device type, app version)
+
+Session-level identifiers (linked to the unique identification code, not personal identity)
+
+B. What is NOT collected
+Clearly state exclusions, for example:
+
+No names, emails, phone numbers (unless true otherwise)
+
+No precise location (unless explicitly used)
+
+No contacts, photos, microphone, etc.
+
+C. Purpose of analytics
+Tie every analytics category to one of:
+
+App stability and performance
+
+Product improvement
+
+Feature prioritisation
+
+Operational insight for developers/property managers (if applicable)
+
+D. Data linkage
+Explain:
+
+Whether analytics are linked to a user/session via the unique code
+
+Whether they are anonymous, pseudonymous, or identifiable
+
+Whether analytics are linked across apps or services (likely “no”)
+
+This section must be written so it can be directly mapped into:
+
+App Store Connect “App Privacy” questions
+
+Internal compliance documentation
+
+3. Login Mechanism Explanation (Reviewer-Safe)
+
+Write a short technical explanation of:
+
+Why login is required
+
+Why a unique identification code is used instead of username/password
+
+How this improves security, reduces friction, and limits personal data collection
+
+This explanation should be suitable for:
+
+App Review “Notes to Reviewer”
+
+Privacy justification
+
+4. Apple App Review Risk Check
+
+Produce a short checklist answering:
+
+Does this app require login? (Yes – justified)
+
+Is login tied to core functionality? (Explain why)
+
+Are analytics essential and proportionate? (Explain why)
+
+Is any data used for tracking or advertising? (Explicit yes/no)
+
+Call out any potential red flags and how they are mitigated.
+
+5. Output Format (strict)
+
+Your final output must be structured exactly as:
+
+Primary Purpose (1 sentence)
+
+Expanded Purpose (short paragraph)
+
+What the App Does Not Do
+
+Analytics Collected (bullet-pointed by category)
+
+Analytics Not Collected
+
+Purpose of Analytics
+
+Data Linkage Explanation
+
+Login Mechanism Justification
+
+Apple Review Risk Notes
+
+Use clear headings. No emojis. No marketing language. Assume this will be read by Apple reviewers and lawyers.
