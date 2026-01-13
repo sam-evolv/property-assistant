@@ -975,31 +975,31 @@ export default function PurchaserChatTab({
         >
           <style>{ANIMATION_STYLES}</style>
           
-          {/* Logo */}
+          {/* Logo - 30% larger for improved visibility */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
             {developmentName?.toLowerCase().includes('openhouse') ? (
               <img 
                 src="/brand/openhouse-logo.png" 
                 alt="OpenHouse AI" 
-                className={`h-[65px] w-auto object-contain`}
+                className={`h-[85px] w-auto object-contain`}
               />
             ) : developmentName?.toLowerCase().includes('rathard lawn') ? (
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn" 
-                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-[85px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : developmentName?.toLowerCase().includes('rathard park') ? (
               <img 
                 src="/rathard-park-logo.png" 
                 alt="Rathard Park" 
-                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-[85px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
               <img 
                 src="/longview-logo.png" 
                 alt="Longview Estates" 
-                className={`h-[50px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             )}
           </div>

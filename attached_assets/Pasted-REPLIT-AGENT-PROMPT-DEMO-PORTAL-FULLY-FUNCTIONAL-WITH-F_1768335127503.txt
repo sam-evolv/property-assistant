@@ -1,0 +1,158 @@
+REPLIT AGENT PROMPT (DEMO PORTAL: FULLY FUNCTIONAL WITH FAKE DATA + MAPS + NOTICES + DOCS + LOGO SIZE, NO BREAKAGE)
+
+Objective
+Upgrade the existing demo portal (access code: OH-PARK-009) so it is fully functional end-to-end for App Store screenshots and reviewer testing, using ONLY fake/demo data, while preserving all existing production logic, security, and tenant isolation.
+
+Hard constraints
+- Do NOT break or weaken auth, RLS, tenant isolation, or existing code paths.
+- Do NOT introduce “demo-only” shortcuts that bypass session/auth for protected APIs.
+- All demo content must remain isolated to the demo tenant/development via is_demo (or equivalent).
+- Changes must be additive and reversible. Seed must remain idempotent.
+- Logo size must be increased by exactly 30% in header + chat UI (demo and non-demo should remain visually correct).
+
+Current state (assumed)
+- Seed system exists:
+  - npm run seed:demo (idempotent create/repair)
+  - npm run seed:demo:remove
+- Demo tenant/development/unit exists and portal loads.
+- Some APIs (docs/videos) may 401 if session not established or token not attached.
+
+Required upgrades
+A) Maps must work (Cork City)
+- Demo development and/or unit must have valid coordinates in Cork City.
+- Use a safe public location (example coords):
+  - 51.8985, -8.4756 (Cork city centre)
+- Ensure the maps UI renders, markers load, and POI/search works as expected.
+- If the app uses server-side POI fetching, ensure demo has valid lat/lng and all required location fields so no “missing_location” failure triggers.
+
+B) Logos: increase size by 30%
+- Increase logo size in:
+  1) Top toolbar/header
+  2) Chat interface header/center logo
+- Increase by exactly 30% from current rendered size.
+- Must remain responsive on iPhone widths (no clipping, no overflow).
+- Do not change aspect ratio. Do not blur.
+
+C) Noticeboard: add 3–4 fake notices (vibrant community)
+- Add 4 notices with realistic titles, dates, and content, tied to OpenHouse Park demo development.
+- They must render in the Noticeboard/Updates feed and detail view (if applicable).
+- Content should feel authentic and community-focused.
+
+Suggested notices (use these or similar):
+1) “Welcome to OpenHouse Park - Residents Intro Evening”
+   Body: invite residents for tea/coffee, community notice, date/time, location (community room).
+2) “Bins and Recycling - Collection Schedule”
+   Body: simple guidance, days of collection, where to leave bins.
+3) “Parking and Visitor Bays - Quick Reminder”
+   Body: visitor bay etiquette, keep access clear.
+4) “Local Recommendations - Coffee, Gyms, Schools”
+   Body: a few Cork City suggestions (generic, non-branded if you prefer).
+
+D) Docs: populate with fake placeholder documents
+- Add 8–10 fake docs across sensible categories (PDF placeholders are fine).
+- Must be downloadable/openable from the Docs tab without 401 after code login.
+- Store using the same pipeline as real docs (storage + db metadata), not hardcoded UI.
+
+Suggested doc set:
+- “Homeowner Welcome Pack - OpenHouse Park.pdf”
+- “Floor Plan - Unit 9.pdf”
+- “Appliance Warranty Summary.pdf”
+- “Heating System Quick Start Guide.pdf”
+- “Broadband and Utilities Setup.pdf”
+- “Waste and Recycling Guidelines.pdf”
+- “Fire Safety and Alarms Guide.pdf”
+- “Snagging and Defects Process.pdf”
+- “Resident Handbook - Community Guidelines.pdf”
+- “Emergency Contacts (Demo).pdf”
+
+Implementation steps (do in this order)
+
+1) Locate the relevant models/tables and APIs
+- Identify:
+  - development/unit location fields (lat/lng, address, etc.)
+  - noticeboard tables and API routes
+  - documents tables + storage bucket paths
+  - map/POI fetch logic and its required inputs
+  - where logo sizing is defined in header and chat components
+
+2) Fix demo authentication reliability (critical)
+Goal: after entering OH-PARK-009, ALL protected endpoints (docs, video, notices) must work without 401.
+- Trace the auth flow:
+  - where the session/token is created after code entry
+  - where the token is stored (cookie/header/local storage)
+  - where API requests attach auth
+- Ensure:
+  - token is attached before first protected fetch
+  - UI waits until session is ready before fetching protected content
+  - no “optimistic fetch” is firing before auth is established
+- Add minimal guards:
+  - “sessionReady” boolean gating docs/video/notices fetch until auth is confirmed
+  - retry once if a race condition occurs
+Do NOT bypass auth. Make the flow correct.
+
+3) Update seed: add Cork City coordinates + ensure maps inputs
+- In seed:demo, set demo unit/development coordinates:
+  - latitude = 51.8985
+  - longitude = -8.4756
+- Ensure any “location required” fields used by POI/search are populated (address, city, country).
+- Confirm map renders with marker at that point and POI endpoints return results.
+
+4) Update seed: create 4 demo notices
+- Insert into noticeboard table linked to demo development/tenant.
+- Include:
+  - title, body, created_at, category (if any)
+  - author as “OpenHouse Team” (or “Community Manager”)
+- Ensure notices appear in list in correct sort order (newest first).
+- Ensure no real tenants see these notices.
+
+5) Update seed: create 8–10 demo documents
+- Generate PDFs programmatically if needed:
+  - use a lightweight PDF generator so docs look clean (title page + simple sections)
+- Upload PDFs to the existing storage bucket and create DB entries with:
+  - title, category, file_path/url, development_id and/or unit_id linkage
+- Confirm “open/download” works after login (no 401, no broken URL).
+
+6) Increase logo size by 30%
+- Find the header logo component and chat logo component.
+- If size is set via CSS vars, scale:
+  - newSize = oldSize * 1.30
+- Apply consistently:
+  - header logo height/width
+  - chat logo height/width
+- Validate on iPhone widths:
+  - no overlap with nav buttons
+  - no clipping in chat header
+- Ensure non-demo tenants still look good (do not cause layout regressions).
+
+7) Verification checklist (must pass)
+- Fresh app load → enter OH-PARK-009 → portal loads
+- Docs tab:
+  - shows 8–10 docs
+  - can open/download at least 1 doc
+- Noticeboard:
+  - shows 4 notices
+  - content reads well, dates sane
+- Maps:
+  - shows Cork marker
+  - local POIs load (or map layer renders correctly)
+- Chat:
+  - logo visible, 30% larger
+- Header:
+  - logo visible, 30% larger
+- No changes affect real tenants (validate by checking a non-demo code if available).
+
+Deliverables
+- Updated seed script stays idempotent:
+  npm run seed:demo
+- Demo portal is fully functional with fake data and no 401 errors post-login
+- Docs + notices + maps all work and look credible
+- Logo size increased by 30% in header and chat
+
+Start now.
+First, inspect and report the exact files/tables responsible for:
+- auth/session creation and attaching token to API requests
+- maps location fields and POI fetching requirements
+- noticeboard data model and API
+- docs model + storage path
+- header and chat logo rendering
+Then implement changes with the least invasive approach.
