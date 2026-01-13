@@ -822,6 +822,7 @@ export async function getNearbyPOIs(
   let allApiFetchesFailed = true;
   let anyApiFetchAttempted = false;
   let anyFreshDataAvailable = false;
+  let foundUsableResults = false;
 
   for (const radius of ESCALATION_RADII) {
     console.log(`[POI] Trying radius ${radius}m for ${category}`);
@@ -832,6 +833,7 @@ export async function getNearbyPOIs(
       anyFreshDataAvailable = true;
       
       if (cached.results.length >= MIN_RESULTS_THRESHOLD) {
+        foundUsableResults = true;
         diagnostics.cache_hit = true;
         (diagnostics as any).radius_used = radius;
         (diagnostics as any).escalation_used = radius > ESCALATION_RADII[0];
@@ -916,6 +918,7 @@ export async function getNearbyPOIs(
     }
 
     if (results.length >= MIN_RESULTS_THRESHOLD) {
+      foundUsableResults = true;
       (diagnostics as any).radius_used = radius;
       (diagnostics as any).escalation_used = escalationUsed;
       return {
@@ -929,10 +932,22 @@ export async function getNearbyPOIs(
     escalationUsed = true;
   }
 
-  if (anyApiFetchAttempted && allApiFetchesFailed) {
+  console.assert(
+    !foundUsableResults || !allApiFetchesFailed || bestFreshResults.length > 0,
+    '[POI] ASSERTION: If foundUsableResults is true, we should have returned early - stale cache must not be evaluated'
+  );
+  
+  if (anyApiFetchAttempted && allApiFetchesFailed && !foundUsableResults) {
+    console.log('[POI] Stale cache fallback triggered:', {
+      anyApiFetchAttempted,
+      allApiFetchesFailed,
+      foundUsableResults,
+      bestFreshResultsCount: bestFreshResults.length,
+      anyFreshDataAvailable,
+    });
     const staleCache = await findBestStaleCache(schemeId, category);
     if (staleCache && staleCache.results.length > 0) {
-      console.log('[POI] All API fetches failed, returning stale cache with', staleCache.results.length, 'results');
+      console.log('[POI] All API fetches failed and no usable results found, returning stale cache with', staleCache.results.length, 'results');
       diagnostics.is_stale_cache = true;
       (diagnostics as any).radius_used = bestFreshRadius;
       (diagnostics as any).escalation_used = escalationUsed;
