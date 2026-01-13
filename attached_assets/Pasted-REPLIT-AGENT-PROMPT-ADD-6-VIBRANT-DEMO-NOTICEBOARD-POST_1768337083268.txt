@@ -1,0 +1,64 @@
+REPLIT AGENT PROMPT (ADD 6 VIBRANT DEMO NOTICEBOARD POSTS, MULTIPLE RESIDENT AUTHORS, NO BREAKAGE)
+
+Objective
+Add 6 additional demo noticeboard posts authored by different made-up residents of OpenHouse Park to make the estate feel vibrant. Must appear in the purchaser Noticeboard UI for demo code OH-PARK-009. Must not affect production tenants.
+
+Constraints
+- Only insert posts for the DEMO tenant/development/unit (OpenHouse Park, OH-PARK-009).
+- Keep seed idempotent: running `npm run seed:demo` multiple times must not duplicate posts.
+- Do not change auth/RLS behaviour, and do not require any manual DB steps.
+
+Implementation
+1) Identify the exact noticeboard table and columns currently used by the purchaser Noticeboard API.
+   - Use the same linkage keys as existing seeded posts (tenant_id / development_id / unit_id as applicable).
+2) Update `scripts/seed-demo.ts` (or the demo seed module) to upsert these 6 posts.
+   - Use deterministic IDs (valid UUIDs) or a unique natural key (e.g., slug) so idempotency is guaranteed.
+   - If the table has a unique constraint you can leverage (e.g., (development_id, title)), use it.
+3) Ensure posts have realistic created_at timestamps across the last 2–3 weeks (staggered) so the feed feels alive.
+4) Include “author_name” or equivalent field if it exists. If not, add an optional author field only if additive and the UI/API can already read it. If the schema doesn’t support author_name, include the resident name in the post title or first line of body (do not break schema).
+5) Verify the Noticeboard UI shows all posts (existing + new) and they render correctly on mobile.
+
+Create these 6 posts (use exactly these names and content unless you need to adjust field lengths)
+
+Post 1
+- Author: Aisling Murphy (Unit 14)
+- Title: “Lost keys near the green?”
+- Body: “Hi all, I found a set of keys with a blue keyring near the green this evening. If they’re yours, DM me and describe the keyring and I’ll drop them over. [Aisling - Unit 14]”
+
+Post 2
+- Author: Conor Walsh (Unit 3)
+- Title: “Any recommendations for a local plumber?”
+- Body: “Quick one, has anyone used a good local plumber recently for small bits around the house? Looking for someone reliable. Cheers. [Conor - Unit 3]”
+
+Post 3
+- Author: Niamh O’Sullivan (Unit 22)
+- Title: “Kids bikes and scooters - storage reminder”
+- Body: “Just a gentle reminder to keep bikes/scooters clear of the footpaths by the entrances. Keeps it safer for buggies and wheelchairs. Thanks all. [Niamh - Unit 22]”
+
+Post 4
+- Author: Dara O’Connell (Unit 9)
+- Title: “Coffee morning this Saturday”
+- Body: “Anyone up for a casual coffee morning this Saturday at 11am? We’ll meet by the green (weather permitting). Nice way to say hello and meet neighbours. [Dara - Unit 9]”
+
+Post 5
+- Author: Keely O’Grady (Unit 9)
+- Title: “Parcel taken in by mistake”
+- Body: “Hi folks, I think a parcel for Unit 9 may have been taken in by someone else today (Amazon). If you have it, no panic, just let me know and I’ll collect. Thanks! [Keely - Unit 9]”
+
+Post 6
+- Author: Brian Keane (Unit 6)
+- Title: “Dog walking group - weekday evenings?”
+- Body: “Would anyone be interested in a small dog walking group on weekday evenings around 7pm? Could be a handy way to meet people and get steps in. [Brian - Unit 6]”
+
+Acceptance criteria
+- Running `npm run seed:demo` results in these 6 posts being present exactly once.
+- Posts appear in the purchaser Noticeboard feed for OH-PARK-009.
+- Posts are clearly attributed to residents either via author field or within the body.
+- No changes to production tenants, no schema breaking migrations, no duplicated posts.
+
+After implementation
+- Run `npm run seed:demo`
+- Open purchaser portal for OH-PARK-009
+- Confirm Noticeboard shows the new posts.
+
+Proceed now.

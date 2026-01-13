@@ -45,11 +45,51 @@ const DEMO_NOTICEBOARD = [
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000005',
+    title: 'Lost keys near the green?', 
+    content: 'Hi all, I found a set of keys with a blue keyring near the green this evening. If they\'re yours, DM me and describe the keyring and I\'ll drop them over. [Aisling - Unit 14]',
+    priority: 1,
+    author_name: 'Aisling Murphy',
+    author_unit: '14'
+  },
+  { 
+    id: 'e0000000-0000-0000-0000-000000000006',
+    title: 'Any recommendations for a local plumber?', 
+    content: 'Quick one, has anyone used a good local plumber recently for small bits around the house? Looking for someone reliable. Cheers. [Conor - Unit 3]',
+    priority: 1,
+    author_name: 'Conor Walsh',
+    author_unit: '3'
+  },
+  { 
+    id: 'e0000000-0000-0000-0000-000000000007',
+    title: 'Kids bikes and scooters - storage reminder', 
+    content: 'Just a gentle reminder to keep bikes/scooters clear of the footpaths by the entrances. Keeps it safer for buggies and wheelchairs. Thanks all. [Niamh - Unit 22]',
+    priority: 1,
+    author_name: 'Niamh O\'Sullivan',
+    author_unit: '22'
+  },
+  { 
+    id: 'e0000000-0000-0000-0000-000000000008',
     title: 'Coffee morning this Saturday', 
-    content: 'Hi neighbours!\n\nI\'m hosting a coffee morning this Saturday from 10am-12pm at my place (Unit 19).\n\nEveryone welcome - bring yourself and maybe a sweet treat if you fancy. Great chance to meet more neighbours and have a chat!\n\nHope to see you there.\n\n— Dara',
+    content: 'Anyone up for a casual coffee morning this Saturday at 11am? We\'ll meet by the green (weather permitting). Nice way to say hello and meet neighbours. [Dara - Unit 9]',
     priority: 1,
     author_name: 'Dara O\'Connell',
-    author_unit: '19'
+    author_unit: '9'
+  },
+  { 
+    id: 'e0000000-0000-0000-0000-000000000009',
+    title: 'Parcel taken in by mistake', 
+    content: 'Hi folks, I think a parcel for Unit 9 may have been taken in by someone else today (Amazon). If you have it, no panic, just let me know and I\'ll collect. Thanks! [Keely - Unit 9]',
+    priority: 1,
+    author_name: 'Keely O\'Grady',
+    author_unit: '9'
+  },
+  { 
+    id: 'e0000000-0000-0000-0000-00000000000a',
+    title: 'Dog walking group - weekday evenings?', 
+    content: 'Would anyone be interested in a small dog walking group on weekday evenings around 7pm? Could be a handy way to meet people and get steps in. [Brian - Unit 6]',
+    priority: 1,
+    author_name: 'Brian Keane',
+    author_unit: '6'
   },
 ];
 
@@ -294,7 +334,7 @@ async function seedDemoData() {
         priority: notice.priority,
         active: true,
         author_name: notice.author_name,
-        author_unit: '9 OpenHouse Way',
+        author_unit: (notice as any).author_unit || '9 OpenHouse Way',
       }).onConflictDoNothing();
       noticeCount++;
       console.log(`[Demo Seed] Created noticeboard: "${notice.title.substring(0, 40)}..."`);
