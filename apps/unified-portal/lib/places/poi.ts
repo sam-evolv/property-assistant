@@ -74,6 +74,121 @@ export function isLocationMissingReason(reason: PlacesFailureReason | undefined)
          reason === 'google_places_invalid_coordinates';
 }
 
+export function sortByQuality(results: POIResult[]): POIResult[] {
+  return [...results].sort((a, b) => {
+    if (a.walk_time_min !== undefined && b.walk_time_min !== undefined) {
+      return a.walk_time_min - b.walk_time_min;
+    }
+    if (a.walk_time_min !== undefined) return -1;
+    if (b.walk_time_min !== undefined) return 1;
+    
+    if (a.drive_time_min !== undefined && b.drive_time_min !== undefined) {
+      return a.drive_time_min - b.drive_time_min;
+    }
+    if (a.drive_time_min !== undefined) return -1;
+    if (b.drive_time_min !== undefined) return 1;
+    
+    if (a.rating !== undefined && b.rating !== undefined) {
+      return b.rating - a.rating;
+    }
+    if (a.rating !== undefined) return -1;
+    if (b.rating !== undefined) return 1;
+    
+    return a.distance_km - b.distance_km;
+  });
+}
+
+const LOCAL_AMENITIES_MAX_PER_CATEGORY = 3;
+const LOCAL_AMENITIES_MAX_TOTAL = 12;
+const LOCAL_AMENITIES_MIN_PER_CATEGORY = 2;
+
+export interface DedupeWithFillResult {
+  supermarket: POIResult[];
+  pharmacy: POIResult[];
+  gp: POIResult[];
+  transport: POIResult[];
+  cafe: POIResult[];
+  seenPlaceIds: Set<string>;
+}
+
+export function dedupeAndFillAmenities(
+  categoryResults: Record<string, POIResult[]>,
+  debug: boolean = false
+): DedupeWithFillResult {
+  const rawCandidates: Record<string, POIResult[]> = {
+    supermarket: sortByQuality([...(categoryResults['supermarket'] || [])]),
+    pharmacy: sortByQuality([...(categoryResults['pharmacy'] || [])]),
+    gp: sortByQuality([...(categoryResults['gp'] || [])]),
+    transport: sortByQuality([...(categoryResults['bus_stop'] || [])]),
+    cafe: sortByQuality([...(categoryResults['cafe'] || [])]),
+  };
+  
+  const seenPlaceIds = new Set<string>();
+  const deduped: Record<string, POIResult[]> = {
+    supermarket: [],
+    pharmacy: [],
+    gp: [],
+    transport: [],
+    cafe: [],
+  };
+  
+  const categoryOrder = ['supermarket', 'pharmacy', 'gp', 'transport', 'cafe'];
+  
+  const sortedByScarcity = [...categoryOrder].sort((a, b) => 
+    rawCandidates[a].length - rawCandidates[b].length
+  );
+  
+  for (const cat of sortedByScarcity) {
+    let added = 0;
+    for (const item of rawCandidates[cat]) {
+      if (!seenPlaceIds.has(item.place_id)) {
+        seenPlaceIds.add(item.place_id);
+        deduped[cat].push(item);
+        added++;
+        if (added >= LOCAL_AMENITIES_MIN_PER_CATEGORY) break;
+      }
+    }
+  }
+  
+  if (debug) {
+    console.log('[POI] Dedupe - after min reservation:', {
+      supermarket: deduped.supermarket.length,
+      pharmacy: deduped.pharmacy.length,
+      gp: deduped.gp.length,
+      transport: deduped.transport.length,
+      cafe: deduped.cafe.length,
+    });
+  }
+  
+  for (const cat of categoryOrder) {
+    for (const item of rawCandidates[cat]) {
+      if (!seenPlaceIds.has(item.place_id)) {
+        seenPlaceIds.add(item.place_id);
+        deduped[cat].push(item);
+      }
+    }
+  }
+  
+  if (debug) {
+    console.log('[POI] Dedupe - final counts:', {
+      supermarket: deduped.supermarket.length,
+      pharmacy: deduped.pharmacy.length,
+      gp: deduped.gp.length,
+      transport: deduped.transport.length,
+      cafe: deduped.cafe.length,
+    });
+  }
+  
+  return {
+    supermarket: deduped.supermarket,
+    pharmacy: deduped.pharmacy,
+    gp: deduped.gp,
+    transport: deduped.transport,
+    cafe: deduped.cafe,
+    seenPlaceIds,
+  };
+}
+
 export type POICategory = 
   | 'supermarket'
   | 'pharmacy'
@@ -1248,27 +1363,32 @@ export function formatLocalAmenitiesResponse(data: GroupedAmenitiesData, develop
   const seed = sessionSeed ?? Math.floor(Math.random() * LOCAL_AMENITIES_INTROS.length);
   const intro = LOCAL_AMENITIES_INTROS[seed % LOCAL_AMENITIES_INTROS.length];
   
+  const sortedSupermarket = sortByQuality(data.supermarket);
+  const sortedPharmacy = sortByQuality(data.pharmacy);
+  const sortedGp = sortByQuality(data.gp);
+  const sortedTransport = sortByQuality(data.transport);
+  const sortedCafe = sortByQuality(data.cafe);
+  
   const sections: string[] = [];
+  let totalItems = 0;
   
-  if (data.supermarket.length > 0) {
-    sections.push(`**Groceries & Shopping**\n${data.supermarket.slice(0, 3).map(poi => formatBulletItem(poi)).join('\n')}`);
-  }
+  const addSection = (title: string, items: POIResult[], maxItems: number = LOCAL_AMENITIES_MAX_PER_CATEGORY) => {
+    if (items.length === 0 || totalItems >= LOCAL_AMENITIES_MAX_TOTAL) return;
+    
+    const remaining = LOCAL_AMENITIES_MAX_TOTAL - totalItems;
+    const limit = Math.min(maxItems, remaining, items.length);
+    if (limit <= 0) return;
+    
+    const selected = items.slice(0, limit);
+    sections.push(`**${title}**\n${selected.map(poi => formatBulletItem(poi)).join('\n')}`);
+    totalItems += selected.length;
+  };
   
-  if (data.pharmacy.length > 0) {
-    sections.push(`**Pharmacy**\n${data.pharmacy.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
-  }
-  
-  if (data.gp.length > 0) {
-    sections.push(`**Healthcare**\n${data.gp.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
-  }
-  
-  if (data.transport.length > 0) {
-    sections.push(`**Public Transport**\n${data.transport.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
-  }
-  
-  if (data.cafe.length > 0) {
-    sections.push(`**Cafes & Coffee**\n${data.cafe.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
-  }
+  addSection('Groceries & Shopping', sortedSupermarket, 3);
+  addSection('Pharmacy', sortedPharmacy, 2);
+  addSection('Healthcare', sortedGp, 2);
+  addSection('Public Transport', sortedTransport, 2);
+  addSection('Cafes & Coffee', sortedCafe, 2);
   
   const sourceHint = getSourceHint(data.fetchedAt);
   

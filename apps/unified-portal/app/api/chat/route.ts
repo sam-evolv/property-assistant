@@ -69,7 +69,7 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -1439,21 +1439,24 @@ export async function POST(request: NextRequest) {
             };
           }
           
-          // For local_amenities, create grouped data structure with category buckets
+          // For local_amenities, create grouped data structure with dedupe and fill
           if (expandedIntent === 'local_amenities') {
+            const isTestMode = request.headers.get('X-Test-Mode') === 'places-diagnostics';
+            const dedupedData = dedupeAndFillAmenities(categoryResults, isTestMode);
+            
             groupedAmenitiesData = {
-              supermarket: categoryResults['supermarket'] || [],
-              pharmacy: categoryResults['pharmacy'] || [],
-              gp: categoryResults['gp'] || [],
-              transport: categoryResults['bus_stop'] || [],
-              cafe: categoryResults['cafe'] || [],
+              supermarket: dedupedData.supermarket,
+              pharmacy: dedupedData.pharmacy,
+              gp: dedupedData.gp,
+              transport: dedupedData.transport,
+              cafe: dedupedData.cafe,
               fetchedAt: allResults[0]?.fetched_at || new Date(),
               diagnostics: allResults[0]?.diagnostics,
               schemeName: developmentName || undefined,
             };
           }
           
-          // Merge and dedupe results by place_id
+          // Merge and dedupe results by place_id (for non-local_amenities expanded intents)
           const seenPlaceIds = new Set<string>();
           const mergedResults: typeof allResults[0]['results'] = [];
           

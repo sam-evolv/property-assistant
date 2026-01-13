@@ -1,0 +1,86 @@
+REPLIT AGENT PROMPT
+
+Objective
+Implement the highest ROI, lowest risk quality improvements for the Local Amenities response WITHOUT changing external API behavior, WITHOUT DB migrations, and WITHOUT breaking existing chat flows.
+
+Context (current implementation)
+- Core amenities system: apps/unified-portal/lib/places/poi.ts
+- Local amenities formatting: formatLocalAmenitiesResponse() in poi.ts
+- Chat routing + grouping: apps/unified-portal/app/api/chat/route.ts
+- Dedupe already exists in chat/route.ts using Set(place_id)
+- Caching exists in poi.ts (poi_cache, 7-day TTL)
+- Distance Matrix travel times already fetched in poi.ts (fetchTravelTimes)
+
+Do NOT implement radius escalation in this pass (assume that is separate). Focus on the lowest risk, purely internal improvements.
+
+Improvements to implement (in this order)
+
+1) Fill-after-dedupe so each category remains populated
+Problem:
+- Cross-category dedupe can cause a category to end up with <2 items, especially when a single place appears in multiple categories.
+
+Implementation:
+- In apps/unified-portal/app/api/chat/route.ts where GroupedAmenitiesData is built:
+  a) Keep each category’s raw candidate list (pre-dedupe) accessible.
+  b) After the global dedupe pass, for each category bucket:
+     - If bucket length < 2, pull the next best items from that category’s raw candidates that are NOT in the global seenPlaceIds set, until bucket has 2 or candidates exhausted.
+  c) Maintain the global seenPlaceIds set across categories so we still avoid duplicates in the final output.
+Constraints:
+- Do not add new API calls.
+- Do not change intent detection.
+- Keep the same categories (supermarket, pharmacy, gp, bus_stop, cafe).
+
+2) Deterministic quality sorting using existing data (no new calls)
+Goal:
+- Ensure the top results shown are the most useful.
+
+Implementation:
+- For each category list (after travel times are attached):
+  Sort by:
+    1) walking_minutes ascending if present
+    2) else driving_minutes ascending if present
+    3) else user_ratings_total descending if present
+    4) else rating descending if present
+- Apply this sort before truncation so we show best items.
+
+3) Hard caps to keep output mobile-friendly
+Implementation:
+- Enforce caps in ONE place (prefer the formatter):
+  - Max items per category: 3
+  - Total max items across all categories: 12 (stop adding once reached)
+- Ensure headers still render even if a category has 1 item.
+- If a category has 0 items, omit that category section entirely (do not show placeholders).
+
+4) Keep formatting stable (no new UX)
+- Do not change section titles, bullet format, or source hint logic unless required for caps.
+- No new intro text, no new disclaimers.
+
+Validation
+- Create a quick dev-only test path or log output that:
+  - Prints category counts before and after dedupe-fill
+  - Confirms no duplicates by place_id in final grouped output
+  - Confirms item counts respect caps
+
+Manual Test Script
+1) Ask: "what amenities are in my local area"
+   - Expect 5 sections where possible
+   - Each section has 2–3 items (if available)
+   - No duplicates across sections
+2) Test a small area where results are thin
+   - Ensure categories that exist still get 1–2 items
+   - Ensure no empty placeholder sections appear
+3) Confirm nothing else in chat route regressed (normal questions still answer)
+
+Deliverable
+- Implement changes with minimal edits
+- Provide a short summary:
+  - files modified
+  - where fill-after-dedupe occurs
+  - where sorting occurs
+  - where caps are enforced
+
+Do NOT refactor unrelated code.
+Do NOT change schemas.
+Do NOT change env vars.
+
+END
