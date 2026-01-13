@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { useSuggestedPills } from '@/hooks/useSuggestedPills';
+import { PillDefinition } from '@/lib/assistant/suggested-pills';
+
+const SUGGESTED_PILLS_V2_ENABLED = process.env.NEXT_PUBLIC_SUGGESTED_PILLS_V2 === 'true';
 
 // Animation styles for typing indicator and logo hover
 const ANIMATION_STYLES = `
@@ -422,6 +426,9 @@ export default function PurchaserChatTab({
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
+  
+  const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED);
+  const [lastIntentKey, setLastIntentKey] = useState<string | null>(null);
 
   // iOS Capacitor-only state - DOES NOT affect web app
   const [isIOSNative, setIsIOSNative] = useState(false);
@@ -623,7 +630,14 @@ export default function PurchaserChatTab({
     }
   };
 
-  const sendMessage = async (messageText?: string) => {
+  interface IntentMetadata {
+    source: 'suggested_pill';
+    intentKey: string;
+    templateId: string;
+    pillId: string;
+  }
+
+  const sendMessage = async (messageText?: string, intentMetadata?: IntentMetadata) => {
     const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
     const textToSend = messageText || input.trim();
     if (!textToSend || sending) return;
@@ -649,6 +663,10 @@ export default function PurchaserChatTab({
     setInput('');
     setSending(true);
 
+    if (intentMetadata) {
+      setLastIntentKey(intentMetadata.intentKey);
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -662,6 +680,15 @@ export default function PurchaserChatTab({
           userId: userId || undefined,
           unitUid: unitUid,
           hasBeenWelcomed: hasBeenWelcomed,
+          ...(intentMetadata && {
+            intentMetadata: {
+              source: intentMetadata.source,
+              intent_key: intentMetadata.intentKey,
+              template_id: intentMetadata.templateId,
+              pill_id: intentMetadata.pillId,
+            }
+          }),
+          ...(lastIntentKey && !intentMetadata && { lastIntentKey }),
         }),
       });
 
@@ -843,6 +870,16 @@ export default function PurchaserChatTab({
     }
   };
 
+  const handlePillClick = (pill: PillDefinition) => {
+    const intentMetadata: IntentMetadata = {
+      source: 'suggested_pill',
+      intentKey: pill.intentKey,
+      templateId: pill.templateId,
+      pillId: pill.id,
+    };
+    sendMessage(pill.userVisibleQuestion, intentMetadata);
+  };
+
   const handleHomeClick = () => {
     setShowHome(true);
     setMessages([]);
@@ -980,19 +1017,36 @@ export default function PurchaserChatTab({
 
           {/* 2x2 Prompt Grid */}
           <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
-            {t.prompts.map((prompt: string, i: number) => (
-              <button
-                key={i}
-                onClick={() => handleQuickPrompt(prompt)}
-                className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
-                  isDarkMode 
-                    ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
-                    : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
-                }`}
-              >
-                {prompt}
-              </button>
-            ))}
+            {SUGGESTED_PILLS_V2_ENABLED && suggestedPillsV2.length === 4 ? (
+              suggestedPillsV2.map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => handlePillClick(pill)}
+                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer truncate ${
+                    isDarkMode 
+                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
+                  }`}
+                  title={pill.label}
+                >
+                  {pill.label}
+                </button>
+              ))
+            ) : (
+              t.prompts.map((prompt: string, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => handleQuickPrompt(prompt)}
+                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
+                    isDarkMode 
+                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                      : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
+                  }`}
+                >
+                  {prompt}
+                </button>
+              ))
+            )}
           </div>
         </div>
       ) : (

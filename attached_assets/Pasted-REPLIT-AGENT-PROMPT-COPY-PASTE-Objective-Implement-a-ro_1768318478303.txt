@@ -1,0 +1,268 @@
+REPLIT AGENT PROMPT (COPY-PASTE)
+
+Objective
+Implement a rotating “Suggested Questions” pill system across the entire platform (scheme-agnostic) that:
+1) Rotates 4 pills per session with sector diversity (one from different sector each time)
+2) Routes each pill to an internal Intent (not raw question)
+3) Enforces a Global Safety and Scope Contract (GDPR-safe, no hallucinated scheme facts)
+4) Produces consistent, high-quality answers with strong follow-up handling
+5) Does not break existing chat, RAG, iOS/web UI, or dashboards
+
+Non-negotiables
+- Do NOT hardcode scheme-specific answers.
+- Do NOT assert scheme-specific facts unless explicitly present in retrieved scheme data or documents.
+- Follow-ups must remain helpful and continue the same safety rules.
+- Keep changes minimal, additive, and feature-flagged.
+- Do not change existing database schemas unless absolutely required.
+- No UI flicker or per-render randomisation. Rotate per session or per app-open.
+- Use concise, structured answers (prefer bullets), avoid overly long outputs.
+
+Deliverables
+A) Rotating pill system with sector diversity
+B) Intent routing layer (pill -> intent -> prompt template)
+C) Global Safety and Scope Contract applied to all intents
+D) Intent playbooks for the pill library (at least the full v1 set below)
+E) Regression tests and rollout plan
+
+Pill Library (v1, final)
+Home & Layout:
+- Kitchen Layout
+- Storage Ideas
+- Living Room
+- Home Upgrades
+
+Garden & Exterior:
+- Garden Setup
+- Outdoor Improvements
+
+Energy & Technology:
+- Heating System
+- Energy Savings
+- EV Charging
+- Smart Home
+
+Maintenance & Ownership:
+- First-Year Maintenance
+- Long-Term Maintenance
+- Warranties
+
+Services & Setup:
+- Utilities Setup
+- Broadband Setup
+
+Area & Planning:
+- Public Transport
+- Local Amenities
+- The Area
+- Planning Rules
+
+Insurance:
+- Home Insurance
+
+Remove/Exclude:
+- Fire Safety (do not include in v1)
+
+Sector Rotation Rule (must implement)
+On each new session (or app open):
+- Select 4 pills
+- Enforce diversity: no more than 1 pill from the same sector in a set of 4
+- Prefer a balanced mix: include at least 1 from Home & Layout OR Maintenance each time, and at least 1 from Energy/Services/Area when available
+- Ensure no duplicates
+- Persist selection for the session to avoid changing on re-render
+
+Architecture Requirements
+1) Define a canonical “pill definition” registry in code:
+   - id
+   - label (UI text, 1-2 words)
+   - sector
+   - intent_key
+   - user_visible_question (short natural question inserted into input when tapped)
+   - internal_intent_template_id (points to prompt template)
+   - optional: suggested_followups (2 strings, used only if helpful)
+
+2) When pill is tapped:
+   - Insert the user_visible_question into the chat input OR send directly as a user message (match existing UX)
+   - Attach intent_key and template_id in the message metadata (do not show to user)
+   - Server uses intent_key to select the relevant intent playbook and apply Global Safety Contract
+   - Response generation uses:
+     a) Scheme RAG context (top chunks) if available and relevant
+     b) Scheme structured metadata if present
+     c) User-provided info in the conversation
+     d) Web search ONLY if explicitly required by intent and gated (local amenities, transport). If web search infra exists already, reuse it; otherwise leave as future enhancement but ensure prompts do not pretend web search happened.
+
+Global Safety and Scope Contract (must be baked in)
+Implement this as a reusable system prefix applied to every intent template, including follow-ups:
+
+- Positioning: guidance and navigation layer, not a source of hidden facts
+- Three-tier knowledge model:
+  Tier 1: Explicit scheme data only (docs/metadata/RAG)
+  Tier 2: General best practice (default)
+  Tier 3: Ask 1-2 clarifying questions when specifics require assumptions
+- Hard stops:
+  - Never infer room sizes, orientation, household composition, income, lifestyle
+  - Never confirm compliance/certification/warranty specifics unless explicitly in retrieved data
+  - Never recommend named contractors/suppliers; avoid brands unless user explicitly asks, then keep generic
+  - Never imply monitoring, memory of household, or knowledge beyond provided data
+- Follow-ups:
+  - Keep momentum using conditional guidance and safe narrowing questions
+  - Continue to respect tiers and hard stops
+- Output discipline:
+  - Prefer structured bullets
+  - Keep responses finite (target 300-500 words)
+  - Avoid speculative examples
+
+Intent Playbooks (must implement for all v1 pills)
+Create an “intent template” object per intent that contains:
+- Objective
+- Default assumptions (safe)
+- Data priority
+- Response structure skeleton (framing, best practice, scheme-specific only if present, mistakes, next actions, 2 follow-ups)
+- Hard constraints (no resale framing, no compliance claims, no brand lists)
+- Clarifying questions triggers
+
+Map intents as follows:
+Home & Layout
+- home.kitchen.layout
+- home.storage.optimisation
+- home.living_room.layout
+- home.upgrades.value (daily value only, no resale)
+
+Garden & Exterior
+- home.garden.low_maintenance
+- home.external.value (daily value only)
+
+Energy & Technology
+- home.energy.heating
+- home.energy.cost_reduction
+- home.energy.ev_charging
+- home.smart_home.practical
+
+Maintenance & Ownership
+- home.maintenance.year_one
+- home.maintenance.long_term
+- home.warranties.coverage
+
+Services & Setup
+- home.services.utilities
+- home.services.broadband
+
+Area & Planning
+- area.transport.options
+- area.local.amenities
+- area.local.insights
+- home.planning.permission
+
+Insurance
+- home.insurance.guidance
+
+Implementation Steps (do in this order)
+Step 0: Locate current “four pills” implementation
+- Find the component that renders the 4 suggested pills in the purchaser assistant screen (web and iOS if shared).
+- Identify how pill taps currently populate the input or send a message.
+
+Step 1: Add feature flag
+- Add env flag: SUGGESTED_PILLS_V2=true/false
+- Default false in production configs; allow enable in dev/staging.
+
+Step 2: Implement pill registry
+- Create a single source of truth file, eg:
+  /packages/ui/src/suggestedPills/registry.ts
+  or equivalent in your repo structure.
+- Export:
+  - pillDefinitions: PillDefinition[]
+  - sectors enum
+  - helper functions for selection and validation
+
+Step 3: Implement sector-diverse selection
+- Create a function:
+  selectPillsForSession(pillDefinitions, count=4) -> PillDefinition[]
+- Constraints:
+  - Max 1 per sector
+  - Prefer balanced mix
+  - Deterministic per session (seed)
+- Session persistence:
+  - Use local storage on web
+  - Use secure storage or in-memory persisted store on iOS
+  - Seed can be date + session id; just ensure it does not change mid-session
+
+Step 4: Wire into UI
+- When flag on:
+  - Render the selected pills instead of static ones
+  - Ensure layout does not break on different device sizes
+  - Ensure pill text stays within bounds (truncate with ellipsis if needed)
+
+Step 5: Intent metadata plumbing
+- On pill tap, send a message with metadata:
+  {
+    source: "suggested_pill",
+    intent_key: "...",
+    template_id: "...",
+    pill_id: "..."
+  }
+- Ensure existing chat endpoint can accept metadata without breaking older clients (make it optional).
+- If chat already supports “mode” or “context”, extend safely.
+
+Step 6: Server-side prompt assembly
+- In your chat generation route/service:
+  - Detect if intent_key is present
+  - Fetch the intent playbook template
+  - Prepend the Global Safety Contract to the system prompt
+  - Add intent-specific instructions
+  - Add RAG context if available
+- RAG rules:
+  - Retrieve top relevant chunks for that intent
+  - If retrieval returns nothing, do NOT pretend it did; proceed with Tier 2 best practice and ask clarifying questions if needed.
+
+Step 7: Follow-up handling
+- Ensure that follow-up messages in the same conversation maintain:
+  - The same Global Safety Contract
+  - The same intent context if the conversation is clearly continuing that topic
+- Implement simple intent carryover:
+  - Store last_intent_key in conversation state (server-side session or client metadata)
+  - If user follow-up occurs within same thread and does not introduce a new intent, keep last_intent_key active
+  - If user clearly changes topic, allow reclassification by heuristic: if message comes from a different pill, switch intent.
+
+Step 8: Add safe refusal patterns (only where needed)
+- For compliance confirmation: “I cannot confirm compliance for an individual home. I can explain what to check in your documents or what questions to ask.”
+- For provider recommendations: “I cannot recommend specific providers. I can explain what to compare.”
+- Keep these short and still helpful.
+
+Step 9: Testing (must do)
+Write tests or at minimum add a local test harness:
+- UI:
+  - No flicker, pills stable within session
+  - Sector diversity enforced
+  - Works on mobile widths
+- Server:
+  - Messages without metadata still work
+  - Intent messages get correct template
+  - No scheme-specific hallucinations when RAG empty
+  - Follow-up inherits intent safely
+- Add 6 manual test scripts (copy into a QA doc):
+  1) Kitchen Layout -> “Where should the island go?” (should not assume dimensions)
+  2) Utilities Setup -> “Who is my provider?” (should not guess)
+  3) Home Insurance -> “How much should I insure for?” (should not provide numbers)
+  4) Local Amenities -> should suggest how to check, and if web search exists, use it; if not, ask for area and proceed generally
+  5) Planning Rules -> provide general guidance, suggest checking local authority, avoid definitive statements
+  6) Warranties -> only cite what is in docs, otherwise explain typical warranty categories and advise checking handover
+
+Step 10: Rollout
+- Enable SUGGESTED_PILLS_V2 in dev
+- Ship to staging and test across iPhone and iPad
+- Enable for a small internal cohort only
+- Keep ability to instantly revert by toggling flag
+
+Acceptance Criteria
+- Pills rotate per session and are sector-diverse
+- Pill tap triggers an intent-based response that is consistently structured and helpful
+- Assistant never asserts scheme-specific facts unless present in provided data
+- Follow-ups remain helpful and compliant, not timid
+- No regressions in chat functionality, RAG, or UI layout
+- Feature flag allows instant rollback
+
+Now execute:
+1) Implement pill registry and selection
+2) Implement intent metadata and server prompt assembly
+3) Implement follow-up intent carryover
+4) Provide a short summary of files changed and how to toggle the feature flag
+END

@@ -63,6 +63,12 @@ import {
   type ResponseStyleInput,
 } from '@/lib/assistant/response-style';
 import { isLongviewOrRathardScheme as checkIsLongviewOrRathard } from '@/lib/assistant/local-history';
+import { 
+  getIntentPlaybook, 
+  buildIntentSystemPrompt, 
+  applyGlobalSafetyContract,
+  GLOBAL_SAFETY_CONTRACT
+} from '@/lib/assistant/suggested-pills';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
@@ -661,7 +667,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, unitUid: clientUnitUid, userId, hasBeenWelcomed } = body;
+    const { message, unitUid: clientUnitUid, userId, hasBeenWelcomed, intentMetadata, lastIntentKey } = body;
+    
+    interface IntentMetadataPayload {
+      source: 'suggested_pill';
+      intent_key: string;
+      template_id: string;
+      pill_id: string;
+    }
+    const parsedIntentMetadata: IntentMetadataPayload | null = intentMetadata || null;
+    const activeIntentKey: string | null = parsedIntentMetadata?.intent_key || lastIntentKey || null;
 
     if (!message) {
       return NextResponse.json(
@@ -2179,6 +2194,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - You ARE allowed to discuss: general development/estate information, community amenities, shared facilities, local area information
 - You are NOT allowed to discuss: any specific unit that is not the logged-in user's home, other residents' details, neighbour's properties`;
 
+      // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present
+      if (activeIntentKey) {
+        const intentPlaybook = getIntentPlaybook(activeIntentKey);
+        if (intentPlaybook) {
+          const intentPrompt = buildIntentSystemPrompt(intentPlaybook);
+          systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${intentPrompt}\n\n---\n\n${systemMessage}`;
+          console.log('[Chat] Intent playbook applied:', activeIntentKey);
+        } else {
+          // Always apply Global Safety Contract even without a specific playbook
+          systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${systemMessage}`;
+          console.log('[Chat] Global Safety Contract applied (no playbook for intent):', activeIntentKey);
+        }
+      }
+
       console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
       
       // Update capability context now that we know documents are available
@@ -2275,6 +2304,21 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - NEVER provide any information about other residents' homes, units, or properties under any circumstances
 - If asked about another unit, neighbour's home, or any other resident's property, respond with:
   "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
+
+      // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present (no documents case)
+      if (activeIntentKey) {
+        const intentPlaybook = getIntentPlaybook(activeIntentKey);
+        if (intentPlaybook) {
+          const intentPrompt = buildIntentSystemPrompt(intentPlaybook);
+          systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${intentPrompt}\n\n---\n\n${systemMessage}`;
+          console.log('[Chat] Intent playbook applied (no docs):', activeIntentKey);
+        } else {
+          // Always apply Global Safety Contract even without a specific playbook
+          systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${systemMessage}`;
+          console.log('[Chat] Global Safety Contract applied (no docs, no playbook):', activeIntentKey);
+        }
+      }
+
       console.log('[Chat] No relevant documents found for this query');
       
       // ESCALATION GUIDANCE: When no documents, provide helpful escalation path
