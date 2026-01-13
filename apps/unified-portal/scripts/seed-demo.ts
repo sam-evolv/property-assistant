@@ -43,6 +43,14 @@ const DEMO_NOTICEBOARD = [
     priority: 1,
     author_name: 'OpenHouse Team'
   },
+  { 
+    id: 'e0000000-0000-0000-0000-000000000005',
+    title: 'Coffee morning this Saturday', 
+    content: 'Hi neighbours!\n\nI\'m hosting a coffee morning this Saturday from 10am-12pm at my place (Unit 19).\n\nEveryone welcome - bring yourself and maybe a sweet treat if you fancy. Great chance to meet more neighbours and have a chat!\n\nHope to see you there.\n\n— Dara',
+    priority: 1,
+    author_name: 'Dara O\'Connell',
+    author_unit: '19'
+  },
 ];
 
 const DEMO_DOCUMENTS = [
