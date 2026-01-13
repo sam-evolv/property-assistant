@@ -20,28 +20,32 @@ const DEMO_NOTICEBOARD = [
     title: 'Welcome to OpenHouse Park - Residents Intro Evening', 
     content: 'Welcome to the neighbourhood! We\'re hosting a residents\' intro evening this Friday at 7pm in the community room.\n\nCome along for tea and coffee to meet your new neighbours and the OpenHouse team. We\'ll be there to answer any questions about your new home.\n\nLooking forward to seeing you there!\n\n— The OpenHouse Team',
     priority: 3,
-    author_name: 'OpenHouse Team'
+    author_name: 'OpenHouse Team',
+    no_unit: true
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000002',
     title: 'Bins and Recycling - Collection Schedule', 
     content: 'Bin collection days for OpenHouse Park:\n\n• General Waste (Black): Every Tuesday\n• Recycling (Green): Every second Tuesday\n• Organic (Brown): Every Tuesday\n\nPlease have bins out by 7:00 AM. Remember to bring bins in by evening.',
     priority: 2,
-    author_name: 'Community Manager'
+    author_name: 'Community Manager',
+    no_unit: true
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000003',
     title: 'Parking and Visitor Bays - Quick Reminder', 
     content: 'Each home has allocated parking spaces as shown on your site plan.\n\nVisitor parking is available near the main entrance. Please ensure vehicles do not obstruct shared access routes or emergency vehicle access.\n\nThank you for your cooperation!',
     priority: 1,
-    author_name: 'Community Manager'
+    author_name: 'Community Manager',
+    no_unit: true
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000004',
     title: 'Local Recommendations - Coffee, Gyms, Schools', 
     content: 'Welcome to the area! Here are some local favourites recommended by your neighbours:\n\n☕ Coffee: The Coffee Bean - 3 min walk\n🏋️ Gyms: FlyeFit Cork - 5 min drive\n🏫 Schools: Scoil Mhuire Primary - 8 min walk\n🛒 Shopping: Dunnes Stores Ballyvolane - 5 min drive\n🏥 Medical: Ballyvolane Medical Centre - 4 min walk\n\nFeel free to share your own recommendations on the noticeboard!',
     priority: 1,
-    author_name: 'OpenHouse Team'
+    author_name: 'OpenHouse Team',
+    no_unit: true
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000005',
@@ -70,10 +74,10 @@ const DEMO_NOTICEBOARD = [
   { 
     id: 'e0000000-0000-0000-0000-000000000008',
     title: 'Coffee morning this Saturday', 
-    content: 'Anyone up for a casual coffee morning this Saturday at 11am? We\'ll meet by the green (weather permitting). Nice way to say hello and meet neighbours. [Dara - Unit 9]',
+    content: 'Anyone up for a casual coffee morning this Saturday at 11am? We\'ll meet by the green (weather permitting). Nice way to say hello and meet neighbours. [Dara - Unit 89]',
     priority: 1,
     author_name: 'Dara O\'Connell',
-    author_unit: '9'
+    author_unit: '89'
   },
   { 
     id: 'e0000000-0000-0000-0000-000000000009',
@@ -334,7 +338,7 @@ async function seedDemoData() {
         priority: notice.priority,
         active: true,
         author_name: notice.author_name,
-        author_unit: (notice as any).author_unit || '9 OpenHouse Way',
+        author_unit: (notice as any).no_unit ? null : ((notice as any).author_unit || null),
       }).onConflictDoNothing();
       noticeCount++;
       console.log(`[Demo Seed] Created noticeboard: "${notice.title.substring(0, 40)}..."`);
