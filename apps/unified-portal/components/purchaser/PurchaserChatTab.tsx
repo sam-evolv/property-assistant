@@ -427,7 +427,7 @@ export default function PurchaserChatTab({
   const recognitionRef = useRef<any>(null);
   const inputBarRef = useRef<HTMLDivElement>(null);
   
-  const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED);
+  const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED, developmentId);
   const [lastIntentKey, setLastIntentKey] = useState<string | null>(null);
 
   // iOS Capacitor-only state - DOES NOT affect web app

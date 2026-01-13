@@ -1081,7 +1081,67 @@ export function formatShopsResponse(data: POICacheResult, developmentName?: stri
   return `${intro}\n\n${bullets}${sourceHint}`;
 }
 
-export type ExpandedIntent = 'schools' | 'shops';
+export interface GroupedAmenitiesData {
+  supermarket: POIResult[];
+  pharmacy: POIResult[];
+  gp: POIResult[];
+  transport: POIResult[];
+  cafe: POIResult[];
+  fetchedAt: Date;
+  diagnostics?: PlacesDiagnostics;
+  schemeName?: string;
+}
+
+const LOCAL_AMENITIES_INTROS = [
+  "You're well placed here for everyday essentials. Here's what's nearby:",
+  "The area has a nice mix of amenities within reach:",
+  "You've got good access to local services. Here's an overview:",
+  "For day-to-day needs, you're in a convenient spot:",
+  "There's plenty close by for everyday life:",
+];
+
+export function formatLocalAmenitiesResponse(data: GroupedAmenitiesData, developmentName?: string, sessionSeed?: number): string {
+  const hasAnyResults = data.supermarket.length > 0 || data.pharmacy.length > 0 || 
+                        data.gp.length > 0 || data.transport.length > 0 || data.cafe.length > 0;
+  
+  if (!hasAnyResults) {
+    if (data.diagnostics?.failure_reason === 'places_no_location') {
+      return `The development location hasn't been set up yet, so I'm not able to search for nearby amenities at the moment. Your developer should be able to sort that out.`;
+    }
+    return `I couldn't find nearby amenities at the moment. You could try Google Maps for a wider search around the area.`;
+  }
+  
+  const seed = sessionSeed ?? Math.floor(Math.random() * LOCAL_AMENITIES_INTROS.length);
+  const intro = LOCAL_AMENITIES_INTROS[seed % LOCAL_AMENITIES_INTROS.length];
+  
+  const sections: string[] = [];
+  
+  if (data.supermarket.length > 0) {
+    sections.push(`**Groceries & Shopping**\n${data.supermarket.slice(0, 3).map(poi => formatBulletItem(poi)).join('\n')}`);
+  }
+  
+  if (data.pharmacy.length > 0) {
+    sections.push(`**Pharmacy**\n${data.pharmacy.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
+  }
+  
+  if (data.gp.length > 0) {
+    sections.push(`**Healthcare**\n${data.gp.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
+  }
+  
+  if (data.transport.length > 0) {
+    sections.push(`**Public Transport**\n${data.transport.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
+  }
+  
+  if (data.cafe.length > 0) {
+    sections.push(`**Cafes & Coffee**\n${data.cafe.slice(0, 2).map(poi => formatBulletItem(poi)).join('\n')}`);
+  }
+  
+  const sourceHint = getSourceHint(data.fetchedAt);
+  
+  return `${intro}\n\n${sections.join('\n\n')}${sourceHint}`;
+}
+
+export type ExpandedIntent = 'schools' | 'shops' | 'local_amenities';
 
 export interface POICategoryResult {
   category: POICategory | null;
@@ -1098,6 +1158,20 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   const q = query.toLowerCase();
   
   // Check for expanded intents first
+  
+  // GENERAL "local amenities" / "amenities in my area" = multi-category search
+  // Must come BEFORE specific category checks to catch broad amenity queries
+  if (/\b(what|which)\s+(amenities|facilities|services)\b.*\b(local|my|area|near|nearby|around)\b/i.test(q) ||
+      /\b(local|nearby)\s+(amenities|facilities|services)\b/i.test(q) ||
+      /\bamenities\s+(in|around|near)\s+(my|the|this)\s+(area|local|locality|neighbourhood|neighborhood)\b/i.test(q) ||
+      /\b(what('s|is)?|tell me|show me)\s+(in|around|near)\s+(my|the)?\s*(local|area|neighbourhood|neighborhood)\b/i.test(q)) {
+    return { 
+      category: 'supermarket', 
+      expandedIntent: 'local_amenities',
+      categories: ['supermarket', 'pharmacy', 'gp', 'bus_stop', 'cafe']
+    };
+  }
+  
   // "schools" = primary + secondary by default
   if (/\bschools?\b/i.test(q) && !/primary|secondary|national|high|post.?primary/i.test(q)) {
     return { 

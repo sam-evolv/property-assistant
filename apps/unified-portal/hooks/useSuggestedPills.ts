@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   PillDefinition, 
   selectPillsForSession, 
@@ -8,24 +8,36 @@ import {
   PILL_DEFINITIONS
 } from '@/lib/assistant/suggested-pills';
 
-const SESSION_KEY = 'suggested_pills_session';
-const PILLS_KEY = 'suggested_pills_selection';
+const PILLS_KEY_PREFIX = 'suggested_pills_v2';
 
 interface SessionData {
   sessionId: string;
   pillIds: string[];
-  timestamp: number;
+  generatedAt: string;
+  schemeId: string;
 }
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
-export function useSuggestedPills(enabled: boolean = true): {
+function getStorageKey(schemeId: string): string {
+  return `${PILLS_KEY_PREFIX}:${schemeId}`;
+}
+
+function isDev(): boolean {
+  return typeof window !== 'undefined' && window.location.hostname.includes('localhost');
+}
+
+export function useSuggestedPills(
+  enabled: boolean = true,
+  schemeId?: string
+): {
   pills: PillDefinition[];
   sessionId: string;
   isLoading: boolean;
 } {
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const lastSchemeIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!enabled) {
@@ -33,28 +45,58 @@ export function useSuggestedPills(enabled: boolean = true): {
       return;
     }
 
+    const effectiveSchemeId = schemeId || 'global';
+    const storageKey = getStorageKey(effectiveSchemeId);
+
+    if (isDev()) {
+      console.log('[SuggestedPills] Loading for scheme:', effectiveSchemeId, 'key:', storageKey);
+    }
+
+    if (lastSchemeIdRef.current !== effectiveSchemeId) {
+      lastSchemeIdRef.current = effectiveSchemeId;
+    }
+
     try {
-      const stored = localStorage.getItem(PILLS_KEY);
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed: SessionData = JSON.parse(stored);
+        const generatedAt = new Date(parsed.generatedAt).getTime();
         const now = Date.now();
         
-        if (now - parsed.timestamp < SESSION_DURATION_MS && parsed.pillIds.length === 4) {
+        if (
+          now - generatedAt < SESSION_DURATION_MS && 
+          parsed.pillIds.length === 4 &&
+          parsed.schemeId === effectiveSchemeId
+        ) {
+          if (isDev()) {
+            console.log('[SuggestedPills] Reusing cached pills:', parsed.pillIds, 'seed:', parsed.sessionId);
+          }
           setSessionData(parsed);
           setIsLoading(false);
           return;
         }
       }
 
-      const newSessionId = generateSessionId();
+      const dateStr = new Date().toISOString().split('T')[0];
+      const newSessionId = `${effectiveSchemeId}-${dateStr}`;
+      
       const selectedPills = selectPillsForSession({ sessionId: newSessionId, count: 4 });
       const newSessionData: SessionData = {
         sessionId: newSessionId,
         pillIds: selectedPills.map(p => p.id),
-        timestamp: Date.now()
+        generatedAt: new Date().toISOString(),
+        schemeId: effectiveSchemeId
       };
 
-      localStorage.setItem(PILLS_KEY, JSON.stringify(newSessionData));
+      if (isDev()) {
+        console.log('[SuggestedPills] Generated new pills:', {
+          schemeId: effectiveSchemeId,
+          seed: newSessionId,
+          pillIds: newSessionData.pillIds
+        });
+      }
+
+      localStorage.setItem(storageKey, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
     } catch (error) {
       console.error('Failed to load/generate suggested pills:', error);
@@ -62,12 +104,13 @@ export function useSuggestedPills(enabled: boolean = true): {
       setSessionData({
         sessionId: 'fallback',
         pillIds: fallbackPills.map(p => p.id),
-        timestamp: Date.now()
+        generatedAt: new Date().toISOString(),
+        schemeId: schemeId || 'global'
       });
     }
     
     setIsLoading(false);
-  }, [enabled]);
+  }, [enabled, schemeId]);
 
   const pills = useMemo(() => {
     if (!sessionData || !enabled) return [];
@@ -84,10 +127,20 @@ export function useSuggestedPills(enabled: boolean = true): {
   };
 }
 
-export function clearPillSession(): void {
+export function clearPillSession(schemeId?: string): void {
   try {
-    localStorage.removeItem(PILLS_KEY);
-    localStorage.removeItem(SESSION_KEY);
+    if (schemeId) {
+      localStorage.removeItem(getStorageKey(schemeId));
+    } else {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(PILLS_KEY_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+    }
   } catch (error) {
     console.error('Failed to clear pill session:', error);
   }

@@ -69,7 +69,7 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -1410,10 +1410,11 @@ export async function POST(request: NextRequest) {
       try {
         chatDiagnostics.places_call.attempted = true;
         
-        // Handle expanded intents (e.g., "schools" = primary + secondary)
+        // Handle expanded intents (e.g., "schools" = primary + secondary, "local_amenities" = multiple categories)
         let poiData: Awaited<ReturnType<typeof getNearbyPOIs>>;
         let effectiveCategory = poiCategory;
         let groupedSchoolsData: GroupedSchoolsData | null = null;
+        let groupedAmenitiesData: GroupedAmenitiesData | null = null;
         
         if (expandedIntent && expandedCategories && expandedCategories.length > 1) {
           console.log('[Chat] EXPANDED INTENT:', expandedIntent, 'fetching categories:', expandedCategories);
@@ -1435,6 +1436,20 @@ export async function POST(request: NextRequest) {
               secondary: categoryResults['secondary_school'] || [],
               fetchedAt: allResults[0]?.fetched_at || new Date(),
               diagnostics: allResults[0]?.diagnostics,
+            };
+          }
+          
+          // For local_amenities, create grouped data structure with category buckets
+          if (expandedIntent === 'local_amenities') {
+            groupedAmenitiesData = {
+              supermarket: categoryResults['supermarket'] || [],
+              pharmacy: categoryResults['pharmacy'] || [],
+              gp: categoryResults['gp'] || [],
+              transport: categoryResults['bus_stop'] || [],
+              cafe: categoryResults['cafe'] || [],
+              fetchedAt: allResults[0]?.fetched_at || new Date(),
+              diagnostics: allResults[0]?.diagnostics,
+              schemeName: developmentName || undefined,
             };
           }
           
@@ -1598,6 +1613,8 @@ export async function POST(request: NextRequest) {
         let poiResponse: string;
         if (expandedIntent === 'schools' && groupedSchoolsData) {
           poiResponse = formatGroupedSchoolsResponse(groupedSchoolsData, developmentName || undefined);
+        } else if (expandedIntent === 'local_amenities' && groupedAmenitiesData) {
+          poiResponse = formatLocalAmenitiesResponse(groupedAmenitiesData, developmentName || undefined);
         } else if (expandedIntent === 'shops') {
           poiResponse = formatShopsResponse(poiData, developmentName || undefined);
         } else {

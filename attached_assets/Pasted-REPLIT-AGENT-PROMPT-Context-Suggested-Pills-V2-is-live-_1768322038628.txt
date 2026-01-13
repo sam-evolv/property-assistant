@@ -1,0 +1,137 @@
+REPLIT AGENT PROMPT
+
+Context
+Suggested Pills V2 is live behind NEXT_PUBLIC_SUGGESTED_PILLS_V2. Two issues exist:
+
+Issue A (Local Amenities)
+When user asks “What amenities are in my local area?” the assistant returns only place names like:
+- Longview Park, White’s Cross...
+- Longview Estates...
+And does not list actual amenities. This indicates our “Local Amenities” handler/intent is querying Google Places incorrectly (likely searching the development name, returning itself), or our result formatting is wrong (empty amenities list -> fallback prints query anchor places).
+
+Issue B (Pill rotation)
+Pills are not changing across distinct schemes/sessions. Screens show Rathard Park and Rathard Lawn have the same 4 pills. This indicates:
+- selection seed is deterministic (e.g., date only), AND/OR
+- persistence key is not scheme-specific (single localStorage/AsyncStorage key used everywhere), AND/OR
+- selection algorithm always picks first matching pills per sector (no shuffle), producing same set repeatedly.
+
+Goal
+Fix Local Amenities to always return real nearby amenities, and fix pills to rotate correctly while still staying stable for 24 hours PER SCHEME PER DEVICE.
+
+Non-negotiables
+- Do NOT hardcode scheme-specific answers.
+- Do NOT claim scheme-specific facts unless present in scheme data.
+- Keep feature flag and graceful fallback intact.
+- No UI flicker; pills stable within 24h window.
+- Minimal, additive changes.
+
+PART 1 — FIX PILL ROTATION (Issue B)
+
+1) Ensure selection is actually randomised
+- In selectPillsForSession(), shuffle the pill list BEFORE selecting.
+- Avoid “filter by sector then take first” behaviour.
+- Use a seeded RNG so selection is stable for the 24h window.
+
+2) Make persistence scheme-specific
+- Current key is likely something like: suggestedPillsV2Selection
+- Change to include scheme identifier:
+  suggestedPillsV2Selection:<schemeId>
+  suggestedPillsV2SelectionDate:<schemeId>
+- schemeId should be whatever canonical identifier we already have available in the purchaser portal context (developmentId/tenantId/siteId). If only slug exists, use slug.
+- If schemeId is missing, fall back to a global key, but prefer scheme-specific.
+
+3) Define the “24 hour” window correctly
+- Do not use “per session” language. Implement as “daily rotation”, per scheme, per device.
+- Store:
+  - selectedPillIds (array)
+  - generatedAt (ISO string)
+- If now - generatedAt < 24h -> reuse.
+- Else -> regenerate and overwrite.
+
+4) Ensure scheme switch forces reload
+- When user changes scheme (Rathard Park -> Rathard Lawn), the pill selection must re-read using the new scheme key.
+- If pills component doesn’t re-run selection on scheme change, add schemeId to the dependency array (React) or re-init when scheme changes.
+
+5) Add lightweight debug logging in dev only
+- In dev builds only, log:
+  - schemeId used
+  - seed used
+  - selected pill IDs
+This will make it obvious if seed/persistence is wrong.
+
+Acceptance
+- Rathard Park and Rathard Lawn produce different pill sets on the same device, same day (because schemeId changes).
+- Same scheme shows consistent pills for 24h (stability preserved).
+- After 24h, same scheme rotates to a different sector-diverse set.
+
+PART 2 — FIX LOCAL AMENITIES RESPONSE (Issue A)
+
+Observed current behaviour suggests Places query returns the development itself rather than amenities.
+
+1) Fix the query strategy
+- Do NOT search by text “<development name> amenities” as the primary call.
+- Use location-based Places search using the development’s coordinates.
+  - Get coordinates from scheme metadata if available.
+  - If not available, geocode the scheme’s address ONCE and cache it in scheme metadata (or in-memory cache with TTL) to avoid repeated geocoding.
+
+2) Query by amenity categories (not a single query)
+Implement 5 category searches (Places Nearby Search or Text Search with location bias):
+- Supermarkets / Groceries
+- Pharmacy / GP / Healthcare
+- Schools / Childcare
+- Public Transport (bus stops / train station where relevant)
+- Cafes / Restaurants (optional)
+Use radius 1500m–3000m depending on density (start at 2000m; if results too few, expand to 4000m).
+
+3) Exclude the development itself from results
+- Filter out results whose name matches development name or contains “Estate”, “Park”, “Lawn” if it matches the scheme name.
+- Filter by place_id if we have the scheme’s place_id from geocoding.
+
+4) Format the answer properly (the current output is unacceptable)
+Return a structured response:
+- Short intro line
+- Bulleted categories with 2–4 top results each:
+  - Name
+  - Distance (if you can compute from lat/lng)
+  - Address (short)
+  - Optional: “Open now” if field exists
+End with:
+- “Source: Google Places (last updated <today’s date>)”
+If a category has no results, omit the category (do not print placeholder text).
+
+5) Fallback behaviour
+If we cannot obtain coordinates and Places returns nothing:
+- Provide a short explanation:
+  “I don’t have enough location data to list nearby amenities yet.”
+- Ask a single clarifying question:
+  “Can you confirm your nearest town or Eircode area?”
+- Provide general guidance in parallel (Tier 2): what amenities most homeowners look for and how to check quickly.
+
+6) Enforce Safety Contract wording
+- Do not claim “closest” unless distance computed.
+- Do not claim opening hours unless returned by Places.
+- Do not invent providers or businesses.
+
+7) Add automated test / harness
+- Add a dev test route or unit test that runs Local Amenities intent using a known coordinate (one Cork coordinate) and asserts:
+  - response contains at least 3 categories
+  - response contains at least 2 named amenities not matching scheme name
+  - response does not contain the scheme name in the amenities list
+
+Acceptance
+- Asking “What amenities are in my local area?” returns actual nearby amenities grouped by category.
+- No development names are listed as amenities.
+- Output is useful and readable on mobile.
+
+IMPLEMENTATION NOTES
+- Keep all changes behind NEXT_PUBLIC_SUGGESTED_PILLS_V2 for UI.
+- For Local Amenities, fix should apply regardless of pills (if user types the question manually, it should still work).
+- Provide a concise summary of files changed and any required env vars (Google Places key etc.).
+
+Now do the work:
+1) Patch pill selection randomness + scheme-scoped persistence keys + scheme-change re-init
+2) Patch Local Amenities handler to use coordinate-based Places category search + proper formatting + filtering + fallback
+3) Verify on iOS + web quickly
+4) Return a brief report of what changed and how to validate
+
+END
