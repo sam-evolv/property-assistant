@@ -19,21 +19,42 @@ function getSupabaseClient() {
 export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null> {
   const supabase = getSupabaseClient();
   
-  const { data: supabaseUnit, error } = await supabase
+  // Try by id first, then by unit_uid
+  let supabaseUnit: any = null;
+  let error: any = null;
+  
+  const { data: unitById, error: errById } = await supabase
     .from('units')
-    .select('id, address, project_id, unit_type_id')
+    .select('id, address, project_id, unit_type_id, tenant_id, house_type_code')
     .eq('id', unitUid)
     .single();
+  
+  if (unitById) {
+    supabaseUnit = unitById;
+  } else {
+    // Try by unit_uid
+    const { data: unitByUid, error: errByUid } = await supabase
+      .from('units')
+      .select('id, address, project_id, unit_type_id, tenant_id, house_type_code')
+      .eq('unit_uid', unitUid)
+      .single();
+    
+    if (unitByUid) {
+      supabaseUnit = unitByUid;
+    } else {
+      error = errById || errByUid;
+    }
+  }
 
   if (error || !supabaseUnit) {
     console.log('[UnitResolver] Unit not found:', unitUid, error?.message);
     return null;
   }
 
-  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'project:', supabaseUnit.project_id);
+  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'project:', supabaseUnit.project_id, 'tenant:', supabaseUnit.tenant_id);
 
-  let tenantId: string | null = null;
-  let houseTypeCode: string | undefined;
+  let tenantId: string | null = supabaseUnit.tenant_id || null;
+  let houseTypeCode: string | undefined = supabaseUnit.house_type_code;
 
   if (supabaseUnit.unit_type_id) {
     const { data: unitType } = await supabase
@@ -42,13 +63,14 @@ export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null>
       .eq('id', supabaseUnit.unit_type_id)
       .single();
     
-    if (unitType) {
+    if (unitType && unitType.code) {
       houseTypeCode = unitType.code;
       console.log('[UnitResolver] House type code:', houseTypeCode);
     }
   }
 
-  if (supabaseUnit.project_id) {
+  // Fallback: get tenant_id from project if not on unit
+  if (!tenantId && supabaseUnit.project_id) {
     const { data: project } = await supabase
       .from('projects')
       .select('id, tenant_id')
