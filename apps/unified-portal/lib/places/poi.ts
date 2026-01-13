@@ -112,8 +112,10 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
 
 const DEFAULT_TTL_DAYS = 30;
 const MAX_RESULTS = 10;
-const SEARCH_RADIUS_METERS = 5000;
 const PLACES_TIMEOUT_MS = 10000;
+
+const ESCALATION_RADII = [2000, 4000, 7000] as const;
+const MIN_RESULTS_THRESHOLD = 2;
 
 // Cache version - bump this when making breaking changes to type filtering logic
 // Any cached results with older versions will be considered stale
@@ -268,13 +270,30 @@ function isCacheContentValid(results: POIResult[], category: POICategory): boole
   return hasValidResult;
 }
 
-async function getCachedPOIs(schemeId: string, category: POICategory): Promise<CacheEntry | null> {
+function buildCacheKey(category: POICategory, radiusMeters: number): string {
+  return `${category}:${radiusMeters}`;
+}
+
+function parseCacheKey(cacheKey: string): { category: POICategory; radius: number } | null {
+  const parts = cacheKey.split(':');
+  if (parts.length === 2) {
+    return { category: parts[0] as POICategory, radius: parseInt(parts[1], 10) };
+  }
+  if (parts.length === 1) {
+    return { category: parts[0] as POICategory, radius: 5000 };
+  }
+  return null;
+}
+
+async function getCachedPOIs(schemeId: string, category: POICategory, radiusMeters?: number): Promise<CacheEntry | null> {
+  const cacheKey = radiusMeters ? buildCacheKey(category, radiusMeters) : category;
+  
   const cached = await db
     .select()
     .from(poi_cache)
     .where(and(
       eq(poi_cache.scheme_id, schemeId),
-      eq(poi_cache.category, category)
+      eq(poi_cache.category, cacheKey)
     ))
     .limit(1);
 
@@ -290,11 +309,8 @@ async function getCachedPOIs(schemeId: string, category: POICategory): Promise<C
   
   const results = record.results_json as POIResult[];
   
-  // CRITICAL: Validate cached content matches expected type
-  // This catches stale caches with mismatched results (e.g., hotels cached as golf_course)
   const isContentValid = isCacheContentValid(results, category);
   
-  // Cache is only fresh if both TTL and content validation pass
   const isFresh = isTTLFresh && isContentValid;
 
   return {
@@ -317,7 +333,8 @@ interface PlacesFetchResult {
 async function fetchFromGooglePlaces(
   lat: number,
   lng: number,
-  category: POICategory
+  category: POICategory,
+  radiusMeters: number = ESCALATION_RADII[0]
 ): Promise<PlacesFetchResult> {
   const apiKey = getGoogleMapsApiKey();
   if (!apiKey) {
@@ -351,7 +368,7 @@ async function fetchFromGooglePlaces(
   for (const placeType of mapping.types) {
     const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
     url.searchParams.set('location', `${lat},${lng}`);
-    url.searchParams.set('radius', SEARCH_RADIUS_METERS.toString());
+    url.searchParams.set('radius', radiusMeters.toString());
     url.searchParams.set('type', placeType);
     url.searchParams.set('key', apiKey);
 
@@ -534,15 +551,18 @@ async function fetchTravelTimes(
 async function storePOICache(
   schemeId: string,
   category: POICategory,
-  results: POIResult[]
+  results: POIResult[],
+  radiusMeters?: number
 ): Promise<void> {
+  const cacheKey = radiusMeters ? buildCacheKey(category, radiusMeters) : category;
+  
   try {
     const existing = await db
       .select({ id: poi_cache.id })
       .from(poi_cache)
       .where(and(
         eq(poi_cache.scheme_id, schemeId),
-        eq(poi_cache.category, category)
+        eq(poi_cache.category, cacheKey)
       ))
       .limit(1);
 
@@ -562,7 +582,7 @@ async function storePOICache(
         .insert(poi_cache)
         .values({
           scheme_id: schemeId,
-          category: category,
+          category: cacheKey,
           provider: 'google_places',
           results_json: results,
           fetched_at: now,
@@ -572,6 +592,50 @@ async function storePOICache(
   } catch (err) {
     console.error('[POI] Failed to store cache (FK constraint?):', err);
   }
+}
+
+async function findBestStaleCache(schemeId: string, category: POICategory): Promise<CacheEntry | null> {
+  let bestStale: CacheEntry | null = null;
+  
+  const legacyCache = await getCachedPOIsLegacy(schemeId, category);
+  if (legacyCache && legacyCache.results.length > 0) {
+    bestStale = legacyCache;
+  }
+  
+  for (const radius of ESCALATION_RADII) {
+    const cached = await getCachedPOIs(schemeId, category, radius);
+    if (cached && cached.results.length > 0) {
+      if (!bestStale || cached.results.length > bestStale.results.length) {
+        bestStale = cached;
+      }
+    }
+  }
+  return bestStale;
+}
+
+async function getCachedPOIsLegacy(schemeId: string, category: POICategory): Promise<CacheEntry | null> {
+  const cached = await db
+    .select()
+    .from(poi_cache)
+    .where(and(
+      eq(poi_cache.scheme_id, schemeId),
+      eq(poi_cache.category, category)
+    ))
+    .limit(1);
+
+  if (cached.length === 0) {
+    return null;
+  }
+
+  const record = cached[0];
+  const fetchedAt = new Date(record.fetched_at);
+  const results = record.results_json as POIResult[];
+
+  return {
+    results,
+    fetched_at: fetchedAt,
+    is_fresh: false,
+  };
 }
 
 export async function getNearbyPOIs(
@@ -589,11 +653,8 @@ export async function getNearbyPOIs(
     timestamp: new Date().toISOString(),
   };
 
-  // STEP 1: Check scheme location FIRST - this is the authoritative gate
-  // If scheme_profile has no coordinates, fail deterministically (no cache fallback)
   const location = await getSchemeLocation(schemeId);
   
-  // Populate diagnostics with location info
   if (location) {
     diagnostics.scheme_location_present = true;
     diagnostics.scheme_lat = location.lat;
@@ -605,8 +666,6 @@ export async function getNearbyPOIs(
     diagnostics.scheme_location_source = null;
   }
 
-  // DETERMINISTIC GATE: If no location in scheme_profile, fail immediately
-  // Do NOT serve cached results - this ensures consistent behavior
   if (!location) {
     console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile - returning deterministic failure`);
     diagnostics.failure_reason = 'places_no_location';
@@ -619,34 +678,23 @@ export async function getNearbyPOIs(
     };
   }
 
-  // STEP 2: Check cache only after location is confirmed
-  const cached = await getCachedPOIs(schemeId, category);
-  if (cached && cached.is_fresh) {
-    console.log(`[POI] Returning ${cached.results.length} fresh cached results`);
-    diagnostics.cache_hit = true;
-    return {
-      results: cached.results,
-      fetched_at: cached.fetched_at,
-      from_cache: true,
-      diagnostics,
-    };
-  }
-
   if (!isValidCoordinate(location.lat, location.lng)) {
     diagnostics.failure_reason = 'google_places_invalid_coordinates';
     diagnostics.places_error_message = `Invalid coordinates: lat=${location.lat}, lng=${location.lng}`;
     
-    if (cached && cached.results.length > 0) {
+    const staleCache = await findBestStaleCache(schemeId, category);
+    if (staleCache && staleCache.results.length > 0) {
+      console.log('[POI] Invalid coordinates, returning stale cache with', staleCache.results.length, 'results');
       diagnostics.is_stale_cache = true;
       return {
-        results: cached.results,
-        fetched_at: cached.fetched_at,
+        results: staleCache.results,
+        fetched_at: staleCache.fetched_at,
         from_cache: true,
         is_stale: true,
         diagnostics,
       };
     }
-
+    
     return {
       results: [],
       fetched_at: new Date(),
@@ -655,70 +703,158 @@ export async function getNearbyPOIs(
     };
   }
 
-  console.log(`[POI] Fetching fresh data from Google Places at ${location.lat}, ${location.lng}`);
-  const fetchResult = await fetchFromGooglePlaces(location.lat, location.lng, category);
+  let bestFreshResults: POIResult[] = [];
+  let bestFreshRadius: number = ESCALATION_RADII[0];
+  let bestFreshFetchedAt: Date = new Date();
+  let escalationUsed = false;
+  let allFetchesFailed = true;
+  let anySuccessfulFetch = false;
 
-  diagnostics.places_request_url = fetchResult.requestUrl;
-  diagnostics.places_http_status = fetchResult.httpStatus;
-  diagnostics.places_error_message = fetchResult.errorMessage;
-  diagnostics.places_api_error_code = fetchResult.errorCode;
-
-  if (!fetchResult.success) {
-    diagnostics.failure_reason = fetchResult.failureReason;
+  for (const radius of ESCALATION_RADII) {
+    console.log(`[POI] Trying radius ${radius}m for ${category}`);
     
-    console.error('[POI] Structured failure log:', {
-      timestamp: new Date().toISOString(),
-      scheme_id: schemeId,
-      category,
-      lat: location.lat,
-      lng: location.lng,
-      http_status: fetchResult.httpStatus,
-      api_status: fetchResult.errorCode,
-      error_message: fetchResult.errorMessage,
-      failure_reason: fetchResult.failureReason,
-    });
+    const cached = await getCachedPOIs(schemeId, category, radius);
+    if (cached && cached.is_fresh) {
+      console.log(`[POI] Cache hit at ${radius}m: ${cached.results.length} results`);
+      anySuccessfulFetch = true;
+      allFetchesFailed = false;
+      
+      if (cached.results.length >= MIN_RESULTS_THRESHOLD) {
+        diagnostics.cache_hit = true;
+        (diagnostics as any).radius_used = radius;
+        (diagnostics as any).escalation_used = radius > ESCALATION_RADII[0];
+        return {
+          results: cached.results,
+          fetched_at: cached.fetched_at,
+          from_cache: true,
+          diagnostics,
+        };
+      }
+      
+      if (cached.results.length > bestFreshResults.length) {
+        bestFreshResults = cached.results;
+        bestFreshRadius = radius;
+        bestFreshFetchedAt = cached.fetched_at;
+      }
+      
+      if (radius === ESCALATION_RADII[ESCALATION_RADII.length - 1]) {
+        diagnostics.cache_hit = true;
+        (diagnostics as any).radius_used = bestFreshRadius;
+        (diagnostics as any).escalation_used = bestFreshRadius > ESCALATION_RADII[0];
+        return {
+          results: bestFreshResults,
+          fetched_at: bestFreshFetchedAt,
+          from_cache: true,
+          diagnostics,
+        };
+      }
+      
+      escalationUsed = true;
+      continue;
+    }
+    
+    console.log(`[POI] Fetching fresh data from Google Places at ${location.lat}, ${location.lng} with radius ${radius}m`);
+    const fetchResult = await fetchFromGooglePlaces(location.lat, location.lng, category, radius);
 
-    if (cached && cached.results.length > 0) {
-      console.log('[POI] API failed, returning stale cache with', cached.results.length, 'results');
-      diagnostics.is_stale_cache = true;
-      return {
-        results: cached.results,
-        fetched_at: cached.fetched_at,
-        from_cache: true,
-        is_stale: true,
-        diagnostics,
-      };
+    diagnostics.places_request_url = fetchResult.requestUrl;
+    diagnostics.places_http_status = fetchResult.httpStatus;
+    diagnostics.places_error_message = fetchResult.errorMessage;
+    diagnostics.places_api_error_code = fetchResult.errorCode;
+
+    if (!fetchResult.success) {
+      diagnostics.failure_reason = fetchResult.failureReason;
+      
+      console.error('[POI] Structured failure log:', {
+        timestamp: new Date().toISOString(),
+        scheme_id: schemeId,
+        category,
+        radius,
+        lat: location.lat,
+        lng: location.lng,
+        http_status: fetchResult.httpStatus,
+        api_status: fetchResult.errorCode,
+        error_message: fetchResult.errorMessage,
+        failure_reason: fetchResult.failureReason,
+      });
+
+      continue;
     }
 
-    return {
-      results: [],
-      fetched_at: new Date(),
-      from_cache: false,
-      diagnostics,
-    };
-  }
-
-  let results = fetchResult.results;
-
-  if (results.length === 0) {
-    diagnostics.failure_reason = 'no_places_results';
+    allFetchesFailed = false;
+    anySuccessfulFetch = true;
+    let results = fetchResult.results;
     
-    // CRITICAL: Cache empty results to prevent serving stale mismatched data
-    // This handles the case where type filtering removed all results (e.g., hotels returned for golf_course)
-    await storePOICache(schemeId, category, []);
-    console.log('[POI] Cached empty results (type filtering or no matches)');
-  }
-
-  if (results.length > 0) {
+    if (results.length === 0) {
+      await storePOICache(schemeId, category, [], radius);
+      console.log(`[POI] Cached empty results at ${radius}m`);
+      escalationUsed = true;
+      continue;
+    }
+    
     console.log(`[POI] Fetching travel times for ${results.length} places`);
     results = await fetchTravelTimes(location.lat, location.lng, results);
-    await storePOICache(schemeId, category, results);
-    console.log(`[POI] Cached ${results.length} results`);
+    await storePOICache(schemeId, category, results, radius);
+    console.log(`[POI] Cached ${results.length} results at ${radius}m`);
+    
+    if (results.length > bestFreshResults.length) {
+      bestFreshResults = results;
+      bestFreshRadius = radius;
+      bestFreshFetchedAt = new Date();
+    }
+
+    if (results.length >= MIN_RESULTS_THRESHOLD) {
+      (diagnostics as any).radius_used = radius;
+      (diagnostics as any).escalation_used = escalationUsed;
+      return {
+        results,
+        fetched_at: new Date(),
+        from_cache: false,
+        diagnostics,
+      };
+    }
+    
+    escalationUsed = true;
   }
 
+  if (allFetchesFailed) {
+    const staleCache = await findBestStaleCache(schemeId, category);
+    if (staleCache && staleCache.results.length > 0) {
+      console.log('[POI] All API fetches failed, returning stale cache with', staleCache.results.length, 'results');
+      diagnostics.is_stale_cache = true;
+      (diagnostics as any).radius_used = bestFreshRadius;
+      (diagnostics as any).escalation_used = escalationUsed;
+      return {
+        results: staleCache.results,
+        fetched_at: staleCache.fetched_at,
+        from_cache: true,
+        is_stale: true,
+        diagnostics,
+      };
+    }
+  }
+
+  if (bestFreshResults.length === 0 && anySuccessfulFetch) {
+    diagnostics.failure_reason = 'no_places_results';
+    (diagnostics as any).radius_used = bestFreshRadius;
+    (diagnostics as any).escalation_used = escalationUsed;
+    return {
+      results: [],
+      fetched_at: new Date(),
+      from_cache: false,
+      diagnostics,
+    };
+  }
+
+  if (bestFreshResults.length === 0) {
+    diagnostics.failure_reason = 'no_places_results';
+  }
+  
+  (diagnostics as any).radius_used = bestFreshRadius;
+  (diagnostics as any).escalation_used = escalationUsed;
+
   return {
-    results,
-    fetched_at: new Date(),
+    results: bestFreshResults,
+    fetched_at: bestFreshFetchedAt,
     from_cache: false,
     diagnostics,
   };
@@ -1360,10 +1496,11 @@ export async function searchNearbyByKeyword(
   }
 
   // Use Google Places Text Search for more flexible keyword matching
+  // Default radius for text search is 5000m (5km)
   const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
   url.searchParams.set('query', `${keyword} near ${location.address || `${location.lat},${location.lng}`}`);
   url.searchParams.set('location', `${location.lat},${location.lng}`);
-  url.searchParams.set('radius', SEARCH_RADIUS_METERS.toString());
+  url.searchParams.set('radius', '5000');
   url.searchParams.set('key', apiKey);
 
   try {
