@@ -31,6 +31,8 @@ export type GapReason =
   | 'amenities_doc_augment_used'
   | 'amenity_hallucination_blocked'
   | 'places_no_location'
+  | 'missing_location'
+  | 'invalid_coordinates'
   | 'unknown';
 
 export interface GapLogEntry {

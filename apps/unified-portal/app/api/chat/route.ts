@@ -69,7 +69,7 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -1507,7 +1507,7 @@ export async function POST(request: NextRequest) {
           // Update scheme_resolution_path to reflect actual source
           if (diagnostics.scheme_location_source) {
             chatDiagnostics.scheme_resolution_path = diagnostics.scheme_location_source;
-          } else if (diagnostics.failure_reason === 'places_no_location') {
+          } else if (isLocationMissingReason(diagnostics.failure_reason)) {
             chatDiagnostics.scheme_resolution_path = 'missing_scheme_location';
           }
         }
@@ -1530,7 +1530,7 @@ export async function POST(request: NextRequest) {
         if (poiData.results.length === 0) {
           console.log('[Chat] AMENITY GATE: No Places results, using controlled fallback');
           
-          const isMissingLocation = diagnostics?.failure_reason === 'places_no_location';
+          const isMissingLocation = isLocationMissingReason(diagnostics?.failure_reason);
           const categoryName = poiCategory.replace(/_/g, ' ');
           
           let noResultsResponse: string;

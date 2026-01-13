@@ -63,7 +63,16 @@ export type PlacesFailureReason =
   | 'google_places_network_error'
   | 'google_places_failed'
   | 'no_places_results'
-  | 'places_no_location';
+  | 'places_no_location'
+  | 'missing_location'
+  | 'invalid_coordinates';
+
+export function isLocationMissingReason(reason: PlacesFailureReason | undefined): boolean {
+  return reason === 'places_no_location' || 
+         reason === 'missing_location' || 
+         reason === 'invalid_coordinates' ||
+         reason === 'google_places_invalid_coordinates';
+}
 
 export type POICategory = 
   | 'supermarket'
@@ -668,7 +677,7 @@ export async function getNearbyPOIs(
 
   if (!location) {
     console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile - returning deterministic failure`);
-    diagnostics.failure_reason = 'places_no_location';
+    diagnostics.failure_reason = 'missing_location';
     
     return {
       results: [],
@@ -679,21 +688,9 @@ export async function getNearbyPOIs(
   }
 
   if (!isValidCoordinate(location.lat, location.lng)) {
-    diagnostics.failure_reason = 'google_places_invalid_coordinates';
+    console.error(`[POI] Scheme ${schemeId} has invalid coordinates: lat=${location.lat}, lng=${location.lng}`);
+    diagnostics.failure_reason = 'invalid_coordinates';
     diagnostics.places_error_message = `Invalid coordinates: lat=${location.lat}, lng=${location.lng}`;
-    
-    const staleCache = await findBestStaleCache(schemeId, category);
-    if (staleCache && staleCache.results.length > 0) {
-      console.log('[POI] Invalid coordinates, returning stale cache with', staleCache.results.length, 'results');
-      diagnostics.is_stale_cache = true;
-      return {
-        results: staleCache.results,
-        fetched_at: staleCache.fetched_at,
-        from_cache: true,
-        is_stale: true,
-        diagnostics,
-      };
-    }
     
     return {
       results: [],
@@ -1038,7 +1035,7 @@ export function formatPOIResponse(data: POICacheResult, options: FormatPOIOption
   const resultLimit = opts.limit ?? 5;
 
   if (data.results.length === 0) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find any ${formatCategoryName(category)} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;
@@ -1154,7 +1151,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
   const hasSecondary = data.secondary.length > 0;
   
   if (!hasPrimary && !hasSecondary) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
@@ -1187,7 +1184,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
 
 export function formatSchoolsResponse(data: POICacheResult, developmentName?: string, sessionSeed?: number): string {
   if (data.results.length === 0) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
@@ -1203,7 +1200,7 @@ export function formatSchoolsResponse(data: POICacheResult, developmentName?: st
 
 export function formatShopsResponse(data: POICacheResult, developmentName?: string, sessionSeed?: number): string {
   if (data.results.length === 0) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby shops at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find any shops close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
@@ -1241,7 +1238,7 @@ export function formatLocalAmenitiesResponse(data: GroupedAmenitiesData, develop
                         data.gp.length > 0 || data.transport.length > 0 || data.cafe.length > 0;
   
   if (!hasAnyResults) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby amenities at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find nearby amenities at the moment. You could try Google Maps for a wider search around the area.`;
@@ -1570,7 +1567,7 @@ export function formatDynamicPOIResponse(
   sessionSeed?: number
 ): string {
   if (data.results.length === 0) {
-    if (data.diagnostics?.failure_reason === 'places_no_location') {
+    if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for ${keyword} at the moment. Your developer should be able to sort that out.`;
     }
     return `I couldn't find any ${keyword} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;

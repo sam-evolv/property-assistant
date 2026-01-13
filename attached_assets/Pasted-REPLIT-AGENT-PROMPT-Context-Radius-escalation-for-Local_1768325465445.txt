@@ -1,0 +1,89 @@
+REPLIT AGENT PROMPT
+
+Context
+Radius escalation for Local Amenities is implemented in:
+- apps/unified-portal/lib/places/poi.ts (getNearbyPOIs / fetchFromGooglePlaces / caching)
+
+We need to tighten potential loose ends and eliminate risk:
+1) “Invalid coordinates trigger stale cache lookup” may return wrong-area amenities.
+2) Ensure stale cache is ONLY used for API/network failures (not empty results), and only after all radii attempts fail for that category.
+3) Ensure Distance Matrix is not called when Places returns 0 candidates.
+4) Ensure we stop escalating immediately once we have >=2 results (cache hit or successful fetch).
+5) Ensure caching is radius-aware and legacy cache fallback cannot cause collisions.
+
+Goal
+Make this robust and safe without refactoring, without DB migrations, and without breaking existing behaviour.
+
+Non-negotiables
+- Do NOT show internal diagnostics to purchasers.
+- Do NOT invent amenities.
+- Do NOT return stale cache on empty results.
+- Do NOT return stale cache when scheme location is unknown unless we can validate the cache matches the same location.
+- Minimal diff, surgical changes only.
+
+Tasks
+
+A) Fix invalid/missing coordinate handling safely
+1) Identify all branches where scheme lat/lng can be missing/invalid:
+   - NaN, 0,0, null, undefined, out-of-range, etc.
+2) Change logic so:
+   - If coordinates are missing/invalid, DO NOT return cached POIs unless cache record contains a location fingerprint that matches the current scheme’s known location.
+   - If the scheme location is truly unknown, return an explicit “need location” result (empty + reason) so the caller can ask a clarifying question.
+3) Implement a lightweight location fingerprint without schema changes:
+   Option 1 (preferred):
+     - If poi_cache rows already store lat/lng used, compare within small tolerance.
+   Option 2:
+     - If cache payload contains the Places “location” used (or scheme place_id), compare.
+   If neither exists:
+     - Do NOT use stale cache on missing/invalid coords.
+     - Return empty and set a flag reason = "missing_location" for fallback messaging.
+
+B) Harden stale cache fallback rules
+1) Define clearly:
+   - “Failure” = network error / non-200 / Google API status not OK / request exception.
+   - “Empty” = OK response but results.length == 0.
+2) In getNearbyPOIs escalation loop:
+   - For each radius attempt:
+     - If request fails: record failure and continue to next radius.
+     - If request succeeds with 0 results: treat as definitive for that radius; continue to next radius; do NOT use stale cache.
+   - Only after ALL radii attempts ended in FAILURE (not empty) may we use stale cache (if valid per A).
+3) Ensure legacy cache fallback is only used when:
+   - radius-specific cache miss AND
+   - we are at the first radius attempt (to avoid mixing) AND
+   - the cached entry can be validated to match the same scheme location (per A).
+
+C) Prevent unnecessary Distance Matrix calls
+- Ensure fetchTravelTimes is called ONLY when candidates.length > 0.
+- Ensure we cap candidates to a small number (e.g., 6–10) before calling Distance Matrix to control cost.
+
+D) Early stop conditions
+- If cache hit at radius X returns >=2 results, return immediately, no further radii.
+- If API fetch at radius X returns >=2 results, return immediately.
+
+E) Observability hygiene
+- Keep radius_used and escalation_used for internal logs/metrics, but ensure they are not included in the purchaser response body.
+- Make logs dev-only if currently too noisy in production, or reduce to one-line per request.
+
+Validation (must run)
+1) Missing coords scenario:
+   - scheme has no valid lat/lng -> handler returns empty with reason missing_location (no stale cache used).
+2) API failure scenario:
+   - simulate Places failure (bad key) -> handler may use stale cache ONLY if available and validated.
+3) Empty results scenario:
+   - if Places returns OK with 0 results at all radii -> return empty, do NOT use stale cache.
+4) Normal scenario:
+   - ensure 2km works in urban, no escalation.
+5) Escalation scenario:
+   - ensure rural escalates and returns results.
+
+Deliverables
+- Implement the above changes with minimal diff.
+- Provide a short report:
+  - files changed
+  - exact new fallback rules
+  - how cache validation is performed
+  - any new flags returned to caller
+
+Do NOT refactor unrelated code.
+Do NOT change DB schema.
+END
