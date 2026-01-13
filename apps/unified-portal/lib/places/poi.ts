@@ -704,8 +704,9 @@ export async function getNearbyPOIs(
   let bestFreshRadius: number = ESCALATION_RADII[0];
   let bestFreshFetchedAt: Date = new Date();
   let escalationUsed = false;
-  let allFetchesFailed = true;
-  let anySuccessfulFetch = false;
+  let allApiFetchesFailed = true;
+  let anyApiFetchAttempted = false;
+  let anyFreshDataAvailable = false;
 
   for (const radius of ESCALATION_RADII) {
     console.log(`[POI] Trying radius ${radius}m for ${category}`);
@@ -713,8 +714,7 @@ export async function getNearbyPOIs(
     const cached = await getCachedPOIs(schemeId, category, radius);
     if (cached && cached.is_fresh) {
       console.log(`[POI] Cache hit at ${radius}m: ${cached.results.length} results`);
-      anySuccessfulFetch = true;
-      allFetchesFailed = false;
+      anyFreshDataAvailable = true;
       
       if (cached.results.length >= MIN_RESULTS_THRESHOLD) {
         diagnostics.cache_hit = true;
@@ -751,6 +751,7 @@ export async function getNearbyPOIs(
     }
     
     console.log(`[POI] Fetching fresh data from Google Places at ${location.lat}, ${location.lng} with radius ${radius}m`);
+    anyApiFetchAttempted = true;
     const fetchResult = await fetchFromGooglePlaces(location.lat, location.lng, category, radius);
 
     diagnostics.places_request_url = fetchResult.requestUrl;
@@ -777,8 +778,8 @@ export async function getNearbyPOIs(
       continue;
     }
 
-    allFetchesFailed = false;
-    anySuccessfulFetch = true;
+    allApiFetchesFailed = false;
+    anyFreshDataAvailable = true;
     let results = fetchResult.results;
     
     if (results.length === 0) {
@@ -813,7 +814,7 @@ export async function getNearbyPOIs(
     escalationUsed = true;
   }
 
-  if (allFetchesFailed) {
+  if (anyApiFetchAttempted && allApiFetchesFailed) {
     const staleCache = await findBestStaleCache(schemeId, category);
     if (staleCache && staleCache.results.length > 0) {
       console.log('[POI] All API fetches failed, returning stale cache with', staleCache.results.length, 'results');
@@ -830,7 +831,7 @@ export async function getNearbyPOIs(
     }
   }
 
-  if (bestFreshResults.length === 0 && anySuccessfulFetch) {
+  if (bestFreshResults.length === 0 && anyFreshDataAvailable) {
     diagnostics.failure_reason = 'no_places_results';
     (diagnostics as any).radius_used = bestFreshRadius;
     (diagnostics as any).escalation_used = escalationUsed;
