@@ -86,17 +86,17 @@ export default function PurchaserAppPage() {
               <Image
                 src={session.developmentLogoUrl}
                 alt={session.developmentName}
-                width={40}
-                height={40}
-                className="h-10 w-auto object-contain"
+                width={48}
+                height={48}
+                className="h-12 w-auto object-contain"
               />
             ) : (
               <Image
                 src="/branding/openhouse-logo.png"
                 alt="OpenHouse AI"
-                width={100}
-                height={30}
-                className="h-8 w-auto object-contain"
+                width={120}
+                height={36}
+                className="h-10 w-auto object-contain"
               />
             )}
             <div className="hidden sm:block">

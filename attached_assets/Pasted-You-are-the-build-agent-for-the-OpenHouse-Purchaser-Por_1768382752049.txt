@@ -1,0 +1,69 @@
+You are the build agent for the OpenHouse Purchaser Portal (Property Assistant). Implement a robust, low-risk i18n system so changing language updates the entire portal (not just Home). PRIORITY: translation accuracy and reliability. This must not break existing functionality.
+
+Core requirements
+1) Global i18n: one locale source of truth and one translation function t(key, params) used across ALL screens/components (nav, tabs, docs, noticeboard, map, profile, settings, modals, errors, empty states).
+2) No hard-coded UI strings: replace all visible strings with translation keys. Do not use per-screen “translator” logic. Do not create multiple i18n instances.
+3) Persistence: language selection persists across refresh/relaunch (web localStorage; if Capacitor present, also Capacitor Preferences).
+4) No flicker: on first load, hydrate locale before rendering the app shell (or render a minimal loader until locale ready).
+5) Locale formatting: use Intl for dates and numbers based on locale.
+
+Accuracy requirements (non-negotiable)
+6) NO runtime machine translation for UI strings. All translations must be from static, vetted locale JSON files.
+7) Implement a “Quality Gate”:
+   - If a translation key is missing in the selected locale, fall back to English for that key (never show blank or broken text).
+   - Add a dev-only diagnostic that logs missing keys (and optionally shows a small badge/console warning) so gaps are caught before release.
+   - Do NOT allow enabling a locale unless it meets a completeness threshold (e.g., 98-100% of keys present). If below threshold, hide it from the language selector in production builds.
+8) Implement a “Translation Audit Script”:
+   - Script that scans the codebase for hard-coded user-facing strings in JSX/TSX (heuristic) and reports likely offenders.
+   - Script that compares locale files vs base en.json, and outputs:
+     - missing keys
+     - extra keys
+     - completeness percentage per locale
+   - Fail CI/build (or at minimum block the release branch) if completeness < threshold.
+
+Implementation detail (choose best fit based on codebase)
+9) Use a proven library:
+   - Next.js App Router: prefer next-intl OR i18next/react-i18next (choose one and justify).
+   - React (non-Next): use i18next + react-i18next.
+10) Place translation resources in a clear structure, e.g.:
+   /locales/en/common.json
+   /locales/ga/common.json
+   /locales/pl/common.json
+   (or whatever languages already exist). Keep keys stable and semantic.
+
+Keying strategy
+11) Use consistent keys like:
+   nav.home, nav.docs, nav.noticeboard, nav.map, nav.profile, nav.settings
+   docs.title, docs.empty, docs.download, docs.upload
+   noticeboard.title, noticeboard.new_post.placeholder, noticeboard.empty
+   map.title, map.filters, map.empty
+   profile.title, profile.bedrooms, profile.bathrooms
+   errors.network, errors.generic
+12) Support interpolation and pluralisation via the library (no string concatenation).
+
+Testing + safety
+13) Add automated tests where feasible:
+   - Unit test: switching locale triggers rerender and changes a sample set of strings.
+   - Snapshot or smoke test for each main route ensuring no missing-key placeholders appear.
+14) Manual verification checklist (must be completed and documented in PR description):
+   - Change language from Settings while on: Home, Docs, Noticeboard, Map, Profile. Confirm nav + page content updates instantly.
+   - Refresh while on /docs and confirm selected language persists.
+   - Verify modals/toasts/empty states in non-English locale.
+   - Confirm fallback to English when a key is missing (and missing key is logged in dev).
+15) Do not refactor business logic. Keep diffs surgical. Do not change styling beyond what is necessary for translated strings.
+
+Deliverables
+- Global i18n setup in root layout/app shell and language switcher wired to it
+- Replacement of hard-coded strings across the portal with t("key")
+- Locale JSON files updated with full key coverage for supported languages
+- Translation audit script + completeness threshold enforcement
+- Brief documentation: how to add a new key and how to update translations safely
+
+Important: If current non-English text appears to be machine-generated or low confidence, revert to English until a vetted translation is provided. Never ship questionable translations.
+
+Start by:
+A) Identify portal root entry (layout/app shell) and current “translator” implementation.
+B) Inventory all user-facing strings across routes.
+C) Implement i18n provider + persistence + hydration.
+D) Replace strings route by route.
+E) Run audit scripts and ensure completeness thresholds.
