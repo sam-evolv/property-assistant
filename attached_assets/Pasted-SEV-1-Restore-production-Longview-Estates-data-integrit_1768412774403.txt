@@ -1,0 +1,71 @@
+SEV-1: Restore production Longview Estates data integrity + revert UI/API to last known-good state (NO FAKE DATA)
+
+Context:
+- Production Supabase has 3 real developments under Longview Estates: Longview Park, Rathard Park, Rathard Lawn.
+- Homeowners list now shows "Unassigned" for all units, which indicates purchaser_name is NULL or not returned by API.
+- We previously had correct purchaser names, addresses, beds, baths, sqm, unit codes, and working portal sign-in per unit.
+- Do NOT create synthetic purchasers or seed fake data in production. If data is missing, surface "Missing Data" and provide restoration path from a real source (backup/export).
+
+Primary goals:
+1) Revert app behaviour to the last commit where homeowners, portal sign-in, and per-unit branding were correct.
+2) Restore purchaser_name, address, bedrooms, bathrooms, sqm, unit codes, and per-unit portal access to real values for all 3 estates.
+3) Enforce guardrails so this cannot happen again.
+
+Phase 0 - Freeze and protect prod:
+- Locate any seed scripts, demo scripts, dev endpoints, or migrations that write to units/purchasers in production.
+- Add a hard PRODUCTION_WRITE_GUARD:
+  - If NODE_ENV=production, block any seeding routes, demo setup, or "cleanup" scripts from running.
+  - Require an explicit env var ALLOW_PROD_SEED=true for any write-heavy ops, default false.
+- Ensure no cron/edge function is modifying units in prod.
+
+Phase 1 - Revert code to last known-good:
+- Identify last git commit where:
+  - Homeowners page displayed real purchaser names
+  - Unit portal tokens resolved correctly
+  - Branding/logo per development worked
+- Create a revert PR/commit to that state.
+- Document the exact commit hash restored.
+
+Phase 2 - Diagnose data loss vs API omission:
+- In code, check the API endpoint used by the Developer Dashboard Homeowners list.
+- Confirm whether purchaser_name is selected and returned.
+- Confirm whether the UI is incorrectly reading the wrong field (eg "name" vs "purchaser_name").
+- Confirm tenant/development filters are correct and tenant-safe.
+
+Phase 3 - Data restoration (only from real sources):
+- Inspect Supabase tables: units, purchaser_agreements, messages, analytics_events.
+- Determine if purchaser names and unit attributes exist in any of:
+  a) purchaser_agreements (joinable by unit_id)
+  b) units.metadata jsonb
+  c) an existing export file in repo or storage
+  d) a Supabase backup snapshot
+- Implement a deterministic restore script:
+  - If purchaser_agreements has purchaser_name, update units.purchaser_name from purchaser_agreements.unit_id.
+  - Restore address fields, bedrooms, bathrooms, sqm from the real source of truth.
+  - Never invent names. If a unit is missing data after restore, flag it for manual completion.
+- Provide a single SQL migration or script + a dry-run report showing how many rows will change.
+
+Phase 4 - Portal access and unit identity:
+- Ensure portal tokens map to the correct unit consistently.
+- Ensure units have stable identifiers (unit_uid or unit_code) and the portal uses that.
+- Ensure messages and analytics events are linked to unit_id for per-house stats.
+
+Phase 5 - Branding correctness:
+- Confirm development logo and name are pulled from developments table (logo_url) with no hardcoded paths.
+- Test 1 unit from each estate:
+  - Startup animation shows correct development
+  - Header logo correct
+  - Chat logo correct
+
+Acceptance criteria:
+- Homeowners list shows real purchaser names (not "Unassigned") for all units where data exists.
+- Correct addresses, bedrooms, bathrooms, sqm visible in homeowner detail page.
+- Portal sign-in works for sample units across all 3 estates.
+- No seed/demo script can run in prod without ALLOW_PROD_SEED=true.
+- Provide before/after metrics and screenshots.
+
+Deliverables:
+- List of files changed
+- SQL restore script (idempotent)
+- A report: counts of units missing purchaser_name before and after
+- Confirmation of last-known-good commit and what was reverted

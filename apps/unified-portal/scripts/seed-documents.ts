@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireProductionWriteAccess } from '../lib/security/production-guard';
+
+requireProductionWriteAccess('seed-documents');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

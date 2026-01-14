@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
+import { requireProductionWriteAccess } from '../lib/security/production-guard';
+
+requireProductionWriteAccess('seed-amenities');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
