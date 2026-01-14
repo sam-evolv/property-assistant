@@ -15,7 +15,8 @@
     "map": "Ceantar"
   },
   "chat": {
-    "welcome": "Fiafraigh aon rud faoi do theach nó do phobal",
+    "welcome": "Fiafraigh aon rud faoi do theach",
+    "welcomeLine2": "nó do phobal",
     "subtitle": "Freagraí tapa don saol laethúil: pleananna urláir, áiseanna, seirbhísí áitiúla, agus tuilleadh.",
     "placeholder": "Fiafraigh faoi do theach nó do phobal...",
     "askButton": "Fiafraigh",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Ní thacaítear le hionchur gutha i do bhrabhsálaí. Úsáid Chrome, Edge, nó Safari.",
     "sessionExpired": "Seisiún imithe in éag. Scan do chód QR arís.",
     "errorOccurred": "Tá brón orainn, tharla earráid. Bain triail eile as.",
+    "sources": "Foinsí",
+    "basedOn": "Bunaithe ar:",
+    "backToHome": "Ar ais go dtí an baile",
+    "voiceInput": "Ionchur gutha",
+    "sendMessage": "Seol teachtaireacht",
+    "drawingTypes": {
+      "roomSizes": "Méideanna Seomraí",
+      "floorPlan": "Plean Urláir",
+      "elevation": "Arduithe",
+      "drawing": "Líníocht"
+    },
     "prompts": {
       "transport": "Iompar Poiblí",
       "floorPlans": "Pleananna Urláir",

@@ -15,7 +15,8 @@
     "map": "Zona"
   },
   "chat": {
-    "welcome": "Pergunte qualquer coisa sobre sua casa ou comunidade",
+    "welcome": "Pergunte qualquer coisa sobre sua casa",
+    "welcomeLine2": "ou comunidade",
     "subtitle": "Respostas rápidas para o dia a dia: plantas, comodidades, serviços locais e mais.",
     "placeholder": "Pergunte sobre sua casa ou comunidade...",
     "askButton": "Perguntar",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "A entrada de voz não é compatível com o seu navegador. Use Chrome, Edge ou Safari.",
     "sessionExpired": "Sessão expirada. Escaneie seu código QR novamente.",
     "errorOccurred": "Desculpe, encontrei um erro. Tente novamente.",
+    "sources": "Fontes",
+    "basedOn": "Baseado em:",
+    "backToHome": "Voltar ao início",
+    "voiceInput": "Entrada de voz",
+    "sendMessage": "Enviar mensagem",
+    "drawingTypes": {
+      "roomSizes": "Tamanhos dos quartos",
+      "floorPlan": "Planta baixa",
+      "elevation": "Elevações",
+      "drawing": "Desenho"
+    },
     "prompts": {
       "transport": "Transporte público",
       "floorPlans": "Plantas",

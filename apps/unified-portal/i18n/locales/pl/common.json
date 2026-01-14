@@ -15,7 +15,8 @@
     "map": "Okolica"
   },
   "chat": {
-    "welcome": "Zapytaj o cokolwiek dotyczącego Twojego domu lub społeczności",
+    "welcome": "Zapytaj o cokolwiek dotyczącego Twojego domu",
+    "welcomeLine2": "lub społeczności",
     "subtitle": "Szybkie odpowiedzi na co dzień: plany pięter, udogodnienia, lokalne usługi i więcej.",
     "placeholder": "Zapytaj o swój dom lub społeczność...",
     "askButton": "Zapytaj",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Wprowadzanie głosowe nie jest obsługiwane w Twojej przeglądarce. Użyj Chrome, Edge lub Safari.",
     "sessionExpired": "Sesja wygasła. Zeskanuj ponownie kod QR.",
     "errorOccurred": "Przepraszamy, napotkaliśmy błąd. Spróbuj ponownie.",
+    "sources": "Źródła",
+    "basedOn": "Na podstawie:",
+    "backToHome": "Wróć do strony głównej",
+    "voiceInput": "Wprowadzanie głosowe",
+    "sendMessage": "Wyślij wiadomość",
+    "drawingTypes": {
+      "roomSizes": "Rozmiary pokoi",
+      "floorPlan": "Plan piętra",
+      "elevation": "Elewacje",
+      "drawing": "Rysunek"
+    },
     "prompts": {
       "transport": "Transport publiczny",
       "floorPlans": "Plany pięter",

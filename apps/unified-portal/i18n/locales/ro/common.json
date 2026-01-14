@@ -15,7 +15,8 @@
     "map": "Zonă"
   },
   "chat": {
-    "welcome": "Întrebați orice despre casa sau comunitatea dvs.",
+    "welcome": "Întrebați orice despre casa",
+    "welcomeLine2": "sau comunitatea dvs.",
     "subtitle": "Răspunsuri rapide pentru viața de zi cu zi: planuri, facilități, servicii locale și multe altele.",
     "placeholder": "Întrebați despre casa sau comunitatea dvs...",
     "askButton": "Întreabă",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Intrarea vocală nu este acceptată în browserul dvs. Vă rugăm să utilizați Chrome, Edge sau Safari.",
     "sessionExpired": "Sesiunea a expirat. Vă rugăm să scanați codul QR din nou.",
     "errorOccurred": "Ne pare rău, am întâlnit o eroare. Vă rugăm să încercați din nou.",
+    "sources": "Surse",
+    "basedOn": "Pe baza:",
+    "backToHome": "Înapoi la pagina principală",
+    "voiceInput": "Intrare vocală",
+    "sendMessage": "Trimite mesajul",
+    "drawingTypes": {
+      "roomSizes": "Dimensiuni camere",
+      "floorPlan": "Plan etaj",
+      "elevation": "Fațade",
+      "drawing": "Desen"
+    },
     "prompts": {
       "transport": "Transport public",
       "floorPlans": "Planuri etaje",

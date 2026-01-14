@@ -15,7 +15,8 @@
     "map": "Area"
   },
   "chat": {
-    "welcome": "Ask anything about your home or community",
+    "welcome": "Ask anything about your home",
+    "welcomeLine2": "or community",
     "subtitle": "Quick answers for daily life: floor plans, amenities, local services, and more.",
     "placeholder": "Ask about your home or community...",
     "askButton": "Ask",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.",
     "sessionExpired": "Session expired. Please scan your QR code again.",
     "errorOccurred": "Sorry, I encountered an error. Please try again.",
+    "sources": "Sources",
+    "basedOn": "Based on:",
+    "backToHome": "Back to home",
+    "voiceInput": "Voice input",
+    "sendMessage": "Send message",
+    "drawingTypes": {
+      "roomSizes": "Room Sizes",
+      "floorPlan": "Floor Plan",
+      "elevation": "Elevations",
+      "drawing": "Drawing"
+    },
     "prompts": {
       "transport": "Public Transport",
       "floorPlans": "Floor Plans",

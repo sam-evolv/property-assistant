@@ -15,7 +15,8 @@
     "map": "Vietovė"
   },
   "chat": {
-    "welcome": "Klauskite bet ko apie savo namus ar bendruomenę",
+    "welcome": "Klauskite bet ko apie savo namus",
+    "welcomeLine2": "ar bendruomenę",
     "subtitle": "Greiti atsakymai kasdienybei: planai, patogumai, vietinės paslaugos ir daugiau.",
     "placeholder": "Klauskite apie savo namus ar bendruomenę...",
     "askButton": "Klausti",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Balso įvedimas nepalaikomas jūsų naršyklėje. Naudokite Chrome, Edge arba Safari.",
     "sessionExpired": "Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.",
     "errorOccurred": "Atsiprašome, įvyko klaida. Bandykite dar kartą.",
+    "sources": "Šaltiniai",
+    "basedOn": "Remiantis:",
+    "backToHome": "Grįžti į pradžią",
+    "voiceInput": "Balso įvedimas",
+    "sendMessage": "Siųsti žinutę",
+    "drawingTypes": {
+      "roomSizes": "Kambarių dydžiai",
+      "floorPlan": "Aukšto planas",
+      "elevation": "Fasadai",
+      "drawing": "Brėžinys"
+    },
     "prompts": {
       "transport": "Viešasis transportas",
       "floorPlans": "Aukštų planai",

@@ -15,7 +15,8 @@
     "map": "Apkārtne"
   },
   "chat": {
-    "welcome": "Jautājiet jebko par savu māju vai kopienu",
+    "welcome": "Jautājiet jebko par savu māju",
+    "welcomeLine2": "vai kopienu",
     "subtitle": "Ātras atbildes ikdienai: plāni, ērtības, vietējie pakalpojumi un vairāk.",
     "placeholder": "Jautājiet par savu māju vai kopienu...",
     "askButton": "Jautāt",
@@ -23,6 +24,17 @@
     "voiceNotSupported": "Balss ievade netiek atbalstīta jūsu pārlūkprogrammā. Lūdzu, izmantojiet Chrome, Edge vai Safari.",
     "sessionExpired": "Sesija beigusies. Lūdzu, skenējiet QR kodu vēlreiz.",
     "errorOccurred": "Atvainojiet, radās kļūda. Lūdzu, mēģiniet vēlreiz.",
+    "sources": "Avoti",
+    "basedOn": "Pamatojoties uz:",
+    "backToHome": "Atpakaļ uz sākumu",
+    "voiceInput": "Balss ievade",
+    "sendMessage": "Sūtīt ziņojumu",
+    "drawingTypes": {
+      "roomSizes": "Istabu izmēri",
+      "floorPlan": "Stāva plāns",
+      "elevation": "Fasādes",
+      "drawing": "Zīmējums"
+    },
     "prompts": {
       "transport": "Sabiedriskais transports",
       "floorPlans": "Stāvu plāni",
