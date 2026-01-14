@@ -157,17 +157,18 @@ export default function HomeResidentPage() {
           setValidatedToken(effectiveToken);
           
           // Map new response format to expected HouseContext
+          // Use "Welcome Home" as safe fallback only when data is truly missing
           const houseData: HouseContext = {
             house_id: houseId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
-            development_name: data.development_name || 'Your Home',
+            development_name: data.development_name || 'Welcome Home', // Safe fallback, not "Your Development"
             development_logo_url: data.development_logo_url,
             development_system_instructions: data.development_system_instructions || '',
             purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',
             house_type: data.house_type || '',
             bedrooms: data.bedrooms || 0,
-            address: data.address || '',
+            address: data.address || 'Your New Home', // Safe fallback when no address
             eircode: data.eircode || '',
             mrpn: data.mrpn || '',
             electricity_account: data.electricity_account || '',
@@ -179,6 +180,14 @@ export default function HomeResidentPage() {
             project_id: data.project_id,
             floor_plan_pdf_url: data.floorPlanUrl || data.floor_plan_pdf_url,
           };
+          
+          // Log if we hit fallbacks (helps identify data issues)
+          if (!data.development_name) {
+            console.warn('[Home] WARNING: No development_name returned from API, using fallback');
+          }
+          if (!data.address) {
+            console.warn('[Home] WARNING: No address returned from API, using fallback');
+          }
           
           setHouse(houseData);
 
