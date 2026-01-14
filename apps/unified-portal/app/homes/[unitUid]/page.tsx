@@ -157,12 +157,12 @@ export default function HomeResidentPage() {
           setValidatedToken(effectiveToken);
           
           // Map new response format to expected HouseContext
-          // Use "Welcome Home" as safe fallback only when data is truly missing
+          // CRITICAL: Keep development_name as actual value or empty string (never "Welcome Home" - that's the H1)
           const houseData: HouseContext = {
             house_id: houseId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
-            development_name: data.development_name || 'Welcome Home', // Safe fallback, not "Your Development"
+            development_name: data.development_name || '', // Empty string if missing - subtitle will be hidden
             development_logo_url: data.development_logo_url,
             development_system_instructions: data.development_system_instructions || '',
             purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',
@@ -497,33 +497,22 @@ export default function HomeResidentPage() {
             paddingBottom: '12px',
           }}
         >
-        {/* Left: Development Logo */}
+        {/* Left: Development Logo - Data-driven from API, no hardcoded fallbacks */}
         <div className="flex items-center gap-3">
           <div className="flex h-[45px] w-auto items-center justify-center">
-            {house?.development_name?.toLowerCase().includes('rathard lawn') ? (
+            {house?.development_logo_url ? (
               <img 
-                src="/rathard-lawn-logo.png" 
-                alt="Rathard Lawn logo"
-                width={150}
-                height={45}
-                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
-              <img 
-                src="/rathard-park-logo.png" 
-                alt="Rathard Park logo"
+                src={house.development_logo_url} 
+                alt={`${house.development_name || 'Development'} logo`}
                 width={150}
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
-              <img 
-                src="/longview-logo.png" 
-                alt="Longview Estates logo"
-                width={150}
-                height={45}
-                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
+              // Neutral fallback when no logo - just show development name text
+              <span className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {house?.development_name || 'OpenHouse'}
+              </span>
             )}
           </div>
         </div>
@@ -608,6 +597,7 @@ export default function HomeResidentPage() {
               initialMessage={initialMessage}
               purchaserName={house.purchaser_name}
               developmentName={house.development_name}
+              logoUrl={house.development_logo_url}
               unitUid={unitUid}
               token={validatedToken || ''}
               selectedLanguage={selectedLanguage}

@@ -244,6 +244,7 @@ interface PurchaserChatTabProps {
   initialMessage: string;
   purchaserName?: string;
   developmentName?: string;
+  logoUrl?: string | null;
   unitUid: string;
   token: string;
   selectedLanguage: string;
@@ -405,6 +406,7 @@ export default function PurchaserChatTab({
   initialMessage,
   purchaserName,
   developmentName,
+  logoUrl,
   unitUid,
   token,
   selectedLanguage,
@@ -975,26 +977,22 @@ export default function PurchaserChatTab({
         >
           <style>{ANIMATION_STYLES}</style>
           
-          {/* Logo */}
+          {/* Logo - Data-driven from API, no hardcoded fallbacks */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
-            {developmentName?.toLowerCase().includes('rathard lawn') ? (
+            {logoUrl ? (
               <img 
-                src="/rathard-lawn-logo.png" 
-                alt="Rathard Lawn" 
+                src={logoUrl} 
+                alt={`${developmentName || 'Development'} logo`}
                 className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
-            ) : developmentName?.toLowerCase().includes('rathard park') ? (
-              <img 
-                src="/rathard-park-logo.png" 
-                alt="Rathard Park" 
-                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
+            ) : developmentName ? (
+              <span className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {developmentName}
+              </span>
             ) : (
-              <img 
-                src="/longview-logo.png" 
-                alt="Longview Estates" 
-                className={`h-[50px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
+              <span className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                OpenHouse
+              </span>
             )}
           </div>
 

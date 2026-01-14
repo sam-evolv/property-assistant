@@ -1,0 +1,77 @@
+You are a principal engineer. We have a multi-tenant purchaser portal with developments (Longview Park, Rathard Park, Rathard Lawn). Current production behavior (confirmed by screenshots):
+
+- Intro screen shows "Welcome Home" twice: once as the main H1 ("Welcome Home") and again where the estate name should be (subtitle).
+- Address now displays correctly (good), but the estate name does NOT.
+- Inside the portal, the logo in the header and center branding are STILL Longview for Rathard Lawn / Rathard Park. This is a critical tenant branding leak.
+
+Goal (non-negotiable)
+A) Intro must render:
+   - H1: "Welcome Home" (keep)
+   - Subtitle: the actual estate/development name, e.g. "Rathard Lawn" or "Rathard Park" or "Longview Park" (NOT "Welcome Home", NOT "Your Development")
+   - Greeting: "Hello, {firstName}"
+   - Address: full formatted address (already ok, ensure stays ok)
+B) Portal header/logo must render the correct logo for the unit’s development (Rathard Park/Rathard Lawn/Longview), never a global default.
+C) Fix must be data-driven from DB (no hardcoded mappings). Cache keys must be tenant-aware.
+
+PHASE 1: Find the exact rendering code and fix the intro subtitle
+1) Search codebase for these strings and locate the exact Intro component(s):
+   - "Welcome Home"
+   - "Your Development"
+   - "Hello,"
+2) Identify what variable is used for the subtitle line that currently shows "Welcome Home".
+3) Fix the binding so subtitle renders development name:
+   - Use `development.name` (or `intro.developmentName`) from the resolved payload.
+   - If development name is missing, show a safe placeholder like "" or " " (do not show "Welcome Home" again).
+4) Add a guard: if subtitle equals the H1 text, don’t render it (prevents duplicates even if regression happens again).
+
+PHASE 2: Identify why logos are stuck on Longview (root cause with proof)
+5) Locate all logo render points:
+   - header top-left logo
+   - center logo on chat screen
+   Search for <img ...logo>, "Longview", "logoUrl", "branding", "tenant".
+6) Trace the data source for logoUrl:
+   - Is it a static import? (e.g. import longviewLogo from ...)
+   - Is it coming from a global config constant?
+   - Is it coming from a store/context that persists across tenants?
+   - Is it cached with a non-tenant key? (e.g. localStorage "branding" or in-memory "branding")
+7) Add temporary logs (server + client) on portal load:
+   - unitId / accessCode
+   - developmentId
+   - development.name
+   - branding.logoUrl
+   - any cache key used
+   so we can prove what values are actually being returned and what the UI is consuming.
+
+PHASE 3: Make branding resolution single-source-of-truth (no globals)
+8) Ensure the API that powers the purchaser portal returns a single payload that includes:
+   - unit (id, name fields, address fields, developmentId)
+   - development (id, name)
+   - branding (logoUrl) for that development
+9) Update the client so ALL logo render points use ONLY that runtime `branding.logoUrl`.
+   - Remove any fallback to Longview images or static default imports for tenant areas.
+   - If branding.logoUrl is missing, render nothing or a neutral OpenHouse mark (not Longview).
+10) Fix caching:
+   - Any cache for branding must be keyed by developmentId (or tenantId + developmentId).
+   - Any global store must reset when the unit/development changes.
+   - If localStorage is used, version the key and namespace it (e.g. branding:v2:{developmentId}).
+
+PHASE 4: Data integrity check (do not skip)
+11) Verify DB contains correct branding records:
+   - developments table has correct name for Rathard Park and Rathard Lawn
+   - there is a logo_url (or linked branding asset) per development
+   If missing, add a migration/seed to populate Rathard Park and Rathard Lawn logo URLs properly.
+
+PHASE 5: Regression-proofing
+12) Add a minimal test (unit/integration) for resolver:
+   - Given 3 developments with 3 logos and 3 units, resolver returns correct development.name and branding.logoUrl.
+13) Add a small UI assertion (component test or smoke test):
+   - Intro subtitle contains development name and is not equal to "Welcome Home".
+   - Header logo src equals the resolved branding.logoUrl.
+
+Deliverables
+- Implement fix for intro subtitle and logo rendering.
+- Remove Longview default leakage.
+- Provide a short report:
+  root cause(s), what changed, how to verify (3 test units/URLs), what tests added.
+
+Start now by locating the Intro component rendering the duplicate "Welcome Home", then locate the logo source and prove why it's Longview.
