@@ -1,0 +1,102 @@
+You are a principal engineer. The purchaser portal intro screen is still wrong in production (mobile screenshot shows “Your Development” and “Your Home” instead of the estate name and full address). The previous attempt claimed fixes, but evidence shows the intro is still rendering fallbacks.
+
+Objective
+Make tenant branding deterministic and data-driven:
+- Intro must show correct Development name (Rathard Park / Rathard Lawn / Longview Park)
+- Intro must show purchaser name + full formatted address (house number + street + locality + eircode, as stored)
+- Portal header/logo must be the correct logo for that development
+- No hardcoded estate mappings. No “known mappings” resolver. Use DB as source of truth.
+- Must identify exact root cause with evidence (logs + payloads) and then fix.
+
+Hard constraints
+- Do not guess.
+- Do not patch with hardcoded strings or slug maps.
+- Fix must cover intro AND in-portal branding.
+- Fix must include cache-key hardening (tenant-aware) and at least one automated test.
+
+PHASE 0: Confirm we’re debugging the right deployment
+1) Locate where the Replit deployment URL routes (which app/entrypoint). Print the build/commit hash in the UI footer in dev mode and in server logs on boot.
+2) Verify the running deployment matches the code we’re editing.
+
+PHASE 1: Identify the exact intro data contract
+3) Find the component/page rendering the intro text “Your Development”. Search repo for:
+   - "Your Development"
+   - "Welcome Home"
+   - "Your Home"
+4) Identify how it gets data:
+   - Which hook/store/context provides intro data?
+   - Which API endpoint is called?
+   - What query param identifies the unit (unitId/accessCode/token)?
+
+PHASE 2: Instrumentation (end-to-end proof)
+5) Add temporary structured logs (server + client) that print, for a single intro load:
+   - input identifier (unitId / accessCode / token)
+   - resolved unit.id, unit.unit_number, unit.address_line_1/2, city, eircode
+   - resolved development.id, development.name
+   - resolved branding.logo_url (and any tenant_id/org_id)
+   - cache hit/miss and cache key used (if any)
+6) On the API response, ensure it returns a single payload:
+   {
+     unit: {...},
+     development: { id, name },
+     branding: { logoUrl },
+     formattedAddress: "..."
+   }
+7) Add a debug header response (dev-only) such as:
+   X-OH-UnitId, X-OH-DevId, X-OH-DevName, X-OH-Logo
+so we can confirm in browser devtools without reading logs.
+
+PHASE 3: Validate the database truth (no mappings)
+8) Find the canonical DB tables/columns used for:
+   - units table: development_id, address fields, owner name
+   - developments table: name, id, tenant/org id
+   - branding/assets table: logo_url or equivalent
+9) Run a DB query (via existing db client) to confirm for Rathard Park and Rathard Lawn units:
+   - units.development_id is set correctly
+   - developments.name is not null
+   - developments has an associated logo/branding record
+If any of these are missing, we must fix seed/data or migration, not code.
+
+PHASE 4: Root cause isolation (most likely issues)
+10) Determine which of these is happening, with evidence:
+   A) Wrong join: join condition uses wrong key (tenant_id vs development_id), returns null dev
+   B) Wrong identifier: intro uses accessCode that resolves to wrong unit or partial unit
+   C) Client overwrites: global store persists prior “development” and falls back
+   D) Caching collision: cache key lacks unitId/developmentId, returns stale payload
+   E) Wrong deployment: code changes aren’t in the running app
+Write a short “Finding” section identifying the exact cause.
+
+PHASE 5: Implement the correct fix (data-driven)
+11) Remove any “known mappings” fallback logic. Replace with:
+   - Always resolve development by units.development_id
+   - Always resolve branding by development.id (or development.branding_id)
+   - If development.name is null, treat as DATA ERROR:
+     - log structured error
+     - show a safe UI message (“Welcome Home”) but NEVER “Your Development” placeholder
+12) Ensure the intro uses the same source of truth as the header branding (single resolver shared).
+13) Ensure address formatting uses the actual unit fields and includes all available parts:
+   address_line_1, address_line_2 (optional), city (optional), county (optional), eircode (optional)
+Do not output “Apartment 2B” style example; use actual stored fields.
+
+PHASE 6: Cache hardening
+14) Identify all caches used (server memoization, fetch cache, localStorage, SW, etc).
+15) Ensure cache keys include: unitId AND developmentId (or tenantId) at minimum.
+16) If localStorage is used for branding, namespace it by developmentId.
+17) Add a one-time cache bust for existing users (versioned key).
+
+PHASE 7: Tests + verification
+18) Add an integration test for resolver:
+   - create 3 developments with distinct names + logos
+   - create 3 units linked to each development
+   - assert payload returns correct dev name + logo for each unit
+19) Add at least one UI smoke test or component test verifying:
+   - Intro renders “Welcome to {DevelopmentName}” when development.name exists
+   - Intro renders formattedAddress that includes address_line_1
+20) Provide a manual verification checklist with 3 test URLs (one per estate) and exact expected strings.
+
+Deliverable
+- Implement fixes, remove mapping fallbacks, add logs and tests.
+- Provide a final concise report:
+  Root cause, Fix, Cache changes, Tests added, How to verify.
+
+Start now by locating the intro component and the exact endpoint it calls, then log the resolved dev name and logo values end-to-end.
