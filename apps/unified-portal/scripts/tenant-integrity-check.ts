@@ -179,13 +179,39 @@ function checkUnitIdUsage(): void {
   const hasActualUnitId = content.includes('actualUnitId');
   const persistCalls = (content.match(/persistMessageSafely\s*\(/g) || []).length;
   const unitIdInPersist = (content.match(/unit_id:\s*actualUnitId/g) || []).length;
+  const requireUnitIdCalls = (content.match(/require_unit_id:\s*true/g) || []).length;
   
   if (!hasActualUnitId) {
     addResult('unit-id-persistence', false, 'actualUnitId variable not found in chat route', 'error');
   } else if (unitIdInPersist === 0) {
     addResult('unit-id-persistence', false, 'persistMessageSafely calls do not include unit_id', 'error');
   } else {
-    addResult('unit-id-persistence', true, `Found ${unitIdInPersist} persistMessageSafely calls with unit_id`);
+    addResult('unit-id-persistence', true, `Found ${unitIdInPersist} persistMessageSafely calls with unit_id (${requireUnitIdCalls} enforced)`);
+  }
+}
+
+function checkNoHouseIdInQueries(): void {
+  const apiDir = path.join(process.cwd(), 'app/api');
+  const routeFiles = scanDirectory(apiDir, ['.ts']);
+  
+  const violations: string[] = [];
+  
+  for (const file of routeFiles) {
+    if (!file.includes('route.ts')) continue;
+    
+    const content = fs.readFileSync(file, 'utf-8');
+    
+    const hasHouseIdQuery = /\.house_id|house_id\s*=|WHERE\s+house_id|messages\.house_id/gi.test(content);
+    
+    if (hasHouseIdQuery) {
+      violations.push(file);
+    }
+  }
+  
+  if (violations.length === 0) {
+    addResult('no-house-id-queries', true, 'No deprecated house_id queries found in API routes');
+  } else {
+    addResult('no-house-id-queries', false, `Deprecated house_id usage in: ${violations.join(', ')}`, 'error');
   }
 }
 
@@ -198,6 +224,7 @@ async function main() {
   checkDashboardQueriesScoped();
   checkNoHardcodedLogos();
   checkUnitIdUsage();
+  checkNoHouseIdInQueries();
   
   console.log('\nResults:\n');
   

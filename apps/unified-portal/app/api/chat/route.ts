@@ -111,11 +111,11 @@ const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
 const MAX_CHUNKS = 20; // Limit context to top 20 most relevant chunks
 const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 
-// Resilient message persistence - never fails the chat response
+// Resilient message persistence - enforces unit_id for main flow
 interface MessagePersistParams {
   tenant_id: string;
   development_id: string;
-  unit_id?: string | null;  // Supabase unit UUID for proper linkage
+  unit_id?: string | null;  // SEV-1: Required for main flow, optional for early exits
   user_id?: string | null;  // Must be valid UUID or null
   unit_uid?: string | null;
   user_message: string;
@@ -125,6 +125,7 @@ interface MessagePersistParams {
   latency_ms: number;
   metadata: Record<string, any>;
   request_id?: string;
+  require_unit_id?: boolean;  // SEV-1: Set true to enforce unit_id requirement
 }
 
 // Validate UUID format
@@ -135,10 +136,28 @@ function isValidUUID(str: string | null | undefined): boolean {
 
 async function persistMessageSafely(params: MessagePersistParams): Promise<{ success: boolean; error?: string }> {
   try {
-    // Only use user_id/unit_id if it's a valid UUID, otherwise null
-    // Unit identifiers like "LV-PARK-008" are stored in metadata.unitUid
+    // SEV-1 ENFORCEMENT: If require_unit_id is set, block if unit_id is invalid
+    if (params.require_unit_id && !isValidUUID(params.unit_id)) {
+      const errorMsg = `unit_id is required and must be a valid UUID. Got: ${params.unit_id}`;
+      console.error('[Chat] Message persist BLOCKED - missing unit_id (required):', {
+        request_id: params.request_id,
+        unit_uid: params.unit_uid,
+        unit_id: params.unit_id,
+      });
+      return { success: false, error: errorMsg };
+    }
+    
     const validUserId = isValidUUID(params.user_id) ? params.user_id! : null;
-    const validUnitId = isValidUUID(params.unit_id) ? params.unit_id! : (isValidUUID(params.user_id) ? params.user_id! : null);
+    const validUnitId = isValidUUID(params.unit_id) ? params.unit_id! : null;
+    
+    // Log warning if unit_id is missing (for analytics tracking)
+    if (!validUnitId) {
+      console.warn('[Chat] Message persisted WITHOUT unit_id:', {
+        request_id: params.request_id,
+        unit_uid: params.unit_uid,
+        require_unit_id: params.require_unit_id,
+      });
+    }
     
     await db.insert(messages).values({
       tenant_id: params.tenant_id,
@@ -1018,6 +1037,7 @@ export async function POST(request: NextRequest) {
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: validatedUnitUid || userId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -1053,6 +1073,7 @@ export async function POST(request: NextRequest) {
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: validatedUnitUid || userId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -1147,6 +1168,7 @@ export async function POST(request: NextRequest) {
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
             unit_id: actualUnitId,
+        require_unit_id: true,
             user_id: validatedUnitUid || userId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,
@@ -1233,6 +1255,7 @@ export async function POST(request: NextRequest) {
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
             unit_id: actualUnitId,
+        require_unit_id: true,
             user_id: validatedUnitUid || userId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,
@@ -1258,6 +1281,7 @@ export async function POST(request: NextRequest) {
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: validatedUnitUid || userId || null,
           unit_uid: validatedUnitUid || null,
           user_message: message,
@@ -1316,6 +1340,7 @@ export async function POST(request: NextRequest) {
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
             unit_id: actualUnitId,
+        require_unit_id: true,
             user_id: clientUnitUid || userId || null,
             unit_uid: clientUnitUid || null,
             user_message: message,
@@ -1379,6 +1404,7 @@ export async function POST(request: NextRequest) {
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: clientUnitUid || userId || null,
           unit_uid: clientUnitUid || null,
           user_message: message,
@@ -1571,6 +1597,7 @@ export async function POST(request: NextRequest) {
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
             unit_id: actualUnitId,
+        require_unit_id: true,
             user_id: clientUnitUid || userId || null,
             unit_uid: clientUnitUid || null,
             user_message: message,
@@ -1695,6 +1722,7 @@ export async function POST(request: NextRequest) {
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
@@ -1754,6 +1782,7 @@ export async function POST(request: NextRequest) {
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
@@ -2484,6 +2513,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: conversationUserId || null,
         unit_uid: effectiveUnitUid || null,
         user_message: message,
@@ -2592,6 +2622,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: conversationUserId || null,
           unit_uid: effectiveUnitUid || null,
           user_message: message,
@@ -2649,6 +2680,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
           unit_id: actualUnitId,
+        require_unit_id: true,
           user_id: conversationUserId || null,
           unit_uid: effectiveUnitUid || null,
           user_message: message,
@@ -2721,6 +2753,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -2785,6 +2818,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -2948,6 +2982,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
         unit_id: actualUnitId,
+        require_unit_id: true,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -3293,6 +3328,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
             unit_id: actualUnitId,
+        require_unit_id: true,
             user_id: conversationUserId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,

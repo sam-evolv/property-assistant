@@ -15,10 +15,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');
 
-    const nullHouseIdCount = await db.execute(sql`
-      SELECT COUNT(*)::int as count FROM messages WHERE house_id IS NULL
-    `);
-
     const nullUnitIdCount = await db.execute(sql`
       SELECT COUNT(*)::int as count FROM messages WHERE unit_id IS NULL
     `);
@@ -80,7 +76,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       summary: {
         total_messages: (totalMessages.rows[0] as any)?.count || 0,
-        null_house_id_count: (nullHouseIdCount.rows[0] as any)?.count || 0,
         null_unit_id_count: (nullUnitIdCount.rows[0] as any)?.count || 0,
         null_user_id_count: (nullUserIdCount.rows[0] as any)?.count || 0,
       },

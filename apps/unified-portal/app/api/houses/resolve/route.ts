@@ -266,7 +266,7 @@ export async function POST(req: Request) {
       const responseData = {
         success: true,
         unitId: unitIdentifier,
-        house_id: unitIdentifier,
+        unit_id: unitIdentifier,
         tenantId: unit.tenant_id || null,
         tenant_id: unit.tenant_id || null,
         developmentId: unit.development_id,
@@ -384,7 +384,7 @@ export async function POST(req: Request) {
           {
             success: true,
             unitId: supabaseUnit.id,
-            house_id: supabaseUnit.id,
+            unit_id: supabaseUnit.id,
             tenantId: resolved?.tenantId || null,
             tenant_id: resolved?.tenantId || null,
             developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
@@ -512,7 +512,7 @@ export async function POST(req: Request) {
         {
           success: true,
           unitId: homeowner.id,
-          house_id: homeowner.id,
+          unit_id: homeowner.id,
           tenantId: homeowner.tenant_id || null,
           tenant_id: homeowner.tenant_id || null,
           developmentId: homeowner.development_id,

@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 
     const [msgCount, activeUsers, homeownerCount, developerCount] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0).catch(() => 0),
-      // Use user_id which contains unit UUID for purchaser portal chats (house_id is null)
+      // Use user_id which contains unit UUID for purchaser portal chats
       db.execute(sql`
         SELECT COUNT(DISTINCT user_id)::int as count
         FROM messages

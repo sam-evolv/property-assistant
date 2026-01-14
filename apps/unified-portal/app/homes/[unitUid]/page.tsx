@@ -30,7 +30,7 @@ const PurchaserDocumentsTab = dynamic(
 );
 
 interface HouseContext {
-  house_id: string;
+  unit_id: string;
   development_id: string;
   development_code: string;
   development_name: string;
@@ -146,19 +146,19 @@ export default function HomeResidentPage() {
         setIsRetrying(false);
         const data = await validateRes.json();
 
-        // Handle both old format (house_id) and new format (unitId)
-        const houseId = data.house_id || data.unitId;
+        // Handle API response formats (unit_id is canonical)
+        const unitId = data.unit_id || data.unitId || data.house_id;
         
-        if (houseId) {
+        if (unitId) {
           // Store the full QR token for drawing access
           // Use qrToken if available, otherwise use unitUid as fallback
           const effectiveToken = qrToken || unitUid;
           sessionStorage.setItem(tokenKey, effectiveToken);
           setValidatedToken(effectiveToken);
           
-          // Map new response format to expected HouseContext
+          // Map response format to HouseContext
           const houseData: HouseContext = {
-            house_id: houseId,
+            unit_id: unitId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
             development_name: data.development_name || 'Longview Park',
@@ -187,7 +187,7 @@ export default function HomeResidentPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              unit_id: houseId,
+              unit_id: unitId,
               development_id: houseData.development_id,
               tenant_id: houseData.tenant_id,
             }),
@@ -594,7 +594,7 @@ export default function HomeResidentPage() {
         <div className="flex-1 min-h-0 overflow-hidden">
           <Tabs.Content value="chat" className="h-full min-h-0 overflow-hidden">
             <PurchaserChatTab
-              houseId={house.house_id}
+              houseId={house.unit_id}
               developmentId={house.development_id}
               initialMessage={initialMessage}
               purchaserName={house.purchaser_name}

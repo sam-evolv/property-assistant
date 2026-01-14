@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 
 interface HouseContext {
-  house_id: string;
+  unit_id: string;
   development_id: string;
   development_code: string;
   development_name: string;
@@ -34,8 +34,12 @@ export default function HousePage() {
         const res = await fetch(`/api/houses/resolve?code=${unitCode}`);
         const data = await res.json();
         
-        if (data.house_id) {
-          setHouse(data);
+        if (data.unit_id || data.house_id) {
+          const mappedData = {
+            ...data,
+            unit_id: data.unit_id || data.house_id,
+          };
+          setHouse(mappedData);
           setMessages([
             {
               role: 'assistant',
@@ -66,7 +70,7 @@ export default function HousePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          houseId: house.house_id,
+          houseId: house.unit_id,
           developmentId: house.development_id,
           messages: [...messages, userMessage],
         }),
