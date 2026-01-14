@@ -94,13 +94,22 @@ async function ensureLongviewEstatesTenant() {
     console.log('- Longview Estates tenant exists');
   }
 
-  console.log('\nUpdating 3 developments to use Longview Estates tenant...');
+  console.log('\nChecking 3 developments tenant linkage...');
   for (const dev of DEVELOPMENTS) {
-    await db.execute(sql`
-      UPDATE developments SET tenant_id = ${LONGVIEW_ESTATES_TENANT_ID}::uuid
-      WHERE id = ${dev.devId}::uuid
+    const result = await db.execute(sql`
+      SELECT tenant_id FROM developments WHERE id = ${dev.devId}::uuid
     `);
-    console.log(`  ✓ ${dev.name}`);
+    const currentTenantId = (result.rows[0] as any)?.tenant_id;
+
+    if (currentTenantId === LONGVIEW_ESTATES_TENANT_ID) {
+      console.log(`  - ${dev.name}: already correct`);
+    } else {
+      await db.execute(sql`
+        UPDATE developments SET tenant_id = ${LONGVIEW_ESTATES_TENANT_ID}::uuid
+        WHERE id = ${dev.devId}::uuid
+      `);
+      console.log(`  ✓ ${dev.name}: updated to Longview Estates`);
+    }
   }
 }
 
@@ -172,10 +181,14 @@ async function seedMessages() {
   for (const dev of DEVELOPMENTS) {
     console.log(`📍 ${dev.name}`);
 
-    const { count } = await db.execute(sql`
+    const { count } = await db
+      .execute(
+        sql`
       SELECT COUNT(*)::int as count FROM messages 
       WHERE development_id = ${dev.devId}::uuid
-    `).then((r) => ({ count: (r.rows[0] as any).count }));
+    `
+      )
+      .then((r) => ({ count: (r.rows[0] as any).count }));
 
     if (count > 10) {
       console.log(`  - Already has ${count} messages, skipping`);
@@ -183,18 +196,16 @@ async function seedMessages() {
     }
 
     for (let i = 0; i < 15; i++) {
-      const unit = dev.units[Math.floor(Math.random() * dev.units.length)];
       const question = questions[Math.floor(Math.random() * questions.length)];
 
       try {
         await db.execute(sql`
           INSERT INTO messages (
-            tenant_id, development_id, user_id, user_message, assistant_message, question_topic, created_at
+            tenant_id, development_id, user_message, assistant_message, question_topic, created_at
           )
           VALUES (
             ${LONGVIEW_ESTATES_TENANT_ID}::uuid,
             ${dev.devId}::uuid,
-            ${unit.email},
             ${question},
             'Thank you for your question. Our team will respond shortly.',
             'general',
