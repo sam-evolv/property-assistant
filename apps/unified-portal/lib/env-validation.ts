@@ -117,3 +117,52 @@ export function requireEnvVar(key: string): string {
 export function getEnvVar(key: string, defaultValue?: string): string | undefined {
   return process.env[key] || defaultValue;
 }
+
+const ALLOWED_DEV_SUPABASE_REFS = [
+  'ljodxvfbgukrbchpibxa', // Development/staging project
+];
+
+export class DevOnlyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DevOnlyError';
+  }
+}
+
+export function assertDevOnly(context?: string): void {
+  const nodeEnv = process.env.NODE_ENV;
+  const allowSeeding = process.env.ALLOW_SEEDING;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  
+  const supabaseRef = supabaseUrl.match(/https:\/\/([a-z0-9]+)\.supabase/)?.[1] || '';
+  const isAllowedProject = ALLOWED_DEV_SUPABASE_REFS.includes(supabaseRef);
+  
+  const isDevMode = nodeEnv === 'development';
+  const isSeedingAllowed = allowSeeding === 'YES';
+  
+  if (!isDevMode || !isSeedingAllowed || !isAllowedProject) {
+    const reason = !isDevMode 
+      ? 'NODE_ENV is not development' 
+      : !isSeedingAllowed 
+        ? 'ALLOW_SEEDING is not YES' 
+        : `Supabase project ${supabaseRef} is not in allowlist`;
+    
+    console.error(`[SECURITY] Dev-only access denied: ${reason}. Context: ${context || 'unknown'}`);
+    throw new DevOnlyError(`Dev-only operation blocked: ${reason}`);
+  }
+  
+  console.log(`[DEV] Dev-only access granted. Context: ${context || 'unknown'}`);
+}
+
+export function isDevEnvironment(): boolean {
+  try {
+    assertDevOnly('environment-check');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isProductionEnvironment(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
