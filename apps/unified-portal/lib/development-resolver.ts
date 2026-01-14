@@ -46,30 +46,12 @@ export async function resolveDevelopment(
   if (supabaseProjectId && KNOWN_ID_MAPPINGS[supabaseProjectId]) {
     const mapping = KNOWN_ID_MAPPINGS[supabaseProjectId];
     console.log('[DevelopmentResolver] Using known mapping:', mapping.name, '->', mapping.drizzleId);
-    
-    // Fetch logo and tenant from Drizzle to complete the branding
-    let logoUrl: string | null = null;
-    let tenantId: string | null = null;
-    try {
-      const { rows: devRows } = await db.execute(sql`
-        SELECT logo_url, tenant_id FROM developments WHERE id = ${mapping.drizzleId}::uuid LIMIT 1
-      `);
-      if (devRows.length > 0) {
-        const dev = devRows[0] as any;
-        logoUrl = dev.logo_url;
-        tenantId = dev.tenant_id;
-        console.log('[DevelopmentResolver] Enriched known mapping with logo:', logoUrl, 'tenant:', tenantId);
-      }
-    } catch (err) {
-      console.error('[DevelopmentResolver] Failed to enrich known mapping:', err);
-    }
-    
     const resolved: ResolvedDevelopment = {
       drizzleDevelopmentId: mapping.drizzleId,
       supabaseProjectId: supabaseProjectId,
       developmentName: mapping.name,
-      tenantId,
-      logoUrl,
+      tenantId: null,
+      logoUrl: null,
     };
     developmentCache.set(cacheKey, resolved);
     return resolved;

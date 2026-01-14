@@ -157,18 +157,17 @@ export default function HomeResidentPage() {
           setValidatedToken(effectiveToken);
           
           // Map new response format to expected HouseContext
-          // CRITICAL: Keep development_name as actual value or empty string (never "Welcome Home" - that's the H1)
           const houseData: HouseContext = {
             house_id: houseId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
-            development_name: data.development_name || '', // Empty string if missing - subtitle will be hidden
+            development_name: data.development_name || 'Longview Park',
             development_logo_url: data.development_logo_url,
             development_system_instructions: data.development_system_instructions || '',
             purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',
             house_type: data.house_type || '',
             bedrooms: data.bedrooms || 0,
-            address: data.address || 'Your New Home', // Safe fallback when no address
+            address: data.address || '',
             eircode: data.eircode || '',
             mrpn: data.mrpn || '',
             electricity_account: data.electricity_account || '',
@@ -180,14 +179,6 @@ export default function HomeResidentPage() {
             project_id: data.project_id,
             floor_plan_pdf_url: data.floorPlanUrl || data.floor_plan_pdf_url,
           };
-          
-          // Log if we hit fallbacks (helps identify data issues)
-          if (!data.development_name) {
-            console.warn('[Home] WARNING: No development_name returned from API, using fallback');
-          }
-          if (!data.address) {
-            console.warn('[Home] WARNING: No address returned from API, using fallback');
-          }
           
           setHouse(houseData);
 
@@ -497,22 +488,33 @@ export default function HomeResidentPage() {
             paddingBottom: '12px',
           }}
         >
-        {/* Left: Development Logo - Data-driven from API, no hardcoded fallbacks */}
+        {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
           <div className="flex h-[45px] w-auto items-center justify-center">
-            {house?.development_logo_url ? (
+            {house?.development_name?.toLowerCase().includes('rathard lawn') ? (
               <img 
-                src={house.development_logo_url} 
-                alt={`${house.development_name || 'Development'} logo`}
+                src="/rathard-lawn-logo.png" 
+                alt="Rathard Lawn logo"
+                width={150}
+                height={45}
+                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
+            ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
+              <img 
+                src="/rathard-park-logo.png" 
+                alt="Rathard Park logo"
                 width={150}
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
-              // Neutral fallback when no logo - just show development name text
-              <span className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {house?.development_name || 'OpenHouse'}
-              </span>
+              <img 
+                src="/longview-logo.png" 
+                alt="Longview Estates logo"
+                width={150}
+                height={45}
+                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
             )}
           </div>
         </div>
@@ -597,7 +599,6 @@ export default function HomeResidentPage() {
               initialMessage={initialMessage}
               purchaserName={house.purchaser_name}
               developmentName={house.development_name}
-              logoUrl={house.development_logo_url}
               unitUid={unitUid}
               token={validatedToken || ''}
               selectedLanguage={selectedLanguage}

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
+import { resolveDevelopment } from '@/lib/development-resolver';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders, isConnectionPoolError } from '@/lib/api-error-utils';
@@ -235,91 +236,46 @@ export async function POST(req: Request) {
 
     const unit = unitResult.rows[0] as any;
 
-    // CRITICAL: Check if Drizzle unit has incomplete branding data
-    // If development_id is NULL OR dev_name is NULL, we can't display correct branding
-    // Fall through to Supabase which has authoritative project data
-    const drizzleUnitIncomplete = unit && (!unit.development_id || !unit.dev_name);
-    
-    if (drizzleUnitIncomplete) {
-      console.log("[Resolve] Drizzle unit incomplete (no development_id/address), checking Supabase for:", token, `requestId=${requestId}`);
-    }
-
-    if (unit && !drizzleUnitIncomplete) {
-      // Found in units table with complete data
-      // Combine address parts for full formatted address
-      const addressParts = [
-        unit.address_line_1,
-        unit.address_line_2,
-        unit.city,
-        unit.eircode,
-      ].filter(Boolean);
-      const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : (unit.dev_address || '');
+    if (unit) {
+      // Found in units table
+      const fullAddress = unit.address_line_1 || unit.dev_address || '';
       const unitIdentifier = unit.unit_uid || unit.id;
 
-      console.log("[Resolve] Found complete unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id, "DevName:", unit.dev_name);
+      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id);
 
-      // Get development data directly from DB - no hardcoded mappings
-      let resolvedDevName = unit.dev_name;
-      let resolvedLogoUrl = unit.dev_logo_url;
-      let resolvedTenantId = unit.tenant_id;
-      
-      // If dev_name is null but we have development_id, query DB directly
-      if (!resolvedDevName && unit.development_id) {
-        console.log("[Resolve] dev_name null, querying DB for:", unit.development_id);
-        try {
-          const { rows: devRows } = await db.execute(sql`
-            SELECT name, logo_url, tenant_id FROM developments WHERE id = ${unit.development_id}::uuid LIMIT 1
-          `);
-          if (devRows.length > 0) {
-            const dev = devRows[0] as any;
-            resolvedDevName = dev.name;
-            resolvedLogoUrl = resolvedLogoUrl || dev.logo_url;
-            resolvedTenantId = resolvedTenantId || dev.tenant_id;
-            console.log("[Resolve] DB resolved development:", resolvedDevName);
-          }
-        } catch (devErr: any) {
-          console.error("[Resolve] Development query failed:", devErr.message);
-        }
+      // Coordinate resolution order: PROJECT OVERRIDE -> geocode address -> unit lat/lng -> development lat/lng
+      // Priority 1: Hard override by project/development ID (SOURCE OF TRUTH for known schemes)
+      let coordinates = getProjectCoordinates(unit.development_id);
+      if (coordinates) {
+        console.log("[Resolve] Using project coordinate override for development:", unit.development_id, "->", coordinates);
       }
-
-      // Coordinate resolution order: geocode address -> unit lat/lng -> development lat/lng
-      let coordinates: { lat: number; lng: number } | null = null;
-      
-      // Priority 1: Geocode from address (most accurate)
-      if (fullAddress) {
+      // Priority 2: Geocode from address
+      if (!coordinates && fullAddress) {
         coordinates = await geocodeAddress(fullAddress);
       }
-      // Priority 2: Unit-level coordinates
+      // Priority 3: Unit-level coordinates
       if (!coordinates && unit.latitude && unit.longitude) {
         coordinates = { lat: unit.latitude, lng: unit.longitude };
       }
-      // Priority 3: Development-level coordinates from DB
+      // Priority 4: Development-level coordinates from DB
       if (!coordinates && unit.dev_latitude && unit.dev_longitude) {
         console.log("[Resolve] Using development coordinates as fallback:", unit.dev_latitude, unit.dev_longitude);
         coordinates = { lat: unit.dev_latitude, lng: unit.dev_longitude };
-      }
-
-      // Log data error if development name couldn't be resolved (this should NOT happen with correct data)
-      if (!resolvedDevName) {
-        console.error("[Resolve] DATA_ERROR: Could not resolve development name for unit:", unitIdentifier, "dev_id:", unit.development_id, `requestId=${requestId}`);
-      }
-      if (!fullAddress) {
-        console.error("[Resolve] DATA_ERROR: No address for unit:", unitIdentifier, `requestId=${requestId}`);
       }
 
       const responseData = {
         success: true,
         unitId: unitIdentifier,
         house_id: unitIdentifier,
-        tenantId: resolvedTenantId || null,
-        tenant_id: resolvedTenantId || null,
+        tenantId: unit.tenant_id || null,
+        tenant_id: unit.tenant_id || null,
         developmentId: unit.development_id,
         development_id: unit.development_id,
-        development_name: resolvedDevName || null, // NULL instead of placeholder - let client decide
+        development_name: unit.dev_name || 'Your Development',
         development_code: '',
-        development_logo_url: resolvedLogoUrl || null,
+        development_logo_url: unit.dev_logo_url || null,
         development_system_instructions: '',
-        address: fullAddress || null, // NULL instead of placeholder - let client decide
+        address: fullAddress || 'Your Home',
         eircode: unit.eircode || '',
         purchaserName: unit.purchaser_name || 'Homeowner',
         purchaser_name: unit.purchaser_name || 'Homeowner',
@@ -332,31 +288,14 @@ export async function POST(req: Request) {
         latitude: coordinates?.lat || null,
         longitude: coordinates?.lng || null,
         specs: null,
-        _source: 'drizzle_units', // Debug: data source
       };
 
-      // Cache with tenant-aware key
-      const tenantCacheKey = `resolve:${resolvedTenantId || 'unknown'}:${token}`;
-      globalCache.set(tenantCacheKey, responseData, 60000);
-      globalCache.set(cacheKey, responseData, 60000); // Also set original for compatibility
+      globalCache.set(cacheKey, responseData, 60000);
       console.log(`[Resolve] Cached result for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
       recordCircuitBreakerSuccess('/api/houses/resolve');
-      
-      // Build response headers with debug info (dev only)
-      const responseHeaders = new Headers();
-      responseHeaders.set('x-request-id', requestId);
-      responseHeaders.set('Content-Type', 'application/json');
-      responseHeaders.set('x-cache', 'MISS');
-      if (process.env.NODE_ENV === 'development') {
-        responseHeaders.set('X-OH-UnitId', unitIdentifier);
-        responseHeaders.set('X-OH-DevId', unit.development_id || '');
-        responseHeaders.set('X-OH-DevName', resolvedDevName || '');
-        responseHeaders.set('X-OH-Source', 'drizzle');
-      }
-      
       return NextResponse.json(
         { ...responseData, request_id: requestId },
-        { headers: responseHeaders }
+        { headers: { ...getResponseHeaders(requestId), 'x-cache': 'MISS' } }
       );
     }
 
@@ -399,59 +338,20 @@ export async function POST(req: Request) {
           }
         }
         
-        // Resolve development from Supabase project - query DB directly (deterministic)
-        let resolvedDevName: string | null = null;
-        let resolvedLogoUrl: string | null = null;
-        let resolvedTenantId: string | null = null;
-        let drizzleDevelopmentId: string | null = null;
+        // Use development resolver to get both Supabase and Drizzle IDs
+        const resolved = await resolveDevelopment(supabaseUnit.project_id, fullAddress);
         
-        // Try to get project name from Supabase projects table, then match to Drizzle by exact name
-        if (supabaseUnit.project_id) {
-          try {
-            const { data: project } = await supabase
-              .from('projects')
-              .select('name, logo_url')
-              .eq('id', supabaseUnit.project_id)
-              .single();
-            
-            if (project?.name) {
-              console.log("[Resolve] Supabase project name:", project.name);
-              
-              // Match to Drizzle development by EXACT name (case-insensitive)
-              const { rows: devRows } = await db.execute(sql`
-                SELECT id, name, logo_url, tenant_id FROM developments WHERE LOWER(name) = LOWER(${project.name}) LIMIT 1
-              `);
-              if (devRows.length > 0) {
-                const dev = devRows[0] as any;
-                drizzleDevelopmentId = dev.id;
-                resolvedDevName = dev.name; // Use Drizzle name (canonical)
-                resolvedLogoUrl = dev.logo_url || project.logo_url || null;
-                resolvedTenantId = dev.tenant_id;
-                console.log("[Resolve] Matched to Drizzle development by exact name:", resolvedDevName, "tenant:", resolvedTenantId);
-              } else {
-                // Supabase project exists but no matching Drizzle development
-                // Use Supabase project name as-is (safe - it's the authoritative name)
-                resolvedDevName = project.name;
-                resolvedLogoUrl = project.logo_url || null;
-                console.log("[Resolve] Using Supabase project name (no Drizzle match):", resolvedDevName);
-              }
-            }
-          } catch (projectErr: any) {
-            console.log("[Resolve] Supabase project lookup failed:", projectErr.message);
-          }
-        }
-        
-        // If we couldn't resolve from project, log as DATA_ERROR
-        // DO NOT guess from address patterns - this risks cross-tenant leakage
-        if (!resolvedDevName) {
-          console.error("[Resolve] DATA_ERROR: Could not resolve development for Supabase unit:", supabaseUnit.id, "project_id:", supabaseUnit.project_id, `requestId=${requestId}`);
-        }
+        console.log("[Resolve] Resolved development:", resolved?.developmentName, 
+          "Supabase ID:", resolved?.supabaseProjectId, 
+          "Drizzle ID:", resolved?.drizzleDevelopmentId);
         
         // Cross-reference with Drizzle units to get full purchaser name
+        // Supabase may only have surnames, Drizzle has full names
         let fullPurchaserName = supabaseUnit.purchaser_name || '';
         
-        if (fullAddress && drizzleDevelopmentId) {
+        if (fullAddress && resolved?.drizzleDevelopmentId) {
           try {
+            // Extract unit number from address (e.g., "31 Longview Park" -> "31")
             const unitNumMatch = fullAddress.match(/^(\d+[A-Za-z]?)\s/);
             const unitNumber = unitNumMatch ? unitNumMatch[1] : null;
             
@@ -459,7 +359,7 @@ export async function POST(req: Request) {
               const drizzleUnitResult = await db.execute(sql`
                 SELECT purchaser_name 
                 FROM units 
-                WHERE development_id = ${drizzleDevelopmentId}::uuid
+                WHERE development_id = ${resolved.drizzleDevelopmentId}::uuid
                   AND (
                     address_line_1 ILIKE ${unitNumber + ' %'}
                     OR address_line_1 ILIKE ${unitNumber + ',%'}
@@ -480,56 +380,36 @@ export async function POST(req: Request) {
         }
         
         recordCircuitBreakerSuccess('/api/houses/resolve');
-        
-        const responseData = {
-          success: true,
-          unitId: supabaseUnit.id,
-          house_id: supabaseUnit.id,
-          tenantId: resolvedTenantId || null,
-          tenant_id: resolvedTenantId || null,
-          developmentId: drizzleDevelopmentId || supabaseUnit.project_id,
-          development_id: drizzleDevelopmentId || supabaseUnit.project_id,
-          supabase_project_id: supabaseUnit.project_id,
-          development_name: resolvedDevName || null, // NULL instead of placeholder
-          development_code: '',
-          development_logo_url: resolvedLogoUrl || null,
-          development_system_instructions: '',
-          address: fullAddress || null, // NULL instead of placeholder
-          eircode: '',
-          purchaserName: fullPurchaserName || 'Homeowner',
-          purchaser_name: fullPurchaserName || 'Homeowner',
-          user_id: null,
-          project_id: supabaseUnit.project_id,
-          houseType: null,
-          house_type: null,
-          floorPlanUrl: null,
-          floor_plan_pdf_url: null,
-          latitude: coordinates?.lat || null,
-          longitude: coordinates?.lng || null,
-          specs: null,
-          _source: 'supabase_units', // Debug: data source
-        };
-        
-        // Cache with tenant-aware key
-        const tenantCacheKey = `resolve:${resolvedTenantId || 'unknown'}:${token}`;
-        globalCache.set(tenantCacheKey, responseData, 60000);
-        globalCache.set(cacheKey, responseData, 60000);
-        
-        // Build response headers with debug info (dev only)
-        const responseHeaders = new Headers();
-        responseHeaders.set('x-request-id', requestId);
-        responseHeaders.set('Content-Type', 'application/json');
-        responseHeaders.set('x-cache', 'MISS');
-        if (process.env.NODE_ENV === 'development') {
-          responseHeaders.set('X-OH-UnitId', supabaseUnit.id);
-          responseHeaders.set('X-OH-DevId', (drizzleDevelopmentId || supabaseUnit.project_id) || '');
-          responseHeaders.set('X-OH-DevName', resolvedDevName || '');
-          responseHeaders.set('X-OH-Source', 'supabase');
-        }
-        
         return NextResponse.json(
-          { ...responseData, request_id: requestId },
-          { headers: responseHeaders }
+          {
+            success: true,
+            unitId: supabaseUnit.id,
+            house_id: supabaseUnit.id,
+            tenantId: resolved?.tenantId || null,
+            tenant_id: resolved?.tenantId || null,
+            developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+            development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+            supabase_project_id: supabaseUnit.project_id,
+            development_name: resolved?.developmentName || 'Your Development',
+            development_code: '',
+            development_logo_url: resolved?.logoUrl || null,
+            development_system_instructions: '',
+            address: fullAddress || 'Your Home',
+            eircode: '',
+            purchaserName: fullPurchaserName || 'Homeowner',
+            purchaser_name: fullPurchaserName || 'Homeowner',
+            user_id: null,
+            project_id: supabaseUnit.project_id,
+            houseType: null,
+            house_type: null,
+            floorPlanUrl: null,
+            floor_plan_pdf_url: null,
+            latitude: coordinates?.lat || null,
+            longitude: coordinates?.lng || null,
+            specs: null,
+            request_id: requestId,
+          },
+          { headers: getResponseHeaders(requestId) }
         );
       }
     } catch (supabaseErr: any) {
@@ -609,87 +489,53 @@ export async function POST(req: Request) {
       // Found in homeowners table
       const fullAddress = homeowner.address || homeowner.dev_address || '';
 
-      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id, "DevName:", homeowner.dev_name);
+      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id);
 
-      // Get development data directly from DB - no hardcoded mappings
-      let resolvedDevName = homeowner.dev_name;
-      let resolvedLogoUrl = homeowner.dev_logo_url;
-      let resolvedTenantId = homeowner.tenant_id;
-      
-      // If dev_name is null but we have development_id, query DB directly
-      if (!resolvedDevName && homeowner.development_id) {
-        console.log("[Resolve] homeowner dev_name null, querying DB for:", homeowner.development_id);
-        try {
-          const { rows: devRows } = await db.execute(sql`
-            SELECT name, logo_url, tenant_id FROM developments WHERE id = ${homeowner.development_id}::uuid LIMIT 1
-          `);
-          if (devRows.length > 0) {
-            const dev = devRows[0] as any;
-            resolvedDevName = dev.name;
-            resolvedLogoUrl = resolvedLogoUrl || dev.logo_url;
-            resolvedTenantId = resolvedTenantId || dev.tenant_id;
-            console.log("[Resolve] DB resolved development for homeowner:", resolvedDevName);
-          }
-        } catch (devErr: any) {
-          console.error("[Resolve] Development query failed for homeowner:", devErr.message);
-        }
+      // Coordinate resolution: PROJECT OVERRIDE -> geocode -> development fallback
+      // Priority 1: Hard override by development ID (SOURCE OF TRUTH for known schemes)
+      let coordinates = getProjectCoordinates(homeowner.development_id);
+      if (coordinates) {
+        console.log("[Resolve] Using project coordinate override for:", homeowner.development_id, "->", coordinates);
       }
-
-      // Log data error if development name couldn't be resolved
-      if (!resolvedDevName) {
-        console.error("[Resolve] DATA_ERROR: Could not resolve development for homeowner:", homeowner.id, "dev_id:", homeowner.development_id, `requestId=${requestId}`);
-      }
-
-      // Coordinate resolution: geocode address -> development fallback
-      let coordinates: { lat: number; lng: number } | null = null;
-      
-      // Priority 1: Geocode from address (most accurate)
-      if (fullAddress) {
+      // Priority 2: Geocode from address
+      if (!coordinates && fullAddress) {
         coordinates = await geocodeAddress(fullAddress);
       }
-      // Priority 2: Development coordinates from DB
+      // Priority 3: Development coordinates from DB
       if (!coordinates && homeowner.dev_latitude && homeowner.dev_longitude) {
         console.log("[Resolve] Using development coordinates from DB:", homeowner.dev_latitude, homeowner.dev_longitude);
         coordinates = { lat: homeowner.dev_latitude, lng: homeowner.dev_longitude };
       }
 
       recordCircuitBreakerSuccess('/api/houses/resolve');
-      
-      const responseData = {
-        success: true,
-        unitId: homeowner.id,
-        house_id: homeowner.id,
-        tenantId: resolvedTenantId || null,
-        tenant_id: resolvedTenantId || null,
-        developmentId: homeowner.development_id,
-        development_id: homeowner.development_id,
-        development_name: resolvedDevName || null,
-        development_code: '',
-        development_logo_url: resolvedLogoUrl || null,
-        development_system_instructions: '',
-        address: fullAddress || null,
-        eircode: '',
-        purchaserName: homeowner.name || 'Homeowner',
-        purchaser_name: homeowner.name || 'Homeowner',
-        user_id: null,
-        project_id: homeowner.development_id,
-        houseType: homeowner.house_type || null,
-        house_type: homeowner.house_type || null,
-        floorPlanUrl: null,
-        floor_plan_pdf_url: null,
-        latitude: coordinates?.lat || null,
-        longitude: coordinates?.lng || null,
-        specs: null,
-        _source: 'homeowners',
-      };
-      
-      // Cache with tenant-aware key
-      const tenantCacheKey = `resolve:${resolvedTenantId || 'unknown'}:${token}`;
-      globalCache.set(tenantCacheKey, responseData, 60000);
-      globalCache.set(cacheKey, responseData, 60000);
-      
       return NextResponse.json(
-        { ...responseData, request_id: requestId },
+        {
+          success: true,
+          unitId: homeowner.id,
+          house_id: homeowner.id,
+          tenantId: homeowner.tenant_id || null,
+          tenant_id: homeowner.tenant_id || null,
+          developmentId: homeowner.development_id,
+          development_id: homeowner.development_id,
+          development_name: homeowner.dev_name || 'Your Development',
+          development_code: '',
+          development_logo_url: homeowner.dev_logo_url || null,
+          development_system_instructions: '',
+          address: fullAddress || 'Your Home',
+          eircode: '',
+          purchaserName: homeowner.name || 'Homeowner',
+          purchaser_name: homeowner.name || 'Homeowner',
+          user_id: null,
+          project_id: homeowner.development_id,
+          houseType: homeowner.house_type || null,
+          house_type: homeowner.house_type || null,
+          floorPlanUrl: null,
+          floor_plan_pdf_url: null,
+          latitude: coordinates?.lat || null,
+          longitude: coordinates?.lng || null,
+          specs: null,
+          request_id: requestId,
+        },
         { headers: getResponseHeaders(requestId) }
       );
     } catch (homeownerErr: any) {

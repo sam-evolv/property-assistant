@@ -59,20 +59,18 @@ export default function IntroAnimation({
           </h1>
         </div>
 
-        {/* Step 2: Development Name - Only render if it exists and isn't same as H1 */}
-        {developmentName && developmentName !== 'Welcome Home' && (
-          <div
-            className={`transition-all duration-1000 delay-200 ${
-              step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
-          >
-            <div className="bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 bg-clip-text text-transparent">
-              <h2 className="text-3xl md:text-5xl font-bold mb-4">
-                {developmentName}
-              </h2>
-            </div>
+        {/* Step 2: Development Name */}
+        <div
+          className={`transition-all duration-1000 delay-200 ${
+            step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <div className="bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 bg-clip-text text-transparent">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              {developmentName}
+            </h2>
           </div>
-        )}
+        </div>
 
         {/* Step 3: Personalized Message */}
         <div

@@ -73,42 +73,6 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
-### Multi-Tenant Branding Resolution Fix (January 2026)
-
-**Fixed purchaser portal showing wrong/duplicate branding - VERIFIED PASS**
-
-**Issues Fixed:**
-1. **Intro Subtitle:** Showed "Welcome Home" twice → Now data-driven, hidden if missing
-2. **Header Logo:** Hardcoded Longview fallback → Now data-driven from `development_logo_url`
-3. **Chat Center Logo:** Hardcoded if/else chain → Now data-driven from `logoUrl` prop
-4. **Data Cleanup:** Removed 178 empty orphan units from Drizzle that cluttered audit
-
-**Branding Audit Results:**
-- Total Units: 1 (demo only)
-- Missing Dev ID: 0
-- Missing Dev Name: 0
-- Missing Logo: 1 (OpenHouse Park demo - warning only)
-- **Status: PASS** ✅
-
-**Key Fixes:**
-1. **UI Components:** All hardcoded Longview/Rathard paths removed
-2. **Cache Keys:** Tenant-safe format `resolve:{tenantId}:{token}`
-3. **Logo Files:** All return HTTP 200 (/longview-logo.png, /rathard-park-logo.png, /rathard-lawn-logo.png)
-4. **Database:** Correct logo_url for Longview Park and Rathard Park
-
-**Scripts Created:**
-- `scripts/branding-audit.ts` - Audit all units for branding completeness
-- `scripts/cleanup-empty-units.ts` - Remove empty orphan units
-- `scripts/fix-branding-linkages.ts` - Update development logo URLs
-- `/api/dev/branding-audit` - Runtime audit endpoint (dev only)
-
-**Key Files:**
-- `apps/unified-portal/app/api/houses/resolve/route.ts`
-- `apps/unified-portal/app/homes/[unitUid]/page.tsx`
-- `apps/unified-portal/components/purchaser/IntroAnimation.tsx`
-- `apps/unified-portal/components/purchaser/PurchaserChatTab.tsx`
-- `apps/unified-portal/lib/build-info.ts`
-
 ### Suggested Pills V2 (January 2026)
 
 **Sector-diverse rotating question pills with intent routing and Global Safety Contract:**
