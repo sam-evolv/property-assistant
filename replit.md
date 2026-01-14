@@ -73,6 +73,30 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Multi-Tenant Branding Resolution Fix (January 2026)
+
+**Fixed purchaser portal intro screen showing "Your Development" instead of actual estate name:**
+
+**Root Cause:** Drizzle units table had `development_id = NULL` for 178/179 units, blocking correct branding display. The API found units in Drizzle but with incomplete data, returning placeholder instead of checking Supabase.
+
+**Fix Applied:**
+1. **Incomplete Detection:** Changed from `!development_id && !address` to `!development_id || !dev_name` (OR not AND)
+2. **Supabase Fallback:** When Drizzle unit is incomplete, falls through to Supabase which has complete project data
+3. **Deterministic Matching:** Uses EXACT name match (case-insensitive) from Supabase project to Drizzle development
+4. **No Address-Pattern Guessing:** Removed risky word-matching that could cause cross-tenant leakage
+5. **Tenant-Aware Cache:** Keys now include tenant ID: `resolve:{tenantId}:{token}`
+6. **Debug Headers:** Added X-OH-UnitId, X-OH-DevId, X-OH-DevName, X-OH-Source (dev only)
+
+**Data Flow:**
+- Drizzle unit → check if incomplete (`!development_id || !dev_name`) → Supabase units → Supabase projects → exact name match to Drizzle developments → return branding
+- If no Drizzle match, Supabase project name is authoritative for display
+- DATA_ERROR logged when development cannot be resolved (no silent fallback)
+
+**Key Files:**
+- `apps/unified-portal/app/api/houses/resolve/route.ts`
+- `apps/unified-portal/app/homes/[unitUid]/page.tsx`
+- `apps/unified-portal/tests/api/resolve-branding.test.ts`
+
 ### Suggested Pills V2 (January 2026)
 
 **Sector-diverse rotating question pills with intent routing and Global Safety Contract:**
