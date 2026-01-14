@@ -115,6 +115,7 @@ const MAX_CONTEXT_CHARS = 80000; // Max characters in context (~20k tokens)
 interface MessagePersistParams {
   tenant_id: string;
   development_id: string;
+  unit_id?: string | null;  // Supabase unit UUID for proper linkage
   user_id?: string | null;  // Must be valid UUID or null
   unit_uid?: string | null;
   user_message: string;
@@ -134,13 +135,15 @@ function isValidUUID(str: string | null | undefined): boolean {
 
 async function persistMessageSafely(params: MessagePersistParams): Promise<{ success: boolean; error?: string }> {
   try {
-    // Only use user_id if it's a valid UUID, otherwise null
+    // Only use user_id/unit_id if it's a valid UUID, otherwise null
     // Unit identifiers like "LV-PARK-008" are stored in metadata.unitUid
     const validUserId = isValidUUID(params.user_id) ? params.user_id! : null;
+    const validUnitId = isValidUUID(params.unit_id) ? params.unit_id! : (isValidUUID(params.user_id) ? params.user_id! : null);
     
     await db.insert(messages).values({
       tenant_id: params.tenant_id,
       development_id: params.development_id,
+      unit_id: validUnitId,
       user_id: validUserId,
       content: params.user_message,
       user_message: params.user_message,
@@ -162,6 +165,7 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
     console.error('[Chat] Message persist failed:', {
       request_id: params.request_id,
       unit_uid: params.unit_uid,
+      unit_id: params.unit_id,
       user_id: params.user_id,
       error: errorMsg,
     });
@@ -938,6 +942,9 @@ export async function POST(request: NextRequest) {
     const userHouseTypeCode = userUnitDetails.unitInfo?.house_type_code || null;
     const userTenantId = userUnitDetails.unitInfo?.tenant_id || DEFAULT_TENANT_ID;
     const userDevelopmentId = userUnitDetails.unitInfo?.development_id || DEFAULT_DEVELOPMENT_ID;
+    // SEV-1 FIX: Capture actual Supabase unit ID for message linkage
+    // This is the true unit.id from Supabase, not the effectiveUnitUid which may be a different format
+    const actualUnitId = userUnitDetails.unitInfo?.id || null;
     // For Supabase queries (document_sections), we need the Supabase project_id which may differ from Drizzle development_id
     // TODO: In a multi-tenant system, implement proper tenant → supabase_project_id mapping
     // Currently: Falls back to PROJECT_ID only when tenant matches DEFAULT_TENANT_ID (Longview)
@@ -1010,6 +1017,7 @@ export async function POST(request: NextRequest) {
       await persistMessageSafely({
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: validatedUnitUid || userId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -1044,6 +1052,7 @@ export async function POST(request: NextRequest) {
       await persistMessageSafely({
         tenant_id: userTenantId,
         development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: validatedUnitUid || userId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -1137,6 +1146,7 @@ export async function POST(request: NextRequest) {
           await persistMessageSafely({
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
+            unit_id: actualUnitId,
             user_id: validatedUnitUid || userId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,
@@ -1222,6 +1232,7 @@ export async function POST(request: NextRequest) {
           await persistMessageSafely({
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
+            unit_id: actualUnitId,
             user_id: validatedUnitUid || userId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,
@@ -1246,6 +1257,7 @@ export async function POST(request: NextRequest) {
         await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: validatedUnitUid || userId || null,
           unit_uid: validatedUnitUid || null,
           user_message: message,
@@ -1303,6 +1315,7 @@ export async function POST(request: NextRequest) {
           await persistMessageSafely({
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
+            unit_id: actualUnitId,
             user_id: clientUnitUid || userId || null,
             unit_uid: clientUnitUid || null,
             user_message: message,
@@ -1365,6 +1378,7 @@ export async function POST(request: NextRequest) {
         await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: clientUnitUid || userId || null,
           unit_uid: clientUnitUid || null,
           user_message: message,
@@ -1556,6 +1570,7 @@ export async function POST(request: NextRequest) {
           await persistMessageSafely({
             tenant_id: userTenantId,
             development_id: userDevelopmentId,
+            unit_id: actualUnitId,
             user_id: clientUnitUid || userId || null,
             unit_uid: clientUnitUid || null,
             user_message: message,
@@ -1679,6 +1694,7 @@ export async function POST(request: NextRequest) {
         const persistResult = await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
@@ -1737,6 +1753,7 @@ export async function POST(request: NextRequest) {
         const persistResult = await persistMessageSafely({
           tenant_id: userTenantId,
           development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: userId,
           unit_uid: clientUnitUid,
           user_message: message,
@@ -2464,8 +2481,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       
       // Save clarification interaction
       await persistMessageSafely({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: conversationUserId || null,
         unit_uid: effectiveUnitUid || null,
         user_message: message,
@@ -2571,8 +2589,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         
         // Save to database
         await persistMessageSafely({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: conversationUserId || null,
           unit_uid: effectiveUnitUid || null,
           user_message: message,
@@ -2627,8 +2646,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         
         // Save to database
         await persistMessageSafely({
-          tenant_id: DEFAULT_TENANT_ID,
-          development_id: DEFAULT_DEVELOPMENT_ID,
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          unit_id: actualUnitId,
           user_id: conversationUserId || null,
           unit_uid: effectiveUnitUid || null,
           user_message: message,
@@ -2698,8 +2718,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       
       // Save to database
       await persistMessageSafely({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -2761,8 +2782,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       
       // Save to database
       await persistMessageSafely({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -2923,8 +2945,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       
       // Save to database
       await persistMessageSafely({
-        tenant_id: DEFAULT_TENANT_ID,
-        development_id: DEFAULT_DEVELOPMENT_ID,
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
         user_id: conversationUserId || null,
         unit_uid: validatedUnitUid || null,
         user_message: message,
@@ -3267,8 +3290,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           }
 
           await persistMessageSafely({
-            tenant_id: DEFAULT_TENANT_ID,
-            development_id: DEFAULT_DEVELOPMENT_ID,
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            unit_id: actualUnitId,
             user_id: conversationUserId || null,
             unit_uid: validatedUnitUid || null,
             user_message: message,

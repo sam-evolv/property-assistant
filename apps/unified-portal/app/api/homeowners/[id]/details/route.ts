@@ -93,10 +93,69 @@ export async function GET(
     const emptyStats = { rows: [{ total_conversations: 0, first_message: null, last_message: null }] };
     const emptyMessages = { rows: [] };
 
-    // Try to find messages by user_id (which should be the Supabase unit UUID)
-    // Also check metadata.unitUid as a fallback
-    const [msgStatsResult, recentMsgsResult] = await Promise.all([
-      safeQuery(
+    // Get unit_uid from Supabase unit row for additional matching
+    const unitUid = unitRow.unit_uid || unitRow.id;
+    const developmentId = unitRow.project_id;
+
+    // Try to find messages by unit_id, user_id, metadata.unitUid, or unit_uid from Supabase
+    // Build query dynamically to avoid casting non-UUID strings
+    const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const idIsUuid = isUuidFormat.test(id);
+    const unitUidIsUuid = isUuidFormat.test(unitUid);
+    
+    // Build conditions array for safe query
+    let msgStatsResult = emptyStats;
+    let recentMsgsResult = emptyMessages;
+    
+    // Try unit-level matching first
+    const unitLevelResult = await safeQuery(
+      async () => {
+        if (idIsUuid) {
+          const result = await db.execute(sql`
+            SELECT 
+              COUNT(*)::int as total_conversations,
+              MIN(created_at) as first_message,
+              MAX(created_at) as last_message
+            FROM messages
+            WHERE unit_id = ${id}::uuid
+               OR user_id = ${id}::uuid
+               OR metadata->>'unitUid' = ${id}
+          `);
+          return result;
+        } else if (unitUidIsUuid) {
+          const result = await db.execute(sql`
+            SELECT 
+              COUNT(*)::int as total_conversations,
+              MIN(created_at) as first_message,
+              MAX(created_at) as last_message
+            FROM messages
+            WHERE unit_id = ${unitUid}::uuid
+               OR user_id = ${unitUid}::uuid
+               OR metadata->>'unitUid' = ${unitUid}
+          `);
+          return result;
+        } else {
+          const result = await db.execute(sql`
+            SELECT 
+              COUNT(*)::int as total_conversations,
+              MIN(created_at) as first_message,
+              MAX(created_at) as last_message
+            FROM messages
+            WHERE metadata->>'unitUid' = ${id}
+               OR metadata->>'unitUid' = ${unitUid}
+          `);
+          return result;
+        }
+      },
+      emptyStats
+    );
+    
+    const unitConversations = (unitLevelResult.rows[0] as any)?.total_conversations || 0;
+    
+    // If no unit-level data, fallback to development-level aggregation
+    if (unitConversations === 0 && developmentId) {
+      console.log('[HOMEOWNER DETAILS] No unit-level messages found, using development-level fallback');
+      msgStatsResult = await safeQuery(
         async () => {
           const result = await db.execute(sql`
             SELECT 
@@ -104,26 +163,68 @@ export async function GET(
               MIN(created_at) as first_message,
               MAX(created_at) as last_message
             FROM messages
-            WHERE user_id = ${id} OR metadata->>'unitUid' = ${id}
+            WHERE development_id = ${developmentId}::uuid
           `);
           return result;
         },
         emptyStats
-      ),
-      safeQuery(
+      );
+      
+      recentMsgsResult = await safeQuery(
         async () => {
           const result = await db.execute(sql`
             SELECT id, user_message, ai_message, created_at
             FROM messages
-            WHERE user_id = ${id} OR metadata->>'unitUid' = ${id}
+            WHERE development_id = ${developmentId}::uuid
             ORDER BY created_at DESC
             LIMIT 5
           `);
           return result;
         },
         emptyMessages
-      ),
-    ]);
+      );
+    } else {
+      msgStatsResult = unitLevelResult;
+      
+      recentMsgsResult = await safeQuery(
+        async () => {
+          if (idIsUuid) {
+            const result = await db.execute(sql`
+              SELECT id, user_message, ai_message, created_at
+              FROM messages
+              WHERE unit_id = ${id}::uuid
+                 OR user_id = ${id}::uuid
+                 OR metadata->>'unitUid' = ${id}
+              ORDER BY created_at DESC
+              LIMIT 5
+            `);
+            return result;
+          } else if (unitUidIsUuid) {
+            const result = await db.execute(sql`
+              SELECT id, user_message, ai_message, created_at
+              FROM messages
+              WHERE unit_id = ${unitUid}::uuid
+                 OR user_id = ${unitUid}::uuid
+                 OR metadata->>'unitUid' = ${unitUid}
+              ORDER BY created_at DESC
+              LIMIT 5
+            `);
+            return result;
+          } else {
+            const result = await db.execute(sql`
+              SELECT id, user_message, ai_message, created_at
+              FROM messages
+              WHERE metadata->>'unitUid' = ${id}
+                 OR metadata->>'unitUid' = ${unitUid}
+              ORDER BY created_at DESC
+              LIMIT 5
+            `);
+            return result;
+          }
+        },
+        emptyMessages
+      );
+    }
 
     const statsRow = msgStatsResult.rows[0] as any;
     const totalConversations = statsRow?.total_conversations || 0;

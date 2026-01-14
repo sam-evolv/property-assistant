@@ -1,0 +1,46 @@
+SEV-1 PRODUCTION FIX: Make purchaser portal + dashboard use messages.unit_id (house_id is deprecated)
+
+Context:
+- Supabase: public.messages now has unit_id uuid NULL with FK -> public.units(id)
+- A CHECK constraint now requires unit_id for new messages (created_at within last ~5 min)
+- Unit 8 was backfilled with unit_id and now has 185 messages
+- Current UI shows 0 for some units because it still queries by house_id or joins incorrectly
+
+Goals:
+1) Write-path: every new message written from purchaser portal MUST include unit_id
+2) Read-path: unit-level analytics MUST query by unit_id
+3) Development-level dashboards MUST query by development_id (not unit_id)
+4) Remove ANY usage of messages.house_id from analytics and UI
+
+Tasks:
+A) Find the code that inserts into public.messages (Drizzle/Supabase client). Update insert payload to include:
+   unit_id: resolvedUnit.id
+   tenant_id: resolvedUnit.tenant_id
+   development_id: resolvedUnit.development_id
+   Keep existing fields (sender/content/user_message/ai_message/topic/etc.)
+
+B) Find queries powering:
+   - Homeowner detail (message counts)
+   - Developer dashboard (engagement, charts, "What Homeowners Ask About")
+   Replace any filtering/joining on house_id with:
+   - Unit pages: where messages.unit_id = unit.id
+   - Development dashboard totals: where messages.development_id = development.id
+   Do not mix unit and development scope.
+
+C) Confirm the unit resolution flow:
+   - Portal URL token resolves to a unit record (units.id, tenant_id, development_id, unit_number, address fields)
+   - Persist resolvedUnit in request context/session so message inserts always have unit_id
+
+D) Add a regression test or a dev script:
+   - Send a test message via purchaser portal
+   - Assert the newest message row has unit_id set (NOT NULL), and matches resolved unit.id
+
+E) Remove or hard-disable any seed/demo endpoints in production:
+   - Any /api/dev/* routes must 404 unless NODE_ENV=development and ALLOW_SEEDING=YES
+
+Deliverable:
+- Provide exact files changed and show the final message insert snippet and final analytics query snippet.
+- Provide verification steps:
+  1) Unit 8 now shows 185 messages in UI
+  2) Sending a new message increments unit message count by 1
+  3) Developer dashboard engagement is non-zero and consistent

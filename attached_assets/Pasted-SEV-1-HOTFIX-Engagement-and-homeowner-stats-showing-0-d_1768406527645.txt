@@ -1,0 +1,42 @@
+SEV-1 HOTFIX: Engagement and homeowner stats showing 0 due to messages.house_id being NULL and not matching any table.
+
+DB facts:
+- public.messages has columns: tenant_id, development_id, house_id, user_id, sender, content, user_message, ai_message, question_topic, created_at
+- total messages = 385
+- msgs_matching_units = 0
+- msgs_matching_house_types = 0
+- In Longview Park dev_id 34316432-f1e8-4297-b993-d9b5c88ee2d8: 382 messages have house_id NULL
+Conclusion: The write path is not setting house_id, and the dashboard is filtering/joining on house_id which returns 0.
+
+Tasks:
+1) Find every query used for:
+   - Developer Dashboard stats (onboarding rate, engagement rate, “What homeowners ask about”, funnel counts)
+   - Homeowners list cards (“messages count”, “user questions”, engagement level)
+   - Homeowner detail page (total messages, user questions, AI responses)
+2) Remove dependency on messages.house_id. Replace with correct linkage:
+   - Primary filter should be tenant_id + development_id.
+   - For unit-level pages: use the unit’s development_id + unit_number (or unit_code/unit_uid if available) as the lookup, OR join via purchaser portal token resolution.
+3) Specifically:
+   - Total messages per development: count(*) where messages.development_id = devId
+   - User questions per development: count(*) where messages.development_id = devId and sender in ('user','homeowner') OR user_message is not null
+   - AI responses per development: count(*) where messages.development_id = devId and sender in ('ai','assistant') OR ai_message is not null
+   - “What Homeowners Ask About”: group by question_topic where messages.development_id = devId and question_topic is not null
+   - Engagement rate: compute active units from analytics_events by development_id (or messages recency by development_id) until unit linkage is restored
+4) Add a debug panel (dev only) showing:
+   - messages where house_id is null count
+   - messages by development_id counts
+5) Fix the write-path:
+   - Identify where messages are inserted when a chat is sent.
+   - Ensure we always set tenant_id and development_id.
+   - Stop trying to set house_id until we have a real referenced table.
+   - Add unit linkage now:
+     a) Add messages.unit_id uuid (nullable) referencing units.id OR
+     b) Store unit_uid/unit_code in messages.metadata and populate it from the resolved unit at session start.
+   - Update queries to prefer unit_id linkage when present, but fall back to development_id.
+
+Deliverable:
+- Code changes with file list
+- Verification:
+  - Developer dashboard shows non-zero totals for Longview Park show house where messages exist
+  - Homeowner detail page for Unit 8 Longview Park shows message counts again
+  - New messages continue to increment stats

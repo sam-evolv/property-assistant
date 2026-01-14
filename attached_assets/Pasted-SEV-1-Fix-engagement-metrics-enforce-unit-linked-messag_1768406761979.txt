@@ -1,0 +1,56 @@
+SEV-1: Fix engagement metrics + enforce unit-linked messaging permanently.
+
+Context:
+- Supabase production has messages(tenant_id, development_id, house_id, user_id, ...).
+- house_id is effectively unused (mostly NULL).
+- Historical messages exist (385) and all have tenant_id and development_id set.
+- New column added: messages.unit_id uuid NULL + indexes.
+- Current dashboards show 0 messages per unit and "Unassigned" because code filters/joined on house_id or expects a per-unit link.
+
+Objectives:
+1) Fix message write-path:
+   - When purchaser portal token resolves to a unit, always insert messages with:
+     tenant_id, development_id, unit_id (NEW), sender, content/user_message/ai_message, created_at.
+   - unit_id must be the resolved units.id for that portal session.
+   - Do NOT use house_id anymore (leave it unused or remove from logic).
+
+2) Fix all dashboard + homeowner screens:
+   - Anywhere we compute message counts, engagement, charts:
+     - Prefer messages.unit_id when present.
+     - For legacy rows where unit_id is NULL, fall back to development_id-based aggregation.
+   - This restores all historical analytics immediately.
+
+   Required logic:
+   - Per development stats: count messages where development_id = devId
+   - Per unit stats:
+     count messages where unit_id = unit.id
+     PLUS (legacy fallback) if unit_id is NULL, include development_id counts only when showing development-level totals (not per-unit).
+
+3) Homeowners list / detail page behaviour:
+   - Stop showing fake "Unassigned" homeowner names.
+   - Display unit label from units.unit_number + development name + address.
+   - If purchaser_name is NULL, label as "Unassigned" BUT keep metrics derived from messages as above.
+
+4) Hard production guardrails:
+   - Remove/disable any seed/demo logic in production.
+   - Implement assertDevOnly() used by ANY route under /api/dev or any seeding script:
+     require NODE_ENV==='development' AND ALLOW_SEEDING==='YES' AND SUPABASE project ref in allowlist.
+   - In production, dev routes must 404.
+
+5) Add automated regression checks:
+   - Add a script `scripts/tenant-integrity-check.ts` that fails build if:
+     - Any POST /api/dev route is accessible in production mode
+     - Dashboard queries are not scoped to organisation_id
+     - Branding resolver has any hardcoded estate logo
+   - Add a runtime dev-only endpoint /api/dev/data-integrity that returns:
+     - total messages by development_id
+     - count of messages where unit_id is null
+     - top 10 units by message count (unit_id-based)
+
+Deliverables:
+- List exact files changed and what was changed in each.
+- Verification checklist:
+  1) Developer dashboard now shows non-zero engagement and charts.
+  2) Unit 8 show house displays historical message counts again at development level immediately.
+  3) New messages written from purchaser portal create rows with unit_id set.
+  4) Seed/demo endpoints are blocked in production.

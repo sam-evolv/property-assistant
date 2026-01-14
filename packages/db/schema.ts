@@ -298,6 +298,7 @@ export const messages = pgTable('messages', {
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
   development_id: uuid('development_id').references(() => developments.id),
   house_id: uuid('house_id').references(() => homeowners.id, { onDelete: 'set null' }),
+  unit_id: uuid('unit_id'),  // References Supabase units.id - no FK constraint as it's cross-DB
   user_id: uuid('user_id'),  // Nullable UUID - unit identifiers stored in metadata.unitUid
   sender: varchar('sender', { length: 20 }),
   content: text('content').notNull(),
@@ -316,6 +317,8 @@ export const messages = pgTable('messages', {
   developmentIdx: index('messages_development_idx').on(table.development_id),
   houseIdx: index('messages_house_idx').on(table.house_id),
   houseCreatedIdx: index('messages_house_created_idx').on(table.house_id, table.created_at),
+  unitIdx: index('messages_unit_idx').on(table.unit_id),
+  unitCreatedIdx: index('messages_unit_created_idx').on(table.unit_id, table.created_at),
   userIdx: index('messages_user_idx').on(table.user_id),
   sourceIdx: index('messages_source_idx').on(table.source),
   tenantDevIdx: index('messages_tenant_dev_idx').on(table.tenant_id, table.development_id),
