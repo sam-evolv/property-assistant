@@ -59,7 +59,6 @@ export async function POST(req: NextRequest) {
       'LV-PARK': 'Longview Park',
       'RA-PARK': 'Rathard Park',
       'RA-LAWN': 'Rathard Lawn',
-      'OH-PARK': 'OpenHouse Park',
     };
     
     const expectedProjectName = prefixToProjectName[prefix];

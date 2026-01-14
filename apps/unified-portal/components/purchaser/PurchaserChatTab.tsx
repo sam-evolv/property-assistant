@@ -977,13 +977,7 @@ export default function PurchaserChatTab({
           
           {/* Logo */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
-            {developmentName?.toLowerCase().includes('openhouse') ? (
-              <img 
-                src="/brand/openhouse-logo.png" 
-                alt="OpenHouse AI" 
-                className={`h-[65px] w-auto object-contain`}
-              />
-            ) : developmentName?.toLowerCase().includes('rathard lawn') ? (
+            {developmentName?.toLowerCase().includes('rathard lawn') ? (
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn" 

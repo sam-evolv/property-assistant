@@ -491,15 +491,7 @@ export default function HomeResidentPage() {
         {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
           <div className="flex h-[45px] w-auto items-center justify-center">
-            {house?.development_name?.toLowerCase().includes('openhouse') ? (
-              <img 
-                src="/brand/openhouse-logo.png" 
-                alt="OpenHouse AI logo"
-                width={150}
-                height={45}
-                className="h-full w-auto object-contain transition-all"
-              />
-            ) : house?.development_name?.toLowerCase().includes('rathard lawn') ? (
+            {house?.development_name?.toLowerCase().includes('rathard lawn') ? (
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn logo"
