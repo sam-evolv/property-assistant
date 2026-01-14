@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
-import { useT } from '@/i18n';
 
 const SUGGESTED_PILLS_V2_ENABLED = process.env.NEXT_PUBLIC_SUGGESTED_PILLS_V2 === 'true';
 
@@ -252,6 +251,154 @@ interface PurchaserChatTabProps {
   userId?: string | null;
 }
 
+// Translations for UI and prompts
+const TRANSLATIONS: Record<string, any> = {
+  en: {
+    welcome: 'Ask anything about your home or community',
+    subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
+    prompts: [
+      "Public Transport",
+      "Floor Plans",
+      "Parking rules",
+      "Local area"
+    ],
+    placeholder: 'Ask about your home or community...',
+    askButton: 'Ask',
+    powered: 'Powered by AI • Information provided for reference only',
+    voiceNotSupported: 'Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.',
+    sessionExpired: 'Session expired. Please scan your QR code again.',
+    errorOccurred: 'Sorry, I encountered an error. Please try again.'
+  },
+  pl: {
+    welcome: 'Zapytaj o cokolwiek dotyczącego Twojego domu lub społeczności',
+    subtitle: 'Szybkie odpowiedzi na co dzień: plany pięter, udogodnienia, lokalne usługi i więcej.',
+    prompts: [
+      "Transport publiczny",
+      "Plany pięter",
+      "Zasady parkowania",
+      "Okolica"
+    ],
+    placeholder: 'Zapytaj o swój dom lub społeczność...',
+    askButton: 'Zapytaj',
+    powered: 'Zasilane przez AI • Informacje wyłącznie w celach informacyjnych',
+    voiceNotSupported: 'Wprowadzanie głosowe nie jest obsługiwane w Twojej przeglądarce. Użyj Chrome, Edge lub Safari.',
+    sessionExpired: 'Sesja wygasła. Zeskanuj ponownie kod QR.',
+    errorOccurred: 'Przepraszamy, napotkaliśmy błąd. Spróbuj ponownie.'
+  },
+  es: {
+    welcome: 'Pregunta cualquier cosa sobre tu hogar o comunidad',
+    subtitle: 'Respuestas rápidas para la vida diaria: planos, comodidades, servicios locales y más.',
+    prompts: [
+      "Transporte público",
+      "Planos",
+      "Reglas de estacionamiento",
+      "Área local"
+    ],
+    placeholder: 'Pregunta sobre tu hogar o comunidad...',
+    askButton: 'Preguntar',
+    powered: 'Con tecnología de IA • Información solo como referencia',
+    voiceNotSupported: 'La entrada de voz no es compatible con su navegador. Utilice Chrome, Edge o Safari.',
+    sessionExpired: 'Sesión expirada. Escanee su código QR nuevamente.',
+    errorOccurred: 'Lo sentimos, encontré un error. Inténtelo de nuevo.'
+  },
+  ru: {
+    welcome: 'Спросите что угодно о вашем доме или сообществе',
+    subtitle: 'Быстрые ответы на повседневные вопросы: планировки, удобства, местные услуги и многое другое.',
+    prompts: [
+      "Общественный транспорт",
+      "Планировки",
+      "Правила парковки",
+      "Местность"
+    ],
+    placeholder: 'Спросите о вашем доме или сообществе...',
+    askButton: 'Спросить',
+    powered: 'На базе ИИ • Информация только для справки',
+    voiceNotSupported: 'Голосовой ввод не поддерживается в вашем браузере. Используйте Chrome, Edge или Safari.',
+    sessionExpired: 'Сеанс истек. Отсканируйте QR-код еще раз.',
+    errorOccurred: 'Извините, произошла ошибка. Попробуйте еще раз.'
+  },
+  pt: {
+    welcome: 'Pergunte qualquer coisa sobre sua casa ou comunidade',
+    subtitle: 'Respostas rápidas para o dia a dia: plantas, comodidades, serviços locais e mais.',
+    prompts: [
+      "Transporte público",
+      "Plantas",
+      "Regras de estacionamento",
+      "Área local"
+    ],
+    placeholder: 'Pergunte sobre sua casa ou comunidade...',
+    askButton: 'Perguntar',
+    powered: 'Alimentado por IA • Informação apenas para referência',
+    voiceNotSupported: 'A entrada de voz não é compatível com o seu navegador. Use Chrome, Edge ou Safari.',
+    sessionExpired: 'Sessão expirada. Escaneie seu código QR novamente.',
+    errorOccurred: 'Desculpe, encontrei um erro. Tente novamente.'
+  },
+  lv: {
+    welcome: 'Jautājiet jebko par savu māju vai kopienu',
+    subtitle: 'Ātras atbildes ikdienai: plāni, ērtības, vietējie pakalpojumi un vairāk.',
+    prompts: [
+      "Sabiedriskais transports",
+      "Stāvu plāni",
+      "Stāvvietas noteikumi",
+      "Vietējā apkārtne"
+    ],
+    placeholder: 'Jautājiet par savu māju vai kopienu...',
+    askButton: 'Jautāt',
+    powered: 'Darbina AI • Informācija tikai atsaucei',
+    voiceNotSupported: 'Balss ievade netiek atbalstīta jūsu pārlūkprogrammā. Lūdzu, izmantojiet Chrome, Edge vai Safari.',
+    sessionExpired: 'Sesija beigusies. Lūdzu, skenējiet QR kodu vēlreiz.',
+    errorOccurred: 'Atvainojiet, radās kļūda. Lūdzu, mēģiniet vēlreiz.'
+  },
+  lt: {
+    welcome: 'Klauskite bet ko apie savo namus ar bendruomenę',
+    subtitle: 'Greiti atsakymai kasdienybei: planai, patogumai, vietinės paslaugos ir daugiau.',
+    prompts: [
+      "Viešasis transportas",
+      "Aukštų planai",
+      "Parkavimo taisyklės",
+      "Vietovė"
+    ],
+    placeholder: 'Klauskite apie savo namus ar bendruomenę...',
+    askButton: 'Klausti',
+    powered: 'Veikia AI • Informacija tik nuorodai',
+    voiceNotSupported: 'Balso įvedimas nepalaikomas jūsų naršyklėje. Naudokite Chrome, Edge arba Safari.',
+    sessionExpired: 'Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.',
+    errorOccurred: 'Atsiprašome, įvyko klaida. Bandykite dar kartą.'
+  },
+  ro: {
+    welcome: 'Întrebați orice despre casa sau comunitatea dvs.',
+    subtitle: 'Răspunsuri rapide pentru viața de zi cu zi: planuri, facilități, servicii locale și multe altele.',
+    prompts: [
+      "Transport public",
+      "Planuri etaje",
+      "Reguli parcare",
+      "Zona locală"
+    ],
+    placeholder: 'Întrebați despre casa sau comunitatea dvs...',
+    askButton: 'Întreabă',
+    powered: 'Alimentat de AI • Informații doar ca referință',
+    voiceNotSupported: 'Intrarea vocală nu este acceptată în browserul dvs. Vă rugăm să utilizați Chrome, Edge sau Safari.',
+    sessionExpired: 'Sesiunea a expirat. Vă rugăm să scanați codul QR din nou.',
+    errorOccurred: 'Ne pare rău, am întâlnit o eroare. Vă rugăm să încercați din nou.'
+  },
+  ga: {
+    welcome: 'Fiafraigh aon rud faoi do theach nó do phobal',
+    subtitle: 'Freagraí tapa don saol laethúil: pleananna urláir, áiseanna, seirbhísí áitiúla, agus tuilleadh.',
+    prompts: [
+      "Iompar Poiblí",
+      "Pleananna Urláir",
+      "Rialacha Páirceála",
+      "An Ceantar Áitiúil"
+    ],
+    placeholder: 'Fiafraigh faoi do theach nó do phobal...',
+    askButton: 'Fiafraigh',
+    powered: 'Faoi chumhacht AI • Eolas le haghaidh tagartha amháin',
+    voiceNotSupported: 'Ní thacaítear le hionchur gutha i do bhrabhsálaí. Úsáid Chrome, Edge, nó Safari.',
+    sessionExpired: 'Seisiún imithe in éag. Scan do chód QR arís.',
+    errorOccurred: 'Tá brón orainn, tharla earráid. Bain triail eile as.'
+  }
+};
+
 export default function PurchaserChatTab({
   houseId,
   developmentId,
@@ -264,7 +411,6 @@ export default function PurchaserChatTab({
   isDarkMode,
   userId,
 }: PurchaserChatTabProps) {
-  const t = useT();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -464,8 +610,9 @@ export default function PurchaserChatTab({
   }, [selectedLanguage]);
 
   const toggleVoiceInput = () => {
+    const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
     if (!speechSupported || !recognitionRef.current) {
-      alert(t('chat.voiceNotSupported'));
+      alert(t.voiceNotSupported);
       return;
     }
 
@@ -491,6 +638,7 @@ export default function PurchaserChatTab({
   }
 
   const sendMessage = async (messageText?: string, intentMetadata?: IntentMetadata) => {
+    const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
     const textToSend = messageText || input.trim();
     if (!textToSend || sending) return;
 
@@ -500,7 +648,7 @@ export default function PurchaserChatTab({
         ...prev,
         {
           role: 'assistant',
-          content: t('chat.sessionExpired'),
+          content: t.sessionExpired,
         },
       ]);
       return;
@@ -629,7 +777,7 @@ export default function PurchaserChatTab({
                     if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
                       updated[assistantMessageIndex] = {
                         ...updated[assistantMessageIndex],
-                        content: t('chat.errorOccurred'),
+                        content: t.errorOccurred,
                       };
                     }
                     return updated;
@@ -668,11 +816,11 @@ export default function PurchaserChatTab({
           // Otherwise fall back to generic error messages
           let errorMessage: string;
           if (res.status === 401 || res.status === 403) {
-            errorMessage = t('chat.sessionExpired');
+            errorMessage = t.sessionExpired;
           } else if (data.answer) {
             errorMessage = data.answer;
           } else {
-            errorMessage = t('chat.errorOccurred');
+            errorMessage = t.errorOccurred;
           }
           
           console.error('[Chat] API error:', data.error, data.details);
@@ -692,7 +840,7 @@ export default function PurchaserChatTab({
         ...prev,
         {
           role: 'assistant',
-          content: t('chat.errorOccurred'),
+          content: t.errorOccurred,
         },
       ]);
     } finally {
@@ -736,6 +884,8 @@ export default function PurchaserChatTab({
     setShowHome(true);
     setMessages([]);
   };
+
+  const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
   const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
@@ -856,13 +1006,19 @@ export default function PurchaserChatTab({
 
           {/* Welcome Headline */}
           <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-            {t('chat.welcome')}
-            <span className="block">{t('chat.welcomeLine2')}</span>
+            {t.welcome.includes('or community') ? (
+              <>
+                {t.welcome.split('or community')[0]}
+                <span className="block">or community</span>
+              </>
+            ) : (
+              t.welcome
+            )}
           </h1>
 
           {/* Subtitle */}
           <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
-            {t('chat.subtitle')}
+            {t.subtitle}
           </p>
 
           {/* 2x2 Prompt Grid */}
@@ -883,12 +1039,7 @@ export default function PurchaserChatTab({
                 </button>
               ))
             ) : (
-              [
-                t('chat.prompts.transport'),
-                t('chat.prompts.floorPlans'),
-                t('chat.prompts.parking'),
-                t('chat.prompts.localArea')
-              ].map((prompt: string, i: number) => (
+              t.prompts.map((prompt: string, i: number) => (
                 <button
                   key={i}
                   onClick={() => handleQuickPrompt(prompt)}
@@ -1146,7 +1297,7 @@ export default function PurchaserChatTab({
                   ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' 
                   : 'text-gray-500 hover:bg-black/5 hover:text-gray-700'
               }`}
-              aria-label={t('chat.backToHome')}
+              aria-label="Back to home"
             >
               <Home className="h-5 w-5" />
             </button>
@@ -1168,7 +1319,7 @@ export default function PurchaserChatTab({
                   sendMessage();
                 }
               }}
-              placeholder={t('chat.placeholder')}
+              placeholder={t.placeholder}
               disabled={sending}
               className={`flex-1 border-none bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
             />
@@ -1184,7 +1335,7 @@ export default function PurchaserChatTab({
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-black/5'
                 } disabled:opacity-50`}
-                aria-label={t('chat.voiceInput')}
+                aria-label="Voice input"
               >
                 <Mic className="h-5 w-5" />
               </button>
@@ -1195,7 +1346,7 @@ export default function PurchaserChatTab({
                 onClick={() => sendMessage()}
                 disabled={sending}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-lg shadow-gold-500/25 transition-all duration-150 hover:shadow-gold-500/40 active:scale-95 disabled:opacity-50"
-                aria-label={t('chat.sendMessage')}
+                aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
               </button>
@@ -1203,7 +1354,7 @@ export default function PurchaserChatTab({
           </div>
         </div>
         <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-          {t('chat.powered')}
+          {t.powered}
         </p>
       </div>
     </div>

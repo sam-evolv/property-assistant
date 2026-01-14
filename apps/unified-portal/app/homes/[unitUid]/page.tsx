@@ -8,8 +8,6 @@ import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User } from
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
-import { I18nProvider, useI18n } from '@/i18n/I18nContext';
-import type { Locale } from '@/i18n/config';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -54,16 +52,19 @@ interface HouseContext {
   floor_plan_pdf_url?: string | null;
 }
 
-export default function HomeResidentPage() {
-  return (
-    <I18nProvider>
-      <HomeResidentPageContent />
-    </I18nProvider>
-  );
-}
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '' },
+  { code: 'pl', name: 'Polski', flag: '🇵🇱' },
+  { code: 'ga', name: 'Gaeilge', flag: '🇮🇪' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+  { code: 'pt', name: 'Português', flag: '🇵🇹' },
+  { code: 'lv', name: 'Latviešu', flag: '🇱🇻' },
+  { code: 'lt', name: 'Lietuvių', flag: '🇱🇹' },
+  { code: 'ro', name: 'Română', flag: '🇷🇴' },
+];
 
-function HomeResidentPageContent() {
-  const { locale, setLocale, t, locales, localeNames, localeFlags } = useI18n();
+export default function HomeResidentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const { unitUid } = params as { unitUid: string };
@@ -76,6 +77,7 @@ function HomeResidentPageContent() {
   const [retryCount, setRetryCount] = useState(0);
   const [showIntro, setShowIntro] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
@@ -92,7 +94,10 @@ function HomeResidentPageContent() {
   const RETRY_DELAY_MS = 2000;
 
   useEffect(() => {
-    // Load saved theme preference
+    // Load saved preferences
+    const savedLang = localStorage.getItem('purchaser_language');
+    if (savedLang) setSelectedLanguage(savedLang);
+
     const savedTheme = localStorage.getItem('purchaser_theme');
     if (savedTheme === 'dark') setIsDarkMode(true);
   }, []);
@@ -220,8 +225,9 @@ function HomeResidentPageContent() {
     setShowIntro(false);
   };
 
-  const handleLanguageChange = (langCode: Locale) => {
-    setLocale(langCode);
+  const handleLanguageChange = (langCode: string) => {
+    setSelectedLanguage(langCode);
+    localStorage.setItem('purchaser_language', langCode);
     setShowLanguageDropdown(false);
   };
 
@@ -482,39 +488,39 @@ function HomeResidentPageContent() {
             paddingBottom: '12px',
           }}
         >
-        {/* Left: Development Logo - 20% larger for improved visibility */}
+        {/* Left: Development Logo - 30% larger for improved visibility */}
         <div className="flex items-center gap-3">
-          <div className="flex h-[70px] w-auto items-center justify-center">
+          <div className="flex h-[58px] w-auto items-center justify-center">
             {house?.development_name?.toLowerCase().includes('openhouse') ? (
               <img 
                 src="/brand/openhouse-logo.png" 
                 alt="OpenHouse AI logo"
-                width={234}
-                height={70}
+                width={195}
+                height={58}
                 className="h-full w-auto object-contain transition-all"
               />
             ) : house?.development_name?.toLowerCase().includes('rathard lawn') ? (
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn logo"
-                width={234}
-                height={70}
+                width={195}
+                height={58}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
               <img 
                 src="/rathard-park-logo.png" 
                 alt="Rathard Park logo"
-                width={234}
-                height={70}
+                width={195}
+                height={58}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
               <img 
                 src="/longview-logo.png" 
                 alt="Longview Estates logo"
-                width={234}
-                height={70}
+                width={195}
+                height={58}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             )}
@@ -533,10 +539,10 @@ function HomeResidentPageContent() {
                   : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              {localeFlags[locale] && (
-                <span>{localeFlags[locale]}</span>
+              {LANGUAGES.find(l => l.code === selectedLanguage)?.flag && (
+                <span>{LANGUAGES.find(l => l.code === selectedLanguage)?.flag}</span>
               )}
-              <span>{locale.toUpperCase()}</span>
+              <span>{LANGUAGES.find(l => l.code === selectedLanguage)?.code.toUpperCase()}</span>
               <ChevronDown className="w-3 h-3" />
             </button>
 
@@ -544,18 +550,18 @@ function HomeResidentPageContent() {
               <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border py-1 z-50 ${
                 isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
               }`}>
-                {locales.map(langCode => (
+                {LANGUAGES.map(lang => (
                   <button
-                    key={langCode}
-                    onClick={() => handleLanguageChange(langCode)}
+                    key={lang.code}
+                    onClick={() => handleLanguageChange(lang.code)}
                     className={`w-full px-4 py-2 text-left flex items-center gap-3 transition-colors text-sm ${
-                      locale === langCode 
+                      selectedLanguage === lang.code 
                         ? (isDarkMode ? 'bg-gold-900/30 text-gold-400' : 'bg-gold-50 text-gold-700')
                         : (isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
                     }`}
                   >
-                    <span>{localeFlags[langCode]}</span>
-                    <span>{localeNames[langCode]}</span>
+                    <span>{lang.flag}</span>
+                    <span>{lang.name}</span>
                   </button>
                 ))}
               </div>
@@ -603,7 +609,7 @@ function HomeResidentPageContent() {
               developmentName={house.development_name}
               unitUid={unitUid}
               token={validatedToken || ''}
-              selectedLanguage={locale}
+              selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
               userId={house.user_id}
             />
@@ -617,7 +623,7 @@ function HomeResidentPageContent() {
               latitude={house.latitude}
               longitude={house.longitude}
               isDarkMode={isDarkMode}
-              selectedLanguage={locale}
+              selectedLanguage={selectedLanguage}
             />
           </Tabs.Content>
 
@@ -625,7 +631,7 @@ function HomeResidentPageContent() {
             <PurchaserNoticeboardTab 
               unitUid={unitUid}
               isDarkMode={isDarkMode}
-              selectedLanguage={locale}
+              selectedLanguage={selectedLanguage}
             />
           </Tabs.Content>
 
@@ -634,7 +640,7 @@ function HomeResidentPageContent() {
               unitUid={unitUid}
               houseType={house.house_type}
               isDarkMode={isDarkMode}
-              selectedLanguage={locale}
+              selectedLanguage={selectedLanguage}
             />
           </Tabs.Content>
         </div>

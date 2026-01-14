@@ -55,14 +55,14 @@ export default function PurchaserWelcomePage() {
             <Image
               src={session.developmentLogoUrl}
               alt={session.developmentName}
-              width={240}
-              height={96}
-              className="h-24 w-auto object-contain mx-auto"
+              width={200}
+              height={80}
+              className="h-20 w-auto object-contain mx-auto"
             />
           </div>
         ) : (
-          <div className="w-24 h-24 bg-gold-500/10 rounded-full flex items-center justify-center mx-auto mb-8">
-            <Home className="w-12 h-12 text-gold-500" />
+          <div className="w-20 h-20 bg-gold-500/10 rounded-full flex items-center justify-center mx-auto mb-8">
+            <Home className="w-10 h-10 text-gold-500" />
           </div>
         )}
 

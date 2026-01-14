@@ -41,10 +41,10 @@ export default function IntroAnimation({
       }`}
     >
       <div className="text-center px-6 max-w-2xl">
-        {/* Logo if available - 20% larger */}
+        {/* Logo if available */}
         {logoUrl && (
           <div className={`mb-8 transition-all duration-1000 ${step >= 1 ? 'opacity-100' : 'opacity-0'}`}>
-            <img src={logoUrl} alt="Development Logo" className="h-24 mx-auto object-contain" />
+            <img src={logoUrl} alt="Development Logo" className="h-20 mx-auto object-contain" />
           </div>
         )}
         
