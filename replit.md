@@ -75,27 +75,37 @@ OpenHouse AI/
 
 ### Multi-Tenant Branding Resolution Fix (January 2026)
 
-**Fixed purchaser portal intro screen showing "Your Development" instead of actual estate name:**
+**Fixed purchaser portal showing wrong/duplicate branding:**
 
-**Root Cause:** Drizzle units table had `development_id = NULL` for 178/179 units, blocking correct branding display. The API found units in Drizzle but with incomplete data, returning placeholder instead of checking Supabase.
+**Issues Fixed:**
+1. **Intro Subtitle:** Showed "Welcome Home" twice (H1 and subtitle) → Now only shows development name as subtitle, hidden if missing
+2. **Header Logo:** Hardcoded to Longview fallback → Now data-driven from `development_logo_url` API field
+3. **Chat Center Logo:** Hardcoded if/else chain → Now data-driven from `logoUrl` prop
 
-**Fix Applied:**
+**Root Cause (API):** Drizzle units table had `development_id = NULL` for most units, blocking correct branding display.
+
+**API Fix Applied:**
 1. **Incomplete Detection:** Changed from `!development_id && !address` to `!development_id || !dev_name` (OR not AND)
 2. **Supabase Fallback:** When Drizzle unit is incomplete, falls through to Supabase which has complete project data
 3. **Deterministic Matching:** Uses EXACT name match (case-insensitive) from Supabase project to Drizzle development
 4. **No Address-Pattern Guessing:** Removed risky word-matching that could cause cross-tenant leakage
 5. **Tenant-Aware Cache:** Keys now include tenant ID: `resolve:{tenantId}:{token}`
-6. **Debug Headers:** Added X-OH-UnitId, X-OH-DevId, X-OH-DevName, X-OH-Source (dev only)
 
-**Data Flow:**
-- Drizzle unit → check if incomplete (`!development_id || !dev_name`) → Supabase units → Supabase projects → exact name match to Drizzle developments → return branding
-- If no Drizzle match, Supabase project name is authoritative for display
-- DATA_ERROR logged when development cannot be resolved (no silent fallback)
+**UI Fix Applied:**
+1. **IntroAnimation.tsx:** Added guard `developmentName && developmentName !== 'Welcome Home'` before rendering subtitle
+2. **page.tsx:** Replaced hardcoded logo if/else with data-driven `house.development_logo_url`
+3. **PurchaserChatTab.tsx:** Added `logoUrl` prop, replaced hardcoded logo chain with data-driven rendering
+4. **Database:** Updated `developments.logo_url` for Longview Park and Rathard Park
+
+**Fallback Behavior:**
+- Logo: Uses `development_logo_url` from API → falls back to text development name → falls back to "OpenHouse"
+- Subtitle: Uses development name → hidden if missing or equals "Welcome Home"
 
 **Key Files:**
 - `apps/unified-portal/app/api/houses/resolve/route.ts`
 - `apps/unified-portal/app/homes/[unitUid]/page.tsx`
-- `apps/unified-portal/tests/api/resolve-branding.test.ts`
+- `apps/unified-portal/components/purchaser/IntroAnimation.tsx`
+- `apps/unified-portal/components/purchaser/PurchaserChatTab.tsx`
 
 ### Suggested Pills V2 (January 2026)
 
