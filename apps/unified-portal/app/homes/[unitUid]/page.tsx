@@ -161,7 +161,7 @@ export default function HomeResidentPage() {
             house_id: houseId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
-            development_name: data.development_name || 'Longview Park',
+            development_name: data.development_name || 'Your Home',
             development_logo_url: data.development_logo_url,
             development_system_instructions: data.development_system_instructions || '',
             purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',

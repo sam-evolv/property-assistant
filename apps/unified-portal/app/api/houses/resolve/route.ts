@@ -238,10 +238,33 @@ export async function POST(req: Request) {
 
     if (unit) {
       // Found in units table
-      const fullAddress = unit.address_line_1 || unit.dev_address || '';
+      // Combine address parts for full formatted address
+      const addressParts = [
+        unit.address_line_1,
+        unit.address_line_2,
+        unit.city,
+        unit.eircode,
+      ].filter(Boolean);
+      const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : (unit.dev_address || '');
       const unitIdentifier = unit.unit_uid || unit.id;
 
-      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id);
+      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id, "DevName:", unit.dev_name);
+
+      // If dev_name is null, try to resolve via development resolver
+      let resolvedDevName = unit.dev_name;
+      let resolvedLogoUrl = unit.dev_logo_url;
+      let resolvedTenantId = unit.tenant_id;
+      
+      if (!resolvedDevName && unit.development_id) {
+        console.log("[Resolve] dev_name null, attempting development resolver for:", unit.development_id);
+        const resolved = await resolveDevelopment(unit.development_id, fullAddress);
+        if (resolved) {
+          console.log("[Resolve] Development resolver found:", resolved.developmentName);
+          resolvedDevName = resolved.developmentName;
+          resolvedLogoUrl = resolvedLogoUrl || resolved.logoUrl;
+          resolvedTenantId = resolvedTenantId || resolved.tenantId;
+        }
+      }
 
       // Coordinate resolution order: PROJECT OVERRIDE -> geocode address -> unit lat/lng -> development lat/lng
       // Priority 1: Hard override by project/development ID (SOURCE OF TRUTH for known schemes)
@@ -267,13 +290,13 @@ export async function POST(req: Request) {
         success: true,
         unitId: unitIdentifier,
         house_id: unitIdentifier,
-        tenantId: unit.tenant_id || null,
-        tenant_id: unit.tenant_id || null,
+        tenantId: resolvedTenantId || null,
+        tenant_id: resolvedTenantId || null,
         developmentId: unit.development_id,
         development_id: unit.development_id,
-        development_name: unit.dev_name || 'Your Development',
+        development_name: resolvedDevName || 'Your Development',
         development_code: '',
-        development_logo_url: unit.dev_logo_url || null,
+        development_logo_url: resolvedLogoUrl || null,
         development_system_instructions: '',
         address: fullAddress || 'Your Home',
         eircode: unit.eircode || '',
@@ -489,7 +512,23 @@ export async function POST(req: Request) {
       // Found in homeowners table
       const fullAddress = homeowner.address || homeowner.dev_address || '';
 
-      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id);
+      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id, "DevName:", homeowner.dev_name);
+
+      // If dev_name is null, try to resolve via development resolver
+      let resolvedDevName = homeowner.dev_name;
+      let resolvedLogoUrl = homeowner.dev_logo_url;
+      let resolvedTenantId = homeowner.tenant_id;
+      
+      if (!resolvedDevName && homeowner.development_id) {
+        console.log("[Resolve] homeowner dev_name null, attempting development resolver for:", homeowner.development_id);
+        const resolved = await resolveDevelopment(homeowner.development_id, fullAddress);
+        if (resolved) {
+          console.log("[Resolve] Development resolver found for homeowner:", resolved.developmentName);
+          resolvedDevName = resolved.developmentName;
+          resolvedLogoUrl = resolvedLogoUrl || resolved.logoUrl;
+          resolvedTenantId = resolvedTenantId || resolved.tenantId;
+        }
+      }
 
       // Coordinate resolution: PROJECT OVERRIDE -> geocode -> development fallback
       // Priority 1: Hard override by development ID (SOURCE OF TRUTH for known schemes)
@@ -513,13 +552,13 @@ export async function POST(req: Request) {
           success: true,
           unitId: homeowner.id,
           house_id: homeowner.id,
-          tenantId: homeowner.tenant_id || null,
-          tenant_id: homeowner.tenant_id || null,
+          tenantId: resolvedTenantId || null,
+          tenant_id: resolvedTenantId || null,
           developmentId: homeowner.development_id,
           development_id: homeowner.development_id,
-          development_name: homeowner.dev_name || 'Your Development',
+          development_name: resolvedDevName || 'Your Development',
           development_code: '',
-          development_logo_url: homeowner.dev_logo_url || null,
+          development_logo_url: resolvedLogoUrl || null,
           development_system_instructions: '',
           address: fullAddress || 'Your Home',
           eircode: '',

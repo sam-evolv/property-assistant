@@ -1,0 +1,64 @@
+You are a senior full-stack engineer. We have a multi-tenant purchaser portal (Longview Park, Rathard Park, Rathard Lawn). A regression has occurred:
+
+Symptoms
+- Intro now shows: “Welcome to your development” instead of the actual development name (Rathard Park / Rathard Lawn / Longview Park).
+- Intro no longer shows full address; it only shows owner name + house number (no street / full formatted address).
+- Inside the portal, logos have reverted to Longview Park for Rathard Park and Rathard Lawn tenants (wrong branding/tenant assets).
+- I rolled back to the commit where the “stale cache fallback logic was tightened” (maps/poi change). At that point this app was previously working perfectly, but now it’s not. So we must investigate why the current code/data state is inconsistent with expected behavior.
+
+Goal
+Reinstate: each portal must be perfectly aligned with its own estate.
+- Intro: “Welcome to Rathard Park” / “Welcome to Rathard Lawn” / “Welcome to Longview Park”
+- Intro shows: purchaser name + unit number + full address (house number + street + area + county etc as stored)
+- Portal UI shows correct logo (header toolbar center and anywhere else) for the tenant’s development.
+
+Non-negotiables
+- Do not hardcode per-estate values in the UI.
+- Fix must be data-driven, tenant-safe, and resilient (no silent fallback to Longview unless the tenant truly is Longview).
+- Add safeguards so this never regresses again.
+- Translation + demo seed changes have been rolled back; do not reintroduce them. Focus on tenant/development resolution + branding.
+
+Process (follow strictly)
+
+PHASE 1: Reproduce + observe
+1) Identify the exact route/URL pattern used to open a purchaser portal (e.g. /p/:unitId, /portal/:slug, /u/:code, etc).
+2) Reproduce for:
+   - a Rathard Park unit
+   - a Rathard Lawn unit
+   - a Longview Park unit
+3) Add temporary, dev-only logging (server and client) to print:
+   - resolved tenantId / orgId
+   - resolved projectId / developmentId
+   - resolved unitId
+   - resolved branding payload (logo URL, development name)
+   - resolved address fields used to format “full address”
+4) Capture where “Welcome to your development” is being chosen and where logos are being chosen.
+
+PHASE 2: Identify the data source + resolution chain
+5) Locate the code responsible for:
+   A) fetching “current unit” and “current development”
+   B) fetching “branding / logo”
+   C) formatting the address shown in intro
+6) Trace the dependency chain end-to-end:
+   - Entry parameter (unitId? accessCode? slug?)
+   - API call(s)
+   - DB query
+   - returned JSON
+   - client state store (context/provider/zustand/redux)
+   - component rendering
+
+PHASE 3: Root cause analysis (most likely failure modes)
+7) Check for a fallback default object used when development/tenant is missing. Specifically search for:
+   - “your development”
+   - “Longview”
+   - DEFAULT_TENANT, DEFAULT_DEVELOPMENT, fallbackBranding, seedBranding
+   - “??” / “||” style defaults in the branding resolver
+8) Validate whether the wrong development is being returned by the API, or returned correctly but overwritten on the client.
+9) Confirm whether the logos are:
+   - being selected by “developmentId” but that ID is wrong
+   - being selected by “slug” but slug mapping is wrong
+   - being cached globally (cross-tenant cache key collision)
+   - being loaded from an environment default (e.g. NEXT_PUBLIC_DEFAULT_LOGO)
+10) Inspect any caching layer:
+   - server in-memory cache, edge cache, localStorage, indexedDB
+   - ensure cache keys include tenantId/developmentId/unit
