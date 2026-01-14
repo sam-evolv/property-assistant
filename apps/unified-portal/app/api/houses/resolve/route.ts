@@ -303,11 +303,30 @@ export async function POST(req: Request) {
     console.log("[Resolve] Not found in Drizzle units, checking Supabase units table...");
     
     try {
-      const { data: supabaseUnit, error: supabaseError } = await supabase
+      // Try by unit_uid first (e.g., LV-PARK-021), then by UUID id
+      let supabaseUnit = null;
+      let supabaseError = null;
+      
+      // First try unit_uid lookup
+      const { data: byUid, error: uidError } = await supabase
         .from('units')
-        .select('id, address, purchaser_name, project_id')
-        .eq('id', token)
+        .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms')
+        .eq('unit_uid', token)
         .single();
+      
+      if (byUid && !uidError) {
+        supabaseUnit = byUid;
+        console.log("[Resolve] Found by unit_uid:", byUid.unit_uid);
+      } else if (isUuid) {
+        // Fallback to id lookup for UUID tokens
+        const { data: byId, error: idError } = await supabase
+          .from('units')
+          .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms')
+          .eq('id', token)
+          .single();
+        supabaseUnit = byId;
+        supabaseError = idError;
+      }
       
       if (supabaseUnit && !supabaseError) {
         console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address, "ProjectID:", supabaseUnit.project_id);
@@ -379,38 +398,39 @@ export async function POST(req: Request) {
           }
         }
         
+        const responseData = {
+          success: true,
+          unitId: supabaseUnit.id,
+          unit_id: supabaseUnit.id,
+          unit_uid: supabaseUnit.unit_uid || null,
+          tenantId: resolved?.tenantId || null,
+          tenant_id: resolved?.tenantId || null,
+          developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+          development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
+          supabase_project_id: supabaseUnit.project_id,
+          development_name: resolved?.developmentName || 'Your Development',
+          development_code: '',
+          development_logo_url: resolved?.logoUrl || null,
+          development_system_instructions: '',
+          address: fullAddress || 'Your Home',
+          eircode: '',
+          purchaserName: fullPurchaserName || 'Homeowner',
+          purchaser_name: fullPurchaserName || 'Homeowner',
+          user_id: null,
+          project_id: supabaseUnit.project_id,
+          houseType: supabaseUnit.house_type_code || null,
+          house_type: supabaseUnit.house_type_code || null,
+          floorPlanUrl: null,
+          floor_plan_pdf_url: null,
+          latitude: coordinates?.lat || null,
+          longitude: coordinates?.lng || null,
+          specs: null,
+          request_id: requestId,
+        };
+        
+        globalCache.set(cacheKey, responseData, 60000);
         recordCircuitBreakerSuccess('/api/houses/resolve');
-        return NextResponse.json(
-          {
-            success: true,
-            unitId: supabaseUnit.id,
-            unit_id: supabaseUnit.id,
-            tenantId: resolved?.tenantId || null,
-            tenant_id: resolved?.tenantId || null,
-            developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
-            development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
-            supabase_project_id: supabaseUnit.project_id,
-            development_name: resolved?.developmentName || 'Your Development',
-            development_code: '',
-            development_logo_url: resolved?.logoUrl || null,
-            development_system_instructions: '',
-            address: fullAddress || 'Your Home',
-            eircode: '',
-            purchaserName: fullPurchaserName || 'Homeowner',
-            purchaser_name: fullPurchaserName || 'Homeowner',
-            user_id: null,
-            project_id: supabaseUnit.project_id,
-            houseType: null,
-            house_type: null,
-            floorPlanUrl: null,
-            floor_plan_pdf_url: null,
-            latitude: coordinates?.lat || null,
-            longitude: coordinates?.lng || null,
-            specs: null,
-            request_id: requestId,
-          },
-          { headers: getResponseHeaders(requestId) }
-        );
+        return NextResponse.json(responseData, { headers: getResponseHeaders(requestId) });
       }
     } catch (supabaseErr: any) {
       console.log("[Resolve] Supabase lookup failed:", supabaseErr.message, `requestId=${requestId}`);
