@@ -1,0 +1,142 @@
+{
+  "nav": {
+    "home": "Pradžia",
+    "docs": "Dokumentai",
+    "noticeboard": "Skelbimų lenta",
+    "map": "Žemėlapis",
+    "profile": "Profilis",
+    "settings": "Nustatymai",
+    "logout": "Atsijungti"
+  },
+  "tabs": {
+    "chat": "Pradžia",
+    "documents": "Dokumentai",
+    "noticeboard": "Skelbimai",
+    "map": "Vietovė"
+  },
+  "chat": {
+    "welcome": "Klauskite bet ko apie savo namus ar bendruomenę",
+    "subtitle": "Greiti atsakymai kasdienybei: planai, patogumai, vietinės paslaugos ir daugiau.",
+    "placeholder": "Klauskite apie savo namus ar bendruomenę...",
+    "askButton": "Klausti",
+    "powered": "Veikia AI • Informacija tik nuorodai",
+    "voiceNotSupported": "Balso įvedimas nepalaikomas jūsų naršyklėje. Naudokite Chrome, Edge arba Safari.",
+    "sessionExpired": "Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.",
+    "errorOccurred": "Atsiprašome, įvyko klaida. Bandykite dar kartą.",
+    "prompts": {
+      "transport": "Viešasis transportas",
+      "floorPlans": "Aukštų planai",
+      "parking": "Parkavimo taisyklės",
+      "localArea": "Vietovė"
+    }
+  },
+  "noticeboard": {
+    "header": "Bendruomenės Skelbimų Lenta",
+    "subtitle": "Svarbūs atnaujinimai ir pranešimai",
+    "noNotices": "Nėra Įrašų",
+    "noNoticesDesc": "Būkite pirmas, kuris pasidalins kažkuo su bendruomene.",
+    "loading": "Kraunama...",
+    "createButton": "Naujas Įrašas",
+    "createTitle": "Sukurti Įrašą",
+    "formTitle": "Pavadinimas",
+    "formMessage": "Kuo norėtumėte pasidalinti?",
+    "formCategory": "Kategorija",
+    "formPriority": "Prioritetas",
+    "formAuthorName": "Jūsų Vardas",
+    "low": "Žemas",
+    "medium": "Vidutinis",
+    "high": "Skubus",
+    "cancel": "Atšaukti",
+    "submit": "Publikuoti",
+    "submitting": "Publikuojama...",
+    "all": "Visi",
+    "event": "Renginys",
+    "alert": "Įspėjimas",
+    "lostFound": "Prarasta",
+    "general": "Bendra",
+    "submitFailed": "Nepavyko pateikti. Bandykite dar kartą.",
+    "comments": "Komentarai",
+    "noComments": "Nėra komentarų",
+    "beFirstComment": "Pradėkite pokalbį...",
+    "writeComment": "Pridėti komentarą...",
+    "postComment": "Publikuoti",
+    "deleteComment": "Ištrinti",
+    "yourName": "Jūsų vardas",
+    "back": "Atgal",
+    "commentPosted": "Komentaras paskelbtas!",
+    "commentDeleted": "Komentaras ištrintas",
+    "commentFailed": "Nepavyko publikuoti.",
+    "viewComments": "Peržiūrėti komentarus",
+    "postedBy": "Paskelbė",
+    "anonymous": "Bendruomenės Narys",
+    "resident": "Gyventojas"
+  },
+  "documents": {
+    "title": "Dokumentai",
+    "subtitle": "Jūsų nuosavybės dokumentai ir vadovai",
+    "empty": "Nėra dokumentų",
+    "emptyDesc": "Jūsų nuosavybės dokumentai bus rodomi čia.",
+    "loading": "Kraunami dokumentai...",
+    "download": "Atsisiųsti",
+    "view": "Peržiūrėti",
+    "categories": {
+      "all": "Visi",
+      "legal": "Teisiniai",
+      "maintenance": "Priežiūra",
+      "guides": "Vadovai",
+      "warranties": "Garantijos"
+    }
+  },
+  "map": {
+    "title": "Vietovė",
+    "subtitle": "Tyrinėkite savo apylinkes",
+    "loading": "Kraunamas žemėlapis...",
+    "yourHome": "Jūsų Namai",
+    "filters": {
+      "all": "Visi",
+      "transport": "Transportas",
+      "schools": "Mokyklos",
+      "shops": "Parduotuvės",
+      "healthcare": "Sveikatos priežiūra",
+      "leisure": "Pramogos"
+    }
+  },
+  "profile": {
+    "title": "Jūsų Nuosavybė",
+    "bedrooms": "Miegamieji",
+    "bathrooms": "Vonios kambariai",
+    "address": "Adresas",
+    "eircode": "Pašto kodas",
+    "mrpn": "MRPN",
+    "electricityAccount": "Elektros sąskaita",
+    "developer": "Plėtotojas",
+    "moveInDate": "Įsikraustymo data",
+    "floorPlan": "Aukšto planas"
+  },
+  "errors": {
+    "network": "Tinklo klaida. Patikrinkite ryšį.",
+    "generic": "Kažkas nutiko. Bandykite dar kartą.",
+    "sessionExpired": "Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.",
+    "notFound": "Nerasta",
+    "unauthorized": "Neleistina prieiga"
+  },
+  "common": {
+    "loading": "Kraunama...",
+    "retry": "Bandyti dar kartą",
+    "close": "Uždaryti",
+    "save": "Išsaugoti",
+    "cancel": "Atšaukti",
+    "confirm": "Patvirtinti",
+    "delete": "Ištrinti",
+    "edit": "Redaguoti",
+    "search": "Ieškoti",
+    "filter": "Filtruoti",
+    "sort": "Rūšiuoti",
+    "refresh": "Atnaujinti"
+  },
+  "sessionExpired": {
+    "title": "Sesija Pasibaigė",
+    "message": "Jūsų sesija pasibaigė. Nuskaitykite QR kodą dar kartą, kad tęstumėte.",
+    "scanAgain": "Nuskaityti QR kodą"
+  }
+}

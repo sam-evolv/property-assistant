@@ -1,0 +1,142 @@
+{
+  "nav": {
+    "home": "Início",
+    "docs": "Documentos",
+    "noticeboard": "Quadro",
+    "map": "Mapa",
+    "profile": "Perfil",
+    "settings": "Definições",
+    "logout": "Sair"
+  },
+  "tabs": {
+    "chat": "Início",
+    "documents": "Documentos",
+    "noticeboard": "Quadro",
+    "map": "Zona"
+  },
+  "chat": {
+    "welcome": "Pergunte qualquer coisa sobre sua casa ou comunidade",
+    "subtitle": "Respostas rápidas para o dia a dia: plantas, comodidades, serviços locais e mais.",
+    "placeholder": "Pergunte sobre sua casa ou comunidade...",
+    "askButton": "Perguntar",
+    "powered": "Alimentado por IA • Informação apenas para referência",
+    "voiceNotSupported": "A entrada de voz não é compatível com o seu navegador. Use Chrome, Edge ou Safari.",
+    "sessionExpired": "Sessão expirada. Escaneie seu código QR novamente.",
+    "errorOccurred": "Desculpe, encontrei um erro. Tente novamente.",
+    "prompts": {
+      "transport": "Transporte público",
+      "floorPlans": "Plantas",
+      "parking": "Regras de estacionamento",
+      "localArea": "Área local"
+    }
+  },
+  "noticeboard": {
+    "header": "Quadro da Comunidade",
+    "subtitle": "Atualizações e anúncios importantes",
+    "noNotices": "Sem Publicações",
+    "noNoticesDesc": "Seja o primeiro a compartilhar algo com sua comunidade.",
+    "loading": "Carregando...",
+    "createButton": "Nova Publicação",
+    "createTitle": "Criar Publicação",
+    "formTitle": "Título",
+    "formMessage": "O que você gostaria de compartilhar?",
+    "formCategory": "Categoria",
+    "formPriority": "Prioridade",
+    "formAuthorName": "Seu Nome",
+    "low": "Baixa",
+    "medium": "Média",
+    "high": "Urgente",
+    "cancel": "Cancelar",
+    "submit": "Publicar",
+    "submitting": "Publicando...",
+    "all": "Todos",
+    "event": "Evento",
+    "alert": "Alerta",
+    "lostFound": "Perdidos",
+    "general": "Geral",
+    "submitFailed": "Falha ao enviar. Tente novamente.",
+    "comments": "Comentários",
+    "noComments": "Sem comentários",
+    "beFirstComment": "Inicie a conversa...",
+    "writeComment": "Adicionar comentário...",
+    "postComment": "Publicar",
+    "deleteComment": "Excluir",
+    "yourName": "Seu nome",
+    "back": "Voltar",
+    "commentPosted": "Comentário publicado!",
+    "commentDeleted": "Comentário excluído",
+    "commentFailed": "Falha ao publicar.",
+    "viewComments": "Ver comentários",
+    "postedBy": "Postado por",
+    "anonymous": "Membro da Comunidade",
+    "resident": "Morador"
+  },
+  "documents": {
+    "title": "Documentos",
+    "subtitle": "Documentos e guias da sua propriedade",
+    "empty": "Sem documentos disponíveis",
+    "emptyDesc": "Os documentos da sua propriedade aparecerão aqui.",
+    "loading": "Carregando documentos...",
+    "download": "Baixar",
+    "view": "Ver",
+    "categories": {
+      "all": "Todos",
+      "legal": "Legal",
+      "maintenance": "Manutenção",
+      "guides": "Guias",
+      "warranties": "Garantias"
+    }
+  },
+  "map": {
+    "title": "Área Local",
+    "subtitle": "Explore sua vizinhança",
+    "loading": "Carregando mapa...",
+    "yourHome": "Sua Casa",
+    "filters": {
+      "all": "Todos",
+      "transport": "Transporte",
+      "schools": "Escolas",
+      "shops": "Lojas",
+      "healthcare": "Saúde",
+      "leisure": "Lazer"
+    }
+  },
+  "profile": {
+    "title": "Sua Propriedade",
+    "bedrooms": "Quartos",
+    "bathrooms": "Banheiros",
+    "address": "Endereço",
+    "eircode": "Código postal",
+    "mrpn": "MRPN",
+    "electricityAccount": "Conta de Eletricidade",
+    "developer": "Incorporador",
+    "moveInDate": "Data de Mudança",
+    "floorPlan": "Planta"
+  },
+  "errors": {
+    "network": "Erro de rede. Verifique sua conexão.",
+    "generic": "Algo deu errado. Tente novamente.",
+    "sessionExpired": "Sessão expirada. Escaneie seu código QR novamente.",
+    "notFound": "Não encontrado",
+    "unauthorized": "Acesso não autorizado"
+  },
+  "common": {
+    "loading": "Carregando...",
+    "retry": "Tentar novamente",
+    "close": "Fechar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "sort": "Ordenar",
+    "refresh": "Atualizar"
+  },
+  "sessionExpired": {
+    "title": "Sessão Expirada",
+    "message": "Sua sessão expirou. Escaneie seu código QR novamente para continuar.",
+    "scanAgain": "Escanear Código QR"
+  }
+}

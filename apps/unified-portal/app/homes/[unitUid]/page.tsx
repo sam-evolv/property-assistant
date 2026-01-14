@@ -8,6 +8,8 @@ import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User } from
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
+import { I18nProvider, useI18n } from '@/i18n/I18nContext';
+import type { Locale } from '@/i18n/config';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -52,19 +54,16 @@ interface HouseContext {
   floor_plan_pdf_url?: string | null;
 }
 
-const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '' },
-  { code: 'pl', name: 'Polski', flag: '🇵🇱' },
-  { code: 'ga', name: 'Gaeilge', flag: '🇮🇪' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'pt', name: 'Português', flag: '🇵🇹' },
-  { code: 'lv', name: 'Latviešu', flag: '🇱🇻' },
-  { code: 'lt', name: 'Lietuvių', flag: '🇱🇹' },
-  { code: 'ro', name: 'Română', flag: '🇷🇴' },
-];
-
 export default function HomeResidentPage() {
+  return (
+    <I18nProvider>
+      <HomeResidentPageContent />
+    </I18nProvider>
+  );
+}
+
+function HomeResidentPageContent() {
+  const { locale, setLocale, t, locales, localeNames, localeFlags } = useI18n();
   const params = useParams();
   const searchParams = useSearchParams();
   const { unitUid } = params as { unitUid: string };
@@ -77,7 +76,6 @@ export default function HomeResidentPage() {
   const [retryCount, setRetryCount] = useState(0);
   const [showIntro, setShowIntro] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
@@ -94,10 +92,7 @@ export default function HomeResidentPage() {
   const RETRY_DELAY_MS = 2000;
 
   useEffect(() => {
-    // Load saved preferences
-    const savedLang = localStorage.getItem('purchaser_language');
-    if (savedLang) setSelectedLanguage(savedLang);
-
+    // Load saved theme preference
     const savedTheme = localStorage.getItem('purchaser_theme');
     if (savedTheme === 'dark') setIsDarkMode(true);
   }, []);
@@ -225,9 +220,8 @@ export default function HomeResidentPage() {
     setShowIntro(false);
   };
 
-  const handleLanguageChange = (langCode: string) => {
-    setSelectedLanguage(langCode);
-    localStorage.setItem('purchaser_language', langCode);
+  const handleLanguageChange = (langCode: Locale) => {
+    setLocale(langCode);
     setShowLanguageDropdown(false);
   };
 
@@ -539,10 +533,10 @@ export default function HomeResidentPage() {
                   : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              {LANGUAGES.find(l => l.code === selectedLanguage)?.flag && (
-                <span>{LANGUAGES.find(l => l.code === selectedLanguage)?.flag}</span>
+              {localeFlags[locale] && (
+                <span>{localeFlags[locale]}</span>
               )}
-              <span>{LANGUAGES.find(l => l.code === selectedLanguage)?.code.toUpperCase()}</span>
+              <span>{locale.toUpperCase()}</span>
               <ChevronDown className="w-3 h-3" />
             </button>
 
@@ -550,18 +544,18 @@ export default function HomeResidentPage() {
               <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border py-1 z-50 ${
                 isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
               }`}>
-                {LANGUAGES.map(lang => (
+                {locales.map(langCode => (
                   <button
-                    key={lang.code}
-                    onClick={() => handleLanguageChange(lang.code)}
+                    key={langCode}
+                    onClick={() => handleLanguageChange(langCode)}
                     className={`w-full px-4 py-2 text-left flex items-center gap-3 transition-colors text-sm ${
-                      selectedLanguage === lang.code 
+                      locale === langCode 
                         ? (isDarkMode ? 'bg-gold-900/30 text-gold-400' : 'bg-gold-50 text-gold-700')
                         : (isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
                     }`}
                   >
-                    <span>{lang.flag}</span>
-                    <span>{lang.name}</span>
+                    <span>{localeFlags[langCode]}</span>
+                    <span>{localeNames[langCode]}</span>
                   </button>
                 ))}
               </div>
@@ -609,7 +603,7 @@ export default function HomeResidentPage() {
               developmentName={house.development_name}
               unitUid={unitUid}
               token={validatedToken || ''}
-              selectedLanguage={selectedLanguage}
+              selectedLanguage={locale}
               isDarkMode={isDarkMode}
               userId={house.user_id}
             />
@@ -623,7 +617,7 @@ export default function HomeResidentPage() {
               latitude={house.latitude}
               longitude={house.longitude}
               isDarkMode={isDarkMode}
-              selectedLanguage={selectedLanguage}
+              selectedLanguage={locale}
             />
           </Tabs.Content>
 
@@ -631,7 +625,7 @@ export default function HomeResidentPage() {
             <PurchaserNoticeboardTab 
               unitUid={unitUid}
               isDarkMode={isDarkMode}
-              selectedLanguage={selectedLanguage}
+              selectedLanguage={locale}
             />
           </Tabs.Content>
 
@@ -640,7 +634,7 @@ export default function HomeResidentPage() {
               unitUid={unitUid}
               houseType={house.house_type}
               isDarkMode={isDarkMode}
-              selectedLanguage={selectedLanguage}
+              selectedLanguage={locale}
             />
           </Tabs.Content>
         </div>
