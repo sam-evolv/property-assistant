@@ -488,39 +488,39 @@ export default function HomeResidentPage() {
             paddingBottom: '12px',
           }}
         >
-        {/* Left: Development Logo - 30% larger for improved visibility */}
+        {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex h-[58px] w-auto items-center justify-center">
+          <div className="flex h-[45px] w-auto items-center justify-center">
             {house?.development_name?.toLowerCase().includes('openhouse') ? (
               <img 
                 src="/brand/openhouse-logo.png" 
                 alt="OpenHouse AI logo"
-                width={195}
-                height={58}
+                width={150}
+                height={45}
                 className="h-full w-auto object-contain transition-all"
               />
             ) : house?.development_name?.toLowerCase().includes('rathard lawn') ? (
               <img 
                 src="/rathard-lawn-logo.png" 
                 alt="Rathard Lawn logo"
-                width={195}
-                height={58}
+                width={150}
+                height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
               <img 
                 src="/rathard-park-logo.png" 
                 alt="Rathard Park logo"
-                width={195}
-                height={58}
+                width={150}
+                height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
               <img 
                 src="/longview-logo.png" 
                 alt="Longview Estates logo"
-                width={195}
-                height={58}
+                width={150}
+                height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             )}
