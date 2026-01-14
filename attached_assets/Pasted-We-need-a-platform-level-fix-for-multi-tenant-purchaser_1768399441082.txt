@@ -1,0 +1,85 @@
+We need a platform-level fix for multi-tenant purchaser portal branding across ALL units (Longview Park, Rathard Park, Rathard Lawn). Stop working on per-unit patches and stop referencing the OH demo account.
+
+Business requirement (must restore the prior “perfect” behavior):
+- Startup intro animation must show the correct estate name per unit under “Welcome Home”
+- Startup intro must show correct resident name and full address per unit
+- Header + center logos must show the correct development logo per unit (never Longview leaking into Rathard, never OpenHouse generic unless that unit truly has no development branding)
+- Works for every unit, not just one.
+
+Key insight:
+Rolling back code did not restore behavior, so the root cause is likely DB state drift, cache key collisions, or wrong deployment commit. We must prove and fix those.
+
+PHASE 0: Identify the last known-good state and verify deployment is actually on it
+1) Identify the last known-good git commit hash/tag where portals worked perfectly (check git log around the “stale cache fallback logic tightened” commit).
+2) Add a DEV-ONLY “Build Info” string to the footer or console: commit hash + build time.
+3) Confirm the running Replit deployment is serving THAT commit. If not, fix deployment config so it deploys the correct branch/commit.
+
+PHASE 1: Make branding resolution globally deterministic (single source of truth)
+4) Locate the single “bootstrap”/“portal context” API that the purchaser portal uses on load (intro + header).
+5) Ensure it always resolves:
+   - unit (id, unit_number, purchaser name, address fields, development_id)
+   - development (id, name, development_logo_url)
+6) Ensure the join path is ONLY:
+   unit.development_id -> developments.id
+No slug maps, no “known mappings”, no static logo imports.
+
+PHASE 2: Database restoration (all units)
+7) Audit DB integrity for ALL developments:
+   - developments table must have correct name + logo URL for each estate:
+     Longview Park -> /longview-logo.png
+     Rathard Park -> /rathard-park-logo.png
+     Rathard Lawn -> /rathard-lawn-logo.png
+   Verify these files exist in public assets and return 200.
+8) Audit DB integrity for ALL units:
+   - Every unit must have a valid development_id pointing to the correct development.
+9) If drift is detected, fix it with a single migration/seed script that is:
+   - idempotent (safe to re-run)
+   - uses stable identifiers (development name or canonical slug) to find the correct development IDs
+   - updates units with null/incorrect development_id
+   - updates developments with missing/incorrect logo URLs/names
+10) Run the script and output a summary:
+   - units updated count per development
+   - developments updated
+   - any units that could not be mapped (must be 0; if not, report them)
+
+PHASE 3: Cache and state hardening (why rollback didn’t work)
+11) Search for any caching of portal context/branding:
+   - localStorage / sessionStorage keys
+   - service worker caching
+   - in-memory caches / memoized resolvers
+   - fetch cache wrappers
+12) Fix cache keys so they are tenant-safe:
+   - At minimum key by unitId OR developmentId (prefer unitId for intro payload)
+   - Version keys (v3) to force a clean break from old cached “OpenHouse/Longview” state
+13) Ensure any global store/context is reset on unit change and never persists branding across tenants.
+
+PHASE 4: UI correctness (restore the prior intro + logo behavior)
+14) Intro subtitle must render development.name (estate name).
+15) If development.name is missing, treat it as a data error:
+   - log error in dev
+   - show nothing rather than generic placeholders
+16) Header and center logos must render from development_logo_url (runtime payload).
+   - If missing, show text development.name, else OpenHouse neutral.
+   - Absolutely never show another development’s logo.
+
+PHASE 5: System-wide verification (prove it works for every unit)
+17) Implement a “Branding Audit” script/endpoint (dev-only) that:
+   - iterates through ALL units
+   - resolves unit -> development -> logo
+   - outputs a report table: unit_id, unit_number, address, development_name, logo_url, status
+   - flags any unit where development_name or logo_url is missing or mismatched
+18) Add a smoke test or integration test covering:
+   - 3 developments, 3 units, correct branding returned
+
+PHASE 6: Deliverables
+19) Commit:
+   - DB seed/migration restore script
+   - cache key hardening changes
+   - portal bootstrap resolver fixes
+   - branding audit report script
+20) Provide manual verification steps:
+   - open one unit per estate and confirm intro + logos are correct
+   - run branding audit and confirm 0 failures
+
+Start immediately with PHASE 0 and PHASE 2. The fastest route is to prove whether the running deployment is the correct commit and then repair DB linkages + logo URLs across all units with an idempotent script.
+Do not claim “fixed” until the branding audit report shows 0 broken units.
