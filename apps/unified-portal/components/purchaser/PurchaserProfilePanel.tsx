@@ -291,7 +291,7 @@ export default function PurchaserProfilePanel({
                         House Type
                       </p>
                       <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {profile.unit.house_type_name || profile.unit.house_type_code}
+                        {profile.unit.house_type_code || profile.unit.house_type_name || 'House'}
                       </p>
                     </div>
                   </div>
@@ -340,7 +340,7 @@ export default function PurchaserProfilePanel({
                           {Math.round(profile.unit.floor_area_sqm)}
                         </p>
                         <p className={`text-xs font-medium uppercase tracking-wider mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Square Metres
+                          Square Feet
                         </p>
                       </div>
                     )}
