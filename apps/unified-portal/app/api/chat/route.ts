@@ -2366,10 +2366,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           confidence: 'none',
           gapReason: 'no_documents_found',
           sessionContext: {
-            block: sessionMemory?.block,
+            block: sessionMemory?.block ?? undefined,
             unitNumber: userUnitDetails?.address?.split(',')[0] || undefined,
-            developmentName: developmentName,
-            issueType: sessionMemory?.issue,
+            developmentName: developmentName ?? undefined,
+            issueType: sessionMemory?.issue ?? undefined,
           },
         });
         console.log('[Chat] Escalation guidance prepared:', escalationGuidance.escalationTarget);
@@ -2905,7 +2905,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           safetyIntercept: false,
           confidence: chunks && chunks.length > 0 ? 'high' : 'low',
           sourceType: responseSource === 'semantic_search' ? 'docs' : 'general',
-          schemeName: developmentName,
+          schemeName: developmentName ?? undefined,
           includeSourceHint: true,
         };
         fullAnswer = wrapResponse(fullAnswer, toneInput);
@@ -3126,7 +3126,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             safetyIntercept: false,
             confidence: chunks && chunks.length > 0 ? 'high' : 'low',
             sourceType: streamResponseSource === 'semantic_search' ? 'docs' : 'general',
-            schemeName: developmentName,
+            schemeName: developmentName ?? undefined,
             includeSourceHint: true,
           };
           const streamingGuardrail = createStreamingGuardrail(streamToneInput);
