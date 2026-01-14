@@ -87,51 +87,81 @@ export async function POST(req: NextRequest) {
     
     console.log('[Purchaser Auth] Found project:', projectData.id, projectData.name, 'for prefix:', prefix);
     
-    // Find the unit by address number within this specific project
-    const { data: projectUnits, error: unitsError } = await supabase
+    // First, try to find the unit directly by unit_uid (most reliable)
+    const { data: directUnit, error: directError } = await supabase
       .from('units')
-      .select('id, project_id, address, purchaser_name')
-      .eq('project_id', projectData.id);
+      .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms')
+      .eq('unit_uid', trimmedCode)
+      .single();
     
-    if (unitsError) {
-      console.error('[Purchaser Auth] Error fetching units:', unitsError);
-      return NextResponse.json(
-        { error: 'Something went wrong. Please try again.' },
-        { status: 500 }
-      );
-    }
-    
-    // Find unit matching the address number
-    // Handle both formats: "1 Longview Park..." and just "1" or "10"
-    const matchedUnit = projectUnits?.find((u: any) => {
-      const addr = u.address?.trim();
-      if (!addr) return false;
-      
-      // Match addresses that are just a number (e.g., "1", "10")
-      if (/^\d+$/.test(addr)) {
-        return parseInt(addr, 10) === unitNum;
-      }
-      
-      // Match addresses starting with a number followed by space (e.g., "1 Longview Park")
-      const addrMatch = addr.match(/^(\d+)\s/);
-      return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
-    });
-    
-    if (matchedUnit) {
-      console.log('[Purchaser Auth] Found unit:', matchedUnit.id, 'in project:', projectData.name);
+    if (directUnit && !directError) {
+      console.log('[Purchaser Auth] Found unit by unit_uid:', directUnit.id, 'Address:', directUnit.address);
       
       project = projectData;
       unit = {
-        id: matchedUnit.id,
-        development_id: matchedUnit.project_id,
-        address: matchedUnit.address,
-        purchaser_name: matchedUnit.purchaser_name,
+        id: directUnit.id,
+        development_id: directUnit.project_id,
+        address: directUnit.address,
+        purchaser_name: directUnit.purchaser_name,
         tenant_id: projectData.id,
         development_name: projectData.name,
-        house_type_code: null,
-        bedrooms: null,
-        bathrooms: null,
+        house_type_code: directUnit.house_type_code,
+        bedrooms: directUnit.bedrooms,
+        bathrooms: directUnit.bathrooms,
       };
+    } else {
+      // Fallback: Find the unit by address number within this specific project
+      const { data: projectUnits, error: unitsError } = await supabase
+        .from('units')
+        .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms')
+        .eq('project_id', projectData.id);
+      
+      if (unitsError) {
+        console.error('[Purchaser Auth] Error fetching units:', unitsError);
+        return NextResponse.json(
+          { error: 'Something went wrong. Please try again.' },
+          { status: 500 }
+        );
+      }
+      
+      // Find unit matching the address number
+      // Handle formats: "1 Longview Park...", "Unit 1, ...", just "1"
+      const matchedUnit = projectUnits?.find((u: any) => {
+        const addr = u.address?.trim();
+        if (!addr) return false;
+        
+        // Match addresses that are just a number (e.g., "1", "10")
+        if (/^\d+$/.test(addr)) {
+          return parseInt(addr, 10) === unitNum;
+        }
+        
+        // Match "Unit X, ..." format (e.g., "Unit 21, Longview Park")
+        const unitMatch = addr.match(/^Unit\s+(\d+)/i);
+        if (unitMatch) {
+          return parseInt(unitMatch[1], 10) === unitNum;
+        }
+        
+        // Match addresses starting with a number followed by space (e.g., "1 Longview Park")
+        const addrMatch = addr.match(/^(\d+)\s/);
+        return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+      });
+      
+      if (matchedUnit) {
+        console.log('[Purchaser Auth] Found unit by address match:', matchedUnit.id, 'in project:', projectData.name);
+        
+        project = projectData;
+        unit = {
+          id: matchedUnit.id,
+          development_id: matchedUnit.project_id,
+          address: matchedUnit.address,
+          purchaser_name: matchedUnit.purchaser_name,
+          tenant_id: projectData.id,
+          development_name: projectData.name,
+          house_type_code: matchedUnit.house_type_code,
+          bedrooms: matchedUnit.bedrooms,
+          bathrooms: matchedUnit.bathrooms,
+        };
+      }
     }
 
     if (!unit) {
