@@ -215,6 +215,32 @@ function checkNoHouseIdInQueries(): void {
   }
 }
 
+function checkProductionGuards(): void {
+  const scriptsDir = path.join(process.cwd(), 'scripts');
+  const seedScripts = scanDirectory(scriptsDir, ['.ts']).filter(f => 
+    f.includes('seed') || f.includes('demo') || f.includes('cleanup')
+  );
+  
+  const unguardedScripts: string[] = [];
+  
+  for (const file of seedScripts) {
+    const content = fs.readFileSync(file, 'utf-8');
+    const hasGuard = content.includes('requireProductionWriteAccess') || 
+                     content.includes('ALLOW_PROD_SEED') ||
+                     content.includes('canWriteToProduction');
+    
+    if (!hasGuard) {
+      unguardedScripts.push(path.basename(file));
+    }
+  }
+  
+  if (unguardedScripts.length === 0) {
+    addResult('production-guards', true, `All ${seedScripts.length} seed/demo scripts have production guards`);
+  } else {
+    addResult('production-guards', false, `Unguarded scripts: ${unguardedScripts.join(', ')}`, 'error');
+  }
+}
+
 async function main() {
   console.log('\n===========================================');
   console.log('  TENANT INTEGRITY CHECK');
@@ -225,6 +251,7 @@ async function main() {
   checkNoHardcodedLogos();
   checkUnitIdUsage();
   checkNoHouseIdInQueries();
+  checkProductionGuards();
   
   console.log('\nResults:\n');
   

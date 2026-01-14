@@ -138,7 +138,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (includeStats && homeownersList.length > 0) {
-      // Map homeowner IDs to their Supabase unit IDs (extracted from email)
       const homeownerToUnitMap = new Map<string, string>();
       const supabaseUnitIds: string[] = [];
       
@@ -148,7 +147,6 @@ export async function GET(request: NextRequest) {
           homeownerToUnitMap.set(h.id, unitId);
           supabaseUnitIds.push(unitId);
         } else {
-          // If no unit ID in email, use the homeowner ID as fallback
           homeownerToUnitMap.set(h.id, h.id);
           supabaseUnitIds.push(h.id);
         }
