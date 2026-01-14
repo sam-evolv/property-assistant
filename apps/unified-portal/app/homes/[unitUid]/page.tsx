@@ -200,7 +200,7 @@ export default function HomeResidentPage() {
           });
 
           // Check important docs consent status
-          checkImportantDocsConsent(houseId, qrToken || unitUid);
+          checkImportantDocsConsent(unitId, qrToken || unitUid);
 
           const hasSeenIntro = sessionStorage.getItem(`intro_seen_${unitUid}`);
           if (!hasSeenIntro) {
