@@ -1,0 +1,152 @@
+BUILD TASK LIST – ENTERPRISE SECURITY (NO DEVIATIONS)
+A. DATABASE (HARD GUARANTEES)
+
+Create audit log migration
+
+File: migrations/002_audit_events.sql
+
+Append-only audit_events table
+
+Enforce no UPDATE / DELETE (privileges or triggers)
+
+Fields: id, actor, tenant_id, table_name, operation, record_id, before, after, created_at
+
+Enforce message safety
+
+Update messages schema:
+
+messages.unit_id NOT NULL
+
+FK → units.id
+
+FK → developments.id
+
+FK → tenants.id
+
+Explicit ON DELETE RESTRICT (no cascade)
+
+Verify RLS still enabled
+
+Confirm RLS on all tenant-scoped tables
+
+No anon policies
+
+B. BACKEND GUARDRAILS
+
+Implement TenantScopedClient
+
+File: e.g. packages/db/tenantScopedClient.ts
+
+Requires tenant_id for all tenant-scoped writes
+
+Fails closed if missing
+
+Logs service-role writes to audit_events
+
+Replace raw DB usage
+
+At least one concrete replacement showing TenantScopedClient in use
+
+No direct service-role writes without the wrapper
+
+C. BACKUPS (PRODUCTION-GRADE)
+
+Encrypted backup script
+
+File: scripts/backup/backup-nightly.ts
+
+AES-256 encryption (env key)
+
+Export tenant data
+
+Upload to Backblaze B2 via S3-compatible API
+
+Generate checksum + manifest
+
+Enforce retention: 30 daily / 12 weekly / 12 monthly
+
+Scheduler
+
+GitHub Actions cron (preferred)
+
+Nightly execution
+
+Slack alert on failure
+
+Env vars documented in comments
+
+D. RESTORE DRILL
+
+Restore drill
+
+File: scripts/backup/restore-drill.ts
+
+Download + decrypt latest backup
+
+Restore into local Postgres container
+
+Run invariants + test suite
+
+Post result to Slack
+
+Monthly automation
+
+Scheduled restore drill (cron or workflow)
+
+E. MONITORING & CANARIES
+
+Canary checks
+
+Scripts or SQL for:
+
+orphaned messages = 0
+
+tenant misalignment = 0
+
+abnormal delete volume
+
+failed onboarding attempts
+
+Alerting
+
+Slack webhook
+
+Clear, actionable messages
+
+F. HARDENING STATUS PROOF
+
+Hardening status checker
+
+File: scripts/hardening/status-check.ts
+
+Verifies:
+
+migrations applied
+
+constraints + FKs
+
+triggers present
+
+RLS enabled
+
+Outputs green/red checklist
+
+Writes timestamped report to /scripts/hardening/reports/
+
+G. FILE TREE + EVIDENCE
+
+Output final file tree
+
+Paths only
+
+Include all new/changed files
+
+Run and capture evidence
+
+Backup run (dry-run acceptable for upload)
+
+Restore drill output
+
+Canary check output
+
+Status checker report

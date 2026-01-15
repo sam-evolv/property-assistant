@@ -1,0 +1,150 @@
+REPLIT PLANNER PROMPT (COPY-PASTE)
+
+Role:
+You are a Principal Security Engineer + SaaS Platform Architect. You must take the current “Multi-Tenant Security: Proof System Complete” implementation and upgrade it from “good hardening” to “enterprise-safe, peace-of-mind” security and data governance.
+
+Context:
+We already have:
+- migrations/001_multi_tenant_hardening.sql with pre-flight abort checks, NOT NULL tenant_id, FKs, alignment triggers, RLS removing anon
+- Recovery tooling for orphaned messages
+- Test suite proving constraints/triggers/RLS and partial rollback
+- Backup/restore scripts: backup-tenant.ts and restore-tenant.ts (JSON + checksums, dry-run + verification)
+- Docs: MULTI-TENANT-SECURITY.md, RUNBOOK-MULTI-TENANT.md
+
+Problem:
+This is still not “company-survival safe” because existential risks remain:
+1) Migration may not be applied in production (needs evidence).
+2) Backups are not yet production-grade (must be automated, off-platform, encrypted, retained, and restore-drilled).
+3) Service role blast-radius is not controlled (must fail-closed and log writes).
+4) “Structural impossibility” claims must be true for messages/unit assignment at schema level (not just marketing).
+5) Runtime monitoring and alerting is missing (must detect drift before a developer does).
+6) Audit logging for tenant-scoped mutations is missing (append-only).
+
+Your job:
+Implement the missing pieces, produce evidence, and update runbooks/docs so we can credibly say: “This cannot happen again, and if anything does go wrong, recovery is boring and fast.”
+
+Non-negotiables:
+- Defence in depth: DB invariants + RLS + backend guardrails + operational controls.
+- No human-dependent backups: automated scheduled backups with alerts.
+- Backups must be off-platform and encrypted.
+- Restore must be rehearsable with a one-command drill.
+- Service role key must never be on the client, and server queries must be tenant-scoped by design.
+- Add monitoring canaries and alerting for any drift.
+
+Deliverables (must output exact file paths + code + SQL):
+A) PRODUCTION EVIDENCE + SAFETY GATES
+1. Add a “hardening status” script that:
+   - detects whether migration is applied
+   - checks critical invariants (NOT NULL, FKs, RLS enabled, triggers exist)
+   - prints a green/red checklist
+   - writes a timestamped report file under /scripts/hardening/reports/
+2. Add a production gate for destructive operations:
+   - any seed/demo/onboarding script must require:
+     - ALLOW_DEMO_SEED=true
+     - a server-side secret (e.g. DEMO_SEED_SECRET)
+   - ensure it fails closed in production.
+
+B) BACKUP & DISASTER RECOVERY (PRODUCTION-GRADE)
+1. Implement automated scheduled backups:
+   - Choose one of:
+     - GitHub Actions scheduled workflow
+     - Cron job on a small VM
+     - Any robust scheduling mechanism available in this repo environment
+   - Must run nightly at minimum.
+2. Backup requirements:
+   - Encrypt backups before upload (AES-256 via libsodium or OpenSSL; document approach).
+   - Upload backups to off-platform object storage (S3 or Backblaze B2 preferred).
+   - Maintain retention policy:
+     - Daily: keep 30 days
+     - Weekly: keep 12 weeks
+     - Monthly: keep 12 months (if feasible)
+   - Generate and store:
+     - checksum
+     - manifest file listing tenant backups, timestamps, sizes, hashes
+3. Restore requirements:
+   - One-command restore into STAGING database (not production) for drills.
+   - Validate integrity post-restore using the test suite and invariant checks.
+4. Add “restore drill” command that:
+   - downloads latest backup
+   - decrypts
+   - restores to staging
+   - runs invariants + test suite
+   - produces a report artifact
+5. Add alerting for backup failures:
+   - simplest acceptable: Slack webhook or email via SMTP (choose one and implement).
+   - must alert on: backup failure, upload failure, encryption failure, retention cleanup failure.
+
+C) SERVICE ROLE BLAST-RADIUS CONTROL
+1. Prove service role is never shipped to client:
+   - audit codebase for any usage in frontend bundles.
+2. Create backend query guardrails:
+   - Introduce a “tenant scoped DB client” wrapper that requires tenant_id for all tenant tables.
+   - Any call missing tenant_id must throw and log.
+3. Add service role write audit logging:
+   - for inserts/updates/deletes on tenant tables log:
+     - actor (system/admin user id if available)
+     - tenant_id
+     - table name
+     - operation
+     - primary key(s)
+     - timestamp
+   - store in append-only audit_events table.
+
+D) SCHEMA-LEVEL GUARANTEES FOR MESSAGES
+1. Confirm and enforce:
+   - messages.unit_id NOT NULL (if your domain model requires it)
+   - FK messages.unit_id -> units.id
+   - messages.tenant_id and development_id NOT NULL
+   - ON DELETE behavior must be safe (no accidental cascade wipeouts)
+2. If “unit_id can be null” is a real requirement, then implement an alternate safe structure:
+   - e.g. a separate conversation entity with mandatory tenant+development, and messages attach there.
+   - But do not leave it as nullable without a strong model.
+
+E) RUNTIME MONITORING & CANARIES
+1. Add periodic “canary” queries:
+   - count orphan messages (should be 0)
+   - count tenant misalignment (should be 0 or impossible)
+   - count recent failed onboarding transactions
+   - abnormal delete volume
+2. Add alerting when thresholds breached.
+3. Where to run:
+   - simplest: scheduled job (same mechanism as backups).
+
+F) DOCUMENTATION (RUNBOOKS + TRUST EVIDENCE)
+1. Update RUNBOOK-MULTI-TENANT.md with:
+   - backup schedule
+   - restore drill procedure
+   - where backups live
+   - how to rotate keys
+   - incident response steps
+2. Create RUNBOOK-DISASTER-RECOVERY.md with:
+   - “migration went wrong”
+   - “missing messages”
+   - “suspected compromise”
+   - “restore production safely” (restore to staging first, then production plan)
+3. Update MULTI-TENANT-SECURITY.md:
+   - remove any claims that are not provably true
+   - include an “evidence checklist” pointing to report artifacts
+
+G) TESTING
+Extend the test suite to include:
+- Backup job creates encrypted artifact and uploads to off-platform mock (or dry-run mode)
+- Restore drill works end-to-end to staging (can be a dry-run in CI)
+- Service role guard throws when tenant_id missing
+- Audit events written on service role writes
+- Canary checks detect injected corruption in a simulated environment
+
+Implementation instructions:
+- Provide exact file changes with paths.
+- Provide SQL migrations as additive migrations (e.g. 002_audit_events.sql, 003_backup_metadata.sql).
+- Keep secrets out of repo. Use env vars; document them in .env.example.
+- Prefer boring, reliable engineering over cleverness.
+
+Before writing code, you MUST ask for any missing information by outputting a short list of required inputs. If information is missing, propose sensible defaults and proceed using dry-run modes where possible.
+
+Required Inputs (ask if not already known):
+1) Which off-platform storage do we use? (S3 or Backblaze B2) If unknown, implement both with a switch.
+2) Where should alerts go? (Slack webhook or SMTP email) If unknown, implement Slack webhook with env var.
+3) Do we have a staging Supabase project/connection string? If unknown, create a method to restore to a local postgres container for drills OR implement staging env variables placeholders.
+
+Now execute: produce the plan, then implement all deliverables above, then output a final checklist and exactly how to run backups, restore drills, and canary monitors.

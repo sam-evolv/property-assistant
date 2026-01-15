@@ -1,0 +1,148 @@
+REPLIT PLANNER PROMPT – FINAL ENTERPRISE SECURITY VERIFICATION
+
+Role:
+You are acting as a Principal Security Engineer completing the FINAL verification phase of OpenHouse AI’s enterprise-grade multi-tenant security hardening.
+
+This is NOT a planning task.
+This is NOT an architecture discussion.
+This is an evidence-generation task.
+
+Your job is to output the exact artefacts required to prove the system is now company-survival safe.
+
+Context:
+We already have:
+- 001_multi_tenant_hardening.sql applied or ready to apply
+- Tenant isolation via NOT NULL + FK + alignment triggers
+- RLS removing anonymous access
+- Recovery tooling for orphaned messages
+- Test suite proving isolation and rollback
+- Backup/restore scripts (preliminary)
+- Operational runbooks
+
+Remaining approval blockers:
+Final approval depends on seeing concrete proof for:
+1) audit logging
+2) safe delete behaviour
+3) service role blast-radius control
+4) automated encrypted off-platform backups
+5) restore drill automation
+6) runtime canary monitoring
+7) hardening status verification
+
+You must output ONLY the following artefacts, nothing else.
+
+━━━━━━━━━━━━━━━━━━━━━━
+REQUIRED OUTPUT (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━
+
+SECTION A: DATABASE EVIDENCE
+
+1) SQL migration for audit logging
+- File: migrations/002_audit_events.sql
+- Must include:
+  - audit_events table
+  - append-only enforcement (no UPDATE/DELETE)
+  - fields: id, actor, tenant_id, table_name, operation, record_id, before, after, created_at
+- Show full SQL.
+
+2) SQL migration proving message safety
+- Show the exact DDL for messages table:
+  - messages.unit_id NOT NULL
+  - FK messages.unit_id → units.id
+  - FK messages.development_id → developments.id
+  - FK messages.tenant_id → tenants.id
+  - ON DELETE behaviour must be explicit (RESTRICT or equivalent)
+- Show full SQL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION B: BACKEND GUARDRAILS
+
+3) TenantScopedClient implementation
+- File path
+- Code that:
+  - requires tenant_id for all tenant-scoped writes
+  - fails closed if tenant_id missing
+  - logs service-role writes to audit_events
+- Show the actual code.
+
+4) Proof of usage
+- At least one example where TenantScopedClient replaces a raw DB client.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION C: BACKUPS (PRODUCTION-GRADE)
+
+5) Backup script
+- File path
+- Code that:
+  - exports tenant data
+  - encrypts with AES-256 (show method + key handling)
+  - uploads to Backblaze B2 using S3-compatible API
+  - generates checksum + manifest
+  - enforces retention (30 daily / 12 weekly / 12 monthly)
+- Show the actual code.
+
+6) Scheduler
+- GitHub Actions workflow OR cron config
+- Must show:
+  - nightly schedule
+  - env vars used
+  - failure handling
+- Show full config.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION D: RESTORE DRILL
+
+7) Restore drill script
+- File path
+- Code that:
+  - downloads latest backup
+  - decrypts
+  - restores into local PostgreSQL container
+  - runs invariant checks + test suite
+  - posts success/failure to Slack
+- Show the actual code.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION E: MONITORING & CANARIES
+
+8) Canary checks
+- SQL or scripts that detect:
+  - orphaned messages
+  - tenant misalignment
+  - abnormal deletes
+- Include thresholds.
+
+9) Alerting
+- Slack webhook implementation
+- Show message format for failure alerts.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION F: HARDENING STATUS PROOF
+
+10) Hardening status checker
+- File path
+- Script that:
+  - verifies migrations applied
+  - verifies constraints, triggers, RLS enabled
+  - outputs green/red checklist
+  - writes timestamped report to /scripts/hardening/reports/
+- Show the actual code.
+
+━━━━━━━━━━━━━━━━━━━━━━
+SECTION G: FINAL FILE TREE
+
+11) Updated file tree
+- Show all new/changed files with paths only.
+
+━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT RULES
+
+- Do NOT include plans, explanations, or summaries.
+- Do NOT say “this is safe” or “enterprise-grade”.
+- Only output concrete artefacts.
+- If something is missing, implement it using sensible defaults and note it inline in code comments.
+- Secrets must be env vars; document them in comments only.
+
+If any required artefact cannot be produced, stop and clearly state what is missing and why.
+
+This output will be used for a final ship/no-ship decision and to draft a Trust & Safety document.
