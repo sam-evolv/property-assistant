@@ -65,11 +65,15 @@ const testSuites = [
   },
   {
     name: '03-cross-tenant-attacks',
-    description: 'Proves cross-tenant attacks are blocked',
+    description: 'Proves cross-tenant attacks are blocked by triggers',
   },
   {
     name: '04-backup-restore',
     description: 'Proves backup/restore maintains data integrity',
+  },
+  {
+    name: '05-rls-enforcement',
+    description: 'Proves RLS policies block anonymous access',
   },
 ];
 
