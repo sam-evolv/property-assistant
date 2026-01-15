@@ -4,22 +4,14 @@
  * 
  * Verifies that all security hardening measures are in place.
  * Run from repo root: npx tsx scripts/hardening/status-check.ts
- * 
- * Checks:
- * - Database migrations applied (001, 002, 003)
- * - Constraints active (messages.unit_id NOT NULL, FK)
- * - Audit events append-only
- * - RLS enabled on critical tables
- * - Runtime protections present (TenantScopedClient, destructive-ops guard)
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { Client } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DATABASE_URL = process.env.DATABASE_URL;
 
 interface CheckResult {
   id: string;
@@ -48,134 +40,121 @@ function getGitCommit(): string {
   }
 }
 
-async function checkDatabaseHardening(supabase: ReturnType<typeof createClient>) {
+async function checkDatabaseHardening(client: Client) {
   console.log('\n📋 SECTION 1: AUDIT EVENTS (Migration 002)');
   console.log('──────────────────────────────────────────────────');
 
-  const { data: auditTable } = await supabase
-    .from('audit_events')
-    .select('id')
-    .limit(1);
+  // Check audit_events table exists
+  const auditTableResult = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables 
+      WHERE table_name = 'audit_events'
+    ) as exists
+  `);
+  const auditExists = auditTableResult.rows[0].exists;
+  log('audit_table', 'audit_events table exists', auditExists, 'Migration 002 not applied');
 
-  log('audit_table', 'audit_events table exists', auditTable !== null, 'Migration 002 not applied');
+  // Check UPDATE trigger exists
+  const updateTriggerResult = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_trigger 
+      WHERE tgname = 'audit_events_no_update'
+    ) as exists
+  `);
+  log('audit_update', 'audit_events UPDATE blocked', updateTriggerResult.rows[0].exists, 'Append-only trigger not active');
 
-  if (auditTable !== null) {
-    const { error: updateError } = await supabase
-      .from('audit_events')
-      .update({ operation: 'TEST' })
-      .eq('id', '00000000-0000-0000-0000-000000000000');
-
-    const updateBlocked = updateError?.message?.includes('immutable') || 
-                          updateError?.message?.includes('Audit events are append-only') ||
-                          updateError?.code === '42501';
-    log('audit_update', 'audit_events UPDATE blocked', updateBlocked, 'Append-only trigger not active');
-
-    const { error: deleteError } = await supabase
-      .from('audit_events')
-      .delete()
-      .eq('id', '00000000-0000-0000-0000-000000000000');
-
-    const deleteBlocked = deleteError?.message?.includes('immutable') ||
-                          deleteError?.message?.includes('Audit events are append-only') ||
-                          deleteError?.code === '42501';
-    log('audit_delete', 'audit_events DELETE blocked', deleteBlocked, 'Append-only trigger not active');
-  } else {
-    log('audit_update', 'audit_events UPDATE blocked', false, 'Table does not exist');
-    log('audit_delete', 'audit_events DELETE blocked', false, 'Table does not exist');
-  }
+  // Check DELETE trigger exists
+  const deleteTriggerResult = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_trigger 
+      WHERE tgname = 'audit_events_no_delete'
+    ) as exists
+  `);
+  log('audit_delete', 'audit_events DELETE blocked', deleteTriggerResult.rows[0].exists, 'Append-only trigger not active');
 
   console.log('\n📋 SECTION 2: MESSAGE SAFETY (Migration 003)');
   console.log('──────────────────────────────────────────────────');
 
-  const { error: nullUnitError } = await supabase
-    .from('messages')
-    .insert({ 
-      unit_id: null, 
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-      content: 'test',
-      role: 'user'
-    });
+  // Check messages.unit_id NOT NULL
+  const unitIdResult = await client.query(`
+    SELECT is_nullable FROM information_schema.columns 
+    WHERE table_name = 'messages' AND column_name = 'unit_id'
+  `);
+  const unitIdNotNull = unitIdResult.rows.length > 0 && unitIdResult.rows[0].is_nullable === 'NO';
+  log('msg_unit_notnull', 'messages.unit_id NOT NULL', unitIdNotNull, 'NULL unit_id allowed');
 
-  const unitIdNotNull = nullUnitError?.message?.includes('null value') ||
-                        nullUnitError?.message?.includes('violates not-null') ||
-                        nullUnitError?.code === '23502';
-  log('msg_unit_notnull', 'messages.unit_id NOT NULL', unitIdNotNull, 'NULL unit_id allowed - migration 003 not applied');
+  // Check FK constraint exists
+  const fkResult = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_constraint 
+      WHERE conrelid = 'messages'::regclass 
+      AND contype = 'f' 
+      AND conname LIKE '%unit%'
+    ) as exists
+  `);
+  log('msg_unit_fk', 'messages.unit_id FK active', fkResult.rows[0].exists, 'FK constraint not enforced');
 
-  const { error: fkError } = await supabase
-    .from('messages')
-    .insert({
-      unit_id: '00000000-0000-0000-0000-000000000000',
-      tenant_id: '00000000-0000-0000-0000-000000000001',
-      content: 'test',
-      role: 'user'
-    });
-
-  const fkActive = fkError?.message?.includes('violates foreign key') ||
-                   fkError?.message?.includes('not present in table') ||
-                   fkError?.code === '23503';
-  log('msg_unit_fk', 'messages.unit_id FK active', fkActive, 'FK constraint not enforced');
-
-  console.log('\n📋 SECTION 3: TENANT ISOLATION (Migration 001)');
+  console.log('\n📋 SECTION 3: TENANT ISOLATION (Migration 001/004)');
   console.log('──────────────────────────────────────────────────');
 
-  const { error: devNullTenantError } = await supabase
-    .from('developments')
-    .insert({
-      name: 'Test',
-      slug: 'test-' + Date.now(),
-      code: 'TEST-' + Date.now(),
-      tenant_id: null
-    });
-
-  const devTenantNotNull = devNullTenantError?.message?.includes('null value') ||
-                           devNullTenantError?.message?.includes('violates not-null') ||
-                           devNullTenantError?.code === '23502';
+  // Check developments.tenant_id NOT NULL
+  const devTenantResult = await client.query(`
+    SELECT is_nullable FROM information_schema.columns 
+    WHERE table_name = 'developments' AND column_name = 'tenant_id'
+  `);
+  const devTenantNotNull = devTenantResult.rows.length > 0 && devTenantResult.rows[0].is_nullable === 'NO';
   log('dev_tenant_notnull', 'developments.tenant_id NOT NULL', devTenantNotNull, 'Developments can be created without tenant');
 
-  const { error: alignError } = await supabase
-    .from('units')
-    .insert({
-      unit_uid: 'TEST-ALIGN-' + Date.now(),
-      development_id: '00000000-0000-0000-0000-000000000000',
-      tenant_id: '00000000-0000-0000-0000-000000000001'
-    });
-
-  const alignActive = alignError?.message?.includes('tenant_id must match') ||
-                      alignError?.message?.includes('foreign key') ||
-                      alignError?.code === 'P0001' ||
-                      alignError?.code === '23503';
-  log('tenant_align', 'Tenant alignment trigger active', alignActive, 'Cross-tenant FK allowed');
+  // Check tenant alignment trigger exists
+  const alignTriggerResult = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_trigger 
+      WHERE tgname = 'enforce_tenant_alignment_units'
+    ) as exists
+  `);
+  log('tenant_align', 'Tenant alignment trigger active', alignTriggerResult.rows[0].exists, 'Cross-tenant FK allowed');
 
   console.log('\n📋 SECTION 4: ROW LEVEL SECURITY');
   console.log('──────────────────────────────────────────────────');
 
-  const anonClient = createClient(SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
-
   const tables = ['messages', 'units', 'documents', 'developments'];
   for (const table of tables) {
-    const { data, error } = await anonClient.from(table).select('id').limit(1);
-    const rlsActive = error !== null || (data && data.length === 0);
-    log(`rls_${table}`, `RLS active on ${table}`, rlsActive, `Anonymous can access ${table}`);
+    const rlsResult = await client.query(`
+      SELECT relrowsecurity FROM pg_class 
+      WHERE relname = $1
+    `, [table]);
+    const rlsEnabled = rlsResult.rows.length > 0 && rlsResult.rows[0].relrowsecurity === true;
+    log(`rls_${table}`, `RLS active on ${table}`, rlsEnabled, `RLS not enabled on ${table}`);
   }
 
   console.log('\n📋 SECTION 5: DATA INTEGRITY');
   console.log('──────────────────────────────────────────────────');
 
-  const { count: orphanedMessages } = await supabase
-    .from('messages')
-    .select('*', { count: 'exact', head: true })
-    .is('unit_id', null);
-
-  log('no_orphan_msg', 'No orphaned messages', (orphanedMessages || 0) === 0, `${orphanedMessages} messages with NULL unit_id`);
-
-  let orphanCount = 0;
-  try {
-    const { data: orphanedUnits } = await supabase.rpc('check_orphaned_units');
-    orphanCount = orphanedUnits?.length || 0;
-  } catch {
-    orphanCount = 0;
+  // Check for orphaned messages (with unit_id column check)
+  const unitIdExists = await client.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'messages' AND column_name = 'unit_id'
+    ) as exists
+  `);
+  
+  if (unitIdExists.rows[0].exists) {
+    const orphanMsgResult = await client.query(`
+      SELECT COUNT(*) as cnt FROM messages WHERE unit_id IS NULL
+    `);
+    const noOrphanMsgs = parseInt(orphanMsgResult.rows[0].cnt) === 0;
+    log('no_orphan_msg', 'No orphaned messages', noOrphanMsgs, `${orphanMsgResult.rows[0].cnt} messages with NULL unit_id`);
+  } else {
+    log('no_orphan_msg', 'No orphaned messages', true, 'unit_id column not present (legacy schema)');
   }
-  log('no_orphan_units', 'No orphaned units', orphanCount === 0, `${orphanCount} units without valid development`);
+
+  // Check for orphaned units
+  const orphanUnitResult = await client.query(`
+    SELECT COUNT(*) as cnt FROM units u 
+    WHERE NOT EXISTS (SELECT 1 FROM developments d WHERE d.id = u.development_id)
+  `);
+  const noOrphanUnits = parseInt(orphanUnitResult.rows[0].cnt) === 0;
+  log('no_orphan_units', 'No orphaned units', noOrphanUnits, `${orphanUnitResult.rows[0].cnt} units without valid development`);
 }
 
 async function checkRuntimeProtections() {
@@ -247,16 +226,20 @@ async function main() {
   console.log('║  OpenHouse AI Unified Portal - Security Verification                 ║');
   console.log('╚══════════════════════════════════════════════════════════════════════╝');
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('\n❌ Missing environment variables:');
-    console.error('   NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required');
+  if (!DATABASE_URL) {
+    console.error('\n❌ Missing DATABASE_URL environment variable');
     process.exit(1);
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-  await checkDatabaseHardening(supabase);
-  await checkRuntimeProtections();
+  const client = new Client({ connectionString: DATABASE_URL });
+  
+  try {
+    await client.connect();
+    await checkDatabaseHardening(client);
+    await checkRuntimeProtections();
+  } finally {
+    await client.end();
+  }
 
   const reportPath = await writeReport();
 

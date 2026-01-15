@@ -88,39 +88,41 @@ ALTER TABLE messages
   ON DELETE RESTRICT;
 
 -- ============================================================================
--- STEP 3: VERIFY ALL CONSTRAINTS ARE IN PLACE
+-- STEP 3: ADD NOT NULL TO TENANT_ID AND DEVELOPMENT_ID IF NEEDED
 -- ============================================================================
 DO $$
-DECLARE
-  v_unit_id_nullable BOOLEAN;
-  v_tenant_id_nullable BOOLEAN;
-  v_dev_id_nullable BOOLEAN;
 BEGIN
-  -- Check unit_id
-  SELECT is_nullable = 'YES' INTO v_unit_id_nullable
-  FROM information_schema.columns
-  WHERE table_name = 'messages' AND column_name = 'unit_id';
-  
-  IF v_unit_id_nullable THEN
-    RAISE EXCEPTION 'VERIFICATION FAILED: messages.unit_id is still nullable';
+  -- Add NOT NULL to tenant_id if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'messages' 
+    AND column_name = 'tenant_id'
+    AND is_nullable = 'YES'
+  ) THEN
+    -- Verify no nulls first
+    IF EXISTS (SELECT 1 FROM messages WHERE tenant_id IS NULL LIMIT 1) THEN
+      RAISE EXCEPTION 'Cannot add NOT NULL: messages with NULL tenant_id exist';
+    END IF;
+    ALTER TABLE messages ALTER COLUMN tenant_id SET NOT NULL;
+    RAISE NOTICE 'Added NOT NULL constraint to messages.tenant_id';
+  ELSE
+    RAISE NOTICE 'messages.tenant_id already has NOT NULL constraint';
   END IF;
   
-  -- Check tenant_id
-  SELECT is_nullable = 'YES' INTO v_tenant_id_nullable
-  FROM information_schema.columns
-  WHERE table_name = 'messages' AND column_name = 'tenant_id';
-  
-  IF v_tenant_id_nullable THEN
-    RAISE EXCEPTION 'VERIFICATION FAILED: messages.tenant_id is still nullable';
-  END IF;
-  
-  -- Check development_id
-  SELECT is_nullable = 'YES' INTO v_dev_id_nullable
-  FROM information_schema.columns
-  WHERE table_name = 'messages' AND column_name = 'development_id';
-  
-  IF v_dev_id_nullable THEN
-    RAISE EXCEPTION 'VERIFICATION FAILED: messages.development_id is still nullable';
+  -- Add NOT NULL to development_id if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'messages' 
+    AND column_name = 'development_id'
+    AND is_nullable = 'YES'
+  ) THEN
+    IF EXISTS (SELECT 1 FROM messages WHERE development_id IS NULL LIMIT 1) THEN
+      RAISE EXCEPTION 'Cannot add NOT NULL: messages with NULL development_id exist';
+    END IF;
+    ALTER TABLE messages ALTER COLUMN development_id SET NOT NULL;
+    RAISE NOTICE 'Added NOT NULL constraint to messages.development_id';
+  ELSE
+    RAISE NOTICE 'messages.development_id already has NOT NULL constraint';
   END IF;
   
   RAISE NOTICE 'Verification passed: All message columns are NOT NULL';

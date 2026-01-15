@@ -133,7 +133,7 @@ ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
 -- Only service role can insert (for backend logging)
 CREATE POLICY audit_events_service_insert ON audit_events
   FOR INSERT TO service_role
-  USING (true) WITH CHECK (true);
+  WITH CHECK (true);
 
 -- Only service role can read (for admin dashboards)
 CREATE POLICY audit_events_service_select ON audit_events

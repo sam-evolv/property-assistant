@@ -1,0 +1,118 @@
+{
+  "timestamp": "2026-01-15T11:33:55.038Z",
+  "git_commit": "b5f97f5",
+  "summary": {
+    "total": 15,
+    "passed": 7,
+    "failed": 8,
+    "critical_failed": 8,
+    "status": "FAIL"
+  },
+  "checks": [
+    {
+      "id": "audit_table",
+      "name": "audit_events table exists",
+      "passed": false,
+      "message": "Migration 002 not applied",
+      "critical": true
+    },
+    {
+      "id": "audit_update",
+      "name": "audit_events UPDATE blocked",
+      "passed": false,
+      "message": "Table does not exist",
+      "critical": true
+    },
+    {
+      "id": "audit_delete",
+      "name": "audit_events DELETE blocked",
+      "passed": false,
+      "message": "Table does not exist",
+      "critical": true
+    },
+    {
+      "id": "msg_unit_notnull",
+      "name": "messages.unit_id NOT NULL",
+      "passed": false,
+      "message": "NULL unit_id allowed - migration 003 not applied",
+      "critical": true
+    },
+    {
+      "id": "msg_unit_fk",
+      "name": "messages.unit_id FK active",
+      "passed": false,
+      "message": "FK constraint not enforced",
+      "critical": true
+    },
+    {
+      "id": "dev_tenant_notnull",
+      "name": "developments.tenant_id NOT NULL",
+      "passed": false,
+      "message": "Developments can be created without tenant",
+      "critical": true
+    },
+    {
+      "id": "tenant_align",
+      "name": "Tenant alignment trigger active",
+      "passed": false,
+      "message": "Cross-tenant FK allowed",
+      "critical": true
+    },
+    {
+      "id": "rls_messages",
+      "name": "RLS active on messages",
+      "passed": true,
+      "message": "Anonymous can access messages",
+      "critical": true
+    },
+    {
+      "id": "rls_units",
+      "name": "RLS active on units",
+      "passed": true,
+      "message": "Anonymous can access units",
+      "critical": true
+    },
+    {
+      "id": "rls_documents",
+      "name": "RLS active on documents",
+      "passed": true,
+      "message": "Anonymous can access documents",
+      "critical": true
+    },
+    {
+      "id": "rls_developments",
+      "name": "RLS active on developments",
+      "passed": false,
+      "message": "Anonymous can access developments",
+      "critical": true
+    },
+    {
+      "id": "no_orphan_msg",
+      "name": "No orphaned messages",
+      "passed": true,
+      "message": "0 messages with NULL unit_id",
+      "critical": true
+    },
+    {
+      "id": "no_orphan_units",
+      "name": "No orphaned units",
+      "passed": true,
+      "message": "0 units without valid development",
+      "critical": true
+    },
+    {
+      "id": "tenant_client",
+      "name": "TenantScopedClient exists",
+      "passed": true,
+      "message": "File not found at expected paths",
+      "critical": true
+    },
+    {
+      "id": "destructive_guard",
+      "name": "Destructive ops guard exists",
+      "passed": true,
+      "message": "File not found at expected paths",
+      "critical": true
+    }
+  ]
+}
