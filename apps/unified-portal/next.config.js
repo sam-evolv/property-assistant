@@ -38,6 +38,19 @@ const nextConfig = {
     const isDev = process.env.NODE_ENV === 'development';
     return [
       {
+        source: '/.well-known/apple-app-site-association',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600',
+          },
+        ],
+      },
+      {
         source: '/_next/static/:path*',
         headers: [
           {

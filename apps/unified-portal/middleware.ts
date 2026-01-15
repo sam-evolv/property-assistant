@@ -2,9 +2,17 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function isIOSSafari(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase();
+  const isIOS = /iphone|ipad|ipod/.test(ua);
+  const isSafari = /safari/.test(ua) && !/chrome/.test(ua) && !/crios/.test(ua) && !/fxios/.test(ua);
+  return isIOS && isSafari;
+}
+
 const PUBLIC_PATHS = [
   '/',
   '/login',
+  '/install',
   '/access-pending',
   '/reset-password',
   '/homes',
@@ -98,6 +106,17 @@ export async function middleware(req: NextRequest) {
     pathname.includes('.')
   ) {
     return res;
+  }
+
+  if (pathname.startsWith('/homes/') && pathname !== '/homes/') {
+    const userAgent = req.headers.get('user-agent') || '';
+    const iosInstallDismissed = req.cookies.get('ios_install_dismissed')?.value;
+    
+    if (isIOSSafari(userAgent) && !iosInstallDismissed) {
+      const installUrl = new URL('/install', req.url);
+      installUrl.searchParams.set('target', pathname);
+      return NextResponse.redirect(installUrl);
+    }
   }
 
   const isLoginPage = pathname === '/login';

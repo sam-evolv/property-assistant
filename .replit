@@ -46,7 +46,7 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "AIzaSyC5_CrHxmzlTg2xeY1Pz_tpz2F6QKIoHsI"
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "AIzaSyBaJ_bLxpTxNnKtjNd-7QKHkCieUHuGfGY"
 PUBLIC_UPLOAD_BASE_URL = "https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev"
 LEGACY_DATABASE_URL = "${DATABASE_URL}"
 DB_POOL_MAX = "10"

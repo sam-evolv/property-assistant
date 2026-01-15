@@ -1,0 +1,150 @@
+Implement QR → correct destination routing with zero regression risk (OpenHouse Ai)
+
+Objective
+Build a reliable QR routing system where the QR code ALWAYS encodes a web URL (qr_url). The QR does NOT encode an “OpenHouse code”. It encodes only a URL like:
+[https://portal.openhouseai.ie/homes/](https://portal.openhouseai.ie/homes/)<home_guid>
+
+Behavior requirements (must be exact)
+
+1. Android (any browser)
+
+* Scanning the QR MUST open the web portal directly at the qr_url.
+* No install prompt, no interstitial, no deep linking.
+
+2. iOS Safari / iOS QR scan (Camera → Safari)
+
+* If the iOS app IS installed:
+
+  * The qr_url MUST open the native app and route the user to the correct individualized portal for that home.
+* If the iOS app is NOT installed:
+
+  * Show a lightweight install interstitial page (on web) that:
+    a) has a primary CTA “Get the App” (App Store)
+    b) has a secondary CTA “Continue on Web” (opens the original qr_url)
+    c) includes a short instruction: “After installing, open the app and scan again.”
+  * The interstitial MUST visually match the attached iPhone login screen style (dark gradient background, rounded card container, gold brand accent, modern typography, minimal copy, no clutter).
+  * High polish: spacing, font hierarchy, and button style must feel like the login screen.
+
+Core technical strategy (do not deviate)
+
+* Use iOS Universal Links (preferred) for iOS “app installed → open app”.
+* Keep the QR target as the SAME qr_url (no changes to printed codes).
+* Implement a server-side “smart router” endpoint that decides what to serve based on User-Agent + platform heuristics.
+* Do NOT break existing web portal routes.
+
+Key distinction
+
+* unit_uid examples: LV-PARK-008 (manual entry inside the iOS app login flow to reach a portal)
+* qr_url examples: [https://portal.openhouseai.ie/homes/1144ead6-8425-4c20-bf51-d35a75fae3c4](https://portal.openhouseai.ie/homes/1144ead6-8425-4c20-bf51-d35a75fae3c4) (encoded in QR codes; MUST route to web or app as above)
+* The QR codes ONLY contain qr_url. The unit_uid is NOT present in QR.
+
+Implementation scope
+A) Web (Next.js / Node / existing portal)
+
+1. Add a “router” URL that QR codes will hit without changing existing qr_url behavior:
+
+   * Option 1 (best): Keep existing qr_url path working but add iOS-only interstitial gating when app not installed.
+   * Option 2: Introduce /r/<home_guid> that 302s to:
+
+     * Android → original qr_url
+     * iOS → universal link path (same) or interstitial (if app not installed cannot be detected reliably server-side, see fallback below)
+       Prefer Option 1 if it avoids having to reprint QR codes.
+
+2. Interstitial page
+
+* Route: /install?target=<encoded_original_qr_url>
+* Must include:
+
+  * “Get the App” button → App Store listing URL
+  * “Continue on Web” button → target
+  * Minimal instruction text
+* Styling must match login screen.
+
+3. Apple App Site Association (AASA)
+
+* Host at: [https://portal.openhouseai.ie/.well-known/apple-app-site-association](https://portal.openhouseai.ie/.well-known/apple-app-site-association)
+* Configure so that /homes/* (or chosen path) is a Universal Link that opens the app.
+* Ensure correct headers and no redirects on AASA file.
+
+4. Fallback handling for iOS “not installed”
+
+* Universal Links cannot perfectly detect “not installed” purely server-side once iOS tries to open the app.
+* Implement standard pattern:
+
+  * When link opened in Safari, attempt universal link open; if app not installed, Safari stays and web loads.
+  * Therefore: the /homes/<guid> web page MUST detect iOS Safari and present install interstitial UI (or redirect to /install) ONLY when appropriate (first touch) while still allowing “Continue on Web”.
+* Keep this logic isolated and gated to iOS Safari only.
+* Do not impact desktop or Android.
+
+B) iOS App
+
+1. Add universal link handling:
+
+* In App entitlements: Associated Domains with applinks:portal.openhouseai.ie
+* In AppDelegate/SceneDelegate (or modern equivalent): handle incoming universal link and parse the path /homes/<guid>
+* Route user to the correct in-app portal screen for that home_guid.
+* If user is not authenticated / not yet onboarded, store pending deep link and complete routing after login without breaking existing auth flow.
+
+2. QR scanner entry inside app (secondary but recommended)
+
+* Add a “Scan QR” affordance on the login screen (small icon/button aligned with the existing style).
+* Scanner UI must match login screen style system:
+
+  * dark background, rounded container for guidance text, gold accent, minimal copy
+  * “Close” button consistent with existing patterns
+* Scanner accepts:
+
+  * full qr_url (portal.openhouseai.ie/homes/<guid>) → route to portal
+  * optionally accept unit_uid if scanned or typed, but do NOT assume QR includes it
+* No dependency changes unless absolutely necessary. Prefer native AVFoundation.
+
+Non-negotiable stability constraints
+
+* Zero regressions: do not refactor existing login/auth flows.
+* All changes isolated:
+
+  * new deep link router + parsing utility
+  * new scanner screen/component + routing glue
+* Add tests:
+
+  * unit tests for parsing:
+
+    * extract home_guid from /homes/<guid>
+    * reject invalid URLs safely
+  * navigation integration test:
+
+    * deep link received → routes correctly
+    * deep link received while logged out → defers then routes after login
+* Runtime safeguards:
+
+  * invalid QR → friendly error, no crash
+  * camera permission denied → guidance + Settings link (iOS)
+
+Deliverables
+
+1. Working universal links on iOS:
+
+* iOS installed: scanning QR opens app to home portal.
+
+2. Android:
+
+* scanning QR opens web portal directly.
+
+3. iOS not installed:
+
+* install interstitial shown with “Get the App” + “Continue on Web”, styled like login screen.
+
+4. No breakage:
+
+* build passes, tests pass, existing flows unchanged.
+
+App Store URL
+
+* Use the public App Store listing URL for OpenHouse Ai (insert the correct final URL in code/config once known).
+
+Define Done (must verify)
+
+* iOS installed: Camera scan → app opens → correct portal.
+* iOS not installed: Camera scan → interstitial → App Store OR continue web.
+* Android: Camera scan → web portal.
+* Existing login + portal flows unchanged.

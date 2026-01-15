@@ -1,0 +1,54 @@
+We must NOT change the QR code generator or its payloads. All QR codes already resolve to:
+[https://portal.openhouseai.ie/homes/{HOME_UUID}](https://portal.openhouseai.ie/homes/{HOME_UUID})
+Example:
+[https://portal.openhouseai.ie/homes/1144ead6-8425-4c20-bf51-d35a75fae3c4](https://portal.openhouseai.ie/homes/1144ead6-8425-4c20-bf51-d35a75fae3c4)
+
+Required behaviour when this URL is opened from a QR scan:
+
+1. If user is on iPhone (iOS Safari / in-app browser):
+
+   * Do NOT open the web portal.
+   * Show a dedicated landing/interstitial page prompting installation of the iOS app.
+   * Page must have:
+
+     * Primary CTA: “Install OpenHouse AI” -> App Store link for the app
+     * Clear instruction: “After installing, open the app and scan this QR code to access your home.”
+     * Optional secondary CTA: “Open App” (only useful if installed) that deep-links to the app’s scanner screen.
+       Use a custom URL scheme like: openhouseai://scan
+       (If you prefer, also support openhouseai://scan?home={uuid}, but DO NOT rely on it; the core flow is: install -> scan in-app.)
+   * Avoid auto-redirect loops; do not try to force open the app automatically.
+
+2. If user is NOT on iPhone (Android/Desktop/etc.):
+
+   * Continue current behaviour: open the web portal for that home UUID.
+   * If there is an existing web route for the UUID, redirect there; otherwise render the existing portal page.
+
+Where to implement:
+
+* Implement logic at the web layer that handles /homes/{uuid}.
+* If this is a Next.js app, create/modify route handler for /homes/[uuid]:
+
+  * On server: read user-agent and decide:
+
+    * iOS -> return rendered Interstitial component
+    * non-iOS -> redirect to the normal portal view (existing behaviour)
+  * Add cache-control appropriately (ideally no-store) to avoid stale device detection.
+
+Also:
+
+* Add “Download QR” / “Portal URL” stays unchanged in admin UI.
+* Ensure the existing “Open Portal” button still opens the web portal view for desktop/non-iPhone.
+
+iOS App requirement (small change):
+
+* Add support for custom URL scheme openhouseai://scan that navigates user directly to the in-app QR scanner screen.
+* This is optional but recommended for installed users.
+
+Deliverables:
+
+* Interstitial page built with the site’s existing styling.
+* Verified device routing works:
+
+  * iPhone -> interstitial with App Store CTA
+  * Android -> web portal
+  * Desktop -> web portal
