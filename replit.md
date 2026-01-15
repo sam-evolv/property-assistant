@@ -172,6 +172,55 @@ OpenHouse AI/
 - `apps/unified-portal/lib/assistant/escalation-templates.ts`
 - `apps/unified-portal/lib/assistant/escalation.ts`
 
+### Enterprise Security Hardening (January 2026)
+
+**Production-critical multi-tenant security with structural guarantees:**
+
+**Hardening Components:**
+
+1. **TenantScopedClient** (`lib/db/TenantScopedClient.ts`):
+   - Fail-closed wrapper for service role - requires tenant_id on construction
+   - Blocks cross-tenant inserts/updates/deletes at runtime
+   - Logs all mutations to audit_events table
+   - 8/8 tests passing
+
+2. **Audit Events** (`migrations/002_audit_events.sql`):
+   - Append-only table with UPDATE/DELETE triggers that reject modifications
+   - Records table_name, operation, actor, before_state, after_state
+   - For forensics and compliance
+
+3. **Message Safety** (`migrations/003_messages_unit_required.sql`):
+   - `messages.unit_id NOT NULL` with pre-flight check
+   - FK to units with ON DELETE RESTRICT
+   - Prevents orphaned messages
+
+4. **Automated Backups** (`scripts/backup/backup-nightly.ts`):
+   - AES-256-GCM encryption with BACKUP_ENCRYPTION_KEY
+   - Backblaze B2 primary, S3 alternate
+   - 30/12/12 day/week/month retention
+   - Manifest generation with checksums
+
+5. **Restore Drills** (`scripts/backup/restore-drill.ts`):
+   - Monthly automated via GitHub Actions
+   - Restore to staging, run invariant checks, Slack notify
+
+6. **Canary Monitoring** (`scripts/monitoring/canary-checks.ts`):
+   - 5 checks: orphans, misalignment, abnormal deletes, failed onboarding, NULL tenant_id
+   - Runs every 15 minutes via GitHub Actions
+   - Slack alerts on threshold breach
+
+7. **Destructive Ops Guard** (`lib/guards/destructive-ops.ts`):
+   - Requires ALLOW_DESTRUCTIVE_OPS=true + secret in production
+   - Prevents accidental seed/delete in production
+
+**Runbooks:**
+- `RUNBOOK-DISASTER-RECOVERY.md` - Migration rollback, missing messages, restore procedures
+- `RUNBOOK-MULTI-TENANT.md` - Tenant management, backup schedule, key rotation
+
+**GitHub Actions:**
+- `.github/workflows/backup-nightly.yml` - 2 AM UTC daily backup
+- `.github/workflows/canary-monitoring.yml` - 15-minute canary checks
+
 ### Tenant Isolation Hardening (January 2026)
 
 **Hardened scheme access to prevent enumeration and enforce tenant isolation:**
