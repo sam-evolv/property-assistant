@@ -12,7 +12,11 @@
     "lint": "next lint || true",
     "smoke": "bash scripts/smoke-test.sh http://localhost:5000",
     "load-test": "node scripts/load-test.js http://localhost:5000 10 10",
-    "test:stability": "npm run typecheck && npm run build && npm run smoke"
+    "test:stability": "npm run typecheck && npm run build && npm run smoke",
+    "hardening:test": "npx tsx scripts/hardening/test-tenant-isolation.ts",
+    "hardening:recover-messages": "npx tsx scripts/hardening/recover-orphaned-messages.ts",
+    "hardening:recover-messages-apply": "npx tsx scripts/hardening/recover-orphaned-messages.ts --apply",
+    "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts"
   },
   "dependencies": {
     "@openhouse/api": "1.0.0",

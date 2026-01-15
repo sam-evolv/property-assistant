@@ -1,0 +1,82 @@
+Build a hardening plan and implement guardrails so a new tenant/development seed can never corrupt or detach data from other developments.
+
+Context:
+We are multi-tenant. A “demo account” seed flow broke the platform. Chat messages exist in Supabase but are not reliably assigned to a unit (unit_id missing or incorrect). We must guarantee mutual exclusivity across tenants and developments.
+
+Deliverables:
+
+Database schema hardening
+
+Identify all tenant-scoped tables (at minimum: tenants/orgs, developments, units, chat_messages, docs, notices, analytics_events).
+
+Add NOT NULL constraints for tenant_id and development_id where applicable.
+
+Ensure chat_messages has unit_id NOT NULL plus development_id and tenant_id NOT NULL.
+
+Add foreign keys:
+
+units.development_id -> developments.id
+
+chat_messages.unit_id -> units.id
+
+chat_messages.development_id -> developments.id
+
+chat_messages.tenant_id -> tenants.id
+
+Add check constraints preventing cross-tenant contamination:
+
+chat_messages.tenant_id = units.tenant_id and chat_messages.development_id = units.development_id (enforce via trigger if needed).
+
+Add indexes for performance on (tenant_id, development_id, unit_id, created_at).
+
+Row Level Security (RLS)
+
+Enable RLS on all tenant-scoped tables.
+
+Add policies so a user can only read/write rows where tenant_id matches the JWT tenant claim.
+
+Ensure server-side service role usage still enforces tenant scoping in queries.
+
+Transactional create-development flow
+
+Refactor “create tenant/development/demo seed” into a single transactional operation so partial creation cannot occur.
+
+Make seed idempotent: safe re-run, no deletes, only upserts on demo identifiers.
+
+Add an environment guard: demo seeding must be disabled unless ALLOW_DEMO_SEED=true and a server-side secret is provided.
+
+Recovery tooling for orphaned chat messages
+
+Implement a recovery script that:
+
+finds chat_messages with unit_id IS NULL (and/or missing development_id/tenant_id)
+
+attempts assignment using metadata (unitUid, schemeId, userId, other stored fields)
+
+writes every proposed fix into a recovery_map table for audit
+
+applies updates in a transaction
+
+outputs a report: how many fixed, how many unknown, why unknown.
+
+Tests
+
+Add automated tests that:
+
+seed two tenants with two developments each
+
+attempt to write/read cross-tenant data and confirm it is blocked by RLS/constraints
+
+simulate demo seed failure mid-way and confirm nothing commits
+
+confirm chat_message insert without unit_id fails.
+
+Output:
+
+Exact SQL migrations
+
+Exact file paths and code changes
+
+A “runbook” section: how to create a new development safely, how to recover if something goes wrong.
+
+—
