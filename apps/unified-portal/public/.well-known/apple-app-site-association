@@ -3,16 +3,14 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.com.openhouseai.portal",
-        "paths": [
-          "/homes/*"
-        ]
+        "appID": "FZXRCW547P.com.openhouseai.app",
+        "paths": [ "/homes/*" ]
       }
     ]
   },
-  "webcredentials": {
+  "appclips": {
     "apps": [
-      "TEAMID.com.openhouseai.portal"
+      "FZXRCW547P.com.openhouseai.app.clip"
     ]
   }
 }
