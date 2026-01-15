@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-01-15T15:10:43.130Z",
+  "git_commit": "ddf0627",
+  "summary": {
+    "total": 16,
+    "passed": 15,
+    "failed": 1,
+    "critical_failed": 0,
+    "status": "PASS"
+  },
+  "checks": [
+    {
+      "id": "audit_table",
+      "name": "audit_events table exists",
+      "passed": true,
+      "message": "Migration 002 not applied",
+      "critical": true
+    },
+    {
+      "id": "audit_update",
+      "name": "audit_events UPDATE blocked",
+      "passed": true,
+      "message": "Append-only trigger not active",
+      "critical": true
+    },
+    {
+      "id": "audit_delete",
+      "name": "audit_events DELETE blocked",
+      "passed": true,
+      "message": "Append-only trigger not active",
+      "critical": true
+    },
+    {
+      "id": "msg_unit_notnull",
+      "name": "messages.unit_id NOT NULL",
+      "passed": true,
+      "message": "NULL unit_id allowed",
+      "critical": true
+    },
+    {
+      "id": "msg_unit_fk",
+      "name": "messages.unit_id FK active",
+      "passed": true,
+      "message": "FK constraint not enforced",
+      "critical": true
+    },
+    {
+      "id": "dev_tenant_notnull",
+      "name": "developments.tenant_id NOT NULL",
+      "passed": true,
+      "message": "Developments can be created without tenant",
+      "critical": true
+    },
+    {
+      "id": "tenant_align",
+      "name": "Tenant alignment trigger active",
+      "passed": true,
+      "message": "Cross-tenant FK allowed",
+      "critical": true
+    },
+    {
+      "id": "rls_messages",
+      "name": "RLS active on messages",
+      "passed": true,
+      "message": "RLS not enabled on messages",
+      "critical": true
+    },
+    {
+      "id": "rls_units",
+      "name": "RLS active on units",
+      "passed": true,
+      "message": "RLS not enabled on units",
+      "critical": true
+    },
+    {
+      "id": "rls_documents",
+      "name": "RLS active on documents",
+      "passed": true,
+      "message": "RLS not enabled on documents",
+      "critical": true
+    },
+    {
+      "id": "rls_developments",
+      "name": "RLS active on developments",
+      "passed": true,
+      "message": "RLS not enabled on developments",
+      "critical": true
+    },
+    {
+      "id": "no_orphan_msg",
+      "name": "No orphaned messages",
+      "passed": true,
+      "message": "0 messages with NULL unit_id",
+      "critical": true
+    },
+    {
+      "id": "no_orphan_units",
+      "name": "No orphaned units",
+      "passed": true,
+      "message": "0 units without valid development",
+      "critical": true
+    },
+    {
+      "id": "tenant_client",
+      "name": "TenantScopedClient exists",
+      "passed": true,
+      "message": "File not found at expected paths",
+      "critical": true
+    },
+    {
+      "id": "destructive_guard",
+      "name": "Destructive ops guard exists",
+      "passed": true,
+      "message": "File not found at expected paths",
+      "critical": true
+    },
+    {
+      "id": "maps_key_rotated",
+      "name": "Google Maps API key rotation confirmed",
+      "passed": false,
+      "message": "Set MAPS_KEY_ROTATION_CONFIRMED=true after completing key rotation checklist",
+      "critical": false
+    }
+  ]
+}

@@ -223,6 +223,50 @@ psql $PRODUCTION_DATABASE_URL < staging_export.sql
 
 ---
 
+## Google Maps API Key Security
+
+### BLOCKER WARNING
+
+> **Before sharing this application externally or deploying to production:**
+> The Google Maps API key MUST be rotated and restricted. Unrestricted keys
+> can be abused by malicious actors, causing unexpected billing charges.
+
+### Key Rotation Checklist
+
+| Step | Action | Status |
+|------|--------|--------|
+| 1 | Go to Google Cloud Console > APIs & Services > Credentials | ☐ |
+| 2 | Create NEW API key (do not edit existing) | ☐ |
+| 3 | Set Application Restrictions > HTTP referrers | ☐ |
+| 4 | Add allowed domains: `*.openhouse.ai/*`, `*.vercel.app/*`, `localhost:*/*` | ☐ |
+| 5 | Set API Restrictions > Restrict key to: Maps JavaScript API, Places API, Geocoding API | ☐ |
+| 6 | Set Quotas > Daily request limit (e.g., 10,000/day per API) | ☐ |
+| 7 | Update `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in all environments | ☐ |
+| 8 | Verify maps load correctly in dev and production | ☐ |
+| 9 | DISABLE the OLD key in Google Cloud Console | ☐ |
+| 10 | Document rotation in security log | ☐ |
+
+### Key Locations
+
+The Google Maps API key should ONLY be stored in:
+- **Secrets/Environment Variables**: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+
+It should NOT appear in:
+- Source code files
+- Git history
+- Documentation (except placeholder examples)
+
+### Verification
+
+Run the hardening status check which includes a manual confirmation prompt:
+```bash
+npx tsx scripts/hardening/status-check.ts
+```
+
+Look for: `[MANUAL] Google Maps API key rotation confirmed`
+
+---
+
 ## Post-Incident
 
 After any incident:

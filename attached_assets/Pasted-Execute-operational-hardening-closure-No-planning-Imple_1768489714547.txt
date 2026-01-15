@@ -1,0 +1,46 @@
+Execute operational hardening closure. No planning. Implement and verify.
+
+GOALS
+A) Google Maps API key rotation + restrictions checklist
+B) Backups retention + off-platform proof
+C) Canonical hardening status checker path consolidation
+
+A) GOOGLE MAPS KEY HYGIENE
+1) Identify where NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is defined (configs vs secrets).
+2) Ensure key is only in the correct env var location and not duplicated.
+3) Update RUNBOOK to require: key rotation + HTTP referrer restriction + API restriction + quotas.
+NOTE: You cannot actually rotate the key in Google Cloud from here, but you must:
+- produce the exact step-by-step runbook section
+- add an explicit “blocker” warning that old key must be disabled before external sharing
+- add a checklist item in status-check output reminding operator to confirm rotation done (manual confirmation flag)
+
+B) BACKUP RETENTION + OFF-PLATFORM PROOF
+1) Verify backup-nightly.yml is scheduled and uses required secrets.
+2) Implement retention cleanup logic if missing:
+- 30 daily, 12 weekly, 12 monthly in the bucket prefix
+- use object metadata or naming convention timestamps
+3) Ensure backups upload to Backblaze B2 via S3 API in non-dry-run mode when RUN_MODE=prod.
+4) Add a command/script:
+- scripts/backup/verify-remote.ts
+that lists the last N objects in the bucket, verifies manifest exists, and confirms encryption present.
+5) Add forced-failure test mode that triggers Slack alert (do not leak secrets).
+6) Update restore-drill to run monthly via workflow and post success/failure to Slack.
+
+C) CANONICAL STATUS CHECKER
+1) Search for all status-check.ts files in repo.
+2) Make scripts/hardening/status-check.ts the single canonical implementation.
+3) Delete the monorepo duplicate OR replace it with a wrapper that imports and runs the canonical one.
+4) Update all docs and scripts to reference only:
+npx tsx scripts/hardening/status-check.ts
+
+OUTPUT REQUIRED
+Return:
+1) File tree showing only one canonical status checker
+2) The updated backup retention logic location and how it works
+3) The new verify-remote script
+4) The updated runbook sections for Maps key rotation/restrictions
+5) Proof commands to run:
+- backup run (non-dry)
+- verify-remote
+- forced Slack alert test
+- status check

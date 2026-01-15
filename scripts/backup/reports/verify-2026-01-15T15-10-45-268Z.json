@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-01-15T15:10:45.264Z",
+  "backupsFound": 0,
+  "encryptedFiles": 0,
+  "manifestsFound": 0,
+  "orphanedFiles": [],
+  "latestBackup": null,
+  "oldestBackup": null,
+  "totalSizeBytes": 0,
+  "verified": false,
+  "issues": [
+    "No local backups found"
+  ]
+}

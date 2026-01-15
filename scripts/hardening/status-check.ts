@@ -188,6 +188,13 @@ async function checkRuntimeProtections() {
     }
   }
   log('destructive_guard', 'Destructive ops guard exists', destructiveOpsFound, 'File not found at expected paths');
+
+  console.log('\n📋 SECTION 7: MANUAL CONFIRMATIONS');
+  console.log('──────────────────────────────────────────────────');
+
+  const mapsKeyRotated = process.env.MAPS_KEY_ROTATION_CONFIRMED === 'true';
+  log('maps_key_rotated', 'Google Maps API key rotation confirmed', mapsKeyRotated, 
+      'Set MAPS_KEY_ROTATION_CONFIRMED=true after completing key rotation checklist', false);
 }
 
 async function writeReport() {
