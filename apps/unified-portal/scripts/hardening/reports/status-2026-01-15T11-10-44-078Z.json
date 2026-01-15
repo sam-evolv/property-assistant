@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-01-15T11:10:44.077Z",
+  "summary": {
+    "total": 13,
+    "passed": 9,
+    "failed": 4,
+    "criticalFailed": 4,
+    "status": "FAILED"
+  },
+  "checks": [
+    {
+      "name": "audit_events table exists",
+      "passed": true,
+      "details": "Run migration 002_audit_events.sql",
+      "severity": "critical"
+    },
+    {
+      "name": "audit_events UPDATE blocked",
+      "passed": false,
+      "details": "Append-only trigger not active",
+      "severity": "critical"
+    },
+    {
+      "name": "audit_events DELETE blocked",
+      "passed": false,
+      "details": "Append-only trigger not active",
+      "severity": "critical"
+    },
+    {
+      "name": "messages.unit_id NOT NULL",
+      "passed": true,
+      "details": "Unit_id can be null - run migration 003",
+      "severity": "critical"
+    },
+    {
+      "name": "messages.unit_id FK active",
+      "passed": true,
+      "details": "FK constraint not enforced",
+      "severity": "critical"
+    },
+    {
+      "name": "developments.tenant_id NOT NULL",
+      "passed": false,
+      "details": "Developments can be created without tenant",
+      "severity": "critical"
+    },
+    {
+      "name": "Tenant alignment trigger active",
+      "passed": true,
+      "details": "Cross-tenant inserts allowed",
+      "severity": "critical"
+    },
+    {
+      "name": "RLS active on messages",
+      "passed": true,
+      "details": "Anonymous can access messages",
+      "severity": "critical"
+    },
+    {
+      "name": "RLS active on units",
+      "passed": true,
+      "details": "Anonymous can access units",
+      "severity": "critical"
+    },
+    {
+      "name": "RLS active on documents",
+      "passed": true,
+      "details": "Anonymous can access documents",
+      "severity": "critical"
+    },
+    {
+      "name": "RLS active on developments",
+      "passed": false,
+      "details": "Anonymous can access developments",
+      "severity": "critical"
+    },
+    {
+      "name": "No orphaned messages",
+      "passed": true,
+      "details": "Messages exist without unit_id",
+      "severity": "high"
+    },
+    {
+      "name": "No orphaned units",
+      "passed": true,
+      "details": "Units exist without tenant_id",
+      "severity": "high"
+    }
+  ],
+  "environment": {
+    "supabaseUrl": "https://mddxbilpjukwskeefakz.s..."
+  }
+}

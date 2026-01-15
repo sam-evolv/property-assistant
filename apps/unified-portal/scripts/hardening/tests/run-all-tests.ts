@@ -75,6 +75,10 @@ const testSuites = [
     name: '05-rls-enforcement',
     description: 'Proves RLS policies block anonymous access',
   },
+  {
+    name: '06-service-role-guard',
+    description: 'Proves TenantScopedClient enforces tenant isolation',
+  },
 ];
 
 async function runTest(testFile: string): Promise<{ passed: boolean; output: string }> {

@@ -1,15 +1,68 @@
 # Multi-Tenant Operations Runbook
 
 > Last Updated: 2026-01-15  
-> Status: Implementation Complete (v2)
+> Status: Enterprise Security Complete (v3)
 
 ## Overview
 
 This runbook documents how to safely create, manage, and recover multi-tenant data in the OpenHouse AI Unified Portal. It covers the hardening measures implemented to prevent cross-tenant data contamination.
 
+---
+
+## Backup Schedule
+
+| Type | Schedule | Retention | Location |
+|------|----------|-----------|----------|
+| Daily | 2 AM UTC | 30 days | Backblaze B2 |
+| Weekly | Sunday 2 AM UTC | 12 weeks | Backblaze B2 |
+| Monthly | 1st of month | 12 months | Backblaze B2 |
+
+### Backup Commands
+
+```bash
+# Manual backup
+npx tsx scripts/backup/backup-nightly.ts
+
+# Dry run (no upload)
+npx tsx scripts/backup/backup-nightly.ts --dry-run
+
+# View backup manifests
+ls -la backups/encrypted/*.manifest.json
+```
+
+### Restore Drill
+
+```bash
+# Dry run restore
+npx tsx scripts/backup/restore-drill.ts --dry-run
+
+# Full restore to staging
+STAGING_DATABASE_URL="..." npx tsx scripts/backup/restore-drill.ts
+```
+
+---
+
+## Key Rotation
+
+### Backup Encryption Key
+
+1. Generate new key: `openssl rand -hex 32`
+2. Update `BACKUP_ENCRYPTION_KEY` in environment secrets
+3. Old backups remain readable with old key
+4. Document rotation in audit log
+
+### Supabase Service Role Key
+
+1. Regenerate in Supabase Dashboard > Project Settings > API
+2. Update `SUPABASE_SERVICE_ROLE_KEY` in all environments
+3. Restart all services
+4. Verify TenantScopedClient still works
+
+---
+
 ## Prerequisites
 
-**IMPORTANT**: Before using any hardening scripts, you must apply the SQL migration:
+**IMPORTANT**: Before using any hardening scripts, you must apply SQL migrations:
 
 ```sql
 -- Run in Supabase SQL Editor:

@@ -1,0 +1,117 @@
+# Nightly Backup Workflow
+# 
+# Runs automated encrypted backups every night at 2 AM UTC
+# Uploads to Backblaze B2, generates manifest, enforces retention
+# Alerts to Slack on failure
+#
+# Required Secrets:
+#   NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   BACKUP_ENCRYPTION_KEY
+#   B2_ENDPOINT
+#   B2_KEY_ID
+#   B2_APPLICATION_KEY
+#   B2_BUCKET_NAME
+#   SLACK_WEBHOOK_URL
+
+name: Nightly Backup
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/unified-portal
+
+      - name: Run backup
+        run: npx tsx scripts/backup/backup-nightly.ts
+        working-directory: apps/unified-portal
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          BACKUP_STORAGE: 'b2'
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🚨 *Nightly Backup FAILED*\nJob: ${{ github.job }}\nRun: ${{ github.run_id }}\nTime: '"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Monthly restore drill (1st of each month at 3 AM UTC)
+  restore-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event.schedule == '0 3 1 * *' || github.event_name == 'workflow_dispatch'
+    needs: backup
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: drill_restore
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/unified-portal
+
+      - name: Run restore drill
+        run: npx tsx scripts/backup/restore-drill.ts
+        working-directory: apps/unified-portal
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          STAGING_DATABASE_URL: 'postgresql://postgres:drill@localhost:5433/drill_restore'
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Alert on drill failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🚨 *Monthly Restore Drill FAILED*\nThis is a critical issue - backup recovery may not work.\nRun: ${{ github.run_id }}"}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}

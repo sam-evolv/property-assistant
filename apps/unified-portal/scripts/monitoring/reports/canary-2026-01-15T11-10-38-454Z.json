@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-01-15T11:10:38.454Z",
+  "results": [
+    {
+      "name": "Orphaned Messages",
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "details": "No orphaned messages"
+    },
+    {
+      "name": "Tenant Misalignment",
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "details": "All records aligned"
+    },
+    {
+      "name": "Abnormal Deletes (1h)",
+      "value": 0,
+      "threshold": 100,
+      "passed": true,
+      "details": "Delete volume normal"
+    },
+    {
+      "name": "Failed Onboarding (24h)",
+      "value": 0,
+      "threshold": 5,
+      "passed": true,
+      "details": "Onboarding normal"
+    },
+    {
+      "name": "NULL tenant_id Records",
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "details": "All records have tenant_id"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  },
+  "status": "OK"
+}
