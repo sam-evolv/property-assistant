@@ -1,0 +1,123 @@
+ROLE
+You are a Principal Security Engineer finalising the last missing artefact in an enterprise-grade multi-tenant security hardening system.
+
+This is NOT a planning task.
+This is an implementation + verification task.
+
+CONTEXT
+Running the command:
+
+npx tsx scripts/hardening/status-check.ts
+
+fails with ERR_MODULE_NOT_FOUND.
+
+This means one of the following is true:
+- The status checker file does not exist
+- It exists at a different path
+- It was described but never implemented
+- It was implemented but not committed or misnamed
+
+This status checker is REQUIRED for final security approval.
+
+YOUR TASK
+Resolve this completely and deterministically.
+
+---
+
+## REQUIRED ACTIONS (IN ORDER)
+
+### 1. Locate existing status checker (if any)
+- Search the repository for any file that looks like:
+  - status-check.ts
+  - hardening-status.ts
+  - check-hardening.ts
+  - security-status.ts
+- If found:
+  - Confirm its exact path
+  - Update documentation and commands to use that path
+  - Ensure it runs via `npx tsx <path>`
+
+### 2. If NO status checker exists (most likely)
+Create it.
+
+You must:
+- Create file at EXACT path:
+  scripts/hardening/status-check.ts
+
+### 3. Implement status-check.ts with the following behaviour
+
+The script MUST:
+
+A) Verify database hardening state
+- Connect to the database using existing env config
+- Check that the following migrations are applied:
+  - 001_multi_tenant_hardening
+  - 002_audit_events
+  - 003_messages_unit_required
+- Verify:
+  - messages.unit_id is NOT NULL
+  - FK exists: messages.unit_id → units.id
+  - audit_events table exists
+  - audit_events is append-only (no UPDATE/DELETE privileges)
+  - RLS is enabled on:
+    - messages
+    - units
+    - developments
+    - documents
+    - analytics_events
+
+B) Verify runtime protections
+- Confirm TenantScopedClient exists at its expected path
+- Confirm destructive-ops guard exists
+- Fail if files are missing
+
+C) Output a clear checklist
+- Print a numbered checklist with:
+  - PASS / FAIL per item
+- Final summary:
+  - “STATUS: PASS (13/13)” or equivalent
+  - Non-zero exit code if ANY item fails
+
+D) Write a report artefact
+- Create directory if missing:
+  scripts/hardening/reports/
+- Write a timestamped JSON or markdown report:
+  hardening-status-YYYY-MM-DD-HHMMSS.json
+- Include:
+  - timestamp
+  - git commit hash (if available)
+  - pass/fail per check
+
+### 4. Ensure it runs
+- After creation, ensure the following command works from repo root:
+
+  npx tsx scripts/hardening/status-check.ts
+
+- If paths differ (monorepo), adjust imports accordingly.
+
+### 5. Commit-ready output
+- Do NOT include explanations.
+- Do NOT include plans.
+- Output:
+  - The full contents of status-check.ts
+  - Any helper files it depends on
+  - Updated file tree (paths only)
+
+---
+
+## CONSTRAINTS
+- Use existing DB client utilities if available.
+- Do not introduce new dependencies unless absolutely required.
+- Secrets must come from env vars only.
+- Fail closed. If unsure, mark FAIL.
+
+---
+
+## SUCCESS CRITERIA
+This task is complete only when:
+- The file exists at scripts/hardening/status-check.ts
+- The command runs without module errors
+- A report file is written
+- Exit code is non-zero on failure
+
+Execute now.
