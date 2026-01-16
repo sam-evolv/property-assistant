@@ -16,39 +16,164 @@ export function extractHouseTypeCode(fileNameOrTitle: string | null | undefined)
 }
 
 /**
- * Classifies document type based on filename
- * Returns specific types for architectural documents or 'training' as fallback
+ * Document categories for better organization and retrieval.
+ * Each category has specific patterns and a priority weight.
+ */
+const DOCUMENT_CATEGORIES: Array<{
+  type: string;
+  patterns: RegExp[];
+  description: string;
+}> = [
+  // Architectural & Technical Drawings
+  {
+    type: 'floor_plan',
+    patterns: [/floor\s*plan/i, /\bfp\d/i, /floorplan/i, /room\s*layout/i],
+    description: 'Floor plans and room layouts',
+  },
+  {
+    type: 'elevation',
+    patterns: [/elevation/i, /\belev\b/i, /facade/i, /front\s*view/i, /rear\s*view/i],
+    description: 'Building elevations and external views',
+  },
+  {
+    type: 'site_plan',
+    patterns: [/site\s*plan/i, /site\s*layout/i, /master\s*plan/i, /development\s*layout/i],
+    description: 'Site plans and development layouts',
+  },
+
+  // Specifications & Technical Docs
+  {
+    type: 'specification',
+    patterns: [/\bspec(ification)?s?\b/i, /technical\s*spec/i, /build\s*spec/i],
+    description: 'Technical specifications',
+  },
+  {
+    type: 'brochure',
+    patterns: [/brochure/i, /sales\s*brochure/i, /marketing/i, /feature\s*sheet/i],
+    description: 'Sales and marketing brochures',
+  },
+
+  // Homeowner Documentation
+  {
+    type: 'homeowner_manual',
+    patterns: [/homeowner/i, /home\s*owner/i, /resident\s*guide/i, /user\s*guide/i, /welcome\s*pack/i],
+    description: 'Homeowner manuals and guides',
+  },
+  {
+    type: 'appliance_manual',
+    patterns: [/manual/i, /instruction/i, /user\s*manual/i, /operating/i, /handbook/i],
+    description: 'Appliance and equipment manuals',
+  },
+  {
+    type: 'maintenance_guide',
+    patterns: [/maintenance/i, /care\s*(and|&)\s*maintenance/i, /upkeep/i, /service\s*guide/i],
+    description: 'Maintenance and care guides',
+  },
+
+  // Energy & Compliance
+  {
+    type: 'ber_certificate',
+    patterns: [/\bber\b/i, /building\s*energy/i, /energy\s*rating/i, /nzeb/i],
+    description: 'BER certificates and energy documentation',
+  },
+  {
+    type: 'compliance_cert',
+    patterns: [/compliance/i, /certificate/i, /cert\b/i, /certification/i, /fire\s*cert/i, /disability\s*cert/i],
+    description: 'Compliance certificates',
+  },
+
+  // Legal & Contracts
+  {
+    type: 'warranty',
+    patterns: [/warranty/i, /homebond/i, /guarantee/i, /cover\s*note/i],
+    description: 'Warranty and guarantee documents',
+  },
+  {
+    type: 'contract',
+    patterns: [/contract/i, /agreement/i, /terms/i, /conditions/i, /legal/i],
+    description: 'Contracts and legal documents',
+  },
+  {
+    type: 'management',
+    patterns: [/management\s*company/i, /\bomc\b/i, /service\s*charge/i, /owner.*management/i],
+    description: 'Management company documents',
+  },
+
+  // Location & Amenities
+  {
+    type: 'location_info',
+    patterns: [/location/i, /area\s*guide/i, /local\s*info/i, /neighbourhood/i, /amenities/i],
+    description: 'Location and area information',
+  },
+  {
+    type: 'transport',
+    patterns: [/transport/i, /commut/i, /bus/i, /train/i, /travel/i],
+    description: 'Transport and commuting information',
+  },
+
+  // FAQs & Support
+  {
+    type: 'faq',
+    patterns: [/\bfaq/i, /frequently\s*asked/i, /common\s*questions/i, /q\s*(&|and)\s*a/i],
+    description: 'FAQs and common questions',
+  },
+  {
+    type: 'contact_info',
+    patterns: [/contact/i, /emergency/i, /phone\s*numbers/i, /support/i, /helpline/i],
+    description: 'Contact and support information',
+  },
+
+  // House Type Specific
+  {
+    type: 'house_type_info',
+    patterns: [/house\s*type/i, /unit\s*type/i, /\b(bd|bs|bt)\d{2}\b/i, /type\s*[a-z]/i],
+    description: 'House type specific information',
+  },
+
+  // Development News & Updates
+  {
+    type: 'notice',
+    patterns: [/notice/i, /announcement/i, /update/i, /news/i, /bulletin/i],
+    description: 'Notices and announcements',
+  },
+];
+
+/**
+ * Classifies document type based on filename with improved categorization.
+ * Returns a more specific document type for better retrieval and organization.
  */
 export function classifyDocumentType(fileName: string): string {
-  const upper = fileName.toUpperCase();
-  
-  // Floor plans
-  if (upper.includes('FLOOR') || upper.includes('PLAN') || upper.includes('FP') || upper.includes('FLOORPLAN')) {
-    return 'architectural_floor_plan';
+  const normalizedName = fileName.toLowerCase().replace(/[_-]/g, ' ');
+
+  for (const category of DOCUMENT_CATEGORIES) {
+    for (const pattern of category.patterns) {
+      if (pattern.test(normalizedName)) {
+        return category.type;
+      }
+    }
   }
-  
-  // Elevations
-  if (upper.includes('ELEVATION') || upper.includes('ELEV')) {
-    return 'elevations';
-  }
-  
-  // Site plans
-  if ((upper.includes('SITE') && upper.includes('PLAN')) || upper.includes('SITEPLAN') || upper.includes('LAYOUT')) {
-    return 'site_plan';
-  }
-  
-  // Specifications
-  if (upper.includes('SPEC') || upper.includes('SPECIFICATION')) {
-    return 'specification';
-  }
-  
-  // Manuals
-  if (upper.includes('MANUAL') || upper.includes('HANDBOOK') || upper.includes('GUIDE')) {
-    return 'manual';
-  }
-  
-  // Default to training
-  return 'training';
+
+  // Default fallback
+  return 'general';
+}
+
+/**
+ * Returns a human-readable description for a document type.
+ */
+export function getDocumentTypeDescription(type: string): string {
+  const category = DOCUMENT_CATEGORIES.find(c => c.type === type);
+  return category?.description || 'General document';
+}
+
+/**
+ * Returns all available document categories.
+ * Useful for admin interfaces and filtering.
+ */
+export function getDocumentCategories(): Array<{ type: string; description: string }> {
+  return DOCUMENT_CATEGORIES.map(c => ({
+    type: c.type,
+    description: c.description,
+  }));
 }
 
 export async function ingestEmbeddings(
