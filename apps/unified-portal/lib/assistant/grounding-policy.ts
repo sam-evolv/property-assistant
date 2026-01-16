@@ -147,16 +147,53 @@ export function isSourceGrounded(
 }
 
 const UNGROUNDED_SPECIFICITY_PATTERNS = [
+  // Historical dates (specific years that could be fabricated)
   /\b(1[0-9]{3}|20[0-2][0-9])\b/,
   /\b(1[0-9]th|18th|19th|20th|21st)\s+century\b/i,
   /\b(founded|established|built|opened)\s+in\s+\d{4}\b/i,
-  /\b(largest|oldest|first|biggest|smallest)\s+(in\s+)?(the\s+)?(world|ireland|europe|country)\b/i,
-  /\b(exactly|precisely)\s+\d+\s+(minutes?|meters?|metres?|km|miles?)\b/i,
+
+  // Superlatives that imply specific knowledge
+  /\b(largest|oldest|first|biggest|smallest|best|worst|most\s+popular)\s+(in\s+)?(the\s+)?(world|ireland|europe|country|cork|dublin|area|region)\b/i,
+  /\b(one\s+of\s+the\s+)(oldest|largest|finest|best|most\s+famous)\b/i,
+
+  // Exact distances and times without source
+  /\b(exactly|precisely|approximately)\s+\d+(\.\d+)?\s*(minutes?|meters?|metres?|km|kilometers?|kilometres?|miles?)\b/i,
+  /\b\d+(\.\d+)?\s*(minute|min|meter|metre|km|mile)s?\s+(walk|drive|cycle|away)\b/i,
+  /\b(walk|drive|cycle)\s+of\s+(exactly\s+)?(about\s+)?\d+\s+(minutes?|mins?)\b/i,
+  /\bjust\s+\d+\s+(minutes?|mins?)\s+(away|from)\b/i,
+
+  // Opening hours patterns
   /\b\d+\s*(am|pm)\s*(-|to|until)\s*\d+\s*(am|pm)\b/i,
   /\b(open|opens|closes|closed)\s+(at\s+)?\d{1,2}(:\d{2})?\s*(am|pm)?\b/i,
-  /\b(walk|drive|cycle)\s+of\s+(exactly\s+)?\d+\s+(minutes?|mins?)\b/i,
+  /\b(open|opens)\s+(daily|every\s+day|weekdays|weekends)\b/i,
+  /\bopen\s+until\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/i,
+
+  // Historical claims without sources
   /\bhistorically\s+(known|famous|renowned)\s+for\b/i,
   /\bnamed\s+after\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/,
+  /\b(dating\s+back\s+to|dates\s+back\s+to)\s+\d{4}\b/i,
+  /\bhas\s+been\s+(here|standing|operating)\s+(for|since)\s+(over\s+)?\d+\s+(years|centuries)\b/i,
+
+  // Specific people and events without verification
+  /\b(famous|renowned|notable)\s+(for|as)\s+being\b/i,
+  /\bwhere\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s+(lived|was\s+born|died|worked)\b/,
+  /\bsite\s+of\s+the\s+(famous|historic|legendary)\b/i,
+
+  // Prices and costs that could be outdated
+  /\b(costs?|priced?\s+at|starting\s+at)\s+€?\d+(\.\d{2})?\b/i,
+  /\b€\d+(\.\d{2})?\s+(per|a|each)\s+(hour|day|week|month|year|person|night)\b/i,
+
+  // Population and statistics
+  /\b(population\s+of|home\s+to)\s+\d+(,\d{3})*\s+(people|residents|inhabitants)\b/i,
+  /\b\d+(,\d{3})*\s+(people|residents|families)\s+(live|living)\b/i,
+
+  // Specific ratings or rankings
+  /\brated\s+\d+(\.\d+)?\s+(out\s+of|\/)\s*\d+\b/i,
+  /\branked\s+(number\s+)?\d+\s+(in|among)\b/i,
+
+  // Weather and climate specifics
+  /\b(average|typical)\s+(temperature|rainfall|sunshine)\s+(of\s+)?\d+\b/i,
+  /\b\d+\s+(days?\s+of\s+(rain|sunshine)|mm\s+of\s+rainfall)\s+(per|a|each)\s+(year|month)\b/i,
 ];
 
 export function detectUngroundedSpecificity(text: string): {
@@ -181,11 +218,14 @@ export function detectUngroundedSpecificity(text: string): {
 }
 
 export function isAreaFactsEnabled(): boolean {
-  return process.env.ASSISTANT_AREA_FACTS === 'true';
+  // Default to true - only disable if explicitly set to false
+  return process.env.ASSISTANT_AREA_FACTS !== 'false';
 }
 
 export function isHallucinationFirewallEnabled(): boolean {
-  return process.env.ASSISTANT_HALLUCINATION_FIREWALL === 'true';
+  // Default to true for safety - only disable if explicitly set to false
+  // This ensures the firewall is ON by default to prevent hallucinations
+  return process.env.ASSISTANT_HALLUCINATION_FIREWALL !== 'false';
 }
 
 export { CONFIDENCE_THRESHOLD };

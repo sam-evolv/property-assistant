@@ -1,43 +1,67 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { messages, analyticsEvents } from '@openhouse/db/schema';
-import { sql, eq } from 'drizzle-orm';
+import { analyticsEvents } from '@openhouse/db/schema';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
+// Event types that count as "Documents Served" - matches event-types.ts definition
+const DOCUMENT_SERVED_EVENT_TYPES = [
+  'document_view',
+  'document_download',
+  'document_open',
+  'drawing_view',
+  'drawing_download',
+  'chat_document_served',
+  'elevation_view',
+];
+
 export async function GET() {
   try {
-    const [messagesStats, downloadStats] = await Promise.all([
-      // Count messages and unique users
-      db.select({
-        totalMessages: sql<number>`count(*)`,
-        uniqueUsers: sql<number>`count(distinct user_id)`,
-      }).from(messages),
-      
-      // Count document downloads from analytics_events
-      db.select({
-        count: sql<number>`count(*)`,
-      }).from(analyticsEvents)
-        .where(eq(analyticsEvents.event_type, 'document_download'))
+    // Use analytics_events table for all metrics (consistent with Beta Control Room)
+    // This table has complete activity data vs messages table which may be incomplete
+    const [activeUsersResult, questionsResult, documentsResult] = await Promise.all([
+      // Active users = distinct session_hash from all events
+      db.execute(sql`
+        SELECT COUNT(DISTINCT session_hash) as count
+        FROM analytics_events
+        WHERE session_hash IS NOT NULL
+      `),
+
+      // Questions answered = count of chat_question events
+      db.execute(sql`
+        SELECT COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type = 'chat_question'
+      `),
+
+      // Documents served = count of all document-related events
+      db.execute(sql`
+        SELECT COUNT(*) as count
+        FROM analytics_events
+        WHERE event_type IN (${sql.raw(DOCUMENT_SERVED_EVENT_TYPES.map(t => `'${t}'`).join(', '))})
+      `)
     ]);
 
-    const questionsAnswered = Number(messagesStats[0]?.totalMessages || 0);
-    const activeUsers = Number(messagesStats[0]?.uniqueUsers || 0);
-    const pdfDownloads = Number(downloadStats[0]?.count || 0);
-    
-    // Total interactions = questions + downloads
-    const totalInteractions = questionsAnswered + pdfDownloads;
-    
-    const engagementRate = activeUsers > 0 
-      ? Math.round((totalInteractions / activeUsers) * 10) 
+    const activeUsers = Number((activeUsersResult.rows[0] as any)?.count || 0);
+    const questionsAnswered = Number((questionsResult.rows[0] as any)?.count || 0);
+    const documentsServed = Number((documentsResult.rows[0] as any)?.count || 0);
+
+    // Total interactions = questions + documents served
+    const totalInteractions = questionsAnswered + documentsServed;
+
+    const engagementRate = activeUsers > 0
+      ? Math.round((totalInteractions / activeUsers) * 10)
       : 0;
 
     const response = NextResponse.json({
       active_users: activeUsers,
       questions_answered: questionsAnswered,
-      pdf_downloads: pdfDownloads,
+      documents_served: documentsServed,
       total_interactions: totalInteractions,
       engagement_rate: `${engagementRate}%`,
+      // Keep pdf_downloads for backward compatibility
+      pdf_downloads: documentsServed,
     });
 
     response.headers.set('Access-Control-Allow-Origin', '*');

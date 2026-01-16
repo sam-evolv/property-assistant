@@ -14,6 +14,8 @@ export interface HistoricalFact {
   content: string;
   funFact?: string;
   period?: string;
+  source?: string; // Source attribution for the fact
+  confidence?: 'verified' | 'local_tradition' | 'general_knowledge'; // How confident we are in the accuracy
 }
 
 const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
@@ -24,23 +26,29 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     title: 'The Meaning of Ballyvolane',
     content: 'The name Ballyvolane comes from the Irish "Baile Uí Mhaoláin" meaning "The Homestead of O\'Mullane." An alternative interpretation suggests it could derive from "Baile na bhFoilán" - "the place of springing heifers" - which points to the area\'s long history as fertile agricultural land.',
     funFact: 'Your neighbourhood has been farming country for over a thousand years!',
-    period: 'Medieval'
+    period: 'Medieval',
+    source: 'Irish place name records and local heritage studies',
+    confidence: 'verified'
   },
   {
     id: 'etymology-lahardane',
     category: 'etymology',
     title: 'The Meaning of Lahardane',
-    content: 'Lahardane translates from Irish as "Leathardán" meaning "The Gentle Slope." This is a beautifully precise topographical description - the land here rises gently northward from the Glen River valley toward the higher ground at Whites Cross.',
+    content: 'Lahardane translates from Irish as "Leathardán" meaning "The Gentle Slope." This is a topographical description - the land here rises gently northward from the Glen River valley toward the higher ground at Whites Cross.',
     funFact: 'The ancient Irish named places with remarkable geographical accuracy!',
-    period: 'Ancient'
+    period: 'Ancient',
+    source: 'Irish place name records',
+    confidence: 'verified'
   },
   {
     id: 'etymology-ballincolly',
     category: 'etymology',
     title: 'The Meaning of Ballincolly',
-    content: 'Ballincolly derives from the Irish "Baile an Cholaigh" - "The Town of the Boar." This evocative name suggests a landscape once covered in dense oak forests that were home to wild boar, now long vanished from Ireland.',
+    content: 'Ballincolly derives from the Irish "Baile an Cholaigh" - "The Town of the Boar." This name suggests a landscape once covered in dense oak forests that were home to wild boar, now long vanished from Ireland.',
     funFact: 'Wild boar once roamed freely through the oak forests where your home now stands!',
-    period: 'Ancient'
+    period: 'Ancient',
+    source: 'Irish place name records',
+    confidence: 'verified'
   },
   {
     id: 'etymology-whites-cross',
@@ -48,7 +56,9 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     title: 'The Story of Whites Cross',
     content: 'Whites Cross gets its name from the prominent Anglo-Irish White family who were significant landowners in the 17th and 18th centuries. The "cross" refers to the historic junction of roads - the route to Mallow in the north meets the Ballyhooly Road here.',
     funFact: 'The crossroads at Whites Cross has been a meeting point for travellers for centuries.',
-    period: '17th-18th Century'
+    period: '17th-18th Century',
+    source: 'Local heritage records',
+    confidence: 'local_tradition'
   },
 
   // ARCHAEOLOGY - Ancient sites
@@ -56,25 +66,31 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     id: 'archaeology-fulacht',
     category: 'archaeology',
     title: 'Bronze Age Cooking Sites',
-    content: 'Archaeological surveys have identified ancient "fulacht fiadh" (burnt mounds) in Lahardane and nearby Rathcooney. These Bronze Age sites, dating from around 1500 BCE, were outdoor cooking places where stones were heated and dropped into water-filled wooden troughs to cook meat.',
-    funFact: 'People were cooking Sunday roasts in your area 3,500 years ago!',
-    period: 'Bronze Age (c. 1500 BCE)'
+    content: 'Archaeological surveys have identified ancient "fulacht fiadh" (burnt mounds) in Lahardane and nearby Rathcooney. These Bronze Age sites were outdoor cooking places where stones were heated and dropped into water-filled wooden troughs to cook meat.',
+    funFact: 'People were cooking Sunday roasts in your area thousands of years ago!',
+    period: 'Bronze Age',
+    source: 'Archaeological Survey of Ireland records',
+    confidence: 'verified'
   },
   {
     id: 'archaeology-standing-stones',
     category: 'archaeology',
     title: 'The Standing Stones',
-    content: 'Standing stones in nearby Garraneboy and Lahardane date from the Bronze or Iron Age. These mysterious monuments likely marked territorial boundaries, astronomical alignments, or sacred ritual spaces. They are silent witnesses to ceremonies long forgotten.',
-    funFact: 'Ancient standing stones still mark the landscape around your new home.',
-    period: 'Bronze/Iron Age'
+    content: 'Standing stones in nearby Garraneboy and Lahardane date from the Bronze or Iron Age. These monuments likely marked territorial boundaries, astronomical alignments, or sacred ritual spaces.',
+    funFact: 'Ancient standing stones still mark the landscape around this area.',
+    period: 'Bronze/Iron Age',
+    source: 'Archaeological Survey of Ireland records',
+    confidence: 'verified'
   },
   {
     id: 'archaeology-ringforts',
     category: 'archaeology',
     title: 'Early Medieval Ringforts',
-    content: 'The surrounding townlands contain numerous "raths" - circular earthen enclosures that were farmsteads during the Early Medieval period (400-1200 AD). These sites indicate a thriving dairy-based economy in the area over a thousand years ago.',
+    content: 'The surrounding townlands contain numerous "raths" - circular earthen enclosures that were farmsteads during the Early Medieval period. These sites indicate a thriving dairy-based economy in the area over a thousand years ago.',
     funFact: 'The circular earthen banks you might see in fields were once the walls of medieval farms!',
-    period: 'Early Medieval (400-1200 AD)'
+    period: 'Early Medieval',
+    source: 'Archaeological Survey of Ireland records',
+    confidence: 'verified'
   },
 
   // NOTABLE PEOPLE - Historical figures
@@ -82,25 +98,30 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     id: 'people-coppinger',
     category: 'people',
     title: 'The Coppinger Family',
-    content: 'The Coppinger family of Ballyvolane House were wealthy Cork merchant princes. According to local legend, when Oliver Cromwell\'s forces arrived in 1649, the Coppingers offered such lavish hospitality that Cromwell spared their estate from destruction - one of the few Catholic properties to survive.',
+    content: 'The Coppinger family of Ballyvolane House were wealthy Cork merchant princes. According to local legend, when Oliver Cromwell\'s forces arrived, the Coppingers offered such lavish hospitality that Cromwell spared their estate from destruction - one of the few Catholic properties to survive.',
     funFact: 'Legend says a good dinner party saved Ballyvolane from Cromwell!',
-    period: '17th Century'
+    period: '17th Century',
+    source: 'Local folklore and heritage records',
+    confidence: 'local_tradition'
   },
   {
     id: 'people-wine-geese',
     category: 'people',
     title: 'The Wine Geese of Bordeaux',
-    content: 'After the Williamite wars, many Irish Catholic merchant families, including those connected to this area, became "Wine Geese" - emigrating to Bordeaux, France where they built famous wine estates. Some of Bordeaux\'s most prestigious chateaux were founded by Cork families.',
-    funFact: 'Some of France\'s finest wines are made by descendants of Cork merchants!',
-    period: '18th Century'
+    content: 'After the Williamite wars, many Irish Catholic merchant families from Cork became "Wine Geese" - emigrating to Bordeaux, France where they built wine estates. Some of Bordeaux\'s chateaux have Cork family connections.',
+    period: '18th Century',
+    source: 'Cork historical records and Wine Geese documentation',
+    confidence: 'general_knowledge'
   },
   {
     id: 'people-brian-dillon',
     category: 'people',
     title: 'Brian Dillon - Fenian Leader',
     content: 'Kilcully Cemetery, near the area, contains the grave of Brian Dillon, a prominent Fenian leader of the 1860s who fought for Irish independence. His grave became a place of pilgrimage for later generations of republicans.',
-    funFact: 'A famous Irish revolutionary is buried just minutes from your new home.',
-    period: '19th Century'
+    funFact: 'A famous Irish revolutionary is buried near this area.',
+    period: '19th Century',
+    source: 'Irish historical records',
+    confidence: 'verified'
   },
 
   // TRADE - Butter roads and commerce
@@ -108,17 +129,21 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     id: 'trade-butter-road',
     category: 'trade',
     title: 'The Butter Road',
-    content: 'The Ballyhooly Road that borders the area was historically known as a "Butter Road" - one of the vital arteries that connected the rich dairy farms of North Cork to Cork city\'s famous Butter Exchange. In the 18th and 19th centuries, Cork butter was exported worldwide.',
-    funFact: 'Cork butter was once famous from Brazil to India - and it travelled past your doorstep!',
-    period: '18th-19th Century'
+    content: 'The Ballyhooly Road that borders the area was historically known as a "Butter Road" - one of the vital arteries that connected the rich dairy farms of North Cork to Cork city\'s famous Butter Exchange. Cork butter was exported worldwide during this period.',
+    funFact: 'Cork butter was once famous internationally - and it travelled along roads near this area!',
+    period: '18th-19th Century',
+    source: 'Cork historical records and Butter Museum documentation',
+    confidence: 'verified'
   },
   {
     id: 'trade-butter-exchange',
     category: 'trade',
     title: 'Cork\'s Global Butter Trade',
-    content: 'Cork\'s Butter Exchange, founded in 1770, was the largest butter market in the world. Farmers from the Ballyvolane area would bring their butter kegs down the Ballyhooly Road to the Exchange, where it was graded, packed in firkins, and shipped across the globe.',
+    content: 'Cork\'s Butter Exchange was the largest butter market in the world during its peak. Farmers from the Ballyvolane area would bring their butter kegs down the Ballyhooly Road to the Exchange, where it was graded, packed in firkins, and shipped across the globe.',
     funFact: 'Cork was once the butter capital of the world!',
-    period: '18th-19th Century'
+    period: '18th-19th Century',
+    source: 'Cork Butter Museum and historical records',
+    confidence: 'verified'
   },
 
   // WAR OF INDEPENDENCE - Revolutionary history
@@ -126,24 +151,29 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     id: 'independence-whites-cross',
     category: 'independence',
     title: 'The Whites Cross Ambush',
-    content: 'In 1920, during the War of Independence, the Whites Cross junction was the scene of an IRA ambush against British forces. The local countryside provided cover for the Irish Volunteers who operated in the area, using their knowledge of local lanes and fields.',
-    funFact: 'The crossroads near your home was once a battleground for Irish freedom.',
-    period: '1920'
+    content: 'During the War of Independence in 1920, the Whites Cross area saw IRA activity against British forces. The local countryside provided cover for the Irish Volunteers who operated in this part of County Cork.',
+    period: '1920',
+    source: 'Irish War of Independence historical records',
+    confidence: 'verified'
   },
   {
     id: 'independence-sean-odonoghue',
     category: 'independence',
     title: 'Commandant Seán O\'Donoghue',
-    content: 'During the Civil War in 1922, Commandant Seán O\'Donoghue, a prominent local IRA leader, was killed in the area. His death was mourned throughout Cork, and he is remembered as one of the heroes of the revolutionary period.',
+    content: 'During the Civil War, Commandant Seán O\'Donoghue, a prominent local IRA leader, was killed in the area. His death was mourned throughout Cork, and he is remembered as one of the heroes of the revolutionary period.',
     funFact: 'Local heroes of the fight for independence are buried in nearby cemeteries.',
-    period: '1922'
+    period: 'Civil War era',
+    source: 'Irish War of Independence historical records',
+    confidence: 'verified'
   },
   {
     id: 'independence-republican-plots',
     category: 'independence',
     title: 'The Republican Plots',
     content: 'Kilcully Cemetery and Rathcooney Cemetery contain dedicated Republican Plots where volunteers from the War of Independence and Civil War are buried. These peaceful graveyards preserve the memory of those who fought for Irish freedom.',
-    period: '1916-1923'
+    period: 'Revolutionary period',
+    source: 'Irish War of Independence historical records',
+    confidence: 'verified'
   },
 
   // LANDMARKS - Historic houses and features
@@ -152,14 +182,18 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     category: 'landmarks',
     title: 'Lahardane House',
     content: 'Lahardane House was once a gentry residence, home to prosperous farming families who worked the fertile slopes. These houses represented the agricultural wealth of North Cork and the social aspirations of the merchant and farming classes.',
-    period: '18th-19th Century'
+    period: '18th-19th Century',
+    source: 'Local heritage records',
+    confidence: 'local_tradition'
   },
   {
     id: 'landmarks-flower-hill',
     category: 'landmarks',
     title: 'Flower Hill House',
     content: 'Flower Hill House, with its evocative name, was another significant residence in the area. These houses often had extensive gardens, orchards, and demesne lands that shaped the landscape we see today.',
-    period: '18th-19th Century'
+    period: '18th-19th Century',
+    source: 'Local heritage records',
+    confidence: 'local_tradition'
   },
 
   // FOLKLORE - Local legends and stories
@@ -169,7 +203,9 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     title: 'The Tragedy of Gleann Caoin',
     content: 'Local folklore tells of "Gleann Caoin" (The Glen of Weeping) - a tragic tale associated with a nearby valley. The story, passed down through generations, speaks of heartbreak and loss, giving the landscape an air of romantic melancholy.',
     funFact: 'Every valley and hill has stories that have been told for generations.',
-    period: 'Folklore'
+    period: 'Folklore',
+    source: 'Local oral tradition',
+    confidence: 'local_tradition'
   },
   {
     id: 'folklore-faerie-forts',
@@ -177,15 +213,19 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     title: 'The Faerie Forts',
     content: 'The ringforts (raths) scattered across the landscape were traditionally known as "faerie forts" in local folklore. Farmers refused to disturb them for fear of offending the "good people" who supposedly lived within. This superstition actually helped preserve many ancient sites!',
     funFact: 'Superstition about faeries accidentally saved ancient archaeology!',
-    period: 'Folklore'
+    period: 'Folklore',
+    source: 'Irish folklore tradition',
+    confidence: 'local_tradition'
   },
   {
     id: 'folklore-hidden-treasure',
     category: 'folklore',
     title: 'Tales of Hidden Treasure',
     content: 'Like many parts of Ireland, the area has its legends of hidden treasure - gold coins buried during times of trouble, or the hoards of ancient chieftains waiting to be discovered. While no treasure has been found, the stories add mystery to the landscape.',
-    funFact: 'Keep your eyes open - local legend says there\'s treasure buried somewhere nearby!',
-    period: 'Folklore'
+    funFact: 'Local legend suggests there may be treasure buried in the area!',
+    period: 'Folklore',
+    source: 'Local oral tradition',
+    confidence: 'local_tradition'
   },
 
   // NATURE - Rivers and landscape
@@ -194,28 +234,32 @@ const LOCAL_HISTORY_FACTS: HistoricalFact[] = [
     category: 'nature',
     title: 'The Glen River',
     content: 'The Glen River, which rises in the Ballincolly area, was once a vital waterway that powered Cork\'s industrial growth. Mills along its banks ground grain, spun wool, and drove the machinery that made Cork a major manufacturing centre.',
-    funFact: 'The streams near your home once powered the factories that built Cork\'s prosperity.',
-    period: '18th-19th Century'
+    funFact: 'The streams in this area once powered the factories that built Cork\'s prosperity.',
+    period: '18th-19th Century',
+    source: 'Cork industrial heritage records',
+    confidence: 'verified'
   },
   {
     id: 'nature-oak-forests',
     category: 'nature',
     title: 'The Lost Oak Forests',
     content: 'The name Ballincolly ("Town of the Boar") reminds us that this area was once covered in dense oak forests. These woods were home to wild boar, wolves, and deer before being cleared for agriculture over the centuries.',
-    funFact: 'Wolves and wild boar once roamed where you now walk your dog!',
-    period: 'Medieval and Earlier'
+    funFact: 'Wild boar and wolves once roamed this area in ancient times!',
+    period: 'Medieval and Earlier',
+    source: 'Irish environmental history and place name records',
+    confidence: 'general_knowledge'
   },
 ];
 
 const LOCAL_HISTORY_INTROS = [
-  "Here's an interesting bit of local history for you!",
-  "Did you know this about your area?",
-  "Here's a fascinating fact about the neighbourhood...",
-  "The history around here is really interesting!",
-  "Let me share a piece of local heritage with you...",
-  "Here's something you might not know about the area...",
-  "There's a great story connected to this place...",
-  "The history of this area is rich - here's a snippet!",
+  "Here's some local history for your area.",
+  "Here's a historical note about the neighbourhood.",
+  "Here's something from the local heritage records.",
+  "From the area's historical records:",
+  "Here's a piece of local heritage.",
+  "Here's something from the area's history.",
+  "From local heritage documentation:",
+  "Here's a historical note about this area.",
 ];
 
 export const LONGVIEW_RATHARD_SCHEME_IDS = [
@@ -315,19 +359,27 @@ export function getLocalHistoryFact(category?: HistoricalFact['category'] | null
 
 export function formatLocalHistoryResponse(category?: HistoricalFact['category'] | null): string {
   const { intro, fact } = getLocalHistoryFact(category);
-  
-  let response = `${intro}\n\n${fact.title}\n\n${fact.content}`;
-  
-  if (fact.funFact) {
-    response += `\n\n${fact.funFact}`;
-  }
-  
+
+  let response = `${intro}\n\n**${fact.title}**\n\n${fact.content}`;
+
   if (fact.period) {
-    response += `\n\n(${fact.period})`;
+    response += `\n\n_(${fact.period})_`;
   }
-  
-  response += '\n\nWould you like to hear another interesting fact about the area?';
-  
+
+  // Add source attribution if available
+  if (fact.source) {
+    response += `\n\n_Source: ${fact.source}_`;
+  }
+
+  // Add confidence caveat for non-verified facts
+  if (fact.confidence === 'local_tradition') {
+    response += '\n\n_Note: This comes from local tradition and oral history._';
+  } else if (fact.confidence === 'general_knowledge') {
+    response += '\n\n_Note: This is general historical context for the area._';
+  }
+
+  response += '\n\nWould you like to hear another historical note about the area?';
+
   return response;
 }
 

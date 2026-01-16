@@ -1149,12 +1149,12 @@ function formatBulletItem(poi: POIResult, driveOnly: boolean = false): string {
 }
 
 function getSourceHint(fetchedAt: Date): string {
-  const dateStr = fetchedAt.toLocaleDateString('en-IE', { 
-    day: 'numeric', 
-    month: 'short', 
-    year: 'numeric' 
+  const dateStr = fetchedAt.toLocaleDateString('en-IE', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
   });
-  return `\n\nBased on Google Places, last updated ${dateStr}.`;
+  return `\n\nBased on Google Places, last updated ${dateStr}. Opening hours may vary - I'd suggest checking directly with the venue for current times.`;
 }
 
 export function formatPOIResponse(data: POICacheResult, options: FormatPOIOptions | POICategory, limit: number = 5): string {
