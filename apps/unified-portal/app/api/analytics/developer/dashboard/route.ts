@@ -106,19 +106,102 @@ export async function GET(request: NextRequest) {
     // Use onboarded units as registered homeowners
     let registeredHomeowners = onboardedUnits;
     
-    // Active homeowners - uses messages table with JOIN through developments for correct tenant filtering
-    // FIX: Messages may not have tenant_id populated correctly, so we join through developments table
+    // Active homeowners - counts ANY portal interaction in the last 7 days:
+    // - Chat messages (messages table)
+    // - Document acknowledgements (units.important_docs_agreed_at)
+    // - Portal visits/logins (analytics_events table)
     let activeHomeowners = 0;
     let previousActive = 0;
     try {
+      // Build development filter for analytics_events
+      const devFilterAE = developmentId
+        ? sql`AND ae.development_id = ${developmentId}::uuid`
+        : sql`AND ae.tenant_id = ${tenantId}::uuid`;
+
+      // Current period: Count distinct users from ALL interaction types
       const activeResult = await (developmentId
-        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
-        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
+        ? db.execute(sql`
+            SELECT COUNT(DISTINCT user_id)::int as count FROM (
+              -- Users who sent chat messages
+              SELECT m.user_id FROM messages m
+              WHERE m.development_id = ${developmentId}::uuid
+                AND m.created_at >= ${sevenDaysAgo}
+                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+
+              UNION
+
+              -- Users with analytics events (portal visits, logins, QR scans, doc opens)
+              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+              FROM analytics_events ae
+              WHERE ae.development_id = ${developmentId}::uuid
+                AND ae.created_at >= ${sevenDaysAgo}
+                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+            ) all_active
+            WHERE user_id IS NOT NULL
+          `)
+        : db.execute(sql`
+            SELECT COUNT(DISTINCT user_id)::int as count FROM (
+              -- Users who sent chat messages
+              SELECT m.user_id FROM messages m
+              INNER JOIN developments d ON m.development_id = d.id
+              WHERE d.tenant_id = ${tenantId}::uuid
+                AND m.created_at >= ${sevenDaysAgo}
+                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+
+              UNION
+
+              -- Users with analytics events (portal visits, logins, QR scans, doc opens)
+              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+              FROM analytics_events ae
+              WHERE ae.tenant_id = ${tenantId}::uuid
+                AND ae.created_at >= ${sevenDaysAgo}
+                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+            ) all_active
+            WHERE user_id IS NOT NULL
+          `));
       activeHomeowners = (activeResult.rows[0] as any)?.count || 0;
 
+      // Previous period for comparison
       const prevResult = await (developmentId
-        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
-        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
+        ? db.execute(sql`
+            SELECT COUNT(DISTINCT user_id)::int as count FROM (
+              SELECT m.user_id FROM messages m
+              WHERE m.development_id = ${developmentId}::uuid
+                AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo}
+                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+
+              UNION
+
+              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+              FROM analytics_events ae
+              WHERE ae.development_id = ${developmentId}::uuid
+                AND ae.created_at >= ${previousStartDate} AND ae.created_at < ${sevenDaysAgo}
+                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+            ) all_active
+            WHERE user_id IS NOT NULL
+          `)
+        : db.execute(sql`
+            SELECT COUNT(DISTINCT user_id)::int as count FROM (
+              SELECT m.user_id FROM messages m
+              INNER JOIN developments d ON m.development_id = d.id
+              WHERE d.tenant_id = ${tenantId}::uuid
+                AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo}
+                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+
+              UNION
+
+              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+              FROM analytics_events ae
+              WHERE ae.tenant_id = ${tenantId}::uuid
+                AND ae.created_at >= ${previousStartDate} AND ae.created_at < ${sevenDaysAgo}
+                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+            ) all_active
+            WHERE user_id IS NOT NULL
+          `));
       previousActive = (prevResult.rows[0] as any)?.count || 0;
     } catch (e) {
       console.log(`[DeveloperDashboard] Active users query failed (graceful fallback to 0):`, e);
@@ -170,33 +253,61 @@ export async function GET(request: NextRequest) {
       console.log(`[DeveloperDashboard] Document coverage query failed (graceful fallback):`, e);
     }
     
-    // Must-read compliance from both Supabase and Drizzle purchaser_agreements
+    // Must-read compliance - MUST match exact logic from Homeowners tab (list.tsx)
+    // The Homeowners tab checks: important_docs_agreed_version >= development.important_docs_version
+    // When no version is set (0), it checks if agreed_version >= 1
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      // Check Supabase units table for important_docs_agreed_at
-      let supabaseAckQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true }).not('important_docs_agreed_at', 'is', null);
+      // Get all units with their important_docs_agreed_version and their development's important_docs_version
+      let unitsWithAckQuery = supabaseAdmin
+        .from('units')
+        .select('id, important_docs_agreed_version, project_id');
+
       if (developmentId) {
-        supabaseAckQuery = supabaseAckQuery.eq('project_id', developmentId);
+        unitsWithAckQuery = unitsWithAckQuery.eq('project_id', developmentId);
       }
-      const { count: supabaseAckCount } = await supabaseAckQuery;
-      
-      // Also check Drizzle purchaser_agreements table
-      let drizzleAckCount = 0;
-      try {
-        const drizzleResult = await db.execute(sql`
-          SELECT COUNT(DISTINCT unit_id)::int as count 
-          FROM purchaser_agreements 
-          WHERE docs_version > 0
-        `);
-        drizzleAckCount = (drizzleResult.rows[0] as any)?.count || 0;
-      } catch (drizzleError) {
-        console.log(`[DeveloperDashboard] Drizzle purchaser_agreements query failed:`, drizzleError);
+
+      const { data: unitsWithAck, error: unitsError } = await unitsWithAckQuery;
+
+      if (unitsError) {
+        console.log(`[DeveloperDashboard] Units acknowledgement query error:`, unitsError);
+      } else if (unitsWithAck && unitsWithAck.length > 0) {
+        // Get all developments to get their important_docs_version
+        const developmentIds = [...new Set(unitsWithAck.map(u => u.project_id))];
+        const { data: developments } = await supabaseAdmin
+          .from('developments')
+          .select('id, important_docs_version')
+          .in('id', developmentIds);
+
+        // Create a map of development_id -> important_docs_version
+        const devVersionMap: Record<string, number> = {};
+        (developments || []).forEach((d: any) => {
+          devVersionMap[d.id] = d.important_docs_version || 0;
+        });
+
+        // Count units that have acknowledged using EXACT same logic as Homeowners tab
+        let acknowledgedCount = 0;
+        for (const unit of unitsWithAck) {
+          const agreedVersion = unit.important_docs_agreed_version || 0;
+          const devVersion = devVersionMap[unit.project_id] || 0;
+
+          // Exact logic from Homeowners tab list.tsx hasUnitAcknowledged():
+          // If no version is set anywhere (devVersion === 0), check if agreed at least version 1
+          // Otherwise, check if agreed >= dev version
+          if (devVersion === 0) {
+            if (agreedVersion >= 1) {
+              acknowledgedCount++;
+            }
+          } else {
+            if (agreedVersion >= devVersion) {
+              acknowledgedCount++;
+            }
+          }
+        }
+
+        mustRead = { total_units: totalUnits, acknowledged: acknowledgedCount };
+        console.log(`[DeveloperDashboard] Must-read compliance: ${acknowledgedCount} of ${totalUnits} acknowledged (matched Homeowners tab logic)`);
       }
-      
-      // Use the higher count (some agreements might be in one table, some in the other)
-      const totalAcknowledged = Math.max(supabaseAckCount || 0, drizzleAckCount);
-      mustRead = { total_units: totalUnits, acknowledged: totalAcknowledged };
-      console.log(`[DeveloperDashboard] Must-read: supabase=${supabaseAckCount}, drizzle=${drizzleAckCount}, using=${totalAcknowledged}`);
     } catch (e) {
       console.log(`[DeveloperDashboard] Must-read compliance query failed (graceful fallback):`, e);
     }
