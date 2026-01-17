@@ -3,7 +3,7 @@
 import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Building2, Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Clock, Activity, Zap } from 'lucide-react';
+import { Building2, Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Clock, Activity, Zap, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { useOverviewMetrics, useHomeownerMetrics } from '@/hooks/useAnalyticsV2';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -106,7 +106,240 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const [responseTimeData, setResponseTimeData] = useState<ResponseTimeData[]>([]);
   const [apiHealth, setApiHealth] = useState<ApiHealthData>({ uptimePercent: 100, avgTokensPerMessage: 0, apiCallsPerMinute: 0 });
   const [responseTimeStats, setResponseTimeStats] = useState({ avgOverall: 0, maxOverall: 0 });
-  
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Export functions
+  const generateCSVContent = useCallback(() => {
+    const rows: string[][] = [];
+    const dateRangeLabel = dateRange === 'custom'
+      ? `${customStartDate} to ${customEndDate}`
+      : `Last ${daysToQuery} days`;
+
+    // Header info
+    rows.push(['OpenHouse AI Analytics Report']);
+    rows.push([`Generated: ${new Date().toLocaleString()}`]);
+    rows.push([`Date Range: ${dateRangeLabel}`]);
+    rows.push([`Scheme: ${schemeName || 'All Schemes'}`]);
+    rows.push([]);
+
+    // Overview Metrics
+    rows.push(['=== OVERVIEW METRICS ===']);
+    rows.push(['Metric', 'Value']);
+    rows.push(['Total Messages', String(metrics?.totalMessages || 0)]);
+    rows.push(['Active Users', String(metrics?.activeUsers || 0)]);
+    rows.push(['Engagement Rate', `${homeowners?.engagementRate ? (homeowners.engagementRate * 100).toFixed(1) : 0}%`]);
+    rows.push(['Avg Response Time (ms)', String(metrics?.avgResponseTime || 0)]);
+    rows.push([]);
+
+    // API Health
+    rows.push(['=== API HEALTH ===']);
+    rows.push(['Metric', 'Value']);
+    rows.push(['Uptime', `${apiHealth.uptimePercent}%`]);
+    rows.push(['Avg Tokens/Message', String(apiHealth.avgTokensPerMessage)]);
+    rows.push(['API Calls/Min', String(apiHealth.apiCallsPerMinute)]);
+    rows.push([]);
+
+    // Daily Activity
+    if (activityData.length > 0) {
+      rows.push(['=== DAILY ACTIVITY ===']);
+      rows.push(['Date', 'Chats', 'Messages']);
+      activityData.forEach(day => {
+        rows.push([day.date, String(day.chats), String(day.messages)]);
+      });
+      rows.push([]);
+    }
+
+    // Response Times
+    if (responseTimeData.length > 0) {
+      rows.push(['=== RESPONSE TIMES ===']);
+      rows.push(['Date', 'Avg Time (ms)', 'Max Time (ms)']);
+      responseTimeData.forEach(day => {
+        rows.push([day.date, String(day.avgTime), String(day.maxTime)]);
+      });
+      rows.push([]);
+    }
+
+    // Question Categories
+    if (questionData?.categories && questionData.categories.length > 0) {
+      rows.push(['=== QUESTION CATEGORIES ===']);
+      rows.push(['Category', 'Count', 'Percentage']);
+      questionData.categories.forEach(cat => {
+        const pct = ((cat.count / (questionData.totalQuestions || 1)) * 100).toFixed(1);
+        rows.push([cat.category, String(cat.count), `${pct}%`]);
+      });
+      rows.push([]);
+    }
+
+    // Top Questions
+    if (questionData?.topQuestions && questionData.topQuestions.length > 0) {
+      rows.push(['=== TOP QUESTIONS ===']);
+      rows.push(['Question', 'Count', 'Avg Response Time (ms)']);
+      questionData.topQuestions.forEach(q => {
+        rows.push([`"${q.question.replace(/"/g, '""')}"`, String(q.count), String(q.avgResponseTime)]);
+      });
+    }
+
+    // Convert to CSV string
+    return rows.map(row => row.join(',')).join('\n');
+  }, [metrics, homeowners, apiHealth, activityData, responseTimeData, questionData, dateRange, daysToQuery, customStartDate, customEndDate, schemeName]);
+
+  const exportToCSV = useCallback(() => {
+    setExporting(true);
+    try {
+      const csvContent = generateCSVContent();
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const filename = `openhouse-analytics-${schemeName?.toLowerCase().replace(/\s+/g, '-') || 'all-schemes'}-${new Date().toISOString().split('T')[0]}.csv`;
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+    } finally {
+      setExporting(false);
+      setShowExportMenu(false);
+    }
+  }, [generateCSVContent, schemeName]);
+
+  const exportToPDF = useCallback(async () => {
+    setExporting(true);
+    try {
+      // Create a simple HTML-based PDF using print
+      const dateRangeLabel = dateRange === 'custom'
+        ? `${customStartDate} to ${customEndDate}`
+        : `Last ${daysToQuery} days`;
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('Please allow popups to export PDF');
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>OpenHouse AI Analytics Report</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #333; }
+            h1 { color: #B8860B; border-bottom: 2px solid #B8860B; padding-bottom: 10px; }
+            h2 { color: #555; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+            .meta { color: #666; font-size: 14px; margin-bottom: 20px; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 20px 0; }
+            .card { background: #f9f9f9; border-radius: 8px; padding: 20px; }
+            .card-title { font-size: 12px; color: #666; text-transform: uppercase; }
+            .card-value { font-size: 28px; font-weight: bold; color: #333; margin-top: 5px; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
+            th { background: #f5f5f5; font-weight: 600; }
+            .footer { margin-top: 40px; text-align: center; color: #999; font-size: 12px; }
+            @media print { body { padding: 20px; } }
+          </style>
+        </head>
+        <body>
+          <h1>📊 OpenHouse AI Analytics Report</h1>
+          <div class="meta">
+            <p><strong>Scheme:</strong> ${schemeName || 'All Schemes'}</p>
+            <p><strong>Date Range:</strong> ${dateRangeLabel}</p>
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+
+          <h2>Overview Metrics</h2>
+          <div class="grid">
+            <div class="card">
+              <div class="card-title">Total Messages</div>
+              <div class="card-value">${(metrics?.totalMessages || 0).toLocaleString()}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Active Users</div>
+              <div class="card-value">${(metrics?.activeUsers || 0).toLocaleString()}</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Engagement Rate</div>
+              <div class="card-value">${homeowners?.engagementRate ? (homeowners.engagementRate * 100).toFixed(1) : 0}%</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Avg Response Time</div>
+              <div class="card-value">${metrics?.avgResponseTime || 0}ms</div>
+            </div>
+          </div>
+
+          <h2>API Health</h2>
+          <div class="grid">
+            <div class="card">
+              <div class="card-title">Uptime</div>
+              <div class="card-value">${apiHealth.uptimePercent}%</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Avg Tokens/Message</div>
+              <div class="card-value">${apiHealth.avgTokensPerMessage}</div>
+            </div>
+          </div>
+
+          ${questionData?.categories && questionData.categories.length > 0 ? `
+          <h2>Question Categories</h2>
+          <table>
+            <thead>
+              <tr><th>Category</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+              ${questionData.categories.map(cat => `
+                <tr>
+                  <td>${cat.category}</td>
+                  <td>${cat.count}</td>
+                  <td>${((cat.count / (questionData.totalQuestions || 1)) * 100).toFixed(1)}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ` : ''}
+
+          ${questionData?.topQuestions && questionData.topQuestions.length > 0 ? `
+          <h2>Top Questions</h2>
+          <table>
+            <thead>
+              <tr><th>Question</th><th>Count</th><th>Response Time</th></tr>
+            </thead>
+            <tbody>
+              ${questionData.topQuestions.slice(0, 10).map(q => `
+                <tr>
+                  <td>${q.question}</td>
+                  <td>${q.count}</td>
+                  <td>${q.avgResponseTime}ms</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ` : ''}
+
+          <div class="footer">
+            <p>Generated by OpenHouse AI • portal.openhouseai.ie</p>
+          </div>
+        </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+      printWindow.focus();
+
+      // Give it a moment to render, then print
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+    } finally {
+      setExporting(false);
+      setShowExportMenu(false);
+    }
+  }, [metrics, homeowners, apiHealth, questionData, dateRange, daysToQuery, customStartDate, customEndDate, schemeName]);
+
   useEffect(() => {
     async function fetchDevelopmentName() {
       if (!effectiveDevelopmentId) {
@@ -294,6 +527,49 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
                 )}
               </div>
             )}
+
+            {/* Export Button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={exporting}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition shadow-sm disabled:opacity-50"
+              >
+                {exporting ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className="text-sm font-medium">Export</span>
+              </button>
+
+              {showExportMenu && (
+                <>
+                  {/* Backdrop to close menu */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowExportMenu(false)}
+                  />
+                  {/* Dropdown menu */}
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-grey-200 z-20 py-1">
+                    <button
+                      onClick={exportToCSV}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-grey-700 hover:bg-grey-50 transition"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                      Export to Excel/CSV
+                    </button>
+                    <button
+                      onClick={exportToPDF}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-grey-700 hover:bg-grey-50 transition"
+                    >
+                      <FileText className="w-4 h-4 text-red-600" />
+                      Export to PDF
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
