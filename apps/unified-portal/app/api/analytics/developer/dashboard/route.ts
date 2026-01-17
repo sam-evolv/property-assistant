@@ -108,77 +108,109 @@ export async function GET(request: NextRequest) {
     
     // Active homeowners - counts ANY portal interaction in the last 7 days:
     // 1. Chat messages (messages table - Drizzle)
-    // 2. Document acknowledgements in last 7 days (units.important_docs_agreed_at - Supabase)
+    // 2. Document acknowledgements in last 7 days (purchaser_agreements - Drizzle, same as Homeowners page)
     // 3. Analytics events like logins, signups (analytics_events - Drizzle)
     let activeHomeowners = 0;
     let previousActive = 0;
     try {
-      // First count from Drizzle tables (messages + analytics_events)
-      const activeResult = await (developmentId
-        ? db.execute(sql`
-            SELECT COUNT(DISTINCT user_id)::int as count FROM (
-              -- Users who sent chat messages
-              SELECT m.user_id FROM messages m
-              WHERE m.development_id = ${developmentId}::uuid
-                AND m.created_at >= ${sevenDaysAgo}
-                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+      // Count active users from multiple sources - using purchaser_agreements (same as Homeowners page)
+      let drizzleActiveCount = 0;
+      let purchaserAgreementsActiveCount = 0;
 
-              UNION
+      // First try to count from purchaser_agreements (most reliable - actual portal interaction)
+      try {
+        const agreementsActiveResult = await db.execute(sql`
+          SELECT COUNT(DISTINCT unit_id)::int as count
+          FROM purchaser_agreements
+          WHERE agreed_at >= ${sevenDaysAgo}
+            AND unit_id IS NOT NULL
+        `);
+        purchaserAgreementsActiveCount = (agreementsActiveResult.rows[0] as any)?.count || 0;
+        console.log(`[DeveloperDashboard] Active from purchaser_agreements: ${purchaserAgreementsActiveCount}`);
+      } catch (agreementError) {
+        console.log(`[DeveloperDashboard] purchaser_agreements active query failed:`, agreementError);
+      }
 
-              -- Users with analytics events (logins, QR scans, doc opens, signups)
-              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-              FROM analytics_events ae
-              WHERE ae.development_id = ${developmentId}::uuid
-                AND ae.created_at >= ${sevenDaysAgo}
-                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-            ) all_active
-            WHERE user_id IS NOT NULL
-          `)
-        : db.execute(sql`
-            SELECT COUNT(DISTINCT user_id)::int as count FROM (
-              -- Users who sent chat messages
-              SELECT m.user_id FROM messages m
-              INNER JOIN developments d ON m.development_id = d.id
-              WHERE d.tenant_id = ${tenantId}::uuid
-                AND m.created_at >= ${sevenDaysAgo}
-                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+      // Then try Drizzle tables (messages + analytics_events)
+      try {
+        const activeResult = await (developmentId
+          ? db.execute(sql`
+              SELECT COUNT(DISTINCT user_id)::int as count FROM (
+                -- Users who sent chat messages
+                SELECT m.user_id FROM messages m
+                WHERE m.development_id = ${developmentId}::uuid
+                  AND m.created_at >= ${sevenDaysAgo}
+                  AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
 
-              UNION
+                UNION
 
-              -- Users with analytics events (logins, QR scans, doc opens, signups)
-              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-              FROM analytics_events ae
-              WHERE ae.tenant_id = ${tenantId}::uuid
-                AND ae.created_at >= ${sevenDaysAgo}
-                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-            ) all_active
-            WHERE user_id IS NOT NULL
-          `));
-      let drizzleActiveCount = (activeResult.rows[0] as any)?.count || 0;
+                -- Users with analytics events (logins, QR scans, doc opens, signups)
+                SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+                FROM analytics_events ae
+                WHERE ae.development_id = ${developmentId}::uuid
+                  AND ae.created_at >= ${sevenDaysAgo}
+                  AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                  AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+              ) all_active
+              WHERE user_id IS NOT NULL
+            `)
+          : db.execute(sql`
+              SELECT COUNT(DISTINCT user_id)::int as count FROM (
+                -- Users who sent chat messages
+                SELECT m.user_id FROM messages m
+                INNER JOIN developments d ON m.development_id = d.id
+                WHERE d.tenant_id = ${tenantId}::uuid
+                  AND m.created_at >= ${sevenDaysAgo}
+                  AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
+
+                UNION
+
+                -- Users with analytics events (logins, QR scans, doc opens, signups)
+                SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+                FROM analytics_events ae
+                WHERE ae.tenant_id = ${tenantId}::uuid
+                  AND ae.created_at >= ${sevenDaysAgo}
+                  AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                  AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+              ) all_active
+              WHERE user_id IS NOT NULL
+            `));
+        drizzleActiveCount = (activeResult.rows[0] as any)?.count || 0;
+        console.log(`[DeveloperDashboard] Active from messages/events: ${drizzleActiveCount}`);
+      } catch (drizzleError) {
+        console.log(`[DeveloperDashboard] Drizzle active query failed:`, drizzleError);
+      }
 
       // Also count from Supabase units table - users who acknowledged docs in last 7 days
-      // This is a reliable source of "activity" since they had to interact with the portal
-      let supabaseActiveQuery = supabaseAdmin
-        .from('units')
-        .select('id', { count: 'exact', head: true })
-        .gte('important_docs_agreed_at', sevenDaysAgo.toISOString());
+      let supabaseActiveCount = 0;
+      try {
+        let supabaseActiveQuery = supabaseAdmin
+          .from('units')
+          .select('id', { count: 'exact', head: true })
+          .gte('important_docs_agreed_at', sevenDaysAgo.toISOString());
 
-      if (developmentId) {
-        supabaseActiveQuery = supabaseActiveQuery.eq('project_id', developmentId);
-      }
-      const { count: supabaseActiveCount } = await supabaseActiveQuery;
-
-      // Combine both counts (may have some overlap, but better to show activity than 0)
-      // Use the higher of the two, or sum them if both are low
-      activeHomeowners = Math.max(drizzleActiveCount, supabaseActiveCount || 0);
-      if (drizzleActiveCount > 0 && (supabaseActiveCount || 0) > 0) {
-        // If both have activity, use a combined count (approximately)
-        activeHomeowners = drizzleActiveCount + Math.floor((supabaseActiveCount || 0) * 0.7); // Assume 30% overlap
+        if (developmentId) {
+          supabaseActiveQuery = supabaseActiveQuery.eq('project_id', developmentId);
+        }
+        const { count } = await supabaseActiveQuery;
+        supabaseActiveCount = count || 0;
+        console.log(`[DeveloperDashboard] Active from Supabase units: ${supabaseActiveCount}`);
+      } catch (supabaseError) {
+        console.log(`[DeveloperDashboard] Supabase active query failed:`, supabaseError);
       }
 
-      console.log(`[DeveloperDashboard] Active users: drizzle=${drizzleActiveCount}, supabase=${supabaseActiveCount}, combined=${activeHomeowners}`);
+      // Combine all sources - use the maximum since there's likely overlap
+      activeHomeowners = Math.max(drizzleActiveCount, supabaseActiveCount, purchaserAgreementsActiveCount);
+
+      // If multiple sources have activity, add them with overlap adjustment
+      const activeSources = [drizzleActiveCount, supabaseActiveCount, purchaserAgreementsActiveCount].filter(c => c > 0);
+      if (activeSources.length > 1) {
+        // Sum them but reduce for expected overlap
+        const total = activeSources.reduce((a, b) => a + b, 0);
+        activeHomeowners = Math.max(activeHomeowners, Math.floor(total * 0.7)); // 30% overlap assumed
+      }
+
+      console.log(`[DeveloperDashboard] Active users: drizzle=${drizzleActiveCount}, supabase=${supabaseActiveCount}, agreements=${purchaserAgreementsActiveCount}, combined=${activeHomeowners}`);
 
       // Previous period for comparison
       const prevResult = await (developmentId
@@ -271,11 +303,10 @@ export async function GET(request: NextRequest) {
     }
     
     // Must-read compliance - MUST match exact logic from Homeowners tab (list.tsx)
-    // The Homeowners tab checks: important_docs_agreed_version >= development.important_docs_version
-    // When no version is set (0), it checks if agreed_version >= 1
+    // The Homeowners tab uses 'projects' table for development info and 'purchaser_agreements' table for acknowledgements
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      // Get all units with their important_docs_agreed_version and their development's important_docs_version
+      // Get all units with their project_id
       let unitsWithAckQuery = supabaseAdmin
         .from('units')
         .select('id, important_docs_agreed_version, project_id');
@@ -289,23 +320,42 @@ export async function GET(request: NextRequest) {
       if (unitsError) {
         console.log(`[DeveloperDashboard] Units acknowledgement query error:`, unitsError);
       } else if (unitsWithAck && unitsWithAck.length > 0) {
-        // Get all developments to get their important_docs_version
+        // Get development version from 'projects' table (Supabase) - same as Homeowners page
         const developmentIds = [...new Set(unitsWithAck.map(u => u.project_id))];
-        const { data: developments } = await supabaseAdmin
-          .from('developments')
+        const { data: projects } = await supabaseAdmin
+          .from('projects')
           .select('id, important_docs_version')
           .in('id', developmentIds);
 
         // Create a map of development_id -> important_docs_version
         const devVersionMap: Record<string, number> = {};
-        (developments || []).forEach((d: any) => {
-          devVersionMap[d.id] = d.important_docs_version || 0;
+        (projects || []).forEach((p: any) => {
+          devVersionMap[p.id] = p.important_docs_version || 0;
         });
+
+        // CRITICAL: Get acknowledgement status from purchaser_agreements table (Drizzle)
+        // This is what the Homeowners page does - uses purchaser_agreements for the real source of truth
+        let acknowledgedUnitsFromAgreements = new Map<string, number>();
+        try {
+          const agreementsResult = await db.execute(sql`
+            SELECT DISTINCT ON (unit_id) unit_id, docs_version
+            FROM purchaser_agreements
+            WHERE unit_id IS NOT NULL
+            ORDER BY unit_id, agreed_at DESC
+          `);
+          for (const row of agreementsResult.rows as any[]) {
+            acknowledgedUnitsFromAgreements.set(row.unit_id, row.docs_version || 1);
+          }
+          console.log(`[DeveloperDashboard] Found ${acknowledgedUnitsFromAgreements.size} acknowledged units from purchaser_agreements`);
+        } catch (agreementError) {
+          console.log(`[DeveloperDashboard] purchaser_agreements query failed, falling back to unit field:`, agreementError);
+        }
 
         // Count units that have acknowledged using EXACT same logic as Homeowners tab
         let acknowledgedCount = 0;
         for (const unit of unitsWithAck) {
-          const agreedVersion = unit.important_docs_agreed_version || 0;
+          // Use purchaser_agreements as primary source (like Homeowners page), fall back to unit field
+          const agreedVersion = acknowledgedUnitsFromAgreements.get(unit.id) || unit.important_docs_agreed_version || 0;
           const devVersion = devVersionMap[unit.project_id] || 0;
 
           // Exact logic from Homeowners tab list.tsx hasUnitAcknowledged():
