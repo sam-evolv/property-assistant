@@ -749,15 +749,14 @@ export function formatGroundedDimensionAnswer(
     answer += ' Note: These dimensions are from automated extraction and may require verification.';
   }
 
-  // Add disclaimer if enabled in settings
+  // ALWAYS add floor plan reference - this is mandatory per user requirement
+  // The floor plan should always be referenced regardless of whether dimensions were found
+  answer += `\n\n📐 **Floor Plan:** For complete accuracy and to see the full layout, please refer to your official floor plan in the Documents section.`;
+
+  // Add disclaimer if enabled in settings (always show for safety)
   const effectiveSettings = settings || DEFAULT_DIMENSION_SETTINGS;
   if (effectiveSettings.show_disclaimer && effectiveSettings.disclaimer_text) {
-    answer += `\n\n📋 **Important:** ${effectiveSettings.disclaimer_text}`;
-  }
-
-  // Suggest viewing floor plan if enabled
-  if (effectiveSettings.attach_floorplans) {
-    answer += `\n\nFor complete accuracy, you can view your official floor plan in the Documents section.`;
+    answer += `\n\n⚠️ **Important:** ${effectiveSettings.disclaimer_text}`;
   }
 
   return answer;

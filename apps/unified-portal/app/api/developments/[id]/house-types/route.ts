@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { db } from '@openhouse/db';
+import { houseTypes, developments } from '@openhouse/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -18,17 +21,46 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const { id: developmentId } = await params;
 
     if (!developmentId) {
       return NextResponse.json({ error: 'Development ID required' }, { status: 400 });
     }
 
+    // First, get the development to find the tenant_id
+    const dev = await db.query.developments.findFirst({
+      where: eq(developments.id, developmentId),
+    });
+
+    if (!dev) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    const tenantId = dev.tenant_id;
+
+    // First check if we have house types in Drizzle
+    const existingHouseTypes = await db.query.houseTypes.findMany({
+      where: eq(houseTypes.development_id, developmentId),
+    });
+
+    if (existingHouseTypes.length > 0) {
+      // We have house types in Drizzle, return them
+      const result = existingHouseTypes.map(ht => ({
+        id: ht.id,
+        house_type_code: ht.house_type_code,
+        development_id: ht.development_id,
+        bedrooms: ht.bedrooms,
+        total_floor_area_sqm: ht.total_floor_area_sqm,
+      }));
+
+      console.log(`[HouseTypes API] Found ${result.length} existing house types in Drizzle for development ${developmentId}`);
+      return NextResponse.json({ houseTypes: result });
+    }
+
+    // No house types in Drizzle, get unique codes from Supabase units and create them
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Get unique house types from units table for this development
-    // This is where the actual house type data lives
     const { data: units, error } = await supabaseAdmin
       .from('units')
       .select('house_type_code')
@@ -41,26 +73,69 @@ export async function GET(
     }
 
     // Extract unique house type codes
-    const uniqueHouseTypes = new Map<string, { id: string; house_type_code: string; development_id: string }>();
-
+    const uniqueCodes = new Set<string>();
     (units || []).forEach((unit: any) => {
-      if (unit.house_type_code && !uniqueHouseTypes.has(unit.house_type_code)) {
-        // Use the house_type_code as both id and code since we don't have a dedicated house_types table
-        uniqueHouseTypes.set(unit.house_type_code, {
-          id: unit.house_type_code, // Use code as ID for simplicity
-          house_type_code: unit.house_type_code,
-          development_id: developmentId,
-        });
+      if (unit.house_type_code) {
+        uniqueCodes.add(unit.house_type_code);
       }
     });
 
-    const houseTypes = Array.from(uniqueHouseTypes.values()).sort((a, b) =>
+    if (uniqueCodes.size === 0) {
+      console.log(`[HouseTypes API] No house types found for development ${developmentId}`);
+      return NextResponse.json({ houseTypes: [] });
+    }
+
+    // Create house types in Drizzle for each unique code
+    const createdHouseTypes = [];
+    for (const code of uniqueCodes) {
+      try {
+        const [created] = await db.insert(houseTypes).values({
+          tenant_id: tenantId,
+          development_id: developmentId,
+          house_type_code: code,
+        }).returning();
+
+        createdHouseTypes.push({
+          id: created.id,
+          house_type_code: created.house_type_code,
+          development_id: created.development_id,
+          bedrooms: created.bedrooms,
+          total_floor_area_sqm: created.total_floor_area_sqm,
+        });
+
+        console.log(`[HouseTypes API] Created house type ${code} with ID ${created.id}`);
+      } catch (insertError: any) {
+        // If it's a duplicate key error, the house type was created by another request
+        if (insertError.code === '23505') {
+          console.log(`[HouseTypes API] House type ${code} already exists, fetching it`);
+          const existing = await db.query.houseTypes.findFirst({
+            where: and(
+              eq(houseTypes.development_id, developmentId),
+              eq(houseTypes.house_type_code, code)
+            ),
+          });
+          if (existing) {
+            createdHouseTypes.push({
+              id: existing.id,
+              house_type_code: existing.house_type_code,
+              development_id: existing.development_id,
+              bedrooms: existing.bedrooms,
+              total_floor_area_sqm: existing.total_floor_area_sqm,
+            });
+          }
+        } else {
+          console.error(`[HouseTypes API] Error creating house type ${code}:`, insertError);
+        }
+      }
+    }
+
+    const sortedHouseTypes = createdHouseTypes.sort((a, b) =>
       a.house_type_code.localeCompare(b.house_type_code)
     );
 
-    console.log(`[HouseTypes API] Found ${houseTypes.length} house types for development ${developmentId}`);
+    console.log(`[HouseTypes API] Created/found ${sortedHouseTypes.length} house types for development ${developmentId}`);
 
-    return NextResponse.json({ houseTypes });
+    return NextResponse.json({ houseTypes: sortedHouseTypes });
   } catch (error) {
     console.error('[HouseTypes API] Error:', error);
     return NextResponse.json(

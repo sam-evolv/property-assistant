@@ -713,7 +713,7 @@ export default function RoomDimensionsPage() {
                   type="text"
                   value={newRoom.room_name}
                   onChange={(e) => setNewRoom({ ...newRoom, room_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., Living Room"
                 />
               </div>
@@ -723,7 +723,7 @@ export default function RoomDimensionsPage() {
                   type="text"
                   value={newRoom.room_key}
                   onChange={(e) => setNewRoom({ ...newRoom, room_key: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., living_room"
                 />
               </div>
@@ -732,7 +732,7 @@ export default function RoomDimensionsPage() {
                 <select
                   value={newRoom.floor}
                   onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                 >
                   <option value="Ground">Ground Floor</option>
                   <option value="First">First Floor</option>
@@ -749,7 +749,7 @@ export default function RoomDimensionsPage() {
                   step="0.01"
                   value={newRoom.ceiling_height_m}
                   onChange={(e) => setNewRoom({ ...newRoom, ceiling_height_m: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., 2.4"
                 />
               </div>
@@ -763,7 +763,7 @@ export default function RoomDimensionsPage() {
                   step="0.01"
                   value={newRoom.length_m}
                   onChange={(e) => setNewRoom({ ...newRoom, length_m: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., 5.2"
                 />
               </div>
@@ -774,7 +774,7 @@ export default function RoomDimensionsPage() {
                   step="0.01"
                   value={newRoom.width_m}
                   onChange={(e) => setNewRoom({ ...newRoom, width_m: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., 3.8"
                 />
               </div>
@@ -785,7 +785,7 @@ export default function RoomDimensionsPage() {
                   step="0.01"
                   value={newRoom.area_sqm || (newRoom.length_m && newRoom.width_m ? (parseFloat(newRoom.length_m) * parseFloat(newRoom.width_m)).toFixed(2) : '')}
                   onChange={(e) => setNewRoom({ ...newRoom, area_sqm: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                   placeholder="e.g., 19.76"
                 />
               </div>
@@ -797,7 +797,7 @@ export default function RoomDimensionsPage() {
                 type="text"
                 value={newRoom.notes}
                 onChange={(e) => setNewRoom({ ...newRoom, notes: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                 placeholder="e.g., Includes bay window area"
               />
             </div>
@@ -911,7 +911,7 @@ export default function RoomDimensionsPage() {
                                           type="text"
                                           value={editForm.room_name || ''}
                                           onChange={(e) => setEditForm({ ...editForm, room_name: e.target.value })}
-                                          className="w-32 px-2 py-1 border rounded text-sm"
+                                          className="w-32 px-2 py-1 border rounded text-sm text-gray-900 bg-white"
                                         />
                                       ) : (
                                         <span className="font-medium text-gray-900">{dim.room_name}</span>
@@ -926,15 +926,15 @@ export default function RoomDimensionsPage() {
                                             step="0.01"
                                             value={editForm.length_m || ''}
                                             onChange={(e) => setEditForm({ ...editForm, length_m: parseFloat(e.target.value) || null })}
-                                            className="w-16 px-2 py-1 border rounded text-sm"
+                                            className="w-16 px-2 py-1 border rounded text-sm text-gray-900 bg-white"
                                           />
-                                          <span>×</span>
+                                          <span className="text-gray-900">×</span>
                                           <input
                                             type="number"
                                             step="0.01"
                                             value={editForm.width_m || ''}
                                             onChange={(e) => setEditForm({ ...editForm, width_m: parseFloat(e.target.value) || null })}
-                                            className="w-16 px-2 py-1 border rounded text-sm"
+                                            className="w-16 px-2 py-1 border rounded text-sm text-gray-900 bg-white"
                                           />
                                         </div>
                                       ) : (
@@ -952,7 +952,7 @@ export default function RoomDimensionsPage() {
                                           step="0.01"
                                           value={editForm.area_sqm || ''}
                                           onChange={(e) => setEditForm({ ...editForm, area_sqm: e.target.value })}
-                                          className="w-20 px-2 py-1 border rounded text-sm"
+                                          className="w-20 px-2 py-1 border rounded text-sm text-gray-900 bg-white"
                                         />
                                       ) : (
                                         <span className="text-sm font-medium text-gray-900">
