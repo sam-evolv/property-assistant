@@ -177,15 +177,20 @@ export default function RoomDimensionsPage() {
 
   const fetchHouseTypes = async (developmentId: string) => {
     try {
+      // Use [id] route pattern to match existing API structure
       const res = await fetch(`/api/developments/${developmentId}/house-types`);
       if (res.ok) {
         const data = await res.json();
         setHouseTypes(data.houseTypes || []);
         // Auto-expand all house types initially
         setExpandedHouseTypes(new Set((data.houseTypes || []).map((ht: HouseType) => ht.id)));
+      } else {
+        console.error('Failed to fetch house types:', res.status);
+        setHouseTypes([]);
       }
     } catch (error) {
       console.error('Failed to fetch house types:', error);
+      setHouseTypes([]);
     }
   };
 

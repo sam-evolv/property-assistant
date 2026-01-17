@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/auth';
+import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabaseAdmin() {
@@ -15,11 +15,11 @@ function getSupabaseAdmin() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ developmentId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireRole(['developer', 'admin', 'super_admin']);
-    const { developmentId } = await params;
+    const { id: developmentId } = await params;
 
     if (!developmentId) {
       return NextResponse.json({ error: 'Development ID required' }, { status: 400 });
