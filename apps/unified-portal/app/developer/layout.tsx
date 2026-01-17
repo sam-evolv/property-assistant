@@ -4,10 +4,8 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAILS = [
-  'sam@evolv.ie',
-  'sam@evolvai.ie',
-];
+// Allowed roles for developer portal access
+const ALLOWED_ROLES = ['super_admin', 'developer', 'admin'];
 
 export default async function DeveloperLayout({
   children,
@@ -15,18 +13,20 @@ export default async function DeveloperLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession();
-  
+
   if (!session) {
     redirect('/login?redirectTo=/developer');
   }
 
-  const userEmail = session.email?.toLowerCase();
-  const isAdmin = userEmail && ADMIN_EMAILS.some(email => email.toLowerCase() === userEmail);
-  
-  if (!isAdmin) {
-    console.warn(`[Developer Portal] Access denied for email: ${userEmail || 'unknown'}`);
+  // Check role-based access
+  const hasAccess = session.role && ALLOWED_ROLES.includes(session.role);
+
+  if (!hasAccess) {
+    console.warn(`[Developer Portal] Access denied for email: ${session.email || 'unknown'}, role: ${session.role || 'none'}`);
     redirect('/unauthorized');
   }
+
+  console.log(`[Developer Portal] Access granted for ${session.email}, role: ${session.role}`);
 
   return (
     <DeveloperLayoutProvider session={session}>

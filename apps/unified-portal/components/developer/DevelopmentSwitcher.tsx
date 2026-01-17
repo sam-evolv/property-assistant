@@ -2,13 +2,14 @@
 
 /**
  * DEVELOPMENT SWITCHER
- * 
- * Dropdown component for switching between developments.
+ *
+ * Dropdown component for switching between developments/schemes.
  * Shows in the sidebar/header for developer views.
  * Features:
  * - "All schemes" option for macro analytics
  * - Individual development selection
  * - Fetches developments via RLS-protected API
+ * - Supports tenant filtering for super_admin hierarchical navigation
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,9 +21,16 @@ interface Development {
   name: string;
   code: string;
   is_active: boolean;
+  tenant_id?: string;
+  tenant_name?: string;
 }
 
-export function DevelopmentSwitcher() {
+interface DevelopmentSwitcherProps {
+  /** Optional tenant filter for super_admin. When set, only shows developments for this tenant */
+  tenantFilter?: string | null;
+}
+
+export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps = {}) {
   const { tenantId, developmentId, setDevelopmentId } = useCurrentContext();
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -30,24 +38,35 @@ export function DevelopmentSwitcher() {
   const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch developments on mount - server handles auth via cookies
+  // Fetch developments on mount and when tenantFilter changes
   useEffect(() => {
     async function fetchDevelopments() {
       try {
         setIsLoading(true);
-        console.log('[DevelopmentSwitcher] Fetching developments...');
-        const response = await fetch('/api/developments');
-        
+        // Build URL with optional tenant filter
+        const url = tenantFilter
+          ? `/api/developments?tenant_id=${encodeURIComponent(tenantFilter)}`
+          : '/api/developments';
+
+        console.log('[DevelopmentSwitcher] Fetching developments...', { tenantFilter, url });
+        const response = await fetch(url);
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error('[DevelopmentSwitcher] API error:', response.status, errorData);
           throw new Error(errorData.error || 'Failed to fetch developments');
         }
-        
+
         const data = await response.json();
-        console.log('[DevelopmentSwitcher] Loaded developments:', data.developments?.length || 0);
+        console.log('[DevelopmentSwitcher] Loaded developments:', data.developments?.length || 0, data.meta);
         setDevelopments(data.developments || []);
         setError(null);
+
+        // If current development is not in the filtered list, reset to "All Schemes"
+        if (developmentId && data.developments && !data.developments.some((d: Development) => d.id === developmentId)) {
+          console.log('[DevelopmentSwitcher] Current development not in filtered list, resetting to All Schemes');
+          setDevelopmentId(null);
+        }
       } catch (err) {
         console.error('[DevelopmentSwitcher] Error fetching developments:', err);
         setError(err instanceof Error ? err.message : 'Failed to load');
@@ -57,7 +76,7 @@ export function DevelopmentSwitcher() {
     }
 
     fetchDevelopments();
-  }, []);
+  }, [tenantFilter]); // Re-fetch when tenant filter changes
 
   // Close dropdown on click outside
   useEffect(() => {

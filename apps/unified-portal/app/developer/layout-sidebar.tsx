@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler, FolderArchive, MessageSquare, Shield, AlertTriangle, Settings } from 'lucide-react';
-import { DevelopmentSwitcher } from '@/components/developer/DevelopmentSwitcher';
+import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 
 interface SidebarMenuProps {
   children: React.ReactNode;
@@ -81,8 +81,8 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
           />
         </div>
 
-        {/* Development Switcher */}
-        <DevelopmentSwitcher />
+        {/* Scope Switcher (Developer + Scheme dropdowns) */}
+        <ScopeSwitcher />
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
