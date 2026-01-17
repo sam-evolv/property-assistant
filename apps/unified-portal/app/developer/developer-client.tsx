@@ -2,7 +2,7 @@
 
 import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send } from 'lucide-react';
+import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send, Clock, MessageSquare, Activity, Zap, Target, CheckCircle2, ArrowUpRight, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 
@@ -445,6 +445,290 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
   );
 }
 
+// Smart suggestions based on data
+function SmartSuggestionsCard({
+  data,
+  isDarkMode
+}: {
+  data: DashboardData;
+  isDarkMode: boolean;
+}) {
+  const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
+  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+  const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
+
+  // Generate contextual suggestions based on the data
+  const suggestions = useMemo(() => {
+    const items: Array<{
+      icon: any;
+      title: string;
+      description: string;
+      link?: string;
+      priority: 'high' | 'medium' | 'low';
+      color: string;
+    }> = [];
+
+    // Check onboarding rate
+    if (data.kpis.onboardingRate.value < 50) {
+      items.push({
+        icon: Users,
+        title: 'Boost onboarding',
+        description: `${data.summary.totalUnits - data.summary.registeredHomeowners} units pending registration. Send QR codes to new homeowners.`,
+        link: '/developer/homeowners',
+        priority: 'high',
+        color: 'text-amber-500',
+      });
+    }
+
+    // Check engagement
+    if (data.kpis.engagementRate.value < 30 && data.summary.registeredHomeowners > 0) {
+      items.push({
+        icon: MessageSquare,
+        title: 'Increase engagement',
+        description: 'Low engagement detected. Consider sending a noticeboard announcement.',
+        link: '/developer/noticeboard',
+        priority: 'medium',
+        color: 'text-blue-500',
+      });
+    }
+
+    // Check unanswered queries
+    if (data.unansweredQueries.length > 0) {
+      items.push({
+        icon: AlertCircle,
+        title: 'Address knowledge gaps',
+        description: `${data.unansweredQueries.length} questions couldn't be fully answered. Upload relevant documents.`,
+        link: '/developer/knowledge-base',
+        priority: 'high',
+        color: 'text-red-500',
+      });
+    }
+
+    // Must-read compliance
+    if (data.kpis.mustReadCompliance.value < 80 && (data.kpis.mustReadCompliance.pendingCount || 0) > 0) {
+      items.push({
+        icon: FileCheck,
+        title: 'Improve compliance',
+        description: `${data.kpis.mustReadCompliance.pendingCount} homeowners haven't acknowledged important documents.`,
+        link: '/developer/homeowners?compliance=false',
+        priority: 'medium',
+        color: 'text-purple-500',
+      });
+    }
+
+    // If everything is good
+    if (items.length === 0) {
+      items.push({
+        icon: CheckCircle2,
+        title: 'Great work!',
+        description: 'Your development is performing well. Keep monitoring for any changes.',
+        priority: 'low',
+        color: 'text-green-500',
+      });
+    }
+
+    return items.slice(0, 3); // Max 3 suggestions
+  }, [data]);
+
+  return (
+    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <Zap className="w-5 h-5 text-gold-500" />
+        <h2 className={`text-lg font-semibold ${textColor}`}>Smart Suggestions</h2>
+      </div>
+      <div className="space-y-3">
+        {suggestions.map((suggestion, index) => {
+          const Icon = suggestion.icon;
+          return (
+            <div
+              key={index}
+              className={`p-4 rounded-lg border ${isDarkMode ? 'border-gray-700 bg-gray-700/30' : 'border-gray-100 bg-gray-50'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-600' : 'bg-white'} flex-shrink-0`}>
+                  <Icon className={`w-4 h-4 ${suggestion.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-medium text-sm ${textColor}`}>{suggestion.title}</h3>
+                    {suggestion.priority === 'high' && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/10 text-red-500 rounded">
+                        Priority
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs ${secondaryText} mt-1`}>{suggestion.description}</p>
+                  {suggestion.link && (
+                    <Link
+                      href={suggestion.link}
+                      className="inline-flex items-center gap-1 text-xs text-gold-500 hover:text-gold-600 mt-2 font-medium"
+                    >
+                      Take action <ArrowUpRight className="w-3 h-3" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Summary Stats Bar - Quick overview at the top
+function SummaryStatsBar({
+  data,
+  isDarkMode
+}: {
+  data: DashboardData;
+  isDarkMode: boolean;
+}) {
+  const bgColor = isDarkMode ? 'bg-gray-800/30' : 'bg-gray-50';
+  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+  const secondaryText = isDarkMode ? 'text-gray-400' : 'text-gray-500';
+  const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
+
+  const stats = [
+    {
+      label: 'Total Units',
+      value: data.summary.totalUnits.toLocaleString(),
+      icon: Building2,
+      color: 'text-gold-500'
+    },
+    {
+      label: 'Registered',
+      value: data.summary.registeredHomeowners.toLocaleString(),
+      icon: Users,
+      color: 'text-blue-500'
+    },
+    {
+      label: 'Active (7d)',
+      value: data.summary.activeHomeowners.toLocaleString(),
+      icon: Activity,
+      color: 'text-green-500'
+    },
+    {
+      label: 'Messages',
+      value: data.summary.totalMessages.toLocaleString(),
+      icon: MessageSquare,
+      color: 'text-purple-500',
+      growth: data.summary.messageGrowth
+    },
+    {
+      label: 'Documents',
+      value: data.summary.totalDocuments.toLocaleString(),
+      icon: FileText,
+      color: 'text-cyan-500'
+    },
+  ];
+
+  return (
+    <div className={`rounded-xl ${bgColor} border ${borderColor} p-4`}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                <Icon className={`w-4 h-4 ${stat.color}`} />
+              </div>
+              <div>
+                <p className={`text-xs ${secondaryText} uppercase tracking-wide`}>{stat.label}</p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-lg font-bold ${textColor}`}>{stat.value}</p>
+                  {stat.growth !== undefined && stat.growth !== 0 && (
+                    <span className={`text-xs font-medium ${stat.growth > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {stat.growth > 0 ? '+' : ''}{stat.growth}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Recent Activity Timeline
+function RecentActivityCard({
+  chatActivity,
+  isDarkMode
+}: {
+  chatActivity: Array<{ date: string; count: number }>;
+  isDarkMode: boolean;
+}) {
+  const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
+  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+  const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
+
+  // Get last 7 days of activity
+  const recentActivity = chatActivity.slice(-7).reverse();
+  const totalRecent = recentActivity.reduce((sum, day) => sum + day.count, 0);
+  const avgDaily = recentActivity.length > 0 ? Math.round(totalRecent / recentActivity.length) : 0;
+
+  return (
+    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-gold-500" />
+          <h2 className={`text-lg font-semibold ${textColor}`}>Recent Activity</h2>
+        </div>
+        <span className={`text-xs ${secondaryText}`}>Last 7 days</span>
+      </div>
+
+      {recentActivity.length > 0 ? (
+        <>
+          <div className="flex items-baseline gap-2 mb-4">
+            <span className={`text-3xl font-bold ${textColor}`}>{totalRecent}</span>
+            <span className={`text-sm ${secondaryText}`}>total interactions</span>
+          </div>
+
+          <div className="flex items-end gap-1 h-16 mb-4">
+            {recentActivity.map((day, index) => {
+              const maxCount = Math.max(...recentActivity.map(d => d.count), 1);
+              const height = Math.max((day.count / maxCount) * 100, 8);
+              return (
+                <div key={index} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full bg-gold-500 rounded-t transition-all hover:bg-gold-400"
+                    style={{ height: `${height}%` }}
+                    title={`${day.count} interactions on ${new Date(day.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-between text-xs">
+            {recentActivity.map((day, index) => (
+              <span key={index} className={secondaryText}>
+                {new Date(day.date).toLocaleDateString('en-GB', { weekday: 'short' }).charAt(0)}
+              </span>
+            ))}
+          </div>
+
+          <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <p className={`text-sm ${secondaryText}`}>
+              <span className={`font-medium ${textColor}`}>{avgDaily}</span> average daily interactions
+            </p>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className={`p-3 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} mb-3`}>
+            <Clock className="w-6 h-6 text-gray-400" />
+          </div>
+          <p className={`font-medium ${textColor}`}>No recent activity</p>
+          <p className={`text-sm ${secondaryText}`}>Chat activity will appear here</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QuickActionsCard({
   summary,
   isDarkMode
@@ -578,17 +862,47 @@ export default function DeveloperDashboardClient({
   const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
 
   if (loading) {
+    const skeletonBg = isDarkMode ? 'bg-gray-700' : 'bg-gray-200';
     return (
       <div className={`min-h-full flex flex-col ${bgColor}`}>
+        {/* Header skeleton */}
+        <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-white/50'} px-8 py-6`}>
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <div className={`h-9 w-48 ${skeletonBg} rounded-lg animate-pulse`} />
+                <div className={`h-4 w-64 ${skeletonBg} rounded mt-2 animate-pulse`} />
+              </div>
+              <div className="flex gap-3">
+                <div className={`h-10 w-32 ${skeletonBg} rounded-lg animate-pulse`} />
+                <div className={`h-10 w-28 ${skeletonBg} rounded-lg animate-pulse`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="px-8 py-8 flex-1">
           <div className="max-w-7xl mx-auto space-y-8">
-            <div className="h-12 bg-gray-300 rounded-lg animate-pulse" />
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-gray-300 rounded-xl animate-pulse" />)}
+            {/* Summary stats bar skeleton */}
+            <div className={`${skeletonBg} h-20 rounded-xl animate-pulse`} />
+
+            {/* KPI cards skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className={`h-36 ${skeletonBg} rounded-xl animate-pulse`} />
+              ))}
             </div>
+
+            {/* Charts skeleton */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="h-80 bg-gray-300 rounded-xl animate-pulse" />
-              <div className="h-80 bg-gray-300 rounded-xl animate-pulse" />
+              <div className={`h-80 ${skeletonBg} rounded-xl animate-pulse`} />
+              <div className={`h-64 ${skeletonBg} rounded-xl animate-pulse`} />
+            </div>
+
+            {/* Bottom cards skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`h-64 ${skeletonBg} rounded-xl animate-pulse`} />
+              <div className={`h-64 ${skeletonBg} rounded-xl animate-pulse`} />
             </div>
           </div>
         </div>
@@ -637,19 +951,57 @@ export default function DeveloperDashboardClient({
     );
   }
 
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <div className={`min-h-full flex flex-col ${bgColor}`}>
       <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-white/50'} px-8 py-6 backdrop-blur-sm`}>
         <div className="max-w-7xl mx-auto">
-          <h1 className={`text-3xl font-bold ${textColor}`}>Developer Dashboard</h1>
-          <p className={`${secondaryText} text-sm mt-1`}>
-            Real-time insights to help you improve your homeowner experience
-          </p>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className={`text-3xl font-bold ${textColor}`}>
+                {getGreeting()} 👋
+              </h1>
+              <p className={`${secondaryText} text-sm mt-1`}>
+                Here's what's happening with your developments today
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/developer/analytics"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Target className="w-4 h-4" />
+                Full Analytics
+              </Link>
+              <Link
+                href="/developer/insights"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-gold-500 to-gold-600 text-white hover:from-gold-600 hover:to-gold-700 transition shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Insights
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="px-8 py-8 flex-1">
         <div className="max-w-7xl mx-auto space-y-8">
+          {/* Summary Stats Bar */}
+          <SummaryStatsBar data={data} isDarkMode={isDarkMode} />
+
+          {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard 
               icon={Users}
@@ -742,9 +1094,16 @@ export default function DeveloperDashboardClient({
             <UnansweredQueriesCard queries={data.unansweredQueries} isDarkMode={isDarkMode} />
           </div>
 
+          {/* Developments and Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <DevelopmentsCard isDarkMode={isDarkMode} />
             <QuickActionsCard summary={data.summary} isDarkMode={isDarkMode} />
+          </div>
+
+          {/* Smart Suggestions and Recent Activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SmartSuggestionsCard data={data} isDarkMode={isDarkMode} />
+            <RecentActivityCard chatActivity={data.chatActivity} isDarkMode={isDarkMode} />
           </div>
         </div>
       </div>
