@@ -76,9 +76,12 @@ interface InsightsData {
 
 interface InsightsClientProps {
   tenantId: string;
+  // Server-side fetched homeowner counts - same source as Homeowners tab
+  serverHomeownerCount: number;
+  serverHomeownersByProject: Record<string, number>;
 }
 
-export default function InsightsClient({ tenantId }: InsightsClientProps) {
+export default function InsightsClient({ tenantId, serverHomeownerCount, serverHomeownersByProject }: InsightsClientProps) {
   const { archiveScope, developmentId } = useCurrentContext();
   const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
   
@@ -112,19 +115,26 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
           };
         }
 
-        // Fetch homeowner counts from unit-counts API (same source as Homeowners tab uses)
-        // This queries the Supabase units table directly, matching the Homeowners page
-        const devParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : '';
-        const unitCountsRes = await fetch(`/api/analytics/unit-counts${devParam}`, { cache: 'no-store' });
-        if (unitCountsRes.ok) {
-          const unitCountsData = await unitCountsRes.json();
-          realMetrics.totalHomeowners = unitCountsData.total || 0;
-          // Calculate engagement rate based on actual homeowners
-          if (realMetrics.totalHomeowners > 0) {
-            realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
-          }
-          console.log('[Insights] Unit counts loaded:', { total: realMetrics.totalHomeowners, activeUsers: realMetrics.activeUsers });
+        // Use SERVER-SIDE fetched homeowner counts (same source as Homeowners tab)
+        // This uses the Supabase units table queried in page.tsx
+        let totalHomeowners = serverHomeownerCount;
+
+        // If a specific development is selected, use just that project's count
+        if (effectiveDevelopmentId && serverHomeownersByProject[effectiveDevelopmentId] !== undefined) {
+          totalHomeowners = serverHomeownersByProject[effectiveDevelopmentId];
         }
+
+        realMetrics.totalHomeowners = totalHomeowners;
+        // Calculate engagement rate based on actual homeowners
+        if (realMetrics.totalHomeowners > 0) {
+          realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
+        }
+        console.log('[Insights] Using server-side homeowner counts:', {
+          total: totalHomeowners,
+          serverTotal: serverHomeownerCount,
+          effectiveDevelopmentId,
+          byProject: serverHomeownersByProject
+        });
 
         // Fetch question analysis data (scheme-aware) - cache bust for scheme changes
         const qRes = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20${devIdParam}`, { cache: 'no-store' });
@@ -273,7 +283,7 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
     };
 
     loadInsights();
-  }, [tenantId, effectiveDevelopmentId]);
+  }, [tenantId, effectiveDevelopmentId, serverHomeownerCount, serverHomeownersByProject]);
 
   // Fetch information requests
   useEffect(() => {

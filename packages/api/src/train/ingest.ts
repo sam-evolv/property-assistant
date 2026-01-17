@@ -136,6 +136,48 @@ const DOCUMENT_CATEGORIES: Array<{
     patterns: [/notice/i, /announcement/i, /update/i, /news/i, /bulletin/i],
     description: 'Notices and announcements',
   },
+
+  // Irish-specific Documents
+  {
+    type: 'snagging_report',
+    patterns: [/snag(ging)?\s*(list|report)?/i, /punch\s*list/i, /defects?\s*(list|report)/i, /inspection\s*report/i],
+    description: 'Snagging lists and inspection reports',
+  },
+  {
+    type: 'taking_in_charge',
+    patterns: [/taking\s*in\s*charge/i, /estate\s*completion/i, /bond\s*release/i],
+    description: 'Taking in charge and estate completion documents',
+  },
+  {
+    type: 'fire_safety',
+    patterns: [/fire\s*safety/i, /fire\s*cert/i, /fire\s*alarm/i, /evacuation/i, /fire\s*action/i],
+    description: 'Fire safety certificates and procedures',
+  },
+  {
+    type: 'kitchen_spec',
+    patterns: [/kitchen\s*(spec|narrative|schedule)/i, /appliance\s*(list|spec|schedule)/i, /white\s*goods/i],
+    description: 'Kitchen specifications and appliance details',
+  },
+  {
+    type: 'bathroom_spec',
+    patterns: [/bathroom\s*(spec|schedule)/i, /sanitary\s*(ware|spec)/i, /tile\s*spec/i],
+    description: 'Bathroom specifications and finishes',
+  },
+  {
+    type: 'heating_spec',
+    patterns: [/heating\s*(spec|manual|guide)/i, /heat\s*pump/i, /boiler\s*(manual|spec)/i, /daikin/i, /grant/i],
+    description: 'Heating system specifications and manuals',
+  },
+  {
+    type: 'ventilation_spec',
+    patterns: [/ventilation/i, /mvhr/i, /air\s*quality/i, /extract\s*fan/i],
+    description: 'Ventilation system specifications',
+  },
+  {
+    type: 'help_to_buy',
+    patterns: [/help\s*to\s*buy/i, /htb/i, /first\s*home/i, /shared\s*equity/i, /fhs/i],
+    description: 'Help to Buy and government scheme documents',
+  },
 ];
 
 /**

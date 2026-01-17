@@ -46,6 +46,19 @@ const TOPIC_PATTERNS: Record<string, RegExp[]> = {
   // Safety & Emergency
   safety: [/safety/i, /emergency/i, /fire/i, /evacuat/i, /first\s*aid/i, /hazard/i, /risk/i],
   contact: [/contact/i, /phone/i, /email/i, /call/i, /reach/i, /support/i, /helpline/i, /customer\s*service/i],
+
+  // Interior Finishes & Features
+  appliances: [/appliance/i, /oven/i, /hob/i, /dishwasher/i, /washing\s*machine/i, /fridge/i, /freezer/i, /extractor/i, /microwave/i],
+  flooring: [/floor(ing)?/i, /tile/i, /carpet/i, /laminate/i, /wood\s*floor/i, /vinyl/i, /lino/i],
+  windows_doors: [/window/i, /door/i, /glazing/i, /double\s*glaz/i, /triple\s*glaz/i, /patio\s*door/i, /french\s*door/i, /velux/i],
+  finishes: [/paint/i, /finish/i, /fixture/i, /fitting/i, /worktop/i, /countertop/i, /splashback/i, /sanitary\s*ware/i],
+  kitchen: [/kitchen/i, /units/i, /cabinet/i, /press/i, /worktop/i, /sink/i, /tap/i],
+  bathroom_fittings: [/bath(room)?/i, /shower/i, /toilet/i, /wc/i, /basin/i, /vanity/i, /en-?suite/i],
+
+  // Irish-specific
+  snagging: [/snag(ging)?/i, /defect/i, /punch\s*list/i, /inspection/i],
+  taking_in_charge: [/taking\s*in\s*charge/i, /estate\s*complet/i, /roads/i, /public\s*light/i, /footpath/i],
+  help_to_buy: [/help\s*to\s*buy/i, /htb/i, /first\s*home\s*scheme/i, /fhs/i, /shared\s*equity/i],
 };
 
 /**

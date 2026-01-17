@@ -82,13 +82,16 @@ interface TrendData {
 
 interface AnalyticsClientProps {
   tenantId: string;
+  // Server-side fetched homeowner counts - same source as Homeowners tab
+  serverHomeownerCount: number;
+  serverHomeownersByProject: Record<string, number>;
 }
 
 type DateRange = '7' | '30' | '90' | 'custom' | 'total';
 
 const PRIMARY_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
-export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
+export default function AnalyticsClient({ tenantId, serverHomeownerCount, serverHomeownersByProject }: AnalyticsClientProps) {
   const { archiveScope, developmentId } = useCurrentContext();
   // When viewing Longview Park (primary project), show all tenant data since messages may be stored with different dev IDs
   const isPrimaryDevelopment = developmentId === PRIMARY_PROJECT_ID;
@@ -507,49 +510,41 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
     loadResponseTimes();
   }, [tenantId, effectiveDevelopmentId, daysToQuery]);
 
-  // Update homeowner engagement - fetch unit counts using the same query as Homeowners tab
+  // Update homeowner engagement using SERVER-SIDE fetched counts
+  // This uses the same data source as the Homeowners tab (Supabase units table)
   useEffect(() => {
-    async function loadHomeownerCounts() {
-      try {
-        // Use the unit-counts API which queries Supabase units table directly
-        // This is the same source of truth as the Homeowners tab
-        const devParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : '';
-        const res = await fetch(`/api/analytics/unit-counts${devParam}`);
+    // Calculate total based on selected development or all
+    let totalHomeowners = serverHomeownerCount;
 
-        if (!res.ok) {
-          console.error('[Analytics] Unit counts API error:', res.status);
-          return;
-        }
-
-        const data = await res.json();
-        const totalHomeowners = data.total || 0;
-        const onboardedThisMonth = data.onboarded_this_month || 0;
-
-        const activeUsers = metrics?.activeUsers || 0;
-        const totalMessages = metrics?.totalMessages || 0;
-        const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
-
-        setHomeownerEngagement({
-          totalHomeowners: totalHomeowners,
-          onboardedHomeowners: totalHomeowners, // All units are considered onboarded
-          activeThisWeek: activeUsers,
-          activeThisMonth: activeUsers,
-          neverEngaged: Math.max(0, totalHomeowners - activeUsers),
-          highEngagers: Math.round(activeUsers * 0.3),
-          lowEngagers: Math.round(activeUsers * 0.4),
-          avgMessagesPerUser: avgMessages,
-          documentsViewed: metrics?.totalDocuments || 0,
-          noticeboardViews: 0
-        });
-
-        console.log('[Analytics] Homeowner counts loaded:', { total: totalHomeowners, onboardedThisMonth });
-      } catch (error) {
-        console.error('[Analytics] Failed to load homeowner counts:', error);
-      }
+    // If a specific development is selected, use just that project's count
+    if (effectiveDevelopmentId && serverHomeownersByProject[effectiveDevelopmentId] !== undefined) {
+      totalHomeowners = serverHomeownersByProject[effectiveDevelopmentId];
     }
 
-    loadHomeownerCounts();
-  }, [tenantId, effectiveDevelopmentId, metrics]);
+    const activeUsers = metrics?.activeUsers || 0;
+    const totalMessages = metrics?.totalMessages || 0;
+    const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
+
+    setHomeownerEngagement({
+      totalHomeowners: totalHomeowners,
+      onboardedHomeowners: totalHomeowners, // All units are considered onboarded
+      activeThisWeek: activeUsers,
+      activeThisMonth: activeUsers,
+      neverEngaged: Math.max(0, totalHomeowners - activeUsers),
+      highEngagers: Math.round(activeUsers * 0.3),
+      lowEngagers: Math.round(activeUsers * 0.4),
+      avgMessagesPerUser: avgMessages,
+      documentsViewed: metrics?.totalDocuments || 0,
+      noticeboardViews: 0
+    });
+
+    console.log('[Analytics] Using server-side homeowner counts:', {
+      total: totalHomeowners,
+      serverTotal: serverHomeownerCount,
+      effectiveDevelopmentId,
+      byProject: serverHomeownersByProject
+    });
+  }, [serverHomeownerCount, serverHomeownersByProject, effectiveDevelopmentId, metrics]);
 
   // Fetch content performance data
   useEffect(() => {

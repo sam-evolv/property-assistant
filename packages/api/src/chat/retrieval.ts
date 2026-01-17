@@ -35,11 +35,16 @@ const QUERY_EXPANSIONS: Record<string, string[]> = {
   'solar': ['pv panels', 'photovoltaic', 'renewable', 'electricity generation'],
   'ventilation': ['mvhr', 'air quality', 'extract fan', 'humidity', 'condensation'],
 
-  // Transport
-  'bus': ['public transport', 'route', 'bus stop', 'commute', 'timetable'],
-  'train': ['rail', 'station', 'dart', 'commute', 'public transport'],
-  'transport': ['bus', 'train', 'commute', 'travel', 'getting around'],
-  'parking': ['car space', 'garage', 'driveway', 'visitor parking', 'ev charging'],
+  // Transport (expanded for Ireland)
+  'bus': ['public transport', 'route', 'bus stop', 'commute', 'timetable', 'bus eireann', 'dublin bus', 'go ahead'],
+  'train': ['rail', 'station', 'dart', 'commute', 'public transport', 'irish rail', 'iarnrod eireann'],
+  'transport': ['bus', 'train', 'commute', 'travel', 'getting around', 'public transport', 'luas', 'dart'],
+  'parking': ['car space', 'garage', 'driveway', 'visitor parking', 'ev charging', 'car park'],
+  'luas': ['tram', 'light rail', 'public transport', 'red line', 'green line'],
+  'dart': ['train', 'rail', 'commuter', 'public transport', 'station'],
+  'commute': ['bus', 'train', 'transport', 'getting to work', 'city centre', 'travel time'],
+  'cycle': ['cycling', 'bike', 'bicycle', 'greenway', 'bike storage', 'cycle lane'],
+  'city centre': ['town', 'city', 'commute', 'bus', 'train', 'transport'],
 
   // Schools & Education
   'school': ['primary school', 'secondary school', 'education', 'children'],
@@ -91,6 +96,32 @@ const QUERY_EXPANSIONS: Record<string, string[]> = {
   'mortgage': ['loan', 'finance', 'bank', 'lending'],
   'deposit': ['booking deposit', 'contract deposit', 'payment'],
   'solicitor': ['legal', 'conveyancing', 'lawyer', 'contract'],
+
+  // Irish-specific terms
+  'eircode': ['postcode', 'address', 'location', 'postal code'],
+  'omc': ['management company', 'owners management company', 'service charge', 'management fee'],
+  'homebond': ['warranty', 'structural guarantee', 'building guarantee', 'latent defects', 'structural defects'],
+  'snag': ['defect', 'issue', 'problem', 'punch list', 'snagging', 'snag list'],
+  'snagging': ['snag', 'defects', 'issues', 'inspection', 'punch list'],
+  'attic': ['loft', 'roof space', 'storage', 'attic hatch'],
+  'press': ['cupboard', 'cabinet', 'storage', 'hot press', 'airing cupboard'],
+  'hot press': ['airing cupboard', 'cylinder', 'hot water', 'storage', 'immersion'],
+  'immersion': ['hot water', 'water heater', 'cylinder', 'boost'],
+  'nzeb': ['nearly zero energy', 'energy efficient', 'ber', 'a-rated', 'building regulations'],
+  'part l': ['building regulations', 'energy', 'insulation', 'nzeb'],
+  'taking in charge': ['roads', 'estate', 'council', 'local authority', 'public areas'],
+  'management fee': ['service charge', 'omc', 'annual fee', 'management company'],
+  'estate': ['development', 'housing estate', 'scheme', 'neighbourhood'],
+
+  // Additional common queries
+  'move in': ['moving', 'handover', 'keys', 'completion', 'closing'],
+  'keys': ['handover', 'move in', 'completion', 'collection'],
+  'closing': ['completion', 'handover', 'keys', 'move in', 'final payment'],
+  'neighbours': ['residents', 'community', 'estate', 'other homes'],
+  'pets': ['dog', 'cat', 'animals', 'pet policy'],
+  'noise': ['soundproofing', 'insulation', 'neighbours', 'acoustic'],
+  'storage': ['attic', 'press', 'cupboard', 'shed', 'garage'],
+  'meter': ['electricity meter', 'gas meter', 'water meter', 'smart meter', 'readings'],
 };
 
 /**
