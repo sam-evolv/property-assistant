@@ -2,7 +2,7 @@
 
 import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send, Clock, MessageSquare, Activity, Zap, Target, CheckCircle2, ArrowUpRight, Calendar } from 'lucide-react';
+import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send, Clock, MessageSquare, Activity, Target, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 
@@ -442,137 +442,6 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
         </div>
       )}
     </>
-  );
-}
-
-// Smart suggestions based on data
-function SmartSuggestionsCard({
-  data,
-  isDarkMode
-}: {
-  data: DashboardData;
-  isDarkMode: boolean;
-}) {
-  const cardBg = isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200';
-  const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
-
-  // Generate contextual suggestions based on the data
-  const suggestions = useMemo(() => {
-    const items: Array<{
-      icon: any;
-      title: string;
-      description: string;
-      link?: string;
-      priority: 'high' | 'medium' | 'low';
-      color: string;
-    }> = [];
-
-    // Check onboarding rate
-    if (data.kpis.onboardingRate.value < 50) {
-      items.push({
-        icon: Users,
-        title: 'Boost onboarding',
-        description: `${data.summary.totalUnits - data.summary.registeredHomeowners} units pending registration. Send QR codes to new homeowners.`,
-        link: '/developer/homeowners',
-        priority: 'high',
-        color: 'text-amber-500',
-      });
-    }
-
-    // Check engagement
-    if (data.kpis.engagementRate.value < 30 && data.summary.registeredHomeowners > 0) {
-      items.push({
-        icon: MessageSquare,
-        title: 'Increase engagement',
-        description: 'Low engagement detected. Consider sending a noticeboard announcement.',
-        link: '/developer/noticeboard',
-        priority: 'medium',
-        color: 'text-blue-500',
-      });
-    }
-
-    // Check unanswered queries
-    if (data.unansweredQueries.length > 0) {
-      items.push({
-        icon: AlertCircle,
-        title: 'Address knowledge gaps',
-        description: `${data.unansweredQueries.length} questions couldn't be fully answered. Upload relevant documents.`,
-        link: '/developer/knowledge-base',
-        priority: 'high',
-        color: 'text-red-500',
-      });
-    }
-
-    // Must-read compliance
-    if (data.kpis.mustReadCompliance.value < 80 && (data.kpis.mustReadCompliance.pendingCount || 0) > 0) {
-      items.push({
-        icon: FileCheck,
-        title: 'Improve compliance',
-        description: `${data.kpis.mustReadCompliance.pendingCount} homeowners haven't acknowledged important documents.`,
-        link: '/developer/homeowners?compliance=false',
-        priority: 'medium',
-        color: 'text-purple-500',
-      });
-    }
-
-    // If everything is good
-    if (items.length === 0) {
-      items.push({
-        icon: CheckCircle2,
-        title: 'Great work!',
-        description: 'Your development is performing well. Keep monitoring for any changes.',
-        priority: 'low',
-        color: 'text-green-500',
-      });
-    }
-
-    return items.slice(0, 3); // Max 3 suggestions
-  }, [data]);
-
-  return (
-    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <Zap className="w-5 h-5 text-gold-500" />
-        <h2 className={`text-lg font-semibold ${textColor}`}>Smart Suggestions</h2>
-      </div>
-      <div className="space-y-3">
-        {suggestions.map((suggestion, index) => {
-          const Icon = suggestion.icon;
-          return (
-            <div
-              key={index}
-              className={`p-4 rounded-lg border ${isDarkMode ? 'border-gray-700 bg-gray-700/30' : 'border-gray-100 bg-gray-50'}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-600' : 'bg-white'} flex-shrink-0`}>
-                  <Icon className={`w-4 h-4 ${suggestion.color}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className={`font-medium text-sm ${textColor}`}>{suggestion.title}</h3>
-                    {suggestion.priority === 'high' && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/10 text-red-500 rounded">
-                        Priority
-                      </span>
-                    )}
-                  </div>
-                  <p className={`text-xs ${secondaryText} mt-1`}>{suggestion.description}</p>
-                  {suggestion.link && (
-                    <Link
-                      href={suggestion.link}
-                      className="inline-flex items-center gap-1 text-xs text-gold-500 hover:text-gold-600 mt-2 font-medium"
-                    >
-                      Take action <ArrowUpRight className="w-3 h-3" />
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -1100,9 +969,8 @@ export default function DeveloperDashboardClient({
             <QuickActionsCard summary={data.summary} isDarkMode={isDarkMode} />
           </div>
 
-          {/* Smart Suggestions and Recent Activity */}
+          {/* Recent Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SmartSuggestionsCard data={data} isDarkMode={isDarkMode} />
             <RecentActivityCard chatActivity={data.chatActivity} isDarkMode={isDarkMode} />
           </div>
         </div>
