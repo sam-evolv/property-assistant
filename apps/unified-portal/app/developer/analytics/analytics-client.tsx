@@ -507,29 +507,43 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
     loadResponseTimes();
   }, [tenantId, effectiveDevelopmentId, daysToQuery]);
 
-  // Update homeowner engagement - fetch actual counts from units table
+  // Update homeowner engagement - fetch from same endpoint as Homeowners tab
   useEffect(() => {
     async function loadHomeownerCounts() {
       try {
-        const devIdParam = effectiveDevelopmentId ? `&development_id=${effectiveDevelopmentId}` : '';
-        const res = await fetch(`/api/analytics/homeowner-counts?tenant_id=${tenantId}${devIdParam}`);
+        // Use the same endpoint as the Homeowners tab - this is the source of truth
+        const devIdParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/homeowners${devIdParam ? devIdParam + '&' : '?'}includeStats=true`);
 
         if (res.ok) {
           const data = await res.json();
-          const totalHomeowners = data.totalHomeowners || 0;
-          const onboardedHomeowners = data.onboardedHomeowners || 0;
-          const activeUsers = metrics?.activeUsers || 0;
-          const totalMessages = metrics?.totalMessages || 0;
+          const homeownersList = data.homeowners || [];
+
+          // Calculate stats the same way the Homeowners tab does
+          const totalHomeowners = homeownersList.length;
+          const acknowledgedCount = homeownersList.filter((h: any) => h.has_acknowledged).length;
+
+          // Count active users from message_count
+          const activeUsers = homeownersList.filter((h: any) => (h.message_count || 0) > 0).length;
+          const totalMessages = homeownersList.reduce((sum: number, h: any) => sum + (h.message_count || 0), 0);
           const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
+
+          // High engagers: 5+ messages
+          const highEngagers = homeownersList.filter((h: any) => (h.message_count || 0) >= 5).length;
+          // Low engagers: 1-4 messages
+          const lowEngagers = homeownersList.filter((h: any) => {
+            const count = h.message_count || 0;
+            return count >= 1 && count < 5;
+          }).length;
 
           setHomeownerEngagement({
             totalHomeowners: totalHomeowners,
-            onboardedHomeowners: onboardedHomeowners,
-            activeThisWeek: Math.round(activeUsers * 0.7), // Approximate based on 30d active
+            onboardedHomeowners: acknowledgedCount,
+            activeThisWeek: activeUsers, // Users with any messages
             activeThisMonth: activeUsers,
-            neverEngaged: Math.max(0, totalHomeowners - activeUsers),
-            highEngagers: Math.round(activeUsers * 0.3), // Top 30% are high engagers
-            lowEngagers: Math.round(activeUsers * 0.4), // 40% are low engagers
+            neverEngaged: totalHomeowners - activeUsers,
+            highEngagers: highEngagers,
+            lowEngagers: lowEngagers,
             avgMessagesPerUser: avgMessages,
             documentsViewed: metrics?.totalDocuments || 0,
             noticeboardViews: 0
@@ -537,30 +551,11 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
         }
       } catch (error) {
         console.error('Failed to load homeowner counts:', error);
-        // Fallback to using hook data if API fails
-        if (metrics && homeowners) {
-          const activeUsers = metrics.activeUsers || 0;
-          const totalMessages = metrics.totalMessages || 0;
-          const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
-
-          setHomeownerEngagement({
-            totalHomeowners: activeUsers,
-            onboardedHomeowners: activeUsers,
-            activeThisWeek: Math.round(activeUsers * 0.7),
-            activeThisMonth: activeUsers,
-            neverEngaged: 0,
-            highEngagers: Math.round(activeUsers * 0.3),
-            lowEngagers: Math.round(activeUsers * 0.4),
-            avgMessagesPerUser: avgMessages,
-            documentsViewed: metrics.totalDocuments || 0,
-            noticeboardViews: 0
-          });
-        }
       }
     }
 
     loadHomeownerCounts();
-  }, [tenantId, effectiveDevelopmentId, metrics, homeowners]);
+  }, [tenantId, effectiveDevelopmentId, metrics]);
 
   // Fetch content performance data
   useEffect(() => {

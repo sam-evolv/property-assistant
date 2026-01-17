@@ -112,13 +112,17 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
           };
         }
 
-        // Fetch actual homeowner counts from the units table
-        const homeownerDevIdParam = effectiveDevelopmentId ? `&development_id=${effectiveDevelopmentId}` : '';
-        const homeownerRes = await fetch(`/api/analytics/homeowner-counts?tenant_id=${tenantId}${homeownerDevIdParam}`, { cache: 'no-store' });
+        // Fetch homeowner counts from same endpoint as Homeowners tab - the source of truth
+        const homeownerDevIdParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}&` : '?';
+        const homeownerRes = await fetch(`/api/homeowners${homeownerDevIdParam}includeStats=true`, { cache: 'no-store' });
 
         if (homeownerRes.ok) {
           const homeownerData = await homeownerRes.json();
-          realMetrics.totalHomeowners = homeownerData.totalHomeowners || 0;
+          const homeownersList = homeownerData.homeowners || [];
+          realMetrics.totalHomeowners = homeownersList.length;
+          // Count active users from message_count
+          const activeFromMessages = homeownersList.filter((h: any) => (h.message_count || 0) > 0).length;
+          realMetrics.activeUsers = activeFromMessages;
           // Calculate engagement rate based on actual homeowners
           if (realMetrics.totalHomeowners > 0) {
             realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
