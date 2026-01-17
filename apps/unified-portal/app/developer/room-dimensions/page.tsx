@@ -549,7 +549,7 @@ export default function RoomDimensionsPage() {
                 value={settings.disclaimer_text}
                 onChange={(e) => setSettings({ ...settings, disclaimer_text: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-amber-500"
               />
               <button
                 onClick={() => saveSettings(settings)}
@@ -635,23 +635,23 @@ export default function RoomDimensionsPage() {
                   setSelectedDevelopmentId(e.target.value);
                   setSelectedHouseTypeId('');
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
               >
-                <option value="">Select Development</option>
+                <option value="" className="text-gray-900">Select Development</option>
                 {developments.map((dev) => (
-                  <option key={dev.id} value={dev.id}>{dev.name}</option>
+                  <option key={dev.id} value={dev.id} className="text-gray-900">{dev.name}</option>
                 ))}
               </select>
 
               <select
                 value={selectedHouseTypeId}
                 onChange={(e) => setSelectedHouseTypeId(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                 disabled={!selectedDevelopmentId}
               >
-                <option value="">All House Types</option>
+                <option value="" className="text-gray-900">All House Types</option>
                 {houseTypes.map((ht) => (
-                  <option key={ht.id} value={ht.id}>{ht.house_type_code}</option>
+                  <option key={ht.id} value={ht.id} className="text-gray-900">{ht.house_type_code}</option>
                 ))}
               </select>
             </div>
