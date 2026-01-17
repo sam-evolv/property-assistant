@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2 } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download } from 'lucide-react';
 
 interface Unit {
   id: string;
@@ -59,6 +59,41 @@ export function HomeownersList({
   const [filterStatus, setFilterStatus] = useState<'all' | 'acknowledged' | 'pending'>('all');
   const [sortBy, setSortBy] = useState<'house' | 'name' | 'date' | 'activity'>('house');
   const [showFilters, setShowFilters] = useState(false);
+  const [downloadingQR, setDownloadingQR] = useState(false);
+
+  const handleBulkQRDownload = async () => {
+    if (homeowners.length === 0) return;
+
+    setDownloadingQR(true);
+    try {
+      const params = new URLSearchParams();
+      if (developmentId) {
+        params.set('developmentId', developmentId);
+      }
+      params.set('format', 'png');
+
+      const response = await fetch(`/api/qr/bulk?${params}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to generate QR codes');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `qr-codes-${developmentId || 'all'}-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download QR codes:', error);
+      alert('Failed to download QR codes. Please try again.');
+    } finally {
+      setDownloadingQR(false);
+    }
+  };
 
   const handleDevelopmentChange = (projectId: string) => {
     if (projectId === 'all') {
@@ -165,12 +200,30 @@ export function HomeownersList({
                 <span className="text-grey-600 text-sm">{homeowners.length} residents</span>
               </div>
             </div>
-            <Link
-              href="/developer/homeowners/new"
-              className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-md"
-            >
-              <span>+ Add Homeowner</span>
-            </Link>
+            <div className="flex items-center gap-3">
+              {homeowners.length > 0 && (
+                <button
+                  onClick={handleBulkQRDownload}
+                  disabled={downloadingQR}
+                  className="px-4 py-2 border border-gold-300 text-gold-700 rounded-lg hover:bg-gold-50 transition flex items-center gap-2 disabled:opacity-50"
+                  title="Download all QR codes as ZIP"
+                >
+                  {downloadingQR ? (
+                    <div className="w-4 h-4 border-2 border-gold-300 border-t-gold-600 rounded-full animate-spin" />
+                  ) : (
+                    <QrCode className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline">Download QR Codes</span>
+                  <Download className="w-3 h-3" />
+                </button>
+              )}
+              <Link
+                href="/developer/homeowners/new"
+                className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-md"
+              >
+                <span>+ Add Homeowner</span>
+              </Link>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-6">
