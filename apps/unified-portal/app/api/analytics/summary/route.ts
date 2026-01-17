@@ -37,7 +37,7 @@ const summaryQuerySchema = z.object({
   scope: z.enum(['superadmin', 'developer']),
   project_id: z.string().uuid().optional(),
   developer_id: z.string().uuid().optional(),
-  time_window: z.enum(['7d', '14d', '30d', '90d']).default('30d'),
+  time_window: z.enum(['7d', '14d', '30d', '90d', 'all']).default('30d'),
 });
 
 export interface CanonicalMetricError {
@@ -78,6 +78,7 @@ function daysFromWindow(window: string): number {
     case '14d': return 14;
     case '30d': return 30;
     case '90d': return 90;
+    case 'all': return 3650; // ~10 years for "all time"
     default: return 30;
   }
 }

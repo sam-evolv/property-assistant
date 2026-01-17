@@ -146,9 +146,9 @@ const SWR_ANALYTICS_CONFIG = {
 
 export function useOverviewMetrics(params: FetchOptions) {
   const devIdPart = params.developmentId ? `&project_id=${params.developmentId}` : '';
-  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d${devIdPart}`;
+  const timeWindow = params.days && params.days >= 365 ? 'all' : params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}${devIdPart}`;
   return useSWR<OverviewMetrics>(key, async () => {
-    const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
     const projectParam = params.developmentId ? `&project_id=${params.developmentId}` : '';
     const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}${projectParam}`);
     if (!res.ok) {
@@ -190,9 +190,9 @@ export function useDocumentMetrics(params: FetchOptions) {
 
 export function useHomeownerMetrics(params: FetchOptions) {
   const devIdPart = params.developmentId ? `&project_id=${params.developmentId}` : '';
-  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${params.days || 30}d&for=homeowners${devIdPart}`;
+  const timeWindow = params.days && params.days >= 365 ? 'all' : params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
+  const key = `/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}&for=homeowners${devIdPart}`;
   return useSWR<HomeownerMetrics>(key, async () => {
-    const timeWindow = params.days === 7 ? '7d' : params.days === 14 ? '14d' : params.days === 90 ? '90d' : '30d';
     const projectParam = params.developmentId ? `&project_id=${params.developmentId}` : '';
     const res = await fetch(`/api/analytics/summary?scope=developer&developer_id=${params.tenantId}&time_window=${timeWindow}${projectParam}`);
     if (!res.ok) {
