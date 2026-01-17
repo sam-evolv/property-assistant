@@ -1,42 +1,50 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { db, tenants, developments } from '@openhouse/db';
-import { sql, count } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET() {
   try {
-    // First, get all tenants
-    const allTenants = await db
-      .select({
-        id: tenants.id,
-        name: tenants.name,
-        slug: tenants.slug,
-        description: tenants.description,
-        theme_color: tenants.theme_color,
-        logo_url: tenants.logo_url,
-        created_at: tenants.created_at,
-      })
-      .from(tenants)
-      .orderBy(tenants.created_at);
+    const supabase = getSupabaseAdmin();
 
-    // Then, get development counts per tenant
-    const devCounts = await db
-      .select({
-        tenant_id: developments.tenant_id,
-        count: count(),
-      })
-      .from(developments)
-      .groupBy(developments.tenant_id);
+    // Fetch all tenants
+    const { data: allTenants, error: tenantsError } = await supabase
+      .from('tenants')
+      .select('id, name, slug, description, theme_color, logo_url, created_at')
+      .order('created_at', { ascending: true });
 
-    // Build a lookup map
+    if (tenantsError) {
+      console.error('Error fetching tenants:', tenantsError);
+      throw tenantsError;
+    }
+
+    // Fetch development counts per tenant
+    const { data: devCounts, error: devsError } = await supabase
+      .from('developments')
+      .select('tenant_id');
+
+    if (devsError) {
+      console.error('Error fetching developments:', devsError);
+      // Continue without counts rather than failing
+    }
+
+    // Build a lookup map for counts
     const countMap: Record<string, number> = {};
-    devCounts.forEach(row => {
-      countMap[row.tenant_id] = Number(row.count);
-    });
+    if (devCounts) {
+      devCounts.forEach(row => {
+        countMap[row.tenant_id] = (countMap[row.tenant_id] || 0) + 1;
+      });
+    }
 
     // Combine results
-    const result = allTenants.map(t => ({
+    const result = (allTenants || []).map(t => ({
       ...t,
       house_count: countMap[t.id] || 0,
     }));
