@@ -1,9 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { db } from '@openhouse/db/client';
-import { tenants, developments } from '@openhouse/db/schema';
-import { sql, eq, count } from 'drizzle-orm';
+import { db, tenants, developments } from '@openhouse/db';
+import { sql, count } from 'drizzle-orm';
 
 export async function GET() {
   try {
