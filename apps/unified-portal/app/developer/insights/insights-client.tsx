@@ -112,38 +112,18 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
           };
         }
 
-        // Fetch homeowner counts from houses API (same source as Homeowners tab uses)
-        // Homeowners tab page.tsx fetches from units table via Supabase admin
-        // We replicate this by using /api/developments/[id]/houses which queries the same table
-        const devsRes = await fetch('/api/developer/developments', { cache: 'no-store' });
-        if (devsRes.ok) {
-          const devsData = await devsRes.json();
-          let developments = devsData.developments || [];
-
-          // Filter by developmentId if specified
-          if (effectiveDevelopmentId) {
-            developments = developments.filter((d: any) => d.id === effectiveDevelopmentId);
-          }
-
-          // Fetch unit counts for each development
-          let totalHomeowners = 0;
-          for (const dev of developments) {
-            try {
-              const unitsRes = await fetch(`/api/developments/${dev.id}/houses`, { cache: 'no-store' });
-              if (unitsRes.ok) {
-                const unitsData = await unitsRes.json();
-                totalHomeowners += (unitsData.houses || []).length;
-              }
-            } catch (err) {
-              console.error('[Insights] Failed to fetch houses for', dev.id);
-            }
-          }
-
-          realMetrics.totalHomeowners = totalHomeowners;
+        // Fetch homeowner counts from unit-counts API (same source as Homeowners tab uses)
+        // This queries the Supabase units table directly, matching the Homeowners page
+        const devParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : '';
+        const unitCountsRes = await fetch(`/api/analytics/unit-counts${devParam}`, { cache: 'no-store' });
+        if (unitCountsRes.ok) {
+          const unitCountsData = await unitCountsRes.json();
+          realMetrics.totalHomeowners = unitCountsData.total || 0;
           // Calculate engagement rate based on actual homeowners
           if (realMetrics.totalHomeowners > 0) {
             realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
           }
+          console.log('[Insights] Unit counts loaded:', { total: realMetrics.totalHomeowners, activeUsers: realMetrics.activeUsers });
         }
 
         // Fetch question analysis data (scheme-aware) - cache bust for scheme changes
