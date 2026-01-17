@@ -69,7 +69,6 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const devFilter = developmentId ? sql`AND development_id = ${developmentId}` : sql``;
     const supabaseAdmin = getSupabaseAdmin();
 
     // Run queries sequentially to avoid connection pool exhaustion
@@ -107,52 +106,56 @@ export async function GET(request: NextRequest) {
     // Use onboarded units as registered homeowners
     let registeredHomeowners = onboardedUnits;
     
-    // Active homeowners - uses messages table which should exist
+    // Active homeowners - uses messages table with JOIN through developments for correct tenant filtering
+    // FIX: Messages may not have tenant_id populated correctly, so we join through developments table
     let activeHomeowners = 0;
     let previousActive = 0;
     try {
-      const activeResult = await (developmentId 
-        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.tenant_id = ${tenantId} AND m.development_id = ${developmentId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
-        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.tenant_id = ${tenantId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
+      const activeResult = await (developmentId
+        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
+        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
       activeHomeowners = (activeResult.rows[0] as any)?.count || 0;
-      
-      const prevResult = await (developmentId 
-        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.tenant_id = ${tenantId} AND m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
-        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
+
+      const prevResult = await (developmentId
+        ? db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`)
+        : db.execute(sql`SELECT COUNT(DISTINCT m.user_id)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo} AND m.user_id IS NOT NULL`));
       previousActive = (prevResult.rows[0] as any)?.count || 0;
     } catch (e) {
       console.log(`[DeveloperDashboard] Active users query failed (graceful fallback to 0):`, e);
     }
     
-    // Message counts
+    // Message counts - FIX: Use JOIN through developments for tenant filtering
     let totalMessages = 0;
     let previousMessages = 0;
     try {
-      const msgResult = await db.select({ count: count() }).from(messages).where(
-        developmentId
-          ? and(eq(messages.tenant_id, tenantId), gte(messages.created_at, startDate), eq(messages.development_id, developmentId))
-          : and(eq(messages.tenant_id, tenantId), gte(messages.created_at, startDate))
-      );
-      totalMessages = msgResult[0]?.count || 0;
-      
-      const prevMsgResult = await db.select({ count: count() }).from(messages).where(
-        developmentId
-          ? and(eq(messages.tenant_id, tenantId), gte(messages.created_at, previousStartDate), sql`created_at < ${startDate}`, eq(messages.development_id, developmentId))
-          : and(eq(messages.tenant_id, tenantId), gte(messages.created_at, previousStartDate), sql`created_at < ${startDate}`)
-      );
-      previousMessages = prevMsgResult[0]?.count || 0;
+      const msgResult = await (developmentId
+        ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}`)
+        : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}`));
+      totalMessages = (msgResult.rows[0] as any)?.count || 0;
+
+      const prevMsgResult = await (developmentId
+        ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`)
+        : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`));
+      previousMessages = (prevMsgResult.rows[0] as any)?.count || 0;
     } catch (e) {
       console.log(`[DeveloperDashboard] Messages query failed (graceful fallback to 0):`, e);
     }
     
-    // Question topics
+    // Question topics - FIX: Use JOIN through developments for tenant filtering
     let questionTopicsResult = { rows: [] as any[] };
     try {
-      questionTopicsResult = await db.execute(sql`
-        SELECT COALESCE(question_topic, 'general') as topic, COUNT(*)::int as count
-        FROM messages WHERE tenant_id = ${tenantId} AND created_at >= ${startDate} AND user_message IS NOT NULL ${devFilter}
-        GROUP BY COALESCE(question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
-      `);
+      questionTopicsResult = await (developmentId
+        ? db.execute(sql`
+            SELECT COALESCE(question_topic, 'general') as topic, COUNT(*)::int as count
+            FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+            GROUP BY COALESCE(question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
+          `)
+        : db.execute(sql`
+            SELECT COALESCE(m.question_topic, 'general') as topic, COUNT(*)::int as count
+            FROM messages m INNER JOIN developments d ON m.development_id = d.id
+            WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+            GROUP BY COALESCE(m.question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
+          `));
     } catch (e) {
       console.log(`[DeveloperDashboard] Question topics query failed (graceful fallback):`, e);
     }
@@ -198,26 +201,40 @@ export async function GET(request: NextRequest) {
       console.log(`[DeveloperDashboard] Must-read compliance query failed (graceful fallback):`, e);
     }
     
-    // Recent questions
+    // Recent questions - FIX: Use JOIN through developments for tenant filtering
     let recentQuestionsResult = { rows: [] as any[] };
     try {
-      recentQuestionsResult = await db.execute(sql`
-        SELECT user_message, question_topic, created_at, metadata FROM messages
-        WHERE tenant_id = ${tenantId} AND user_message IS NOT NULL AND created_at >= ${startDate} ${devFilter}
-        ORDER BY created_at DESC LIMIT 20
-      `);
+      recentQuestionsResult = await (developmentId
+        ? db.execute(sql`
+            SELECT user_message, question_topic, created_at, metadata FROM messages m
+            WHERE m.development_id = ${developmentId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
+            ORDER BY m.created_at DESC LIMIT 20
+          `)
+        : db.execute(sql`
+            SELECT m.user_message, m.question_topic, m.created_at, m.metadata FROM messages m
+            INNER JOIN developments d ON m.development_id = d.id
+            WHERE d.tenant_id = ${tenantId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
+            ORDER BY m.created_at DESC LIMIT 20
+          `));
     } catch (e) {
       console.log(`[DeveloperDashboard] Recent questions query failed (graceful fallback):`, e);
     }
     
-    // Chat activity
+    // Chat activity - FIX: Use JOIN through developments for tenant filtering
     let chatActivityResult = { rows: [] as any[] };
     try {
-      chatActivityResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*)::int as count FROM messages
-        WHERE tenant_id = ${tenantId} AND created_at >= ${startDate} ${devFilter}
-        GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC
-      `);
+      chatActivityResult = await (developmentId
+        ? db.execute(sql`
+            SELECT DATE(created_at) as date, COUNT(*)::int as count FROM messages m
+            WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}
+            GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
+          `)
+        : db.execute(sql`
+            SELECT DATE(m.created_at) as date, COUNT(*)::int as count FROM messages m
+            INNER JOIN developments d ON m.development_id = d.id
+            WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
+            GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
+          `));
     } catch (e) {
       console.log(`[DeveloperDashboard] Chat activity query failed (graceful fallback):`, e);
     }
