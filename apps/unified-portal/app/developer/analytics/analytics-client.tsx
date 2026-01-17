@@ -84,7 +84,7 @@ interface AnalyticsClientProps {
   tenantId: string;
 }
 
-type DateRange = '7' | '30' | '90' | 'custom';
+type DateRange = '7' | '30' | '90' | 'custom' | 'total';
 
 const PRIMARY_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
@@ -99,6 +99,9 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   const [customEndDate, setCustomEndDate] = useState<string>('');
   
   const daysToQuery = useMemo(() => {
+    if (dateRange === 'total') {
+      return 3650; // ~10 years for "all time" queries
+    }
     if (dateRange === 'custom') {
       if (!customStartDate || !customEndDate) {
         return 30; // Default fallback while dates are being selected
@@ -158,9 +161,11 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
   // Export functions
   const generateCSVContent = useCallback(() => {
     const rows: string[][] = [];
-    const dateRangeLabel = dateRange === 'custom'
-      ? `${customStartDate} to ${customEndDate}`
-      : `Last ${daysToQuery} days`;
+    const dateRangeLabel = dateRange === 'total'
+      ? 'All Time'
+      : dateRange === 'custom'
+        ? `${customStartDate} to ${customEndDate}`
+        : `Last ${daysToQuery} days`;
 
     // Header info
     rows.push(['OpenHouse AI Analytics Report']);
@@ -270,9 +275,11 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
     setExporting(true);
     try {
       // Create a simple HTML-based PDF using print
-      const dateRangeLabel = dateRange === 'custom'
-        ? `${customStartDate} to ${customEndDate}`
-        : `Last ${daysToQuery} days`;
+      const dateRangeLabel = dateRange === 'total'
+        ? 'All Time'
+        : dateRange === 'custom'
+          ? `${customStartDate} to ${customEndDate}`
+          : `Last ${daysToQuery} days`;
 
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -500,31 +507,60 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
     loadResponseTimes();
   }, [tenantId, effectiveDevelopmentId, daysToQuery]);
 
-  // Update homeowner engagement from the existing hooks data
+  // Update homeowner engagement - fetch actual counts from units table
   useEffect(() => {
-    if (metrics && homeowners) {
-      const activeUsers = metrics.activeUsers || 0;
-      const totalMessages = metrics.totalMessages || 0;
-      const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
+    async function loadHomeownerCounts() {
+      try {
+        const devIdParam = effectiveDevelopmentId ? `&development_id=${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/analytics/homeowner-counts?tenant_id=${tenantId}${devIdParam}`);
 
-      // For total homeowners, we'll use a reasonable estimate based on active users
-      // In a real scenario, this would come from the units table
-      const estimatedTotal = Math.max(activeUsers, Math.round(activeUsers / (homeowners.engagementRate || 0.3)));
+        if (res.ok) {
+          const data = await res.json();
+          const totalHomeowners = data.totalHomeowners || 0;
+          const onboardedHomeowners = data.onboardedHomeowners || 0;
+          const activeUsers = metrics?.activeUsers || 0;
+          const totalMessages = metrics?.totalMessages || 0;
+          const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
 
-      setHomeownerEngagement({
-        totalHomeowners: estimatedTotal,
-        onboardedHomeowners: activeUsers,
-        activeThisWeek: Math.round(activeUsers * 0.7), // ~70% active in last week
-        activeThisMonth: activeUsers,
-        neverEngaged: Math.max(0, estimatedTotal - activeUsers),
-        highEngagers: Math.round(activeUsers * 0.3), // Top 30% are high engagers
-        lowEngagers: Math.round(activeUsers * 0.4), // 40% are low engagers
-        avgMessagesPerUser: avgMessages,
-        documentsViewed: metrics.totalDocuments || 0,
-        noticeboardViews: 0
-      });
+          setHomeownerEngagement({
+            totalHomeowners: totalHomeowners,
+            onboardedHomeowners: onboardedHomeowners,
+            activeThisWeek: Math.round(activeUsers * 0.7), // Approximate based on 30d active
+            activeThisMonth: activeUsers,
+            neverEngaged: Math.max(0, totalHomeowners - activeUsers),
+            highEngagers: Math.round(activeUsers * 0.3), // Top 30% are high engagers
+            lowEngagers: Math.round(activeUsers * 0.4), // 40% are low engagers
+            avgMessagesPerUser: avgMessages,
+            documentsViewed: metrics?.totalDocuments || 0,
+            noticeboardViews: 0
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load homeowner counts:', error);
+        // Fallback to using hook data if API fails
+        if (metrics && homeowners) {
+          const activeUsers = metrics.activeUsers || 0;
+          const totalMessages = metrics.totalMessages || 0;
+          const avgMessages = activeUsers > 0 ? totalMessages / activeUsers : 0;
+
+          setHomeownerEngagement({
+            totalHomeowners: activeUsers,
+            onboardedHomeowners: activeUsers,
+            activeThisWeek: Math.round(activeUsers * 0.7),
+            activeThisMonth: activeUsers,
+            neverEngaged: 0,
+            highEngagers: Math.round(activeUsers * 0.3),
+            lowEngagers: Math.round(activeUsers * 0.4),
+            avgMessagesPerUser: avgMessages,
+            documentsViewed: metrics.totalDocuments || 0,
+            noticeboardViews: 0
+          });
+        }
+      }
     }
-  }, [metrics, homeowners]);
+
+    loadHomeownerCounts();
+  }, [tenantId, effectiveDevelopmentId, metrics, homeowners]);
 
   // Fetch content performance data
   useEffect(() => {
@@ -673,6 +709,14 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
                 90 days
               </button>
               <button
+                onClick={() => setDateRange('total')}
+                className={`px-3 py-2 text-sm font-medium border-l border-gold-200/50 transition ${
+                  dateRange === 'total' ? 'bg-gold-500 text-white' : 'text-grey-600 hover:bg-grey-50'
+                }`}
+              >
+                Total
+              </button>
+              <button
                 onClick={() => setDateRange('custom')}
                 className={`px-3 py-2 text-sm font-medium border-l border-gold-200/50 transition rounded-r-lg ${
                   dateRange === 'custom' ? 'bg-gold-500 text-white' : 'text-grey-600 hover:bg-grey-50'
@@ -795,7 +839,7 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
               </div>
               <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Total Messages</p>
               <p className={`text-2xl font-bold ${textColor}`}>{metrics?.totalMessages?.toLocaleString() || 0}</p>
-              <p className={`${secondaryText} text-xs mt-1`}>Last {daysToQuery} days</p>
+              <p className={`${secondaryText} text-xs mt-1`}>{dateRange === 'total' ? 'All time' : `Last ${daysToQuery} days`}</p>
             </div>
 
             <div className={`rounded-lg border p-5 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>

@@ -64,6 +64,7 @@ interface InsightsData {
   realMetrics: {
     totalMessages: number;
     activeUsers: number;
+    totalHomeowners: number;
     engagementRate: number;
   };
   recommendations: AIRecommendation[];
@@ -96,18 +97,32 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
     const loadInsights = async () => {
       try {
         const devIdParam = effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : '';
-        
+
         // Fetch real metrics from analytics summary (scheme-aware) - cache bust for scheme changes
         const metricsRes = await fetch(`/api/analytics/summary?scope=developer&developer_id=${tenantId}${effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : ''}&time_window=30d`, { cache: 'no-store' });
-        let realMetrics = { totalMessages: 0, activeUsers: 0, engagementRate: 0 };
-        
+        let realMetrics = { totalMessages: 0, activeUsers: 0, totalHomeowners: 0, engagementRate: 0 };
+
         if (metricsRes.ok) {
           const metricsData = await metricsRes.json();
           realMetrics = {
             totalMessages: metricsData.questions_in_window || 0,
             activeUsers: metricsData.active_units_in_window || 0,
-            engagementRate: metricsData.active_units_in_window > 0 ? Math.min(100, (metricsData.questions_in_window / (metricsData.active_units_in_window * 10)) * 100) : 0,
+            totalHomeowners: 0, // Will be populated below
+            engagementRate: 0, // Will be calculated after we get homeowner counts
           };
+        }
+
+        // Fetch actual homeowner counts from the units table
+        const homeownerDevIdParam = effectiveDevelopmentId ? `&development_id=${effectiveDevelopmentId}` : '';
+        const homeownerRes = await fetch(`/api/analytics/homeowner-counts?tenant_id=${tenantId}${homeownerDevIdParam}`, { cache: 'no-store' });
+
+        if (homeownerRes.ok) {
+          const homeownerData = await homeownerRes.json();
+          realMetrics.totalHomeowners = homeownerData.totalHomeowners || 0;
+          // Calculate engagement rate based on actual homeowners
+          if (realMetrics.totalHomeowners > 0) {
+            realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
+          }
         }
 
         // Fetch question analysis data (scheme-aware) - cache bust for scheme changes
@@ -490,7 +505,12 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
                 </div>
                 <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Active Users</p>
                 <p className={`text-2xl font-bold ${textColor}`}>{data.realMetrics.activeUsers}</p>
-                <p className={`${secondaryText} text-xs mt-1`}>{data.realMetrics.engagementRate.toFixed(0)}% engagement</p>
+                <p className={`${secondaryText} text-xs mt-1`}>
+                  {data.realMetrics.totalHomeowners > 0
+                    ? `of ${data.realMetrics.totalHomeowners} total (${data.realMetrics.engagementRate.toFixed(0)}%)`
+                    : `${data.realMetrics.engagementRate.toFixed(0)}% engagement`
+                  }
+                </p>
               </div>
             </div>
           )}
