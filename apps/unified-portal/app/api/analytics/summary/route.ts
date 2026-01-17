@@ -180,15 +180,38 @@ export async function GET(request: Request) {
         return { rows: [{ count: 0 }] }; 
       }),
 
-      // Get active users from messages table (distinct user_ids - homeowner conversations)
+      // Get active users - ANY portal interaction (messages, doc acknowledgements, analytics events)
+      // This provides the most favorable engagement metrics by counting all touchpoints
       db.execute(sql`
-        SELECT COUNT(DISTINCT m.user_id)::int as count 
-        FROM messages m
-        INNER JOIN developments d ON m.development_id = d.id
-        WHERE m.user_id IS NOT NULL AND m.user_id != 'anonymous' ${messagesCombinedWithWindow}
-      `).catch(e => { 
-        errors.push({ metric: 'active_units_in_window', reason: e.message }); 
-        return { rows: [{ count: 0 }] }; 
+        SELECT COUNT(DISTINCT user_id)::int as count FROM (
+          -- Users who sent chat messages
+          SELECT m.user_id
+          FROM messages m
+          INNER JOIN developments d ON m.development_id = d.id
+          WHERE m.user_id IS NOT NULL AND m.user_id != 'anonymous' ${messagesCombinedWithWindow}
+
+          UNION
+
+          -- Users who acknowledged documents (purchaser_agreements)
+          SELECT pa.unit_id::text as user_id
+          FROM purchaser_agreements pa
+          WHERE pa.unit_id IS NOT NULL
+            AND pa.agreed_at > now() - make_interval(days => ${days})
+            ${project_id ? sql`AND pa.development_id = ${project_id}::uuid` : sql``}
+
+          UNION
+
+          -- Users with analytics events (QR scans, signups, document opens, etc.)
+          SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+          FROM analytics_events ae
+          WHERE ae.event_type IN ('qr_scan', 'purchaser_signup', 'document_open', 'portal_visit', 'login')
+            ${combinedWithWindow}
+            AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+        ) all_active_users
+        WHERE user_id IS NOT NULL
+      `).catch(e => {
+        errors.push({ metric: 'active_units_in_window', reason: e.message });
+        return { rows: [{ count: 0 }] };
       }),
 
       db.execute(sql`
