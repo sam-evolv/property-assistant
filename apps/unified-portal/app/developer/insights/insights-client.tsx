@@ -113,12 +113,18 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
         }
 
         // Fetch homeowner counts from same endpoint as Homeowners tab - the source of truth
-        const homeownerDevIdParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}&` : '?';
-        const homeownerRes = await fetch(`/api/homeowners${homeownerDevIdParam}includeStats=true`, { cache: 'no-store' });
+        const homeownerUrl = effectiveDevelopmentId
+          ? `/api/homeowners?developmentId=${effectiveDevelopmentId}&includeStats=true`
+          : '/api/homeowners?includeStats=true';
+
+        console.log('[Insights] Fetching homeowners from:', homeownerUrl);
+        const homeownerRes = await fetch(homeownerUrl, { cache: 'no-store' });
+        console.log('[Insights] Homeowners response status:', homeownerRes.status);
 
         if (homeownerRes.ok) {
           const homeownerData = await homeownerRes.json();
           const homeownersList = homeownerData.homeowners || [];
+          console.log('[Insights] Homeowners count:', homeownersList.length);
           realMetrics.totalHomeowners = homeownersList.length;
           // Count active users from message_count
           const activeFromMessages = homeownersList.filter((h: any) => (h.message_count || 0) > 0).length;
@@ -127,6 +133,9 @@ export default function InsightsClient({ tenantId }: InsightsClientProps) {
           if (realMetrics.totalHomeowners > 0) {
             realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
           }
+        } else {
+          const errorText = await homeownerRes.text().catch(() => 'Unknown error');
+          console.error('[Insights] Homeowners API error:', homeownerRes.status, errorText);
         }
 
         // Fetch question analysis data (scheme-aware) - cache bust for scheme changes

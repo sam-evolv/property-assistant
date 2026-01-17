@@ -512,12 +512,19 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
     async function loadHomeownerCounts() {
       try {
         // Use the same endpoint as the Homeowners tab - this is the source of truth
-        const devIdParam = effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : '';
-        const res = await fetch(`/api/homeowners${devIdParam ? devIdParam + '&' : '?'}includeStats=true`);
+        // Match exact URL format: /api/homeowners?includeStats=true
+        const url = effectiveDevelopmentId
+          ? `/api/homeowners?developmentId=${effectiveDevelopmentId}&includeStats=true`
+          : '/api/homeowners?includeStats=true';
+
+        console.log('[Analytics] Fetching homeowners from:', url);
+        const res = await fetch(url);
+        console.log('[Analytics] Homeowners response status:', res.status);
 
         if (res.ok) {
           const data = await res.json();
           const homeownersList = data.homeowners || [];
+          console.log('[Analytics] Homeowners count:', homeownersList.length);
 
           // Calculate stats the same way the Homeowners tab does
           const totalHomeowners = homeownersList.length;
@@ -548,9 +555,12 @@ export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
             documentsViewed: metrics?.totalDocuments || 0,
             noticeboardViews: 0
           });
+        } else {
+          const errorText = await res.text().catch(() => 'Unknown error');
+          console.error('[Analytics] Homeowners API error:', res.status, errorText);
         }
       } catch (error) {
-        console.error('Failed to load homeowner counts:', error);
+        console.error('[Analytics] Failed to load homeowner counts:', error);
       }
     }
 
