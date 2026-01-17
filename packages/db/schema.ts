@@ -1481,6 +1481,26 @@ export const assistant_feedback = pgTable('assistant_feedback', {
   createdAtIdx: index('assistant_feedback_created_at_idx').on(table.created_at),
 }));
 
+// Developer Settings - Store key-value settings per tenant for feature configuration
+export const developer_settings = pgTable('developer_settings', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  key: text('key').notNull(),
+  value: jsonb('value').default(sql`'{}'::jsonb`).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantKeyIdx: index('developer_settings_tenant_key_idx').on(table.tenant_id, table.key),
+  uniqueTenantKey: uniqueIndex('developer_settings_tenant_key_unique').on(table.tenant_id, table.key),
+}));
+
+export const developerSettingsRelations = relations(developer_settings, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [developer_settings.tenant_id],
+    references: [tenants.id],
+  }),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
@@ -1490,3 +1510,4 @@ export const unitProfile = unit_profile;
 export const poiCache = poi_cache;
 export const answerGapLog = answer_gap_log;
 export const assistantFeedback = assistant_feedback;
+export const developerSettings = developer_settings;

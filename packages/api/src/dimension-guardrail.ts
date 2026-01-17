@@ -2,6 +2,46 @@ import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import { normalizeToCanonicalRoomName } from './normalize-room-name';
 
+/**
+ * Room Dimensions Feature Settings
+ * Configurable by developer via the Room Dimensions settings panel
+ */
+export interface RoomDimensionSettings {
+  enabled: boolean;
+  show_disclaimer: boolean;
+  attach_floorplans: boolean;
+  disclaimer_text: string;
+}
+
+const DEFAULT_DIMENSION_SETTINGS: RoomDimensionSettings = {
+  enabled: true,
+  show_disclaimer: true,
+  attach_floorplans: true,
+  disclaimer_text: "Please note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans and architectural drawings. We recommend verifying dimensions independently before making any purchasing decisions based on room sizes.",
+};
+
+/**
+ * Fetch room dimension settings for a tenant
+ */
+export async function getRoomDimensionSettings(tenantId: string): Promise<RoomDimensionSettings> {
+  try {
+    const result = await db.execute<{ value: RoomDimensionSettings }>(sql`
+      SELECT value FROM developer_settings
+      WHERE tenant_id = ${tenantId}::uuid AND key = 'room_dimensions'
+      LIMIT 1
+    `);
+
+    if (result.rows && result.rows.length > 0 && result.rows[0].value) {
+      return { ...DEFAULT_DIMENSION_SETTINGS, ...result.rows[0].value };
+    }
+
+    return DEFAULT_DIMENSION_SETTINGS;
+  } catch (error) {
+    console.log('[DIMENSION-SETTINGS] Failed to fetch settings, using defaults:', error);
+    return DEFAULT_DIMENSION_SETTINGS;
+  }
+}
+
 export interface CanonicalRoomDimension {
   room_name: string;
   room_key: string;
@@ -666,25 +706,26 @@ export async function getAllCanonicalRoomDimensions(
 export function formatGroundedDimensionAnswer(
   room: CanonicalRoomDimension,
   houseTypeCode: string,
-  address?: string
+  address?: string,
+  settings?: RoomDimensionSettings
 ): string {
   const parts: string[] = [];
-  
+
   if (room.length_m && room.width_m) {
     parts.push(`Your ${room.room_name} measures approximately ${room.length_m.toFixed(1)}m × ${room.width_m.toFixed(1)}m`);
-    
+
     const area = room.area_sqm || (room.length_m * room.width_m);
     parts.push(`giving a floor area of ${area.toFixed(1)} m²`);
   } else if (room.area_sqm) {
     parts.push(`Your ${room.room_name} has a floor area of approximately ${room.area_sqm.toFixed(1)} m²`);
   }
-  
+
   if (room.ceiling_height_m) {
     parts.push(`with a ceiling height of ${room.ceiling_height_m.toFixed(2)}m`);
   }
-  
+
   let answer = parts.join(', ') + '.';
-  
+
   const sourceDescriptions: Record<string, string> = {
     'verified_unit': 'verified measurements for your specific unit',
     'verified_house_type': 'verified measurements for your house type',
@@ -693,21 +734,32 @@ export function formatGroundedDimensionAnswer(
     'house_types': 'from the specifications',
     'manual': 'from manual entry',
   };
-  
+
   const sourceDesc = sourceDescriptions[room.source] || 'from available data';
-  
+
   answer += ` This is based on ${sourceDesc} for your ${houseTypeCode} house type`;
-  
+
   if (address) {
     answer += ` at ${address}`;
   }
-  
+
   answer += '.';
-  
+
   if (!room.verified && room.source !== 'house_types') {
     answer += ' Note: These dimensions are from automated extraction and may require verification.';
   }
-  
+
+  // Add disclaimer if enabled in settings
+  const effectiveSettings = settings || DEFAULT_DIMENSION_SETTINGS;
+  if (effectiveSettings.show_disclaimer && effectiveSettings.disclaimer_text) {
+    answer += `\n\n📋 **Important:** ${effectiveSettings.disclaimer_text}`;
+  }
+
+  // Suggest viewing floor plan if enabled
+  if (effectiveSettings.attach_floorplans) {
+    answer += `\n\nFor complete accuracy, you can view your official floor plan in the Documents section.`;
+  }
+
   return answer;
 }
 
@@ -770,33 +822,50 @@ export async function applyDimensionGuardrail(
   if (!isDimensionQuestion(question)) {
     return { shouldIntercept: false, lookupSuccessful: false };
   }
-  
+
+  // Fetch room dimension settings for this tenant
+  const settings = await getRoomDimensionSettings(tenantId);
+
+  // If the feature is disabled, don't intercept - let it fall through to RAG
+  if (!settings.enabled) {
+    console.log('⚠️  DIMENSION GUARDRAIL: Feature disabled for tenant - falling back to floor plan suggestion');
+    return {
+      shouldIntercept: true,
+      groundedAnswer: settings.attach_floorplans
+        ? "For room dimensions, please refer to your official floor plan in the Documents section. The floor plan shows all room measurements clearly."
+        : "Room dimension information is not currently available. Please contact your developer for this information.",
+      roomKey: extractRoomNameFromQuestion(question) || undefined,
+      lookupSuccessful: false,
+      suggestFloorplan: settings.attach_floorplans,
+    };
+  }
+
   const roomKey = extractRoomNameFromQuestion(question);
-  
+
   if (!roomKey) {
     return { shouldIntercept: false, lookupSuccessful: false };
   }
-  
+
   if (!houseTypeCode) {
     console.log('⚠️  DIMENSION GUARDRAIL: No house type code - cannot lookup dimensions');
-    return { 
-      shouldIntercept: true, 
+    return {
+      shouldIntercept: true,
       groundedAnswer: SAFE_DIMENSION_FALLBACK,
       roomKey,
       lookupSuccessful: false,
       suggestFloorplan: true,
     };
   }
-  
+
   const lookup = await getCanonicalRoomDimension(tenantId, developmentId, houseTypeCode, roomKey, unitId);
-  
+
   if (lookup.found && lookup.room) {
     const confidence = lookup.room.extraction_confidence;
-    
+
     if (confidence >= 0.75 && (lookup.room.length_m || lookup.room.area_sqm)) {
       return {
         shouldIntercept: true,
-        groundedAnswer: formatGroundedDimensionAnswer(lookup.room, houseTypeCode, address),
+        groundedAnswer: formatGroundedDimensionAnswer(lookup.room, houseTypeCode, address, settings),
         roomKey,
         lookupSuccessful: true,
       };
@@ -811,7 +880,7 @@ export async function applyDimensionGuardrail(
       };
     }
   }
-  
+
   return {
     shouldIntercept: true,
     groundedAnswer: SAFE_DIMENSION_FALLBACK_SPECIFIC(formatRoomNameForDisplay(roomKey), houseTypeCode),
