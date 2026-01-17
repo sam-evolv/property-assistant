@@ -14,10 +14,10 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Fetch all tenants
+    // Fetch all tenants - use SELECT * to get all available columns
     const { data: allTenants, error: tenantsError } = await supabase
       .from('tenants')
-      .select('id, name, slug, description, theme_color, logo_url, created_at')
+      .select('*')
       .order('created_at', { ascending: true });
 
     if (tenantsError) {
