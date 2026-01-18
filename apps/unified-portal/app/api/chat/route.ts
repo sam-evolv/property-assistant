@@ -228,13 +228,17 @@ const ROOM_PHRASE_MAPPINGS: Array<{ patterns: RegExp[]; mapping: RoomMapping }> 
     }
   },
 
-  // ENSUITE
+  // ENSUITE - handle all variations: ensuite, en-suite, en suite, en suit
   {
-    patterns: [/\ben-?suite\b/i, /\bensuite\b/i, /\bmaster\s*bath(?:room)?\b/i],
+    patterns: [
+      /\ben[\s-]?suite\b/i,     // matches: ensuite, en-suite, en suite
+      /\ben[\s-]?suit\b/i,      // matches: ensuit, en-suit, en suit (typo)
+      /\bmaster\s*bath(?:room)?\b/i
+    ],
     mapping: {
       displayName: 'Ensuite',
-      searchKeys: ['ensuite', 'Ensuite', 'en-suite', 'En-suite', 'en_suite', 'master_bathroom', 'master bathroom'],
-      searchNames: ['ensuite', 'en-suite', 'master bath']
+      searchKeys: ['ensuite', 'Ensuite', 'en-suite', 'En-suite', 'en_suite', 'En Suite', 'en suite', 'master_bathroom', 'master bathroom'],
+      searchNames: ['ensuite', 'en-suite', 'en suite', 'master bath']
     }
   },
 
@@ -360,6 +364,7 @@ function extractRoomFromQuestion(question: string): RoomMapping | null {
 interface RoomDimensionResult {
   found: boolean;
   roomName?: string;
+  roomKey?: string;  // The actual room_key from the database record
   length_m?: number;
   width_m?: number;
   area_sqm?: number;
@@ -402,6 +407,7 @@ async function lookupRoomDimensions(
     const parseDimension = (dim: any): RoomDimensionResult => ({
       found: true,
       roomName: dim.room_name,
+      roomKey: dim.room_key,  // Include the actual room_key for debugging
       length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
       width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
       area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
@@ -3252,7 +3258,11 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         // We have actual room dimensions from the database!
         dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName);
         answerSource = 'dimension_database';
-        console.log('[Chat] Found room dimensions in database for', extractedRoom.displayName);
+        console.log('[Chat] Found room dimensions in database:');
+        console.log('[Chat]   Asked for:', extractedRoom.displayName);
+        console.log('[Chat]   DB room_key:', roomDimensionResult.roomKey);
+        console.log('[Chat]   DB room_name:', roomDimensionResult.roomName);
+        console.log('[Chat]   Dimensions:', roomDimensionResult.length_m, 'x', roomDimensionResult.width_m, 'm');
       } else if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
         // No database dimensions but we have floor plans
         floorPlanAttachments = floorPlanResult.attachments;
@@ -3300,7 +3310,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
           dimensionQuestion: true,
-          roomName: extractedRoom?.displayName,
+          roomAsked: extractedRoom?.displayName,
+          dbRoomKey: roomDimensionResult.roomKey,
+          dbRoomName: roomDimensionResult.roomName,
+          dbDimensions: roomDimensionResult.found ? `${roomDimensionResult.length_m}x${roomDimensionResult.width_m}` : null,
           foundDimensions: roomDimensionResult.found,
           foundFloorPlans: floorPlanAttachments.length > 0,
         },
