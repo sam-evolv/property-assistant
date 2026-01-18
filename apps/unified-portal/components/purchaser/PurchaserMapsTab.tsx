@@ -215,15 +215,17 @@ export default function PurchaserMapsTab({
         const mapLng = longitude || -8.453200;
 
         // DEBUG: Check API key status (without exposing the key itself)
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        // Check both possible env var names - NEXT_PUBLIC_ prefix is required for client-side
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || (typeof window !== 'undefined' && (window as any).__GOOGLE_MAPS_API_KEY);
         console.log('🗺️ MAPS DEBUG:');
-        console.log('- Key Exists?', !!apiKey);
+        console.log('- NEXT_PUBLIC_GOOGLE_MAPS_API_KEY Exists?', !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
         console.log('- Key Length:', apiKey ? apiKey.length : 0);
         console.log('[Maps] Coordinates:', { mapLat, mapLng });
 
-        // If no API key, show error state
+        // If no API key, show error state with more helpful message
         if (!apiKey || apiKey.length < 10) {
           console.error('[Maps] Google Maps API key is missing or invalid');
+          console.error('[Maps] Ensure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set in Vercel environment variables');
           setMapError(true);
           return;
         }
