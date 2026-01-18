@@ -306,10 +306,11 @@ export async function GET(request: NextRequest) {
     // The Homeowners tab uses 'projects' table for development info and 'purchaser_agreements' table for acknowledgements
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      // Get all units with their project_id
+      // Get all units with their project_id and acknowledgement info
+      // Include important_docs_agreed_at as a fallback indicator of acknowledgement
       let unitsWithAckQuery = supabaseAdmin
         .from('units')
-        .select('id, important_docs_agreed_version, project_id');
+        .select('id, important_docs_agreed_version, important_docs_agreed_at, project_id');
 
       if (developmentId) {
         unitsWithAckQuery = unitsWithAckQuery.eq('project_id', developmentId);
@@ -333,9 +334,9 @@ export async function GET(request: NextRequest) {
           devVersionMap[p.id] = p.important_docs_version || 0;
         });
 
-        // CRITICAL: Get acknowledgement status from purchaser_agreements table (Drizzle)
-        // This is what the Homeowners page does - uses purchaser_agreements for the real source of truth
+        // Try to get acknowledgement status from purchaser_agreements table (Drizzle)
         let acknowledgedUnitsFromAgreements = new Map<string, number>();
+        let drizzleFailed = false;
         try {
           const agreementsResult = await db.execute(sql`
             SELECT DISTINCT ON (unit_id) unit_id, docs_version
@@ -348,32 +349,37 @@ export async function GET(request: NextRequest) {
           }
           console.log(`[DeveloperDashboard] Found ${acknowledgedUnitsFromAgreements.size} acknowledged units from purchaser_agreements`);
         } catch (agreementError) {
-          console.log(`[DeveloperDashboard] purchaser_agreements query failed, falling back to unit field:`, agreementError);
+          drizzleFailed = true;
+          console.log(`[DeveloperDashboard] purchaser_agreements query failed, using Supabase unit fields only:`, agreementError);
         }
 
-        // Count units that have acknowledged using EXACT same logic as Homeowners tab
+        // Count units that have acknowledged
         let acknowledgedCount = 0;
         for (const unit of unitsWithAck) {
-          // Use purchaser_agreements as primary source (like Homeowners page), fall back to unit field
+          // Use purchaser_agreements as primary source, fall back to unit fields
           const agreedVersion = acknowledgedUnitsFromAgreements.get(unit.id) || unit.important_docs_agreed_version || 0;
           const devVersion = devVersionMap[unit.project_id] || 0;
+
+          // If Drizzle failed and version is 0, check if important_docs_agreed_at is set
+          // This is a reliable fallback - if they have a date, they acknowledged
+          const hasAgreedDate = drizzleFailed && unit.important_docs_agreed_at;
 
           // Exact logic from Homeowners tab list.tsx hasUnitAcknowledged():
           // If no version is set anywhere (devVersion === 0), check if agreed at least version 1
           // Otherwise, check if agreed >= dev version
           if (devVersion === 0) {
-            if (agreedVersion >= 1) {
+            if (agreedVersion >= 1 || hasAgreedDate) {
               acknowledgedCount++;
             }
           } else {
-            if (agreedVersion >= devVersion) {
+            if (agreedVersion >= devVersion || hasAgreedDate) {
               acknowledgedCount++;
             }
           }
         }
 
         mustRead = { total_units: totalUnits, acknowledged: acknowledgedCount };
-        console.log(`[DeveloperDashboard] Must-read compliance: ${acknowledgedCount} of ${totalUnits} acknowledged (matched Homeowners tab logic)`);
+        console.log(`[DeveloperDashboard] Must-read compliance: ${acknowledgedCount} of ${totalUnits} acknowledged (drizzleFailed=${drizzleFailed})`);
       }
     } catch (e) {
       console.log(`[DeveloperDashboard] Must-read compliance query failed (graceful fallback):`, e);

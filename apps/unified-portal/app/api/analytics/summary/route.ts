@@ -32,6 +32,15 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
 import { logSecurityViolation } from '@/lib/api-auth';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false }, db: { schema: 'public' } }
+  );
+}
 
 const summaryQuerySchema = z.object({
   scope: z.enum(['superadmin', 'developer']),
@@ -320,20 +329,50 @@ export async function GET(request: Request) {
     const results = await Promise.all(queries);
 
     const lastEventRow = results[14]?.rows[0] as { created_at?: Date | string } | undefined;
-    const lastEventAt = lastEventRow?.created_at 
-      ? (lastEventRow.created_at instanceof Date 
-          ? lastEventRow.created_at.toISOString() 
+    const lastEventAt = lastEventRow?.created_at
+      ? (lastEventRow.created_at instanceof Date
+          ? lastEventRow.created_at.toISOString()
           : String(lastEventRow.created_at))
       : null;
 
     const avgResponseRow = results[15]?.rows[0] as { avg_ms?: number } | undefined;
     const avgResponseTimeMs = Number(avgResponseRow?.avg_ms) || 0;
 
+    // Get active users from Drizzle result
+    let activeUnitsInWindow = Number(results[3].rows[0]?.count) || 0;
+
+    // FALLBACK: If Drizzle returned 0 and there were errors, try Supabase
+    // Count users who acknowledged docs in the time window as a proxy for activity
+    if (activeUnitsInWindow === 0 && errors.some(e => e.metric === 'active_units_in_window')) {
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - days);
+
+        let activeQuery = supabaseAdmin
+          .from('units')
+          .select('id', { count: 'exact', head: true })
+          .gte('important_docs_agreed_at', windowStart.toISOString());
+
+        if (project_id) {
+          activeQuery = activeQuery.eq('project_id', project_id);
+        }
+
+        const { count: supabaseActiveCount } = await activeQuery;
+        if (supabaseActiveCount && supabaseActiveCount > 0) {
+          activeUnitsInWindow = supabaseActiveCount;
+          console.log(`[ANALYTICS SUMMARY] Supabase fallback: ${supabaseActiveCount} active units from important_docs_agreed_at`);
+        }
+      } catch (supabaseError) {
+        console.log(`[ANALYTICS SUMMARY] Supabase active users fallback failed:`, supabaseError);
+      }
+    }
+
     const summary: CanonicalAnalyticsSummary = {
       total_events: Number(results[0].rows[0]?.count) || 0,
       total_questions: Number(results[1].rows[0]?.count) || 0,
       questions_in_window: Number(results[2].rows[0]?.count) || 0,
-      active_units_in_window: Number(results[3].rows[0]?.count) || 0,
+      active_units_in_window: activeUnitsInWindow,
       active_tenants_in_window: Number(results[4].rows[0]?.count) || 0,
       recovered_events_count: Number(results[5].rows[0]?.count) || 0,
       inferred_events_count: Number(results[6].rows[0]?.count) || 0,
