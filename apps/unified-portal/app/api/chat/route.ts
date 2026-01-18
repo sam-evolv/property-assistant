@@ -593,9 +593,9 @@ function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string, h
 
   // Add disclaimer - only mention floor plans if we're actually attaching them
   if (hasFloorPlanAttachments) {
-    answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans attached below._';
+    answer += '\n\nPlease note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans attached below.';
   } else {
-    answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to your official floor plan documents._';
+    answer += '\n\nPlease note: These dimensions are provided as a guide only. For exact measurements, please refer to your official floor plan documents.';
   }
 
   return answer;
