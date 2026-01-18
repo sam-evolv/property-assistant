@@ -101,18 +101,31 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
       try {
         const devIdParam = effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : '';
 
-        // Fetch real metrics from analytics summary (scheme-aware) - cache bust for scheme changes
-        const metricsRes = await fetch(`/api/analytics/summary?scope=developer&developer_id=${tenantId}${effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : ''}&time_window=30d`, { cache: 'no-store' });
+        // Fetch real metrics from both analytics summary AND dashboard API
+        // Dashboard API has more reliable active user counts (uses purchaser_agreements)
+        const [metricsRes, dashboardRes] = await Promise.all([
+          fetch(`/api/analytics/summary?scope=developer&developer_id=${tenantId}${effectiveDevelopmentId ? `&project_id=${effectiveDevelopmentId}` : ''}&time_window=30d`, { cache: 'no-store' }),
+          fetch(`/api/analytics/developer/dashboard?tenantId=${tenantId}${effectiveDevelopmentId ? `&developmentId=${effectiveDevelopmentId}` : ''}&days=30`, { cache: 'no-store' })
+        ]);
+
         let realMetrics = { totalMessages: 0, activeUsers: 0, totalHomeowners: 0, engagementRate: 0 };
 
+        // Get message counts from analytics summary
         if (metricsRes.ok) {
           const metricsData = await metricsRes.json();
-          realMetrics = {
-            totalMessages: metricsData.questions_in_window || 0,
-            activeUsers: metricsData.active_units_in_window || 0,
-            totalHomeowners: 0, // Will be populated below
-            engagementRate: 0, // Will be calculated after we get homeowner counts
-          };
+          realMetrics.totalMessages = metricsData.questions_in_window || 0;
+          realMetrics.activeUsers = metricsData.active_units_in_window || 0;
+        }
+
+        // Get active users from dashboard API (more reliable - uses purchaser_agreements)
+        if (dashboardRes.ok) {
+          const dashboardData = await dashboardRes.json();
+          // Use dashboard's activeHomeowners if it's higher (it queries purchaser_agreements which works)
+          const dashboardActive = dashboardData.summary?.activeHomeowners || 0;
+          if (dashboardActive > realMetrics.activeUsers) {
+            realMetrics.activeUsers = dashboardActive;
+            console.log('[Insights] Using dashboard activeHomeowners:', dashboardActive);
+          }
         }
 
         // Use SERVER-SIDE fetched homeowner counts (same source as Homeowners tab)
