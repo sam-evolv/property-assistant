@@ -551,7 +551,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     async function loadContentPerformance() {
       try {
         // Fetch document counts
-        const docsRes = await fetch(`/api/developer/documents?${effectiveDevelopmentId ? `projectId=${effectiveDevelopmentId}` : ''}`);
+        const docsRes = await fetch(`/api/developer/docs?${effectiveDevelopmentId ? `projectId=${effectiveDevelopmentId}` : ''}`);
         let documentsUploaded = 0;
 
         if (docsRes.ok) {
