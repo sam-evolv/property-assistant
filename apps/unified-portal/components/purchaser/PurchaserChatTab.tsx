@@ -978,21 +978,27 @@ export default function PurchaserChatTab({
           {/* Logo */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
             {developmentName?.toLowerCase().includes('rathard lawn') ? (
-              <img 
-                src="/rathard-lawn-logo.png" 
-                alt="Rathard Lawn" 
+              <img
+                src="/rathard-lawn-logo.png"
+                alt="Rathard Lawn"
                 className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : developmentName?.toLowerCase().includes('rathard park') ? (
-              <img 
-                src="/rathard-park-logo.png" 
-                alt="Rathard Park" 
+              <img
+                src="/rathard-park-logo.png"
+                alt="Rathard Park"
                 className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
+            ) : developmentName?.toLowerCase().includes('openhouse') ? (
+              <img
+                src="/openhouse-logo.png"
+                alt="OpenHouse AI"
+                className={`h-[70px] w-auto object-contain`}
+              />
             ) : (
-              <img 
-                src="/longview-logo.png" 
-                alt="Longview Estates" 
+              <img
+                src="/longview-logo.png"
+                alt="Longview Estates"
                 className={`h-[50px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             )}

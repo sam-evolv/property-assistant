@@ -492,24 +492,32 @@ export default function HomeResidentPage() {
         <div className="flex items-center gap-3">
           <div className="flex h-[45px] w-auto items-center justify-center">
             {house?.development_name?.toLowerCase().includes('rathard lawn') ? (
-              <img 
-                src="/rathard-lawn-logo.png" 
+              <img
+                src="/rathard-lawn-logo.png"
                 alt="Rathard Lawn logo"
                 width={150}
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
-              <img 
-                src="/rathard-park-logo.png" 
+              <img
+                src="/rathard-park-logo.png"
                 alt="Rathard Park logo"
                 width={150}
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
+            ) : house?.development_name?.toLowerCase().includes('openhouse') ? (
+              <img
+                src="/openhouse-logo.png"
+                alt="OpenHouse AI logo"
+                width={150}
+                height={45}
+                className="h-full w-auto object-contain transition-all"
+              />
             ) : (
-              <img 
-                src="/longview-logo.png" 
+              <img
+                src="/longview-logo.png"
                 alt="Longview Estates logo"
                 width={150}
                 height={45}
