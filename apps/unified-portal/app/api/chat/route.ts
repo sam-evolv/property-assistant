@@ -453,18 +453,21 @@ async function lookupRoomDimensions(
         }
       }
 
-      // Try development-wide
+      // Try development-wide defaults (only records WITHOUT a specific house_type_id)
+      // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .eq('room_key', searchKey)
+        .is('house_type_id', null)  // IMPORTANT: Only match truly development-wide defaults
+        .is('unit_id', null)        // And not unit-specific either
         .order('verified', { ascending: false })
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found development match with room_key="${searchKey}": ${data[0].room_name}`);
+        console.log(`[Chat] ✓ Found development-wide default with room_key="${searchKey}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
@@ -506,23 +509,27 @@ async function lookupRoomDimensions(
         }
       }
 
-      // Try development-wide
+      // Try development-wide defaults (only records WITHOUT a specific house_type_id)
+      // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_name', `%${searchName}%`)
+        .is('house_type_id', null)  // Only truly development-wide defaults
+        .is('unit_id', null)
         .order('verified', { ascending: false })
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found development ILIKE match with "${searchName}": ${data[0].room_name}`);
+        console.log(`[Chat] ✓ Found development-wide ILIKE match with "${searchName}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
 
     // STRATEGY 3: Try ILIKE on room_key as well (in case room_key has the display name format)
+    // Only match development-wide defaults (no house_type_id set)
     for (const searchName of roomMapping.searchNames) {
       const { data } = await supabase
         .from('unit_room_dimensions')
@@ -530,11 +537,13 @@ async function lookupRoomDimensions(
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_key', `%${searchName}%`)
+        .is('house_type_id', null)  // Only truly development-wide defaults
+        .is('unit_id', null)
         .order('verified', { ascending: false })
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found ILIKE match on room_key with "${searchName}": ${data[0].room_name}`);
+        console.log(`[Chat] ✓ Found development-wide ILIKE match on room_key with "${searchName}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
