@@ -138,6 +138,48 @@ async function findExistingData(): Promise<ExistingData | null> {
 async function addRoomDimensions(data: ExistingData) {
   console.log('📐 Adding room dimensions for house type', data.houseTypeCode, '...');
 
+  // First, we need to find or create the house_type_id
+  let houseTypeId = data.houseTypeId;
+
+  if (!houseTypeId) {
+    // Try to find existing house type
+    const { data: existingHouseType } = await supabase
+      .from('unit_types')
+      .select('id')
+      .eq('project_id', data.developmentId)
+      .eq('name', data.houseTypeCode)
+      .limit(1);
+
+    if (existingHouseType && existingHouseType.length > 0) {
+      houseTypeId = existingHouseType[0].id;
+      console.log(`  Found existing house type: ${houseTypeId}`);
+    } else {
+      // Create the house type
+      const { data: newHouseType, error: createError } = await supabase
+        .from('unit_types')
+        .insert({
+          project_id: data.developmentId,
+          name: data.houseTypeCode,
+          floor_plan_pdf_url: null,
+          specification_json: {
+            bedrooms: '3 Bedroom',
+            bathrooms: '2 Bathroom',
+            property_type: 'House'
+          }
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.log(`  ⚠️  Could not create house type: ${createError.message}`);
+        console.log(`  Trying to add dimensions with unit_id instead...`);
+      } else {
+        houseTypeId = newHouseType.id;
+        console.log(`  Created new house type: ${houseTypeId}`);
+      }
+    }
+  }
+
   // Room dimensions for A3 (3 bedroom house based on screenshot)
   const rooms = [
     { room_key: 'living_room', room_name: 'Living Room', length_m: 4.5, width_m: 3.8, area_sqm: 17.1 },
@@ -184,22 +226,28 @@ async function addRoomDimensions(data: ExistingData) {
       continue;
     }
 
-    // Insert new
+    // Insert new - use houseTypeId if we have it, otherwise use unit_id
+    const insertData: any = {
+      tenant_id: data.tenantId,
+      development_id: data.developmentId,
+      room_key: room.room_key,
+      room_name: room.room_name,
+      length_m: room.length_m,
+      width_m: room.width_m,
+      area_sqm: room.area_sqm,
+      verified: true,
+      source: 'demo_enhancement',
+    };
+
+    if (houseTypeId) {
+      insertData.house_type_id = houseTypeId;
+    } else {
+      insertData.unit_id = data.unitId; // Fall back to unit-specific
+    }
+
     const { error } = await supabase
       .from('unit_room_dimensions')
-      .insert({
-        tenant_id: data.tenantId,
-        development_id: data.developmentId,
-        house_type_id: data.houseTypeId || null,
-        unit_id: null, // House type level, not unit specific
-        room_key: room.room_key,
-        room_name: room.room_name,
-        length_m: room.length_m,
-        width_m: room.width_m,
-        area_sqm: room.area_sqm,
-        verified: true,
-        source: 'demo_enhancement',
-      });
+      .insert(insertData);
 
     if (error) {
       console.log(`  ⚠️  ${room.room_name}: ${error.message}`);
