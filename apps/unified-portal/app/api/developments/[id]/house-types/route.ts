@@ -28,18 +28,38 @@ export async function GET(
       return NextResponse.json({ error: 'Development ID required' }, { status: 400 });
     }
 
-    // First, get the development to find the tenant_id
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // First, try to get tenant_id from Drizzle developments table
+    let tenantId: string | null = null;
+
     const dev = await db.query.developments.findFirst({
       where: eq(developments.id, developmentId),
     });
 
-    if (!dev) {
-      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    if (dev) {
+      tenantId = dev.tenant_id;
+    } else {
+      // Development not in Drizzle - try to get tenant_id from Supabase projects table
+      const { data: project, error: projectError } = await supabaseAdmin
+        .from('projects')
+        .select('tenant_id')
+        .eq('id', developmentId)
+        .single();
+
+      if (projectError || !project) {
+        console.error('[HouseTypes API] Development not found in Drizzle or Supabase:', developmentId);
+        return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      }
+
+      tenantId = project.tenant_id;
     }
 
-    const tenantId = dev.tenant_id;
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Could not determine tenant' }, { status: 400 });
+    }
 
-    // First check if we have house types in Drizzle
+    // Check if we have house types in Drizzle for this development
     const existingHouseTypes = await db.query.houseTypes.findMany({
       where: eq(houseTypes.development_id, developmentId),
     });
@@ -59,8 +79,6 @@ export async function GET(
     }
 
     // No house types in Drizzle, get unique codes from Supabase units and create them
-    const supabaseAdmin = getSupabaseAdmin();
-
     const { data: units, error } = await supabaseAdmin
       .from('units')
       .select('house_type_code')
