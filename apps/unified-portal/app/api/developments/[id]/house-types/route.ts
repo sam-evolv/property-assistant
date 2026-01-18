@@ -79,24 +79,30 @@ export async function GET(
     }
 
     // No house types in Drizzle, get unique codes from Supabase units and create them
+    // Try both house_type_code and house_type columns since the schema varies
     const { data: units, error } = await supabaseAdmin
       .from('units')
-      .select('house_type_code')
-      .eq('project_id', developmentId)
-      .not('house_type_code', 'is', null);
+      .select('house_type_code, house_type')
+      .eq('project_id', developmentId);
 
     if (error) {
       console.error('[HouseTypes API] Error fetching units:', error);
       return NextResponse.json({ error: 'Failed to fetch house types' }, { status: 500 });
     }
 
-    // Extract unique house type codes
+    console.log(`[HouseTypes API] Fetched ${units?.length || 0} units for development ${developmentId}`);
+
+    // Extract unique house type codes - check both column names
     const uniqueCodes = new Set<string>();
     (units || []).forEach((unit: any) => {
-      if (unit.house_type_code) {
-        uniqueCodes.add(unit.house_type_code);
+      // Prefer house_type_code, fall back to house_type
+      const code = unit.house_type_code || unit.house_type;
+      if (code && typeof code === 'string' && code.trim()) {
+        uniqueCodes.add(code.trim());
       }
     });
+
+    console.log(`[HouseTypes API] Found ${uniqueCodes.size} unique house type codes:`, Array.from(uniqueCodes));
 
     if (uniqueCodes.size === 0) {
       console.log(`[HouseTypes API] No house types found for development ${developmentId}`);
