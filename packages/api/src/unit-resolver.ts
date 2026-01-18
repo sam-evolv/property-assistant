@@ -18,10 +18,11 @@ function getSupabaseClient() {
 
 export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null> {
   const supabase = getSupabaseClient();
-  
+
+  // Include tenant_id directly from units table - it's already there!
   const { data: supabaseUnit, error } = await supabase
     .from('units')
-    .select('id, address, project_id, unit_type_id')
+    .select('id, address, project_id, unit_type_id, tenant_id')
     .eq('id', unitUid)
     .single();
 
@@ -30,9 +31,11 @@ export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null>
     return null;
   }
 
-  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'project:', supabaseUnit.project_id);
+  // Use tenant_id directly from unit (not from projects table which has organization_id instead)
+  const tenantId: string | null = supabaseUnit.tenant_id || null;
 
-  let tenantId: string | null = null;
+  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'tenant:', tenantId, 'project:', supabaseUnit.project_id);
+
   let houseTypeCode: string | undefined;
 
   if (supabaseUnit.unit_type_id) {
@@ -41,22 +44,10 @@ export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null>
       .select('id, code, project_id')
       .eq('id', supabaseUnit.unit_type_id)
       .single();
-    
+
     if (unitType) {
       houseTypeCode = unitType.code;
       console.log('[UnitResolver] House type code:', houseTypeCode);
-    }
-  }
-
-  if (supabaseUnit.project_id) {
-    const { data: project } = await supabase
-      .from('projects')
-      .select('id, tenant_id')
-      .eq('id', supabaseUnit.project_id)
-      .single();
-
-    if (project) {
-      tenantId = project.tenant_id;
     }
   }
 
