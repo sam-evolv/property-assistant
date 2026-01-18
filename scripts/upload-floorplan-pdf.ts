@@ -43,9 +43,11 @@ async function uploadFloorPlanPDF(pdfPath: string) {
   console.log('Uploading floor plan PDF to Supabase storage...');
   console.log('Storage path:', storagePath);
 
-  // Upload to Supabase Storage
+  // Upload to Supabase Storage (bucket is 'development_docs')
+  const STORAGE_BUCKET = 'development_docs';
+
   const { data: uploadData, error: uploadError } = await supabase.storage
-    .from('documents')
+    .from(STORAGE_BUCKET)
     .upload(storagePath, fileBuffer, {
       contentType: 'application/pdf',
       upsert: true,
@@ -60,7 +62,7 @@ async function uploadFloorPlanPDF(pdfPath: string) {
 
   // Get the public URL
   const { data: urlData } = supabase.storage
-    .from('documents')
+    .from(STORAGE_BUCKET)
     .getPublicUrl(storagePath);
 
   console.log('Public URL:', urlData.publicUrl);
