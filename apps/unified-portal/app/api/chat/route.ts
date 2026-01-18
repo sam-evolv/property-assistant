@@ -99,34 +99,51 @@ function getSupabaseClient() {
   );
 }
 
-// Room name extraction from questions
-const ROOM_NAME_PATTERNS: Record<string, RegExp[]> = {
-  'utility': [/\butility\b/i, /\blaundry\b/i, /\bstorage\b/i],
-  'living_room': [/\bliving\s*room\b/i, /\bsitting\s*room\b/i, /\blounge\b/i, /\bfront\s*room\b/i],
-  'kitchen': [/\bkitchen\b/i],
-  'kitchen_dining': [/\bkitchen\s*\/?\s*dining\b/i, /\bkitchen\s+dining\b/i, /\bopen\s+plan\s+kitchen\b/i],
-  'dining': [/\bdining\s*room\b/i, /\bdining\s*area\b/i],
-  'bedroom_1': [/\b(?:master|main|primary)\s*bedroom\b/i, /\bbedroom\s*(?:1|one)\b/i],
-  'bedroom_2': [/\bbedroom\s*(?:2|two)\b/i, /\bsecond\s*bedroom\b/i],
-  'bedroom_3': [/\bbedroom\s*(?:3|three)\b/i, /\bthird\s*bedroom\b/i],
-  'bedroom_4': [/\bbedroom\s*(?:4|four)\b/i, /\bfourth\s*bedroom\b/i],
-  'bathroom': [/\bbathroom\b/i, /\bmain\s*bathroom\b/i, /\bfamily\s*bathroom\b/i],
-  'ensuite': [/\ben-?suite\b/i, /\bmaster\s*bath\b/i],
-  'toilet': [/\btoilet\b/i, /\bwc\b/i, /\bcloakroom\b/i, /\bpowder\s*room\b/i],
-  'hall': [/\bhall(?:way)?\b/i, /\bentrance\b/i, /\bfoyer\b/i],
-  'landing': [/\blanding\b/i],
-  'garage': [/\bgarage\b/i, /\bcar\s*port\b/i],
-  'study': [/\bstudy\b/i, /\boffice\b/i, /\bbox\s*room\b/i],
-};
+// Room name extraction from questions - ORDER MATTERS (more specific patterns first)
+// This array is checked in order, so put compound room names before simple ones
+const ROOM_NAME_PATTERNS: Array<{ roomKey: string; patterns: RegExp[] }> = [
+  // Compound rooms first (must check before simple "kitchen" or "dining")
+  { roomKey: 'kitchen_dining', patterns: [/\bkitchen\s*[\/&]\s*dining\b/i, /\bkitchen\s+dining\b/i, /\bkitchen[-_]dining\b/i, /\bopen\s+plan\s+kitchen\b/i] },
+
+  // Specific numbered bedrooms before generic "bedroom"
+  { roomKey: 'bedroom_1', patterns: [/\b(?:master|main|primary)\s*bedroom\b/i, /\bbedroom\s*(?:1|one)\b/i, /\b(?:first|1st)\s*bedroom\b/i] },
+  { roomKey: 'bedroom_2', patterns: [/\bbedroom\s*(?:2|two)\b/i, /\b(?:second|2nd)\s*bedroom\b/i] },
+  { roomKey: 'bedroom_3', patterns: [/\bbedroom\s*(?:3|three)\b/i, /\b(?:third|3rd)\s*bedroom\b/i] },
+  { roomKey: 'bedroom_4', patterns: [/\bbedroom\s*(?:4|four)\b/i, /\b(?:fourth|4th)\s*bedroom\b/i] },
+
+  // Toilet/WC variations (before bathroom to catch "downstairs toilet")
+  { roomKey: 'toilet', patterns: [/\btoilet\b/i, /\bwc\b/i, /\bcloakroom\b/i, /\bpowder\s*room\b/i, /\bdownstairs\s*(?:toilet|wc|loo|bathroom)\b/i, /\bguest\s*(?:toilet|wc|loo)\b/i, /\bground\s*floor\s*(?:toilet|wc)\b/i] },
+
+  // Ensuite before bathroom
+  { roomKey: 'ensuite', patterns: [/\ben-?suite\b/i, /\bmaster\s*bath(?:room)?\b/i, /\bensuite\s*bath(?:room)?\b/i] },
+
+  // Now the simpler/generic rooms
+  { roomKey: 'utility', patterns: [/\butility(?:\s*room)?\b/i, /\blaundry(?:\s*room)?\b/i] },
+  { roomKey: 'living_room', patterns: [/\bliving\s*room\b/i, /\bsitting\s*room\b/i, /\blounge\b/i, /\bfront\s*room\b/i, /\bliving\s*area\b/i] },
+  { roomKey: 'kitchen', patterns: [/\bkitchen\b/i] },
+  { roomKey: 'dining', patterns: [/\bdining\s*room\b/i, /\bdining\s*area\b/i, /\bdining\b/i] },
+  { roomKey: 'bathroom', patterns: [/\bbathroom\b/i, /\bmain\s*bathroom\b/i, /\bfamily\s*bathroom\b/i, /\bupstairs\s*bathroom\b/i] },
+  { roomKey: 'hall', patterns: [/\bhall(?:way)?\b/i, /\bentrance(?:\s*hall)?\b/i, /\bfoyer\b/i, /\bfront\s*hall\b/i] },
+  { roomKey: 'landing', patterns: [/\blanding\b/i, /\bupstairs\s*landing\b/i] },
+  { roomKey: 'garage', patterns: [/\bgarage\b/i, /\bcar\s*port\b/i] },
+  { roomKey: 'study', patterns: [/\bstudy\b/i, /\boffice\b/i, /\bhome\s*office\b/i, /\bbox\s*room\b/i] },
+  { roomKey: 'hotpress', patterns: [/\bhot\s*press\b/i, /\bhotpress\b/i, /\bairing\s*cupboard\b/i, /\bboiler\s*room\b/i] },
+  { roomKey: 'storage', patterns: [/\bstorage(?:\s*room)?\b/i, /\bcupboard\b/i] },
+
+  // Generic bedroom as fallback (if no number specified)
+  { roomKey: 'bedroom_1', patterns: [/\bbedroom\b/i] },
+];
 
 function extractRoomNameFromQuestion(question: string): { roomKey: string; roomName: string } | null {
   const lowerQuestion = question.toLowerCase();
 
-  for (const [roomKey, patterns] of Object.entries(ROOM_NAME_PATTERNS)) {
+  // Check patterns in order (more specific first)
+  for (const { roomKey, patterns } of ROOM_NAME_PATTERNS) {
     for (const pattern of patterns) {
       if (pattern.test(lowerQuestion)) {
         // Convert room_key to display name
         const roomName = roomKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        console.log(`[Chat] Extracted room "${roomKey}" (${roomName}) from question`);
         return { roomKey, roomName };
       }
     }
@@ -147,6 +164,52 @@ interface RoomDimensionResult {
   source?: string;
 }
 
+// Generate alternative room key formats for fuzzy matching
+function getRoomKeyVariants(roomKey: string): string[] {
+  const variants = new Set<string>();
+  variants.add(roomKey);
+  variants.add(roomKey.toLowerCase());
+  variants.add(roomKey.toUpperCase());
+
+  // Convert underscores to spaces and vice versa
+  variants.add(roomKey.replace(/_/g, ' '));
+  variants.add(roomKey.replace(/ /g, '_'));
+
+  // Convert to Title Case
+  const titleCase = roomKey.split(/[_\s]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  variants.add(titleCase);
+
+  // Handle kitchen/dining variations
+  if (roomKey.includes('kitchen') && roomKey.includes('dining')) {
+    variants.add('kitchen/dining');
+    variants.add('Kitchen/Dining');
+    variants.add('kitchen_dining');
+    variants.add('kitchen-dining');
+    variants.add('Kitchen Dining');
+  }
+
+  // Handle WC/toilet variations
+  if (roomKey === 'toilet' || roomKey === 'wc') {
+    variants.add('toilet');
+    variants.add('Toilet');
+    variants.add('wc');
+    variants.add('WC');
+    variants.add('W.C.');
+    variants.add('cloakroom');
+    variants.add('Cloakroom');
+  }
+
+  // Handle bathroom variations
+  if (roomKey.includes('bathroom')) {
+    variants.add('bathroom');
+    variants.add('Bathroom');
+    variants.add('Main Bathroom');
+    variants.add('Family Bathroom');
+  }
+
+  return Array.from(variants);
+}
+
 async function lookupRoomDimensions(
   supabase: ReturnType<typeof getSupabaseClient>,
   tenantId: string,
@@ -157,6 +220,10 @@ async function lookupRoomDimensions(
 ): Promise<RoomDimensionResult> {
   try {
     console.log(`[Chat] Looking up room dimensions for ${roomKey}, houseTypeCode=${houseTypeCode}, unit=${unitId}, dev=${developmentId}`);
+
+    // Generate alternative room key formats to try
+    const roomKeyVariants = getRoomKeyVariants(roomKey);
+    console.log(`[Chat] Will try room key variants: ${roomKeyVariants.join(', ')}`);
 
     // First, we need to get the house_type_id from unit_types table if we have a house type code
     let houseTypeId: string | undefined;
@@ -173,19 +240,30 @@ async function lookupRoomDimensions(
       }
     }
 
+    // Helper function to try finding dimensions with multiple room key variants
+    async function tryFindDimension(baseQuery: any): Promise<any | null> {
+      for (const variant of roomKeyVariants) {
+        const { data, error } = await baseQuery.eq('room_key', variant).limit(1);
+        if (!error && data && data.length > 0) {
+          console.log(`[Chat] Found match with room_key variant: "${variant}"`);
+          return data[0];
+        }
+      }
+      return null;
+    }
+
     // Strategy 1: Try unit-specific dimensions first
     if (unitId) {
-      const { data: unitData, error: unitError } = await supabase
-        .from('unit_room_dimensions')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('unit_id', unitId)
-        .eq('room_key', roomKey)
-        .order('verified', { ascending: false })
-        .limit(1);
+      const dim = await tryFindDimension(
+        supabase
+          .from('unit_room_dimensions')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('unit_id', unitId)
+          .order('verified', { ascending: false })
+      );
 
-      if (!unitError && unitData && unitData.length > 0) {
-        const dim = unitData[0];
+      if (dim) {
         console.log(`[Chat] Found unit-specific room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
         return {
           found: true,
@@ -202,18 +280,17 @@ async function lookupRoomDimensions(
 
     // Strategy 2: Try house-type-level dimensions
     if (houseTypeId) {
-      const { data: houseTypeData, error: htError } = await supabase
-        .from('unit_room_dimensions')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('house_type_id', houseTypeId)
-        .eq('room_key', roomKey)
-        .is('unit_id', null)
-        .order('verified', { ascending: false })
-        .limit(1);
+      const dim = await tryFindDimension(
+        supabase
+          .from('unit_room_dimensions')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('house_type_id', houseTypeId)
+          .is('unit_id', null)
+          .order('verified', { ascending: false })
+      );
 
-      if (!htError && houseTypeData && houseTypeData.length > 0) {
-        const dim = houseTypeData[0];
+      if (dim) {
         console.log(`[Chat] Found house-type-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
         return {
           found: true,
@@ -229,17 +306,16 @@ async function lookupRoomDimensions(
     }
 
     // Strategy 3: Try development-wide search for any matching room
-    const { data: devData, error: devError } = await supabase
-      .from('unit_room_dimensions')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('development_id', developmentId)
-      .eq('room_key', roomKey)
-      .order('verified', { ascending: false })
-      .limit(1);
+    const dim = await tryFindDimension(
+      supabase
+        .from('unit_room_dimensions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .order('verified', { ascending: false })
+    );
 
-    if (!devError && devData && devData.length > 0) {
-      const dim = devData[0];
+    if (dim) {
       console.log(`[Chat] Found development-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
       return {
         found: true,
@@ -250,6 +326,32 @@ async function lookupRoomDimensions(
         ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
         verified: dim.verified,
         source: dim.source,
+      };
+    }
+
+    // Strategy 4: Fallback - search by room_name ILIKE (case-insensitive partial match)
+    const searchTerm = roomKey.replace(/_/g, ' ');
+    const { data: fuzzyData } = await supabase
+      .from('unit_room_dimensions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('development_id', developmentId)
+      .ilike('room_name', `%${searchTerm}%`)
+      .order('verified', { ascending: false })
+      .limit(1);
+
+    if (fuzzyData && fuzzyData.length > 0) {
+      const fuzzyDim = fuzzyData[0];
+      console.log(`[Chat] Found room dimension via fuzzy match on room_name: ${fuzzyDim.room_name} = ${fuzzyDim.area_sqm}m²`);
+      return {
+        found: true,
+        roomName: fuzzyDim.room_name,
+        length_m: fuzzyDim.length_m ? parseFloat(fuzzyDim.length_m) : undefined,
+        width_m: fuzzyDim.width_m ? parseFloat(fuzzyDim.width_m) : undefined,
+        area_sqm: fuzzyDim.area_sqm ? parseFloat(fuzzyDim.area_sqm) : undefined,
+        ceiling_height_m: fuzzyDim.ceiling_height_m ? parseFloat(fuzzyDim.ceiling_height_m) : undefined,
+        verified: fuzzyDim.verified,
+        source: fuzzyDim.source,
       };
     }
 
