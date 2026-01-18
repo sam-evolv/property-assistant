@@ -40,23 +40,27 @@ export async function GET(
     if (dev) {
       tenantId = dev.tenant_id;
     } else {
-      // Development not in Drizzle - try to get tenant_id from Supabase projects table
+      // Development not in Drizzle - try to get from Supabase projects table
+      // Note: Supabase projects use 'organization_id' instead of 'tenant_id'
       const { data: project, error: projectError } = await supabaseAdmin
         .from('projects')
-        .select('tenant_id')
+        .select('organization_id')
         .eq('id', developmentId)
         .single();
 
       if (projectError || !project) {
-        console.error('[HouseTypes API] Development not found in Drizzle or Supabase:', developmentId);
+        console.error('[HouseTypes API] Development not found in Drizzle or Supabase:', developmentId, projectError);
         return NextResponse.json({ error: 'Development not found' }, { status: 404 });
       }
 
-      tenantId = project.tenant_id;
+      // Map organization_id to tenantId (they serve the same purpose)
+      tenantId = project.organization_id;
     }
 
+    // tenantId might be null for some projects - that's OK, we can still proceed
+    // to fetch house types. We just won't be able to create new ones in Drizzle.
     if (!tenantId) {
-      return NextResponse.json({ error: 'Could not determine tenant' }, { status: 400 });
+      console.log('[HouseTypes API] No tenant_id found, proceeding without tenant context');
     }
 
     // Check if we have house types in Drizzle for this development
@@ -126,6 +130,20 @@ export async function GET(
     if (uniqueCodes.size === 0) {
       console.log(`[HouseTypes API] No house types found for development ${developmentId}`);
       return NextResponse.json({ houseTypes: [] });
+    }
+
+    // If we don't have a tenant_id, we can't persist to Drizzle - return virtual house types
+    if (!tenantId) {
+      console.log('[HouseTypes API] No tenant_id - returning virtual house types from Supabase data');
+      const virtualHouseTypes = Array.from(uniqueCodes).map((code, index) => ({
+        id: `virtual-${developmentId}-${index}`,
+        house_type_code: code,
+        development_id: developmentId,
+        bedrooms: null,
+        total_floor_area_sqm: null,
+      })).sort((a, b) => a.house_type_code.localeCompare(b.house_type_code));
+
+      return NextResponse.json({ houseTypes: virtualHouseTypes });
     }
 
     // Create house types in Drizzle for each unique code
