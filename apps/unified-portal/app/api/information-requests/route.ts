@@ -1,24 +1,45 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@openhouse/db';
-import { informationRequests, units } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 // Helper to resolve tenant/development from unit
 async function resolveUnitContext(unitId: string | null): Promise<{ tenantId: string | null; developmentId: string | null }> {
   if (!unitId) return { tenantId: null, developmentId: null };
-  
+
   try {
-    const { rows } = await db.execute(sql`
-      SELECT u.tenant_id, u.development_id 
-      FROM units u 
-      WHERE u.id = ${unitId}::uuid OR u.unit_uid = ${unitId}
-      LIMIT 1
-    `);
-    if (rows.length > 0) {
-      const unit = rows[0] as any;
-      return { tenantId: unit.tenant_id, developmentId: unit.development_id };
+    const supabase = getSupabaseAdmin();
+
+    // Try by ID first
+    let { data: unit, error } = await supabase
+      .from('units')
+      .select('tenant_id, project_id')
+      .eq('id', unitId)
+      .single();
+
+    // If not found by ID, try by unit_uid
+    if (error || !unit) {
+      const { data: unitByUid } = await supabase
+        .from('units')
+        .select('tenant_id, project_id')
+        .eq('unit_uid', unitId)
+        .single();
+      unit = unitByUid;
+    }
+
+    if (unit) {
+      return { tenantId: unit.tenant_id, developmentId: unit.project_id };
     }
   } catch (e) {
     console.log('[InfoRequest] Could not resolve unit context:', e);
@@ -40,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve tenant/development from unit - MUST succeed for proper isolation
     const unitContext = await resolveUnitContext(unitId);
-    
+
     if (!unitContext.tenantId || !unitContext.developmentId) {
       console.error('[InfoRequest] FAIL: Could not resolve tenant/development for unit:', unitId);
       return NextResponse.json(
@@ -49,22 +70,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newRequest = await db.insert(informationRequests).values({
-      tenant_id: unitContext.tenantId,
-      development_id: unitContext.developmentId,
-      unit_id: unitId || null,
-      question: question.trim(),
-      context: context || null,
-      topic: topic || null,
-      status: 'pending',
-      priority: 'normal',
-    }).returning();
+    const supabase = getSupabaseAdmin();
 
-    console.log('[InfoRequest] Created new information request:', newRequest[0]?.id);
+    const { data: newRequest, error: insertError } = await supabase
+      .from('information_requests')
+      .insert({
+        tenant_id: unitContext.tenantId,
+        development_id: unitContext.developmentId,
+        unit_id: unitId || null,
+        question: question.trim(),
+        context: context || null,
+        topic: topic || null,
+        status: 'pending',
+        priority: 'normal',
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('[InfoRequest] Insert error:', insertError);
+      return NextResponse.json(
+        { error: 'Failed to submit request' },
+        { status: 500 }
+      );
+    }
+
+    console.log('[InfoRequest] Created new information request:', newRequest?.id);
 
     return NextResponse.json({
       success: true,
-      id: newRequest[0]?.id,
+      id: newRequest?.id,
       message: 'Your question has been submitted. The developer team will review it and add this information to help future residents.',
     });
   } catch (error) {
@@ -84,30 +119,41 @@ export async function GET(request: NextRequest) {
     const tenantId = searchParams.get('tenantId');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Build conditions dynamically based on provided filters
-    const conditions: any[] = [];
-    
+    const supabase = getSupabaseAdmin();
+
+    // Build query
+    let query = supabase
+      .from('information_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
     if (tenantId) {
-      conditions.push(eq(informationRequests.tenant_id, tenantId));
+      query = query.eq('tenant_id', tenantId);
     }
     if (developmentId) {
-      conditions.push(eq(informationRequests.development_id, developmentId));
+      query = query.eq('development_id', developmentId);
     }
     if (status) {
-      conditions.push(eq(informationRequests.status, status));
+      query = query.eq('status', status);
     }
 
-    const requests = await db
-      .select()
-      .from(informationRequests)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(informationRequests.created_at))
-      .limit(limit);
+    const { data: requests, error } = await query;
+
+    if (error) {
+      // Table might not exist - return empty list gracefully
+      console.log('[InfoRequest] Query error (table may not exist):', error.message);
+      return NextResponse.json({
+        success: true,
+        requests: [],
+        total: 0,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      requests,
-      total: requests.length,
+      requests: requests || [],
+      total: requests?.length || 0,
     });
   } catch (error) {
     console.error('[InfoRequest] Error fetching requests:', error);

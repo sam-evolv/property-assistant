@@ -302,12 +302,11 @@ export async function GET(request: NextRequest) {
       console.log(`[DeveloperDashboard] Document coverage query failed (graceful fallback):`, e);
     }
     
-    // Must-read compliance - MUST match exact logic from Homeowners tab (list.tsx)
-    // The Homeowners tab uses 'projects' table for development info and 'purchaser_agreements' table for acknowledgements
+    // Must-read compliance - Count units that have acknowledged important docs
+    // Use Supabase unit fields as the PRIMARY source since Drizzle is failing
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      // Get all units with their project_id and acknowledgement info
-      // Include important_docs_agreed_at as a fallback indicator of acknowledgement
+      // Get all units with their acknowledgement info from Supabase
       let unitsWithAckQuery = supabaseAdmin
         .from('units')
         .select('id, important_docs_agreed_version, important_docs_agreed_at, project_id');
@@ -321,7 +320,7 @@ export async function GET(request: NextRequest) {
       if (unitsError) {
         console.log(`[DeveloperDashboard] Units acknowledgement query error:`, unitsError);
       } else if (unitsWithAck && unitsWithAck.length > 0) {
-        // Get development version from 'projects' table (Supabase) - same as Homeowners page
+        // Get development version from 'projects' table (Supabase)
         const developmentIds = [...new Set(unitsWithAck.map(u => u.project_id))];
         const { data: projects } = await supabaseAdmin
           .from('projects')
@@ -334,52 +333,28 @@ export async function GET(request: NextRequest) {
           devVersionMap[p.id] = p.important_docs_version || 0;
         });
 
-        // Try to get acknowledgement status from purchaser_agreements table (Drizzle)
-        let acknowledgedUnitsFromAgreements = new Map<string, number>();
-        let drizzleFailed = false;
-        try {
-          const agreementsResult = await db.execute(sql`
-            SELECT DISTINCT ON (unit_id) unit_id, docs_version
-            FROM purchaser_agreements
-            WHERE unit_id IS NOT NULL
-            ORDER BY unit_id, agreed_at DESC
-          `);
-          for (const row of agreementsResult.rows as any[]) {
-            acknowledgedUnitsFromAgreements.set(row.unit_id, row.docs_version || 1);
-          }
-          console.log(`[DeveloperDashboard] Found ${acknowledgedUnitsFromAgreements.size} acknowledged units from purchaser_agreements`);
-        } catch (agreementError) {
-          drizzleFailed = true;
-          console.log(`[DeveloperDashboard] purchaser_agreements query failed, using Supabase unit fields only:`, agreementError);
-        }
-
         // Count units that have acknowledged
+        // PRIMARY CHECK: If important_docs_agreed_at is set, the unit has acknowledged
+        // SECONDARY CHECK: If important_docs_agreed_version >= project's important_docs_version
         let acknowledgedCount = 0;
         for (const unit of unitsWithAck) {
-          // Use purchaser_agreements as primary source, fall back to unit fields
-          const agreedVersion = acknowledgedUnitsFromAgreements.get(unit.id) || unit.important_docs_agreed_version || 0;
+          const agreedVersion = unit.important_docs_agreed_version || 0;
           const devVersion = devVersionMap[unit.project_id] || 0;
+          const hasAgreedDate = !!unit.important_docs_agreed_at;
 
-          // If Drizzle failed and version is 0, check if important_docs_agreed_at is set
-          // This is a reliable fallback - if they have a date, they acknowledged
-          const hasAgreedDate = drizzleFailed && unit.important_docs_agreed_at;
-
-          // Exact logic from Homeowners tab list.tsx hasUnitAcknowledged():
-          // If no version is set anywhere (devVersion === 0), check if agreed at least version 1
-          // Otherwise, check if agreed >= dev version
-          if (devVersion === 0) {
-            if (agreedVersion >= 1 || hasAgreedDate) {
-              acknowledgedCount++;
-            }
-          } else {
-            if (agreedVersion >= devVersion || hasAgreedDate) {
-              acknowledgedCount++;
-            }
+          // If unit has an agreed date, count as acknowledged
+          // OR if they have a version number that meets or exceeds the required version
+          if (hasAgreedDate) {
+            acknowledgedCount++;
+          } else if (devVersion === 0 && agreedVersion >= 1) {
+            acknowledgedCount++;
+          } else if (devVersion > 0 && agreedVersion >= devVersion) {
+            acknowledgedCount++;
           }
         }
 
         mustRead = { total_units: totalUnits, acknowledged: acknowledgedCount };
-        console.log(`[DeveloperDashboard] Must-read compliance: ${acknowledgedCount} of ${totalUnits} acknowledged (drizzleFailed=${drizzleFailed})`);
+        console.log(`[DeveloperDashboard] Must-read compliance: ${acknowledgedCount} of ${totalUnits} acknowledged`);
       }
     } catch (e) {
       console.log(`[DeveloperDashboard] Must-read compliance query failed (graceful fallback):`, e);

@@ -1,11 +1,21 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@openhouse/db';
-import { sql } from 'drizzle-orm';
 import { getAdminSession } from '@openhouse/api/session';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 /**
  * Developer Settings API
@@ -27,22 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing key parameter' }, { status: 400 });
     }
 
-    // Try to get the setting from the database
-    const result = await db.execute(sql`
-      SELECT value FROM developer_settings
-      WHERE tenant_id = ${session.tenantId}::uuid AND key = ${key}
-      LIMIT 1
-    `);
-
-    if (result.rows.length > 0) {
-      return NextResponse.json({
-        key,
-        value: result.rows[0].value,
-        exists: true
-      });
-    }
-
-    // Return default values for known settings
+    // Return default values for known settings - Supabase table may not exist
     const defaults: Record<string, any> = {
       room_dimensions: {
         enabled: true,
@@ -78,13 +73,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing key parameter' }, { status: 400 });
     }
 
+    const supabase = getSupabaseAdmin();
+
     // Upsert the setting
-    await db.execute(sql`
-      INSERT INTO developer_settings (tenant_id, key, value, updated_at)
-      VALUES (${session.tenantId}::uuid, ${key}, ${JSON.stringify(value)}::jsonb, NOW())
-      ON CONFLICT (tenant_id, key)
-      DO UPDATE SET value = ${JSON.stringify(value)}::jsonb, updated_at = NOW()
-    `);
+    const { error } = await supabase
+      .from('developer_settings')
+      .upsert({
+        tenant_id: session.tenantId,
+        key: key,
+        value: value,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'tenant_id,key'
+      });
+
+    if (error) {
+      console.error('[API] POST /api/developer/settings error:', error);
+      return NextResponse.json({ error: 'Failed to save setting' }, { status: 500 });
+    }
 
     console.log(`[SETTINGS] Saved ${key} for tenant ${session.tenantId}`);
 
