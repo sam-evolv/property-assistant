@@ -99,56 +99,260 @@ function getSupabaseClient() {
   );
 }
 
-// Room name extraction from questions - ORDER MATTERS (more specific patterns first)
-// This array is checked in order, so put compound room names before simple ones
-const ROOM_NAME_PATTERNS: Array<{ roomKey: string; patterns: RegExp[] }> = [
-  // Compound rooms first (must check before simple "kitchen" or "dining")
-  { roomKey: 'kitchen_dining', patterns: [/\bkitchen\s*[\/&]\s*dining\b/i, /\bkitchen\s+dining\b/i, /\bkitchen[-_]dining\b/i, /\bopen\s+plan\s+kitchen\b/i] },
+// SMART ROOM MATCHING SYSTEM
+// Maps user phrases to possible database room keys to search for
+// Each entry has: displayName (for response), searchKeys (room_key values to try in DB), searchNames (room_name patterns for ILIKE)
 
-  // Specific numbered bedrooms before generic "bedroom"
-  { roomKey: 'bedroom_1', patterns: [/\b(?:master|main|primary)\s*bedroom\b/i, /\bbedroom\s*(?:1|one)\b/i, /\b(?:first|1st)\s*bedroom\b/i] },
-  { roomKey: 'bedroom_2', patterns: [/\bbedroom\s*(?:2|two)\b/i, /\b(?:second|2nd)\s*bedroom\b/i] },
-  { roomKey: 'bedroom_3', patterns: [/\bbedroom\s*(?:3|three)\b/i, /\b(?:third|3rd)\s*bedroom\b/i] },
-  { roomKey: 'bedroom_4', patterns: [/\bbedroom\s*(?:4|four)\b/i, /\b(?:fourth|4th)\s*bedroom\b/i] },
+interface RoomMapping {
+  displayName: string;
+  searchKeys: string[];  // Exact room_key values to search in DB
+  searchNames: string[]; // Patterns for ILIKE search on room_name
+}
 
-  // Toilet/WC variations (before bathroom to catch "downstairs toilet")
-  { roomKey: 'toilet', patterns: [/\btoilet\b/i, /\bwc\b/i, /\bcloakroom\b/i, /\bpowder\s*room\b/i, /\bdownstairs\s*(?:toilet|wc|loo|bathroom)\b/i, /\bguest\s*(?:toilet|wc|loo)\b/i, /\bground\s*floor\s*(?:toilet|wc)\b/i] },
+// Comprehensive mapping of how users might ask about rooms
+const ROOM_PHRASE_MAPPINGS: Array<{ patterns: RegExp[]; mapping: RoomMapping }> = [
+  // KITCHEN/DINING - must check compound terms first
+  {
+    patterns: [/\bkitchen\s*[\/&-]\s*dining\b/i, /\bkitchen\s+dining\b/i, /\bopen\s*plan\s*kitchen\b/i],
+    mapping: {
+      displayName: 'Kitchen/Dining',
+      searchKeys: ['kitchen_dining', 'kitchen/dining', 'Kitchen/Dining', 'kitchen-dining', 'Kitchen Dining', 'kitchen dining'],
+      searchNames: ['kitchen%dining', 'kitchen/dining', 'open plan']
+    }
+  },
 
-  // Ensuite before bathroom
-  { roomKey: 'ensuite', patterns: [/\ben-?suite\b/i, /\bmaster\s*bath(?:room)?\b/i, /\bensuite\s*bath(?:room)?\b/i] },
+  // KITCHEN alone - but also try kitchen/dining as fallback
+  {
+    patterns: [/\bkitchen\b/i],
+    mapping: {
+      displayName: 'Kitchen',
+      searchKeys: ['kitchen', 'Kitchen', 'kitchen_dining', 'kitchen/dining', 'Kitchen/Dining'],
+      searchNames: ['kitchen']
+    }
+  },
 
-  // Now the simpler/generic rooms
-  { roomKey: 'utility', patterns: [/\butility(?:\s*room)?\b/i, /\blaundry(?:\s*room)?\b/i] },
-  { roomKey: 'living_room', patterns: [/\bliving\s*room\b/i, /\bsitting\s*room\b/i, /\blounge\b/i, /\bfront\s*room\b/i, /\bliving\s*area\b/i] },
-  { roomKey: 'kitchen', patterns: [/\bkitchen\b/i] },
-  { roomKey: 'dining', patterns: [/\bdining\s*room\b/i, /\bdining\s*area\b/i, /\bdining\b/i] },
-  { roomKey: 'bathroom', patterns: [/\bbathroom\b/i, /\bmain\s*bathroom\b/i, /\bfamily\s*bathroom\b/i, /\bupstairs\s*bathroom\b/i] },
-  { roomKey: 'hall', patterns: [/\bhall(?:way)?\b/i, /\bentrance(?:\s*hall)?\b/i, /\bfoyer\b/i, /\bfront\s*hall\b/i] },
-  { roomKey: 'landing', patterns: [/\blanding\b/i, /\bupstairs\s*landing\b/i] },
-  { roomKey: 'garage', patterns: [/\bgarage\b/i, /\bcar\s*port\b/i] },
-  { roomKey: 'study', patterns: [/\bstudy\b/i, /\boffice\b/i, /\bhome\s*office\b/i, /\bbox\s*room\b/i] },
-  { roomKey: 'hotpress', patterns: [/\bhot\s*press\b/i, /\bhotpress\b/i, /\bairing\s*cupboard\b/i, /\bboiler\s*room\b/i] },
-  { roomKey: 'storage', patterns: [/\bstorage(?:\s*room)?\b/i, /\bcupboard\b/i] },
+  // LIVING ROOM - many variations
+  {
+    patterns: [
+      /\bliving\s*room\b/i, /\bsitting\s*room\b/i, /\blounge\b/i, /\bfront\s*room\b/i,
+      /\btv\s*room\b/i, /\btelevision\s*room\b/i, /\bliving\s*area\b/i, /\breception\s*room\b/i,
+      /\bfamily\s*room\b/i, /\bden\b/i, /\bparlour\b/i, /\bparlor\b/i
+    ],
+    mapping: {
+      displayName: 'Living Room',
+      searchKeys: ['living_room', 'living room', 'Living Room', 'lounge', 'Lounge', 'sitting_room', 'sitting room', 'Sitting Room'],
+      searchNames: ['living', 'lounge', 'sitting', 'reception']
+    }
+  },
 
-  // Generic bedroom as fallback (if no number specified)
-  { roomKey: 'bedroom_1', patterns: [/\bbedroom\b/i] },
+  // MASTER/MAIN BEDROOM
+  {
+    patterns: [/\b(?:master|main|primary)\s*bedroom\b/i, /\bmaster\b/i, /\bmain\s*bed\b/i],
+    mapping: {
+      displayName: 'Master Bedroom',
+      searchKeys: ['bedroom_1', 'bedroom 1', 'Bedroom 1', 'master_bedroom', 'master bedroom', 'Master Bedroom', 'bedroom1', 'Bedroom1'],
+      searchNames: ['master', 'bedroom 1', 'bedroom1', 'main bedroom']
+    }
+  },
+
+  // BEDROOM with numbers
+  {
+    patterns: [/\bbedroom\s*(?:1|one)\b/i, /\b(?:first|1st)\s*bedroom\b/i],
+    mapping: {
+      displayName: 'Bedroom 1',
+      searchKeys: ['bedroom_1', 'bedroom 1', 'Bedroom 1', 'bedroom1', 'Bedroom1'],
+      searchNames: ['bedroom 1', 'bedroom1']
+    }
+  },
+  {
+    patterns: [/\bbedroom\s*(?:2|two)\b/i, /\b(?:second|2nd)\s*bedroom\b/i],
+    mapping: {
+      displayName: 'Bedroom 2',
+      searchKeys: ['bedroom_2', 'bedroom 2', 'Bedroom 2', 'bedroom2', 'Bedroom2'],
+      searchNames: ['bedroom 2', 'bedroom2']
+    }
+  },
+  {
+    patterns: [/\bbedroom\s*(?:3|three)\b/i, /\b(?:third|3rd)\s*bedroom\b/i],
+    mapping: {
+      displayName: 'Bedroom 3',
+      searchKeys: ['bedroom_3', 'bedroom 3', 'Bedroom 3', 'bedroom3', 'Bedroom3'],
+      searchNames: ['bedroom 3', 'bedroom3']
+    }
+  },
+  {
+    patterns: [/\bbedroom\s*(?:4|four)\b/i, /\b(?:fourth|4th)\s*bedroom\b/i],
+    mapping: {
+      displayName: 'Bedroom 4',
+      searchKeys: ['bedroom_4', 'bedroom 4', 'Bedroom 4', 'bedroom4', 'Bedroom4'],
+      searchNames: ['bedroom 4', 'bedroom4']
+    }
+  },
+
+  // DOWNSTAIRS WC/TOILET - specific
+  {
+    patterns: [
+      /\bdownstairs\s*(?:wc|toilet|loo|bathroom|cloakroom)\b/i,
+      /\bground\s*floor\s*(?:wc|toilet|loo|bathroom)\b/i,
+      /\bwc\s*(?:downstairs|ground)\b/i,
+      /\bcloakroom\b/i, /\bguest\s*(?:wc|toilet|loo)\b/i
+    ],
+    mapping: {
+      displayName: 'Downstairs WC',
+      searchKeys: ['wc_downstairs', 'WC Downstairs', 'wc downstairs', 'downstairs_wc', 'downstairs wc', 'Downstairs WC', 'toilet', 'Toilet', 'wc', 'WC', 'cloakroom', 'Cloakroom', 'guest_wc', 'guest wc'],
+      searchNames: ['downstairs', 'wc', 'toilet', 'cloakroom', 'guest']
+    }
+  },
+
+  // UPSTAIRS WC/TOILET - specific
+  {
+    patterns: [
+      /\bupstairs\s*(?:wc|toilet|loo)\b/i,
+      /\b(?:first|1st)\s*floor\s*(?:wc|toilet|loo)\b/i,
+      /\bwc\s*(?:upstairs|first\s*floor)\b/i
+    ],
+    mapping: {
+      displayName: 'Upstairs WC',
+      searchKeys: ['wc_upstairs', 'WC Upstairs', 'wc upstairs', 'upstairs_wc', 'upstairs wc', 'Upstairs WC', 'wc', 'WC'],
+      searchNames: ['upstairs', 'wc', 'first floor']
+    }
+  },
+
+  // GENERIC WC/TOILET
+  {
+    patterns: [/\bwc\b/i, /\btoilet\b/i, /\bloo\b/i, /\bpowder\s*room\b/i],
+    mapping: {
+      displayName: 'WC',
+      searchKeys: ['wc', 'WC', 'toilet', 'Toilet', 'wc_downstairs', 'WC Downstairs', 'wc_upstairs', 'WC Upstairs', 'cloakroom', 'Cloakroom'],
+      searchNames: ['wc', 'toilet', 'loo', 'cloakroom']
+    }
+  },
+
+  // ENSUITE
+  {
+    patterns: [/\ben-?suite\b/i, /\bensuite\b/i, /\bmaster\s*bath(?:room)?\b/i],
+    mapping: {
+      displayName: 'Ensuite',
+      searchKeys: ['ensuite', 'Ensuite', 'en-suite', 'En-suite', 'en_suite', 'master_bathroom', 'master bathroom'],
+      searchNames: ['ensuite', 'en-suite', 'master bath']
+    }
+  },
+
+  // BATHROOM (main/family)
+  {
+    patterns: [/\b(?:main|family|upstairs)?\s*bathroom\b/i],
+    mapping: {
+      displayName: 'Bathroom',
+      searchKeys: ['bathroom', 'Bathroom', 'main_bathroom', 'main bathroom', 'Main Bathroom', 'family_bathroom', 'family bathroom'],
+      searchNames: ['bathroom']
+    }
+  },
+
+  // UTILITY
+  {
+    patterns: [/\butility(?:\s*room)?\b/i, /\blaundry(?:\s*room)?\b/i, /\bboot\s*room\b/i],
+    mapping: {
+      displayName: 'Utility',
+      searchKeys: ['utility', 'Utility', 'utility_room', 'utility room', 'Utility Room', 'laundry', 'Laundry'],
+      searchNames: ['utility', 'laundry']
+    }
+  },
+
+  // HALL/ENTRANCE
+  {
+    patterns: [/\b(?:entrance\s*)?hall(?:way)?\b/i, /\bfoyer\b/i, /\bvestibule\b/i, /\bentrance\b/i],
+    mapping: {
+      displayName: 'Hall',
+      searchKeys: ['hall', 'Hall', 'hallway', 'Hallway', 'entrance_hall', 'entrance hall', 'Entrance Hall', 'entrance', 'Entrance'],
+      searchNames: ['hall', 'entrance', 'foyer']
+    }
+  },
+
+  // LANDING
+  {
+    patterns: [/\blanding\b/i],
+    mapping: {
+      displayName: 'Landing',
+      searchKeys: ['landing', 'Landing', 'upstairs_landing', 'upstairs landing'],
+      searchNames: ['landing']
+    }
+  },
+
+  // DINING ROOM (separate)
+  {
+    patterns: [/\bdining\s*(?:room|area)?\b/i],
+    mapping: {
+      displayName: 'Dining Room',
+      searchKeys: ['dining', 'Dining', 'dining_room', 'dining room', 'Dining Room', 'kitchen_dining', 'kitchen/dining'],
+      searchNames: ['dining']
+    }
+  },
+
+  // STUDY/OFFICE
+  {
+    patterns: [/\bstudy\b/i, /\b(?:home\s*)?office\b/i, /\bbox\s*room\b/i, /\bwork\s*room\b/i],
+    mapping: {
+      displayName: 'Study',
+      searchKeys: ['study', 'Study', 'office', 'Office', 'home_office', 'home office', 'box_room', 'box room'],
+      searchNames: ['study', 'office', 'box room']
+    }
+  },
+
+  // GARAGE
+  {
+    patterns: [/\bgarage\b/i, /\bcar\s*port\b/i],
+    mapping: {
+      displayName: 'Garage',
+      searchKeys: ['garage', 'Garage', 'carport', 'Carport'],
+      searchNames: ['garage', 'carport']
+    }
+  },
+
+  // HOT PRESS
+  {
+    patterns: [/\bhot\s*press\b/i, /\bhotpress\b/i, /\bairing\s*cupboard\b/i, /\bboiler\s*(?:room|cupboard)?\b/i],
+    mapping: {
+      displayName: 'Hot Press',
+      searchKeys: ['hotpress', 'Hotpress', 'hot_press', 'hot press', 'Hot Press', 'airing_cupboard', 'airing cupboard'],
+      searchNames: ['hot press', 'hotpress', 'airing', 'boiler']
+    }
+  },
+
+  // STORAGE
+  {
+    patterns: [/\bstorage(?:\s*(?:room|cupboard|area))?\b/i, /\bcupboard\b/i, /\bwardrobe\b/i, /\bcloset\b/i],
+    mapping: {
+      displayName: 'Storage',
+      searchKeys: ['storage', 'Storage', 'storage_room', 'storage room', 'cupboard', 'Cupboard'],
+      searchNames: ['storage', 'cupboard']
+    }
+  },
+
+  // Generic BEDROOM fallback (if no number specified)
+  {
+    patterns: [/\bbedroom\b/i, /\bbed\s*room\b/i],
+    mapping: {
+      displayName: 'Bedroom',
+      searchKeys: ['bedroom_1', 'bedroom 1', 'Bedroom 1', 'bedroom_2', 'bedroom 2', 'Bedroom 2', 'bedroom', 'Bedroom'],
+      searchNames: ['bedroom']
+    }
+  },
 ];
 
-function extractRoomNameFromQuestion(question: string): { roomKey: string; roomName: string } | null {
+function extractRoomFromQuestion(question: string): RoomMapping | null {
   const lowerQuestion = question.toLowerCase();
 
-  // Check patterns in order (more specific first)
-  for (const { roomKey, patterns } of ROOM_NAME_PATTERNS) {
+  // Check patterns in order (more specific patterns are listed first in the array)
+  for (const { patterns, mapping } of ROOM_PHRASE_MAPPINGS) {
     for (const pattern of patterns) {
       if (pattern.test(lowerQuestion)) {
-        // Convert room_key to display name
-        const roomName = roomKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-        console.log(`[Chat] Extracted room "${roomKey}" (${roomName}) from question`);
-        return { roomKey, roomName };
+        console.log(`[Chat] Matched room "${mapping.displayName}" from question using pattern: ${pattern}`);
+        return mapping;
       }
     }
   }
 
+  console.log(`[Chat] No room pattern matched for question: "${question}"`);
   return null;
 }
 
@@ -164,68 +368,22 @@ interface RoomDimensionResult {
   source?: string;
 }
 
-// Generate alternative room key formats for fuzzy matching
-function getRoomKeyVariants(roomKey: string): string[] {
-  const variants = new Set<string>();
-  variants.add(roomKey);
-  variants.add(roomKey.toLowerCase());
-  variants.add(roomKey.toUpperCase());
-
-  // Convert underscores to spaces and vice versa
-  variants.add(roomKey.replace(/_/g, ' '));
-  variants.add(roomKey.replace(/ /g, '_'));
-
-  // Convert to Title Case
-  const titleCase = roomKey.split(/[_\s]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-  variants.add(titleCase);
-
-  // Handle kitchen/dining variations
-  if (roomKey.includes('kitchen') && roomKey.includes('dining')) {
-    variants.add('kitchen/dining');
-    variants.add('Kitchen/Dining');
-    variants.add('kitchen_dining');
-    variants.add('kitchen-dining');
-    variants.add('Kitchen Dining');
-  }
-
-  // Handle WC/toilet variations
-  if (roomKey === 'toilet' || roomKey === 'wc') {
-    variants.add('toilet');
-    variants.add('Toilet');
-    variants.add('wc');
-    variants.add('WC');
-    variants.add('W.C.');
-    variants.add('cloakroom');
-    variants.add('Cloakroom');
-  }
-
-  // Handle bathroom variations
-  if (roomKey.includes('bathroom')) {
-    variants.add('bathroom');
-    variants.add('Bathroom');
-    variants.add('Main Bathroom');
-    variants.add('Family Bathroom');
-  }
-
-  return Array.from(variants);
-}
-
+// Smart room dimension lookup using the new RoomMapping system
 async function lookupRoomDimensions(
   supabase: ReturnType<typeof getSupabaseClient>,
   tenantId: string,
   developmentId: string,
   houseTypeCode: string | undefined,
   unitId: string | undefined,
-  roomKey: string
+  roomMapping: RoomMapping
 ): Promise<RoomDimensionResult> {
   try {
-    console.log(`[Chat] Looking up room dimensions for ${roomKey}, houseTypeCode=${houseTypeCode}, unit=${unitId}, dev=${developmentId}`);
+    console.log(`[Chat] Looking up room dimensions for "${roomMapping.displayName}"`);
+    console.log(`[Chat] Search keys: ${roomMapping.searchKeys.join(', ')}`);
+    console.log(`[Chat] Search names: ${roomMapping.searchNames.join(', ')}`);
+    console.log(`[Chat] Context: houseTypeCode=${houseTypeCode}, unit=${unitId}, dev=${developmentId}`);
 
-    // Generate alternative room key formats to try
-    const roomKeyVariants = getRoomKeyVariants(roomKey);
-    console.log(`[Chat] Will try room key variants: ${roomKeyVariants.join(', ')}`);
-
-    // First, we need to get the house_type_id from unit_types table if we have a house type code
+    // First, get the house_type_id from unit_types table if we have a house type code
     let houseTypeId: string | undefined;
     if (houseTypeCode) {
       const { data: unitTypeData } = await supabase
@@ -240,122 +398,142 @@ async function lookupRoomDimensions(
       }
     }
 
-    // Helper function to try finding dimensions with multiple room key variants
-    async function tryFindDimension(baseQuery: any): Promise<any | null> {
-      for (const variant of roomKeyVariants) {
-        const { data, error } = await baseQuery.eq('room_key', variant).limit(1);
-        if (!error && data && data.length > 0) {
-          console.log(`[Chat] Found match with room_key variant: "${variant}"`);
-          return data[0];
-        }
-      }
-      return null;
-    }
+    // Helper to parse dimension result
+    const parseDimension = (dim: any): RoomDimensionResult => ({
+      found: true,
+      roomName: dim.room_name,
+      length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
+      width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
+      area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
+      ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
+      verified: dim.verified,
+      source: dim.source,
+    });
 
-    // Strategy 1: Try unit-specific dimensions first
-    if (unitId) {
-      const dim = await tryFindDimension(
-        supabase
+    // STRATEGY 1: Try all searchKeys with exact match on room_key
+    for (const searchKey of roomMapping.searchKeys) {
+      // Try unit-specific first
+      if (unitId) {
+        const { data } = await supabase
           .from('unit_room_dimensions')
           .select('*')
           .eq('tenant_id', tenantId)
           .eq('unit_id', unitId)
+          .eq('room_key', searchKey)
           .order('verified', { ascending: false })
-      );
+          .limit(1);
 
-      if (dim) {
-        console.log(`[Chat] Found unit-specific room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
-        return {
-          found: true,
-          roomName: dim.room_name,
-          length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
-          width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
-          area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
-          ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
-          verified: dim.verified,
-          source: dim.source,
-        };
+        if (data && data.length > 0) {
+          console.log(`[Chat] ✓ Found unit-specific match with room_key="${searchKey}": ${data[0].room_name}`);
+          return parseDimension(data[0]);
+        }
       }
-    }
 
-    // Strategy 2: Try house-type-level dimensions
-    if (houseTypeId) {
-      const dim = await tryFindDimension(
-        supabase
+      // Try house-type level
+      if (houseTypeId) {
+        const { data } = await supabase
           .from('unit_room_dimensions')
           .select('*')
           .eq('tenant_id', tenantId)
           .eq('house_type_id', houseTypeId)
+          .eq('room_key', searchKey)
           .is('unit_id', null)
           .order('verified', { ascending: false })
-      );
+          .limit(1);
 
-      if (dim) {
-        console.log(`[Chat] Found house-type-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
-        return {
-          found: true,
-          roomName: dim.room_name,
-          length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
-          width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
-          area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
-          ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
-          verified: dim.verified,
-          source: dim.source,
-        };
+        if (data && data.length > 0) {
+          console.log(`[Chat] ✓ Found house-type match with room_key="${searchKey}": ${data[0].room_name}`);
+          return parseDimension(data[0]);
+        }
       }
-    }
 
-    // Strategy 3: Try development-wide search for any matching room
-    const dim = await tryFindDimension(
-      supabase
+      // Try development-wide
+      const { data } = await supabase
         .from('unit_room_dimensions')
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
+        .eq('room_key', searchKey)
         .order('verified', { ascending: false })
-    );
+        .limit(1);
 
-    if (dim) {
-      console.log(`[Chat] Found development-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
-      return {
-        found: true,
-        roomName: dim.room_name,
-        length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
-        width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
-        area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
-        ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
-        verified: dim.verified,
-        source: dim.source,
-      };
+      if (data && data.length > 0) {
+        console.log(`[Chat] ✓ Found development match with room_key="${searchKey}": ${data[0].room_name}`);
+        return parseDimension(data[0]);
+      }
     }
 
-    // Strategy 4: Fallback - search by room_name ILIKE (case-insensitive partial match)
-    const searchTerm = roomKey.replace(/_/g, ' ');
-    const { data: fuzzyData } = await supabase
-      .from('unit_room_dimensions')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('development_id', developmentId)
-      .ilike('room_name', `%${searchTerm}%`)
-      .order('verified', { ascending: false })
-      .limit(1);
+    // STRATEGY 2: Try ILIKE search on room_name for each searchName pattern
+    for (const searchName of roomMapping.searchNames) {
+      // Try unit-specific first
+      if (unitId) {
+        const { data } = await supabase
+          .from('unit_room_dimensions')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('unit_id', unitId)
+          .ilike('room_name', `%${searchName}%`)
+          .order('verified', { ascending: false })
+          .limit(1);
 
-    if (fuzzyData && fuzzyData.length > 0) {
-      const fuzzyDim = fuzzyData[0];
-      console.log(`[Chat] Found room dimension via fuzzy match on room_name: ${fuzzyDim.room_name} = ${fuzzyDim.area_sqm}m²`);
-      return {
-        found: true,
-        roomName: fuzzyDim.room_name,
-        length_m: fuzzyDim.length_m ? parseFloat(fuzzyDim.length_m) : undefined,
-        width_m: fuzzyDim.width_m ? parseFloat(fuzzyDim.width_m) : undefined,
-        area_sqm: fuzzyDim.area_sqm ? parseFloat(fuzzyDim.area_sqm) : undefined,
-        ceiling_height_m: fuzzyDim.ceiling_height_m ? parseFloat(fuzzyDim.ceiling_height_m) : undefined,
-        verified: fuzzyDim.verified,
-        source: fuzzyDim.source,
-      };
+        if (data && data.length > 0) {
+          console.log(`[Chat] ✓ Found unit-specific ILIKE match with "${searchName}": ${data[0].room_name}`);
+          return parseDimension(data[0]);
+        }
+      }
+
+      // Try house-type level
+      if (houseTypeId) {
+        const { data } = await supabase
+          .from('unit_room_dimensions')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('house_type_id', houseTypeId)
+          .ilike('room_name', `%${searchName}%`)
+          .is('unit_id', null)
+          .order('verified', { ascending: false })
+          .limit(1);
+
+        if (data && data.length > 0) {
+          console.log(`[Chat] ✓ Found house-type ILIKE match with "${searchName}": ${data[0].room_name}`);
+          return parseDimension(data[0]);
+        }
+      }
+
+      // Try development-wide
+      const { data } = await supabase
+        .from('unit_room_dimensions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .ilike('room_name', `%${searchName}%`)
+        .order('verified', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        console.log(`[Chat] ✓ Found development ILIKE match with "${searchName}": ${data[0].room_name}`);
+        return parseDimension(data[0]);
+      }
     }
 
-    console.log(`[Chat] No room dimensions found for ${roomKey}`);
+    // STRATEGY 3: Try ILIKE on room_key as well (in case room_key has the display name format)
+    for (const searchName of roomMapping.searchNames) {
+      const { data } = await supabase
+        .from('unit_room_dimensions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .ilike('room_key', `%${searchName}%`)
+        .order('verified', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        console.log(`[Chat] ✓ Found ILIKE match on room_key with "${searchName}": ${data[0].room_name}`);
+        return parseDimension(data[0]);
+      }
+    }
+
+    console.log(`[Chat] ✗ No room dimensions found for "${roomMapping.displayName}" after trying all strategies`);
     return { found: false };
   } catch (err) {
     console.error(`[Chat] Error looking up room dimensions:`, err);
@@ -3008,14 +3186,16 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     // Check for dimension question BEFORE streaming - may need to override response
     // STRICT: Only match when room keywords are explicitly paired with size/dimension words
+    // Expanded to include all room types users might ask about
+    const roomKeywords = 'living\\s*room|bedroom|kitchen|bathroom|utility|wc|toilet|loo|ensuite|en-?suite|master|lounge|sitting\\s*room|dining|hall|landing|garage|study|office|cloakroom|hot\\s*press|storage|cupboard|house|home|room';
     const isDimensionQuestion = questionTopic === 'room_sizes' ||
       /\b(dimension|measurement|square\s*(feet|metres?|meters?|m2|ft2?)|floor\s*area)\b/i.test(message) ||
-      /\bwhat\s+size\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|utility|house|home|room)/i.test(message) ||
-      /\bhow\s+(big|large)\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|utility|house|home|room)/i.test(message) ||
-      /\b(living\s*room|bedroom|kitchen|bathroom|utility|room)\s+(size|dimensions?|measurements?|area)\b/i.test(message);
+      new RegExp(`\\bwhat\\s+size\\s+(is|are)\\s+(my|the)\\s+(${roomKeywords})`, 'i').test(message) ||
+      new RegExp(`\\bhow\\s+(big|large)\\s+(is|are)\\s+(my|the)\\s+(${roomKeywords})`, 'i').test(message) ||
+      new RegExp(`\\b(${roomKeywords})\\s+(size|dimensions?|measurements?|area)\\b`, 'i').test(message);
 
-    // Extract the specific room being asked about
-    const extractedRoom = isDimensionQuestion ? extractRoomNameFromQuestion(message) : null;
+    // Extract the specific room being asked about using smart matching
+    const extractedRoom = isDimensionQuestion ? extractRoomFromQuestion(message) : null;
 
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
@@ -3059,7 +3239,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           userDevelopmentId,
           userHouseTypeCode || undefined,
           actualUnitId || undefined,
-          extractedRoom.roomKey
+          extractedRoom  // Pass the full RoomMapping object for smart matching
         ) : Promise.resolve({ found: false } as RoomDimensionResult)
       ]);
 
@@ -3070,9 +3250,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       // Build response based on what we found
       if (roomDimensionResult.found && extractedRoom) {
         // We have actual room dimensions from the database!
-        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.roomName);
+        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName);
         answerSource = 'dimension_database';
-        console.log('[Chat] Found room dimensions in database for', extractedRoom.roomKey);
+        console.log('[Chat] Found room dimensions in database for', extractedRoom.displayName);
       } else if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
         // No database dimensions but we have floor plans
         floorPlanAttachments = floorPlanResult.attachments;
@@ -3120,7 +3300,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
           dimensionQuestion: true,
-          roomKey: extractedRoom?.roomKey,
+          roomName: extractedRoom?.displayName,
           foundDimensions: roomDimensionResult.found,
           foundFloorPlans: floorPlanAttachments.length > 0,
         },
