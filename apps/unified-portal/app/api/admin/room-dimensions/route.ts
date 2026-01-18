@@ -247,10 +247,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      // Table might not exist in Supabase
+      // Table might not exist in Supabase - provide helpful message
       console.error('[API] POST /api/admin/room-dimensions error:', insertError);
+      if (insertError.message?.includes('does not exist') || insertError.code === 'PGRST205') {
+        return NextResponse.json({
+          error: 'Room dimensions feature requires database setup. Please run the migration to create the unit_room_dimensions table.',
+          details: insertError.message
+        }, { status: 503 });
+      }
       return NextResponse.json({
-        error: 'Room dimensions table not available. Please contact support.',
+        error: 'Failed to create room dimension',
         details: insertError.message
       }, { status: 500 });
     }
