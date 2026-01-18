@@ -11,70 +11,75 @@ export async function GET(request: Request) {
     const days = parseInt(searchParams.get('days') || '30');
     const limit = parseInt(searchParams.get('limit') || '20');
     const developmentId = searchParams.get('developmentId') || null;
+    const tenantId = searchParams.get('tenantId') || null;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const baseConditions = [
-      gte(messages.created_at, startDate),
-      isNotNull(messages.user_message)
-    ];
-    
-    if (developmentId) {
-      baseConditions.push(eq(messages.development_id, developmentId));
-    }
-    
-    const whereCondition = and(...baseConditions);
+    // Build tenant filter for queries that join with developments
+    const tenantFilter = tenantId ? sql`AND d.tenant_id = ${tenantId}::uuid` : sql``;
+    const devFilter = developmentId ? sql`AND m.development_id = ${developmentId}::uuid` : sql``;
 
     const [topQuestions, questionsByDevelopment, questionsByTimeOfDay, avgQuestionLength] = await Promise.all([
-      db.select({
-        question: sql<string>`SUBSTRING(${messages.user_message} FROM 1 FOR 150)`,
-        count: sql<number>`COUNT(*)::int`,
-        avg_response_time: sql<number>`AVG(${messages.latency_ms})::int`,
-      })
-        .from(messages)
-        .where(whereCondition)
-        .groupBy(sql`SUBSTRING(${messages.user_message} FROM 1 FOR 150)`)
-        .orderBy(sql`COUNT(*) DESC`)
-        .limit(limit),
+      // Top questions - filter by tenant through developments join
+      db.execute(sql`
+        SELECT
+          SUBSTRING(m.user_message FROM 1 FOR 150) as question,
+          COUNT(*)::int as count,
+          AVG(m.latency_ms)::int as avg_response_time
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.created_at >= ${startDate}
+          AND m.user_message IS NOT NULL
+          ${tenantFilter}
+          ${devFilter}
+        GROUP BY SUBSTRING(m.user_message FROM 1 FOR 150)
+        ORDER BY COUNT(*) DESC
+        LIMIT ${limit}
+      `).then(r => r.rows),
 
       db.execute(sql`
-        SELECT 
+        SELECT
           d.name as development_name,
           SUBSTRING(m.user_message FROM 1 FOR 100) as question,
           COUNT(*)::int as count
         FROM messages m
         INNER JOIN developments d ON m.development_id = d.id
         WHERE m.created_at >= ${startDate} AND m.user_message IS NOT NULL
-          ${developmentId ? sql`AND m.development_id = ${developmentId}::uuid` : sql``}
+          ${tenantFilter}
+          ${devFilter}
         GROUP BY d.name, SUBSTRING(m.user_message FROM 1 FOR 100)
         ORDER BY count DESC
         LIMIT 10
       `).then(r => r.rows),
 
       db.execute(sql`
-        SELECT 
-          EXTRACT(HOUR FROM created_at)::int as hour,
+        SELECT
+          EXTRACT(HOUR FROM m.created_at)::int as hour,
           COUNT(*)::int as count
-        FROM messages
-        WHERE created_at >= ${startDate} AND user_message IS NOT NULL
-          ${developmentId ? sql`AND development_id = ${developmentId}::uuid` : sql``}
-        GROUP BY EXTRACT(HOUR FROM created_at)
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+          ${tenantFilter}
+          ${devFilter}
+        GROUP BY EXTRACT(HOUR FROM m.created_at)
         ORDER BY hour
       `).then(r => r.rows),
 
       db.execute(sql`
-        SELECT AVG(LENGTH(user_message))::int as avg_length
-        FROM messages
-        WHERE created_at >= ${startDate} AND user_message IS NOT NULL
-          ${developmentId ? sql`AND development_id = ${developmentId}::uuid` : sql``}
+        SELECT AVG(LENGTH(m.user_message))::int as avg_length
+        FROM messages m
+        INNER JOIN developments d ON m.development_id = d.id
+        WHERE m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+          ${tenantFilter}
+          ${devFilter}
       `).then(r => r.rows[0]?.avg_length || 0),
     ]);
 
-    const questionCategories = categorizeQuestions(topQuestions);
+    const questionCategories = categorizeQuestions(topQuestions as any[]);
 
     const analysis = {
-      topQuestions: topQuestions.map(q => ({
+      topQuestions: (topQuestions as any[]).map(q => ({
         question: q.question,
         count: q.count,
         avgResponseTime: q.avg_response_time,
@@ -82,7 +87,7 @@ export async function GET(request: Request) {
       questionsByDevelopment,
       questionsByTimeOfDay,
       avgQuestionLength,
-      totalQuestions: topQuestions.reduce((sum, q) => sum + q.count, 0),
+      totalQuestions: (topQuestions as any[]).reduce((sum, q) => sum + (q.count || 0), 0),
       categories: questionCategories,
     };
 
