@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
 import { houseTypes, developments } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -82,121 +82,56 @@ export async function GET(
       return NextResponse.json({ houseTypes: result });
     }
 
-    // No house types in Drizzle, try multiple sources in Supabase:
-    // 1. First check unit_types table (primary source from imports)
-    // 2. Then check units.house_type_code / units.house_type columns (legacy)
+    // No house types in Drizzle, fetch from Supabase unit_types table
+    // This is the primary/only source - units reference unit_types via unit_type_id foreign key
+    console.log(`[HouseTypes API] Fetching unit_types for development ${developmentId}`);
 
-    const uniqueCodes = new Set<string>();
-
-    // Source 1: unit_types table (this is where imported unit types go)
     const { data: unitTypes, error: unitTypesError } = await supabaseAdmin
       .from('unit_types')
       .select('id, name')
-      .eq('project_id', developmentId);
+      .eq('project_id', developmentId)
+      .order('name');
 
     if (unitTypesError) {
       console.error('[HouseTypes API] Error fetching unit_types:', unitTypesError);
-    } else {
-      console.log(`[HouseTypes API] Found ${unitTypes?.length || 0} unit_types for development ${developmentId}`);
-      (unitTypes || []).forEach((ut: any) => {
-        if (ut.name && typeof ut.name === 'string' && ut.name.trim()) {
-          uniqueCodes.add(ut.name.trim());
-        }
-      });
+      return NextResponse.json({ error: 'Failed to fetch unit types' }, { status: 500 });
     }
 
-    // Source 2: units table columns (legacy/fallback)
-    const { data: units, error } = await supabaseAdmin
-      .from('units')
-      .select('house_type_code, house_type')
-      .eq('project_id', developmentId);
+    console.log(`[HouseTypes API] Found ${unitTypes?.length || 0} unit_types for development ${developmentId}:`,
+      unitTypes?.map(ut => ut.name) || []);
 
-    if (error) {
-      console.error('[HouseTypes API] Error fetching units:', error);
-    } else {
-      console.log(`[HouseTypes API] Fetched ${units?.length || 0} units for development ${developmentId}`);
-      // Extract unique house type codes - check both column names
-      (units || []).forEach((unit: any) => {
-        // Prefer house_type_code, fall back to house_type
-        const code = unit.house_type_code || unit.house_type;
-        if (code && typeof code === 'string' && code.trim()) {
-          uniqueCodes.add(code.trim());
-        }
-      });
-    }
-
-    console.log(`[HouseTypes API] Found ${uniqueCodes.size} unique house type codes from all sources:`, Array.from(uniqueCodes));
-
-    if (uniqueCodes.size === 0) {
-      console.log(`[HouseTypes API] No house types found for development ${developmentId}`);
-      return NextResponse.json({ houseTypes: [] });
-    }
-
-    // If we don't have a tenant_id, we can't persist to Drizzle - return virtual house types
-    if (!tenantId) {
-      console.log('[HouseTypes API] No tenant_id - returning virtual house types from Supabase data');
-      const virtualHouseTypes = Array.from(uniqueCodes).map((code, index) => ({
-        id: `virtual-${developmentId}-${index}`,
-        house_type_code: code,
-        development_id: developmentId,
-        bedrooms: null,
-        total_floor_area_sqm: null,
-      })).sort((a, b) => a.house_type_code.localeCompare(b.house_type_code));
-
-      return NextResponse.json({ houseTypes: virtualHouseTypes });
-    }
-
-    // Create house types in Drizzle for each unique code
-    const createdHouseTypes = [];
-    for (const code of uniqueCodes) {
-      try {
-        const [created] = await db.insert(houseTypes).values({
-          tenant_id: tenantId,
+    // If we found unit types in Supabase, return them directly as virtual house types
+    // (We use the unit_types.id as the house type id for consistency)
+    if (unitTypes && unitTypes.length > 0) {
+      const houseTypesFromUnitTypes = unitTypes
+        .filter((ut: any) => ut.name && typeof ut.name === 'string' && ut.name.trim())
+        .map((ut: any) => ({
+          id: ut.id, // Use the actual unit_type id
+          house_type_code: ut.name.trim(),
           development_id: developmentId,
-          house_type_code: code,
-        }).returning();
+          bedrooms: null,
+          total_floor_area_sqm: null,
+        }));
 
-        createdHouseTypes.push({
-          id: created.id,
-          house_type_code: created.house_type_code,
-          development_id: created.development_id,
-          bedrooms: created.bedrooms,
-          total_floor_area_sqm: created.total_floor_area_sqm,
-        });
-
-        console.log(`[HouseTypes API] Created house type ${code} with ID ${created.id}`);
-      } catch (insertError: any) {
-        // If it's a duplicate key error, the house type was created by another request
-        if (insertError.code === '23505') {
-          console.log(`[HouseTypes API] House type ${code} already exists, fetching it`);
-          const existing = await db.query.houseTypes.findFirst({
-            where: and(
-              eq(houseTypes.development_id, developmentId),
-              eq(houseTypes.house_type_code, code)
-            ),
-          });
-          if (existing) {
-            createdHouseTypes.push({
-              id: existing.id,
-              house_type_code: existing.house_type_code,
-              development_id: existing.development_id,
-              bedrooms: existing.bedrooms,
-              total_floor_area_sqm: existing.total_floor_area_sqm,
-            });
-          }
-        } else {
-          console.error(`[HouseTypes API] Error creating house type ${code}:`, insertError);
-        }
-      }
+      console.log(`[HouseTypes API] Returning ${houseTypesFromUnitTypes.length} house types from unit_types table`);
+      return NextResponse.json({ houseTypes: houseTypesFromUnitTypes });
     }
 
-    const sortedHouseTypes = createdHouseTypes.sort((a, b) =>
-      a.house_type_code.localeCompare(b.house_type_code)
-    );
+    // No unit_types found - check if there are any units at all
+    const { data: units, error: unitsError } = await supabaseAdmin
+      .from('units')
+      .select('id')
+      .eq('project_id', developmentId)
+      .limit(1);
 
-    console.log(`[HouseTypes API] Created/found ${sortedHouseTypes.length} house types for development ${developmentId}`);
+    if (unitsError) {
+      console.error('[HouseTypes API] Error checking units:', unitsError);
+    }
 
-    return NextResponse.json({ houseTypes: sortedHouseTypes });
+    console.log(`[HouseTypes API] Development ${developmentId} has ${units?.length || 0} units but no unit_types`);
+
+    // No unit types found for this development
+    return NextResponse.json({ houseTypes: [] });
   } catch (error) {
     console.error('[HouseTypes API] Error:', error);
     return NextResponse.json(
