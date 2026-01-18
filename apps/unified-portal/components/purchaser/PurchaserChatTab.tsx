@@ -993,7 +993,7 @@ export default function PurchaserChatTab({
               <img
                 src="/openhouse-logo.png"
                 alt="OpenHouse AI"
-                className={`h-[70px] w-auto object-contain`}
+                className={`h-[120px] w-auto object-contain`}
               />
             ) : (
               <img

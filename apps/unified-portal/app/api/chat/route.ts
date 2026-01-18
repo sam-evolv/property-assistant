@@ -561,9 +561,12 @@ async function lookupRoomDimensions(
   }
 }
 
-function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string): string {
+function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string, hasFloorPlanAttachments: boolean = false): string {
   if (!dim.found) {
-    return `I don't have the specific dimensions for the ${roomName} stored yet. I've included the floor plan below which should have the accurate room measurements.`;
+    if (hasFloorPlanAttachments) {
+      return `I don't have the specific dimensions for the ${roomName} stored yet. I've included the floor plan below which should have the accurate room measurements.`;
+    }
+    return `I don't have the specific dimensions for the ${roomName} stored yet. You can check your floor plan documents for exact measurements.`;
   }
 
   let answer = `Your ${dim.roomName || roomName} `;
@@ -576,7 +579,10 @@ function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string): 
   } else if (dim.area_sqm) {
     answer += `has a floor area of approximately ${dim.area_sqm} m²`;
   } else {
-    return `I don't have complete dimension data for the ${roomName}. I've included the floor plan below which should have the accurate measurements.`;
+    if (hasFloorPlanAttachments) {
+      return `I don't have complete dimension data for the ${roomName}. I've included the floor plan below which should have the accurate measurements.`;
+    }
+    return `I don't have complete dimension data for the ${roomName}. You can check your floor plan documents for exact measurements.`;
   }
 
   if (dim.ceiling_height_m) {
@@ -585,8 +591,12 @@ function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string): 
 
   answer += '.';
 
-  // Add disclaimer
-  answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans attached below._';
+  // Add disclaimer - only mention floor plans if we're actually attaching them
+  if (hasFloorPlanAttachments) {
+    answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans attached below._';
+  } else {
+    answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to your official floor plan documents._';
+  }
 
   return answer;
 }
@@ -3267,19 +3277,25 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       let floorPlanAttachments: FloorPlanAttachment[] = [];
       let answerSource = 'dimension_no_data';
 
+      // Check if we have floor plans first (so we can reference them in the answer)
+      const hasFloorPlans = floorPlanResult.found && floorPlanResult.attachments.length > 0;
+      if (hasFloorPlans) {
+        floorPlanAttachments = floorPlanResult.attachments;
+        console.log('[Chat] Floor plans available:', floorPlanAttachments.length);
+      }
+
       // Build response based on what we found
       if (roomDimensionResult.found && extractedRoom) {
         // We have actual room dimensions from the database!
-        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName);
+        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName, hasFloorPlans);
         answerSource = 'dimension_database';
         console.log('[Chat] Found room dimensions in database:');
         console.log('[Chat]   Asked for:', extractedRoom.displayName);
         console.log('[Chat]   DB room_key:', roomDimensionResult.roomKey);
         console.log('[Chat]   DB room_name:', roomDimensionResult.roomName);
         console.log('[Chat]   Dimensions:', roomDimensionResult.length_m, 'x', roomDimensionResult.width_m, 'm');
-      } else if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
+      } else if (hasFloorPlans) {
         // No database dimensions but we have floor plans
-        floorPlanAttachments = floorPlanResult.attachments;
         dimensionAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.\n\nCheck the room labels on the plans for the exact measurements you need.";
         answerSource = 'dimension_floor_plan_fallback';
         console.log('[Chat] Using floor plan fallback for dimension question');
@@ -3289,9 +3305,8 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         console.log('[Chat] No room dimensions or floor plans available');
       }
 
-      // Always try to attach floor plans if available (even if we have dimensions)
-      if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
-        floorPlanAttachments = floorPlanResult.attachments;
+      // Floor plans already assigned above if available
+      if (hasFloorPlans) {
         console.log('[Chat] Attaching', floorPlanAttachments.length, 'floor plans to response');
       }
 
