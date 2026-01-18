@@ -99,6 +99,198 @@ function getSupabaseClient() {
   );
 }
 
+// Room name extraction from questions
+const ROOM_NAME_PATTERNS: Record<string, RegExp[]> = {
+  'utility': [/\butility\b/i, /\blaundry\b/i, /\bstorage\b/i],
+  'living_room': [/\bliving\s*room\b/i, /\bsitting\s*room\b/i, /\blounge\b/i, /\bfront\s*room\b/i],
+  'kitchen': [/\bkitchen\b/i],
+  'kitchen_dining': [/\bkitchen\s*\/?\s*dining\b/i, /\bkitchen\s+dining\b/i, /\bopen\s+plan\s+kitchen\b/i],
+  'dining': [/\bdining\s*room\b/i, /\bdining\s*area\b/i],
+  'bedroom_1': [/\b(?:master|main|primary)\s*bedroom\b/i, /\bbedroom\s*(?:1|one)\b/i],
+  'bedroom_2': [/\bbedroom\s*(?:2|two)\b/i, /\bsecond\s*bedroom\b/i],
+  'bedroom_3': [/\bbedroom\s*(?:3|three)\b/i, /\bthird\s*bedroom\b/i],
+  'bedroom_4': [/\bbedroom\s*(?:4|four)\b/i, /\bfourth\s*bedroom\b/i],
+  'bathroom': [/\bbathroom\b/i, /\bmain\s*bathroom\b/i, /\bfamily\s*bathroom\b/i],
+  'ensuite': [/\ben-?suite\b/i, /\bmaster\s*bath\b/i],
+  'toilet': [/\btoilet\b/i, /\bwc\b/i, /\bcloakroom\b/i, /\bpowder\s*room\b/i],
+  'hall': [/\bhall(?:way)?\b/i, /\bentrance\b/i, /\bfoyer\b/i],
+  'landing': [/\blanding\b/i],
+  'garage': [/\bgarage\b/i, /\bcar\s*port\b/i],
+  'study': [/\bstudy\b/i, /\boffice\b/i, /\bbox\s*room\b/i],
+};
+
+function extractRoomNameFromQuestion(question: string): { roomKey: string; roomName: string } | null {
+  const lowerQuestion = question.toLowerCase();
+
+  for (const [roomKey, patterns] of Object.entries(ROOM_NAME_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (pattern.test(lowerQuestion)) {
+        // Convert room_key to display name
+        const roomName = roomKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        return { roomKey, roomName };
+      }
+    }
+  }
+
+  return null;
+}
+
+// Look up room dimensions from Supabase
+interface RoomDimensionResult {
+  found: boolean;
+  roomName?: string;
+  length_m?: number;
+  width_m?: number;
+  area_sqm?: number;
+  ceiling_height_m?: number;
+  verified?: boolean;
+  source?: string;
+}
+
+async function lookupRoomDimensions(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  tenantId: string,
+  developmentId: string,
+  houseTypeCode: string | undefined,
+  unitId: string | undefined,
+  roomKey: string
+): Promise<RoomDimensionResult> {
+  try {
+    console.log(`[Chat] Looking up room dimensions for ${roomKey}, houseTypeCode=${houseTypeCode}, unit=${unitId}, dev=${developmentId}`);
+
+    // First, we need to get the house_type_id from unit_types table if we have a house type code
+    let houseTypeId: string | undefined;
+    if (houseTypeCode) {
+      const { data: unitTypeData } = await supabase
+        .from('unit_types')
+        .select('id')
+        .eq('name', houseTypeCode)
+        .limit(1);
+
+      if (unitTypeData && unitTypeData.length > 0) {
+        houseTypeId = unitTypeData[0].id;
+        console.log(`[Chat] Resolved house type code ${houseTypeCode} to ID ${houseTypeId}`);
+      }
+    }
+
+    // Strategy 1: Try unit-specific dimensions first
+    if (unitId) {
+      const { data: unitData, error: unitError } = await supabase
+        .from('unit_room_dimensions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('unit_id', unitId)
+        .eq('room_key', roomKey)
+        .order('verified', { ascending: false })
+        .limit(1);
+
+      if (!unitError && unitData && unitData.length > 0) {
+        const dim = unitData[0];
+        console.log(`[Chat] Found unit-specific room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
+        return {
+          found: true,
+          roomName: dim.room_name,
+          length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
+          width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
+          area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
+          ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
+          verified: dim.verified,
+          source: dim.source,
+        };
+      }
+    }
+
+    // Strategy 2: Try house-type-level dimensions
+    if (houseTypeId) {
+      const { data: houseTypeData, error: htError } = await supabase
+        .from('unit_room_dimensions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('house_type_id', houseTypeId)
+        .eq('room_key', roomKey)
+        .is('unit_id', null)
+        .order('verified', { ascending: false })
+        .limit(1);
+
+      if (!htError && houseTypeData && houseTypeData.length > 0) {
+        const dim = houseTypeData[0];
+        console.log(`[Chat] Found house-type-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
+        return {
+          found: true,
+          roomName: dim.room_name,
+          length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
+          width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
+          area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
+          ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
+          verified: dim.verified,
+          source: dim.source,
+        };
+      }
+    }
+
+    // Strategy 3: Try development-wide search for any matching room
+    const { data: devData, error: devError } = await supabase
+      .from('unit_room_dimensions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('development_id', developmentId)
+      .eq('room_key', roomKey)
+      .order('verified', { ascending: false })
+      .limit(1);
+
+    if (!devError && devData && devData.length > 0) {
+      const dim = devData[0];
+      console.log(`[Chat] Found development-level room dimension: ${dim.room_name} = ${dim.area_sqm}m²`);
+      return {
+        found: true,
+        roomName: dim.room_name,
+        length_m: dim.length_m ? parseFloat(dim.length_m) : undefined,
+        width_m: dim.width_m ? parseFloat(dim.width_m) : undefined,
+        area_sqm: dim.area_sqm ? parseFloat(dim.area_sqm) : undefined,
+        ceiling_height_m: dim.ceiling_height_m ? parseFloat(dim.ceiling_height_m) : undefined,
+        verified: dim.verified,
+        source: dim.source,
+      };
+    }
+
+    console.log(`[Chat] No room dimensions found for ${roomKey}`);
+    return { found: false };
+  } catch (err) {
+    console.error(`[Chat] Error looking up room dimensions:`, err);
+    return { found: false };
+  }
+}
+
+function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string): string {
+  if (!dim.found) {
+    return `I don't have the specific dimensions for the ${roomName} stored yet. I've included the floor plan below which should have the accurate room measurements.`;
+  }
+
+  let answer = `Your ${dim.roomName || roomName} `;
+
+  if (dim.length_m && dim.width_m) {
+    answer += `measures approximately ${dim.length_m}m × ${dim.width_m}m`;
+    if (dim.area_sqm) {
+      answer += `, giving a floor area of ${dim.area_sqm} m²`;
+    }
+  } else if (dim.area_sqm) {
+    answer += `has a floor area of approximately ${dim.area_sqm} m²`;
+  } else {
+    return `I don't have complete dimension data for the ${roomName}. I've included the floor plan below which should have the accurate measurements.`;
+  }
+
+  if (dim.ceiling_height_m) {
+    answer += ` with a ceiling height of ${dim.ceiling_height_m}m`;
+  }
+
+  answer += '.';
+
+  // Add disclaimer
+  answer += '\n\n_Please note: These dimensions are provided as a guide only. For exact measurements, please refer to the official floor plans attached below._';
+
+  return answer;
+}
+
 function getOpenAIClient() {
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
@@ -2714,12 +2906,15 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     // Check for dimension question BEFORE streaming - may need to override response
     // STRICT: Only match when room keywords are explicitly paired with size/dimension words
-    const isDimensionQuestion = questionTopic === 'room_sizes' || 
+    const isDimensionQuestion = questionTopic === 'room_sizes' ||
       /\b(dimension|measurement|square\s*(feet|metres?|meters?|m2|ft2?)|floor\s*area)\b/i.test(message) ||
-      /\bwhat\s+size\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|house|home|room)/i.test(message) ||
-      /\bhow\s+(big|large)\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|house|home|room)/i.test(message) ||
-      /\b(living\s*room|bedroom|kitchen|bathroom|room)\s+(size|dimensions?|measurements?|area)\b/i.test(message);
-    
+      /\bwhat\s+size\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|utility|house|home|room)/i.test(message) ||
+      /\bhow\s+(big|large)\s+(is|are)\s+(my|the)\s+(living\s*room|bedroom|kitchen|bathroom|utility|house|home|room)/i.test(message) ||
+      /\b(living\s*room|bedroom|kitchen|bathroom|utility|room)\s+(size|dimensions?|measurements?|area)\b/i.test(message);
+
+    // Extract the specific room being asked about
+    const extractedRoom = isDimensionQuestion ? extractRoomNameFromQuestion(message) : null;
+
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
 
@@ -2743,76 +2938,68 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     // Add the current user message
     chatMessages.push({ role: 'user', content: message });
 
-    // If liability override needed, return immediately without streaming
-    if (shouldOverrideForLiability) {
-      const liabilityAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.";
-      console.log('[Chat] Dimension question detected - enforced floor plan response for liability');
-      
-      // Save to database
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: conversationUserId || null,
-        unit_uid: validatedUnitUid || null,
-        user_message: message,
-        ai_message: liabilityAnswer,
-        question_topic: questionTopic,
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          userId: userId || null,
-          chunksUsed: chunks?.length || 0,
-          model: 'gpt-4o-mini',
-          liabilityOverride: true,
-        },
-        request_id: requestId,
-      });
+    // Handle ALL dimension questions - look up from database AND attach floor plans
+    if (isDimensionQuestion) {
+      console.log('[Chat] Dimension question detected - looking up room dimensions and floor plans');
+      console.log('[Chat] Extracted room:', extractedRoom);
 
-      return NextResponse.json({
-        success: true,
-        answer: liabilityAnswer,
-        source: 'liability_override',
-        chunksUsed: chunks?.length || 0,
-        drawing: drawing ? {
-          fileName: drawing.fileName,
-          drawingType: drawing.drawingType,
-          drawingDescription: drawing.drawingDescription,
-          houseTypeCode: drawing.houseTypeCode,
-          previewUrl: drawing.signedUrl,
-          downloadUrl: drawing.downloadUrl,
-          explanation: drawingExplanation,
-        } : undefined,
-      });
-    }
+      // Start both lookups in parallel for performance
+      const [floorPlanResult, roomDimensionResult] = await Promise.all([
+        findFloorPlanDocuments(
+          effectiveUnitUid,
+          userSupabaseProjectId,
+          userHouseTypeCode || undefined
+        ),
+        // Look up room dimensions from database if we identified a room
+        extractedRoom ? lookupRoomDimensions(
+          getSupabaseClient(),
+          userTenantId,
+          userDevelopmentId,
+          userHouseTypeCode || undefined,
+          actualUnitId || undefined,
+          extractedRoom.roomKey
+        ) : Promise.resolve({ found: false } as RoomDimensionResult)
+      ]);
 
-    // Handle dimension questions when no floor plan is available
-    // Try to find floor plan documents to attach as fallback
-    if (isDimensionQuestionWithNoDrawing) {
-      console.log('[Chat] Dimension question detected - trying floor plan fallback');
-      
-      // Look for floor plan documents to attach
-      const floorPlanResult = await findFloorPlanDocuments(
-        effectiveUnitUid,
-        userSupabaseProjectId,
-        userHouseTypeCode || undefined
-      );
-      
       let dimensionAnswer: string;
       let floorPlanAttachments: FloorPlanAttachment[] = [];
-      
-      if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
-        // Found floor plans - provide helpful response with attachments
+      let answerSource = 'dimension_no_data';
+
+      // Build response based on what we found
+      if (roomDimensionResult.found && extractedRoom) {
+        // We have actual room dimensions from the database!
+        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.roomName);
+        answerSource = 'dimension_database';
+        console.log('[Chat] Found room dimensions in database for', extractedRoom.roomKey);
+      } else if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
+        // No database dimensions but we have floor plans
         floorPlanAttachments = floorPlanResult.attachments;
-        dimensionAnswer = floorPlanResult.explanation + "\n\nCheck the room labels on the Ground Floor and First Floor plans for the exact measurements you need.";
-        console.log('[Chat] Found', floorPlanAttachments.length, 'floor plan attachments for dimension question');
+        dimensionAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.\n\nCheck the room labels on the plans for the exact measurements you need.";
+        answerSource = 'dimension_floor_plan_fallback';
+        console.log('[Chat] Using floor plan fallback for dimension question');
       } else {
-        // No floor plans available - fallback message
-        dimensionAnswer = "I don't have floor plan documents available to show you the room dimensions. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
-        console.log('[Chat] No floor plan documents found for dimension fallback');
+        // No dimensions and no floor plans
+        dimensionAnswer = "I don't have the room dimensions stored yet, and I couldn't find floor plan documents to show you. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
+        console.log('[Chat] No room dimensions or floor plans available');
       }
-      
+
+      // Always try to attach floor plans if available (even if we have dimensions)
+      if (floorPlanResult.found && floorPlanResult.attachments.length > 0) {
+        floorPlanAttachments = floorPlanResult.attachments;
+        console.log('[Chat] Attaching', floorPlanAttachments.length, 'floor plans to response');
+      }
+
+      // Also include drawing if available
+      const drawingAttachment = drawing ? {
+        fileName: drawing.fileName,
+        drawingType: drawing.drawingType,
+        drawingDescription: drawing.drawingDescription,
+        houseTypeCode: drawing.houseTypeCode,
+        previewUrl: drawing.signedUrl,
+        downloadUrl: drawing.downloadUrl,
+        explanation: drawingExplanation,
+      } : undefined;
+
       // Save to database
       await persistMessageSafely({
         tenant_id: userTenantId,
@@ -2830,8 +3017,10 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           userId: userId || null,
           chunksUsed: chunks?.length || 0,
           model: 'gpt-4o-mini',
-          dimensionQuestionNoDrawing: true,
-          floorPlanFallback: floorPlanAttachments.length > 0,
+          dimensionQuestion: true,
+          roomKey: extractedRoom?.roomKey,
+          foundDimensions: roomDimensionResult.found,
+          foundFloorPlans: floorPlanAttachments.length > 0,
         },
         request_id: requestId,
       });
@@ -2839,8 +3028,9 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       return NextResponse.json({
         success: true,
         answer: dimensionAnswer,
-        source: floorPlanAttachments.length > 0 ? 'dimension_floor_plan_fallback' : 'dimension_no_drawing',
+        source: answerSource,
         chunksUsed: chunks?.length || 0,
+        drawing: drawingAttachment,
         attachments: floorPlanAttachments.length > 0 ? floorPlanAttachments.map(fp => ({
           id: fp.id,
           title: fp.title,
