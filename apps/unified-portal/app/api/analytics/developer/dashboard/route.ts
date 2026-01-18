@@ -303,25 +303,19 @@ export async function GET(request: NextRequest) {
     }
     
     // Must-read compliance - Count units that have acknowledged important docs
-    // Use Supabase unit fields as the PRIMARY source since Drizzle is failing
+    // Use the same approach as Homeowners page: query purchaser_agreements from Drizzle
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
-      // Get all units with their acknowledgement info from Supabase
-      let unitsWithAckQuery = supabaseAdmin
-        .from('units')
-        .select('id, important_docs_agreed_version, important_docs_agreed_at, project_id');
-
+      // Get unit IDs from Supabase
+      let unitsQuery = supabaseAdmin.from('units').select('id, project_id');
       if (developmentId) {
-        unitsWithAckQuery = unitsWithAckQuery.eq('project_id', developmentId);
+        unitsQuery = unitsQuery.eq('project_id', developmentId);
       }
+      const { data: units } = await unitsQuery;
 
-      const { data: unitsWithAck, error: unitsError } = await unitsWithAckQuery;
-
-      if (unitsError) {
-        console.log(`[DeveloperDashboard] Units acknowledgement query error:`, unitsError);
-      } else if (unitsWithAck && unitsWithAck.length > 0) {
+      if (units && units.length > 0) {
         // Get development version from 'projects' table (Supabase)
-        const developmentIds = [...new Set(unitsWithAck.map(u => u.project_id))];
+        const developmentIds = [...new Set(units.map(u => u.project_id))];
         const { data: projects } = await supabaseAdmin
           .from('projects')
           .select('id, important_docs_version')
@@ -333,23 +327,40 @@ export async function GET(request: NextRequest) {
           devVersionMap[p.id] = p.important_docs_version || 0;
         });
 
-        // Count units that have acknowledged
-        // PRIMARY CHECK: If important_docs_agreed_at is set, the unit has acknowledged
-        // SECONDARY CHECK: If important_docs_agreed_version >= project's important_docs_version
-        let acknowledgedCount = 0;
-        for (const unit of unitsWithAck) {
-          const agreedVersion = unit.important_docs_agreed_version || 0;
-          const devVersion = devVersionMap[unit.project_id] || 0;
-          const hasAgreedDate = !!unit.important_docs_agreed_at;
+        // Get acknowledgement status from purchaser_agreements table (Drizzle)
+        // This is the same query the Homeowners page uses
+        const acknowledgedUnitsMap = new Map<string, number>();
+        try {
+          const agreementsResult = await db.execute(sql`
+            SELECT DISTINCT ON (unit_id) unit_id, docs_version
+            FROM purchaser_agreements
+            WHERE unit_id IS NOT NULL
+            ORDER BY unit_id, agreed_at DESC
+          `);
+          for (const row of agreementsResult.rows as any[]) {
+            acknowledgedUnitsMap.set(row.unit_id, row.docs_version || 1);
+          }
+          console.log(`[DeveloperDashboard] Found ${acknowledgedUnitsMap.size} acknowledged units from purchaser_agreements`);
+        } catch (agreementError) {
+          console.log(`[DeveloperDashboard] purchaser_agreements query failed:`, agreementError);
+        }
 
-          // If unit has an agreed date, count as acknowledged
-          // OR if they have a version number that meets or exceeds the required version
-          if (hasAgreedDate) {
-            acknowledgedCount++;
-          } else if (devVersion === 0 && agreedVersion >= 1) {
-            acknowledgedCount++;
-          } else if (devVersion > 0 && agreedVersion >= devVersion) {
-            acknowledgedCount++;
+        // Count units that have acknowledged - same logic as Homeowners page
+        let acknowledgedCount = 0;
+        for (const unit of units) {
+          const agreedVersion = acknowledgedUnitsMap.get(unit.id) || 0;
+          const devVersion = devVersionMap[unit.project_id] || 0;
+
+          // If no version is set anywhere (devVersion === 0), check if agreed at least version 1
+          // Otherwise, check if agreed >= dev version
+          if (devVersion === 0) {
+            if (agreedVersion >= 1) {
+              acknowledgedCount++;
+            }
+          } else {
+            if (agreedVersion >= devVersion) {
+              acknowledgedCount++;
+            }
           }
         }
 
