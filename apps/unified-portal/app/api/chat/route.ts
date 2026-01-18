@@ -383,23 +383,28 @@ async function lookupRoomDimensions(
   roomMapping: RoomMapping
 ): Promise<RoomDimensionResult> {
   try {
-    console.log(`[Chat] Looking up room dimensions for "${roomMapping.displayName}"`);
-    console.log(`[Chat] Search keys: ${roomMapping.searchKeys.join(', ')}`);
-    console.log(`[Chat] Search names: ${roomMapping.searchNames.join(', ')}`);
-    console.log(`[Chat] Context: houseTypeCode=${houseTypeCode}, unit=${unitId}, dev=${developmentId}`);
+    console.log(`[Chat] ========== ROOM DIMENSION LOOKUP ==========`);
+    console.log(`[Chat] Looking for: "${roomMapping.displayName}"`);
+    console.log(`[Chat] Search keys to try: ${roomMapping.searchKeys.join(', ')}`);
+    console.log(`[Chat] Search name patterns: ${roomMapping.searchNames.join(', ')}`);
+    console.log(`[Chat] User context: houseTypeCode="${houseTypeCode}", unitId="${unitId}", developmentId="${developmentId}", tenantId="${tenantId}"`);
 
     // First, get the house_type_id from unit_types table if we have a house type code
+    // CRITICAL: Must filter by development (project_id) to avoid matching wrong house type!
     let houseTypeId: string | undefined;
-    if (houseTypeCode) {
+    if (houseTypeCode && developmentId) {
       const { data: unitTypeData } = await supabase
         .from('unit_types')
         .select('id')
         .eq('name', houseTypeCode)
+        .eq('project_id', developmentId)  // CRITICAL: Filter by development!
         .limit(1);
 
       if (unitTypeData && unitTypeData.length > 0) {
         houseTypeId = unitTypeData[0].id;
-        console.log(`[Chat] Resolved house type code ${houseTypeCode} to ID ${houseTypeId}`);
+        console.log(`[Chat] Resolved house type code ${houseTypeCode} in dev ${developmentId} to ID ${houseTypeId}`);
+      } else {
+        console.log(`[Chat] WARNING: Could not resolve house type code ${houseTypeCode} in dev ${developmentId}`);
       }
     }
 
