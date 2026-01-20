@@ -439,14 +439,13 @@ interface PurchaserChatTabProps {
 // Translations for UI and prompts
 const TRANSLATIONS: Record<string, any> = {
   en: {
-    welcome: 'Your home assistant',
-    subtitle: 'Get instant answers about your property, floor plans, local amenities, and more. Just ask!',
-    tryAsking: 'Try asking about:',
+    welcome: 'Ask anything about your home or community',
+    subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
     prompts: [
-      "Public Transport",
-      "Floor Plans",
-      "Parking rules",
-      "Local area"
+      "Kitchen Layout",
+      "First-Year Maintenance",
+      "Broadband Setup",
+      "EV Charging"
     ],
     placeholder: 'Ask about your home or community...',
     askButton: 'Ask',
@@ -1276,12 +1275,8 @@ export default function PurchaserChatTab({
             {t.subtitle}
           </p>
 
-          {/* Try asking label */}
-          <p className={`mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-slate-400'}`}>
-            {t.tryAsking || 'Try asking about:'}
-          </p>
-
           {/* 2x2 Prompt Grid */}
+          <div className="mt-4"></div>
           <div className="grid w-full max-w-[300px] grid-cols-2 gap-1.5">
             {SUGGESTED_PILLS_V2_ENABLED && suggestedPillsV2.length === 4 ? (
               suggestedPillsV2.map((pill) => (
