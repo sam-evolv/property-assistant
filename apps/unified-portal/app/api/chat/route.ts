@@ -3244,22 +3244,23 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
 
     // LANGUAGE INSTRUCTION: Add language-specific instruction to system message
+    // This MUST be at the end for maximum effect and must be very explicit
     const languageInstructions: Record<string, string> = {
       en: '', // No additional instruction needed for English
-      pl: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Polish (Polski). All your responses, explanations, and guidance must be written in Polish. Do not respond in English.',
-      es: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Spanish (Español). All your responses, explanations, and guidance must be written in Spanish. Do not respond in English.',
-      ru: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Russian (Русский). All your responses, explanations, and guidance must be written in Russian. Do not respond in English.',
-      pt: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Portuguese (Português). All your responses, explanations, and guidance must be written in Portuguese. Do not respond in English.',
-      lv: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Latvian (Latviešu). All your responses, explanations, and guidance must be written in Latvian. Do not respond in English.',
-      lt: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Lithuanian (Lietuvių). All your responses, explanations, and guidance must be written in Lithuanian. Do not respond in English.',
-      ro: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Romanian (Română). All your responses, explanations, and guidance must be written in Romanian. Do not respond in English.',
-      ga: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Irish (Gaeilge). All your responses, explanations, and guidance must be written in Irish. Do not respond in English.',
+      pl: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Polish (Polski). Every single word of your response must be in Polish. Do NOT use English under any circumstances. This is a strict requirement.',
+      es: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Spanish (Español). Every single word of your response must be in Spanish. Do NOT use English under any circumstances. This is a strict requirement.',
+      ru: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Russian (Русский). Every single word of your response must be in Russian. Do NOT use English under any circumstances. This is a strict requirement.',
+      pt: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Portuguese (Português). Every single word of your response must be in Portuguese. Do NOT use English under any circumstances. This is a strict requirement.',
+      lv: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Latvian (Latviešu). Every single word of your response must be in Latvian. Do NOT use English under any circumstances. This is a strict requirement.',
+      lt: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Lithuanian (Lietuvių). Every single word of your response must be in Lithuanian. Do NOT use English under any circumstances. This is a strict requirement.',
+      ro: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Romanian (Română). Every single word of your response must be in Romanian. Do NOT use English under any circumstances. This is a strict requirement.',
+      ga: '\n\n=== MANDATORY LANGUAGE REQUIREMENT ===\nYou MUST respond ONLY in Irish (Gaeilge). Every single word of your response must be in Irish. Do NOT use English under any circumstances. This is a strict requirement.',
     };
 
     const languageInstruction = languageInstructions[selectedLanguage] || '';
     if (languageInstruction) {
       systemMessage = systemMessage + languageInstruction;
-      console.log('[Chat] Language instruction added for:', selectedLanguage);
+      console.log('[Chat] Language instruction added for:', selectedLanguage, '- Full system message length:', systemMessage.length);
     }
 
     // STEP 5: Generate Response with STREAMING
