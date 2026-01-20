@@ -101,14 +101,37 @@ function formatAssistantContent(content: string, isDarkMode: boolean): string {
   });
 
   // Style list items with proper indentation and bullet styling
+  // Using flex with items-start ensures multi-line text aligns properly (not under the bullet)
   html = html.replace(/^- (.+)$/gm, (match, item) => {
-    return `<span class="flex gap-2 ml-1"><span class="text-gold-500 select-none">•</span><span>${item}</span></span>`;
+    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-gold-500 select-none shrink-0 mt-[2px]">•</span><span class="flex-1">${item}</span></div>`;
   });
 
-  // Style numbered lists
+  // Style numbered lists with proper alignment for multi-line items
   html = html.replace(/^(\d+)\.\s+(.+)$/gm, (match, num, item) => {
-    return `<span class="flex gap-2 ml-1"><span class="text-gold-500 font-medium select-none min-w-[1.25rem]">${num}.</span><span>${item}</span></span>`;
+    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-gold-500 font-medium select-none shrink-0 min-w-[1.25rem] mt-[1px]">${num}.</span><span class="flex-1">${item}</span></div>`;
   });
+
+  // Make URLs clickable (but keep them clean-looking)
+  html = html.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
+  );
+
+  // Make phone numbers clickable (Irish and international formats)
+  // Matches: +353..., 01234..., 083..., 0800..., etc.
+  html = html.replace(
+    /(\+\d{1,3}[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}|\b0\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}\b)/g,
+    (match) => {
+      const cleanNumber = match.replace(/[\s-]/g, '');
+      return `<a href="tel:${cleanNumber}" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">${match}</a>`;
+    }
+  );
+
+  // Make email addresses clickable
+  html = html.replace(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+    '<a href="mailto:$1" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
+  );
 
   // Convert newlines to proper breaks (preserve paragraph structure)
   html = html.replace(/\n\n/g, '</p><p class="mt-3">');
