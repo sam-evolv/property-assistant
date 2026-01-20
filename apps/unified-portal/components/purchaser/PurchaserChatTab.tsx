@@ -154,9 +154,10 @@ function formatAssistantContent(content: string, isDarkMode: boolean): string {
   );
 
   // Smart typography - convert straight quotes to curly quotes
-  html = html.replace(/(\s|^)"([^"]+)"(\s|$|[.,!?])/g, '$1"$2"$3'); // Double quotes
-  html = html.replace(/(\s|^)'([^']+)'(\s|$|[.,!?])/g, '$1'$2'$3'); // Single quotes
-  html = html.replace(/(\w)'(\w)/g, '$1'$2'); // Apostrophes (e.g., "don't")
+  // Using Unicode escape sequences to avoid parsing issues with curly quotes
+  html = html.replace(/(\s|^)"([^"]+)"(\s|$|[.,!?])/g, '$1\u201C$2\u201D$3'); // Double quotes " "
+  html = html.replace(/(\s|^)'([^']+)'(\s|$|[.,!?])/g, '$1\u2018$2\u2019$3'); // Single quotes ' '
+  html = html.replace(/(\w)'(\w)/g, '$1\u2019$2'); // Apostrophes (e.g., "don't") '
   html = html.replace(/--/g, '–'); // En-dash
   html = html.replace(/\.\.\./g, '…'); // Ellipsis
 
@@ -936,6 +937,7 @@ export default function PurchaserChatTab({
           userId: userId || undefined,
           unitUid: unitUid,
           hasBeenWelcomed: hasBeenWelcomed,
+          language: selectedLanguage,
           ...(intentMetadata && {
             intentMetadata: {
               source: intentMetadata.source,

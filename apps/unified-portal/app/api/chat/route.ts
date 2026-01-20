@@ -1192,7 +1192,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, unitUid: clientUnitUid, userId, hasBeenWelcomed, intentMetadata, lastIntentKey } = body;
+    const { message, unitUid: clientUnitUid, userId, hasBeenWelcomed, intentMetadata, lastIntentKey, language } = body;
+    const selectedLanguage = language || 'en';
     
     interface IntentMetadataPayload {
       source: 'suggested_pill';
@@ -3241,6 +3242,25 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
+
+    // LANGUAGE INSTRUCTION: Add language-specific instruction to system message
+    const languageInstructions: Record<string, string> = {
+      en: '', // No additional instruction needed for English
+      pl: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Polish (Polski). All your responses, explanations, and guidance must be written in Polish. Do not respond in English.',
+      es: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Spanish (Español). All your responses, explanations, and guidance must be written in Spanish. Do not respond in English.',
+      ru: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Russian (Русский). All your responses, explanations, and guidance must be written in Russian. Do not respond in English.',
+      pt: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Portuguese (Português). All your responses, explanations, and guidance must be written in Portuguese. Do not respond in English.',
+      lv: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Latvian (Latviešu). All your responses, explanations, and guidance must be written in Latvian. Do not respond in English.',
+      lt: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Lithuanian (Lietuvių). All your responses, explanations, and guidance must be written in Lithuanian. Do not respond in English.',
+      ro: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Romanian (Română). All your responses, explanations, and guidance must be written in Romanian. Do not respond in English.',
+      ga: '\n\nLANGUAGE REQUIREMENT (CRITICAL):\nYou MUST respond entirely in Irish (Gaeilge). All your responses, explanations, and guidance must be written in Irish. Do not respond in English.',
+    };
+
+    const languageInstruction = languageInstructions[selectedLanguage] || '';
+    if (languageInstruction) {
+      systemMessage = systemMessage + languageInstruction;
+      console.log('[Chat] Language instruction added for:', selectedLanguage);
+    }
 
     // STEP 5: Generate Response with STREAMING
     console.log('[Chat] Generating streaming response with GPT-4o-mini...');

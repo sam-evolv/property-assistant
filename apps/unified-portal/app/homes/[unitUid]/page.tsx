@@ -652,6 +652,7 @@ export default function HomeResidentPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         isDarkMode={isDarkMode}
+        selectedLanguage={selectedLanguage}
       />
       </div>
 

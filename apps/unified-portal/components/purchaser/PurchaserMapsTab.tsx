@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Cross, Store, X, Phone, Globe, Clock, Star, Search, Heart } from 'lucide-react';
+import { getTranslations } from '../../lib/translations';
 
 interface FavoritePlace {
   place_id: string;
@@ -146,6 +147,9 @@ export default function PurchaserMapsTab({
   isDarkMode,
   selectedLanguage,
 }: PurchaserMapsTabProps) {
+  // Get translations based on selected language
+  const t = useMemo(() => getTranslations(selectedLanguage), [selectedLanguage]);
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -758,9 +762,9 @@ export default function PurchaserMapsTab({
       <div className={`flex items-center justify-center h-full ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
         <div className="text-center p-6">
           <div className="text-4xl mb-4">🗺️</div>
-          <h3 className="text-lg font-semibold mb-2">Map Loading Error</h3>
+          <h3 className="text-lg font-semibold mb-2">{t.common.error}</h3>
           <p className="text-sm text-gray-500 mb-4">
-            Unable to load Google Maps. Please check your connection.
+            {t.maps.noPlacesFound}
           </p>
           {/* Visible error box for API key issues */}
           <div className="bg-red-100 border-2 border-red-500 text-red-700 px-4 py-3 rounded-lg max-w-md mx-auto">
@@ -873,7 +877,7 @@ export default function PurchaserMapsTab({
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search for places nearby..."
+                placeholder={t.maps.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => handleSearchInput(e.target.value)}
                 className={`flex-1 outline-none text-sm ${isDarkMode ? 'bg-gray-700 text-white placeholder:text-gray-400' : 'bg-white text-gray-900 placeholder:text-gray-500'}`}
@@ -920,7 +924,7 @@ export default function PurchaserMapsTab({
           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-95 dark:bg-gray-800 dark:bg-opacity-95 rounded-xl">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-500 mx-auto mb-4"></div>
-              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading map...</p>
+              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>{t.common.loading}</p>
             </div>
           </div>
         )}

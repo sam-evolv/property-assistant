@@ -1,24 +1,38 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { MessageCircle, Map, Bell, FileText } from 'lucide-react';
+import { getTranslations } from '../../lib/translations';
 
 interface MobileTabBarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   isDarkMode: boolean;
+  selectedLanguage?: string;
 }
 
-const TABS = [
-  { id: 'chat', label: 'Chat', icon: MessageCircle },
-  { id: 'maps', label: 'Map', icon: Map },
-  { id: 'noticeboard', label: 'News', icon: Bell },
-  { id: 'documents', label: 'Docs', icon: FileText },
+// Tab IDs and their icons (labels come from translations)
+const TAB_CONFIG = [
+  { id: 'chat', icon: MessageCircle },
+  { id: 'maps', icon: Map },
+  { id: 'noticeboard', icon: Bell },
+  { id: 'documents', icon: FileText },
 ];
 
-export function MobileTabBar({ activeTab, onTabChange, isDarkMode }: MobileTabBarProps) {
+export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLanguage = 'en' }: MobileTabBarProps) {
   const navRef = useRef<HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
+
+  // Get translations based on selected language
+  const t = useMemo(() => getTranslations(selectedLanguage), [selectedLanguage]);
+
+  // Build tabs with translated labels
+  const TABS = useMemo(() => [
+    { id: 'chat', label: t.navigation.assistant, icon: MessageCircle },
+    { id: 'maps', label: t.navigation.maps, icon: Map },
+    { id: 'noticeboard', label: t.navigation.noticeboard, icon: Bell },
+    { id: 'documents', label: t.navigation.documents, icon: FileText },
+  ], [t]);
 
   useEffect(() => {
     setMounted(true);

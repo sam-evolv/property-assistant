@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { FileText, Download, Folder, File, FileImage, FileSpreadsheet, Search, Wrench, Shield, AlertTriangle, MapPin, FileCheck, Flame, Video, Play, X, ExternalLink, Loader2 } from 'lucide-react';
 import SessionExpiredModal from './SessionExpiredModal';
-import { 
-  getCachedDocuments, 
-  setCachedDocuments, 
+import {
+  getCachedDocuments,
+  setCachedDocuments,
   invalidateDocumentCache,
   getInFlightRequest,
   setInFlightRequest
 } from '../../lib/documentCache';
+import { getTranslations } from '../../lib/translations';
 
 const PURCHASER_VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER === 'true' || process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
 
@@ -58,27 +59,44 @@ interface CategoryInfo {
   isVideo?: boolean;
 }
 
-const BASE_CATEGORIES: CategoryInfo[] = [
-  { id: 'all', label: 'All', icon: <Folder className="w-5 h-5" />, keywords: [] },
-  { id: 'mustread', label: 'Must Read', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
-  { id: 'important', label: 'Important', icon: <AlertTriangle className="w-5 h-5" />, keywords: [] },
-  { id: 'floorplans', label: 'Floorplans', icon: <FileImage className="w-5 h-5" />, keywords: [] },
-  { id: 'fire', label: 'Fire Safety', icon: <Flame className="w-5 h-5" />, keywords: [] },
-  { id: 'parking', label: 'Parking', icon: <MapPin className="w-5 h-5" />, keywords: [] },
-  { id: 'handover', label: 'Handover', icon: <FileCheck className="w-5 h-5" />, keywords: [] },
-  { id: 'snagging', label: 'Snagging', icon: <Wrench className="w-5 h-5" />, keywords: [] },
-  { id: 'warranties', label: 'Warranties', icon: <Shield className="w-5 h-5" />, keywords: [] },
-  { id: 'specifications', label: 'Specifications', icon: <FileText className="w-5 h-5" />, keywords: [] },
-  { id: 'general', label: 'General', icon: <File className="w-5 h-5" />, keywords: [] },
+// Category icons defined separately for use in dynamic categories
+const CATEGORY_ICONS = {
+  all: <Folder className="w-5 h-5" />,
+  mustread: <AlertTriangle className="w-5 h-5" />,
+  important: <AlertTriangle className="w-5 h-5" />,
+  floorplans: <FileImage className="w-5 h-5" />,
+  fire: <Flame className="w-5 h-5" />,
+  parking: <MapPin className="w-5 h-5" />,
+  handover: <FileCheck className="w-5 h-5" />,
+  snagging: <Wrench className="w-5 h-5" />,
+  warranties: <Shield className="w-5 h-5" />,
+  specifications: <FileText className="w-5 h-5" />,
+  general: <File className="w-5 h-5" />,
+  videos: <Video className="w-5 h-5" />,
+};
+
+// Function to get translated categories
+const getTranslatedCategories = (docTranslations: any): CategoryInfo[] => [
+  { id: 'all', label: docTranslations.categories.all, icon: CATEGORY_ICONS.all, keywords: [] },
+  { id: 'mustread', label: docTranslations.categories.mustRead, icon: CATEGORY_ICONS.mustread, keywords: [] },
+  { id: 'important', label: docTranslations.categories.important, icon: CATEGORY_ICONS.important, keywords: [] },
+  { id: 'floorplans', label: docTranslations.categories.floorplans, icon: CATEGORY_ICONS.floorplans, keywords: [] },
+  { id: 'fire', label: docTranslations.categories.fireSafety, icon: CATEGORY_ICONS.fire, keywords: [] },
+  { id: 'parking', label: docTranslations.categories.parking, icon: CATEGORY_ICONS.parking, keywords: [] },
+  { id: 'handover', label: docTranslations.categories.handover, icon: CATEGORY_ICONS.handover, keywords: [] },
+  { id: 'snagging', label: docTranslations.categories.snagging, icon: CATEGORY_ICONS.snagging, keywords: [] },
+  { id: 'warranties', label: docTranslations.categories.warranties, icon: CATEGORY_ICONS.warranties, keywords: [] },
+  { id: 'specifications', label: docTranslations.categories.specifications, icon: CATEGORY_ICONS.specifications, keywords: [] },
+  { id: 'general', label: docTranslations.categories.general, icon: CATEGORY_ICONS.general, keywords: [] },
 ];
 
-const VIDEOS_CATEGORY: CategoryInfo = { 
-  id: 'videos', 
-  label: 'Videos', 
-  icon: <Video className="w-5 h-5" />, 
+const getVideosCategory = (docTranslations: any): CategoryInfo => ({
+  id: 'videos',
+  label: docTranslations.categories.videos,
+  icon: CATEGORY_ICONS.videos,
   keywords: [],
   isVideo: true
-};
+});
 
 export default function PurchaserDocumentsTab({
   unitUid,
@@ -86,6 +104,9 @@ export default function PurchaserDocumentsTab({
   isDarkMode,
   selectedLanguage,
 }: PurchaserDocumentsTabProps) {
+  // Get translations based on selected language
+  const t = useMemo(() => getTranslations(selectedLanguage), [selectedLanguage]);
+
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -400,6 +421,18 @@ export default function PurchaserDocumentsTab({
       );
     }
 
+    // Map category IDs to English labels for filtering (document metadata uses English)
+    const categoryIdToEnglish: Record<string, string> = {
+      floorplans: 'floorplans',
+      fire: 'fire safety',
+      parking: 'parking',
+      handover: 'handover',
+      snagging: 'snagging',
+      warranties: 'warranties',
+      specifications: 'specifications',
+      general: 'general',
+    };
+
     if (selectedCategory === 'mustread') {
       filtered = filtered.filter(doc => doc.must_read);
     } else if (selectedCategory === 'important') {
@@ -407,7 +440,7 @@ export default function PurchaserDocumentsTab({
     } else if (selectedCategory !== 'all' && selectedCategory !== 'videos') {
       filtered = filtered.filter(doc => {
         const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
-        const categoryLabel = BASE_CATEGORIES.find(c => c.id === selectedCategory)?.label.toLowerCase() || '';
+        const categoryLabel = categoryIdToEnglish[selectedCategory] || '';
         return docCategory === categoryLabel;
       });
     }
@@ -431,17 +464,37 @@ export default function PurchaserDocumentsTab({
   const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
   const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
 
+  // Get translated categories based on current language
+  const baseCategories = useMemo(() => getTranslatedCategories(t.documents), [t.documents]);
+  const videosCategory = useMemo(() => getVideosCategory(t.documents), [t.documents]);
+
   const categories = PURCHASER_VIDEOS_ENABLED && hasVideos
-    ? [...BASE_CATEGORIES.slice(0, 3), VIDEOS_CATEGORY, ...BASE_CATEGORIES.slice(3)] 
-    : BASE_CATEGORIES;
+    ? [...baseCategories.slice(0, 3), videosCategory, ...baseCategories.slice(3)]
+    : baseCategories;
+
+  // Map category IDs to English labels for filtering (document metadata uses English)
+  const CATEGORY_ID_TO_ENGLISH: Record<string, string> = {
+    all: 'all',
+    mustread: 'must read',
+    important: 'important',
+    floorplans: 'floorplans',
+    fire: 'fire safety',
+    parking: 'parking',
+    handover: 'handover',
+    snagging: 'snagging',
+    warranties: 'warranties',
+    specifications: 'specifications',
+    general: 'general',
+    videos: 'videos',
+  };
 
   const getCategoryCount = (categoryId: string) => {
     if (categoryId === 'videos') return videos.length;
     if (categoryId === 'all') return documents.length;
     if (categoryId === 'mustread') return documents.filter(doc => doc.must_read).length;
     if (categoryId === 'important') return documents.filter(doc => doc.is_important).length;
-    
-    const categoryLabel = BASE_CATEGORIES.find(c => c.id === categoryId)?.label.toLowerCase() || '';
+
+    const categoryLabel = CATEGORY_ID_TO_ENGLISH[categoryId] || '';
     return documents.filter(doc => {
       const docCategory = doc.metadata?.category?.toLowerCase() || 'general';
       return docCategory === categoryLabel;
@@ -463,7 +516,7 @@ export default function PurchaserDocumentsTab({
   if (loading) {
     return (
       <div className={`flex items-center justify-center h-full ${bgColor}`}>
-        <div className={`animate-pulse ${subtextColor}`}>Loading documents...</div>
+        <div className={`animate-pulse ${subtextColor}`}>{t.documents.loadingDocuments}</div>
       </div>
     );
   }
@@ -475,10 +528,10 @@ export default function PurchaserDocumentsTab({
           <AlertTriangle className="w-8 h-8 text-red-600" />
         </div>
         <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
-          Unable to Load Documents
+          {t.common.error}
         </h3>
         <p className={`${subtextColor} text-sm text-center mb-4 max-w-md`}>
-          {error || 'Unable to retrieve your documents. Please try again.'}
+          {error || t.documents.noDocuments}
         </p>
         {requestId && (
           <p className={`text-xs ${subtextColor} mb-4`}>
@@ -489,7 +542,7 @@ export default function PurchaserDocumentsTab({
           onClick={() => fetchDocuments(true)}
           className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition-all font-medium"
         >
-          Try Again
+          {t.common.retry}
         </button>
       </div>
     );
@@ -507,7 +560,7 @@ export default function PurchaserDocumentsTab({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder={isVideosTab ? "Search videos..." : "Search documents..."}
+            placeholder={t.documents.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={`w-full pl-10 pr-4 py-2 ${inputBg} border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
@@ -572,7 +625,7 @@ export default function PurchaserDocumentsTab({
           <div className={`flex items-center justify-center flex-1 ${bgColor}`}>
             <div className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-gold-500" />
-              <span className={subtextColor}>Loading videos...</span>
+              <span className={subtextColor}>{t.documents.loadingVideos}</span>
             </div>
           </div>
         ) : videos.length === 0 ? (
@@ -581,10 +634,10 @@ export default function PurchaserDocumentsTab({
               <Video className="w-8 h-8 text-purple-700" />
             </div>
             <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
-              No Videos Available
+              {t.documents.noVideosAvailable}
             </h3>
             <p className={`${subtextColor} max-w-md text-sm`}>
-              There are no handover videos available for your property yet.
+              {t.documents.noVideosDescription}
             </p>
           </div>
         ) : (
@@ -628,7 +681,7 @@ export default function PurchaserDocumentsTab({
                       
                       <div className="flex items-center justify-between">
                         <span className={`text-xs ${subtextColor}`}>
-                          Handover Video
+                          {t.documents.handoverVideo}
                         </span>
                         <button
                           onClick={(e) => {
@@ -653,12 +706,12 @@ export default function PurchaserDocumentsTab({
             <Folder className="w-8 h-8 text-gold-700" />
           </div>
           <h3 className={`text-lg font-semibold ${textColor} mb-2`}>
-            {searchQuery || selectedCategory !== 'all' ? 'No Matching Documents' : 'No Documents Yet'}
+            {searchQuery || selectedCategory !== 'all' ? t.documents.noMatchingDocuments : t.documents.noDocuments}
           </h3>
           <p className={`${subtextColor} max-w-md text-sm`}>
-            {searchQuery || selectedCategory !== 'all' 
-              ? 'Try adjusting your search or filter criteria.' 
-              : emptyMessage || 'No documents available for this unit yet.'}
+            {searchQuery || selectedCategory !== 'all'
+              ? t.documents.tryAdjustingFilters
+              : emptyMessage || t.documents.noDocuments}
           </p>
         </div>
       ) : (
@@ -686,13 +739,13 @@ export default function PurchaserDocumentsTab({
                   {hasBadge && (
                     <div className="absolute top-2 right-2 flex flex-col gap-1">
                       {doc.must_read && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white shadow-sm">
-                          MUST READ
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white shadow-sm uppercase">
+                          {t.documents.mustReadBadge}
                         </span>
                       )}
                       {doc.is_important && !doc.must_read && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gold-500 text-white shadow-sm">
-                          IMPORTANT
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gold-500 text-white shadow-sm uppercase">
+                          {t.documents.importantBadge}
                         </span>
                       )}
                     </div>
@@ -771,8 +824,8 @@ export default function PurchaserDocumentsTab({
             ) : (
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
                 <Video className="w-16 h-16 text-gray-600 mb-4" />
-                <p className="text-white text-lg font-medium mb-2">Unable to load video</p>
-                <p className="text-gray-400 text-sm mb-4">The video embed could not be loaded.</p>
+                <p className="text-white text-lg font-medium mb-2">{t.documents.unableToLoadVideo}</p>
+                <p className="text-gray-400 text-sm mb-4">{t.common.error}</p>
                 <a
                   href={getOriginalUrl(playingVideo)}
                   target="_blank"
@@ -780,7 +833,7 @@ export default function PurchaserDocumentsTab({
                   className="inline-flex items-center gap-2 px-4 py-2 bg-gold-500 text-black font-medium rounded-lg hover:bg-gold-400 transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Open in Browser
+                  {t.documents.openInBrowser}
                 </a>
               </div>
             )}
