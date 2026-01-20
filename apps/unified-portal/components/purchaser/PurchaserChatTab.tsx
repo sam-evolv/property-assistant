@@ -78,6 +78,52 @@ function getWordDelay(word: string, isAfterParagraph: boolean): number {
   return Math.max(10, delay);
 }
 
+// Format assistant content with selective styling for professionalism
+// Converts clean text into styled HTML with bold headings and proper list formatting
+function formatAssistantContent(content: string, isDarkMode: boolean): string {
+  if (!content) return '';
+
+  // Escape HTML to prevent XSS
+  let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Style lines that end with a colon as bold headings (e.g., "Walls:" or "Important:")
+  // These are section headers in the assistant's responses
+  html = html.replace(/^([A-Z][^:\n]{0,50}:)\s*$/gm, (match, heading) => {
+    return `<strong class="block mt-3 mb-1 text-[15px] font-semibold">${heading}</strong>`;
+  });
+
+  // Also style inline headings that start a paragraph (e.g., "Walls: The walls are...")
+  html = html.replace(/^([A-Z][^:\n]{0,50}:)(\s+\S)/gm, (match, heading, rest) => {
+    return `<strong class="font-semibold">${heading}</strong>${rest}`;
+  });
+
+  // Style list items with proper indentation and bullet styling
+  html = html.replace(/^- (.+)$/gm, (match, item) => {
+    return `<span class="flex gap-2 ml-1"><span class="text-gold-500 select-none">•</span><span>${item}</span></span>`;
+  });
+
+  // Style numbered lists
+  html = html.replace(/^(\d+)\.\s+(.+)$/gm, (match, num, item) => {
+    return `<span class="flex gap-2 ml-1"><span class="text-gold-500 font-medium select-none min-w-[1.25rem]">${num}.</span><span>${item}</span></span>`;
+  });
+
+  // Convert newlines to proper breaks (preserve paragraph structure)
+  html = html.replace(/\n\n/g, '</p><p class="mt-3">');
+  html = html.replace(/\n/g, '<br/>');
+
+  // Wrap in paragraph
+  html = `<p>${html}</p>`;
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p class="mt-3"><\/p>/g, '');
+  html = html.replace(/<p><\/p>/g, '');
+
+  return html;
+}
+
 const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   <div className={`flex justify-start`}>
     <style>{TYPING_STYLES}</style>
@@ -1174,15 +1220,19 @@ export default function PurchaserChatTab({
                     </div>
                   );
                 }
+                // Skip rendering empty assistant messages (placeholder during typing)
+                if (!msg.content && !msg.drawing && !msg.attachments) {
+                  return null;
+                }
                 return (
                   <div key={`msg-${idx}`} className="flex justify-start">
                     {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
                     <div className={`max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm ${
-                      isDarkMode 
-                        ? 'bg-[#1C1C1E] text-white shadow-black/20' 
+                      isDarkMode
+                        ? 'bg-[#1C1C1E] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
-                      <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
+                      <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content" dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
                       {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
                         isDarkMode 
