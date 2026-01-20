@@ -449,7 +449,8 @@ const TRANSLATIONS: Record<string, any> = {
     ],
     placeholder: 'Ask about your home or community...',
     askButton: 'Ask',
-    powered: 'Powered by AI • Information provided for reference only',
+    powered: 'Powered by AI • Information for reference only',
+    privacyLink: 'Privacy Policy',
     voiceNotSupported: 'Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.',
     sessionExpired: 'Session expired. Please scan your QR code again.',
     errorOccurred: 'Sorry, I encountered an error. Please try again.'
@@ -466,6 +467,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Zapytaj o swój dom lub społeczność...',
     askButton: 'Zapytaj',
     powered: 'Zasilane przez AI • Informacje wyłącznie w celach informacyjnych',
+    privacyLink: 'Polityka prywatności',
     voiceNotSupported: 'Wprowadzanie głosowe nie jest obsługiwane w Twojej przeglądarce. Użyj Chrome, Edge lub Safari.',
     sessionExpired: 'Sesja wygasła. Zeskanuj ponownie kod QR.',
     errorOccurred: 'Przepraszamy, napotkaliśmy błąd. Spróbuj ponownie.'
@@ -482,6 +484,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Pregunta sobre tu hogar o comunidad...',
     askButton: 'Preguntar',
     powered: 'Con tecnología de IA • Información solo como referencia',
+    privacyLink: 'Política de privacidad',
     voiceNotSupported: 'La entrada de voz no es compatible con su navegador. Utilice Chrome, Edge o Safari.',
     sessionExpired: 'Sesión expirada. Escanee su código QR nuevamente.',
     errorOccurred: 'Lo sentimos, encontré un error. Inténtelo de nuevo.'
@@ -498,6 +501,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Спросите о вашем доме или сообществе...',
     askButton: 'Спросить',
     powered: 'На базе ИИ • Информация только для справки',
+    privacyLink: 'Политика конфиденциальности',
     voiceNotSupported: 'Голосовой ввод не поддерживается в вашем браузере. Используйте Chrome, Edge или Safari.',
     sessionExpired: 'Сеанс истек. Отсканируйте QR-код еще раз.',
     errorOccurred: 'Извините, произошла ошибка. Попробуйте еще раз.'
@@ -514,6 +518,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Pergunte sobre sua casa ou comunidade...',
     askButton: 'Perguntar',
     powered: 'Alimentado por IA • Informação apenas para referência',
+    privacyLink: 'Política de Privacidade',
     voiceNotSupported: 'A entrada de voz não é compatível com o seu navegador. Use Chrome, Edge ou Safari.',
     sessionExpired: 'Sessão expirada. Escaneie seu código QR novamente.',
     errorOccurred: 'Desculpe, encontrei um erro. Tente novamente.'
@@ -530,6 +535,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Jautājiet par savu māju vai kopienu...',
     askButton: 'Jautāt',
     powered: 'Darbina AI • Informācija tikai atsaucei',
+    privacyLink: 'Privātuma politika',
     voiceNotSupported: 'Balss ievade netiek atbalstīta jūsu pārlūkprogrammā. Lūdzu, izmantojiet Chrome, Edge vai Safari.',
     sessionExpired: 'Sesija beigusies. Lūdzu, skenējiet QR kodu vēlreiz.',
     errorOccurred: 'Atvainojiet, radās kļūda. Lūdzu, mēģiniet vēlreiz.'
@@ -546,6 +552,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Klauskite apie savo namus ar bendruomenę...',
     askButton: 'Klausti',
     powered: 'Veikia AI • Informacija tik nuorodai',
+    privacyLink: 'Privatumo politika',
     voiceNotSupported: 'Balso įvedimas nepalaikomas jūsų naršyklėje. Naudokite Chrome, Edge arba Safari.',
     sessionExpired: 'Sesija pasibaigė. Nuskaitykite QR kodą dar kartą.',
     errorOccurred: 'Atsiprašome, įvyko klaida. Bandykite dar kartą.'
@@ -562,6 +569,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Întrebați despre casa sau comunitatea dvs...',
     askButton: 'Întreabă',
     powered: 'Alimentat de AI • Informații doar ca referință',
+    privacyLink: 'Politica de confidențialitate',
     voiceNotSupported: 'Intrarea vocală nu este acceptată în browserul dvs. Vă rugăm să utilizați Chrome, Edge sau Safari.',
     sessionExpired: 'Sesiunea a expirat. Vă rugăm să scanați codul QR din nou.',
     errorOccurred: 'Ne pare rău, am întâlnit o eroare. Vă rugăm să încercați din nou.'
@@ -578,6 +586,7 @@ const TRANSLATIONS: Record<string, any> = {
     placeholder: 'Fiafraigh faoi do theach nó do phobal...',
     askButton: 'Fiafraigh',
     powered: 'Faoi chumhacht AI • Eolas le haghaidh tagartha amháin',
+    privacyLink: 'Polasaí Príobháideachta',
     voiceNotSupported: 'Ní thacaítear le hionchur gutha i do bhrabhsálaí. Úsáid Chrome, Edge, nó Safari.',
     sessionExpired: 'Seisiún imithe in éag. Scan do chód QR arís.',
     errorOccurred: 'Tá brón orainn, tharla earráid. Bain triail eile as.'
@@ -1615,7 +1624,15 @@ export default function PurchaserChatTab({
           </div>
         </div>
         <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-          {t.powered}
+          {t.powered} •{' '}
+          <a
+            href="https://openhouseai.ie/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`underline hover:no-underline ${isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600'}`}
+          >
+            {t.privacyLink || 'Privacy Policy'}
+          </a>
         </p>
       </div>
     </div>
