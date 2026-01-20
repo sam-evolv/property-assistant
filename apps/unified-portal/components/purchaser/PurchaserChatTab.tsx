@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Copy, Check } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 
 const SUGGESTED_PILLS_V2_ENABLED = process.env.NEXT_PUBLIC_SUGGESTED_PILLS_V2 === 'true';
 
-// Animation styles for typing indicator and logo hover
+// Animation styles for typing indicator, logo hover, and message animations
 const ANIMATION_STYLES = `
   @keyframes dot-bounce {
     0%, 60%, 100% {
@@ -28,6 +28,16 @@ const ANIMATION_STYLES = `
       transform: translateY(-12px);
     }
   }
+  @keyframes message-fade-in {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
   .typing-dot {
     animation: dot-bounce 1.4s infinite;
     display: inline-block;
@@ -45,6 +55,16 @@ const ANIMATION_STYLES = `
   }
   .logo-container:hover {
     animation: logo-float 2s ease-in-out infinite;
+  }
+  .message-bubble {
+    animation: message-fade-in 0.3s ease-out forwards;
+  }
+  .copy-button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .message-container:hover .copy-button {
+    opacity: 1;
   }
 `;
 
@@ -133,6 +153,35 @@ function formatAssistantContent(content: string, isDarkMode: boolean): string {
     '<a href="mailto:$1" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
   );
 
+  // Smart typography - convert straight quotes to curly quotes
+  html = html.replace(/(\s|^)"([^"]+)"(\s|$|[.,!?])/g, '$1"$2"$3'); // Double quotes
+  html = html.replace(/(\s|^)'([^']+)'(\s|$|[.,!?])/g, '$1'$2'$3'); // Single quotes
+  html = html.replace(/(\w)'(\w)/g, '$1'$2'); // Apostrophes (e.g., "don't")
+  html = html.replace(/--/g, '–'); // En-dash
+  html = html.replace(/\.\.\./g, '…'); // Ellipsis
+
+  // Highlight important numbers - prices, measurements, percentages
+  // Prices (€, £, $)
+  html = html.replace(
+    /([€£$]\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:euro|EUR|pounds?|GBP))/gi,
+    '<span class="font-semibold text-gold-600">$1</span>'
+  );
+  // Measurements (m², sq ft, sqm, etc.)
+  html = html.replace(
+    /(\d+(?:\.\d+)?\s*(?:m²|sq\.?\s*(?:ft|m|metres?|meters?)|sqm|square\s+(?:feet|metres?|meters?)|hectares?|ha|acres?))/gi,
+    '<span class="font-medium">$1</span>'
+  );
+  // Percentages
+  html = html.replace(
+    /(\d+(?:\.\d+)?%)/g,
+    '<span class="font-medium">$1</span>'
+  );
+  // Dates (common formats)
+  html = html.replace(
+    /(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})/gi,
+    '<span class="font-medium">$1</span>'
+  );
+
   // Convert newlines to proper breaks (preserve paragraph structure)
   html = html.replace(/\n\n/g, '</p><p class="mt-3">');
   html = html.replace(/\n/g, '<br/>');
@@ -152,8 +201,8 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
     <style>{TYPING_STYLES}</style>
     <div
       className={`rounded-[20px] rounded-bl-[6px] px-4 py-2.5 shadow-sm ${
-        isDarkMode 
-          ? 'bg-[#1C1C1E] shadow-black/20' 
+        isDarkMode
+          ? 'bg-[#1C1C1E] shadow-black/20'
           : 'bg-[#E9E9EB] shadow-black/5'
       }`}
     >
@@ -165,6 +214,43 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
     </div>
   </div>
 );
+
+// Copy button component for assistant messages
+const CopyButton = ({ content, isDarkMode }: { content: string; isDarkMode: boolean }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      // Haptic feedback on mobile if available
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`copy-button absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all ${
+        isDarkMode
+          ? 'bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white'
+          : 'bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700'
+      } ${copied ? 'opacity-100' : ''}`}
+      title={copied ? 'Copied!' : 'Copy message'}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-green-500" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+};
 
 const SourcesDropdown = ({ 
   sources, 
@@ -352,8 +438,9 @@ interface PurchaserChatTabProps {
 // Translations for UI and prompts
 const TRANSLATIONS: Record<string, any> = {
   en: {
-    welcome: 'Ask anything about your home or community',
-    subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
+    welcome: 'Your home assistant',
+    subtitle: 'Get instant answers about your property, floor plans, local amenities, and more. Just ask!',
+    tryAsking: 'Try asking about:',
     prompts: [
       "Public Transport",
       "Floor Plans",
@@ -827,6 +914,11 @@ export default function PurchaserChatTab({
     setInput('');
     setSending(true);
 
+    // Haptic feedback on send (mobile)
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(15);
+    }
+
     if (intentMetadata) {
       setLastIntentKey(intentMetadata.intentKey);
     }
@@ -1178,12 +1270,17 @@ export default function PurchaserChatTab({
           </h1>
 
           {/* Subtitle */}
-          <p className={`mt-1.5 text-center text-[11px] leading-relaxed max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+          <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
             {t.subtitle}
           </p>
 
+          {/* Try asking label */}
+          <p className={`mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-slate-400'}`}>
+            {t.tryAsking || 'Try asking about:'}
+          </p>
+
           {/* 2x2 Prompt Grid */}
-          <div className="mt-3 grid w-full max-w-[300px] grid-cols-2 gap-1.5">
+          <div className="grid w-full max-w-[300px] grid-cols-2 gap-1.5">
             {SUGGESTED_PILLS_V2_ENABLED && suggestedPillsV2.length === 4 ? (
               suggestedPillsV2.map((pill) => (
                 <button
@@ -1233,7 +1330,7 @@ export default function PurchaserChatTab({
                   return (
                     <div key={`msg-${idx}`} className="flex justify-end">
                       {/* User bubble - iMessage inspired, asymmetric rounded */}
-                      <div className={`max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
+                      <div className={`message-bubble max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
                         isDarkMode
                           ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
                           : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
@@ -1248,14 +1345,16 @@ export default function PurchaserChatTab({
                   return null;
                 }
                 return (
-                  <div key={`msg-${idx}`} className="flex justify-start">
+                  <div key={`msg-${idx}`} className="flex justify-start message-container group">
                     {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
-                    <div className={`max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm ${
+                    <div className={`message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
                       isDarkMode
                         ? 'bg-[#1C1C1E] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
                       <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content" dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                      {/* Copy button - appears on hover */}
+                      <CopyButton content={msg.content} isDarkMode={isDarkMode} />
                       {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
                         isDarkMode 

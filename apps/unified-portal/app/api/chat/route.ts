@@ -2633,15 +2633,15 @@ export async function POST(request: NextRequest) {
 - You have limited information on this topic
 - Do NOT offer to provide "specific recommendations", "detailed directions", or "particular suggestions" - you don't have that level of detail
 - If you cannot fully answer the question, acknowledge the limitation honestly
-- You may suggest the user contact the developer or management company for more details`;
-        
+- Offer to help with something else instead of redirecting to the developer`;
+
         case 'none':
         default:
           return `FOLLOW-UP OFFERS (RESTRICTED):
 - You do NOT have sufficient information to offer any follow-up assistance on this topic
 - NEVER say phrases like "feel free to ask", "if you need specific recommendations", "just ask for more details"
-- State honestly that you don't have detailed information and redirect to developer/management company
-- Do not invite further questions about topics you cannot answer`;
+- State honestly that you don't have detailed information, then offer to help with a different question
+- Do NOT suggest contacting the developer unless it's for something only they would know (warranty claims, construction defects)`;
       }
     };
 
@@ -2692,10 +2692,17 @@ ${referenceData}
 
 CRITICAL - NO GUESSING (ACCURACY REQUIREMENT):
 - ONLY answer based on the REFERENCE DATA provided above. Do NOT make up, guess, or infer information that is not explicitly stated.
-- If the answer is NOT in the reference data, explain gracefully that you don't have those specific details, and suggest they check with their developer or management company. Keep the tone helpful and conversational, not robotic.
+- If the answer is NOT in the reference data, explain gracefully that you don't have those specific details. Offer to help with something else instead. Keep the tone helpful and conversational, not robotic.
 - NEVER fabricate specifications, dates, contact details, prices, or any factual claims
-- If you're uncertain whether something is accurate, err on the side of caution and direct the user to verify with the appropriate party
+- If you're uncertain whether something is accurate, err on the side of caution
 - It is better to admit you don't know than to provide incorrect information
+
+CRITICAL - MINIMISE DEVELOPER REFERRALS:
+- ONLY suggest contacting the developer for genuinely unique information that ONLY the developer would know (e.g., specific warranty claims, construction defects, legal disputes)
+- For general questions you don't have info on, simply say "I don't have that information right now" and offer to help with something else
+- NEVER suggest contacting the developer for small issues, general queries, or information that could be found elsewhere
+- If someone has a maintenance issue or question, try to provide helpful general guidance first
+- The goal is to resolve queries within this assistant, not redirect users elsewhere unnecessarily
 
 CRITICAL - NEARBY AMENITIES (STRICT PROHIBITION):
 - NEVER invent, guess, or name specific businesses, shops, cafes, pubs, restaurants, or any other venues
@@ -3306,7 +3313,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
         console.log('[Chat] Using floor plan fallback for dimension question');
       } else {
         // No dimensions and no floor plans
-        dimensionAnswer = "I don't have the room dimensions stored yet, and I couldn't find floor plan documents to show you. I'd recommend contacting your developer or management company for precise room measurements, or checking your original floor plan documentation.";
+        dimensionAnswer = "I don't have the room dimensions for your property stored yet. If you have your original floor plan documentation, that would have the exact measurements. Is there anything else I can help you with?";
         console.log('[Chat] No room dimensions or floor plans available');
       }
 
