@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
+import { cleanForDisplay } from '@/lib/assistant/formatting';
 
 const SUGGESTED_PILLS_V2_ENABLED = process.env.NEXT_PUBLIC_SUGGESTED_PILLS_V2 === 'true';
 
@@ -48,6 +49,34 @@ const ANIMATION_STYLES = `
 `;
 
 const TYPING_STYLES = ANIMATION_STYLES;
+
+// Streaming display configuration for natural text appearance
+const STREAMING_CONFIG = {
+  baseDelay: 18,           // Base delay between words (ms)
+  variance: 8,             // Random variance +/- (ms)
+  sentenceDelay: 50,       // Extra delay after . ! ?
+  paragraphDelay: 100,     // Extra delay after paragraph breaks
+  initialDelay: 350,       // Delay before text starts appearing (thinking time)
+};
+
+// Helper to calculate delay for natural text cadence
+function getWordDelay(word: string, isAfterParagraph: boolean): number {
+  const base = STREAMING_CONFIG.baseDelay;
+  const variance = (Math.random() * STREAMING_CONFIG.variance * 2) - STREAMING_CONFIG.variance;
+  let delay = base + variance;
+
+  // Add extra pause after sentence-ending punctuation
+  if (/[.!?]$/.test(word)) {
+    delay += STREAMING_CONFIG.sentenceDelay;
+  }
+
+  // Add extra pause after paragraph breaks
+  if (isAfterParagraph) {
+    delay += STREAMING_CONFIG.paragraphDelay;
+  }
+
+  return Math.max(10, delay);
+}
 
 const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   <div className={`flex justify-start`}>
@@ -416,6 +445,13 @@ export default function PurchaserChatTab({
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Controlled streaming display state
+  const [displayedContent, setDisplayedContent] = useState<string>('');
+  const [fullContent, setFullContent] = useState<string>('');
+  const [isTyping, setIsTyping] = useState(false);
+  const typingAbortRef = useRef<boolean>(false);
+  const streamingMessageIndexRef = useRef<number>(-1);
   const [hasBeenWelcomed, setHasBeenWelcomed] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(`chat_welcomed_${unitUid}`) === 'true';
@@ -637,6 +673,65 @@ export default function PurchaserChatTab({
     pillId: string;
   }
 
+  // Controlled typing effect for natural text display
+  const displayTextWithDelay = useCallback(async (
+    fullText: string,
+    messageIndex: number,
+    drawing: DrawingData | null,
+    sources: SourceDocument[] | null
+  ) => {
+    typingAbortRef.current = false;
+    setIsTyping(true);
+
+    // Sanitize the text for display (remove markdown)
+    const sanitizedText = cleanForDisplay(fullText);
+
+    // Initial thinking delay
+    await new Promise(resolve => setTimeout(resolve, STREAMING_CONFIG.initialDelay));
+
+    if (typingAbortRef.current) {
+      setIsTyping(false);
+      return;
+    }
+
+    // Split into words while preserving whitespace structure
+    const words = sanitizedText.split(/(\s+)/);
+    let displayed = '';
+    let prevWasParagraph = false;
+
+    for (let i = 0; i < words.length; i++) {
+      if (typingAbortRef.current) break;
+
+      const word = words[i];
+      displayed += word;
+
+      // Update the message content
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (messageIndex >= 0 && updated[messageIndex]) {
+          updated[messageIndex] = {
+            ...updated[messageIndex],
+            content: displayed,
+            drawing: drawing,
+            sources: sources,
+          };
+        }
+        return updated;
+      });
+
+      // Only add delay for non-whitespace words
+      if (word.trim()) {
+        const delay = getWordDelay(word, prevWasParagraph);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        prevWasParagraph = false;
+      } else if (word.includes('\n\n')) {
+        prevWasParagraph = true;
+      }
+    }
+
+    setIsTyping(false);
+  }, []);
+
   const sendMessage = async (messageText?: string, intentMetadata?: IntentMetadata) => {
     const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
     const textToSend = messageText || input.trim();
@@ -705,12 +800,14 @@ export default function PurchaserChatTab({
         let sources: SourceDocument[] | null = null;
         let assistantMessageIndex = -1;
 
-        // Add placeholder assistant message immediately
+        // Add placeholder assistant message immediately (empty - typing indicator shown via sending state)
         setMessages((prev) => {
           assistantMessageIndex = prev.length;
+          streamingMessageIndexRef.current = assistantMessageIndex;
           return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
         });
 
+        // Buffer the streamed content - don't display immediately
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -722,7 +819,7 @@ export default function PurchaserChatTab({
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
-                
+
                 if (data.type === 'metadata') {
                   // Received metadata with drawing and source info
                   if (data.drawing) {
@@ -732,32 +829,24 @@ export default function PurchaserChatTab({
                     sources = data.sources;
                   }
                 } else if (data.type === 'text') {
-                  // Streaming text content
+                  // Buffer the text content (don't display yet)
                   streamedContent += data.content;
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
-                      updated[assistantMessageIndex] = {
-                        ...updated[assistantMessageIndex],
-                        content: streamedContent,
-                        drawing: drawing,
-                        sources: sources,
-                      };
-                    }
-                    return updated;
-                  });
                 } else if (data.type === 'done') {
-                  // Streaming complete - detect if this is a "no info" response
+                  // Streaming complete - now display with controlled typing effect
                   const isNoInfoResponse = streamedContent.toLowerCase().includes("i don't have that information") ||
                     streamedContent.toLowerCase().includes("i don't have that specific detail") ||
                     streamedContent.toLowerCase().includes("i'd recommend contacting your developer");
-                  
+
+                  // Display text with natural typing cadence
+                  await displayTextWithDelay(streamedContent, assistantMessageIndex, drawing, sources);
+
+                  // Update final message state with isNoInfo flag
                   setMessages((prev) => {
                     const updated = [...prev];
                     if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
                       updated[assistantMessageIndex] = {
                         ...updated[assistantMessageIndex],
-                        content: streamedContent,
+                        content: cleanForDisplay(streamedContent),
                         drawing: drawing,
                         sources: sources,
                         isNoInfo: isNoInfoResponse,
@@ -765,7 +854,7 @@ export default function PurchaserChatTab({
                     }
                     return updated;
                   });
-                  
+
                   // Mark user as welcomed after first successful response
                   if (!hasBeenWelcomed) {
                     localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
@@ -794,18 +883,20 @@ export default function PurchaserChatTab({
         const data = await res.json();
 
         if (data.answer) {
+          // Sanitize markdown from the response before displaying
+          const sanitizedAnswer = cleanForDisplay(data.answer);
           setMessages((prev) => [
             ...prev,
-            { 
-              role: 'assistant', 
-              content: data.answer,
+            {
+              role: 'assistant',
+              content: sanitizedAnswer,
               floorPlanUrl: data.floorPlanUrl || null,
               drawing: data.drawing || null,
               attachments: data.attachments || null,
               clarification: data.clarification || null,
             },
           ]);
-          
+
           // Mark user as welcomed after first successful response (non-streaming path)
           if (!hasBeenWelcomed) {
             localStorage.setItem(`chat_welcomed_${unitUid}`, 'true');
@@ -950,14 +1041,15 @@ export default function PurchaserChatTab({
     }
   }, [messages.length, sending, scrollToBottom]);
   
-  // Auto-scroll during streaming (when last message content updates)
+  // Auto-scroll during streaming/typing (when last message content updates)
   const lastMessage = messages[messages.length - 1];
   const lastMessageContent = lastMessage?.content || '';
   useEffect(() => {
     if (scrollContainerRef.current && lastMessage?.role === 'assistant' && !userScrolledUp.current) {
+      // Use smooth scroll that keeps pace with typing
       scrollToBottom(true);
     }
-  }, [lastMessageContent, scrollToBottom]);
+  }, [lastMessageContent, scrollToBottom, isTyping]);
 
   return (
     <div 

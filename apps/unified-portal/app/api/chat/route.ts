@@ -2673,11 +2673,16 @@ Use this context naturally when relevant - don't explicitly mention "you mention
 
 ${getFollowUpInstruction()}
 
-FORMATTING RULES (CRITICAL):
-- NEVER use asterisks (*) or markdown formatting in your responses
-- For section headings, just use the title followed by a colon on its own line (e.g. "Walls:" not "**Walls:**")
-- For emphasis, use plain language rather than bold or italics
-- Use simple dashes (-) for bullet points, not asterisks
+FORMATTING RULES (CRITICAL - MUST FOLLOW):
+Format all responses as clean, readable text without any markdown syntax. This is essential for a professional user experience.
+- NEVER use hashtags (#) for headings
+- NEVER use asterisks (*) or underscores (_) for bold or italics
+- NEVER use backticks (\`) for code or technical terms
+- NEVER use greater-than (>) for blockquotes
+- For section headings, just use the title followed by a colon on its own line (e.g. "Walls:" not "**Walls:**" or "# Walls")
+- For emphasis, use plain language rather than formatting characters
+- Use simple dashes (-) or numbers followed by periods (1. 2. 3.) for lists
+- Use natural paragraph breaks for structure
 - Keep formatting clean and professional - no special characters for styling
 
 REFERENCE DATA (from: ${sources.join(', ')}):
