@@ -3465,14 +3465,14 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       // NEXT BEST ACTION: Append capability-safe follow-up suggestions
       let nbaDebugInfo: NextBestActionResult | null = null;
       let nbaSuggestionUsed: string | null = null;
-      
+
       if (capabilityContext && isNextBestActionEnabled()) {
         const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext);
+        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as any);
         fullAnswer = nbaResult.response;
         nbaSuggestionUsed = nbaResult.suggestionUsed;
         nbaDebugInfo = nbaResult.debugInfo;
-        
+
         if (nbaSuggestionUsed) {
           console.log('[Chat] Next Best Action appended:', nbaSuggestionUsed.substring(0, 50) + '...');
         }
@@ -3754,11 +3754,11 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           
           // NEXT BEST ACTION: Append capability-safe follow-up suggestions to streaming response
           let streamNbaSuggestion: string | null = null;
-          
+
           if (capabilityContext && isNextBestActionEnabled()) {
             const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext);
-            
+            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as any);
+
             if (streamNbaResult.suggestionUsed) {
               streamNbaSuggestion = streamNbaResult.suggestionUsed;
               const nbaContent = '\n\n' + streamNbaSuggestion;
@@ -3770,7 +3770,20 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           
           // TONE GUARDRAILS: Add source hint at end of streaming response
           if (isToneGuardrailsEnabled() && streamResponseSource === 'semantic_search') {
-            const sourceHintContent = '\n\nSource: Your home documentation' + (developmentName ? ` for ${developmentName}` : '');
+            // Translate source hint based on language
+            const sourceHintTranslations: Record<string, string> = {
+              en: 'Source: Your home documentation',
+              pl: 'Źródło: Dokumentacja Twojego domu',
+              es: 'Fuente: La documentación de tu hogar',
+              ru: 'Источник: Документация вашего дома',
+              pt: 'Fonte: A documentação da sua casa',
+              lv: 'Avots: Jūsu mājas dokumentācija',
+              lt: 'Šaltinis: Jūsų namų dokumentacija',
+              ro: 'Sursă: Documentația locuinței tale',
+              ga: 'Foinse: Doiciméadú do thí',
+            };
+            const sourceHintBase = sourceHintTranslations[selectedLanguage] || sourceHintTranslations.en;
+            const sourceHintContent = '\n\n' + sourceHintBase + (developmentName ? ` for ${developmentName}` : '');
             fullAnswer += sourceHintContent;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: sourceHintContent })}\n\n`));
           }

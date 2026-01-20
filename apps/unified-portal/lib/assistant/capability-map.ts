@@ -1,13 +1,13 @@
 /**
  * Capability Map for Proactive Next Best Action
- * 
+ *
  * Defines what capabilities are available for each intent category
  * and what suggestions can be made when those capabilities are met.
- * 
+ *
  * CRITICAL: Never suggest actions the system cannot fulfil.
  */
 
-export type CapabilityType = 
+export type CapabilityType =
   | 'docs_available'
   | 'scheme_location'
   | 'places_api'
@@ -16,6 +16,8 @@ export type CapabilityType =
   | 'floor_plans'
   | 'drawings'
   | 'local_history';
+
+export type SupportedLanguage = 'en' | 'pl' | 'es' | 'ru' | 'pt' | 'lv' | 'lt' | 'ro' | 'ga';
 
 export interface Capability {
   type: CapabilityType;
@@ -28,6 +30,8 @@ export interface IntentCapability {
   requires: CapabilityType[];
   suggestions: string[];
   shortSuggestions?: string[]; // Shorter alternatives for inline use
+  // Translations for suggestions
+  translations?: Partial<Record<SupportedLanguage, string[]>>;
 }
 
 export const CAPABILITY_MAP: IntentCapability[] = [
@@ -194,9 +198,59 @@ export const CAPABILITY_MAP: IntentCapability[] = [
     suggestions: [
       "Is there anything specific about your home or development I can help with?",
       "Would you like info on amenities, maintenance, or community facilities?"
-    ]
+    ],
+    translations: {
+      pl: [
+        "Czy jest coś konkretnego dotyczącego Twojego domu lub osiedla, w czym mogę pomóc?",
+        "Czy chciałbyś informacji o udogodnieniach, konserwacji lub obiektach wspólnych?"
+      ],
+      es: [
+        "¿Hay algo específico sobre tu hogar o urbanización en lo que pueda ayudarte?",
+        "¿Te gustaría información sobre servicios, mantenimiento o instalaciones comunitarias?"
+      ],
+      ru: [
+        "Есть ли что-то конкретное о вашем доме или жилом комплексе, чем я могу помочь?",
+        "Хотите информацию об удобствах, обслуживании или общих объектах?"
+      ],
+      pt: [
+        "Há algo específico sobre a sua casa ou empreendimento em que eu possa ajudar?",
+        "Gostaria de informações sobre comodidades, manutenção ou instalações comunitárias?"
+      ],
+      lv: [
+        "Vai ir kaut kas konkrēts par jūsu māju vai attīstību, ar ko es varu palīdzēt?",
+        "Vai vēlaties informāciju par ērtībām, apkopi vai kopienas telpām?"
+      ],
+      lt: [
+        "Ar yra kažkas konkretaus apie jūsų namus ar gyvenamąjį kompleksą, kuo galiu padėti?",
+        "Ar norėtumėte informacijos apie patogumus, priežiūrą ar bendruomenės patalpas?"
+      ],
+      ro: [
+        "Este ceva specific despre locuința sau ansamblul tău cu care te pot ajuta?",
+        "Dorești informații despre facilități, întreținere sau dotări comune?"
+      ],
+      ga: [
+        "An bhfuil aon rud ar leith faoi do theach nó do phobal ar féidir liom cabhrú leat?",
+        "Ar mhaith leat eolas faoi áiseanna, cothabháil nó saoráidí pobail?"
+      ]
+    }
   }
 ];
+
+/**
+ * Get suggestions for an intent in the specified language
+ */
+export function getSuggestionsForLanguage(
+  capability: IntentCapability,
+  language: SupportedLanguage
+): string[] {
+  // If English or no translations available, return default suggestions
+  if (language === 'en' || !capability.translations) {
+    return capability.suggestions;
+  }
+
+  // Return translated suggestions if available, otherwise fall back to English
+  return capability.translations[language] || capability.suggestions;
+}
 
 export function getCapabilityForIntent(intent: string): IntentCapability | null {
   // Direct match

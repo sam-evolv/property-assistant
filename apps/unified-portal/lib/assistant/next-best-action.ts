@@ -11,13 +11,15 @@
  * - Crisp, non-spammy tone
  */
 
-import { 
-  CapabilityType, 
-  Capability, 
-  IntentCapability, 
+import {
+  CapabilityType,
+  Capability,
+  IntentCapability,
+  SupportedLanguage,
   getCapabilityForIntent,
   getRelatedIntents,
-  CAPABILITY_MAP 
+  getSuggestionsForLanguage,
+  CAPABILITY_MAP
 } from './capability-map';
 
 export interface CapabilityContext {
@@ -109,7 +111,8 @@ export function getNextBestAction(
   intent: string | null,
   source: string | null,
   context: CapabilityContext,
-  maxSuggestions: number = 2
+  maxSuggestions: number = 2,
+  language: SupportedLanguage = 'en'
 ): NextBestActionResult {
   // Check if feature is enabled
   if (!isNextBestActionEnabled()) {
@@ -120,7 +123,7 @@ export function getNextBestAction(
       gateReason: 'feature_disabled'
     };
   }
-  
+
   // Block for emergencies and safety
   if (shouldBlockSuggestions(intent, source)) {
     return {
@@ -130,27 +133,28 @@ export function getNextBestAction(
       gateReason: 'blocked_intent_or_source'
     };
   }
-  
+
   // If no intent detected, use general suggestions
   const effectiveIntent = intent || 'general';
-  
+
   // Get capability for this intent
   const capability = getCapabilityForIntent(effectiveIntent);
-  
+
   if (!capability) {
     // Try related intents or fall back to general
     const generalCap = CAPABILITY_MAP.find(c => c.intent === 'general');
     if (generalCap) {
       const check = checkCapabilitiesMet(generalCap.requires, context);
       if (check.met) {
+        const suggestions = getSuggestionsForLanguage(generalCap, language);
         return {
           shouldSuggest: true,
-          suggestions: generalCap.suggestions.slice(0, maxSuggestions),
+          suggestions: suggestions.slice(0, maxSuggestions),
           intent: effectiveIntent,
         };
       }
     }
-    
+
     return {
       shouldSuggest: false,
       suggestions: [],
@@ -158,10 +162,10 @@ export function getNextBestAction(
       gateReason: 'no_capability_match'
     };
   }
-  
+
   // Check if required capabilities are met
   const check = checkCapabilitiesMet(capability.requires, context);
-  
+
   if (!check.met) {
     // Try related intents
     const related = getRelatedIntents(effectiveIntent);
@@ -170,15 +174,16 @@ export function getNextBestAction(
       if (relatedCap) {
         const relatedCheck = checkCapabilitiesMet(relatedCap.requires, context);
         if (relatedCheck.met) {
+          const suggestions = getSuggestionsForLanguage(relatedCap, language);
           return {
             shouldSuggest: true,
-            suggestions: relatedCap.suggestions.slice(0, maxSuggestions),
+            suggestions: suggestions.slice(0, maxSuggestions),
             intent: relatedIntent,
           };
         }
       }
     }
-    
+
     return {
       shouldSuggest: false,
       suggestions: [],
@@ -186,10 +191,11 @@ export function getNextBestAction(
       gateReason: `missing_capabilities: ${check.missing.join(', ')}`
     };
   }
-  
+
+  const suggestions = getSuggestionsForLanguage(capability, language);
   return {
     shouldSuggest: true,
-    suggestions: capability.suggestions.slice(0, maxSuggestions),
+    suggestions: suggestions.slice(0, maxSuggestions),
     intent: effectiveIntent,
   };
 }
@@ -214,10 +220,11 @@ export function appendNextBestAction(
   response: string,
   intent: string | null,
   source: string | null,
-  context: CapabilityContext
+  context: CapabilityContext,
+  language: SupportedLanguage = 'en'
 ): { response: string; suggestionUsed: string | null; debugInfo: NextBestActionResult } {
-  const result = getNextBestAction(intent, source, context);
-  
+  const result = getNextBestAction(intent, source, context, 2, language);
+
   if (!result.shouldSuggest || result.suggestions.length === 0) {
     return {
       response,
@@ -225,14 +232,14 @@ export function appendNextBestAction(
       debugInfo: result
     };
   }
-  
+
   // Pick one suggestion (could randomize later)
   const suggestionIndex = Math.floor(Math.random() * Math.min(result.suggestions.length, 2));
   const suggestion = result.suggestions[suggestionIndex];
-  
+
   // Append to response
   const enhancedResponse = response.trim() + '\n\n' + suggestion;
-  
+
   return {
     response: enhancedResponse,
     suggestionUsed: suggestion,
