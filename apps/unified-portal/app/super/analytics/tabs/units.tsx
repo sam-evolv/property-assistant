@@ -72,9 +72,9 @@ function UnitsContent({ tenantId, developmentId, days }: UnitsTabProps) {
             </div>
           </div>
           <div className="text-sm text-gray-600 mt-4">
-            {occupancyRate > 80 ? '🏆 Excellent occupancy rate!' : 
-             occupancyRate > 60 ? '✅ Good occupancy' : 
-             '⚠️ Consider improving occupancy'}
+            {occupancyRate > 80 ? 'Excellent occupancy rate!' :
+             occupancyRate > 60 ? 'Good occupancy' :
+             'Consider improving occupancy'}
           </div>
         </div>
 
@@ -101,9 +101,9 @@ function UnitsContent({ tenantId, developmentId, days }: UnitsTabProps) {
             </div>
           </div>
           <div className="text-sm text-gray-600 mt-4">
-            {activityRate > 60 ? '🎉 High engagement!' : 
-             activityRate > 30 ? '✅ Moderate engagement' : 
-             '💡 Opportunity to increase engagement'}
+            {activityRate > 60 ? 'High engagement!' :
+             activityRate > 30 ? 'Moderate engagement' :
+             'Opportunity to increase engagement'}
           </div>
         </div>
 

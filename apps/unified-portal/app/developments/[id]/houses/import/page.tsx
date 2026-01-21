@@ -200,7 +200,7 @@ export default function HousesImportPage() {
               type="button"
               className="px-8 py-3 bg-gold-500 text-white font-semibold rounded-lg hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all duration-200"
             >
-              {importing ? '⏳ Importing...' : '✅ Confirm & Import Houses'}
+              {importing ? 'Importing...' : 'Confirm & Import Houses'}
             </button>
             <button
               onClick={handleBack}
@@ -227,9 +227,9 @@ export default function HousesImportPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold mb-4 text-gray-900">
-                  {result.success && result.summary.errors === 0 ? '✅ Import Completed Successfully!' : 
-                   result.summary.errors > 0 ? '⚠️ Import Completed with Errors' : 
-                   '❌ Import Failed'}
+                  {result.success && result.summary.errors === 0 ? 'Import Completed Successfully!' :
+                   result.summary.errors > 0 ? 'Import Completed with Errors' :
+                   'Import Failed'}
                 </h2>
                 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -302,10 +302,10 @@ export default function HousesImportPage() {
                             row.status === 'skipped' ? 'bg-gray-100 text-gray-800' :
                             'bg-red-100 text-red-800'
                           }`}>
-                            {row.status === 'inserted' ? '✅ Inserted' :
-                             row.status === 'updated' ? '🔄 Updated' :
-                             row.status === 'skipped' ? '⏭️ Skipped' :
-                             '❌ Error'}
+                            {row.status === 'inserted' ? 'Inserted' :
+                             row.status === 'updated' ? 'Updated' :
+                             row.status === 'skipped' ? 'Skipped' :
+                             'Error'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">{row.unitNumber || '-'}</td>

@@ -375,7 +375,7 @@ export default function PurchaserMapsTab({
                   <div style="font-weight: 600; font-size: 15px; color: #1f2937;">
                     ${fav.name}
                   </div>
-                  <span style="color: #EF4444; font-size: 12px;">❤️ Favourite</span>
+                  <span style="color: #EF4444; font-size: 12px;">Favourite</span>
                 </div>
                 <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
                   ${fav.address}
@@ -385,7 +385,7 @@ export default function PurchaserMapsTab({
                      style="flex: 1; padding: 8px; background: linear-gradient(to right, #D4AF37, #B8934C); 
                             color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; 
                             text-align: center;">
-                    🧭 Navigate
+                    Navigate
                   </a>
                 </div>
               </div>
@@ -528,7 +528,7 @@ export default function PurchaserMapsTab({
                         </div>
                         ${placeDetails.rating ? `
                           <div style="font-size: 13px; color: #F59E0B; margin-bottom: 4px;">
-                            ⭐ ${placeDetails.rating} (${placeDetails.user_ratings_total || 0} reviews)
+                            ${placeDetails.rating} (${placeDetails.user_ratings_total || 0} reviews)
                           </div>
                         ` : ''}
                         <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
@@ -536,14 +536,14 @@ export default function PurchaserMapsTab({
                         </div>
                         ${placeDetails.formatted_phone_number ? `
                           <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
-                            📞 ${placeDetails.formatted_phone_number}
+                            ${placeDetails.formatted_phone_number}
                           </div>
                         ` : ''}
                         ${placeDetails.website ? `
                           <div style="font-size: 12px; margin-bottom: 4px;">
                             <a href="${placeDetails.website}" target="_blank" rel="noopener noreferrer" 
                                style="color: #F59E0B; text-decoration: none;">
-                              🌐 Website
+                              Website
                             </a>
                           </div>
                         ` : ''}
@@ -554,7 +554,7 @@ export default function PurchaserMapsTab({
                              style="display: inline-block; padding: 8px 16px; background: linear-gradient(to right, #F59E0B, #D97706); 
                                     color: white; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 600; 
                                     text-align: center; width: 100%; box-sizing: border-box;">
-                            🧭 Navigate
+                            Navigate
                           </a>
                         </div>
                       </div>
@@ -729,7 +729,7 @@ export default function PurchaserMapsTab({
               </div>
               ${place.formatted_phone_number ? `
                 <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
-                  📞 ${place.formatted_phone_number}
+                  ${place.formatted_phone_number}
                 </div>
               ` : ''}
               <div style="margin-top: 12px;">
@@ -761,7 +761,7 @@ export default function PurchaserMapsTab({
     return (
       <div className={`flex items-center justify-center h-full ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
         <div className="text-center p-6">
-          <div className="text-4xl mb-4">🗺️</div>
+          <div className="text-4xl mb-4 flex justify-center"><Building2 className="w-12 h-12 text-gray-400" /></div>
           <h3 className="text-lg font-semibold mb-2">{t.common.error}</h3>
           <p className="text-sm text-gray-500 mb-4">
             {t.maps.noPlacesFound}

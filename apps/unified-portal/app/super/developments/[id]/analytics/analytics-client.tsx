@@ -55,14 +55,14 @@ export default function DevelopmentAnalyticsClient({
   }
 
   const tabs = [
-    { id: 'timeline', name: 'Timeline', icon: '📊' },
-    { id: 'units', name: 'Units', icon: '🏠' },
-    { id: 'homeowners', name: 'Homeowners', icon: '👥' },
-    { id: 'documents', name: 'Documents', icon: '📄' },
-    { id: 'rag', name: 'RAG Index', icon: '🔍' },
-    { id: 'chat', name: 'Chat Analytics', icon: '💬' },
-    { id: 'maps', name: 'Maps', icon: '🗺️' },
-    { id: 'errors', name: 'System Health', icon: '⚠️' },
+    { id: 'timeline', name: 'Timeline', icon: null },
+    { id: 'units', name: 'Units', icon: null },
+    { id: 'homeowners', name: 'Homeowners', icon: null },
+    { id: 'documents', name: 'Documents', icon: null },
+    { id: 'rag', name: 'RAG Index', icon: null },
+    { id: 'chat', name: 'Chat Analytics', icon: null },
+    { id: 'maps', name: 'Maps', icon: null },
+    { id: 'errors', name: 'System Health', icon: null },
   ] as const;
 
   const messageVolumeData = analytics?.timeline?.[`messageVolume${timeRange}d` as keyof typeof analytics.timeline] as Array<{ date: string; count: number }> || [];

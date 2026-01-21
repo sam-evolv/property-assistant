@@ -2,9 +2,20 @@
 
 import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle, ChevronRight, FileText, Settings, Sparkles, Plus, X, Send, Clock, MessageSquare, Activity, Target, Calendar } from 'lucide-react';
+import {
+  Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle,
+  ChevronRight, FileText, Settings, Sparkles, Plus, X, Send, Clock,
+  MessageSquare, Activity, Target, Calendar, RefreshCw, Mail,
+  Download, BarChart3
+} from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
+import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
+import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
+import type { Alert } from '@/components/ui/ProactiveAlerts';
+import { QuickActionsBar } from '@/components/ui/QuickActions';
+import type { QuickAction } from '@/components/ui/QuickActions';
 
 const TopQuestionsChart = dynamic(
   () => import('./dashboard-charts').then(mod => ({ default: mod.TopQuestionsChart })),
@@ -835,7 +846,7 @@ export default function DeveloperDashboardClient({
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h1 className={`text-3xl font-bold ${textColor}`}>
-                {getGreeting()} 👋
+                {getGreeting()}
               </h1>
               <p className={`${secondaryText} text-sm mt-1`}>
                 Here's what's happening with your developments today

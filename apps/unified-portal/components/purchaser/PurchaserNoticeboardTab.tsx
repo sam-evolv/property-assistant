@@ -440,25 +440,25 @@ function Avatar({ name, size = 'md', isDarkMode }: { name?: string; size?: 'sm' 
 
 function CategoryBadge({ category, t, isDarkMode }: { category?: string; t: any; isDarkMode: boolean }) {
   const config: Record<string, { bg: string; text: string; icon: string }> = {
-    event: { 
-      bg: isDarkMode ? 'bg-amber-900/40' : 'bg-amber-50', 
+    event: {
+      bg: isDarkMode ? 'bg-amber-900/40' : 'bg-amber-50',
       text: isDarkMode ? 'text-amber-300' : 'text-amber-700',
-      icon: '📅'
+      icon: ''
     },
-    alert: { 
-      bg: isDarkMode ? 'bg-red-900/40' : 'bg-red-50', 
+    alert: {
+      bg: isDarkMode ? 'bg-red-900/40' : 'bg-red-50',
       text: isDarkMode ? 'text-red-300' : 'text-red-600',
-      icon: '⚠️'
+      icon: ''
     },
-    lostFound: { 
-      bg: isDarkMode ? 'bg-purple-900/40' : 'bg-purple-50', 
+    lostFound: {
+      bg: isDarkMode ? 'bg-purple-900/40' : 'bg-purple-50',
       text: isDarkMode ? 'text-purple-300' : 'text-purple-600',
-      icon: '🔍'
+      icon: ''
     },
-    general: { 
-      bg: isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100', 
+    general: {
+      bg: isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100',
       text: isDarkMode ? 'text-gray-300' : 'text-gray-600',
-      icon: '💬'
+      icon: ''
     },
   };
   
@@ -483,7 +483,7 @@ function PriorityIndicator({ priority, isDarkMode }: { priority: string; isDarkM
         ? isDarkMode ? 'bg-red-900/40 text-red-300' : 'bg-red-100 text-red-600'
         : isDarkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-600'
     }`}>
-      {isHigh ? '🔴 Urgent' : '🟡 Important'}
+      {isHigh ? 'Urgent' : 'Important'}
     </span>
   );
 }

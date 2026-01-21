@@ -13,32 +13,32 @@ interface NoticeboardTermsModalProps {
 
 const COMMUNITY_GUIDELINES = [
   {
-    icon: '🤝',
+    icon: '',
     title: 'Be Respectful',
     description: 'Treat all community members with courtesy and respect. Personal attacks, harassment, or discriminatory language will not be tolerated.',
   },
   {
-    icon: '🔒',
+    icon: '',
     title: 'Protect Privacy',
     description: 'Do not share personal information about other residents. This includes names, addresses, contact details, or any identifying information.',
   },
   {
-    icon: '📝',
+    icon: '',
     title: 'Stay On Topic',
     description: 'Keep posts relevant to the community. Use appropriate categories and avoid spam or repetitive content.',
   },
   {
-    icon: '⚠️',
+    icon: '',
     title: 'No False Information',
     description: 'Do not post misleading or false information. If you are unsure about something, clearly state it as an opinion or question.',
   },
   {
-    icon: '🚫',
+    icon: '',
     title: 'No Commercial Posts',
     description: 'The noticeboard is for community communications only. Commercial advertising or solicitation is not permitted.',
   },
   {
-    icon: '📞',
+    icon: '',
     title: 'Use Official Channels for Issues',
     description: 'For maintenance requests, complaints, or urgent matters, please contact your property management directly rather than posting publicly.',
   },

@@ -91,7 +91,7 @@ function EngagementContent({ tenantId, developmentId, days }: EngagementTabProps
 
       {homeowners.topEngagedDevelopment && (
         <div className="bg-gradient-to-r from-gold-50 to-white border border-gold-200 rounded-xl p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">🏆 Top Engaged Development</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Top Engaged Development</h3>
           <div className="text-2xl font-bold text-gold-600">{homeowners.topEngagedDevelopment}</div>
           <div className="text-sm text-gray-600 mt-1">
             This development shows the highest homeowner engagement

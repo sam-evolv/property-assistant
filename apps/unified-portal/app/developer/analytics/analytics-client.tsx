@@ -312,7 +312,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
           </style>
         </head>
         <body>
-          <h1>📊 OpenHouse AI Analytics Report</h1>
+          <h1>OpenHouse AI Analytics Report</h1>
           <div class="meta">
             <p><strong>Scheme:</strong> ${schemeName || 'All Schemes'}</p>
             <p><strong>Date Range:</strong> ${dateRangeLabel}</p>
@@ -1145,7 +1145,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
 
           {/* Tip */}
           <div className={`rounded-lg border p-4 bg-gold-50/50 border-gold-200 text-xs text-gold-600`}>
-            <span className="font-semibold">💡 Tip:</span> Focus on reducing escalated queries by uploading relevant documents and FAQs. High engagement with your content leads to happier homeowners!
+            <span className="font-semibold">Tip:</span> Focus on reducing escalated queries by uploading relevant documents and FAQs. High engagement with your content leads to happier homeowners!
           </div>
         </div>
       </div>

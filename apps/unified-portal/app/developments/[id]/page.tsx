@@ -172,7 +172,7 @@ export default function DevelopmentDetailPage() {
     try {
       const tid = tenantId || development?.tenant_id;
       if (!tid) {
-        console.log('⏭️  Skipping training jobs fetch: no tenant_id available');
+        console.log('[Dev Detail] Skipping training jobs fetch: no tenant_id available');
         return;
       }
       const response = await fetch(`/api/train/jobs?tenantId=${tid}&developmentId=${developmentId}`);
@@ -283,11 +283,11 @@ export default function DevelopmentDetailPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) {
-      console.log('❌ No files selected');
+      console.log('[Dev Detail] No files selected');
       return;
     }
 
-    console.log('🚀 Starting file upload...', {
+    console.log('[Dev Detail] Starting file upload...', {
       fileCount: files.length,
       files: Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type })),
       developmentId,
@@ -295,7 +295,7 @@ export default function DevelopmentDetailPage() {
     });
 
     if (!development) {
-      console.error('❌ Development not loaded');
+      console.error('[Dev Detail] Development not loaded');
       toast.error('Development not loaded. Please refresh the page.');
       return;
     }
@@ -311,12 +311,12 @@ export default function DevelopmentDetailPage() {
       formData.append('tenantId', development.tenant_id);
       console.log('  ✅ FormData prepared');
 
-      console.log('📤 Sending POST to /api/train...');
+      console.log('[Dev Detail] Sending POST to /api/train...');
       const response = await fetch('/api/train', {
         method: 'POST',
         body: formData,
       });
-      console.log('📥 Response received:', {
+      console.log('[Dev Detail] Response received:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
@@ -324,12 +324,12 @@ export default function DevelopmentDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Upload error response:', errorData);
+        console.error('[Dev Detail] Upload error response:', errorData);
         throw new Error(errorData.error || `Upload failed with status ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('✅ Upload successful:', result);
+      console.log('[Dev Detail] Upload successful:', result);
       toast.success(`Successfully uploaded ${result.successfulFiles || 0} file(s)`);
       
       await fetchAnalytics();
@@ -338,7 +338,7 @@ export default function DevelopmentDetailPage() {
       
       e.target.value = '';
     } catch (error) {
-      console.error('❌ Upload failed:', error);
+      console.error('[Dev Detail] Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload files');
     } finally {
       setUploading(false);
@@ -379,7 +379,7 @@ export default function DevelopmentDetailPage() {
     });
 
     if (!development) {
-      console.error('❌ Development not loaded');
+      console.error('[Dev Detail] Development not loaded');
       toast.error('Development not loaded. Please refresh the page.');
       return;
     }
@@ -411,7 +411,7 @@ export default function DevelopmentDetailPage() {
       await fetchTrainingJobs();
       await fetchDocuments();
     } catch (error) {
-      console.error('❌ Upload failed:', error);
+      console.error('[Dev Detail] Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload files');
     } finally {
       setUploading(false);
@@ -763,7 +763,7 @@ export default function DevelopmentDetailPage() {
                               <span className="bg-gold-100 text-gold-800 px-2 py-1 rounded font-medium">
                                 Type: {house.house_type_code || 'No type'}
                               </span>
-                              {house.bedrooms && <span>🛏️ {house.bedrooms} beds</span>}
+                              {house.bedrooms && <span>{house.bedrooms} beds</span>}
                               {house.purchaser_email && <span>{house.purchaser_email}</span>}
                               <span className="font-mono text-grey-400">UID: {house.unit_uid}</span>
                             </div>

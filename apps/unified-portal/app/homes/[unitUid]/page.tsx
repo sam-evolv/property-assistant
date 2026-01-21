@@ -317,7 +317,7 @@ export default function HomeResidentPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="text-center max-w-md p-8 bg-white rounded-lg shadow-lg border border-gray-200">
-          <div className="text-6xl mb-4">{isTemporaryError ? '⏳' : '🏠'}</div>
+          <div className="text-6xl mb-4 text-gray-300">{isTemporaryError ? '' : ''}</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             {isTemporaryError ? 'Just a Moment' : 'Access Error'}
           </h2>

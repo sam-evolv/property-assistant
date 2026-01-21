@@ -66,7 +66,7 @@ function KnowledgeGapsContent({ tenantId, developmentId, days }: KnowledgeTabPro
                 <div className="font-medium text-gray-900">{q.question}</div>
                 <div className="text-sm text-gray-600 mt-1">
                   Repeated {q.occurrences} times over {q.daysRepeated} days
-                  {q.isGap && <span className="ml-2 text-red-600 font-medium">⚠ Gap</span>}
+                  {q.isGap && <span className="ml-2 text-red-600 font-medium">Gap</span>}
                 </div>
               </div>
             ))}

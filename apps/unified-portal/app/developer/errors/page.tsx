@@ -103,11 +103,11 @@ export default function ErrorDashboardPage() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'llm': return '🤖';
-      case 'supabase': return '🗄️';
-      case 'timeout': return '⏱️';
-      case 'validation': return '✓';
-      default: return '❌';
+      case 'llm': return 'AI';
+      case 'supabase': return 'DB';
+      case 'timeout': return 'TO';
+      case 'validation': return 'V';
+      default: return 'E';
     }
   };
 
