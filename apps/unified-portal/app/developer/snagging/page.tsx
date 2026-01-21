@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import {
   ClipboardList,
@@ -12,11 +13,27 @@ import {
   Filter,
   Plus,
   Upload,
-  Image,
+  Image as ImageIcon,
   ChevronRight,
+  ChevronLeft,
   Calendar,
   Wrench,
   Building2,
+  X,
+  Phone,
+  Mail,
+  MapPin,
+  FileText,
+  Send,
+  Camera,
+  Download,
+  Trash2,
+  Edit2,
+  ZoomIn,
+  MoreVertical,
+  UserPlus,
+  History,
+  MessageSquare,
 } from 'lucide-react';
 
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -26,11 +43,43 @@ import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
 import type { Alert } from '@/components/ui/ProactiveAlerts';
 import { ExportMenu } from '@/components/ui/ExportMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SlideOver } from '@/components/ui/SlideOver';
+import { DragDropUpload } from '@/components/ui/DragDropUpload';
 
 // Types
 type SnagStatus = 'submitted' | 'acknowledged' | 'in-progress' | 'resolved' | 'verified';
 type SnagPriority = 'low' | 'medium' | 'high' | 'urgent';
 type SnagCategory = 'kitchen' | 'bathroom' | 'painting' | 'carpentry' | 'electrical' | 'plumbing' | 'other';
+
+interface Photo {
+  id: string;
+  url: string;
+  thumbnail: string;
+  caption?: string;
+  uploadedBy: string;
+  uploadedAt: Date;
+  type: 'before' | 'during' | 'after';
+}
+
+interface Contractor {
+  id: string;
+  name: string;
+  company: string;
+  specialty: SnagCategory[];
+  phone: string;
+  email: string;
+  rating: number;
+  jobsCompleted: number;
+  available: boolean;
+}
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  user: string;
+  timestamp: Date;
+  details?: string;
+}
 
 interface Snag {
   id: string;
@@ -42,10 +91,94 @@ interface Snag {
   status: SnagStatus;
   daysOpen: number;
   submittedDate: Date;
-  contractor?: string;
-  photos?: number;
+  contractor?: Contractor;
+  photos: Photo[];
   location?: string;
+  reportedBy?: string;
+  activity: ActivityLog[];
+  notes?: string;
 }
+
+// Mock contractors
+const mockContractors: Contractor[] = [
+  {
+    id: 'c1',
+    name: 'John Murphy',
+    company: 'ABC Kitchens',
+    specialty: ['kitchen', 'carpentry'],
+    phone: '+353 87 123 4567',
+    email: 'john@abckitchens.ie',
+    rating: 4.8,
+    jobsCompleted: 156,
+    available: true,
+  },
+  {
+    id: 'c2',
+    name: 'Sarah O\'Brien',
+    company: 'Spark Electric',
+    specialty: ['electrical'],
+    phone: '+353 86 234 5678',
+    email: 'sarah@sparkelectric.ie',
+    rating: 4.9,
+    jobsCompleted: 203,
+    available: true,
+  },
+  {
+    id: 'c3',
+    name: 'Mike Reilly',
+    company: 'Reliable Plumbing',
+    specialty: ['plumbing', 'bathroom'],
+    phone: '+353 85 345 6789',
+    email: 'mike@reliableplumbing.ie',
+    rating: 4.7,
+    jobsCompleted: 178,
+    available: false,
+  },
+  {
+    id: 'c4',
+    name: 'Emma Walsh',
+    company: 'Perfect Paint Co',
+    specialty: ['painting'],
+    phone: '+353 87 456 7890',
+    email: 'emma@perfectpaint.ie',
+    rating: 4.6,
+    jobsCompleted: 89,
+    available: true,
+  },
+  {
+    id: 'c5',
+    name: 'Tom Collins',
+    company: 'Murphy Carpentry',
+    specialty: ['carpentry', 'other'],
+    phone: '+353 86 567 8901',
+    email: 'tom@murphycarpentry.ie',
+    rating: 4.8,
+    jobsCompleted: 134,
+    available: true,
+  },
+];
+
+// Mock photos for demo
+const mockPhotos: Photo[] = [
+  {
+    id: 'p1',
+    url: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800',
+    thumbnail: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200',
+    caption: 'Kitchen cabinet misalignment - left side',
+    uploadedBy: 'Site Manager',
+    uploadedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    type: 'before',
+  },
+  {
+    id: 'p2',
+    url: 'https://images.unsplash.com/photo-1556909114-44e3e70034e2?w=800',
+    thumbnail: 'https://images.unsplash.com/photo-1556909114-44e3e70034e2?w=200',
+    caption: 'Close-up of hinge issue',
+    uploadedBy: 'Site Manager',
+    uploadedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    type: 'before',
+  },
+];
 
 // Mock data
 const mockSnags: Snag[] = [
@@ -53,15 +186,22 @@ const mockSnags: Snag[] = [
     id: '1',
     unitNumber: '46',
     title: 'Kitchen cabinet door misaligned',
-    description: 'Upper cabinet door on left side does not close properly',
+    description: 'Upper cabinet door on left side does not close properly. The hinge appears to be loose and needs adjustment or replacement.',
     category: 'kitchen',
     priority: 'medium',
     status: 'in-progress',
     daysOpen: 3,
     submittedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    contractor: 'ABC Kitchens',
-    photos: 2,
+    contractor: mockContractors[0],
+    photos: mockPhotos,
     location: 'Kitchen - Upper cabinets',
+    reportedBy: 'James McCarthy',
+    activity: [
+      { id: 'a1', action: 'Snag submitted', user: 'James McCarthy', timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+      { id: 'a2', action: 'Assigned to contractor', user: 'Site Manager', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), details: 'Assigned to ABC Kitchens' },
+      { id: 'a3', action: 'Status changed to In Progress', user: 'John Murphy', timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+    ],
+    notes: 'Contractor scheduled to visit tomorrow morning.',
   },
   {
     id: '2',
@@ -73,8 +213,22 @@ const mockSnags: Snag[] = [
     status: 'submitted',
     daysOpen: 5,
     submittedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    photos: 3,
+    photos: [
+      {
+        id: 'p3',
+        url: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=800',
+        thumbnail: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=200',
+        caption: 'Cracked tile',
+        uploadedBy: 'Homeowner',
+        uploadedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        type: 'before',
+      },
+    ],
     location: 'Bathroom - Floor',
+    reportedBy: 'Mary O\'Sullivan',
+    activity: [
+      { id: 'a4', action: 'Snag submitted', user: 'Mary O\'Sullivan', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) },
+    ],
   },
   {
     id: '3',
@@ -86,8 +240,12 @@ const mockSnags: Snag[] = [
     status: 'submitted',
     daysOpen: 2,
     submittedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    photos: 1,
+    photos: [],
     location: 'Hallway',
+    reportedBy: 'Site Inspector',
+    activity: [
+      { id: 'a5', action: 'Snag submitted', user: 'Site Inspector', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+    ],
   },
   {
     id: '4',
@@ -99,9 +257,24 @@ const mockSnags: Snag[] = [
     status: 'resolved',
     daysOpen: 0,
     submittedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    contractor: 'Murphy Carpentry',
-    photos: 1,
+    contractor: mockContractors[4],
+    photos: [
+      {
+        id: 'p4',
+        url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+        thumbnail: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200',
+        caption: 'Door after repair',
+        uploadedBy: 'Tom Collins',
+        uploadedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        type: 'after',
+      },
+    ],
     location: 'Master Bedroom',
+    reportedBy: 'Site Manager',
+    activity: [
+      { id: 'a6', action: 'Snag submitted', user: 'Site Manager', timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      { id: 'a7', action: 'Status changed to Resolved', user: 'Tom Collins', timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+    ],
   },
   {
     id: '5',
@@ -113,9 +286,14 @@ const mockSnags: Snag[] = [
     status: 'acknowledged',
     daysOpen: 1,
     submittedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    contractor: 'Spark Electric',
-    photos: 1,
+    contractor: mockContractors[1],
+    photos: [],
     location: 'Living Room - East wall',
+    reportedBy: 'Homeowner',
+    activity: [
+      { id: 'a8', action: 'Snag submitted', user: 'Homeowner', timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+      { id: 'a9', action: 'Status changed to Acknowledged', user: 'Sarah O\'Brien', timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+    ],
   },
   {
     id: '6',
@@ -127,9 +305,13 @@ const mockSnags: Snag[] = [
     status: 'in-progress',
     daysOpen: 4,
     submittedDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    contractor: 'Reliable Plumbing',
-    photos: 2,
+    contractor: mockContractors[2],
+    photos: [],
     location: 'Kitchen - Sink',
+    reportedBy: 'Homeowner',
+    activity: [
+      { id: 'a10', action: 'Snag submitted', user: 'Homeowner', timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+    ],
   },
   {
     id: '7',
@@ -141,8 +323,13 @@ const mockSnags: Snag[] = [
     status: 'verified',
     daysOpen: 0,
     submittedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-    photos: 2,
+    photos: [],
     location: 'Living Room - Window',
+    reportedBy: 'Site Inspector',
+    activity: [
+      { id: 'a11', action: 'Snag submitted', user: 'Site Inspector', timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
+      { id: 'a12', action: 'Status changed to Verified', user: 'Quality Team', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+    ],
   },
 ];
 
@@ -171,7 +358,668 @@ const categoryConfig: Record<SnagCategory, { label: string; icon: typeof Clipboa
   other: { label: 'Other', icon: ClipboardList },
 };
 
-// Snag Card for detail view
+// Photo Gallery Modal Component
+function PhotoGallery({
+  photos,
+  isOpen,
+  onClose,
+  initialIndex = 0,
+}: {
+  photos: Photo[];
+  isOpen: boolean;
+  onClose: () => void;
+  initialIndex?: number;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [mounted, setMounted] = useState(false);
+
+  useState(() => {
+    setMounted(true);
+  });
+
+  if (!isOpen || !mounted) return null;
+
+  const currentPhoto = photos[currentIndex];
+  if (!currentPhoto) return null;
+
+  const handlePrev = () => {
+    setCurrentIndex((prev) => (prev === 0 ? photos.length - 1 : prev - 1));
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1));
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/90" onClick={onClose} />
+
+      <div className="relative z-10 max-w-5xl w-full mx-4">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
+        {/* Main image */}
+        <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+          <img
+            src={currentPhoto.url}
+            alt={currentPhoto.caption || 'Snag photo'}
+            className="w-full h-full object-contain"
+          />
+
+          {/* Navigation arrows */}
+          {photos.length > 1 && (
+            <>
+              <button
+                onClick={handlePrev}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={handleNext}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Photo type badge */}
+          <div className="absolute top-4 left-4">
+            <Badge
+              variant={
+                currentPhoto.type === 'before'
+                  ? 'error'
+                  : currentPhoto.type === 'after'
+                  ? 'success'
+                  : 'info'
+              }
+            >
+              {currentPhoto.type.charAt(0).toUpperCase() + currentPhoto.type.slice(1)}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Caption and metadata */}
+        <div className="mt-4 text-center">
+          {currentPhoto.caption && (
+            <p className="text-white text-lg mb-2">{currentPhoto.caption}</p>
+          )}
+          <p className="text-white/60 text-sm">
+            Uploaded by {currentPhoto.uploadedBy} on{' '}
+            {currentPhoto.uploadedAt.toLocaleDateString()}
+          </p>
+          <p className="text-white/40 text-sm mt-1">
+            {currentIndex + 1} of {photos.length}
+          </p>
+        </div>
+
+        {/* Thumbnail strip */}
+        {photos.length > 1 && (
+          <div className="flex justify-center gap-2 mt-4 overflow-x-auto pb-2">
+            {photos.map((photo, index) => (
+              <button
+                key={photo.id}
+                onClick={() => setCurrentIndex(index)}
+                className={cn(
+                  'w-16 h-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0',
+                  index === currentIndex
+                    ? 'border-gold-500 opacity-100'
+                    : 'border-transparent opacity-50 hover:opacity-75'
+                )}
+              >
+                <img
+                  src={photo.thumbnail}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Contractor Assignment Modal
+function ContractorAssignmentModal({
+  isOpen,
+  onClose,
+  snag,
+  contractors,
+  onAssign,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  snag: Snag;
+  contractors: Contractor[];
+  onAssign: (contractorId: string) => void;
+}) {
+  const [selectedContractor, setSelectedContractor] = useState<string | null>(
+    snag.contractor?.id || null
+  );
+  const [filterSpecialty, setFilterSpecialty] = useState<SnagCategory | 'all'>('all');
+
+  // Filter contractors by specialty
+  const filteredContractors = contractors.filter((c) => {
+    if (filterSpecialty === 'all') return true;
+    return c.specialty.includes(filterSpecialty);
+  });
+
+  // Sort by relevance (matching specialty first, then by rating)
+  const sortedContractors = [...filteredContractors].sort((a, b) => {
+    const aMatches = a.specialty.includes(snag.category);
+    const bMatches = b.specialty.includes(snag.category);
+    if (aMatches && !bMatches) return -1;
+    if (!aMatches && bMatches) return 1;
+    return b.rating - a.rating;
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <SlideOver
+      open={isOpen}
+      onClose={onClose}
+      title="Assign Contractor"
+      subtitle={`For: ${snag.title}`}
+      width="lg"
+      footer={
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (selectedContractor) {
+                onAssign(selectedContractor);
+                onClose();
+              }
+            }}
+            disabled={!selectedContractor}
+            className="px-4 py-2 text-sm font-medium text-white bg-gold-500 hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+          >
+            Assign Contractor
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-6">
+        {/* Current assignment */}
+        {snag.contractor && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm text-amber-800">
+              Currently assigned to: <strong>{snag.contractor.name}</strong> ({snag.contractor.company})
+            </p>
+          </div>
+        )}
+
+        {/* Filter by specialty */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Filter by Specialty
+          </label>
+          <select
+            value={filterSpecialty}
+            onChange={(e) => setFilterSpecialty(e.target.value as SnagCategory | 'all')}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500"
+          >
+            <option value="all">All Specialties</option>
+            {Object.entries(categoryConfig).map(([key, config]) => (
+              <option key={key} value={key}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Contractor list */}
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-gray-700">
+            Available Contractors ({sortedContractors.length})
+          </p>
+
+          {sortedContractors.map((contractor) => {
+            const matchesCategory = contractor.specialty.includes(snag.category);
+
+            return (
+              <button
+                key={contractor.id}
+                onClick={() => setSelectedContractor(contractor.id)}
+                className={cn(
+                  'w-full p-4 rounded-lg border text-left transition-all',
+                  selectedContractor === contractor.id
+                    ? 'border-gold-500 bg-gold-50 ring-2 ring-gold-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                )}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-gray-500" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{contractor.name}</span>
+                        {matchesCategory && (
+                          <Badge variant="success" size="sm">
+                            Recommended
+                          </Badge>
+                        )}
+                        {!contractor.available && (
+                          <Badge variant="outline" size="sm">
+                            Busy
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">{contractor.company}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-gray-400">
+                          {contractor.specialty.map((s) => categoryConfig[s].label).join(', ')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium text-amber-500">
+                        {contractor.rating.toFixed(1)}
+                      </span>
+                      <span className="text-amber-500">★</span>
+                    </div>
+                    <p className="text-xs text-gray-400">{contractor.jobsCompleted} jobs</p>
+                  </div>
+                </div>
+
+                {selectedContractor === contractor.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {contractor.phone}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Mail className="w-3 h-3" />
+                      {contractor.email}
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </SlideOver>
+  );
+}
+
+// Snag Detail Slide-Over
+function SnagDetailSlideOver({
+  snag,
+  isOpen,
+  onClose,
+  onAssignContractor,
+  onUpdateStatus,
+}: {
+  snag: Snag | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAssignContractor: () => void;
+  onUpdateStatus: (status: SnagStatus) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'details' | 'photos' | 'activity'>('details');
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
+  if (!snag) return null;
+
+  const status = statusConfig[snag.status];
+  const priority = priorityConfig[snag.priority];
+  const category = categoryConfig[snag.category];
+
+  const openGallery = (index: number) => {
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
+
+  return (
+    <>
+      <SlideOver
+        open={isOpen}
+        onClose={onClose}
+        title={`Unit ${snag.unitNumber} - ${snag.title}`}
+        width="lg"
+        footer={
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <select
+                value={snag.status}
+                onChange={(e) => onUpdateStatus(e.target.value as SnagStatus)}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500"
+              >
+                {Object.entries(statusConfig).map(([key, config]) => (
+                  <option key={key} value={key}>
+                    {config.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onAssignContractor}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                {snag.contractor ? 'Reassign' : 'Assign'} Contractor
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 hover:bg-gold-600 rounded-lg transition-colors">
+                <Send className="w-4 h-4" />
+                Send Update
+              </button>
+            </div>
+          </div>
+        }
+      >
+        {/* Status & Priority */}
+        <div className="flex items-center gap-3 mb-6">
+          <Badge
+            variant={
+              snag.status === 'verified' || snag.status === 'resolved'
+                ? 'success'
+                : snag.status === 'in-progress'
+                ? 'info'
+                : snag.status === 'acknowledged'
+                ? 'warning'
+                : 'error'
+            }
+          >
+            {status.label}
+          </Badge>
+          <Badge variant="outline">{category.label}</Badge>
+          <span className={cn('text-sm font-medium', priority.color)}>
+            {priority.label} Priority
+          </span>
+          {snag.daysOpen > 0 && (
+            <span className="text-sm text-gray-500">
+              Open {snag.daysOpen} day{snag.daysOpen !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 mb-6">
+          <div className="flex gap-6">
+            {[
+              { id: 'details', label: 'Details', icon: FileText },
+              { id: 'photos', label: `Photos (${snag.photos.length})`, icon: Camera },
+              { id: 'activity', label: 'Activity', icon: History },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={cn(
+                  'flex items-center gap-2 pb-3 border-b-2 -mb-px transition-colors',
+                  activeTab === tab.id
+                    ? 'border-gold-500 text-gold-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'details' && (
+          <div className="space-y-6">
+            {/* Description */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Description</h4>
+              <p className="text-sm text-gray-600">{snag.description}</p>
+            </div>
+
+            {/* Location */}
+            {snag.location && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Location</h4>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  {snag.location}
+                </div>
+              </div>
+            )}
+
+            {/* Reported By */}
+            {snag.reportedBy && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Reported By</h4>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <User className="w-4 h-4 text-gray-400" />
+                  {snag.reportedBy}
+                  <span className="text-gray-400">
+                    on {snag.submittedDate.toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Assigned Contractor */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Assigned Contractor</h4>
+              {snag.contractor ? (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200">
+                      <User className="w-5 h-5 text-gray-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{snag.contractor.name}</p>
+                      <p className="text-sm text-gray-500">{snag.contractor.company}</p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <a
+                          href={`tel:${snag.contractor.phone}`}
+                          className="flex items-center gap-1 text-xs text-gold-600 hover:text-gold-700"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {snag.contractor.phone}
+                        </a>
+                        <a
+                          href={`mailto:${snag.contractor.email}`}
+                          className="flex items-center gap-1 text-xs text-gold-600 hover:text-gold-700"
+                        >
+                          <Mail className="w-3 h-3" />
+                          Email
+                        </a>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-amber-500">
+                          {snag.contractor.rating.toFixed(1)}
+                        </span>
+                        <span className="text-amber-500">★</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={onAssignContractor}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gold-600 bg-gold-50 hover:bg-gold-100 rounded-lg transition-colors w-full justify-center"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Assign a Contractor
+                </button>
+              )}
+            </div>
+
+            {/* Notes */}
+            {snag.notes && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Notes</h4>
+                <p className="text-sm text-gray-600 bg-amber-50 border border-amber-100 rounded-lg p-3">
+                  {snag.notes}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'photos' && (
+          <div className="space-y-6">
+            {/* Photo Grid */}
+            {snag.photos.length > 0 ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  {snag.photos.map((photo, index) => (
+                    <button
+                      key={photo.id}
+                      onClick={() => openGallery(index)}
+                      className="relative aspect-square rounded-lg overflow-hidden group"
+                    >
+                      <img
+                        src={photo.thumbnail}
+                        alt={photo.caption || 'Snag photo'}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="absolute top-2 left-2">
+                        <Badge
+                          variant={
+                            photo.type === 'before'
+                              ? 'error'
+                              : photo.type === 'after'
+                              ? 'success'
+                              : 'info'
+                          }
+                          size="sm"
+                        >
+                          {photo.type}
+                        </Badge>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Photo list */}
+                <div className="space-y-2">
+                  {snag.photos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                    >
+                      <img
+                        src={photo.thumbnail}
+                        alt=""
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {photo.caption || 'No caption'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {photo.uploadedBy} - {photo.uploadedAt.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                title="No photos yet"
+                description="Upload photos to document this snag"
+                icon={Camera}
+              />
+            )}
+
+            {/* Upload section */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Add Photos</h4>
+              <DragDropUpload
+                onUpload={async (files) => {
+                  console.log('Uploading', files);
+                }}
+                accept="image/*"
+                maxSize={5 * 1024 * 1024}
+                title="Upload snag photos"
+                description="Drag photos here or click to browse"
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'activity' && (
+          <div className="space-y-4">
+            {snag.activity.map((item, index) => (
+              <div key={item.id} className="flex gap-3">
+                <div className="relative">
+                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                    <History className="w-4 h-4 text-gray-500" />
+                  </div>
+                  {index < snag.activity.length - 1 && (
+                    <div className="absolute top-8 left-1/2 -translate-x-1/2 w-px h-8 bg-gray-200" />
+                  )}
+                </div>
+                <div className="flex-1 pb-4">
+                  <p className="text-sm font-medium text-gray-900">{item.action}</p>
+                  {item.details && (
+                    <p className="text-sm text-gray-600 mt-0.5">{item.details}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    {item.user} - {item.timestamp.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {/* Add comment */}
+            <div className="pt-4 border-t border-gray-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Add Comment</h4>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a comment..."
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500"
+                />
+                <button className="px-4 py-2 text-sm font-medium text-white bg-gold-500 hover:bg-gold-600 rounded-lg transition-colors">
+                  Post
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </SlideOver>
+
+      {/* Photo Gallery Modal */}
+      <PhotoGallery
+        photos={snag.photos}
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        initialIndex={galleryIndex}
+      />
+    </>
+  );
+}
+
+// Snag Card for grid view
 function SnagCard({ snag, onClick }: { snag: Snag; onClick?: () => void }) {
   const status = statusConfig[snag.status];
   const priority = priorityConfig[snag.priority];
@@ -204,10 +1052,10 @@ function SnagCard({ snag, onClick }: { snag: Snag; onClick?: () => void }) {
             {status.label}
           </Badge>
         </div>
-        {snag.photos && snag.photos > 0 && (
+        {snag.photos && snag.photos.length > 0 && (
           <div className="flex items-center gap-1 text-xs text-gray-400">
-            <Image className="w-3 h-3" />
-            {snag.photos}
+            <ImageIcon className="w-3 h-3" />
+            {snag.photos.length}
           </div>
         )}
       </div>
@@ -233,7 +1081,7 @@ function SnagCard({ snag, onClick }: { snag: Snag; onClick?: () => void }) {
       {snag.contractor && (
         <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
           <User className="w-3 h-3" />
-          {snag.contractor}
+          {snag.contractor.name}
         </div>
       )}
     </div>
@@ -246,10 +1094,13 @@ export default function SnaggingPage() {
   const [selectedStatus, setSelectedStatus] = useState<SnagStatus | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<SnagCategory | 'all'>('all');
   const [selectedUnit, setSelectedUnit] = useState<string | 'all'>('all');
+  const [selectedSnag, setSelectedSnag] = useState<Snag | null>(null);
+  const [showContractorModal, setShowContractorModal] = useState(false);
+  const [snags, setSnags] = useState<Snag[]>(mockSnags);
 
   // Filter snags
   const filteredSnags = useMemo(() => {
-    return mockSnags.filter((snag) => {
+    return snags.filter((snag) => {
       const matchesSearch =
         !searchQuery ||
         snag.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -262,40 +1113,39 @@ export default function SnaggingPage() {
 
       return matchesSearch && matchesStatus && matchesCategory && matchesUnit;
     });
-  }, [searchQuery, selectedStatus, selectedCategory, selectedUnit]);
+  }, [snags, searchQuery, selectedStatus, selectedCategory, selectedUnit]);
 
   // Stats
   const stats = useMemo(() => {
-    const open = mockSnags.filter((s) => !['resolved', 'verified'].includes(s.status));
+    const open = snags.filter((s) => !['resolved', 'verified'].includes(s.status));
+    const resolved = snags.filter((s) => ['resolved', 'verified'].includes(s.status));
     const avgResolutionTime =
-      mockSnags
-        .filter((s) => s.status === 'resolved' || s.status === 'verified')
-        .reduce((acc, s) => acc + s.daysOpen, 0) / Math.max(1, mockSnags.filter((s) => ['resolved', 'verified'].includes(s.status)).length);
+      resolved.reduce((acc, s) => acc + s.daysOpen, 0) / Math.max(1, resolved.length);
 
     return {
       open: open.length,
-      inProgress: mockSnags.filter((s) => s.status === 'in-progress').length,
-      resolved: mockSnags.filter((s) => s.status === 'resolved' || s.status === 'verified').length,
+      inProgress: snags.filter((s) => s.status === 'in-progress').length,
+      resolved: resolved.length,
       avgResolutionTime: avgResolutionTime.toFixed(1),
-      overdue: mockSnags.filter((s) => s.daysOpen > 5 && !['resolved', 'verified'].includes(s.status)).length,
+      overdue: snags.filter((s) => s.daysOpen > 5 && !['resolved', 'verified'].includes(s.status)).length,
     };
-  }, []);
+  }, [snags]);
 
   // Category breakdown
   const categoryBreakdown = useMemo(() => {
     const breakdown: Record<string, number> = {};
-    mockSnags.forEach((snag) => {
+    snags.forEach((snag) => {
       if (!['resolved', 'verified'].includes(snag.status)) {
         breakdown[snag.category] = (breakdown[snag.category] || 0) + 1;
       }
     });
     return breakdown;
-  }, []);
+  }, [snags]);
 
   // Unique units for filter
   const uniqueUnits = useMemo(() => {
-    return [...new Set(mockSnags.map((s) => s.unitNumber))].sort();
-  }, []);
+    return [...new Set(snags.map((s) => s.unitNumber))].sort();
+  }, [snags]);
 
   // Alerts
   const alerts: Alert[] = useMemo(() => {
@@ -311,7 +1161,7 @@ export default function SnaggingPage() {
       });
     }
 
-    const urgent = mockSnags.filter((s) => s.priority === 'urgent' && !['resolved', 'verified'].includes(s.status));
+    const urgent = snags.filter((s) => s.priority === 'urgent' && !['resolved', 'verified'].includes(s.status));
     if (urgent.length > 0) {
       alerts.push({
         id: 'urgent',
@@ -323,7 +1173,80 @@ export default function SnaggingPage() {
     }
 
     return alerts;
-  }, [stats.overdue]);
+  }, [snags, stats.overdue]);
+
+  // Handle contractor assignment
+  const handleAssignContractor = useCallback((contractorId: string) => {
+    if (!selectedSnag) return;
+
+    const contractor = mockContractors.find((c) => c.id === contractorId);
+    if (!contractor) return;
+
+    setSnags((prev) =>
+      prev.map((s) =>
+        s.id === selectedSnag.id
+          ? {
+              ...s,
+              contractor,
+              activity: [
+                ...s.activity,
+                {
+                  id: `a${Date.now()}`,
+                  action: 'Assigned to contractor',
+                  user: 'Site Manager',
+                  timestamp: new Date(),
+                  details: `Assigned to ${contractor.name} (${contractor.company})`,
+                },
+              ],
+            }
+          : s
+      )
+    );
+
+    setSelectedSnag((prev) =>
+      prev
+        ? {
+            ...prev,
+            contractor,
+          }
+        : null
+    );
+  }, [selectedSnag]);
+
+  // Handle status update
+  const handleUpdateStatus = useCallback((newStatus: SnagStatus) => {
+    if (!selectedSnag) return;
+
+    setSnags((prev) =>
+      prev.map((s) =>
+        s.id === selectedSnag.id
+          ? {
+              ...s,
+              status: newStatus,
+              daysOpen: ['resolved', 'verified'].includes(newStatus) ? 0 : s.daysOpen,
+              activity: [
+                ...s.activity,
+                {
+                  id: `a${Date.now()}`,
+                  action: `Status changed to ${statusConfig[newStatus].label}`,
+                  user: 'Site Manager',
+                  timestamp: new Date(),
+                },
+              ],
+            }
+          : s
+      )
+    );
+
+    setSelectedSnag((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: newStatus,
+          }
+        : null
+    );
+  }, [selectedSnag]);
 
   // Table columns
   const columns: Column<Snag>[] = [
@@ -341,8 +1264,16 @@ export default function SnaggingPage() {
       header: 'Item',
       accessor: 'title',
       sortable: true,
-      cell: (value) => (
-        <span className="text-gray-900 line-clamp-1">{value as string}</span>
+      cell: (value, row) => (
+        <div className="flex items-center gap-2">
+          <span className="text-gray-900 line-clamp-1">{value as string}</span>
+          {row.photos.length > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              <ImageIcon className="w-3 h-3" />
+              {row.photos.length}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -380,6 +1311,18 @@ export default function SnaggingPage() {
           </Badge>
         );
       },
+    },
+    {
+      id: 'contractor',
+      header: 'Contractor',
+      accessor: (row) => row.contractor?.name || '',
+      sortable: true,
+      cell: (_, row) =>
+        row.contractor ? (
+          <span className="text-sm text-gray-600">{row.contractor.name}</span>
+        ) : (
+          <span className="text-sm text-gray-400">Unassigned</span>
+        ),
     },
     {
       id: 'priority',
@@ -538,7 +1481,7 @@ export default function SnaggingPage() {
             </div>
 
             <p className="text-sm text-gray-500 ml-auto">
-              {filteredSnags.length} of {mockSnags.length} items
+              {filteredSnags.length} of {snags.length} items
             </p>
           </div>
 
@@ -573,6 +1516,7 @@ export default function SnaggingPage() {
             data={filteredSnags}
             columns={columns}
             selectable
+            onRowClick={(row) => setSelectedSnag(row)}
             bulkActions={[
               {
                 label: 'Assign Contractor',
@@ -589,6 +1533,26 @@ export default function SnaggingPage() {
           />
         </div>
       </div>
+
+      {/* Detail Slide-Over */}
+      <SnagDetailSlideOver
+        snag={selectedSnag}
+        isOpen={!!selectedSnag}
+        onClose={() => setSelectedSnag(null)}
+        onAssignContractor={() => setShowContractorModal(true)}
+        onUpdateStatus={handleUpdateStatus}
+      />
+
+      {/* Contractor Assignment Modal */}
+      {selectedSnag && (
+        <ContractorAssignmentModal
+          isOpen={showContractorModal}
+          onClose={() => setShowContractorModal(false)}
+          snag={selectedSnag}
+          contractors={mockContractors}
+          onAssign={handleAssignContractor}
+        />
+      )}
     </div>
   );
 }

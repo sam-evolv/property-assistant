@@ -72,3 +72,40 @@ export type { ToastVariant, ToastData } from './Toast';
 
 // Tooltips
 export { Tooltip, HelpTooltip, LabelWithTooltip } from './Tooltip';
+
+// Slide Over Panel
+export { SlideOver } from './SlideOver';
+export type { SlideOverProps } from './SlideOver';
+
+// Inline Editing
+export { InlineEdit, InlineNumberEdit } from './InlineEdit';
+export type { InlineEditProps, InlineNumberEditProps } from './InlineEdit';
+
+// Help Tooltip (Enhanced)
+export { HelpTooltip as HelpTooltipEnhanced, SimpleTooltip } from './HelpTooltip';
+export type { HelpTooltipProps } from './HelpTooltip';
+
+// Onboarding Flow
+export { OnboardingFlow, useOnboarding } from './OnboardingFlow';
+export type { OnboardingStep, OnboardingFlowProps } from './OnboardingFlow';
+
+// Notification Preferences
+export { NotificationPreferences } from './NotificationPreferences';
+export type { NotificationChannel, NotificationCategory, NotificationPreferencesProps } from './NotificationPreferences';
+
+// Smart Search
+export { SmartSearch } from './SmartSearch';
+export type { SearchResult, SearchFilter, SmartSearchProps } from './SmartSearch';
+
+// Drag Drop Upload
+export { DragDropUpload } from './DragDropUpload';
+export type { UploadFile, DragDropUploadProps } from './DragDropUpload';
+
+// File Utilities
+export { FileIcon, getFileIcon, formatFileSize } from './FileIcon';
+
+// Chart Loading
+export { ChartLoadingSkeleton } from './ChartLoadingSkeleton';
+
+// Additional Skeleton Loaders
+export { SkeletonLoader } from './SkeletonLoader';
