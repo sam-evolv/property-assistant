@@ -185,6 +185,9 @@ function groupActivitiesByDate(activities: ActivityItem[]) {
   return groups;
 }
 
+// Type alias for backwards compatibility
+export type Activity = ActivityItem;
+
 export function ActivityFeed({
   activities,
   title = 'Recent Activity',
@@ -268,5 +271,8 @@ export function ActivityFeed({
     </div>
   );
 }
+
+// Widget alias for backwards compatibility
+export const ActivityFeedWidget = ActivityFeed;
 
 export default ActivityFeed;
