@@ -608,6 +608,43 @@ function getOpenAIClient() {
   });
 }
 
+// MULTILINGUAL SUPPORT: Translate non-English queries to English for better RAG retrieval
+// Documents are embedded in English, so queries should be in English for best semantic match
+async function translateQueryToEnglish(query: string, sourceLanguage: string): Promise<string> {
+  // Skip translation if already English
+  if (sourceLanguage === 'en') {
+    return query;
+  }
+
+  const translateStart = Date.now();
+  try {
+    const response = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a translator. Translate the following text to English. Return ONLY the translated text, nothing else. Preserve the intent and meaning exactly.'
+        },
+        {
+          role: 'user',
+          content: query
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+    });
+
+    const translatedQuery = response.choices[0]?.message?.content?.trim() || query;
+    console.log('[Chat] Translated query from', sourceLanguage, 'to English in', Date.now() - translateStart, 'ms');
+    console.log('[Chat] Original:', query.substring(0, 100));
+    console.log('[Chat] Translated:', translatedQuery.substring(0, 100));
+    return translatedQuery;
+  } catch (err) {
+    console.error('[Chat] Translation failed, using original query:', err);
+    return query;
+  }
+}
+
 const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 const DEFAULT_DEVELOPMENT_ID = '34316432-f1e8-4297-b993-d9b5c88ee2d8';
@@ -2366,15 +2403,23 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a follow-up question that needs context expansion
     const needsContext = isFollowUpQuestion(message) && conversationHistory.length > 0;
-    const searchQuery = needsContext 
+    let searchQuery = needsContext
       ? expandQueryWithContext(message, conversationHistory)
       : message;
-    
+
     if (needsContext) {
       console.log('[Chat] Follow-up detected, using expanded query for semantic search');
     }
 
-    // STEP 1: Generate embedding for the search query (may be expanded with context)
+    // MULTILINGUAL SUPPORT: Translate query to English for RAG retrieval
+    // Documents are embedded in English, so querying in English gives best semantic match
+    // The AI response will still be in the user's selected language (handled separately)
+    if (selectedLanguage !== 'en') {
+      console.log('[Chat] Non-English language detected:', selectedLanguage, '- translating query for retrieval');
+      searchQuery = await translateQueryToEnglish(searchQuery, selectedLanguage);
+    }
+
+    // STEP 1: Generate embedding for the search query (may be expanded with context, translated to English)
     console.log('[Chat] Generating query embedding...');
     const embeddingResponse = await getOpenAIClient().embeddings.create({
       model: 'text-embedding-3-small',
