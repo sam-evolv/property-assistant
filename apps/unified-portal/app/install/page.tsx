@@ -38,7 +38,8 @@ function InstallContent() {
   const appStoreUrl = 'https://apps.apple.com/app/openhouse-ai/id6504372916';
 
   const handleContinueWeb = () => {
-    document.cookie = 'ios_install_dismissed=1; path=/; max-age=86400; SameSite=Lax';
+    // Set cookie for 90 days (90 * 24 * 60 * 60 = 7776000 seconds)
+    document.cookie = 'ios_install_dismissed=1; path=/; max-age=7776000; SameSite=Lax';
     window.location.href = safeTarget;
   };
 

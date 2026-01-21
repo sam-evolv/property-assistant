@@ -15,12 +15,14 @@ export default function PurchaserLoginPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (session) {
-        logout();
+      // If user already has a valid session, redirect them to their home instead of logging out
+      if (session && session.unitUid) {
+        router.push(`/homes/${session.unitUid}?token=${encodeURIComponent(session.token)}`);
+        return;
       }
       setSessionCleared(true);
     }
-  }, [isLoading, session, logout]);
+  }, [isLoading, session, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +45,10 @@ export default function PurchaserLoginPage() {
       }
 
       login(data.session);
-      router.push(`/homes/${data.session.unitId}?token=${encodeURIComponent(data.session.token)}`);
+      // Set the iOS install dismissed cookie so user won't see app download prompt
+      // They entered a code manually, so they're intentionally using the web version
+      document.cookie = 'ios_install_dismissed=1; path=/; max-age=7776000; SameSite=Lax';
+      router.push(`/homes/${data.session.unitUid}?token=${encodeURIComponent(data.session.token)}`);
     } catch (err) {
       setError('Connection error. Please try again.');
       setIsSubmitting(false);

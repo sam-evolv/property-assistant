@@ -111,10 +111,23 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/homes/') && pathname !== '/homes/') {
     const userAgent = req.headers.get('user-agent') || '';
     const iosInstallDismissed = req.cookies.get('ios_install_dismissed')?.value;
-    
-    if (isIOSSafari(userAgent) && !iosInstallDismissed) {
+
+    // Check if user has a token in the URL (from login code entry or QR scan)
+    // If they have a token, they entered a login code - don't show install prompt
+    const hasToken = req.nextUrl.searchParams.has('token');
+
+    // Check referer to see if user came from /purchaser (manual code entry)
+    const referer = req.headers.get('referer') || '';
+    const cameFromPurchaserLogin = referer.includes('/purchaser');
+
+    // Only show iOS install prompt if:
+    // 1. User is on iOS Safari
+    // 2. They haven't dismissed it before
+    // 3. They DON'T have a token (meaning they didn't enter a login code)
+    // 4. They didn't come from the purchaser login page
+    if (isIOSSafari(userAgent) && !iosInstallDismissed && !hasToken && !cameFromPurchaserLogin) {
       const installUrl = new URL('/install', req.url);
-      installUrl.searchParams.set('target', pathname);
+      installUrl.searchParams.set('target', pathname + req.nextUrl.search);
       return NextResponse.redirect(installUrl);
     }
   }
