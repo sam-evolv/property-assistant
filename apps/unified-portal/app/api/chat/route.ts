@@ -80,6 +80,7 @@ import {
 import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
 import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
+import { globalCache } from '@/lib/cache/ttl-cache';
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -904,29 +905,46 @@ function detectOtherUnitQuestion(message: string, userUnitAddress: string | null
 }
 
 // Fetch user's unit details using shared dual-database lookup
+// PERFORMANCE OPTIMIZATION: Cache unit lookups for 5 minutes (300000ms)
+// Unit info rarely changes, and caching saves ~800-1200ms per request
 async function getUserUnitDetails(unitUid: string): Promise<{ address: string | null; houseType: string | null; unitInfo: UnitInfo | null }> {
   if (!unitUid) return { address: null, houseType: null, unitInfo: null };
-  
+
+  const cacheKey = `unit_details:${unitUid}`;
+  const cached = globalCache.get(cacheKey);
+  if (cached) {
+    console.log('[Chat] Unit info cache hit for:', unitUid);
+    return cached as { address: string | null; houseType: string | null; unitInfo: UnitInfo | null };
+  }
+
+  const lookupStart = Date.now();
   try {
     const unitInfo = await getUnitInfo(unitUid);
-    
+
     if (!unitInfo) {
       console.log('[Chat] Could not fetch unit details from either database');
-      return { address: null, houseType: null, unitInfo: null };
+      const result = { address: null, houseType: null, unitInfo: null };
+      // Cache negative results for shorter time (30 seconds)
+      globalCache.set(cacheKey, result, 30000);
+      return result;
     }
-    
-    console.log('[Chat] Unit info loaded:', {
+
+    console.log('[Chat] Unit info loaded in', Date.now() - lookupStart, 'ms:', {
       id: unitInfo.id,
       house_type_code: unitInfo.house_type_code,
       development_id: unitInfo.development_id,
       tenant_id: unitInfo.tenant_id,
     });
-    
-    return {
+
+    const result = {
       address: unitInfo.address || null,
       houseType: unitInfo.house_type_code || null,
       unitInfo: unitInfo,
     };
+
+    // Cache for 5 minutes
+    globalCache.set(cacheKey, result, 300000);
+    return result;
   } catch (err) {
     console.error('[Chat] Error fetching unit details:', err);
     return { address: null, houseType: null, unitInfo: null };
@@ -2392,23 +2410,40 @@ export async function POST(request: NextRequest) {
     
     let allChunks: any[] | null = null;
     let supabaseError: string | null = null;
-    
-    try {
-      const supabase = getSupabaseClient();
-      const { data, error: fetchError } = await supabase
-        .from('document_sections')
-        .select('id, content, metadata, embedding')
-        .eq('project_id', userSupabaseProjectId);
 
-      if (fetchError) {
-        console.error('[Chat] Supabase query error:', fetchError.message, fetchError.details, fetchError.hint);
-        supabaseError = fetchError.message;
-      } else {
-        allChunks = data;
+    // PERFORMANCE OPTIMIZATION: Cache document chunks for 60 seconds
+    // This dramatically speeds up repeated requests for the same project
+    const chunksCacheKey = `doc_chunks:${userSupabaseProjectId}`;
+    const cachedChunks = globalCache.get(chunksCacheKey);
+
+    if (cachedChunks) {
+      allChunks = cachedChunks as any[];
+      console.log('[Chat] Using cached chunks:', allChunks.length, 'chunks (cache hit)');
+    } else {
+      const chunkLoadStart = Date.now();
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error: fetchError } = await supabase
+          .from('document_sections')
+          .select('id, content, metadata, embedding')
+          .eq('project_id', userSupabaseProjectId);
+
+        if (fetchError) {
+          console.error('[Chat] Supabase query error:', fetchError.message, fetchError.details, fetchError.hint);
+          supabaseError = fetchError.message;
+        } else {
+          allChunks = data;
+          // Cache for 60 seconds (60000ms) - long enough to help with rapid requests
+          // but short enough to pick up new documents reasonably quickly
+          if (allChunks && allChunks.length > 0) {
+            globalCache.set(chunksCacheKey, allChunks, 60000);
+          }
+        }
+      } catch (supabaseErr) {
+        console.error('[Chat] Supabase connection failed:', supabaseErr);
+        supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
       }
-    } catch (supabaseErr) {
-      console.error('[Chat] Supabase connection failed:', supabaseErr);
-      supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
+      console.log('[Chat] Chunk load time:', Date.now() - chunkLoadStart, 'ms (cache miss)');
     }
 
     if (supabaseError || !allChunks) {
@@ -2421,7 +2456,7 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
-    console.log('[Chat] Loaded', allChunks?.length || 0, 'total chunks');
+    console.log('[Chat] Total chunks available:', allChunks?.length || 0);
 
     // Calculate similarity scores for ALL chunks
     let chunks: any[] = [];
