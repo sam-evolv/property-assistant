@@ -1,0 +1,39 @@
+name: web-design-guidelines
+version: 1.0.0
+description: Review UI code for Web Interface Guidelines compliance. Fetches latest Vercel guidelines and checks accessibility, UX patterns, and design best practices.
+author: Vercel
+
+triggers:
+  keywords:
+    - review
+    - audit
+    - accessibility
+    - a11y
+    - ux review
+    - design review
+
+  phrases:
+    - "review my UI"
+    - "check accessibility"
+    - "audit design"
+    - "review UX"
+    - "check my site"
+    - "web interface guidelines"
+
+allowed_tools:
+  - WebFetch
+  - Read
+  - Glob
+  - Grep
+
+guidelines_source: https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md
+
+output_format: "file:line - finding"
+
+review_categories:
+  - accessibility
+  - performance
+  - usability
+  - visual_design
+  - responsiveness
+  - semantic_html

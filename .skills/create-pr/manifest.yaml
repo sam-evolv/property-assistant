@@ -1,0 +1,73 @@
+name: create-pr
+version: 1.0.0
+description: Creates GitHub pull requests with properly formatted titles that pass CI validation. Conventional commits format with type, scope, and summary.
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - pr
+    - pull request
+    - github
+    - merge
+    - review
+
+  phrases:
+    - "/pr"
+    - "create pr"
+    - "create pull request"
+    - "submit for review"
+    - "open pr"
+
+allowed_tools:
+  - "Bash(git:*)"
+  - "Bash(gh:*)"
+  - Read
+  - Grep
+  - Glob
+
+pr_title_format: "<type>(<scope>): <summary>"
+
+types:
+  - type: feat
+    description: New feature
+    changelog: true
+  - type: fix
+    description: Bug fix
+    changelog: true
+  - type: perf
+    description: Performance improvement
+    changelog: true
+  - type: test
+    description: Adding/correcting tests
+    changelog: false
+  - type: docs
+    description: Documentation only
+    changelog: false
+  - type: refactor
+    description: Code change (no bug fix or feature)
+    changelog: false
+  - type: build
+    description: Build system or dependencies
+    changelog: false
+  - type: ci
+    description: CI configuration
+    changelog: false
+  - type: chore
+    description: Routine tasks, maintenance
+    changelog: false
+
+scopes:
+  - API
+  - benchmark
+  - core
+  - editor
+  - "* Node"
+
+summary_rules:
+  - Use imperative present tense ("Add" not "Added")
+  - Capitalize first letter
+  - No period at the end
+  - No ticket IDs
+  - Add "(no-changelog)" suffix to exclude from changelog
+
+validation_pattern: "^(feat|fix|perf|test|docs|refactor|build|ci|chore|revert)(\\([a-zA-Z0-9 ]+(\\s+Node)?\\))?!?: [A-Z].+[^.]$"

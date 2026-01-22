@@ -1,0 +1,118 @@
+name: vercel-react-best-practices
+version: 1.0.0
+description: React and Next.js performance optimization guidelines from Vercel Engineering. 45 rules across 8 categories for optimal performance patterns.
+author: Vercel Engineering
+license: MIT
+
+triggers:
+  keywords:
+    - react
+    - next.js
+    - nextjs
+    - performance
+    - optimization
+    - bundle
+    - waterfall
+    - suspense
+    - caching
+    - rerender
+    - memoization
+
+  phrases:
+    - "optimize react"
+    - "performance issue"
+    - "bundle size"
+    - "slow rendering"
+    - "reduce rerenders"
+    - "next.js performance"
+    - "server components"
+
+categories:
+  - name: Eliminating Waterfalls
+    priority: CRITICAL
+    prefix: async-
+    rules:
+      - async-defer-await
+      - async-parallel
+      - async-dependencies
+      - async-api-routes
+      - async-suspense-boundaries
+
+  - name: Bundle Size Optimization
+    priority: CRITICAL
+    prefix: bundle-
+    rules:
+      - bundle-barrel-imports
+      - bundle-dynamic-imports
+      - bundle-defer-third-party
+      - bundle-conditional
+      - bundle-preload
+
+  - name: Server-Side Performance
+    priority: HIGH
+    prefix: server-
+    rules:
+      - server-cache-react
+      - server-cache-lru
+      - server-serialization
+      - server-parallel-fetching
+      - server-after-nonblocking
+
+  - name: Client-Side Data Fetching
+    priority: MEDIUM-HIGH
+    prefix: client-
+    rules:
+      - client-swr-dedup
+      - client-event-listeners
+
+  - name: Re-render Optimization
+    priority: MEDIUM
+    prefix: rerender-
+    rules:
+      - rerender-defer-reads
+      - rerender-memo
+      - rerender-dependencies
+      - rerender-derived-state
+      - rerender-functional-setstate
+      - rerender-lazy-state-init
+      - rerender-transitions
+
+  - name: Rendering Performance
+    priority: MEDIUM
+    prefix: rendering-
+    rules:
+      - rendering-animate-svg-wrapper
+      - rendering-content-visibility
+      - rendering-hoist-jsx
+      - rendering-svg-precision
+      - rendering-hydration-no-flicker
+      - rendering-activity
+      - rendering-conditional-render
+
+  - name: JavaScript Performance
+    priority: LOW-MEDIUM
+    prefix: js-
+    rules:
+      - js-batch-dom-css
+      - js-index-maps
+      - js-cache-property-access
+      - js-cache-function-results
+      - js-cache-storage
+      - js-combine-iterations
+      - js-length-check-first
+      - js-early-exit
+      - js-hoist-regexp
+      - js-min-max-loop
+      - js-set-map-lookups
+      - js-tosorted-immutable
+
+  - name: Advanced Patterns
+    priority: LOW
+    prefix: advanced-
+    rules:
+      - advanced-event-handler-refs
+      - advanced-use-latest
+
+assets:
+  - rules/
+  - AGENTS.md

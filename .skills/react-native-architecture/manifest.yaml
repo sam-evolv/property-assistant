@@ -1,0 +1,77 @@
+name: react-native-architecture
+version: 1.0.0
+description: Production-ready patterns for React Native development with Expo, including navigation, state management, native modules, and offline-first architecture.
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - react-native
+    - expo
+    - mobile app
+    - ios
+    - android
+    - native module
+    - push notifications
+    - biometrics
+    - offline
+
+  phrases:
+    - "react native app"
+    - "expo project"
+    - "mobile development"
+    - "native integration"
+    - "offline first"
+    - "eas build"
+
+platform:
+  expo_sdk: ">=50.0.0"
+  react_native: ">=0.73.0"
+
+patterns:
+  - name: Expo Router Navigation
+    description: File-based routing with tabs, stacks, and modals
+
+  - name: Authentication Flow
+    description: Secure auth with expo-secure-store and route protection
+
+  - name: Offline-First
+    description: React Query with AsyncStorage persistence and network awareness
+
+  - name: Native Modules
+    description: Haptics, biometrics, notifications, and platform APIs
+
+  - name: Platform-Specific Code
+    description: Platform.select and .ios.tsx/.android.tsx patterns
+
+  - name: Performance Optimization
+    description: FlashList, memoization, and Reanimated animations
+
+dependencies:
+  core:
+    - expo-router
+    - expo-status-bar
+    - react-native-safe-area-context
+    - "@react-native-async-storage/async-storage"
+    - expo-secure-store
+    - expo-haptics
+
+  data:
+    - "@tanstack/react-query"
+    - "@tanstack/query-async-storage-persister"
+    - "@tanstack/react-query-persist-client"
+
+  ui:
+    - react-native-reanimated
+    - "@shopify/flash-list"
+    - lucide-react-native
+
+  networking:
+    - "@react-native-community/netinfo"
+
+eas_profiles:
+  development:
+    description: Development client with simulator support
+  preview:
+    description: Internal distribution APK
+  production:
+    description: Production build with auto-increment

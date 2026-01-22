@@ -15,7 +15,10 @@ type BadgeVariant =
   | 'warning'
   | 'error'
   | 'info'
-  | 'outline';
+  | 'outline'
+  | 'neutral';
+
+export type { BadgeVariant };
 
 type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -42,6 +45,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   error: 'bg-red-50 text-red-700 border-red-200',
   info: 'bg-blue-50 text-blue-700 border-blue-200',
   outline: 'bg-transparent text-neutral-600 border-neutral-300',
+  neutral: 'bg-neutral-100 text-neutral-600 border-neutral-200',
 };
 
 const sizeStyles: Record<BadgeSize, string> = {

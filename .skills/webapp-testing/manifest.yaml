@@ -1,0 +1,43 @@
+name: webapp-testing
+version: 1.0.0
+description: Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - playwright
+    - e2e
+    - end-to-end
+    - browser test
+    - screenshot
+    - automation
+
+  phrases:
+    - "test the webapp"
+    - "take a screenshot"
+    - "browser automation"
+    - "test the UI"
+    - "e2e test"
+    - "integration test"
+
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+
+dependencies:
+  - playwright
+  - python3
+
+scripts:
+  with_server: scripts/with_server.py
+
+examples:
+  - examples/element_discovery.py
+  - examples/static_html_automation.py
+  - examples/console_logging.py
+
+patterns:
+  reconnaissance_first: true
+  wait_for_networkidle: true
+  headless_default: true

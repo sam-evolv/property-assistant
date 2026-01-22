@@ -38,6 +38,13 @@ interface EmptyStateProps {
   title?: string;
   /** Description text */
   description?: string;
+  /** Simple action (shorthand for primaryAction) */
+  action?: {
+    label: string;
+    onClick?: () => void;
+    href?: string;
+    icon?: LucideIcon;
+  };
   /** Primary action */
   primaryAction?: {
     label: string;
@@ -130,12 +137,19 @@ export const EmptyState = memo(function EmptyState({
   icon,
   title,
   description,
+  action,
   primaryAction,
   secondaryAction,
   size = 'md',
   className,
   children,
 }: EmptyStateProps) {
+  // Support both 'action' (simple) and 'primaryAction' props
+  const resolvedPrimaryAction = primaryAction || (action?.onClick ? {
+    label: action.label,
+    onClick: action.onClick,
+    icon: action.icon,
+  } : undefined);
   const preset = presets[variant];
   const styles = sizeStyles[size];
 
@@ -185,7 +199,7 @@ export const EmptyState = memo(function EmptyState({
       {children && <div className="mt-4">{children}</div>}
 
       {/* Actions */}
-      {(primaryAction || secondaryAction) && (
+      {(resolvedPrimaryAction || secondaryAction || action?.href) && (
         <div className="flex items-center gap-3 mt-6">
           {secondaryAction && (
             <Button
@@ -196,15 +210,23 @@ export const EmptyState = memo(function EmptyState({
               {secondaryAction.label}
             </Button>
           )}
-          {primaryAction && (
+          {resolvedPrimaryAction && (
             <Button
               variant="primary"
               size={size === 'lg' ? 'md' : 'sm'}
-              onClick={primaryAction.onClick}
-              leftIcon={primaryAction.icon}
+              onClick={resolvedPrimaryAction.onClick}
+              leftIcon={resolvedPrimaryAction.icon}
             >
-              {primaryAction.label}
+              {resolvedPrimaryAction.label}
             </Button>
+          )}
+          {action?.href && !resolvedPrimaryAction && (
+            <a
+              href={action.href}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 transition-colors"
+            >
+              {action.label}
+            </a>
           )}
         </div>
       )}

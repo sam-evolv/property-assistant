@@ -1,0 +1,88 @@
+name: openhouse-ios
+version: 1.0.0
+description: Build and maintain the OpenHouse AI iOS app with SwiftUI. Covers Human Interface Guidelines, SwiftUI patterns, navigation, and property management features.
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - ios
+    - swift
+    - swiftui
+    - xcode
+    - mobile
+    - iphone
+    - ipad
+    - apple
+    - app store
+    - homeowner app
+    - native app
+
+  phrases:
+    - "ios app"
+    - "mobile app"
+    - "swiftui view"
+    - "swift code"
+    - "iphone screen"
+    - "homeowner mobile"
+
+assets:
+  - templates/View.template.swift
+  - templates/Card.template.swift
+
+platform:
+  minimum_ios: "16.0"
+  recommended_ios: "17.0"
+  swift_version: "5.9"
+
+brand_colors:
+  primary:
+    name: OpenHouse Gold
+    hex: "#F5B800"
+    rgb: [245, 184, 0]
+  primary_dark:
+    name: OpenHouse Gold Dark
+    hex: "#CC9900"
+    rgb: [204, 153, 0]
+  primary_light:
+    name: OpenHouse Gold Light
+    hex: "#FFD666"
+    rgb: [255, 214, 102]
+
+app_structure:
+  tabs:
+    - name: Home
+      icon: house
+      description: Dashboard with property overview and quick actions
+    - name: Documents
+      icon: doc.text
+      description: Property documents and manuals
+    - name: Assistant
+      icon: sparkles
+      description: AI chat for property questions
+    - name: Snagging
+      icon: checklist
+      description: Report and track property issues
+    - name: Profile
+      icon: person
+      description: User settings and preferences
+
+design_principles:
+  - Use semantic colors for automatic dark mode support
+  - Apply SF Symbols for consistent iconography
+  - Support Dynamic Type with semantic fonts
+  - Ensure 44pt minimum touch targets
+  - Test with VoiceOver enabled
+  - Use NavigationStack for iOS 16+ apps
+
+dependencies:
+  recommended:
+    - swift-collections
+    - swift-algorithms
+
+  networking:
+    - alamofire (optional)
+    - native URLSession preferred
+
+  storage:
+    - swift-data (iOS 17+)
+    - core-data (iOS 16)

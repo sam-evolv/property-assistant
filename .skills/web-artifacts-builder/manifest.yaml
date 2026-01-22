@@ -1,0 +1,53 @@
+name: web-artifacts-builder
+version: 1.0.0
+description: Suite of tools for creating elaborate, multi-component HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). For complex artifacts requiring state management, routing, or shadcn/ui components.
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - artifact
+    - react artifact
+    - shadcn
+    - complex ui
+    - multi-component
+
+  phrases:
+    - "build an artifact"
+    - "create a complex UI"
+    - "multi-component artifact"
+    - "shadcn artifact"
+    - "react artifact"
+
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+
+stack:
+  - React 18
+  - TypeScript
+  - Vite
+  - Parcel
+  - Tailwind CSS 3.4.1
+  - shadcn/ui (40+ components)
+  - Radix UI
+
+scripts:
+  init: scripts/init-artifact.sh
+  bundle: scripts/bundle-artifact.sh
+
+design_guidelines:
+  avoid:
+    - excessive centered layouts
+    - purple gradients
+    - uniform rounded corners
+    - Inter font overuse
+  note: "Avoid 'AI slop' aesthetic"
+
+workflow:
+  1: "Initialize with init-artifact.sh <project-name>"
+  2: "Develop by editing generated code"
+  3: "Bundle with bundle-artifact.sh"
+  4: "Display artifact to user"
+  5: "(Optional) Test the artifact"

@@ -1,0 +1,71 @@
+name: frontend-complete
+version: 1.0.0
+description: Comprehensive frontend skill for building, designing, and testing modern React/Next.js applications
+author: OpenHouse AI
+
+triggers:
+  keywords:
+    - react
+    - nextjs
+    - next.js
+    - component
+    - frontend
+    - ui
+    - ux
+    - design
+    - testing
+    - vitest
+    - test
+    - spec
+    - refactor
+    - performance
+    - optimize
+    - hook
+    - state
+    - zustand
+    - context
+
+  phrases:
+    - "create a component"
+    - "build a page"
+    - "write tests"
+    - "refactor this"
+    - "improve performance"
+    - "design a"
+    - "implement a"
+    - "add a feature"
+
+assets:
+  - templates/component.template.tsx
+  - templates/hook.template.ts
+  - templates/test.template.tsx
+
+dependencies:
+  frameworks:
+    - next.js >= 13
+    - react >= 18
+
+  libraries:
+    recommended:
+      - "@tanstack/react-query"
+      - "zustand"
+      - "react-hook-form"
+      - "zod"
+      - "@hookform/resolvers"
+
+    testing:
+      - "vitest"
+      - "@testing-library/react"
+      - "@testing-library/user-event"
+      - "nock"
+
+    styling:
+      - "tailwindcss"
+      - "clsx"
+      - "tailwind-merge"
+
+coverage_goals:
+  functions: 100%
+  statements: 100%
+  branches: 95%
+  lines: 95%
