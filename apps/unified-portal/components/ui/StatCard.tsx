@@ -23,7 +23,21 @@ interface StatCardProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-function Sparkline({ data, className }: { data: SparklineData[]; className?: string }) {
+interface SparklineProps {
+  data: SparklineData[];
+  color?: string;
+  height?: number;
+  showGradient?: boolean;
+  className?: string;
+}
+
+function Sparkline({
+  data,
+  color,
+  height = 36,
+  showGradient = true,
+  className
+}: SparklineProps) {
   if (!data || data.length < 2) return null;
 
   const values = data.map((d) => d.value);
@@ -31,46 +45,87 @@ function Sparkline({ data, className }: { data: SparklineData[]; className?: str
   const max = Math.max(...values);
   const range = max - min || 1;
 
-  const width = 80;
-  const height = 24;
+  const width = 100; // percentage-based for responsiveness
   const padding = 2;
 
+  // Calculate points as percentages
   const points = values.map((value, index) => {
-    const x = padding + (index / (values.length - 1)) * (width - padding * 2);
+    const x = (index / (values.length - 1)) * 100;
     const y = height - padding - ((value - min) / range) * (height - padding * 2);
-    return `${x},${y}`;
+    return { x, y };
   });
 
-  const pathD = `M ${points.join(' L ')}`;
+  const pointsString = points.map(p => `${p.x},${p.y}`).join(' ');
 
-  // Determine color based on trend
+  // Determine color based on trend if not provided
   const isPositive = values[values.length - 1] >= values[0];
-  const strokeColor = isPositive ? '#10b981' : '#ef4444';
+  const strokeColor = color || (isPositive ? '#f5b800' : '#ef4444');
+
+  // Generate unique ID for gradient
+  const gradientId = `sparkline-gradient-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Create polygon points for gradient fill (close the shape at bottom)
+  const polygonPoints = `0,${height} ${pointsString} 100,${height}`;
 
   return (
     <svg
-      width={width}
+      width="100%"
       height={height}
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={`0 0 100 ${height}`}
+      preserveAspectRatio="none"
       className={cn('overflow-visible', className)}
     >
-      <path
-        d={pathD}
+      {showGradient && (
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      )}
+
+      {/* Gradient fill area */}
+      {showGradient && (
+        <polygon
+          points={polygonPoints}
+          fill={`url(#${gradientId})`}
+        />
+      )}
+
+      {/* Line */}
+      <polyline
+        points={pointsString}
         fill="none"
         stroke={strokeColor}
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
+
       {/* End dot */}
       <circle
-        cx={points[points.length - 1].split(',')[0]}
-        cy={points[points.length - 1].split(',')[1]}
-        r="2"
+        cx={points[points.length - 1].x}
+        cy={points[points.length - 1].y}
+        r="3"
         fill={strokeColor}
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
+}
+
+// Standalone sparkline export for use outside StatCard
+export function StatSparkline({
+  data,
+  color = '#f5b800',
+  height = 36
+}: {
+  data: SparklineData[];
+  color?: string;
+  height?: number;
+}) {
+  return <Sparkline data={data} color={color} height={height} showGradient={true} />;
 }
 
 export function StatCard({
@@ -164,28 +219,29 @@ export function StatCard({
         {label}
       </p>
 
-      {/* Value and Sparkline */}
-      <div className="flex items-end justify-between">
-        <div>
-          <p className={cn('font-bold text-gray-900', styles.valueSize)}>
-            {value}
-            {suffix && (
-              <span className="text-lg font-normal text-gray-500 ml-0.5">
-                {suffix}
-              </span>
-            )}
-          </p>
-          {description && (
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
-          )}
-          {trendLabel && (
-            <p className="text-xs text-gray-500 mt-1">{trendLabel}</p>
-          )}
-        </div>
-        {sparklineData && sparklineData.length > 1 && (
-          <Sparkline data={sparklineData} className="ml-4" />
+      {/* Value */}
+      <p className={cn('font-bold text-gray-900', styles.valueSize)}>
+        {value}
+        {suffix && (
+          <span className="text-lg font-normal text-gray-500 ml-0.5">
+            {suffix}
+          </span>
         )}
-      </div>
+      </p>
+
+      {/* Sparkline - full width */}
+      {sparklineData && sparklineData.length > 1 && (
+        <div className="mt-3">
+          <Sparkline data={sparklineData} height={36} />
+        </div>
+      )}
+
+      {/* Description / Trend Label */}
+      {(description || trendLabel) && (
+        <p className="text-xs text-gray-500 mt-2">
+          {description || trendLabel}
+        </p>
+      )}
     </div>
   );
 }

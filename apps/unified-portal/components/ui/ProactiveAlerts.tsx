@@ -9,12 +9,24 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   ArrowRight,
   X,
+  Users,
+  FileText,
+  Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export type AlertPriority = 'critical' | 'warning' | 'info' | 'ready';
+
+export interface AlertItem {
+  id: string;
+  label: string;
+  sublabel?: string;
+  link?: string;
+  action?: () => void;
+}
 
 export interface Alert {
   id: string;
@@ -27,6 +39,7 @@ export interface Alert {
   action?: () => void;
   actionLabel?: string;
   dismissible?: boolean;
+  items?: AlertItem[]; // Individual items within alert
 }
 
 interface ProactiveAlertsWidgetProps {
@@ -77,79 +90,175 @@ const priorityConfig = {
   },
 };
 
-function AlertItem({
+function ExpandableAlertCard({
   alert,
   onDismiss,
 }: {
   alert: Alert;
   onDismiss?: (alertId: string) => void;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const config = priorityConfig[alert.priority];
   const Icon = config.icon;
+  const hasItems = alert.items && alert.items.length > 0;
 
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 rounded-lg border transition-all',
+        'rounded-lg border transition-all overflow-hidden',
         config.bgColor,
         config.borderColor,
         'hover:shadow-sm'
       )}
     >
-      <Icon className={cn('w-5 h-5 flex-shrink-0 mt-0.5', config.iconColor)} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className={cn('text-sm font-medium', config.textColor)}>
-            {alert.title}
-          </p>
-          {alert.count && alert.count > 1 && (
-            <span
-              className={cn(
-                'text-xs font-medium px-1.5 py-0.5 rounded-full text-white',
-                config.badgeColor
+      {/* Header - clickable to expand */}
+      <button
+        onClick={() => hasItems && setIsExpanded(!isExpanded)}
+        className={cn(
+          'w-full flex items-start gap-3 p-3 text-left',
+          hasItems && 'cursor-pointer hover:bg-black/5'
+        )}
+      >
+        <Icon className={cn('w-5 h-5 flex-shrink-0 mt-0.5', config.iconColor)} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className={cn('text-sm font-medium', config.textColor)}>
+              {alert.title}
+            </p>
+            {alert.count && alert.count > 1 && (
+              <span
+                className={cn(
+                  'text-xs font-medium px-1.5 py-0.5 rounded-full text-white',
+                  config.badgeColor
+                )}
+              >
+                {alert.count}
+              </span>
+            )}
+          </div>
+          {alert.description && (
+            <p className="text-xs text-gray-600 mt-1">{alert.description}</p>
+          )}
+          {!hasItems && (
+            <div className="flex items-center gap-3 mt-2">
+              {alert.link && (
+                <Link
+                  href={alert.link}
+                  className={cn(
+                    'text-xs font-medium inline-flex items-center gap-1 hover:underline',
+                    config.textColor
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {alert.linkLabel || 'View'}
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
               )}
+              {alert.action && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    alert.action?.();
+                  }}
+                  className={cn(
+                    'text-xs font-medium inline-flex items-center gap-1 hover:underline',
+                    config.textColor
+                  )}
+                >
+                  {alert.actionLabel || 'Take Action'}
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {alert.dismissible && onDismiss && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDismiss(alert.id);
+              }}
+              className="p-1 rounded hover:bg-black/10 transition-colors"
             >
-              {alert.count}
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
+          {hasItems && (
+            <span className="p-1">
+              {isExpanded ? (
+                <ChevronUp className="w-4 h-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              )}
             </span>
           )}
         </div>
-        {alert.description && (
-          <p className="text-xs text-gray-600 mt-1">{alert.description}</p>
-        )}
-        <div className="flex items-center gap-3 mt-2">
+      </button>
+
+      {/* Expanded items list */}
+      {hasItems && isExpanded && (
+        <div className="border-t border-current/10 bg-white/50">
+          <div className="divide-y divide-gray-100">
+            {alert.items!.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-4 h-4 text-gray-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {item.label}
+                    </p>
+                    {item.sublabel && (
+                      <p className="text-xs text-gray-500 truncate">{item.sublabel}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {item.action && (
+                    <button
+                      onClick={item.action}
+                      className={cn(
+                        'text-xs font-medium px-2.5 py-1 rounded-md transition-colors',
+                        config.textColor,
+                        'bg-white border border-current/20 hover:bg-current/5'
+                      )}
+                    >
+                      Action
+                    </button>
+                  )}
+                  {item.link && (
+                    <Link
+                      href={item.link}
+                      className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Footer action */}
           {alert.link && (
-            <Link
-              href={alert.link}
-              className={cn(
-                'text-xs font-medium inline-flex items-center gap-1 hover:underline',
-                config.textColor
-              )}
-            >
-              {alert.linkLabel || 'View'}
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          )}
-          {alert.action && (
-            <button
-              onClick={alert.action}
-              className={cn(
-                'text-xs font-medium inline-flex items-center gap-1 hover:underline',
-                config.textColor
-              )}
-            >
-              {alert.actionLabel || 'Take Action'}
-              <ArrowRight className="w-3 h-3" />
-            </button>
+            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+              <Link
+                href={alert.link}
+                className={cn(
+                  'text-xs font-medium inline-flex items-center gap-1 hover:underline',
+                  config.textColor
+                )}
+              >
+                {alert.linkLabel || 'View All'}
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
           )}
         </div>
-      </div>
-      {alert.dismissible && onDismiss && (
-        <button
-          onClick={() => onDismiss(alert.id)}
-          className="p-1 rounded hover:bg-black/5 transition-colors"
-        >
-          <X className="w-4 h-4 text-gray-400" />
-        </button>
       )}
     </div>
   );
@@ -252,19 +361,19 @@ export function ProactiveAlertsWidget({
         <div className="p-4 space-y-3">
           {/* Critical alerts first */}
           {groupedAlerts.critical.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onDismiss={onDismiss} />
+            <ExpandableAlertCard key={alert.id} alert={alert} onDismiss={onDismiss} />
           ))}
           {/* Warning alerts */}
           {groupedAlerts.warning.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onDismiss={onDismiss} />
+            <ExpandableAlertCard key={alert.id} alert={alert} onDismiss={onDismiss} />
           ))}
           {/* Info alerts */}
           {groupedAlerts.info.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onDismiss={onDismiss} />
+            <ExpandableAlertCard key={alert.id} alert={alert} onDismiss={onDismiss} />
           ))}
           {/* Ready alerts (success) */}
           {groupedAlerts.ready.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onDismiss={onDismiss} />
+            <ExpandableAlertCard key={alert.id} alert={alert} onDismiss={onDismiss} />
           ))}
         </div>
       )}

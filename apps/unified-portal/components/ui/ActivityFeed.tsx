@@ -241,12 +241,13 @@ export function ActivityFeed({
       </div>
 
       {/* Activity List */}
-      <div className="divide-y divide-gray-50">
+      <div className="divide-y divide-gray-100">
         {groupedActivities.map((group, groupIndex) => (
           <div key={groupIndex}>
             {group.label && groupByDate && (
-              <div className="px-4 py-2 bg-gray-50">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="px-4 py-2.5 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 sticky top-0">
+                <p className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gold-500"></span>
                   {group.label}
                 </p>
               </div>
