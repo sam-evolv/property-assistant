@@ -1,10 +1,8 @@
-import { requireRole } from '@/lib/supabase-server';
-import DeveloperDashboardClient from './developer-client';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DeveloperDashboard() {
-  const session = await requireRole(['developer', 'admin', 'super_admin']);
-
-  return <DeveloperDashboardClient tenantId={session.tenantId} />;
+export default function DeveloperDashboard() {
+  // Redirect to the overview page which uses the proper UI components
+  redirect('/developer/overview');
 }

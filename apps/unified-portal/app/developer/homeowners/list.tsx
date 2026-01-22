@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download, Mail, Trash2, Archive, Square, CheckSquare } from 'lucide-react';
+import { BulkActionToolbar, getCommonBulkActions } from '@/components/ui/BulkActionToolbar';
 
 interface Unit {
   id: string;
@@ -60,6 +61,52 @@ export function HomeownersList({
   const [sortBy, setSortBy] = useState<'house' | 'name' | 'date' | 'activity'>('house');
   const [showFilters, setShowFilters] = useState(false);
   const [downloadingQR, setDownloadingQR] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Selection handlers
+  const toggleSelection = useCallback((id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(filteredAndSorted.map(u => u.id)));
+  }, []);
+
+  // Bulk action handlers
+  const handleBulkEmail = useCallback(() => {
+    const ids = Array.from(selectedIds).join(',');
+    router.push(`/developer/homeowners/email?ids=${ids}`);
+  }, [selectedIds, router]);
+
+  const handleBulkExport = useCallback(() => {
+    console.log('Exporting', selectedIds.size, 'homeowners');
+    // TODO: Implement export
+  }, [selectedIds]);
+
+  const handleBulkArchive = useCallback(() => {
+    console.log('Archiving', selectedIds.size, 'homeowners');
+    // TODO: Implement archive
+  }, [selectedIds]);
+
+  const bulkActions = getCommonBulkActions({
+    onEmail: handleBulkEmail,
+    onExport: handleBulkExport,
+    onArchive: handleBulkArchive,
+  });
 
   const handleBulkQRDownload = async () => {
     if (homeowners.length === 0) return;
@@ -352,22 +399,60 @@ export function HomeownersList({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <>
+              {/* Select All / Clear Selection */}
+              {filteredAndSorted.length > 0 && (
+                <div className="flex items-center gap-4 mb-4">
+                  <button
+                    onClick={() => setSelectedIds(new Set(filteredAndSorted.map(u => u.id)))}
+                    className="text-sm text-gold-600 hover:text-gold-700 font-medium"
+                  >
+                    Select All ({filteredAndSorted.length})
+                  </button>
+                  {selectedIds.size > 0 && (
+                    <button
+                      onClick={clearSelection}
+                      className="text-sm text-grey-500 hover:text-grey-700"
+                    >
+                      Clear Selection
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredAndSorted.map((unit) => {
                 const houseNum = extractHouseNumber(unit.address, unit.unit_number);
                 const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
                 const residentName = unit.purchaser_name || unit.resident_name || unit.name || 'Unassigned';
-                
+
                 const hasAgreed = hasUnitAcknowledged(unit);
                 const developmentName = unit.development?.name || 'Unknown';
-                
+                const isSelected = selectedIds.has(unit.id);
+
                 return (
-                  <Link
+                  <div
                     key={unit.id}
-                    href={`/developer/homeowners/${unit.id}`}
-                    className="group rounded-xl border border-gold-200/30 backdrop-blur-sm bg-white hover:shadow-lg hover:border-gold-300/50 transition-all overflow-hidden"
+                    className={`group rounded-xl border backdrop-blur-sm bg-white hover:shadow-lg transition-all overflow-hidden relative ${
+                      isSelected
+                        ? 'border-gold-400 ring-2 ring-gold-200'
+                        : 'border-gold-200/30 hover:border-gold-300/50'
+                    }`}
                   >
-                    <div className="p-5">
+                    {/* Checkbox */}
+                    <button
+                      onClick={(e) => toggleSelection(unit.id, e)}
+                      className={`absolute top-3 left-3 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
+                        isSelected
+                          ? 'bg-gold-500 border-gold-500 text-white'
+                          : 'bg-white border-grey-300 hover:border-gold-400'
+                      }`}
+                    >
+                      {isSelected && <CheckCircle className="w-4 h-4" />}
+                    </button>
+
+                    <Link href={`/developer/homeowners/${unit.id}`} className="block">
+                    <div className="p-5 pl-12">
                       <div className="flex items-start gap-4">
                         <div className="flex-shrink-0">
                           <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-bold text-lg shadow-md group-hover:scale-105 transition">
@@ -419,10 +504,19 @@ export function HomeownersList({
                         )}
                       </div>
                     </div>
-                  </Link>
+                    </Link>
+                  </div>
                 );
               })}
-            </div>
+              </div>
+
+              {/* Bulk Action Toolbar */}
+              <BulkActionToolbar
+                selectedCount={selectedIds.size}
+                onClearSelection={clearSelection}
+                actions={bulkActions}
+              />
+            </>
           )}
         </div>
       </div>

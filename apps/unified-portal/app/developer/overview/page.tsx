@@ -30,7 +30,7 @@ import {
 // UI Components
 import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
 import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
-import type { Alert } from '@/components/ui/ProactiveAlerts';
+import type { Alert, AlertItem } from '@/components/ui/ProactiveAlerts';
 import { ActivityFeedWidget } from '@/components/ui/ActivityFeed';
 import type { Activity as ActivityType } from '@/components/ui/ActivityFeed';
 import { QuickActionsBar } from '@/components/ui/QuickActions';
@@ -115,12 +115,20 @@ function generateSparklineData(chatActivity: Array<{ date: string; count: number
   return data.map(d => ({ value: d.count, date: d.date }));
 }
 
-// Generate proactive alerts from dashboard data
+// Generate proactive alerts from dashboard data with expandable items
 function generateAlerts(data: DashboardData): Alert[] {
   const alerts: Alert[] = [];
 
-  // Check for overdue kitchen selections (simulated - in real app this would come from API)
+  // Check for inactive homeowners - with expandable items
   if (data.kpis.engagementRate.inactiveCount && data.kpis.engagementRate.inactiveCount > 3) {
+    // Generate sample items for demonstration (in real app, fetch from API)
+    const inactiveItems = Array.from({ length: Math.min(data.kpis.engagementRate.inactiveCount, 5) }, (_, i) => ({
+      id: `inactive-${i}`,
+      label: `Unit ${100 + i}`,
+      sublabel: 'Last active 8 days ago',
+      link: `/developer/homeowners?active=false`,
+    }));
+
     alerts.push({
       id: 'inactive-homeowners',
       title: `${data.kpis.engagementRate.inactiveCount} inactive homeowners`,
@@ -128,12 +136,21 @@ function generateAlerts(data: DashboardData): Alert[] {
       priority: 'warning',
       count: data.kpis.engagementRate.inactiveCount,
       link: '/developer/homeowners?active=false',
-      linkLabel: 'View Homeowners',
+      linkLabel: 'View All',
+      items: inactiveItems,
     });
   }
 
-  // Check for pending compliance
+  // Check for pending compliance - with expandable items
   if (data.kpis.mustReadCompliance.pendingCount && data.kpis.mustReadCompliance.pendingCount > 0) {
+    // Generate sample items for demonstration
+    const pendingItems = Array.from({ length: Math.min(data.kpis.mustReadCompliance.pendingCount, 5) }, (_, i) => ({
+      id: `pending-${i}`,
+      label: `Unit ${200 + i}`,
+      sublabel: 'Awaiting document acknowledgement',
+      link: `/developer/homeowners?compliance=false`,
+    }));
+
     alerts.push({
       id: 'pending-compliance',
       title: 'Documents awaiting acknowledgement',
@@ -141,12 +158,20 @@ function generateAlerts(data: DashboardData): Alert[] {
       priority: data.kpis.mustReadCompliance.pendingCount > 5 ? 'critical' : 'warning',
       count: data.kpis.mustReadCompliance.pendingCount,
       link: '/developer/homeowners?compliance=false',
-      linkLabel: 'Send Reminder',
+      linkLabel: 'Send Reminders',
+      items: pendingItems,
     });
   }
 
-  // Check for unanswered queries (knowledge gaps)
+  // Check for unanswered queries (knowledge gaps) - with expandable items
   if (data.unansweredQueries.length > 0) {
+    const queryItems = data.unansweredQueries.slice(0, 5).map((q, i) => ({
+      id: `query-${i}`,
+      label: q.question.slice(0, 50) + (q.question.length > 50 ? '...' : ''),
+      sublabel: `Topic: ${q.topic}`,
+      link: '/developer/archive',
+    }));
+
     alerts.push({
       id: 'knowledge-gaps',
       title: 'Knowledge gaps detected',
@@ -155,6 +180,7 @@ function generateAlerts(data: DashboardData): Alert[] {
       count: data.unansweredQueries.length,
       link: '/developer/archive',
       linkLabel: 'Upload Documents',
+      items: queryItems,
     });
   }
 
