@@ -182,13 +182,21 @@ function DateCell({ value, unitId, field, onUpdate }: DateCellProps) {
 
   return (
     <td
-      className="relative px-3 border-r border-[#E2E8F0] cursor-pointer select-none"
+      className="relative px-3 border-r border-[#E2E8F0] cursor-pointer select-none transition-colors duration-100"
       style={{
         height: '36px',
         backgroundColor: isEmpty ? '#F8FAFC' : '#ECFDF5',
         minWidth: '80px',
       }}
       onClick={handleClick}
+      onMouseEnter={(e) => {
+        if (isEmpty) e.currentTarget.style.backgroundColor = '#F1F5F9';
+        else e.currentTarget.style.backgroundColor = '#D1FAE5';
+      }}
+      onMouseLeave={(e) => {
+        if (isEmpty) e.currentTarget.style.backgroundColor = '#F8FAFC';
+        else e.currentTarget.style.backgroundColor = '#ECFDF5';
+      }}
     >
       <span
         className="text-sm"
@@ -277,13 +285,19 @@ function NameCell({ value, unitId, onUpdate }: NameCellProps) {
 
   return (
     <td
-      className="px-3 border-r border-[#E2E8F0] cursor-pointer"
+      className="px-3 border-r border-[#E2E8F0] cursor-pointer transition-colors duration-100"
       style={{
         height: '36px',
         minWidth: '160px',
         backgroundColor: isEmpty ? '#F8FAFC' : '#FFFFFF',
       }}
       onClick={handleClick}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = '#F1F5F9';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = isEmpty ? '#F8FAFC' : '#FFFFFF';
+      }}
     >
       <span
         className="text-sm"
@@ -313,7 +327,7 @@ function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
 
   return (
     <td
-      className="px-3 border-r border-[#E2E8F0] cursor-pointer text-center"
+      className="px-3 border-r border-[#E2E8F0] cursor-pointer text-center transition-colors duration-100 hover:bg-[#F1F5F9]"
       style={{ height: '36px', minWidth: '70px' }}
       onClick={onClick}
     >
@@ -439,12 +453,18 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
   return (
     <div className="fixed inset-0 z-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {/* Backdrop - clicking closes panel */}
-      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/20 animate-[fadeIn_150ms_ease-out]"
+        onClick={onClose}
+      />
 
       {/* Panel - slides in from right */}
       <div
         ref={panelRef}
-        className="absolute right-0 top-0 h-full w-96 bg-white shadow-xl flex flex-col"
+        className="absolute right-0 top-0 h-full w-96 bg-white shadow-xl flex flex-col animate-[slideIn_200ms_ease-out]"
+        style={{
+          animationFillMode: 'forwards',
+        }}
       >
         {/* Header */}
         <div className="px-4 py-3 border-b border-[#E2E8F0] flex items-center justify-between">
@@ -603,9 +623,19 @@ export default function PipelineDevelopmentPage() {
 
   return (
     <>
-      {/* Load DM Sans font */}
+      {/* Load DM Sans font and animations */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
       `}</style>
 
       <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
