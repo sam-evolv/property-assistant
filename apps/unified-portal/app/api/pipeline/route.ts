@@ -6,7 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminContextFromSession } from '@/lib/api-auth';
+import { requireRole } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { developments, units } from '@openhouse/db/schema';
 import { eq, sql, count } from 'drizzle-orm';
@@ -14,36 +15,60 @@ import { eq, sql, count } from 'drizzle-orm';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, role } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    // Get all developments for this tenant
-    const devList = await db
-      .select({
-        id: developments.id,
-        name: developments.name,
-        code: developments.code,
-        address: developments.address,
-        is_active: developments.is_active,
-      })
-      .from(developments)
-      .where(eq(developments.tenant_id, tenantId))
-      .orderBy(sql`name ASC`);
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get all developments for this tenant - try Drizzle first, fallback to Supabase
+    let devList: any[] = [];
+    let usedFallback = false;
+
+    try {
+      devList = await db
+        .select({
+          id: developments.id,
+          name: developments.name,
+          code: developments.code,
+          address: developments.address,
+          is_active: developments.is_active,
+        })
+        .from(developments)
+        .where(eq(developments.tenant_id, tenantId))
+        .orderBy(sql`name ASC`);
+      console.log('[Pipeline API] Drizzle developments:', devList.length);
+    } catch (drizzleError) {
+      console.error('[Pipeline API] Drizzle error (falling back to Supabase):', drizzleError);
+      usedFallback = true;
+
+      // Fallback to Supabase
+      const { data: supabaseDevs, error: supabaseError } = await supabaseAdmin
+        .from('developments')
+        .select('id, name, code, address, is_active')
+        .eq('tenant_id', tenantId)
+        .order('name', { ascending: true });
+
+      if (supabaseError) {
+        console.error('[Pipeline API] Supabase fallback error:', supabaseError);
+        throw supabaseError;
+      }
+
+      devList = supabaseDevs || [];
+      console.log('[Pipeline API] Supabase developments:', devList.length);
+    }
 
     // Check if pipeline tables exist
     let pipelineTablesExist = false;
@@ -58,11 +83,28 @@ export async function GET(request: NextRequest) {
     // Get stats for each development
     const developmentsWithStats = await Promise.all(
       devList.map(async (dev) => {
-        // Count total units
-        const [totalResult] = await db
-          .select({ count: count() })
-          .from(units)
-          .where(sql`${units.tenant_id} = ${tenantId} AND ${units.development_id} = ${dev.id}`);
+        // Count total units - try Drizzle first, fallback to Supabase
+        let totalCount = 0;
+
+        try {
+          if (!usedFallback) {
+            const [totalResult] = await db
+              .select({ count: count() })
+              .from(units)
+              .where(sql`${units.tenant_id} = ${tenantId} AND ${units.development_id} = ${dev.id}`);
+            totalCount = totalResult?.count || 0;
+          } else {
+            throw new Error('Using Supabase fallback');
+          }
+        } catch (e) {
+          // Fallback to Supabase for unit count
+          const { count: supabaseCount } = await supabaseAdmin
+            .from('units')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('development_id', dev.id);
+          totalCount = supabaseCount || 0;
+        }
 
         let releasedCount = 0;
         let handedOverCount = 0;
@@ -123,7 +165,7 @@ export async function GET(request: NextRequest) {
           code: dev.code,
           address: dev.address,
           isActive: dev.is_active,
-          totalUnits: totalResult?.count || 0,
+          totalUnits: totalCount,
           releasedUnits: releasedCount,
           stats: {
             released: releasedCount,

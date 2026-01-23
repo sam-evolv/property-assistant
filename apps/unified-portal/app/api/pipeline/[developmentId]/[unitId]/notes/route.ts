@@ -12,10 +12,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminContextFromSession } from '@/lib/api-auth';
+import { requireRole } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { units, audit_log } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,37 +59,55 @@ export async function GET(
 ) {
   try {
     const { developmentId, unitId } = await params;
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, role } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    // Get unit info
-    const [unit] = await db
-      .select({
-        id: units.id,
-        unitNumber: units.unit_number,
-        address: units.address_line_1,
-      })
-      .from(units)
-      .where(
-        and(
-          eq(units.tenant_id, tenantId),
-          eq(units.id, unitId),
-          eq(units.development_id, developmentId)
-        )
-      );
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get unit info - try Drizzle first, fallback to Supabase
+    let unit: any = null;
+
+    try {
+      const [drizzleUnit] = await db
+        .select({
+          id: units.id,
+          unitNumber: units.unit_number,
+          address: units.address_line_1,
+        })
+        .from(units)
+        .where(
+          and(
+            eq(units.tenant_id, tenantId),
+            eq(units.id, unitId),
+            eq(units.development_id, developmentId)
+          )
+        );
+      unit = drizzleUnit;
+    } catch (drizzleError) {
+      console.error('[Pipeline Notes GET API] Drizzle error (falling back to Supabase):', drizzleError);
+      const { data: supabaseUnit, error: supabaseError } = await supabaseAdmin
+        .from('units')
+        .select('id, unit_number, address_line_1')
+        .eq('tenant_id', tenantId)
+        .eq('id', unitId)
+        .eq('development_id', developmentId)
+        .single();
+
+      if (supabaseError && supabaseError.code !== 'PGRST116') {
+        console.error('[Pipeline Notes GET API] Supabase error:', supabaseError);
+      }
+      if (supabaseUnit) {
+        unit = {
+          id: supabaseUnit.id,
+          unitNumber: supabaseUnit.unit_number,
+          address: supabaseUnit.address_line_1,
+        };
+      }
+    }
 
     if (!unit) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
@@ -189,21 +215,14 @@ export async function POST(
 ) {
   try {
     const { developmentId, unitId } = await params;
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, adminId, role, email } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const { tenantId, id: adminId, email, role } = session;
 
     if (!tenantId || !adminId) {
       return NextResponse.json({ error: 'Context required' }, { status: 400 });
     }
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Check if pipeline tables exist
     const pipelineTablesExist = await checkPipelineTablesExist();
@@ -236,17 +255,36 @@ export async function POST(
     let pipelineId = (pipelineResult.rows?.[0] as any)?.id;
 
     if (!pipelineId) {
-      // Get unit to verify it exists
-      const [unit] = await db
-        .select()
-        .from(units)
-        .where(
-          and(
-            eq(units.tenant_id, tenantId),
-            eq(units.id, unitId),
-            eq(units.development_id, developmentId)
-          )
-        );
+      // Get unit to verify it exists - try Drizzle first, fallback to Supabase
+      let unit: any = null;
+
+      try {
+        const [drizzleUnit] = await db
+          .select()
+          .from(units)
+          .where(
+            and(
+              eq(units.tenant_id, tenantId),
+              eq(units.id, unitId),
+              eq(units.development_id, developmentId)
+            )
+          );
+        unit = drizzleUnit;
+      } catch (drizzleError) {
+        console.error('[Pipeline Notes POST API] Drizzle error (falling back to Supabase):', drizzleError);
+        const { data: supabaseUnit, error: supabaseError } = await supabaseAdmin
+          .from('units')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('id', unitId)
+          .eq('development_id', developmentId)
+          .single();
+
+        if (supabaseError && supabaseError.code !== 'PGRST116') {
+          console.error('[Pipeline Notes POST API] Supabase error:', supabaseError);
+        }
+        unit = supabaseUnit;
+      }
 
       if (!unit) {
         return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
@@ -322,17 +360,8 @@ export async function PATCH(
 ) {
   try {
     const { developmentId, unitId } = await params;
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, adminId, role, email } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const { tenantId, id: adminId, email, role } = session;
 
     if (!tenantId || !adminId) {
       return NextResponse.json({ error: 'Context required' }, { status: 400 });

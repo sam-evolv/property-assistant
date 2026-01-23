@@ -9,10 +9,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminContextFromSession } from '@/lib/api-auth';
+import { requireRole } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { developments, units, audit_log } from '@openhouse/db/schema';
 import { eq, sql, and, inArray } from 'drizzle-orm';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,32 +64,48 @@ export async function GET(
 ) {
   try {
     const { developmentId } = await params;
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, role } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    // Get development details
-    const [development] = await db
-      .select({
-        id: developments.id,
-        name: developments.name,
-        code: developments.code,
-        address: developments.address,
-      })
-      .from(developments)
-      .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
+    const supabaseAdmin = getSupabaseAdmin();
+    let usedFallback = false;
+
+    // Get development details - try Drizzle first, fallback to Supabase
+    let development: any = null;
+
+    try {
+      const [drizzleDev] = await db
+        .select({
+          id: developments.id,
+          name: developments.name,
+          code: developments.code,
+          address: developments.address,
+        })
+        .from(developments)
+        .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
+      development = drizzleDev;
+      console.log('[Pipeline Development API] Drizzle development found:', !!development);
+    } catch (drizzleError) {
+      console.error('[Pipeline Development API] Drizzle error (falling back to Supabase):', drizzleError);
+      usedFallback = true;
+
+      const { data: supabaseDev, error: supabaseError } = await supabaseAdmin
+        .from('developments')
+        .select('id, name, code, address')
+        .eq('id', developmentId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (supabaseError && supabaseError.code !== 'PGRST116') {
+        console.error('[Pipeline Development API] Supabase error:', supabaseError);
+      }
+      development = supabaseDev;
+      console.log('[Pipeline Development API] Supabase development found:', !!development);
+    }
 
     if (!development) {
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
@@ -94,12 +118,36 @@ export async function GET(
     // Check if pipeline tables exist
     const pipelineTablesExist = await checkPipelineTablesExist();
 
-    // Get all units for this development
-    const unitData = await db
-      .select()
-      .from(units)
-      .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
-      .orderBy(sql`${units.unit_number} ASC`);
+    // Get all units for this development - try Drizzle first, fallback to Supabase
+    let unitData: any[] = [];
+
+    try {
+      if (!usedFallback) {
+        unitData = await db
+          .select()
+          .from(units)
+          .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
+          .orderBy(sql`${units.unit_number} ASC`);
+        console.log('[Pipeline Development API] Drizzle units:', unitData.length);
+      } else {
+        throw new Error('Using Supabase fallback');
+      }
+    } catch (e) {
+      console.log('[Pipeline Development API] Falling back to Supabase for units');
+      const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
+        .from('units')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .order('unit_number', { ascending: true });
+
+      if (supabaseError) {
+        console.error('[Pipeline Development API] Supabase units error:', supabaseError);
+        throw supabaseError;
+      }
+      unitData = supabaseUnits || [];
+      console.log('[Pipeline Development API] Supabase units:', unitData.length);
+    }
 
     // If pipeline tables exist, get pipeline data
     let pipelineData: Map<string, any> = new Map();
@@ -232,21 +280,14 @@ export async function POST(
 ) {
   try {
     const { developmentId } = await params;
-    const adminContext = await getAdminContextFromSession();
-
-    if (!adminContext) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { tenantId, adminId, role, email } = adminContext;
-
-    if (!['developer', 'admin', 'super_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const { tenantId, id: adminId, email, role } = session;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Check if pipeline tables exist
     const pipelineTablesExist = await checkPipelineTablesExist();
@@ -264,17 +305,35 @@ export async function POST(
       return NextResponse.json({ error: 'unitIds array required' }, { status: 400 });
     }
 
-    // Verify units exist and belong to this tenant/development
-    const existingUnits = await db
-      .select()
-      .from(units)
-      .where(
-        and(
-          eq(units.tenant_id, tenantId),
-          eq(units.development_id, developmentId),
-          inArray(units.id, unitIds)
-        )
-      );
+    // Verify units exist and belong to this tenant/development - try Drizzle first, fallback to Supabase
+    let existingUnits: any[] = [];
+
+    try {
+      existingUnits = await db
+        .select()
+        .from(units)
+        .where(
+          and(
+            eq(units.tenant_id, tenantId),
+            eq(units.development_id, developmentId),
+            inArray(units.id, unitIds)
+          )
+        );
+    } catch (drizzleError) {
+      console.error('[Pipeline Release API] Drizzle error (falling back to Supabase):', drizzleError);
+      const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
+        .from('units')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .in('id', unitIds);
+
+      if (supabaseError) {
+        console.error('[Pipeline Release API] Supabase error:', supabaseError);
+        throw supabaseError;
+      }
+      existingUnits = supabaseUnits || [];
+    }
 
     if (existingUnits.length !== unitIds.length) {
       return NextResponse.json({ error: 'Some units not found' }, { status: 400 });
