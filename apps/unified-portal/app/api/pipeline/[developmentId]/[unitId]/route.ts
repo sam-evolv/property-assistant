@@ -8,8 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminContextFromSession } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
-import { unitSalesPipeline, units, audit_log } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { units, audit_log } from '@openhouse/db/schema';
+import { eq, sql, and } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,13 +28,21 @@ const FIELD_MAPPING: Record<string, { dateField: string; updatedByField: string;
   handoverDate: { dateField: 'handover_date', updatedByField: 'handover_updated_by', updatedAtField: 'handover_updated_at' },
 };
 
-const TEXT_FIELDS = ['purchaserName', 'purchaserEmail', 'purchaserPhone'] as const;
-
 const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserName: 'purchaser_name',
   purchaserEmail: 'purchaser_email',
   purchaserPhone: 'purchaser_phone',
 };
+
+// Check if pipeline tables exist
+async function checkPipelineTablesExist(): Promise<boolean> {
+  try {
+    await db.execute(sql`SELECT 1 FROM unit_sales_pipeline LIMIT 1`);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -58,6 +66,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
+    // Check if pipeline tables exist
+    const pipelineTablesExist = await checkPipelineTablesExist();
+    if (!pipelineTablesExist) {
+      return NextResponse.json(
+        { error: 'Pipeline tables not yet created. Please run the database migration first.' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { field, value } = body;
 
@@ -74,15 +91,13 @@ export async function PATCH(
     }
 
     // Get existing pipeline record
-    const [existingPipeline] = await db
-      .select()
-      .from(unitSalesPipeline)
-      .where(
-        and(
-          eq(unitSalesPipeline.tenant_id, tenantId),
-          eq(unitSalesPipeline.unit_id, unitId)
-        )
-      );
+    const existingResult = await db.execute(sql`
+      SELECT * FROM unit_sales_pipeline
+      WHERE tenant_id = ${tenantId}::uuid
+      AND unit_id = ${unitId}::uuid
+      LIMIT 1
+    `);
+    const existingPipeline = existingResult.rows?.[0] as any;
 
     // If no pipeline record exists, create one first
     let pipelineId: string;
@@ -105,51 +120,49 @@ export async function PATCH(
       }
 
       // Create pipeline record
-      const [newPipeline] = await db
-        .insert(unitSalesPipeline)
-        .values({
-          tenant_id: tenantId,
-          development_id: developmentId,
-          unit_id: unitId,
-          purchaser_name: unit.purchaser_name,
-          purchaser_email: unit.purchaser_email,
-          purchaser_phone: unit.purchaser_phone,
-        })
-        .returning();
-
-      pipelineId = newPipeline.id;
+      const insertResult = await db.execute(sql`
+        INSERT INTO unit_sales_pipeline
+          (id, tenant_id, development_id, unit_id, purchaser_name, purchaser_email, purchaser_phone, created_at, updated_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${unitId}::uuid, ${unit.purchaser_name}, ${unit.purchaser_email}, ${unit.purchaser_phone}, NOW(), NOW())
+        RETURNING id
+      `);
+      pipelineId = (insertResult.rows?.[0] as any)?.id;
     } else {
       pipelineId = existingPipeline.id;
     }
 
     const now = new Date();
-    let updateData: Record<string, any> = { updated_at: now };
     let oldValue: any;
 
     if (isDateField) {
       const { dateField, updatedByField, updatedAtField } = FIELD_MAPPING[field];
 
       // Get old value for audit
-      oldValue = existingPipeline?.[dateField as keyof typeof existingPipeline] || null;
+      oldValue = existingPipeline?.[dateField] || null;
 
       // Parse the new date value
       const newDate = value ? new Date(value) : null;
 
-      updateData[dateField] = newDate;
-      updateData[updatedByField] = adminId;
-      updateData[updatedAtField] = now;
+      await db.execute(sql`
+        UPDATE unit_sales_pipeline
+        SET ${sql.identifier(dateField)} = ${newDate}::timestamptz,
+            ${sql.identifier(updatedByField)} = ${adminId}::uuid,
+            ${sql.identifier(updatedAtField)} = ${now}::timestamptz,
+            updated_at = ${now}::timestamptz
+        WHERE id = ${pipelineId}::uuid
+      `);
     } else {
       const dbField = TEXT_FIELD_MAPPING[field];
-      oldValue = existingPipeline?.[dbField as keyof typeof existingPipeline] || null;
-      updateData[dbField] = value || null;
-    }
+      oldValue = existingPipeline?.[dbField] || null;
 
-    // Update the pipeline record
-    const [updated] = await db
-      .update(unitSalesPipeline)
-      .set(updateData)
-      .where(eq(unitSalesPipeline.id, pipelineId))
-      .returning();
+      await db.execute(sql`
+        UPDATE unit_sales_pipeline
+        SET ${sql.identifier(dbField)} = ${value || null},
+            updated_at = ${now}::timestamptz
+        WHERE id = ${pipelineId}::uuid
+      `);
+    }
 
     // Audit log
     await db.insert(audit_log).values({
@@ -187,7 +200,11 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('[Pipeline Unit Update API] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Pipeline Unit Update API] Stack:', error instanceof Error ? error.stack : 'No stack');
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
@@ -217,14 +234,10 @@ export async function GET(
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    // Get unit with pipeline data
-    const [result] = await db
-      .select({
-        unit: units,
-        pipeline: unitSalesPipeline,
-      })
+    // Get unit
+    const [unit] = await db
+      .select()
       .from(units)
-      .leftJoin(unitSalesPipeline, eq(units.id, unitSalesPipeline.unit_id))
       .where(
         and(
           eq(units.tenant_id, tenantId),
@@ -233,11 +246,33 @@ export async function GET(
         )
       );
 
-    if (!result) {
+    if (!unit) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const { unit, pipeline } = result;
+    // Check if pipeline tables exist and get pipeline data
+    let pipeline: any = null;
+    const pipelineTablesExist = await checkPipelineTablesExist();
+
+    if (pipelineTablesExist) {
+      const pipelineResult = await db.execute(sql`
+        SELECT * FROM unit_sales_pipeline
+        WHERE tenant_id = ${tenantId}::uuid
+        AND unit_id = ${unitId}::uuid
+        LIMIT 1
+      `);
+      pipeline = pipelineResult.rows?.[0];
+    }
+
+    // Safely convert dates
+    const safeDate = (dateVal: any): string | null => {
+      if (!dateVal) return null;
+      try {
+        return new Date(dateVal).toISOString();
+      } catch {
+        return null;
+      }
+    };
 
     return NextResponse.json({
       unit: {
@@ -249,16 +284,16 @@ export async function GET(
         purchaserName: pipeline?.purchaser_name || unit.purchaser_name || null,
         purchaserEmail: pipeline?.purchaser_email || unit.purchaser_email || null,
         purchaserPhone: pipeline?.purchaser_phone || unit.purchaser_phone || null,
-        releaseDate: pipeline?.release_date?.toISOString() || null,
-        saleAgreedDate: pipeline?.sale_agreed_date?.toISOString() || null,
-        depositDate: pipeline?.deposit_date?.toISOString() || null,
-        contractsIssuedDate: pipeline?.contracts_issued_date?.toISOString() || null,
-        signedContractsDate: pipeline?.signed_contracts_date?.toISOString() || null,
-        counterSignedDate: pipeline?.counter_signed_date?.toISOString() || null,
-        kitchenDate: pipeline?.kitchen_date?.toISOString() || null,
-        snagDate: pipeline?.snag_date?.toISOString() || null,
-        drawdownDate: pipeline?.drawdown_date?.toISOString() || null,
-        handoverDate: pipeline?.handover_date?.toISOString() || null,
+        releaseDate: safeDate(pipeline?.release_date),
+        saleAgreedDate: safeDate(pipeline?.sale_agreed_date),
+        depositDate: safeDate(pipeline?.deposit_date),
+        contractsIssuedDate: safeDate(pipeline?.contracts_issued_date),
+        signedContractsDate: safeDate(pipeline?.signed_contracts_date),
+        counterSignedDate: safeDate(pipeline?.counter_signed_date),
+        kitchenDate: safeDate(pipeline?.kitchen_date),
+        snagDate: safeDate(pipeline?.snag_date),
+        drawdownDate: safeDate(pipeline?.drawdown_date),
+        handoverDate: safeDate(pipeline?.handover_date),
       },
     });
   } catch (error) {

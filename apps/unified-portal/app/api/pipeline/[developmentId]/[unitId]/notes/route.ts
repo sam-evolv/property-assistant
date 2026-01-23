@@ -14,8 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminContextFromSession } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
-import { unitSalesPipeline, unitPipelineNotes, units, admins, audit_log } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { units, audit_log } from '@openhouse/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +29,17 @@ interface NoteResponse {
   resolvedBy: { id: string; email: string } | null;
   createdBy: { id: string; email: string };
   createdAt: string;
+}
+
+// Check if pipeline tables exist
+async function checkPipelineTablesExist(): Promise<boolean> {
+  try {
+    await db.execute(sql`SELECT 1 FROM unit_sales_pipeline LIMIT 1`);
+    await db.execute(sql`SELECT 1 FROM unit_pipeline_notes LIMIT 1`);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -76,11 +87,28 @@ export async function GET(
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Get pipeline record
-    const [pipeline] = await db
-      .select()
-      .from(unitSalesPipeline)
-      .where(and(eq(unitSalesPipeline.tenant_id, tenantId), eq(unitSalesPipeline.unit_id, unitId)));
+    // Check if pipeline tables exist
+    const pipelineTablesExist = await checkPipelineTablesExist();
+    if (!pipelineTablesExist) {
+      return NextResponse.json({
+        unit: {
+          id: unit.id,
+          unitNumber: unit.unitNumber,
+          address: unit.address,
+        },
+        notes: [],
+        stats: { total: 0, unresolved: 0 },
+      });
+    }
+
+    // Get pipeline record using raw SQL
+    const pipelineResult = await db.execute(sql`
+      SELECT id FROM unit_sales_pipeline
+      WHERE tenant_id = ${tenantId}::uuid
+      AND unit_id = ${unitId}::uuid
+      LIMIT 1
+    `);
+    const pipeline = pipelineResult.rows?.[0] as { id: string } | undefined;
 
     if (!pipeline) {
       return NextResponse.json({
@@ -94,46 +122,37 @@ export async function GET(
       });
     }
 
-    // Get notes with creator and resolver info
-    const notes = await db
-      .select({
-        note: unitPipelineNotes,
-        creator: {
-          id: admins.id,
-          email: admins.email,
-        },
-      })
-      .from(unitPipelineNotes)
-      .leftJoin(admins, eq(unitPipelineNotes.created_by, admins.id))
-      .where(eq(unitPipelineNotes.pipeline_id, pipeline.id))
-      .orderBy(desc(unitPipelineNotes.created_at));
+    // Get notes with creator and resolver info using raw SQL
+    const notesResult = await db.execute(sql`
+      SELECT
+        n.id,
+        n.note_type,
+        n.content,
+        n.is_resolved,
+        n.resolved_at,
+        n.resolved_by,
+        n.created_by,
+        n.created_at,
+        creator.id as creator_id,
+        creator.email as creator_email,
+        resolver.id as resolver_id,
+        resolver.email as resolver_email
+      FROM unit_pipeline_notes n
+      LEFT JOIN admins creator ON n.created_by = creator.id
+      LEFT JOIN admins resolver ON n.resolved_by = resolver.id
+      WHERE n.pipeline_id = ${pipeline.id}::uuid
+      ORDER BY n.created_at DESC
+    `);
 
-    // Get resolver info for resolved notes
-    const resolverIds = notes
-      .filter((n) => n.note.resolved_by)
-      .map((n) => n.note.resolved_by!);
-
-    let resolvers: Map<string, { id: string; email: string }> = new Map();
-    if (resolverIds.length > 0) {
-      const resolverData = await db
-        .select({ id: admins.id, email: admins.email })
-        .from(admins)
-        .where(eq(admins.id, resolverIds[0])); // Simplified - would need inArray for multiple
-
-      for (const r of resolverData) {
-        resolvers.set(r.id, r);
-      }
-    }
-
-    const formattedNotes: NoteResponse[] = notes.map(({ note, creator }) => ({
-      id: note.id,
-      noteType: note.note_type,
-      content: note.content,
-      isResolved: note.is_resolved,
-      resolvedAt: note.resolved_at?.toISOString() || null,
-      resolvedBy: note.resolved_by ? resolvers.get(note.resolved_by) || null : null,
-      createdBy: creator ? { id: creator.id, email: creator.email } : { id: '', email: 'Unknown' },
-      createdAt: note.created_at.toISOString(),
+    const formattedNotes: NoteResponse[] = (notesResult.rows || []).map((row: any) => ({
+      id: row.id,
+      noteType: row.note_type,
+      content: row.content,
+      isResolved: row.is_resolved,
+      resolvedAt: row.resolved_at ? new Date(row.resolved_at).toISOString() : null,
+      resolvedBy: row.resolver_id ? { id: row.resolver_id, email: row.resolver_email } : null,
+      createdBy: row.creator_id ? { id: row.creator_id, email: row.creator_email } : { id: '', email: 'Unknown' },
+      createdAt: new Date(row.created_at).toISOString(),
     }));
 
     const unresolved = formattedNotes.filter((n) => !n.isResolved).length;
@@ -152,7 +171,11 @@ export async function GET(
     });
   } catch (error) {
     console.error('[Pipeline Notes GET API] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Pipeline Notes GET API] Stack:', error instanceof Error ? error.stack : 'No stack');
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
@@ -182,6 +205,15 @@ export async function POST(
       return NextResponse.json({ error: 'Context required' }, { status: 400 });
     }
 
+    // Check if pipeline tables exist
+    const pipelineTablesExist = await checkPipelineTablesExist();
+    if (!pipelineTablesExist) {
+      return NextResponse.json(
+        { error: 'Pipeline tables not yet created. Please run the database migration first.' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { content, noteType = 'general' } = body;
 
@@ -195,13 +227,16 @@ export async function POST(
     }
 
     // Get or create pipeline record
-    let [pipeline] = await db
-      .select()
-      .from(unitSalesPipeline)
-      .where(and(eq(unitSalesPipeline.tenant_id, tenantId), eq(unitSalesPipeline.unit_id, unitId)));
+    const pipelineResult = await db.execute(sql`
+      SELECT id FROM unit_sales_pipeline
+      WHERE tenant_id = ${tenantId}::uuid
+      AND unit_id = ${unitId}::uuid
+      LIMIT 1
+    `);
+    let pipelineId = (pipelineResult.rows?.[0] as any)?.id;
 
-    if (!pipeline) {
-      // Create pipeline record first
+    if (!pipelineId) {
+      // Get unit to verify it exists
       const [unit] = await db
         .select()
         .from(units)
@@ -217,31 +252,26 @@ export async function POST(
         return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
       }
 
-      [pipeline] = await db
-        .insert(unitSalesPipeline)
-        .values({
-          tenant_id: tenantId,
-          development_id: developmentId,
-          unit_id: unitId,
-          purchaser_name: unit.purchaser_name,
-          purchaser_email: unit.purchaser_email,
-          purchaser_phone: unit.purchaser_phone,
-        })
-        .returning();
+      // Create pipeline record
+      const insertResult = await db.execute(sql`
+        INSERT INTO unit_sales_pipeline
+          (id, tenant_id, development_id, unit_id, purchaser_name, purchaser_email, purchaser_phone, created_at, updated_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${unitId}::uuid, ${unit.purchaser_name}, ${unit.purchaser_email}, ${unit.purchaser_phone}, NOW(), NOW())
+        RETURNING id
+      `);
+      pipelineId = (insertResult.rows?.[0] as any)?.id;
     }
 
     // Create the note
-    const [newNote] = await db
-      .insert(unitPipelineNotes)
-      .values({
-        tenant_id: tenantId,
-        pipeline_id: pipeline.id,
-        unit_id: unitId,
-        note_type: noteType as 'general' | 'query' | 'issue' | 'update',
-        content: content.trim(),
-        created_by: adminId,
-      })
-      .returning();
+    const noteResult = await db.execute(sql`
+      INSERT INTO unit_pipeline_notes
+        (id, tenant_id, pipeline_id, unit_id, note_type, content, created_by, created_at, updated_at)
+      VALUES
+        (gen_random_uuid(), ${tenantId}::uuid, ${pipelineId}::uuid, ${unitId}::uuid, ${noteType}, ${content.trim()}, ${adminId}::uuid, NOW(), NOW())
+      RETURNING id, note_type, content, is_resolved, created_at
+    `);
+    const newNote = noteResult.rows?.[0] as any;
 
     // Audit log
     await db.insert(audit_log).values({
@@ -253,7 +283,7 @@ export async function POST(
       actor_role: role,
       metadata: {
         note_id: newNote.id,
-        pipeline_id: pipeline.id,
+        pipeline_id: pipelineId,
         unit_id: unitId,
         development_id: developmentId,
         note_type: noteType,
@@ -269,12 +299,16 @@ export async function POST(
         resolvedAt: null,
         resolvedBy: null,
         createdBy: { id: adminId, email },
-        createdAt: newNote.created_at.toISOString(),
+        createdAt: new Date(newNote.created_at).toISOString(),
       },
     });
   } catch (error) {
     console.error('[Pipeline Notes POST API] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Pipeline Notes POST API] Stack:', error instanceof Error ? error.stack : 'No stack');
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
@@ -304,6 +338,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Context required' }, { status: 400 });
     }
 
+    // Check if pipeline tables exist
+    const pipelineTablesExist = await checkPipelineTablesExist();
+    if (!pipelineTablesExist) {
+      return NextResponse.json(
+        { error: 'Pipeline tables not yet created. Please run the database migration first.' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { noteId, resolved } = body;
 
@@ -316,34 +359,31 @@ export async function PATCH(
     }
 
     // Get the note and verify ownership
-    const [existingNote] = await db
-      .select()
-      .from(unitPipelineNotes)
-      .where(
-        and(
-          eq(unitPipelineNotes.id, noteId),
-          eq(unitPipelineNotes.tenant_id, tenantId),
-          eq(unitPipelineNotes.unit_id, unitId)
-        )
-      );
+    const existingNoteResult = await db.execute(sql`
+      SELECT id, note_type, content, is_resolved, created_at
+      FROM unit_pipeline_notes
+      WHERE id = ${noteId}::uuid
+      AND tenant_id = ${tenantId}::uuid
+      AND unit_id = ${unitId}::uuid
+      LIMIT 1
+    `);
+    const existingNote = existingNoteResult.rows?.[0] as any;
 
     if (!existingNote) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
-    const now = new Date();
-
     // Update the note
-    const [updatedNote] = await db
-      .update(unitPipelineNotes)
-      .set({
-        is_resolved: resolved,
-        resolved_at: resolved ? now : null,
-        resolved_by: resolved ? adminId : null,
-        updated_at: now,
-      })
-      .where(eq(unitPipelineNotes.id, noteId))
-      .returning();
+    const updatedResult = await db.execute(sql`
+      UPDATE unit_pipeline_notes
+      SET is_resolved = ${resolved},
+          resolved_at = ${resolved ? sql`NOW()` : sql`NULL`},
+          resolved_by = ${resolved ? sql`${adminId}::uuid` : sql`NULL`},
+          updated_at = NOW()
+      WHERE id = ${noteId}::uuid
+      RETURNING id, note_type, content, is_resolved, resolved_at, created_at
+    `);
+    const updatedNote = updatedResult.rows?.[0] as any;
 
     // Audit log
     await db.insert(audit_log).values({
@@ -366,13 +406,17 @@ export async function PATCH(
         noteType: updatedNote.note_type,
         content: updatedNote.content,
         isResolved: updatedNote.is_resolved,
-        resolvedAt: updatedNote.resolved_at?.toISOString() || null,
+        resolvedAt: updatedNote.resolved_at ? new Date(updatedNote.resolved_at).toISOString() : null,
         resolvedBy: resolved ? { id: adminId, email } : null,
-        createdAt: updatedNote.created_at.toISOString(),
+        createdAt: new Date(updatedNote.created_at).toISOString(),
       },
     });
   } catch (error) {
     console.error('[Pipeline Notes PATCH API] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Pipeline Notes PATCH API] Stack:', error instanceof Error ? error.stack : 'No stack');
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

@@ -8,11 +8,19 @@ import {
   AlertCircle,
   MessageSquare,
   Plus,
-  Calendar,
   X,
   Check,
   Search,
   Loader2,
+  ChevronDown,
+  Calendar,
+  Users,
+  Home,
+  CheckCircle2,
+  Clock,
+  Filter,
+  MoreHorizontal,
+  Sparkles,
 } from 'lucide-react';
 
 // ============================================================================
@@ -56,14 +64,8 @@ interface Note {
   isResolved: boolean;
   resolvedAt: string | null;
   createdAt: string;
-  createdBy: {
-    id: string;
-    name: string;
-  } | null;
-  resolvedBy: {
-    id: string;
-    name: string;
-  } | null;
+  createdBy: { id: string; email: string } | null;
+  resolvedBy: { id: string; email: string } | null;
 }
 
 // ============================================================================
@@ -71,20 +73,23 @@ interface Note {
 // ============================================================================
 
 const PIPELINE_COLUMNS = [
-  { key: 'address', label: 'Unit', width: 140, frozen: true, type: 'text' as const },
-  { key: 'purchaserName', label: 'Name', width: 180, type: 'text' as const, editable: true },
-  { key: 'releaseDate', label: 'Release', width: 80, type: 'date' as const, editable: true },
-  { key: 'saleAgreedDate', label: 'Sale Agreed', width: 85, type: 'date' as const, editable: true },
-  { key: 'depositDate', label: 'Deposit', width: 80, type: 'date' as const, editable: true },
-  { key: 'contractsIssuedDate', label: 'Contracts Out', width: 90, type: 'date' as const, editable: true },
-  { key: 'notes', label: 'Queries', width: 60, type: 'notes' as const },
-  { key: 'signedContractsDate', label: 'Signed In', width: 80, type: 'date' as const, editable: true },
-  { key: 'counterSignedDate', label: 'Counter Signed', width: 100, type: 'date' as const, editable: true },
-  { key: 'kitchenDate', label: 'Kitchen', width: 70, type: 'date' as const, editable: true },
-  { key: 'snagDate', label: 'Snag', width: 70, type: 'date' as const, editable: true },
-  { key: 'drawdownDate', label: 'Drawdown', width: 80, type: 'date' as const, editable: true },
-  { key: 'handoverDate', label: 'Handover', width: 80, type: 'date' as const, editable: true },
+  { key: 'address', label: 'Unit', width: 160, frozen: true, type: 'text' as const },
+  { key: 'purchaserName', label: 'Purchaser', width: 160, type: 'text' as const, editable: true },
+  { key: 'releaseDate', label: 'Released', width: 90, type: 'date' as const, editable: true, stage: 1 },
+  { key: 'saleAgreedDate', label: 'Sale Agreed', width: 100, type: 'date' as const, editable: true, stage: 2 },
+  { key: 'depositDate', label: 'Deposit', width: 90, type: 'date' as const, editable: true, stage: 3 },
+  { key: 'contractsIssuedDate', label: 'Contracts Out', width: 110, type: 'date' as const, editable: true, stage: 4 },
+  { key: 'notes', label: '', width: 50, type: 'notes' as const },
+  { key: 'signedContractsDate', label: 'Signed In', width: 95, type: 'date' as const, editable: true, stage: 5 },
+  { key: 'counterSignedDate', label: 'Counter Sign', width: 105, type: 'date' as const, editable: true, stage: 6 },
+  { key: 'kitchenDate', label: 'Kitchen', width: 85, type: 'date' as const, editable: true, stage: 7 },
+  { key: 'snagDate', label: 'Snag', width: 80, type: 'date' as const, editable: true, stage: 8 },
+  { key: 'drawdownDate', label: 'Drawdown', width: 95, type: 'date' as const, editable: true, stage: 9 },
+  { key: 'handoverDate', label: 'Handover', width: 90, type: 'date' as const, editable: true, stage: 10 },
 ] as const;
+
+const DATE_FIELDS = PIPELINE_COLUMNS.filter(c => c.type === 'date').map(c => c.key);
+const TOTAL_STAGES = DATE_FIELDS.length;
 
 // ============================================================================
 // Utility Functions
@@ -102,18 +107,29 @@ function formatDateForInput(dateString: string | null): string {
   return date.toISOString().split('T')[0];
 }
 
-function parseInputDate(value: string): string | null {
-  if (!value) return null;
-  // Handle various formats: "15/1", "15/1/25", "15 jan", "2025-01-15"
-  const date = new Date(value);
-  if (!isNaN(date.getTime())) {
-    return date.toISOString();
-  }
-  return null;
+function getCompletedStages(unit: PipelineUnit): number {
+  let count = 0;
+  if (unit.releaseDate) count++;
+  if (unit.saleAgreedDate) count++;
+  if (unit.depositDate) count++;
+  if (unit.contractsIssuedDate) count++;
+  if (unit.signedContractsDate) count++;
+  if (unit.counterSignedDate) count++;
+  if (unit.kitchenDate) count++;
+  if (unit.snagDate) count++;
+  if (unit.drawdownDate) count++;
+  if (unit.handoverDate) count++;
+  return count;
+}
+
+function getStageStatus(unit: PipelineUnit): 'complete' | 'in-progress' | 'not-started' {
+  if (unit.handoverDate) return 'complete';
+  if (unit.releaseDate) return 'in-progress';
+  return 'not-started';
 }
 
 // ============================================================================
-// Date Cell Component
+// Date Cell Component - Premium Design
 // ============================================================================
 
 interface DateCellProps {
@@ -122,9 +138,10 @@ interface DateCellProps {
   field: string;
   onUpdate: (unitId: string, field: string, value: string | null) => Promise<void>;
   isOptimistic?: boolean;
+  isFirstDate?: boolean;
 }
 
-function DateCell({ value, unitId, field, onUpdate, isOptimistic }: DateCellProps) {
+function DateCell({ value, unitId, field, onUpdate, isOptimistic, isFirstDate }: DateCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -165,7 +182,8 @@ function DateCell({ value, unitId, field, onUpdate, isOptimistic }: DateCellProp
     [handleSave]
   );
 
-  const handleClear = useCallback(async () => {
+  const handleClear = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setIsSaving(true);
     try {
       await onUpdate(unitId, field, null);
@@ -184,7 +202,7 @@ function DateCell({ value, unitId, field, onUpdate, isOptimistic }: DateCellProp
 
   if (isEditing) {
     return (
-      <div className="relative">
+      <div className="relative flex items-center h-full px-1">
         <input
           ref={inputRef}
           type="date"
@@ -192,14 +210,14 @@ function DateCell({ value, unitId, field, onUpdate, isOptimistic }: DateCellProp
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
-          className="w-full h-full px-2 py-1 text-[11px] bg-white border-2 border-[#0EA5E9] rounded focus:outline-none"
+          className="w-full h-7 px-2 text-xs bg-white border border-gold-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-500"
           disabled={isSaving}
         />
         {value && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-[#94A3B8] hover:text-[#EF4444]"
+            className="absolute right-2 p-0.5 text-grey-400 hover:text-red-500 transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
@@ -213,20 +231,30 @@ function DateCell({ value, unitId, field, onUpdate, isOptimistic }: DateCellProp
       type="button"
       onClick={handleClick}
       className={cn(
-        'w-full h-full px-3 py-2 text-left text-[11px] transition-colors',
+        'group w-full h-full flex items-center justify-center text-xs font-medium transition-all duration-150',
         value
-          ? 'bg-[#ECFDF5] text-[#047857] font-medium'
-          : 'text-[#94A3B8] hover:bg-[#F1F5F9]',
-        isOptimistic && 'animate-pulse'
+          ? 'bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100'
+          : 'text-grey-300 hover:bg-grey-50 hover:text-grey-400',
+        isOptimistic && 'animate-pulse',
+        isSaving && 'opacity-50'
       )}
     >
-      {value ? formatDate(value) : '—'}
+      {value ? (
+        <span className="flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3 opacity-60" />
+          {formatDate(value)}
+        </span>
+      ) : (
+        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <Plus className="w-3.5 h-3.5" />
+        </span>
+      )}
     </button>
   );
 }
 
 // ============================================================================
-// Text Cell Component (for Purchaser Name)
+// Text Cell Component - Premium Design
 // ============================================================================
 
 interface TextCellProps {
@@ -281,17 +309,19 @@ function TextCell({ value, unitId, field, onUpdate, isOptimistic }: TextCellProp
 
   if (isEditing) {
     return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleSave}
-        className="w-full h-full px-2 py-1 text-[11px] bg-white border-2 border-[#0EA5E9] rounded focus:outline-none"
-        disabled={isSaving}
-        placeholder="Enter name..."
-      />
+      <div className="px-1 h-full flex items-center">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleSave}
+          className="w-full h-7 px-2 text-xs bg-white border border-gold-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-500"
+          disabled={isSaving}
+          placeholder="Enter name..."
+        />
+      </div>
     );
   }
 
@@ -300,19 +330,21 @@ function TextCell({ value, unitId, field, onUpdate, isOptimistic }: TextCellProp
       type="button"
       onClick={handleClick}
       className={cn(
-        'w-full h-full px-3 py-2 text-left text-[11px] truncate transition-colors hover:bg-[#F1F5F9]',
-        value ? 'text-[#0F172A]' : 'text-[#94A3B8]',
+        'group w-full h-full px-3 flex items-center text-xs text-left transition-colors hover:bg-grey-50',
+        value ? 'text-grey-900 font-medium' : 'text-grey-300',
         isOptimistic && 'animate-pulse'
       )}
       title={value || undefined}
     >
-      {value || '—'}
+      <span className="truncate">
+        {value || <span className="opacity-0 group-hover:opacity-100">Add name...</span>}
+      </span>
     </button>
   );
 }
 
 // ============================================================================
-// Notes Cell Component
+// Notes Cell Component - Premium Design
 // ============================================================================
 
 interface NotesCellProps {
@@ -329,27 +361,92 @@ function NotesCell({ unit, onClick }: NotesCellProps) {
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full h-full flex items-center justify-center transition-colors hover:bg-[#F1F5F9]',
-        hasUnresolved && 'bg-[#FEF2F2]'
+        'w-full h-full flex items-center justify-center transition-colors',
+        hasUnresolved ? 'hover:bg-red-50' : 'hover:bg-grey-50'
       )}
+      title={hasUnresolved ? `${unit.unresolvedNotesCount} unresolved` : hasNotes ? `${unit.notesCount} notes` : 'Add note'}
     >
       {hasUnresolved ? (
-        <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#EF4444] text-white text-[11px] font-semibold">
+        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold shadow-sm">
           {unit.unresolvedNotesCount}
         </span>
       ) : hasNotes ? (
-        <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#F1F5F9] text-[#94A3B8] text-[11px] font-semibold">
+        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-grey-100 text-grey-500 text-[10px] font-medium">
           {unit.notesCount}
         </span>
       ) : (
-        <span className="text-[#CBD5E1]">—</span>
+        <MessageSquare className="w-3.5 h-3.5 text-grey-200 hover:text-grey-400 transition-colors" />
       )}
     </button>
   );
 }
 
 // ============================================================================
-// Notes Panel Component
+// Progress Bar Component
+// ============================================================================
+
+function ProgressBar({ completed, total }: { completed: number; total: number }) {
+  const percentage = total > 0 ? (completed / total) * 100 : 0;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-grey-100 rounded-full overflow-hidden">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-500",
+            percentage === 100 ? "bg-emerald-500" : "bg-gold-500"
+          )}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="text-[10px] font-medium text-grey-500 tabular-nums">
+        {completed}/{total}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// Stats Cards Component
+// ============================================================================
+
+function StatsCards({ units }: { units: PipelineUnit[] }) {
+  const released = units.filter(u => u.releaseDate).length;
+  const inProgress = units.filter(u => u.releaseDate && !u.handoverDate).length;
+  const completed = units.filter(u => u.handoverDate).length;
+  const unreleased = units.filter(u => !u.releaseDate).length;
+
+  const stats = [
+    { label: 'Released', value: released, color: 'bg-blue-500', icon: Home },
+    { label: 'In Progress', value: inProgress, color: 'bg-amber-500', icon: Clock },
+    { label: 'Completed', value: completed, color: 'bg-emerald-500', icon: CheckCircle2 },
+    { label: 'Unreleased', value: unreleased, color: 'bg-grey-300', icon: Users },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {stats.map((stat) => (
+        <div
+          key={stat.label}
+          className="bg-white rounded-xl border border-grey-100 p-4 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", stat.color)}>
+              <stat.icon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-grey-900">{stat.value}</p>
+              <p className="text-xs text-grey-500">{stat.label}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// Notes Panel Component - Premium Design
 // ============================================================================
 
 interface NotesPanelProps {
@@ -365,14 +462,12 @@ function NotesPanel({ unit, developmentId, onClose, onNotesUpdated }: NotesPanel
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newNoteType, setNewNoteType] = useState<'general' | 'query' | 'issue'>('general');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch notes
   useEffect(() => {
     async function fetchNotes() {
       try {
-        const response = await fetch(
-          `/api/pipeline/${developmentId}/${unit.id}/notes`
-        );
+        const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`);
         if (response.ok) {
           const data = await response.json();
           setNotes(data.notes || []);
@@ -388,21 +483,13 @@ function NotesPanel({ unit, developmentId, onClose, onNotesUpdated }: NotesPanel
 
   const handleAddNote = async () => {
     if (!newNoteContent.trim()) return;
-
     setIsSubmitting(true);
     try {
-      const response = await fetch(
-        `/api/pipeline/${developmentId}/${unit.id}/notes`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: newNoteContent.trim(),
-            noteType: newNoteType,
-          }),
-        }
-      );
-
+      const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newNoteContent.trim(), noteType: newNoteType }),
+      });
       if (response.ok) {
         const data = await response.json();
         setNotes([data.note, ...notes]);
@@ -416,158 +503,183 @@ function NotesPanel({ unit, developmentId, onClose, onNotesUpdated }: NotesPanel
     }
   };
 
-  const handleResolveNote = async (noteId: string, isResolved: boolean) => {
+  const handleResolveNote = async (noteId: string, resolved: boolean) => {
     try {
-      const response = await fetch(
-        `/api/pipeline/${developmentId}/${unit.id}/notes`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ noteId, isResolved }),
-        }
-      );
-
+      const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId, resolved }),
+      });
       if (response.ok) {
         const data = await response.json();
         setNotes(notes.map((n) => (n.id === noteId ? data.note : n)));
         onNotesUpdated();
       }
     } catch (error) {
-      console.error('Failed to resolve note:', error);
+      console.error('Failed to update note:', error);
     }
   };
 
-  return (
-    <div className="fixed inset-y-0 right-0 w-[400px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.08)] z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-[#E2E8F0]">
-        <div>
-          <h2 className="text-base font-semibold text-[#0F172A]">{unit.address}</h2>
-          <p className="text-xs text-[#94A3B8]">Unit {unit.unitNumber}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-lg transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+  const noteTypeConfig = {
+    general: { bg: 'bg-grey-100', text: 'text-grey-700', label: 'Note' },
+    query: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Query' },
+    issue: { bg: 'bg-red-100', text: 'text-red-800', label: 'Issue' },
+  };
 
-      {/* Notes List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 text-[#94A3B8] animate-spin" />
-          </div>
-        ) : notes.length === 0 ? (
-          <div className="text-center py-8">
-            <MessageSquare className="w-8 h-8 text-[#CBD5E1] mx-auto mb-2" />
-            <p className="text-sm text-[#94A3B8]">No notes yet</p>
-          </div>
-        ) : (
-          notes.map((note) => (
-            <div
-              key={note.id}
-              className={cn(
-                'p-3 rounded-lg border',
-                note.isResolved
-                  ? 'bg-[#F8FAFC] border-[#E2E8F0]'
-                  : 'bg-white border-[#E2E8F0]'
-              )}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span
-                  className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-medium uppercase',
-                    note.noteType === 'query' && 'bg-[#FEF3C7] text-[#92400E]',
-                    note.noteType === 'issue' && 'bg-[#FEE2E2] text-[#991B1B]',
-                    note.noteType === 'general' && 'bg-[#F1F5F9] text-[#475569]'
-                  )}
-                >
-                  {note.noteType}
-                </span>
-                {note.isResolved ? (
-                  <span className="flex items-center gap-1 text-[10px] text-[#047857]">
-                    <Check className="w-3 h-3" />
-                    Resolved
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleResolveNote(note.id, true)}
-                    className="text-[10px] text-[#0EA5E9] hover:underline"
-                  >
-                    Mark resolved
-                  </button>
-                )}
-              </div>
-              <p className={cn(
-                'text-sm',
-                note.isResolved ? 'text-[#94A3B8]' : 'text-[#0F172A]'
-              )}>
-                {note.content}
-              </p>
-              <div className="mt-2 text-[10px] text-[#94A3B8]">
-                {note.createdBy?.name || 'Unknown'} ·{' '}
-                {new Date(note.createdAt).toLocaleDateString('en-IE', {
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="fixed inset-y-0 right-0 w-[420px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+        {/* Header */}
+        <div className="flex-shrink-0 border-b border-grey-100 bg-grey-50/50">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-grey-900 truncate">{unit.address}</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-grey-500">Unit {unit.unitNumber}</span>
+                <span className="text-grey-300">·</span>
+                <span className="text-xs text-grey-500">{unit.houseTypeCode}</span>
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Add Note Form */}
-      <div className="border-t border-[#E2E8F0] p-4 space-y-3">
-        <div className="flex gap-2">
-          {(['general', 'query', 'issue'] as const).map((type) => (
             <button
-              key={type}
-              onClick={() => setNewNoteType(type)}
+              onClick={onClose}
+              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Progress */}
+          <div className="px-5 pb-4">
+            <ProgressBar completed={getCompletedStages(unit)} total={TOTAL_STAGES} />
+          </div>
+        </div>
+
+        {/* Notes List */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-grey-300 animate-spin" />
+            </div>
+          ) : notes.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-3">
+                <MessageSquare className="w-6 h-6 text-grey-400" />
+              </div>
+              <p className="text-sm font-medium text-grey-600">No notes yet</p>
+              <p className="text-xs text-grey-400 mt-1">Add a note to track queries or issues</p>
+            </div>
+          ) : (
+            notes.map((note) => {
+              const config = noteTypeConfig[note.noteType as keyof typeof noteTypeConfig] || noteTypeConfig.general;
+              return (
+                <div
+                  key={note.id}
+                  className={cn(
+                    'p-4 rounded-xl border transition-all',
+                    note.isResolved
+                      ? 'bg-grey-50/50 border-grey-100 opacity-60'
+                      : 'bg-white border-grey-200 shadow-sm hover:shadow-md'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide', config.bg, config.text)}>
+                      {config.label}
+                    </span>
+                    {note.isResolved ? (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                        <Check className="w-3 h-3" />
+                        Resolved
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleResolveNote(note.id, true)}
+                        className="text-[10px] font-medium text-gold-600 hover:text-gold-700 transition-colors"
+                      >
+                        Mark resolved
+                      </button>
+                    )}
+                  </div>
+                  <p className={cn('text-sm leading-relaxed', note.isResolved ? 'text-grey-500' : 'text-grey-800')}>
+                    {note.content}
+                  </p>
+                  <div className="mt-3 text-[10px] text-grey-400">
+                    {note.createdBy?.email || 'Unknown'} · {new Date(note.createdAt).toLocaleDateString('en-IE', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Add Note Form */}
+        <div className="flex-shrink-0 border-t border-grey-100 p-5 bg-grey-50/50">
+          <div className="flex gap-1.5 mb-3">
+            {(['general', 'query', 'issue'] as const).map((type) => {
+              const config = noteTypeConfig[type];
+              return (
+                <button
+                  key={type}
+                  onClick={() => setNewNoteType(type)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                    newNoteType === type
+                      ? cn(config.bg, config.text, 'shadow-sm')
+                      : 'text-grey-500 hover:bg-grey-100'
+                  )}
+                >
+                  {config.label}
+                </button>
+              );
+            })}
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={newNoteContent}
+            onChange={(e) => setNewNoteContent(e.target.value)}
+            placeholder="Write a note..."
+            className="w-full px-3 py-2.5 text-sm border border-grey-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-400 bg-white"
+            rows={3}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.metaKey) {
+                handleAddNote();
+              }
+            }}
+          />
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-[10px] text-grey-400">⌘ + Enter to send</span>
+            <button
+              onClick={handleAddNote}
+              disabled={!newNoteContent.trim() || isSubmitting}
               className={cn(
-                'px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors',
-                newNoteType === type
-                  ? type === 'query'
-                    ? 'bg-[#FEF3C7] text-[#92400E]'
-                    : type === 'issue'
-                    ? 'bg-[#FEE2E2] text-[#991B1B]'
-                    : 'bg-[#0F172A] text-white'
-                  : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]'
+                'px-4 py-2 text-sm font-medium rounded-lg transition-all',
+                newNoteContent.trim() && !isSubmitting
+                  ? 'bg-grey-900 text-white hover:bg-grey-800 shadow-sm'
+                  : 'bg-grey-100 text-grey-400 cursor-not-allowed'
               )}
             >
-              {type}
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Note'}
             </button>
-          ))}
+          </div>
         </div>
-        <textarea
-          value={newNoteContent}
-          onChange={(e) => setNewNoteContent(e.target.value)}
-          placeholder="Add a note..."
-          className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#0EA5E9]/20 focus:border-[#0EA5E9]"
-          rows={3}
-        />
-        <button
-          onClick={handleAddNote}
-          disabled={!newNoteContent.trim() || isSubmitting}
-          className={cn(
-            'w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-            newNoteContent.trim() && !isSubmitting
-              ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
-              : 'bg-[#F1F5F9] text-[#94A3B8] cursor-not-allowed'
-          )}
-        >
-          {isSubmitting ? 'Adding...' : 'Add Note'}
-        </button>
       </div>
-    </div>
+    </>
   );
 }
 
 // ============================================================================
-// Release Units Modal
+// Release Units Modal - Premium Design
 // ============================================================================
 
 interface ReleaseUnitsModalProps {
@@ -603,7 +715,6 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
 
   const handleRelease = async () => {
     if (selectedIds.size === 0) return;
-
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/pipeline/${developmentId}`, {
@@ -611,7 +722,6 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ unitIds: Array.from(selectedIds) }),
       });
-
       if (response.ok) {
         onReleased();
         onClose();
@@ -624,98 +734,115 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
-          <h2 className="text-lg font-semibold text-[#0F172A]">Release Units</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+        onClick={onClose}
+      />
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {unreleasedUnits.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-[#94A3B8]">All units have been released.</p>
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-grey-100">
+            <div>
+              <h2 className="text-lg font-semibold text-grey-900">Release Units</h2>
+              <p className="text-sm text-grey-500 mt-0.5">Select units to add to the pipeline</p>
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-[#475569]">
-                  {unreleasedUnits.length} unreleased unit{unreleasedUnits.length !== 1 ? 's' : ''}
-                </p>
-                <button
-                  onClick={selectAll}
-                  className="text-sm text-[#0EA5E9] hover:underline"
-                >
-                  {selectedIds.size === unreleasedUnits.length ? 'Deselect all' : 'Select all'}
-                </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {unreleasedUnits.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                </div>
+                <p className="text-sm font-medium text-grey-600">All units released</p>
+                <p className="text-xs text-grey-400 mt-1">Every unit has been added to the pipeline</p>
               </div>
-              <div className="space-y-2">
-                {unreleasedUnits.map((unit) => (
-                  <button
-                    key={unit.id}
-                    onClick={() => toggleSelect(unit.id)}
-                    className={cn(
-                      'w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left',
-                      selectedIds.has(unit.id)
-                        ? 'border-[#0EA5E9] bg-[#F0F9FF]'
-                        : 'border-[#E2E8F0] hover:bg-[#F8FAFC]'
-                    )}
-                  >
-                    <div
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-grey-600">
+                    {unreleasedUnits.length} unit{unreleasedUnits.length !== 1 ? 's' : ''} available
+                  </p>
+                  <button onClick={selectAll} className="text-sm font-medium text-gold-600 hover:text-gold-700 transition-colors">
+                    {selectedIds.size === unreleasedUnits.length ? 'Deselect all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {unreleasedUnits.map((unit) => (
+                    <button
+                      key={unit.id}
+                      onClick={() => toggleSelect(unit.id)}
                       className={cn(
-                        'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+                        'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
                         selectedIds.has(unit.id)
-                          ? 'border-[#0EA5E9] bg-[#0EA5E9]'
-                          : 'border-[#CBD5E1]'
+                          ? 'border-gold-400 bg-gold-50/50'
+                          : 'border-grey-100 hover:border-grey-200 hover:bg-grey-50'
                       )}
                     >
-                      {selectedIds.has(unit.id) && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#0F172A] truncate">
-                        {unit.address}
-                      </p>
-                      <p className="text-xs text-[#94A3B8]">
-                        Unit {unit.unitNumber} · {unit.houseTypeCode}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
+                      <div
+                        className={cn(
+                          'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all',
+                          selectedIds.has(unit.id)
+                            ? 'border-gold-500 bg-gold-500'
+                            : 'border-grey-300'
+                        )}
+                      >
+                        {selectedIds.has(unit.id) && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-grey-900 truncate">{unit.address}</p>
+                        <p className="text-xs text-grey-500">
+                          Unit {unit.unitNumber} · {unit.houseTypeCode}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          {unreleasedUnits.length > 0 && (
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-grey-100 bg-grey-50/50">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRelease}
+                disabled={selectedIds.size === 0 || isSubmitting}
+                className={cn(
+                  'px-5 py-2 text-sm font-medium rounded-lg transition-all',
+                  selectedIds.size > 0 && !isSubmitting
+                    ? 'bg-grey-900 text-white hover:bg-grey-800 shadow-sm'
+                    : 'bg-grey-100 text-grey-400 cursor-not-allowed'
+                )}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  `Release ${selectedIds.size || ''} Unit${selectedIds.size !== 1 ? 's' : ''}`
+                )}
+              </button>
+            </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#E2E8F0]">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleRelease}
-            disabled={selectedIds.size === 0 || isSubmitting}
-            className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-              selectedIds.size > 0 && !isSubmitting
-                ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
-                : 'bg-[#F1F5F9] text-[#94A3B8] cursor-not-allowed'
-            )}
-          >
-            {isSubmitting ? 'Releasing...' : `Release ${selectedIds.size} Unit${selectedIds.size !== 1 ? 's' : ''}`}
-          </button>
-        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -736,6 +863,8 @@ export default function DevelopmentPipelinePage() {
   const [selectedUnitForNotes, setSelectedUnitForNotes] = useState<PipelineUnit | null>(null);
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, Set<string>>>(new Map());
+  const [viewMode, setViewMode] = useState<'all' | 'released'>('released');
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -743,11 +872,8 @@ export default function DevelopmentPipelinePage() {
       const url = searchQuery
         ? `/api/pipeline/${developmentId}?search=${encodeURIComponent(searchQuery)}`
         : `/api/pipeline/${developmentId}`;
-
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch pipeline data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch pipeline data');
       const data = await response.json();
       setDevelopment(data.development);
       setUnits(data.units || []);
@@ -766,11 +892,7 @@ export default function DevelopmentPipelinePage() {
   const handleCellUpdate = useCallback(
     async (unitId: string, field: string, value: string | null) => {
       // Optimistic update
-      setUnits((prev) =>
-        prev.map((u) => (u.id === unitId ? { ...u, [field]: value } : u))
-      );
-
-      // Mark as optimistic
+      setUnits((prev) => prev.map((u) => (u.id === unitId ? { ...u, [field]: value } : u)));
       setOptimisticUpdates((prev) => {
         const newMap = new Map(prev);
         const fields = newMap.get(unitId) || new Set();
@@ -783,29 +905,18 @@ export default function DevelopmentPipelinePage() {
         const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            field,  // Send camelCase field name directly - API expects camelCase
-            value,
-          }),
+          body: JSON.stringify({ field, value }),
         });
-
-        if (!response.ok) {
-          // Revert on error
-          await fetchData();
-        }
-      } catch (error) {
-        // Revert on error
+        if (!response.ok) await fetchData();
+      } catch {
         await fetchData();
       } finally {
-        // Clear optimistic flag
         setOptimisticUpdates((prev) => {
           const newMap = new Map(prev);
           const fields = newMap.get(unitId);
           if (fields) {
             fields.delete(field);
-            if (fields.size === 0) {
-              newMap.delete(unitId);
-            }
+            if (fields.size === 0) newMap.delete(unitId);
           }
           return newMap;
         });
@@ -814,25 +925,33 @@ export default function DevelopmentPipelinePage() {
     [developmentId, fetchData]
   );
 
-  // Filter to only show released units (have releaseDate)
-  const releasedUnits = useMemo(() => {
-    return units.filter((u) => u.releaseDate);
-  }, [units]);
+  // Filter units based on view mode
+  const displayedUnits = useMemo(() => {
+    if (viewMode === 'released') {
+      return units.filter((u) => u.releaseDate);
+    }
+    return units;
+  }, [units, viewMode]);
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-full bg-[#F8FAFC]">
+      <div className="min-h-full bg-gradient-to-br from-grey-50 to-white">
         <div className="p-6 lg:p-8">
-          <div className="max-w-full mx-auto">
-            <div className="mb-6">
-              <div className="h-6 w-32 bg-neutral-200 rounded animate-pulse mb-2" />
-              <div className="h-4 w-48 bg-neutral-200 rounded animate-pulse" />
+          <div className="max-w-full">
+            <div className="mb-8">
+              <div className="h-6 w-48 bg-grey-200 rounded-lg animate-pulse mb-3" />
+              <div className="h-4 w-32 bg-grey-100 rounded animate-pulse" />
             </div>
-            <div className="bg-white rounded-lg border border-[#E2E8F0] overflow-hidden">
-              <div className="h-10 bg-[#F8FAFC] border-b border-[#E2E8F0]" />
-              {[...Array(10)].map((_, i) => (
-                <div key={i} className="h-9 border-b border-[#E2E8F0] animate-pulse bg-neutral-50" />
+            <div className="grid grid-cols-4 gap-3 mb-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-20 bg-white rounded-xl border border-grey-100 animate-pulse" />
+              ))}
+            </div>
+            <div className="bg-white rounded-xl border border-grey-100 overflow-hidden">
+              <div className="h-12 bg-grey-50 border-b border-grey-100" />
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="h-11 border-b border-grey-50 animate-pulse bg-white" />
               ))}
             </div>
           </div>
@@ -844,13 +963,15 @@ export default function DevelopmentPipelinePage() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-full bg-[#F8FAFC] flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-[#475569] text-sm">{error}</p>
+      <div className="min-h-full bg-gradient-to-br from-grey-50 to-white flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <p className="text-grey-600 text-sm mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-[#0EA5E9] rounded-lg hover:bg-[#0284C7] transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-grey-900 rounded-lg hover:bg-grey-800 transition-colors"
           >
             Try Again
           </button>
@@ -860,183 +981,224 @@ export default function DevelopmentPipelinePage() {
   }
 
   return (
-    <div className="min-h-full bg-[#F8FAFC]">
-      <div className="p-4 lg:p-6">
-        <div className="max-w-full mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/developer/pipeline')}
-                className="p-2 text-[#94A3B8] hover:text-[#0F172A] hover:bg-white rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-[#0F172A]">
-                  {development?.name || 'Loading...'}
-                </h1>
-                <p className="text-xs text-[#94A3B8]">
-                  {releasedUnits.length} released · {units.length} total units
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search..."
-                  className="pl-9 pr-4 py-2 text-sm border border-[#E2E8F0] rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9]/20 focus:border-[#0EA5E9]"
-                />
-              </div>
-              {/* Release Button */}
-              <button
-                onClick={() => setShowReleaseModal(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0F172A] rounded-lg hover:bg-[#1E293B] transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Release Units
-              </button>
+    <div className="min-h-full bg-gradient-to-br from-grey-50 to-white">
+      <div className="p-5 lg:p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/developer/pipeline')}
+              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-white rounded-lg transition-all shadow-sm border border-grey-100"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-semibold text-grey-900">{development?.name}</h1>
+              <p className="text-sm text-grey-500">{development?.address}</p>
             </div>
           </div>
 
-          {/* Empty State */}
-          {releasedUnits.length === 0 ? (
-            <div className="bg-white rounded-lg border border-[#E2E8F0] p-12 text-center">
-              <p className="text-sm text-[#475569] mb-4">
-                No units released yet.
-              </p>
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-grey-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search units..."
+                className="pl-9 pr-4 py-2 text-sm border border-grey-200 rounded-xl w-56 focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-400 bg-white shadow-sm"
+              />
+            </div>
+
+            {/* View Toggle */}
+            <div className="flex items-center bg-grey-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('released')}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  viewMode === 'released' ? 'bg-white text-grey-900 shadow-sm' : 'text-grey-500 hover:text-grey-700'
+                )}
+              >
+                Released
+              </button>
+              <button
+                onClick={() => setViewMode('all')}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                  viewMode === 'all' ? 'bg-white text-grey-900 shadow-sm' : 'text-grey-500 hover:text-grey-700'
+                )}
+              >
+                All Units
+              </button>
+            </div>
+
+            {/* Release Button */}
+            <button
+              onClick={() => setShowReleaseModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-grey-900 rounded-xl hover:bg-grey-800 transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Release Units
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="mb-6">
+          <StatsCards units={units} />
+        </div>
+
+        {/* Empty State */}
+        {displayedUnits.length === 0 ? (
+          <div className="bg-white rounded-xl border border-grey-100 p-16 text-center shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-4">
+              <Home className="w-8 h-8 text-grey-400" />
+            </div>
+            <p className="text-base font-medium text-grey-700 mb-2">
+              {viewMode === 'released' ? 'No units released yet' : 'No units found'}
+            </p>
+            <p className="text-sm text-grey-500 mb-6">
+              {viewMode === 'released' ? 'Release units to start tracking their progress through the pipeline' : 'Try adjusting your search'}
+            </p>
+            {viewMode === 'released' && (
               <button
                 onClick={() => setShowReleaseModal(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#0F172A] rounded-lg hover:bg-[#1E293B] transition-colors"
+                className="px-5 py-2.5 text-sm font-medium text-white bg-grey-900 rounded-xl hover:bg-grey-800 transition-all shadow-sm"
               >
                 Release Units
               </button>
+            )}
+          </div>
+        ) : (
+          /* Pipeline Table */
+          <div className="bg-white rounded-xl border border-grey-100 shadow-sm overflow-hidden">
+            <div ref={tableRef} className="overflow-x-auto">
+              <table className="w-full border-collapse" style={{ minWidth: '1400px' }}>
+                <thead>
+                  <tr className="bg-grey-50/80">
+                    {PIPELINE_COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        className={cn(
+                          'h-11 px-3 text-left text-[11px] font-semibold text-grey-500 uppercase tracking-wider border-b border-grey-100',
+                          col.frozen && 'sticky left-0 z-20 bg-grey-50/80 shadow-[2px_0_8px_rgba(0,0,0,0.04)]'
+                        )}
+                        style={{ width: col.width, minWidth: col.width }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedUnits.map((unit, rowIndex) => {
+                    const status = getStageStatus(unit);
+
+                    return (
+                      <tr
+                        key={unit.id}
+                        className={cn(
+                          'group transition-colors',
+                          rowIndex % 2 === 0 ? 'bg-white' : 'bg-grey-50/30',
+                          'hover:bg-gold-50/30'
+                        )}
+                      >
+                        {PIPELINE_COLUMNS.map((col) => {
+                          const isFieldOptimistic = optimisticUpdates.get(unit.id)?.has(col.key);
+
+                          if (col.frozen) {
+                            return (
+                              <td
+                                key={`${unit.id}-${col.key}`}
+                                className="h-11 px-3 text-xs font-medium text-grey-900 border-b border-grey-50 sticky left-0 z-10 bg-inherit shadow-[2px_0_8px_rgba(0,0,0,0.04)] group-hover:bg-gold-50/30"
+                                style={{ width: col.width, minWidth: col.width }}
+                              >
+                                <div className="flex items-center gap-2 truncate" title={unit.address}>
+                                  <div className={cn(
+                                    'w-2 h-2 rounded-full flex-shrink-0',
+                                    status === 'complete' && 'bg-emerald-500',
+                                    status === 'in-progress' && 'bg-amber-500',
+                                    status === 'not-started' && 'bg-grey-300'
+                                  )} />
+                                  <span className="truncate">{unit.address}</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          if (col.type === 'notes') {
+                            return (
+                              <td
+                                key={`${unit.id}-${col.key}`}
+                                className="h-11 border-b border-grey-50"
+                                style={{ width: col.width, minWidth: col.width }}
+                              >
+                                <NotesCell unit={unit} onClick={() => setSelectedUnitForNotes(unit)} />
+                              </td>
+                            );
+                          }
+
+                          if (col.type === 'date') {
+                            const value = unit[col.key as keyof PipelineUnit] as string | null;
+                            return (
+                              <td
+                                key={`${unit.id}-${col.key}`}
+                                className="h-11 border-b border-grey-50"
+                                style={{ width: col.width, minWidth: col.width }}
+                              >
+                                <DateCell
+                                  value={value}
+                                  unitId={unit.id}
+                                  field={col.key}
+                                  onUpdate={handleCellUpdate}
+                                  isOptimistic={isFieldOptimistic}
+                                  isFirstDate={col.key === 'releaseDate'}
+                                />
+                              </td>
+                            );
+                          }
+
+                          if (col.type === 'text' && col.editable) {
+                            const value = unit[col.key as keyof PipelineUnit] as string | null;
+                            return (
+                              <td
+                                key={`${unit.id}-${col.key}`}
+                                className="h-11 border-b border-grey-50"
+                                style={{ width: col.width, minWidth: col.width }}
+                              >
+                                <TextCell
+                                  value={value}
+                                  unitId={unit.id}
+                                  field={col.key}
+                                  onUpdate={handleCellUpdate}
+                                  isOptimistic={isFieldOptimistic}
+                                />
+                              </td>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            /* Pipeline Table */
-            <div className="bg-white rounded-lg border border-[#E2E8F0] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
-                  {/* Header */}
-                  <thead>
-                    <tr className="bg-[#F8FAFC]">
-                      {PIPELINE_COLUMNS.map((col) => (
-                        <th
-                          key={col.key}
-                          className={cn(
-                            'h-10 px-3 text-left text-xs font-medium text-[#475569] uppercase tracking-wide border-b border-r border-[#E2E8F0] last:border-r-0',
-                            col.frozen && 'sticky left-0 z-10 bg-[#F8FAFC] shadow-[2px_0_4px_rgba(0,0,0,0.03)]'
-                          )}
-                          style={{ width: col.width, minWidth: col.width }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  {/* Body */}
-                  <tbody>
-                    {releasedUnits.map((unit, rowIndex) => {
-                      const isOptimistic = optimisticUpdates.has(unit.id);
 
-                      return (
-                        <tr
-                          key={unit.id}
-                          className={cn(
-                            'hover:bg-[#F8FAFC]/50',
-                            rowIndex % 2 === 1 && 'bg-[#FAFBFC]'
-                          )}
-                        >
-                          {PIPELINE_COLUMNS.map((col) => {
-                            const cellKey = `${unit.id}-${col.key}`;
-                            const isFieldOptimistic = optimisticUpdates.get(unit.id)?.has(col.key);
-
-                            // Frozen Unit column
-                            if (col.frozen) {
-                              return (
-                                <td
-                                  key={cellKey}
-                                  className="h-9 px-3 text-[11px] font-medium text-[#0F172A] truncate border-b border-r border-[#E2E8F0] sticky left-0 bg-white shadow-[2px_0_4px_rgba(0,0,0,0.03)] z-10"
-                                  style={{ width: col.width, minWidth: col.width }}
-                                  title={unit.address}
-                                >
-                                  {unit.address}
-                                </td>
-                              );
-                            }
-
-                            // Notes column
-                            if (col.type === 'notes') {
-                              return (
-                                <td
-                                  key={cellKey}
-                                  className="h-9 border-b border-r border-[#E2E8F0] last:border-r-0"
-                                  style={{ width: col.width, minWidth: col.width }}
-                                >
-                                  <NotesCell
-                                    unit={unit}
-                                    onClick={() => setSelectedUnitForNotes(unit)}
-                                  />
-                                </td>
-                              );
-                            }
-
-                            // Date columns
-                            if (col.type === 'date') {
-                              const value = unit[col.key as keyof PipelineUnit] as string | null;
-                              return (
-                                <td
-                                  key={cellKey}
-                                  className="h-9 border-b border-r border-[#E2E8F0] last:border-r-0"
-                                  style={{ width: col.width, minWidth: col.width }}
-                                >
-                                  <DateCell
-                                    value={value}
-                                    unitId={unit.id}
-                                    field={col.key}
-                                    onUpdate={handleCellUpdate}
-                                    isOptimistic={isFieldOptimistic}
-                                  />
-                                </td>
-                              );
-                            }
-
-                            // Text columns (purchaser name)
-                            if (col.type === 'text' && col.editable) {
-                              const value = unit[col.key as keyof PipelineUnit] as string | null;
-                              return (
-                                <td
-                                  key={cellKey}
-                                  className="h-9 border-b border-r border-[#E2E8F0] last:border-r-0"
-                                  style={{ width: col.width, minWidth: col.width }}
-                                >
-                                  <TextCell
-                                    value={value}
-                                    unitId={unit.id}
-                                    field={col.key}
-                                    onUpdate={handleCellUpdate}
-                                    isOptimistic={isFieldOptimistic}
-                                  />
-                                </td>
-                              );
-                            }
-
-                            return null;
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            {/* Table Footer */}
+            <div className="px-4 py-3 border-t border-grey-100 bg-grey-50/50 flex items-center justify-between">
+              <p className="text-xs text-grey-500">
+                {displayedUnits.length} unit{displayedUnits.length !== 1 ? 's' : ''} · Click empty date cells to set today's date
+              </p>
+              <div className="flex items-center gap-1 text-xs text-grey-400">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Powered by OpenHouse AI</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Notes Panel */}
