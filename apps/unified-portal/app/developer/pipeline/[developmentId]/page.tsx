@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, X, Plus, Check } from 'lucide-react';
 
 // =============================================================================
 // Types
@@ -31,6 +31,14 @@ interface PipelineUnit {
 interface Development {
   id: string;
   name: string;
+}
+
+interface PipelineNote {
+  id: string;
+  content: string;
+  resolved: boolean;
+  createdAt: string;
+  createdBy: string;
 }
 
 // =============================================================================
@@ -330,6 +338,189 @@ function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
 }
 
 // =============================================================================
+// Queries Slide-Out Panel
+// =============================================================================
+
+interface QueriesPanelProps {
+  unit: PipelineUnit | null;
+  developmentId: string;
+  onClose: () => void;
+  onNotesChange: () => void;
+}
+
+function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPanelProps) {
+  const [notes, setNotes] = useState<PipelineNote[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [newNote, setNewNote] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Fetch notes
+  useEffect(() => {
+    if (!unit?.pipelineId) {
+      setNotes([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchNotes = async () => {
+      try {
+        const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`);
+        if (response.ok) {
+          const data = await response.json();
+          setNotes(data.notes || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notes:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchNotes();
+  }, [unit, developmentId]);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  // Add note
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !unit) return;
+
+    setIsAdding(true);
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newNote.trim() }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotes(prev => [data.note, ...prev]);
+        setNewNote('');
+        onNotesChange();
+      }
+    } catch (err) {
+      console.error('Failed to add note:', err);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  // Toggle resolved
+  const handleToggleResolved = async (noteId: string, currentResolved: boolean) => {
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/${unit?.id}/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolved: !currentResolved }),
+      });
+
+      if (response.ok) {
+        setNotes(prev => prev.map(n =>
+          n.id === noteId ? { ...n, resolved: !currentResolved } : n
+        ));
+        onNotesChange();
+      }
+    } catch (err) {
+      console.error('Failed to update note:', err);
+    }
+  };
+
+  if (!unit) return null;
+
+  return (
+    <div className="fixed inset-0 z-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Backdrop - clicking closes panel */}
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+
+      {/* Panel - slides in from right */}
+      <div
+        ref={panelRef}
+        className="absolute right-0 top-0 h-full w-96 bg-white shadow-xl flex flex-col"
+      >
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-[#E2E8F0] flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[#0F172A]">
+              Queries - {unit.unitNumber}
+            </h2>
+            <p className="text-xs text-[#475569]">{unit.purchaserName || 'No purchaser'}</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#F8FAFC] rounded">
+            <X className="w-5 h-5 text-[#475569]" />
+          </button>
+        </div>
+
+        {/* Add Note */}
+        <div className="px-4 py-3 border-b border-[#E2E8F0]">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+              placeholder="Add a note..."
+              className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded focus:outline-none focus:ring-1 focus:ring-[#047857]"
+            />
+            <button
+              onClick={handleAddNote}
+              disabled={!newNote.trim() || isAdding}
+              className="px-3 py-2 bg-[#0F172A] text-white text-sm rounded hover:bg-[#1E293B] disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Notes List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-[#94A3B8]" />
+            </div>
+          ) : notes.length === 0 ? (
+            <p className="text-center text-sm text-[#94A3B8] py-8">No notes yet</p>
+          ) : (
+            <div className="space-y-3">
+              {notes.map((note) => (
+                <div
+                  key={note.id}
+                  className={`p-3 rounded border ${note.resolved ? 'bg-[#F8FAFC] border-[#E2E8F0]' : 'bg-white border-[#E2E8F0]'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`text-sm flex-1 ${note.resolved ? 'text-[#94A3B8] line-through' : 'text-[#0F172A]'}`}>
+                      {note.content}
+                    </p>
+                    <button
+                      onClick={() => handleToggleResolved(note.id, note.resolved)}
+                      className={`p-1 rounded ${note.resolved ? 'bg-[#ECFDF5] text-[#047857]' : 'hover:bg-[#F8FAFC] text-[#94A3B8]'}`}
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#94A3B8] mt-1">
+                    {new Date(note.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {note.createdBy && ` • ${note.createdBy}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Main Page Component
 // =============================================================================
 
@@ -342,6 +533,7 @@ export default function PipelineDevelopmentPage() {
   const [units, setUnits] = useState<PipelineUnit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<PipelineUnit | null>(null);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -388,9 +580,9 @@ export default function PipelineDevelopmentPage() {
     }
   };
 
-  // Handle queries click (placeholder - will implement slide-out in Phase 6)
-  const handleQueriesClick = (unitId: string) => {
-    console.log('Open queries panel for unit:', unitId);
+  // Handle queries click - open slide-out panel
+  const handleQueriesClick = (unit: PipelineUnit) => {
+    setSelectedUnit(unit);
   };
 
   if (isLoading) {
@@ -515,7 +707,7 @@ export default function PipelineDevelopmentPage() {
                   <QueriesCell
                     count={unit.notesCount}
                     unresolvedCount={unit.unresolvedNotesCount}
-                    onClick={() => handleQueriesClick(unit.id)}
+                    onClick={() => handleQueriesClick(unit)}
                   />
 
                   {/* More date columns */}
@@ -537,6 +729,16 @@ export default function PipelineDevelopmentPage() {
           )}
         </div>
       </div>
+
+      {/* Queries Slide-Out Panel */}
+      {selectedUnit && (
+        <QueriesPanel
+          unit={selectedUnit}
+          developmentId={developmentId}
+          onClose={() => setSelectedUnit(null)}
+          onNotesChange={fetchData}
+        />
+      )}
     </>
   );
 }
