@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
   AlertCircle,
-  MessageSquare,
   Plus,
   X,
   Check,
@@ -20,12 +19,60 @@ import {
   Clock,
   Filter,
   MoreHorizontal,
-  Sparkles,
+  Mail,
+  Download,
+  GripVertical,
+  Building,
+  FileText,
+  Pencil,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
+
+// ============================================================================
+// Design Tokens (from brief)
+// ============================================================================
+const tokens = {
+  colors: {
+    bg: {
+      page: '#f5f5f5',
+      card: '#ffffff',
+      subtle: '#f9f9f9',
+      hover: '#fafafa',
+    },
+    border: {
+      light: '#f0f0f0',
+      default: '#e5e5e5',
+      hover: '#d0d0d0',
+    },
+    text: {
+      primary: '#1a1a1a',
+      secondary: '#666666',
+      muted: '#999999',
+    },
+    accent: {
+      amber: '#f5b800',
+      amberHover: '#e5ac00',
+      amberLight: '#fef9e7',
+    },
+    status: {
+      success: '#10b981',
+      successLight: '#ecfdf5',
+      error: '#ef4444',
+      errorLight: '#fef2f2',
+      warning: '#f59e0b',
+      warningLight: '#fffbeb',
+      info: '#3b82f6',
+      infoLight: '#eff6ff',
+    },
+  },
+};
 
 // ============================================================================
 // Types
 // ============================================================================
+
+type PipelineStage = 'available' | 'reserved' | 'contracts_out' | 'signed' | 'complete';
 
 interface PipelineUnit {
   id: string;
@@ -36,18 +83,16 @@ interface PipelineUnit {
   purchaserName: string | null;
   purchaserEmail: string | null;
   purchaserPhone: string | null;
+  stage: PipelineStage;
+  daysInStage: number;
+  mortgageExpiry: string | null;
   releaseDate: string | null;
   saleAgreedDate: string | null;
   depositDate: string | null;
   contractsIssuedDate: string | null;
   signedContractsDate: string | null;
   counterSignedDate: string | null;
-  kitchenDate: string | null;
-  snagDate: string | null;
-  drawdownDate: string | null;
   handoverDate: string | null;
-  notesCount: number;
-  unresolvedNotesCount: number;
 }
 
 interface Development {
@@ -57,43 +102,58 @@ interface Development {
   address: string;
 }
 
-interface Note {
-  id: string;
-  noteType: string;
-  content: string;
-  isResolved: boolean;
-  resolvedAt: string | null;
-  createdAt: string;
-  createdBy: { id: string; email: string } | null;
-  resolvedBy: { id: string; email: string } | null;
-}
-
 // ============================================================================
-// Pipeline Column Configuration
+// Pipeline Stage Configuration
 // ============================================================================
 
-const PIPELINE_COLUMNS = [
-  { key: 'address', label: 'Unit', width: 160, frozen: true, type: 'text' as const },
-  { key: 'purchaserName', label: 'Purchaser', width: 160, type: 'text' as const, editable: true },
-  { key: 'releaseDate', label: 'Released', width: 90, type: 'date' as const, editable: true, stage: 1 },
-  { key: 'saleAgreedDate', label: 'Sale Agreed', width: 100, type: 'date' as const, editable: true, stage: 2 },
-  { key: 'depositDate', label: 'Deposit', width: 90, type: 'date' as const, editable: true, stage: 3 },
-  { key: 'contractsIssuedDate', label: 'Contracts Out', width: 110, type: 'date' as const, editable: true, stage: 4 },
-  { key: 'notes', label: '', width: 50, type: 'notes' as const },
-  { key: 'signedContractsDate', label: 'Signed In', width: 95, type: 'date' as const, editable: true, stage: 5 },
-  { key: 'counterSignedDate', label: 'Counter Sign', width: 105, type: 'date' as const, editable: true, stage: 6 },
-  { key: 'kitchenDate', label: 'Kitchen', width: 85, type: 'date' as const, editable: true, stage: 7 },
-  { key: 'snagDate', label: 'Snag', width: 80, type: 'date' as const, editable: true, stage: 8 },
-  { key: 'drawdownDate', label: 'Drawdown', width: 95, type: 'date' as const, editable: true, stage: 9 },
-  { key: 'handoverDate', label: 'Handover', width: 90, type: 'date' as const, editable: true, stage: 10 },
-] as const;
-
-const DATE_FIELDS = PIPELINE_COLUMNS.filter(c => c.type === 'date').map(c => c.key);
-const TOTAL_STAGES = DATE_FIELDS.length;
+const PIPELINE_STAGES: { key: PipelineStage; label: string; color: string; bgColor: string }[] = [
+  { key: 'available', label: 'Available', color: tokens.colors.text.muted, bgColor: tokens.colors.bg.subtle },
+  { key: 'reserved', label: 'Reserved', color: tokens.colors.status.info, bgColor: tokens.colors.status.infoLight },
+  { key: 'contracts_out', label: 'Contracts Out', color: tokens.colors.status.warning, bgColor: tokens.colors.status.warningLight },
+  { key: 'signed', label: 'Signed', color: tokens.colors.status.success, bgColor: tokens.colors.status.successLight },
+  { key: 'complete', label: 'Complete', color: '#059669', bgColor: '#d1fae5' },
+];
 
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+function deriveStageFromUnit(unit: any): PipelineStage {
+  if (unit.handoverDate) return 'complete';
+  if (unit.signedContractsDate || unit.counterSignedDate) return 'signed';
+  if (unit.contractsIssuedDate) return 'contracts_out';
+  if (unit.saleAgreedDate || unit.depositDate) return 'reserved';
+  if (unit.releaseDate) return 'available';
+  return 'available';
+}
+
+function calculateDaysInStage(unit: any): number {
+  const stage = deriveStageFromUnit(unit);
+  let stageDate: string | null = null;
+
+  switch (stage) {
+    case 'complete':
+      stageDate = unit.handoverDate;
+      break;
+    case 'signed':
+      stageDate = unit.counterSignedDate || unit.signedContractsDate;
+      break;
+    case 'contracts_out':
+      stageDate = unit.contractsIssuedDate;
+      break;
+    case 'reserved':
+      stageDate = unit.depositDate || unit.saleAgreedDate;
+      break;
+    case 'available':
+      stageDate = unit.releaseDate;
+      break;
+  }
+
+  if (!stageDate) return 0;
+  const date = new Date(stageDate);
+  const now = new Date();
+  return Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return '';
@@ -101,585 +161,366 @@ function formatDate(dateString: string | null): string {
   return date.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 }
 
-function formatDateForInput(dateString: string | null): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0];
-}
-
-function getCompletedStages(unit: PipelineUnit): number {
-  let count = 0;
-  if (unit.releaseDate) count++;
-  if (unit.saleAgreedDate) count++;
-  if (unit.depositDate) count++;
-  if (unit.contractsIssuedDate) count++;
-  if (unit.signedContractsDate) count++;
-  if (unit.counterSignedDate) count++;
-  if (unit.kitchenDate) count++;
-  if (unit.snagDate) count++;
-  if (unit.drawdownDate) count++;
-  if (unit.handoverDate) count++;
-  return count;
-}
-
-function getStageStatus(unit: PipelineUnit): 'complete' | 'in-progress' | 'not-started' {
-  if (unit.handoverDate) return 'complete';
-  if (unit.releaseDate) return 'in-progress';
-  return 'not-started';
-}
-
 // ============================================================================
-// Date Cell Component - Premium Design
+// Stat Card Component
 // ============================================================================
 
-interface DateCellProps {
-  value: string | null;
-  unitId: string;
-  field: string;
-  onUpdate: (unitId: string, field: string, value: string | null) => Promise<void>;
-  isOptimistic?: boolean;
-  isFirstDate?: boolean;
+interface StatCardProps {
+  label: string;
+  value: number | string;
+  change?: string;
+  icon: React.ReactNode;
+  color?: string;
 }
 
-function DateCell({ value, unitId, field, onUpdate, isOptimistic, isFirstDate }: DateCellProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleClick = useCallback(() => {
-    if (!value) {
-      // Empty cell - set to today
-      const today = new Date().toISOString();
-      onUpdate(unitId, field, today);
-    } else {
-      // Has value - open picker
-      setInputValue(formatDateForInput(value));
-      setIsEditing(true);
-    }
-  }, [value, unitId, field, onUpdate]);
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      const newDate = inputValue ? new Date(inputValue).toISOString() : null;
-      await onUpdate(unitId, field, newDate);
-    } finally {
-      setIsSaving(false);
-      setIsEditing(false);
-    }
-  }, [inputValue, unitId, field, onUpdate]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSave();
-      } else if (e.key === 'Escape') {
-        setIsEditing(false);
-      }
-    },
-    [handleSave]
-  );
-
-  const handleClear = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsSaving(true);
-    try {
-      await onUpdate(unitId, field, null);
-    } finally {
-      setIsSaving(false);
-      setIsEditing(false);
-    }
-  }, [unitId, field, onUpdate]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.showPicker?.();
-    }
-  }, [isEditing]);
-
-  if (isEditing) {
-    return (
-      <div className="relative flex items-center h-full px-1">
-        <input
-          ref={inputRef}
-          type="date"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleSave}
-          className="w-full h-7 px-2 text-xs bg-white border border-gold-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-500"
-          disabled={isSaving}
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="absolute right-2 p-0.5 text-grey-400 hover:text-red-500 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
+function StatCard({ label, value, change, icon, color = tokens.colors.text.primary }: StatCardProps) {
+  return (
+    <div className="bg-white rounded-xl border border-[#e5e5e5] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+          {label}
+        </span>
+        <div className="text-[#999999]">{icon}</div>
+      </div>
+      <div className="flex items-end justify-between">
+        <span className="text-[28px] font-semibold tracking-[-0.02em]" style={{ color }}>
+          {value}
+        </span>
+        {change && (
+          <span className="text-xs font-medium text-[#10b981]">{change}</span>
         )}
       </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={cn(
-        'group w-full h-full flex items-center justify-center text-xs font-medium transition-all duration-150',
-        value
-          ? 'bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100'
-          : 'text-grey-300 hover:bg-grey-50 hover:text-grey-400',
-        isOptimistic && 'animate-pulse',
-        isSaving && 'opacity-50'
-      )}
-    >
-      {value ? (
-        <span className="flex items-center gap-1">
-          <CheckCircle2 className="w-3 h-3 opacity-60" />
-          {formatDate(value)}
-        </span>
-      ) : (
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <Plus className="w-3.5 h-3.5" />
-        </span>
-      )}
-    </button>
-  );
-}
-
-// ============================================================================
-// Text Cell Component - Premium Design
-// ============================================================================
-
-interface TextCellProps {
-  value: string | null;
-  unitId: string;
-  field: string;
-  onUpdate: (unitId: string, field: string, value: string | null) => Promise<void>;
-  isOptimistic?: boolean;
-}
-
-function TextCell({ value, unitId, field, onUpdate, isOptimistic }: TextCellProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleClick = useCallback(() => {
-    setInputValue(value || '');
-    setIsEditing(true);
-  }, [value]);
-
-  const handleSave = useCallback(async () => {
-    if (inputValue !== value) {
-      setIsSaving(true);
-      try {
-        await onUpdate(unitId, field, inputValue || null);
-      } finally {
-        setIsSaving(false);
-      }
-    }
-    setIsEditing(false);
-  }, [inputValue, value, unitId, field, onUpdate]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSave();
-      } else if (e.key === 'Escape') {
-        setIsEditing(false);
-      }
-    },
-    [handleSave]
-  );
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  if (isEditing) {
-    return (
-      <div className="px-1 h-full flex items-center">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleSave}
-          className="w-full h-7 px-2 text-xs bg-white border border-gold-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-500"
-          disabled={isSaving}
-          placeholder="Enter name..."
-        />
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={cn(
-        'group w-full h-full px-3 flex items-center text-xs text-left transition-colors hover:bg-grey-50',
-        value ? 'text-grey-900 font-medium' : 'text-grey-300',
-        isOptimistic && 'animate-pulse'
-      )}
-      title={value || undefined}
-    >
-      <span className="truncate">
-        {value || <span className="opacity-0 group-hover:opacity-100">Add name...</span>}
-      </span>
-    </button>
-  );
-}
-
-// ============================================================================
-// Notes Cell Component - Premium Design
-// ============================================================================
-
-interface NotesCellProps {
-  unit: PipelineUnit;
-  onClick: () => void;
-}
-
-function NotesCell({ unit, onClick }: NotesCellProps) {
-  const hasUnresolved = unit.unresolvedNotesCount > 0;
-  const hasNotes = unit.notesCount > 0;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'w-full h-full flex items-center justify-center transition-colors',
-        hasUnresolved ? 'hover:bg-red-50' : 'hover:bg-grey-50'
-      )}
-      title={hasUnresolved ? `${unit.unresolvedNotesCount} unresolved` : hasNotes ? `${unit.notesCount} notes` : 'Add note'}
-    >
-      {hasUnresolved ? (
-        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold shadow-sm">
-          {unit.unresolvedNotesCount}
-        </span>
-      ) : hasNotes ? (
-        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-grey-100 text-grey-500 text-[10px] font-medium">
-          {unit.notesCount}
-        </span>
-      ) : (
-        <MessageSquare className="w-3.5 h-3.5 text-grey-200 hover:text-grey-400 transition-colors" />
-      )}
-    </button>
-  );
-}
-
-// ============================================================================
-// Progress Bar Component
-// ============================================================================
-
-function ProgressBar({ completed, total }: { completed: number; total: number }) {
-  const percentage = total > 0 ? (completed / total) * 100 : 0;
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-grey-100 rounded-full overflow-hidden">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all duration-500",
-            percentage === 100 ? "bg-emerald-500" : "bg-gold-500"
-          )}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-      <span className="text-[10px] font-medium text-grey-500 tabular-nums">
-        {completed}/{total}
-      </span>
     </div>
   );
 }
 
 // ============================================================================
-// Stats Cards Component
+// Unit Card Component (for Kanban view)
 // ============================================================================
 
-function StatsCards({ units }: { units: PipelineUnit[] }) {
-  const released = units.filter(u => u.releaseDate).length;
-  const inProgress = units.filter(u => u.releaseDate && !u.handoverDate).length;
-  const completed = units.filter(u => u.handoverDate).length;
-  const unreleased = units.filter(u => !u.releaseDate).length;
-
-  const stats = [
-    { label: 'Released', value: released, color: 'bg-blue-500', icon: Home },
-    { label: 'In Progress', value: inProgress, color: 'bg-amber-500', icon: Clock },
-    { label: 'Completed', value: completed, color: 'bg-emerald-500', icon: CheckCircle2 },
-    { label: 'Unreleased', value: unreleased, color: 'bg-grey-300', icon: Users },
-  ];
-
-  return (
-    <div className="grid grid-cols-4 gap-3">
-      {stats.map((stat) => (
-        <div
-          key={stat.label}
-          className="bg-white rounded-xl border border-grey-100 p-4 shadow-sm hover:shadow-md transition-shadow"
-        >
-          <div className="flex items-center gap-3">
-            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", stat.color)}>
-              <stat.icon className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-grey-900">{stat.value}</p>
-              <p className="text-xs text-grey-500">{stat.label}</p>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ============================================================================
-// Notes Panel Component - Premium Design
-// ============================================================================
-
-interface NotesPanelProps {
+interface UnitCardProps {
   unit: PipelineUnit;
-  developmentId: string;
-  onClose: () => void;
-  onNotesUpdated: () => void;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onClick: (unit: PipelineUnit) => void;
 }
 
-function NotesPanel({ unit, developmentId, onClose, onNotesUpdated }: NotesPanelProps) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const [newNoteType, setNewNoteType] = useState<'general' | 'query' | 'issue'>('general');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    async function fetchNotes() {
-      try {
-        const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`);
-        if (response.ok) {
-          const data = await response.json();
-          setNotes(data.notes || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch notes:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchNotes();
-  }, [developmentId, unit.id]);
-
-  const handleAddNote = async () => {
-    if (!newNoteContent.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: newNoteContent.trim(), noteType: newNoteType }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotes([data.note, ...notes]);
-        setNewNoteContent('');
-        onNotesUpdated();
-      }
-    } catch (error) {
-      console.error('Failed to add note:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResolveNote = async (noteId: string, resolved: boolean) => {
-    try {
-      const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ noteId, resolved }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotes(notes.map((n) => (n.id === noteId ? data.note : n)));
-        onNotesUpdated();
-      }
-    } catch (error) {
-      console.error('Failed to update note:', error);
-    }
-  };
-
-  const noteTypeConfig = {
-    general: { bg: 'bg-grey-100', text: 'text-grey-700', label: 'Note' },
-    query: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Query' },
-    issue: { bg: 'bg-red-100', text: 'text-red-800', label: 'Issue' },
-  };
+function UnitCard({ unit, isSelected, onSelect, onClick }: UnitCardProps) {
+  const isOverdue = unit.daysInStage > 30;
+  const isWarning = unit.daysInStage > 14 && unit.daysInStage <= 30;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div className="fixed inset-y-0 right-0 w-[420px] bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-        {/* Header */}
-        <div className="flex-shrink-0 border-b border-grey-100 bg-grey-50/50">
-          <div className="flex items-center justify-between px-5 py-4">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-semibold text-grey-900 truncate">{unit.address}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-grey-500">Unit {unit.unitNumber}</span>
-                <span className="text-grey-300">·</span>
-                <span className="text-xs text-grey-500">{unit.houseTypeCode}</span>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Progress */}
-          <div className="px-5 pb-4">
-            <ProgressBar completed={getCompletedStages(unit)} total={TOTAL_STAGES} />
-          </div>
-        </div>
-
-        {/* Notes List */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-grey-300 animate-spin" />
-            </div>
-          ) : notes.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-12 h-12 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-3">
-                <MessageSquare className="w-6 h-6 text-grey-400" />
-              </div>
-              <p className="text-sm font-medium text-grey-600">No notes yet</p>
-              <p className="text-xs text-grey-400 mt-1">Add a note to track queries or issues</p>
-            </div>
-          ) : (
-            notes.map((note) => {
-              const config = noteTypeConfig[note.noteType as keyof typeof noteTypeConfig] || noteTypeConfig.general;
-              return (
-                <div
-                  key={note.id}
-                  className={cn(
-                    'p-4 rounded-xl border transition-all',
-                    note.isResolved
-                      ? 'bg-grey-50/50 border-grey-100 opacity-60'
-                      : 'bg-white border-grey-200 shadow-sm hover:shadow-md'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide', config.bg, config.text)}>
-                      {config.label}
-                    </span>
-                    {note.isResolved ? (
-                      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
-                        <Check className="w-3 h-3" />
-                        Resolved
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleResolveNote(note.id, true)}
-                        className="text-[10px] font-medium text-gold-600 hover:text-gold-700 transition-colors"
-                      >
-                        Mark resolved
-                      </button>
-                    )}
-                  </div>
-                  <p className={cn('text-sm leading-relaxed', note.isResolved ? 'text-grey-500' : 'text-grey-800')}>
-                    {note.content}
-                  </p>
-                  <div className="mt-3 text-[10px] text-grey-400">
-                    {note.createdBy?.email || 'Unknown'} · {new Date(note.createdAt).toLocaleDateString('en-IE', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Add Note Form */}
-        <div className="flex-shrink-0 border-t border-grey-100 p-5 bg-grey-50/50">
-          <div className="flex gap-1.5 mb-3">
-            {(['general', 'query', 'issue'] as const).map((type) => {
-              const config = noteTypeConfig[type];
-              return (
-                <button
-                  key={type}
-                  onClick={() => setNewNoteType(type)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                    newNoteType === type
-                      ? cn(config.bg, config.text, 'shadow-sm')
-                      : 'text-grey-500 hover:bg-grey-100'
-                  )}
-                >
-                  {config.label}
-                </button>
-              );
-            })}
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={newNoteContent}
-            onChange={(e) => setNewNoteContent(e.target.value)}
-            placeholder="Write a note..."
-            className="w-full px-3 py-2.5 text-sm border border-grey-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-400 bg-white"
-            rows={3}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.metaKey) {
-                handleAddNote();
-              }
+    <div
+      className={cn(
+        'bg-white rounded-lg border p-3 cursor-pointer transition-all',
+        isSelected
+          ? 'border-[#f5b800] ring-2 ring-[#f5b800]/20'
+          : 'border-[#e5e5e5] hover:border-[#d0d0d0] hover:shadow-md'
+      )}
+      onClick={() => onClick(unit)}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onSelect(unit.id);
             }}
+            className="w-4 h-4 rounded border-[#d0d0d0] text-[#f5b800] focus:ring-[#f5b800]"
           />
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-[10px] text-grey-400">⌘ + Enter to send</span>
-            <button
-              onClick={handleAddNote}
-              disabled={!newNoteContent.trim() || isSubmitting}
-              className={cn(
-                'px-4 py-2 text-sm font-medium rounded-lg transition-all',
-                newNoteContent.trim() && !isSubmitting
-                  ? 'bg-grey-900 text-white hover:bg-grey-800 shadow-sm'
-                  : 'bg-grey-100 text-grey-400 cursor-not-allowed'
-              )}
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Note'}
-            </button>
-          </div>
+          <span className="text-sm font-semibold text-[#1a1a1a]">
+            Unit {unit.unitNumber}
+          </span>
         </div>
+        <span className="text-[11px] font-medium text-[#999999] bg-[#f5f5f5] px-2 py-0.5 rounded">
+          {unit.houseTypeCode}
+        </span>
       </div>
-    </>
+
+      {unit.purchaserName && (
+        <p className="text-sm text-[#666666] mb-2 truncate">
+          {unit.purchaserName}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#f0f0f0]">
+        <span
+          className={cn(
+            'text-xs font-medium',
+            isOverdue
+              ? 'text-[#ef4444]'
+              : isWarning
+              ? 'text-[#f59e0b]'
+              : 'text-[#999999]'
+          )}
+        >
+          {unit.daysInStage > 0 ? `${unit.daysInStage} days` : 'New'}
+        </span>
+        {unit.mortgageExpiry && (
+          <div className="flex items-center gap-1 text-xs text-[#f59e0b]">
+            <AlertCircle className="w-3 h-3" />
+            <span>Expires {formatDate(unit.mortgageExpiry)}</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 // ============================================================================
-// Release Units Modal - Premium Design
+// Kanban Column Component
+// ============================================================================
+
+interface KanbanColumnProps {
+  stage: typeof PIPELINE_STAGES[number];
+  units: PipelineUnit[];
+  selectedIds: Set<string>;
+  onSelectUnit: (id: string) => void;
+  onUnitClick: (unit: PipelineUnit) => void;
+}
+
+function KanbanColumn({ stage, units, selectedIds, onSelectUnit, onUnitClick }: KanbanColumnProps) {
+  return (
+    <div className="flex-1 min-w-[280px] max-w-[320px]">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <span
+            className="text-sm font-semibold"
+            style={{ color: stage.color }}
+          >
+            {stage.label}
+          </span>
+          <span className="text-xs font-medium text-[#999999] bg-[#f5f5f5] px-2 py-0.5 rounded-full">
+            {units.length}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className="rounded-xl p-2 min-h-[400px] space-y-2"
+        style={{ backgroundColor: stage.bgColor }}
+      >
+        {units.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center mb-2">
+              <Building className="w-5 h-5 text-[#999999]" />
+            </div>
+            <p className="text-xs text-[#999999]">No units in this stage</p>
+          </div>
+        ) : (
+          units.map((unit) => (
+            <UnitCard
+              key={unit.id}
+              unit={unit}
+              isSelected={selectedIds.has(unit.id)}
+              onSelect={onSelectUnit}
+              onClick={onUnitClick}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Table View Component
+// ============================================================================
+
+interface TableViewProps {
+  units: PipelineUnit[];
+  selectedIds: Set<string>;
+  onSelectUnit: (id: string) => void;
+  onSelectAll: () => void;
+  onUnitClick: (unit: PipelineUnit) => void;
+}
+
+function TableView({ units, selectedIds, onSelectUnit, onSelectAll, onUnitClick }: TableViewProps) {
+  const allSelected = units.length > 0 && selectedIds.size === units.length;
+
+  return (
+    <div className="bg-white rounded-xl border border-[#e5e5e5] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-[#e5e5e5] bg-[#f9f9f9]">
+            <th className="w-12 px-4 py-3 text-left">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={onSelectAll}
+                className="w-4 h-4 rounded border-[#d0d0d0] text-[#f5b800] focus:ring-[#f5b800]"
+              />
+            </th>
+            <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+              Unit
+            </th>
+            <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+              Purchaser
+            </th>
+            <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+              Stage
+            </th>
+            <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+              Days in Stage
+            </th>
+            <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em]">
+              Type
+            </th>
+            <th className="w-12"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {units.map((unit) => {
+            const stageConfig = PIPELINE_STAGES.find((s) => s.key === unit.stage);
+            const isOverdue = unit.daysInStage > 30;
+            const isWarning = unit.daysInStage > 14 && unit.daysInStage <= 30;
+
+            return (
+              <tr
+                key={unit.id}
+                className={cn(
+                  'border-b border-[#f0f0f0] hover:bg-[#fafafa] cursor-pointer transition-colors',
+                  selectedIds.has(unit.id) && 'bg-[#fef9e7]'
+                )}
+                onClick={() => onUnitClick(unit)}
+              >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(unit.id)}
+                    onChange={() => onSelectUnit(unit.id)}
+                    className="w-4 h-4 rounded border-[#d0d0d0] text-[#f5b800] focus:ring-[#f5b800]"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-[#1a1a1a]">Unit {unit.unitNumber}</p>
+                    <p className="text-xs text-[#999999] truncate max-w-[200px]">{unit.address}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-sm text-[#666666]">
+                    {unit.purchaserName || <span className="text-[#999999]">—</span>}
+                  </p>
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                    style={{
+                      backgroundColor: stageConfig?.bgColor,
+                      color: stageConfig?.color,
+                    }}
+                  >
+                    {stageConfig?.label}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={cn(
+                      'text-sm font-medium',
+                      isOverdue
+                        ? 'text-[#ef4444]'
+                        : isWarning
+                        ? 'text-[#f59e0b]'
+                        : 'text-[#666666]'
+                    )}
+                  >
+                    {unit.daysInStage > 0 ? `${unit.daysInStage} days` : '—'}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-sm text-[#666666]">{unit.houseTypeCode}</span>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUnitClick(unit);
+                    }}
+                    className="p-1.5 text-[#999999] hover:text-[#666666] hover:bg-[#f5f5f5] rounded-lg transition-colors"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {units.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-16 h-16 rounded-full bg-[#f5f5f5] flex items-center justify-center mb-4">
+            <Building className="w-8 h-8 text-[#999999]" />
+          </div>
+          <p className="text-sm font-medium text-[#666666]">No units in pipeline</p>
+          <p className="text-xs text-[#999999] mt-1">Release units to start tracking</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Bulk Actions Bar
+// ============================================================================
+
+interface BulkActionsBarProps {
+  selectedCount: number;
+  onClear: () => void;
+  onSendEmail: () => void;
+  onUpdateStage: () => void;
+  onExport: () => void;
+}
+
+function BulkActionsBar({ selectedCount, onClear, onSendEmail, onUpdateStage, onExport }: BulkActionsBarProps) {
+  if (selectedCount === 0) return null;
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+      <div className="bg-[#1a1a1a] text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{selectedCount} selected</span>
+          <button
+            onClick={onClear}
+            className="p-1 hover:bg-white/10 rounded transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="w-px h-6 bg-white/20" />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onSendEmail}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            <span>Send Email</span>
+          </button>
+          <button
+            onClick={onUpdateStage}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+            <span>Update Stage</span>
+          </button>
+          <button
+            onClick={onExport}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Release Units Modal
 // ============================================================================
 
 interface ReleaseUnitsModalProps {
@@ -741,54 +582,51 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
         onClick={onClose}
       />
-
-      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-grey-100">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-[#e5e5e5]">
             <div>
-              <h2 className="text-lg font-semibold text-grey-900">Release Units</h2>
-              <p className="text-sm text-grey-500 mt-0.5">Select units to add to the pipeline</p>
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">Release Units</h2>
+              <p className="text-sm text-[#666666] mt-0.5">Select units to add to the pipeline</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
+              className="p-2 text-[#999999] hover:text-[#666666] hover:bg-[#f5f5f5] rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="mx-6 mt-4 p-3 bg-[#fef2f2] border border-[#fecaca] rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-[#ef4444] flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-[#b91c1c]">{error}</p>
             </div>
           )}
 
-          {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {unreleasedUnits.length === 0 ? (
               <div className="text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                <div className="w-12 h-12 rounded-full bg-[#ecfdf5] flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle2 className="w-6 h-6 text-[#10b981]" />
                 </div>
-                <p className="text-sm font-medium text-grey-600">All units released</p>
-                <p className="text-xs text-grey-400 mt-1">Every unit has been added to the pipeline</p>
+                <p className="text-sm font-medium text-[#666666]">All units released</p>
+                <p className="text-xs text-[#999999] mt-1">Every unit has been added to the pipeline</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm text-grey-600">
+                  <p className="text-sm text-[#666666]">
                     {unreleasedUnits.length} unit{unreleasedUnits.length !== 1 ? 's' : ''} available
                   </p>
-                  <button onClick={selectAll} className="text-sm font-medium text-gold-600 hover:text-gold-700 transition-colors">
+                  <button
+                    onClick={selectAll}
+                    className="text-sm font-medium text-[#f5b800] hover:text-[#e5ac00] transition-colors"
+                  >
                     {selectedIds.size === unreleasedUnits.length ? 'Deselect all' : 'Select all'}
                   </button>
                 </div>
@@ -800,23 +638,23 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
                       className={cn(
                         'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
                         selectedIds.has(unit.id)
-                          ? 'border-gold-400 bg-gold-50/50'
-                          : 'border-grey-100 hover:border-grey-200 hover:bg-grey-50'
+                          ? 'border-[#f5b800] bg-[#fef9e7]'
+                          : 'border-[#e5e5e5] hover:border-[#d0d0d0] hover:bg-[#f9f9f9]'
                       )}
                     >
                       <div
                         className={cn(
                           'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all',
                           selectedIds.has(unit.id)
-                            ? 'border-gold-500 bg-gold-500'
-                            : 'border-grey-300'
+                            ? 'border-[#f5b800] bg-[#f5b800]'
+                            : 'border-[#d0d0d0]'
                         )}
                       >
                         {selectedIds.has(unit.id) && <Check className="w-3 h-3 text-white" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-grey-900 truncate">{unit.address}</p>
-                        <p className="text-xs text-grey-500">
+                        <p className="text-sm font-medium text-[#1a1a1a] truncate">{unit.address}</p>
+                        <p className="text-xs text-[#666666]">
                           Unit {unit.unitNumber} · {unit.houseTypeCode}
                         </p>
                       </div>
@@ -827,12 +665,11 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
             )}
           </div>
 
-          {/* Footer */}
           {unreleasedUnits.length > 0 && (
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-grey-100 bg-grey-50/50">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#e5e5e5] bg-[#f9f9f9]">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-grey-600 hover:bg-grey-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#f0f0f0] rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -842,14 +679,17 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
                 className={cn(
                   'px-5 py-2 text-sm font-medium rounded-lg transition-all',
                   selectedIds.size > 0 && !isSubmitting
-                    ? 'bg-grey-900 text-white hover:bg-grey-800 shadow-sm'
-                    : 'bg-grey-100 text-grey-400 cursor-not-allowed'
+                    ? 'bg-[#1a1a1a] text-white hover:bg-[#333333] shadow-sm'
+                    : 'bg-[#e5e5e5] text-[#999999] cursor-not-allowed'
                 )}
               >
                 {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Releasing...
+                  </span>
                 ) : (
-                  `Release ${selectedIds.size || ''} Unit${selectedIds.size !== 1 ? 's' : ''}`
+                  `Release ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`
                 )}
               </button>
             </div>
@@ -861,114 +701,318 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
 }
 
 // ============================================================================
+// Unit Detail Slideover
+// ============================================================================
+
+interface UnitDetailSlideoverProps {
+  unit: PipelineUnit | null;
+  onClose: () => void;
+  onUpdateStage: (unitId: string, stage: PipelineStage) => void;
+}
+
+function UnitDetailSlideover({ unit, onClose, onUpdateStage }: UnitDetailSlideoverProps) {
+  if (!unit) return null;
+
+  const stageConfig = PIPELINE_STAGES.find((s) => s.key === unit.stage);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/20 z-40"
+        onClick={onClose}
+      />
+      <div className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-[#e5e5e5] px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[#1a1a1a]">Unit {unit.unitNumber}</h2>
+            <p className="text-sm text-[#666666]">{unit.houseTypeCode}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-[#999999] hover:text-[#666666] hover:bg-[#f5f5f5] rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Current Stage */}
+          <div>
+            <h3 className="text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em] mb-3">
+              Current Stage
+            </h3>
+            <span
+              className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium"
+              style={{
+                backgroundColor: stageConfig?.bgColor,
+                color: stageConfig?.color,
+              }}
+            >
+              {stageConfig?.label}
+            </span>
+          </div>
+
+          {/* Purchaser Info */}
+          <div>
+            <h3 className="text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em] mb-3">
+              Purchaser
+            </h3>
+            {unit.purchaserName ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-[#1a1a1a]">{unit.purchaserName}</p>
+                {unit.purchaserEmail && (
+                  <p className="text-sm text-[#666666]">{unit.purchaserEmail}</p>
+                )}
+                {unit.purchaserPhone && (
+                  <p className="text-sm text-[#666666]">{unit.purchaserPhone}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-[#999999]">No purchaser assigned</p>
+            )}
+          </div>
+
+          {/* Timeline */}
+          <div>
+            <h3 className="text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em] mb-3">
+              Timeline
+            </h3>
+            <div className="space-y-3">
+              {unit.releaseDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Released</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.releaseDate)}</span>
+                </div>
+              )}
+              {unit.saleAgreedDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Sale Agreed</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.saleAgreedDate)}</span>
+                </div>
+              )}
+              {unit.depositDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Deposit</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.depositDate)}</span>
+                </div>
+              )}
+              {unit.contractsIssuedDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Contracts Issued</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.contractsIssuedDate)}</span>
+                </div>
+              )}
+              {unit.signedContractsDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Signed</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.signedContractsDate)}</span>
+                </div>
+              )}
+              {unit.handoverDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#666666]">Handover</span>
+                  <span className="text-sm font-medium text-[#1a1a1a]">{formatDate(unit.handoverDate)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Change Stage */}
+          <div>
+            <h3 className="text-[11px] font-semibold text-[#999999] uppercase tracking-[0.04em] mb-3">
+              Move to Stage
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {PIPELINE_STAGES.map((stage) => (
+                <button
+                  key={stage.key}
+                  onClick={() => onUpdateStage(unit.id, stage.key)}
+                  disabled={stage.key === unit.stage}
+                  className={cn(
+                    'px-3 py-2 text-sm font-medium rounded-lg border transition-all',
+                    stage.key === unit.stage
+                      ? 'border-[#e5e5e5] bg-[#f5f5f5] text-[#999999] cursor-not-allowed'
+                      : 'border-[#e5e5e5] hover:border-[#d0d0d0] hover:bg-[#f9f9f9] text-[#666666]'
+                  )}
+                >
+                  {stage.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="pt-4 border-t border-[#e5e5e5] space-y-2">
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1a1a1a] text-white text-sm font-medium rounded-lg hover:bg-[#333333] transition-colors">
+              <Mail className="w-4 h-4" />
+              Send Email
+            </button>
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#e5e5e5] text-[#666666] text-sm font-medium rounded-lg hover:bg-[#f9f9f9] transition-colors">
+              <FileText className="w-4 h-4" />
+              View Documents
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
 // Main Page Component
 // ============================================================================
 
-export default function DevelopmentPipelinePage() {
+export default function PipelineDevelopmentPage() {
   const params = useParams();
   const router = useRouter();
   const developmentId = params.developmentId as string;
 
+  // State
   const [development, setDevelopment] = useState<Development | null>(null);
   const [units, setUnits] = useState<PipelineUnit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUnitForNotes, setSelectedUnitForNotes] = useState<PipelineUnit | null>(null);
+  const [stageFilter, setStageFilter] = useState<PipelineStage | 'all'>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showReleaseModal, setShowReleaseModal] = useState(false);
-  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, Set<string>>>(new Map());
-  const [viewMode, setViewMode] = useState<'all' | 'released'>('released');
-  const tableRef = useRef<HTMLDivElement>(null);
+  const [selectedUnit, setSelectedUnit] = useState<PipelineUnit | null>(null);
 
   // Fetch data
   const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const url = searchQuery
-        ? `/api/pipeline/${developmentId}?search=${encodeURIComponent(searchQuery)}`
-        : `/api/pipeline/${developmentId}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch pipeline data');
+      const response = await fetch(`/api/pipeline/${developmentId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch pipeline data');
+      }
       const data = await response.json();
       setDevelopment(data.development);
-      setUnits(data.units || []);
+
+      // Transform units with derived stage and days
+      const transformedUnits: PipelineUnit[] = data.units.map((unit: any) => ({
+        ...unit,
+        stage: deriveStageFromUnit(unit),
+        daysInStage: calculateDaysInStage(unit),
+      }));
+      setUnits(transformedUnits);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
     }
-  }, [developmentId, searchQuery]);
+  }, [developmentId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Handle cell update with optimistic updates
-  const handleCellUpdate = useCallback(
-    async (unitId: string, field: string, value: string | null) => {
-      // Optimistic update
-      setUnits((prev) => prev.map((u) => (u.id === unitId ? { ...u, [field]: value } : u)));
-      setOptimisticUpdates((prev) => {
-        const newMap = new Map(prev);
-        const fields = newMap.get(unitId) || new Set();
-        fields.add(field);
-        newMap.set(unitId, fields);
-        return newMap;
-      });
-
-      try {
-        const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field, value }),
-        });
-        if (!response.ok) await fetchData();
-      } catch {
-        await fetchData();
-      } finally {
-        setOptimisticUpdates((prev) => {
-          const newMap = new Map(prev);
-          const fields = newMap.get(unitId);
-          if (fields) {
-            fields.delete(field);
-            if (fields.size === 0) newMap.delete(unitId);
-          }
-          return newMap;
-        });
+  // Filtered units
+  const filteredUnits = useMemo(() => {
+    return units.filter((unit) => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch =
+          unit.unitNumber.toLowerCase().includes(query) ||
+          unit.address.toLowerCase().includes(query) ||
+          unit.purchaserName?.toLowerCase().includes(query) ||
+          unit.houseTypeCode.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
       }
-    },
-    [developmentId, fetchData]
-  );
 
-  // Filter units based on view mode
-  const displayedUnits = useMemo(() => {
-    if (viewMode === 'released') {
-      return units.filter((u) => u.releaseDate);
+      // Stage filter
+      if (stageFilter !== 'all' && unit.stage !== stageFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [units, searchQuery, stageFilter]);
+
+  // Units grouped by stage (for Kanban view)
+  const unitsByStage = useMemo(() => {
+    const grouped: Record<PipelineStage, PipelineUnit[]> = {
+      available: [],
+      reserved: [],
+      contracts_out: [],
+      signed: [],
+      complete: [],
+    };
+
+    filteredUnits.forEach((unit) => {
+      grouped[unit.stage].push(unit);
+    });
+
+    return grouped;
+  }, [filteredUnits]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = units.length;
+    const released = units.filter((u) => u.releaseDate).length;
+    const reserved = units.filter((u) => u.stage === 'reserved').length;
+    const contractsOut = units.filter((u) => u.stage === 'contracts_out').length;
+    const signed = units.filter((u) => u.stage === 'signed').length;
+    const complete = units.filter((u) => u.stage === 'complete').length;
+
+    return { total, released, reserved, contractsOut, signed, complete };
+  }, [units]);
+
+  // Selection handlers
+  const toggleSelectUnit = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
     }
-    return units;
-  }, [units, viewMode]);
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === filteredUnits.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredUnits.map((u) => u.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Bulk action handlers
+  const handleBulkEmail = () => {
+    console.log('Send email to:', Array.from(selectedIds));
+    // TODO: Implement email modal
+  };
+
+  const handleBulkUpdateStage = () => {
+    console.log('Update stage for:', Array.from(selectedIds));
+    // TODO: Implement stage update modal
+  };
+
+  const handleBulkExport = () => {
+    console.log('Export:', Array.from(selectedIds));
+    // TODO: Implement export
+  };
+
+  const handleUpdateUnitStage = (unitId: string, stage: PipelineStage) => {
+    console.log('Update unit', unitId, 'to stage', stage);
+    // TODO: Implement stage update API call
+    setSelectedUnit(null);
+  };
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-full bg-gradient-to-br from-grey-50 to-white">
-        <div className="p-6 lg:p-8">
-          <div className="max-w-full">
-            <div className="mb-8">
-              <div className="h-6 w-48 bg-grey-200 rounded-lg animate-pulse mb-3" />
-              <div className="h-4 w-32 bg-grey-100 rounded animate-pulse" />
-            </div>
-            <div className="grid grid-cols-4 gap-3 mb-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-20 bg-white rounded-xl border border-grey-100 animate-pulse" />
-              ))}
-            </div>
-            <div className="bg-white rounded-xl border border-grey-100 overflow-hidden">
-              <div className="h-12 bg-grey-50 border-b border-grey-100" />
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-11 border-b border-grey-50 animate-pulse bg-white" />
-              ))}
-            </div>
-          </div>
+      <div className="min-h-screen bg-[#f5f5f5] flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin text-[#f5b800]" />
+          <span className="text-[#666666]">Loading pipeline...</span>
         </div>
       </div>
     );
@@ -977,15 +1021,16 @@ export default function DevelopmentPipelinePage() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-full bg-gradient-to-br from-grey-50 to-white flex items-center justify-center">
-        <div className="text-center p-8">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-red-500" />
+      <div className="min-h-screen bg-[#f5f5f5] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-[#fef2f2] flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-[#ef4444]" />
           </div>
-          <p className="text-grey-600 text-sm mb-4">{error}</p>
+          <h2 className="text-lg font-semibold text-[#1a1a1a] mb-2">Failed to load pipeline</h2>
+          <p className="text-sm text-[#666666] mb-4">{error}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 text-sm font-medium text-white bg-grey-900 rounded-lg hover:bg-grey-800 transition-colors"
+            onClick={fetchData}
+            className="px-4 py-2 bg-[#1a1a1a] text-white text-sm font-medium rounded-lg hover:bg-[#333333] transition-colors"
           >
             Try Again
           </button>
@@ -995,235 +1040,179 @@ export default function DevelopmentPipelinePage() {
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-grey-50 to-white">
-      <div className="p-5 lg:p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/developer/pipeline')}
-              className="p-2 text-grey-400 hover:text-grey-600 hover:bg-white rounded-lg transition-all shadow-sm border border-grey-100"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-grey-900">{development?.name}</h1>
-              <p className="text-sm text-grey-500">{development?.address}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-grey-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search units..."
-                className="pl-9 pr-4 py-2 text-sm border border-grey-200 rounded-xl w-56 focus:outline-none focus:ring-2 focus:ring-gold-400/30 focus:border-gold-400 bg-white shadow-sm"
-              />
-            </div>
-
-            {/* View Toggle */}
-            <div className="flex items-center bg-grey-100 rounded-lg p-1">
+    <div className="min-h-screen bg-[#f5f5f5]">
+      {/* Header */}
+      <div className="bg-white border-b border-[#e5e5e5] sticky top-0 z-30">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
               <button
-                onClick={() => setViewMode('released')}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
-                  viewMode === 'released' ? 'bg-white text-grey-900 shadow-sm' : 'text-grey-500 hover:text-grey-700'
-                )}
+                onClick={() => router.push('/developer/pipeline')}
+                className="p-2 text-[#999999] hover:text-[#666666] hover:bg-[#f5f5f5] rounded-lg transition-colors"
               >
-                Released
+                <ArrowLeft className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => setViewMode('all')}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
-                  viewMode === 'all' ? 'bg-white text-grey-900 shadow-sm' : 'text-grey-500 hover:text-grey-700'
-                )}
-              >
-                All Units
-              </button>
-            </div>
-
-            {/* Release Button */}
-            <button
-              onClick={() => setShowReleaseModal(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-grey-900 rounded-xl hover:bg-grey-800 transition-all shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Release Units
-            </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="mb-6">
-          <StatsCards units={units} />
-        </div>
-
-        {/* Empty State */}
-        {displayedUnits.length === 0 ? (
-          <div className="bg-white rounded-xl border border-grey-100 p-16 text-center shadow-sm">
-            <div className="w-16 h-16 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-4">
-              <Home className="w-8 h-8 text-grey-400" />
-            </div>
-            <p className="text-base font-medium text-grey-700 mb-2">
-              {viewMode === 'released' ? 'No units released yet' : 'No units found'}
-            </p>
-            <p className="text-sm text-grey-500 mb-6">
-              {viewMode === 'released' ? 'Release units to start tracking their progress through the pipeline' : 'Try adjusting your search'}
-            </p>
-            {viewMode === 'released' && (
-              <button
-                onClick={() => setShowReleaseModal(true)}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-grey-900 rounded-xl hover:bg-grey-800 transition-all shadow-sm"
-              >
-                Release Units
-              </button>
-            )}
-          </div>
-        ) : (
-          /* Pipeline Table */
-          <div className="bg-white rounded-xl border border-grey-100 shadow-sm overflow-hidden">
-            <div ref={tableRef} className="overflow-x-auto">
-              <table className="w-full border-collapse" style={{ minWidth: '1400px' }}>
-                <thead>
-                  <tr className="bg-grey-50/80">
-                    {PIPELINE_COLUMNS.map((col) => (
-                      <th
-                        key={col.key}
-                        className={cn(
-                          'h-11 px-3 text-left text-[11px] font-semibold text-grey-500 uppercase tracking-wider border-b border-grey-100',
-                          col.frozen && 'sticky left-0 z-20 bg-grey-50/80 shadow-[2px_0_8px_rgba(0,0,0,0.04)]'
-                        )}
-                        style={{ width: col.width, minWidth: col.width }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedUnits.map((unit, rowIndex) => {
-                    const status = getStageStatus(unit);
-
-                    return (
-                      <tr
-                        key={unit.id}
-                        className={cn(
-                          'group transition-colors',
-                          rowIndex % 2 === 0 ? 'bg-white' : 'bg-grey-50/30',
-                          'hover:bg-gold-50/30'
-                        )}
-                      >
-                        {PIPELINE_COLUMNS.map((col) => {
-                          const isFieldOptimistic = optimisticUpdates.get(unit.id)?.has(col.key);
-
-                          if (col.frozen) {
-                            return (
-                              <td
-                                key={`${unit.id}-${col.key}`}
-                                className="h-11 px-3 text-xs font-medium text-grey-900 border-b border-grey-50 sticky left-0 z-10 bg-inherit shadow-[2px_0_8px_rgba(0,0,0,0.04)] group-hover:bg-gold-50/30"
-                                style={{ width: col.width, minWidth: col.width }}
-                              >
-                                <div className="flex items-center gap-2 truncate" title={unit.address}>
-                                  <div className={cn(
-                                    'w-2 h-2 rounded-full flex-shrink-0',
-                                    status === 'complete' && 'bg-emerald-500',
-                                    status === 'in-progress' && 'bg-amber-500',
-                                    status === 'not-started' && 'bg-grey-300'
-                                  )} />
-                                  <span className="truncate">{unit.address}</span>
-                                </div>
-                              </td>
-                            );
-                          }
-
-                          if (col.type === 'notes') {
-                            return (
-                              <td
-                                key={`${unit.id}-${col.key}`}
-                                className="h-11 border-b border-grey-50"
-                                style={{ width: col.width, minWidth: col.width }}
-                              >
-                                <NotesCell unit={unit} onClick={() => setSelectedUnitForNotes(unit)} />
-                              </td>
-                            );
-                          }
-
-                          if (col.type === 'date') {
-                            const value = unit[col.key as keyof PipelineUnit] as string | null;
-                            return (
-                              <td
-                                key={`${unit.id}-${col.key}`}
-                                className="h-11 border-b border-grey-50"
-                                style={{ width: col.width, minWidth: col.width }}
-                              >
-                                <DateCell
-                                  value={value}
-                                  unitId={unit.id}
-                                  field={col.key}
-                                  onUpdate={handleCellUpdate}
-                                  isOptimistic={isFieldOptimistic}
-                                  isFirstDate={col.key === 'releaseDate'}
-                                />
-                              </td>
-                            );
-                          }
-
-                          if (col.type === 'text' && col.editable) {
-                            const value = unit[col.key as keyof PipelineUnit] as string | null;
-                            return (
-                              <td
-                                key={`${unit.id}-${col.key}`}
-                                className="h-11 border-b border-grey-50"
-                                style={{ width: col.width, minWidth: col.width }}
-                              >
-                                <TextCell
-                                  value={value}
-                                  unitId={unit.id}
-                                  field={col.key}
-                                  onUpdate={handleCellUpdate}
-                                  isOptimistic={isFieldOptimistic}
-                                />
-                              </td>
-                            );
-                          }
-
-                          return null;
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Table Footer */}
-            <div className="px-4 py-3 border-t border-grey-100 bg-grey-50/50 flex items-center justify-between">
-              <p className="text-xs text-grey-500">
-                {displayedUnits.length} unit{displayedUnits.length !== 1 ? 's' : ''} · Click empty date cells to set today's date
-              </p>
-              <div className="flex items-center gap-1 text-xs text-grey-400">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Powered by OpenHouse AI</span>
+              <div>
+                <h1 className="text-xl font-semibold text-[#1a1a1a]">
+                  {development?.name || 'Pipeline'}
+                </h1>
+                <p className="text-sm text-[#666666]">
+                  Track every unit from reservation to completion
+                </p>
               </div>
             </div>
+
+            <div className="flex items-center gap-3">
+              <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#666666] border border-[#e5e5e5] rounded-lg hover:bg-[#f9f9f9] transition-colors">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <button
+                onClick={() => setShowReleaseModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#1a1a1a] text-white rounded-lg hover:bg-[#333333] transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Release Units
+              </button>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <StatCard
+            label="Total Units"
+            value={stats.total}
+            icon={<Home className="w-5 h-5" />}
+          />
+          <StatCard
+            label="Available"
+            value={unitsByStage.available.length}
+            icon={<Building className="w-5 h-5" />}
+          />
+          <StatCard
+            label="Reserved"
+            value={stats.reserved}
+            icon={<Users className="w-5 h-5" />}
+            color={tokens.colors.status.info}
+          />
+          <StatCard
+            label="Contracts Out"
+            value={stats.contractsOut}
+            icon={<FileText className="w-5 h-5" />}
+            color={tokens.colors.status.warning}
+          />
+          <StatCard
+            label="Signed"
+            value={stats.signed}
+            icon={<CheckCircle2 className="w-5 h-5" />}
+            color={tokens.colors.status.success}
+          />
+          <StatCard
+            label="Complete"
+            value={stats.complete}
+            icon={<Check className="w-5 h-5" />}
+            color="#059669"
+          />
+        </div>
+
+        {/* Filters & View Toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1">
+            {/* View Toggle */}
+            <div className="flex items-center bg-white border border-[#e5e5e5] rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                  viewMode === 'kanban'
+                    ? 'bg-[#1a1a1a] text-white'
+                    : 'text-[#666666] hover:bg-[#f5f5f5]'
+                )}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Kanban
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                  viewMode === 'table'
+                    ? 'bg-[#1a1a1a] text-white'
+                    : 'text-[#666666] hover:bg-[#f5f5f5]'
+                )}
+              >
+                <List className="w-4 h-4" />
+                Table
+              </button>
+            </div>
+
+            {/* Stage Filter */}
+            <div className="relative">
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value as PipelineStage | 'all')}
+                className="appearance-none bg-white border border-[#e5e5e5] rounded-lg px-4 py-2 pr-10 text-sm text-[#666666] focus:outline-none focus:ring-2 focus:ring-[#f5b800]/20 focus:border-[#f5b800]"
+              >
+                <option value="all">All Stages</option>
+                {PIPELINE_STAGES.map((stage) => (
+                  <option key={stage.key} value={stage.key}>
+                    {stage.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#999999] pointer-events-none" />
+            </div>
+
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#999999]" />
+              <input
+                type="text"
+                placeholder="Search units..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-[#e5e5e5] rounded-lg text-sm text-[#1a1a1a] placeholder-[#999999] focus:outline-none focus:ring-2 focus:ring-[#f5b800]/20 focus:border-[#f5b800]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        {viewMode === 'kanban' ? (
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {PIPELINE_STAGES.map((stage) => (
+              <KanbanColumn
+                key={stage.key}
+                stage={stage}
+                units={unitsByStage[stage.key]}
+                selectedIds={selectedIds}
+                onSelectUnit={toggleSelectUnit}
+                onUnitClick={setSelectedUnit}
+              />
+            ))}
+          </div>
+        ) : (
+          <TableView
+            units={filteredUnits}
+            selectedIds={selectedIds}
+            onSelectUnit={toggleSelectUnit}
+            onSelectAll={selectAll}
+            onUnitClick={setSelectedUnit}
+          />
         )}
       </div>
 
-      {/* Notes Panel */}
-      {selectedUnitForNotes && (
-        <NotesPanel
-          unit={selectedUnitForNotes}
-          developmentId={developmentId}
-          onClose={() => setSelectedUnitForNotes(null)}
-          onNotesUpdated={fetchData}
-        />
-      )}
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedCount={selectedIds.size}
+        onClear={clearSelection}
+        onSendEmail={handleBulkEmail}
+        onUpdateStage={handleBulkUpdateStage}
+        onExport={handleBulkExport}
+      />
 
       {/* Release Units Modal */}
       {showReleaseModal && (
@@ -1234,6 +1223,13 @@ export default function DevelopmentPipelinePage() {
           onReleased={fetchData}
         />
       )}
+
+      {/* Unit Detail Slideover */}
+      <UnitDetailSlideover
+        unit={selectedUnit}
+        onClose={() => setSelectedUnit(null)}
+        onUpdateStage={handleUpdateUnitStage}
+      />
     </div>
   );
 }
