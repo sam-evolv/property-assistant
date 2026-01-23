@@ -340,9 +340,11 @@ export async function POST(
     }
 
     // Check which units already have pipeline records
+    // Build the array literal manually for PostgreSQL
+    const unitIdsArrayLiteral = `{${unitIds.join(',')}}`;
     const existingPipelinesResult = await db.execute(sql`
       SELECT unit_id FROM unit_sales_pipeline
-      WHERE unit_id = ANY(${unitIds}::uuid[])
+      WHERE unit_id = ANY(${unitIdsArrayLiteral}::uuid[])
     `);
 
     const existingUnitIds = new Set((existingPipelinesResult.rows || []).map((p: any) => p.unit_id));
