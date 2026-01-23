@@ -30,12 +30,12 @@ const navSections: NavSection[] = [
     title: 'Main',
     items: [
       { label: 'Overview', href: '/developer', icon: Home },
+      { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
     ],
   },
   {
     title: 'Developer Tools',
     items: [
-      { label: 'Pipeline', href: '/developer/pipeline', icon: GitBranch },
       { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
       { label: 'Snagging', href: '/developer/snagging', icon: ClipboardList },
       { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },

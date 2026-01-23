@@ -1501,6 +1501,155 @@ export const developerSettingsRelations = relations(developer_settings, ({ one }
   }),
 }));
 
+// ============================================================================
+// SALES PIPELINE SCHEMA
+// Tracks sales lifecycle for each unit - replaces developer Excel spreadsheets
+// ============================================================================
+
+// Note type enum for pipeline notes
+export const pipelineNoteTypeEnum = pgEnum('pipeline_note_type_enum', ['general', 'query', 'issue', 'update']);
+
+// Unit sales pipeline - tracks sales stages per unit
+export const unitSalesPipeline = pgTable('unit_sales_pipeline', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  development_id: uuid('development_id').references(() => developments.id, { onDelete: 'cascade' }).notNull(),
+  unit_id: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }).notNull().unique(),
+
+  // === PURCHASER INFO ===
+  purchaser_name: text('purchaser_name'),
+  purchaser_email: text('purchaser_email'),
+  purchaser_phone: text('purchaser_phone'),
+
+  // === PIPELINE STAGES (all dates) ===
+
+  // 1. Release - when unit goes on market
+  release_date: timestamp('release_date', { withTimezone: true }),
+  release_updated_by: uuid('release_updated_by').references(() => admins.id),
+  release_updated_at: timestamp('release_updated_at', { withTimezone: true }),
+
+  // 2. Sale Agreed - price agreed with purchaser
+  sale_agreed_date: timestamp('sale_agreed_date', { withTimezone: true }),
+  sale_agreed_updated_by: uuid('sale_agreed_updated_by').references(() => admins.id),
+  sale_agreed_updated_at: timestamp('sale_agreed_updated_at', { withTimezone: true }),
+
+  // 3. Deposit Received
+  deposit_date: timestamp('deposit_date', { withTimezone: true }),
+  deposit_updated_by: uuid('deposit_updated_by').references(() => admins.id),
+  deposit_updated_at: timestamp('deposit_updated_at', { withTimezone: true }),
+
+  // 4. Contracts Issued - sent to purchaser's solicitor
+  contracts_issued_date: timestamp('contracts_issued_date', { withTimezone: true }),
+  contracts_issued_updated_by: uuid('contracts_issued_updated_by').references(() => admins.id),
+  contracts_issued_updated_at: timestamp('contracts_issued_updated_at', { withTimezone: true }),
+
+  // 5. Signed Contracts Received - back from purchaser
+  signed_contracts_date: timestamp('signed_contracts_date', { withTimezone: true }),
+  signed_contracts_updated_by: uuid('signed_contracts_updated_by').references(() => admins.id),
+  signed_contracts_updated_at: timestamp('signed_contracts_updated_at', { withTimezone: true }),
+
+  // 6. Contracts Counter Signed - developer signs
+  counter_signed_date: timestamp('counter_signed_date', { withTimezone: true }),
+  counter_signed_updated_by: uuid('counter_signed_updated_by').references(() => admins.id),
+  counter_signed_updated_at: timestamp('counter_signed_updated_at', { withTimezone: true }),
+
+  // 7. Kitchen Selection Complete
+  kitchen_date: timestamp('kitchen_date', { withTimezone: true }),
+  kitchen_updated_by: uuid('kitchen_updated_by').references(() => admins.id),
+  kitchen_updated_at: timestamp('kitchen_updated_at', { withTimezone: true }),
+
+  // 8. Snagging Complete
+  snag_date: timestamp('snag_date', { withTimezone: true }),
+  snag_updated_by: uuid('snag_updated_by').references(() => admins.id),
+  snag_updated_at: timestamp('snag_updated_at', { withTimezone: true }),
+
+  // 9. Drawdown - mortgage funds released
+  drawdown_date: timestamp('drawdown_date', { withTimezone: true }),
+  drawdown_updated_by: uuid('drawdown_updated_by').references(() => admins.id),
+  drawdown_updated_at: timestamp('drawdown_updated_at', { withTimezone: true }),
+
+  // 10. Handover - keys handed over
+  handover_date: timestamp('handover_date', { withTimezone: true }),
+  handover_updated_by: uuid('handover_updated_by').references(() => admins.id),
+  handover_updated_at: timestamp('handover_updated_at', { withTimezone: true }),
+
+  // === METADATA ===
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('unit_pipeline_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('unit_pipeline_development_idx').on(table.development_id),
+  unitIdx: index('unit_pipeline_unit_idx').on(table.unit_id),
+  tenantDevIdx: index('unit_pipeline_tenant_dev_idx').on(table.tenant_id, table.development_id),
+  releaseDateIdx: index('unit_pipeline_release_date_idx').on(table.release_date),
+  handoverDateIdx: index('unit_pipeline_handover_date_idx').on(table.handover_date),
+}));
+
+// Notes/queries on pipeline units
+export const unitPipelineNotes = pgTable('unit_pipeline_notes', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  pipeline_id: uuid('pipeline_id').references(() => unitSalesPipeline.id, { onDelete: 'cascade' }).notNull(),
+  unit_id: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }).notNull(),
+
+  note_type: pipelineNoteTypeEnum('note_type').default('general').notNull(),
+  content: text('content').notNull(),
+
+  is_resolved: boolean('is_resolved').default(false).notNull(),
+  resolved_at: timestamp('resolved_at', { withTimezone: true }),
+  resolved_by: uuid('resolved_by').references(() => admins.id),
+
+  created_by: uuid('created_by').references(() => admins.id).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  pipelineIdx: index('pipeline_notes_pipeline_idx').on(table.pipeline_id),
+  unitIdx: index('pipeline_notes_unit_idx').on(table.unit_id),
+  tenantIdx: index('pipeline_notes_tenant_idx').on(table.tenant_id),
+  unresolvedIdx: index('pipeline_notes_unresolved_idx').on(table.is_resolved, table.created_at),
+  tenantUnresolvedIdx: index('pipeline_notes_tenant_unresolved_idx').on(table.tenant_id, table.is_resolved),
+}));
+
+// Relations for sales pipeline
+export const unitSalesPipelineRelations = relations(unitSalesPipeline, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [unitSalesPipeline.tenant_id],
+    references: [tenants.id],
+  }),
+  development: one(developments, {
+    fields: [unitSalesPipeline.development_id],
+    references: [developments.id],
+  }),
+  unit: one(units, {
+    fields: [unitSalesPipeline.unit_id],
+    references: [units.id],
+  }),
+  notes: many(unitPipelineNotes),
+}));
+
+export const unitPipelineNotesRelations = relations(unitPipelineNotes, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [unitPipelineNotes.tenant_id],
+    references: [tenants.id],
+  }),
+  pipeline: one(unitSalesPipeline, {
+    fields: [unitPipelineNotes.pipeline_id],
+    references: [unitSalesPipeline.id],
+  }),
+  unit: one(units, {
+    fields: [unitPipelineNotes.unit_id],
+    references: [units.id],
+  }),
+  creator: one(admins, {
+    fields: [unitPipelineNotes.created_by],
+    references: [admins.id],
+  }),
+  resolver: one(admins, {
+    fields: [unitPipelineNotes.resolved_by],
+    references: [admins.id],
+  }),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
@@ -1511,3 +1660,5 @@ export const poiCache = poi_cache;
 export const answerGapLog = answer_gap_log;
 export const assistantFeedback = assistant_feedback;
 export const developerSettings = developer_settings;
+export const unitPipeline = unitSalesPipeline;
+export const pipelineNotes = unitPipelineNotes;
