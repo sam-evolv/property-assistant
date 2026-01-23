@@ -155,35 +155,43 @@ export async function GET(
 
     if (pipelineTablesExist) {
       try {
-        // Get pipeline records for these units
-        const pipelineResult = await db.execute(sql`
-          SELECT * FROM unit_sales_pipeline
-          WHERE tenant_id = ${tenantId}::uuid
-          AND development_id = ${developmentId}::uuid
-        `);
+        // Get pipeline records for these units using Supabase
+        const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
+          .from('unit_sales_pipeline')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('development_id', developmentId);
 
-        for (const row of pipelineResult.rows || []) {
-          pipelineData.set(row.unit_id as string, row);
+        if (pipelineError) {
+          console.error('[Pipeline Development API] Error fetching pipeline data:', pipelineError);
+        } else {
+          for (const row of pipelineRows || []) {
+            pipelineData.set(row.unit_id as string, row);
+          }
         }
 
-        // Get notes counts
+        // Get notes counts using Supabase
         const pipelineIds = Array.from(pipelineData.values()).map((p) => p.id);
         if (pipelineIds.length > 0) {
-          const notesResult = await db.execute(sql`
-            SELECT
-              pipeline_id,
-              COUNT(*) as total,
-              SUM(CASE WHEN is_resolved = false THEN 1 ELSE 0 END) as unresolved
-            FROM unit_pipeline_notes
-            WHERE pipeline_id = ANY(${pipelineIds}::uuid[])
-            GROUP BY pipeline_id
-          `);
+          const { data: notesRows, error: notesError } = await supabaseAdmin
+            .from('unit_pipeline_notes')
+            .select('pipeline_id')
+            .in('pipeline_id', pipelineIds);
 
-          for (const row of notesResult.rows || []) {
-            notesCounts.set(row.pipeline_id as string, {
-              total: Number(row.total),
-              unresolved: Number(row.unresolved),
-            });
+          if (notesError) {
+            console.error('[Pipeline Development API] Error fetching notes:', notesError);
+          } else {
+            // Count notes per pipeline
+            const notesCountMap: Record<string, { total: number; unresolved: number }> = {};
+            for (const row of notesRows || []) {
+              if (!notesCountMap[row.pipeline_id]) {
+                notesCountMap[row.pipeline_id] = { total: 0, unresolved: 0 };
+              }
+              notesCountMap[row.pipeline_id].total++;
+            }
+            for (const [pipelineId, counts] of Object.entries(notesCountMap)) {
+              notesCounts.set(pipelineId, counts);
+            }
           }
         }
       } catch (e) {
