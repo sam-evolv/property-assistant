@@ -5,6 +5,36 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, X, Plus, Check } from 'lucide-react';
 
 // =============================================================================
+// Design Tokens (from spec)
+// =============================================================================
+
+const tokens = {
+  // Backgrounds
+  bgPrimary: '#FFFFFF',
+  bgSecondary: '#F8FAFC',
+  bgTertiary: '#F1F5F9',
+
+  // Text
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textTertiary: '#94A3B8',
+
+  // Borders
+  borderSubtle: '#E2E8F0',
+  borderEmphasis: '#CBD5E1',
+
+  // Status
+  statusComplete: '#ECFDF5',
+  statusCompleteText: '#047857',
+
+  // Alerts
+  alertBadge: '#EF4444',
+
+  // Accent
+  accentPrimary: '#0EA5E9',
+};
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -48,7 +78,7 @@ interface PipelineNote {
 function formatDate(dateString: string | null): string {
   if (!dateString) return '—';
   const date = new Date(dateString);
-  const day = date.getDate().toString().padStart(2, '0');
+  const day = date.getDate();
   const month = date.toLocaleDateString('en-GB', { month: 'short' });
   return `${day} ${month}`;
 }
@@ -92,14 +122,16 @@ function InlineDatePicker({ value, onChange, onClose }: DatePickerProps) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const monthName = currentMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
-  const days = [];
-  const startDay = firstDay === 0 ? 6 : firstDay - 1; // Monday start
-  for (let i = 0; i < startDay; i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i);
-  }
+  // Current date value
+  const selectedDate = value ? new Date(value) : null;
+  const selectedDay = selectedDate?.getDate();
+  const selectedMonth = selectedDate?.getMonth();
+  const selectedYear = selectedDate?.getFullYear();
+
+  const days: (number | null)[] = [];
+  const startDay = firstDay === 0 ? 6 : firstDay - 1;
+  for (let i = 0; i < startDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
   const handleSelect = (day: number) => {
     const selected = new Date(year, month, day, 12, 0, 0);
@@ -110,29 +142,61 @@ function InlineDatePicker({ value, onChange, onClose }: DatePickerProps) {
   const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
+  const isSelected = (day: number) => {
+    return day === selectedDay && month === selectedMonth && year === selectedYear;
+  };
+
   return (
     <div
       ref={ref}
-      className="absolute top-full left-0 mt-1 bg-white border border-[#E2E8F0] rounded-lg shadow-lg z-50 p-2"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      className="absolute top-full left-0 mt-1 bg-white rounded-md z-50 p-2"
+      style={{
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        border: `1px solid ${tokens.borderSubtle}`,
+        fontFamily: "'DM Sans', sans-serif",
+      }}
     >
       <div className="flex items-center justify-between mb-2 px-1">
-        <button onClick={prevMonth} className="p-1 hover:bg-[#F8FAFC] rounded">←</button>
-        <span className="text-sm font-medium text-[#0F172A]">{monthName}</span>
-        <button onClick={nextMonth} className="p-1 hover:bg-[#F8FAFC] rounded">→</button>
+        <button
+          onClick={prevMonth}
+          className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+        >
+          ‹
+        </button>
+        <span className="text-xs font-medium" style={{ color: tokens.textPrimary }}>{monthName}</span>
+        <button
+          onClick={nextMonth}
+          className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+        >
+          ›
+        </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-xs">
+      <div className="grid grid-cols-7 gap-0">
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-          <div key={i} className="w-7 h-6 flex items-center justify-center text-[#94A3B8] font-medium">
+          <div
+            key={i}
+            className="w-7 h-5 flex items-center justify-center text-[10px]"
+            style={{ color: tokens.textTertiary }}
+          >
             {d}
           </div>
         ))}
         {days.map((day, i) => (
-          <div key={i} className="w-7 h-7 flex items-center justify-center">
+          <div key={i} className="flex items-center justify-center">
             {day && (
               <button
                 onClick={() => handleSelect(day)}
-                className="w-6 h-6 rounded hover:bg-[#ECFDF5] text-[#0F172A] text-xs"
+                className="w-7 h-7 rounded text-xs flex items-center justify-center transition-colors"
+                style={{
+                  backgroundColor: isSelected(day) ? tokens.accentPrimary : 'transparent',
+                  color: isSelected(day) ? '#FFFFFF' : tokens.textPrimary,
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected(day)) e.currentTarget.style.backgroundColor = tokens.bgTertiary;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected(day)) e.currentTarget.style.backgroundColor = 'transparent';
+                }}
               >
                 {day}
               </button>
@@ -140,6 +204,19 @@ function InlineDatePicker({ value, onChange, onClose }: DatePickerProps) {
           </div>
         ))}
       </div>
+      {/* Today button */}
+      <button
+        onClick={() => handleSelect(new Date().getDate())}
+        className="w-full mt-2 py-1 text-xs rounded transition-colors"
+        style={{
+          backgroundColor: tokens.bgSecondary,
+          color: tokens.textSecondary,
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.bgTertiary}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = tokens.bgSecondary}
+      >
+        Today
+      </button>
     </div>
   );
 }
@@ -157,24 +234,27 @@ interface DateCellProps {
 
 function DateCell({ value, unitId, field, onUpdate }: DateCellProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const cellRef = useRef<HTMLTableCellElement>(null);
 
   const handleClick = () => {
-    if (isUpdating) return;
-
     if (!value) {
       // Empty cell: set today's date immediately
       const today = new Date();
       today.setHours(12, 0, 0, 0);
       onUpdate(unitId, field, today.toISOString());
+      // Flash effect
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 300);
     } else {
-      // Filled cell: show picker
       setShowPicker(true);
     }
   };
 
   const handleChange = (newDate: string) => {
     onUpdate(unitId, field, newDate);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 300);
   };
 
   const isEmpty = !value;
@@ -182,30 +262,34 @@ function DateCell({ value, unitId, field, onUpdate }: DateCellProps) {
 
   return (
     <td
-      className="relative px-3 border-r border-[#E2E8F0] cursor-pointer select-none transition-colors duration-100"
+      ref={cellRef}
+      onClick={handleClick}
+      className="relative cursor-pointer select-none transition-all duration-150"
       style={{
         height: '36px',
-        backgroundColor: isEmpty ? '#F8FAFC' : '#ECFDF5',
-        minWidth: '80px',
+        padding: '0 12px',
+        borderRight: `1px solid ${tokens.borderSubtle}`,
+        borderBottom: `1px solid ${tokens.borderSubtle}`,
+        backgroundColor: justSaved
+          ? tokens.statusComplete
+          : isEmpty
+            ? 'transparent'
+            : tokens.statusComplete,
+        minWidth: '72px',
+        fontSize: '11px',
+        fontFamily: "'DM Sans', sans-serif",
       }}
-      onClick={handleClick}
       onMouseEnter={(e) => {
-        if (isEmpty) e.currentTarget.style.backgroundColor = '#F1F5F9';
-        else e.currentTarget.style.backgroundColor = '#D1FAE5';
+        if (!justSaved) e.currentTarget.style.backgroundColor = tokens.bgTertiary;
       }}
       onMouseLeave={(e) => {
-        if (isEmpty) e.currentTarget.style.backgroundColor = '#F8FAFC';
-        else e.currentTarget.style.backgroundColor = '#ECFDF5';
+        if (!justSaved) {
+          e.currentTarget.style.backgroundColor = isEmpty ? 'transparent' : tokens.statusComplete;
+        }
       }}
     >
-      <span
-        className="text-sm"
-        style={{
-          color: isEmpty ? '#94A3B8' : '#047857',
-          fontFamily: "'DM Sans', sans-serif",
-        }}
-      >
-        {isUpdating ? '...' : displayValue}
+      <span style={{ color: isEmpty ? tokens.textTertiary : tokens.statusCompleteText }}>
+        {displayValue}
       </span>
       {showPicker && (
         <InlineDatePicker
@@ -231,6 +315,7 @@ interface NameCellProps {
 function NameCell({ value, unitId, onUpdate }: NameCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || '');
+  const [justSaved, setJustSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -248,6 +333,8 @@ function NameCell({ value, unitId, onUpdate }: NameCellProps) {
   const handleSave = () => {
     if (editValue !== value) {
       onUpdate(unitId, 'purchaserName', editValue);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 300);
     }
     setIsEditing(false);
   };
@@ -266,8 +353,13 @@ function NameCell({ value, unitId, onUpdate }: NameCellProps) {
   if (isEditing) {
     return (
       <td
-        className="px-3 border-r border-[#E2E8F0]"
-        style={{ height: '36px', minWidth: '160px' }}
+        style={{
+          height: '36px',
+          padding: '0 12px',
+          borderRight: `1px solid ${tokens.borderSubtle}`,
+          borderBottom: `1px solid ${tokens.borderSubtle}`,
+          minWidth: '160px',
+        }}
       >
         <input
           ref={inputRef}
@@ -276,8 +368,12 @@ function NameCell({ value, unitId, onUpdate }: NameCellProps) {
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className="w-full h-full bg-transparent text-sm text-[#0F172A] outline-none"
-          style={{ fontFamily: "'DM Sans', sans-serif" }}
+          className="w-full h-full bg-transparent outline-none"
+          style={{
+            fontSize: '11px',
+            color: tokens.textPrimary,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         />
       </td>
     );
@@ -285,27 +381,26 @@ function NameCell({ value, unitId, onUpdate }: NameCellProps) {
 
   return (
     <td
-      className="px-3 border-r border-[#E2E8F0] cursor-pointer transition-colors duration-100"
+      onClick={handleClick}
+      className="cursor-pointer transition-colors duration-150"
       style={{
         height: '36px',
+        padding: '0 12px',
+        borderRight: `1px solid ${tokens.borderSubtle}`,
+        borderBottom: `1px solid ${tokens.borderSubtle}`,
+        backgroundColor: justSaved ? tokens.statusComplete : 'transparent',
         minWidth: '160px',
-        backgroundColor: isEmpty ? '#F8FAFC' : '#FFFFFF',
+        fontSize: '11px',
+        fontFamily: "'DM Sans', sans-serif",
       }}
-      onClick={handleClick}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = '#F1F5F9';
+        if (!justSaved) e.currentTarget.style.backgroundColor = tokens.bgTertiary;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = isEmpty ? '#F8FAFC' : '#FFFFFF';
+        if (!justSaved) e.currentTarget.style.backgroundColor = 'transparent';
       }}
     >
-      <span
-        className="text-sm"
-        style={{
-          color: isEmpty ? '#94A3B8' : '#0F172A',
-          fontFamily: "'DM Sans', sans-serif",
-        }}
-      >
+      <span style={{ color: isEmpty ? tokens.textTertiary : tokens.textPrimary }}>
         {value || '—'}
       </span>
     </td>
@@ -327,23 +422,36 @@ function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
 
   return (
     <td
-      className="px-3 border-r border-[#E2E8F0] cursor-pointer text-center transition-colors duration-100 hover:bg-[#F1F5F9]"
-      style={{ height: '36px', minWidth: '70px' }}
       onClick={onClick}
+      className="cursor-pointer text-center transition-colors duration-150"
+      style={{
+        height: '36px',
+        padding: '0 8px',
+        borderRight: `1px solid ${tokens.borderSubtle}`,
+        borderBottom: `1px solid ${tokens.borderSubtle}`,
+        minWidth: '50px',
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.bgTertiary}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
     >
       {count > 0 ? (
         <span
-          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+          className="inline-flex items-center justify-center rounded-full"
           style={{
-            backgroundColor: hasUnresolved ? '#EF4444' : '#94A3B8',
-            color: '#FFFFFF',
+            minWidth: '20px',
+            height: '20px',
+            padding: '0 6px',
+            backgroundColor: hasUnresolved ? tokens.alertBadge : tokens.bgTertiary,
+            color: hasUnresolved ? '#FFFFFF' : tokens.textTertiary,
+            fontSize: '11px',
+            fontWeight: 600,
             fontFamily: "'DM Sans', sans-serif",
           }}
         >
           {unresolvedCount > 0 ? unresolvedCount : count}
         </span>
       ) : (
-        <span className="text-sm text-[#94A3B8]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <span style={{ color: tokens.textTertiary, fontSize: '11px', fontFamily: "'DM Sans', sans-serif" }}>
           —
         </span>
       )}
@@ -367,11 +475,9 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
   const [isLoading, setIsLoading] = useState(true);
   const [newNote, setNewNote] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch notes
   useEffect(() => {
-    if (!unit?.pipelineId) {
+    if (!unit) {
       setNotes([]);
       setIsLoading(false);
       return;
@@ -394,7 +500,6 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
     fetchNotes();
   }, [unit, developmentId]);
 
-  // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -403,7 +508,6 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  // Add note
   const handleAddNote = async () => {
     if (!newNote.trim() || !unit) return;
 
@@ -428,7 +532,6 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
     }
   };
 
-  // Toggle resolved
   const handleToggleResolved = async (noteId: string, currentResolved: boolean) => {
     try {
       const response = await fetch(`/api/pipeline/${developmentId}/${unit?.id}/notes/${noteId}`, {
@@ -452,88 +555,332 @@ function QueriesPanel({ unit, developmentId, onClose, onNotesChange }: QueriesPa
 
   return (
     <div className="fixed inset-0 z-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Backdrop - clicking closes panel */}
-      <div
-        className="absolute inset-0 bg-black/20 animate-[fadeIn_150ms_ease-out]"
-        onClick={onClose}
-      />
+      {/* Backdrop */}
+      <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Panel - slides in from right */}
+      {/* Panel */}
       <div
-        ref={panelRef}
-        className="absolute right-0 top-0 h-full w-96 bg-white shadow-xl flex flex-col animate-[slideIn_200ms_ease-out]"
+        className="absolute right-0 top-0 h-full bg-white flex flex-col"
         style={{
-          animationFillMode: 'forwards',
+          width: '400px',
+          boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.08)',
         }}
       >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-[#E2E8F0] flex items-center justify-between">
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '16px 20px',
+            borderBottom: `1px solid ${tokens.borderSubtle}`,
+          }}
+        >
           <div>
-            <h2 className="text-sm font-semibold text-[#0F172A]">
-              Queries - {unit.unitNumber}
+            <h2 style={{ fontSize: '14px', fontWeight: 600, color: tokens.textPrimary }}>
+              {unit.unitNumber} {unit.address?.split(',')[0] || ''}
             </h2>
-            <p className="text-xs text-[#475569]">{unit.purchaserName || 'No purchaser'}</p>
+            <p style={{ fontSize: '12px', color: tokens.textSecondary, marginTop: '2px' }}>
+              {unit.purchaserName || 'No purchaser assigned'}
+            </p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-[#F8FAFC] rounded">
-            <X className="w-5 h-5 text-[#475569]" />
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-gray-100 transition-colors"
+          >
+            <X size={18} style={{ color: tokens.textSecondary }} />
           </button>
         </div>
 
         {/* Add Note */}
-        <div className="px-4 py-3 border-b border-[#E2E8F0]">
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${tokens.borderSubtle}` }}>
           <div className="flex gap-2">
             <input
               type="text"
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
-              placeholder="Add a note..."
-              className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded focus:outline-none focus:ring-1 focus:ring-[#047857]"
+              placeholder="Add a note or query..."
+              className="flex-1 outline-none"
+              style={{
+                padding: '8px 12px',
+                fontSize: '13px',
+                border: `1px solid ${tokens.borderSubtle}`,
+                borderRadius: '6px',
+              }}
             />
             <button
               onClick={handleAddNote}
               disabled={!newNote.trim() || isAdding}
-              className="px-3 py-2 bg-[#0F172A] text-white text-sm rounded hover:bg-[#1E293B] disabled:opacity-50"
+              className="px-3 rounded transition-colors disabled:opacity-50"
+              style={{
+                backgroundColor: tokens.textPrimary,
+                color: '#FFFFFF',
+              }}
             >
-              <Plus className="w-4 h-4" />
+              <Plus size={16} />
             </button>
           </div>
         </div>
 
         {/* Notes List */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto" style={{ padding: '16px 20px' }}>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-[#94A3B8]" />
+              <Loader2 className="animate-spin" size={20} style={{ color: tokens.textTertiary }} />
             </div>
           ) : notes.length === 0 ? (
-            <p className="text-center text-sm text-[#94A3B8] py-8">No notes yet</p>
+            <p style={{ textAlign: 'center', fontSize: '13px', color: tokens.textTertiary, padding: '32px 0' }}>
+              No notes yet
+            </p>
           ) : (
             <div className="space-y-3">
               {notes.map((note) => (
                 <div
                   key={note.id}
-                  className={`p-3 rounded border ${note.resolved ? 'bg-[#F8FAFC] border-[#E2E8F0]' : 'bg-white border-[#E2E8F0]'}`}
+                  className="rounded-lg"
+                  style={{
+                    padding: '12px',
+                    backgroundColor: note.resolved ? tokens.bgSecondary : tokens.bgPrimary,
+                    border: `1px solid ${tokens.borderSubtle}`,
+                  }}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className={`text-sm flex-1 ${note.resolved ? 'text-[#94A3B8] line-through' : 'text-[#0F172A]'}`}>
+                    <p style={{
+                      fontSize: '13px',
+                      color: note.resolved ? tokens.textTertiary : tokens.textPrimary,
+                      textDecoration: note.resolved ? 'line-through' : 'none',
+                      flex: 1,
+                    }}>
                       {note.content}
                     </p>
                     <button
                       onClick={() => handleToggleResolved(note.id, note.resolved)}
-                      className={`p-1 rounded ${note.resolved ? 'bg-[#ECFDF5] text-[#047857]' : 'hover:bg-[#F8FAFC] text-[#94A3B8]'}`}
+                      className="p-1 rounded transition-colors"
+                      style={{
+                        backgroundColor: note.resolved ? tokens.statusComplete : 'transparent',
+                        color: note.resolved ? tokens.statusCompleteText : tokens.textTertiary,
+                      }}
                     >
-                      <Check className="w-4 h-4" />
+                      <Check size={14} />
                     </button>
                   </div>
-                  <p className="text-xs text-[#94A3B8] mt-1">
-                    {new Date(note.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    {note.createdBy && ` • ${note.createdBy}`}
+                  <p style={{ fontSize: '11px', color: tokens.textTertiary, marginTop: '8px' }}>
+                    {new Date(note.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                    {note.createdBy && ` · ${note.createdBy}`}
                   </p>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Release Units Modal
+// =============================================================================
+
+interface ReleaseUnitsModalProps {
+  developmentId: string;
+  onClose: () => void;
+  onRelease: () => void;
+}
+
+function ReleaseUnitsModal({ developmentId, onClose, onRelease }: ReleaseUnitsModalProps) {
+  const [unreleasedUnits, setUnreleasedUnits] = useState<any[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReleasing, setIsReleasing] = useState(false);
+
+  useEffect(() => {
+    const fetchUnreleased = async () => {
+      try {
+        const response = await fetch(`/api/pipeline/${developmentId}/unreleased`);
+        if (response.ok) {
+          const data = await response.json();
+          setUnreleasedUnits(data.units || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch unreleased units:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUnreleased();
+  }, [developmentId]);
+
+  const handleToggle = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === unreleasedUnits.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(unreleasedUnits.map(u => u.id)));
+    }
+  };
+
+  const handleRelease = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsReleasing(true);
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitIds: Array.from(selectedIds) }),
+      });
+
+      if (response.ok) {
+        onRelease();
+        onClose();
+      }
+    } catch (err) {
+      console.error('Failed to release units:', err);
+    } finally {
+      setIsReleasing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div
+        className="relative bg-white rounded-lg overflow-hidden"
+        style={{
+          width: '480px',
+          maxHeight: '80vh',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '16px 20px',
+            borderBottom: `1px solid ${tokens.borderSubtle}`,
+          }}
+        >
+          <h2 style={{ fontSize: '16px', fontWeight: 600, color: tokens.textPrimary }}>
+            Release Units
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-gray-100 transition-colors"
+          >
+            <X size={18} style={{ color: tokens.textSecondary }} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin" size={20} style={{ color: tokens.textTertiary }} />
+            </div>
+          ) : unreleasedUnits.length === 0 ? (
+            <p style={{ textAlign: 'center', fontSize: '13px', color: tokens.textTertiary, padding: '48px 20px' }}>
+              All units have been released
+            </p>
+          ) : (
+            <>
+              {/* Select All */}
+              <div
+                className="flex items-center gap-3 cursor-pointer"
+                style={{
+                  padding: '12px 20px',
+                  borderBottom: `1px solid ${tokens.borderSubtle}`,
+                  backgroundColor: tokens.bgSecondary,
+                }}
+                onClick={handleSelectAll}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === unreleasedUnits.length}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4"
+                />
+                <span style={{ fontSize: '12px', fontWeight: 500, color: tokens.textSecondary }}>
+                  Select All ({unreleasedUnits.length} units)
+                </span>
+              </div>
+
+              {/* Unit List */}
+              {unreleasedUnits.map((unit) => (
+                <div
+                  key={unit.id}
+                  className="flex items-center gap-3 cursor-pointer transition-colors"
+                  style={{
+                    padding: '12px 20px',
+                    borderBottom: `1px solid ${tokens.borderSubtle}`,
+                  }}
+                  onClick={() => handleToggle(unit.id)}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.bgSecondary}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(unit.id)}
+                    onChange={() => handleToggle(unit.id)}
+                    className="w-4 h-4"
+                  />
+                  <span style={{ fontSize: '13px', color: tokens.textPrimary }}>
+                    {unit.unitNumber} {unit.address}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          className="flex items-center justify-end gap-3"
+          style={{
+            padding: '16px 20px',
+            borderTop: `1px solid ${tokens.borderSubtle}`,
+          }}
+        >
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded transition-colors"
+            style={{
+              fontSize: '13px',
+              fontWeight: 500,
+              color: tokens.textSecondary,
+              backgroundColor: tokens.bgSecondary,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleRelease}
+            disabled={selectedIds.size === 0 || isReleasing}
+            className="px-4 py-2 rounded transition-colors disabled:opacity-50"
+            style={{
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#FFFFFF',
+              backgroundColor: tokens.textPrimary,
+            }}
+          >
+            {isReleasing ? 'Releasing...' : `Release ${selectedIds.size} Unit${selectedIds.size !== 1 ? 's' : ''}`}
+          </button>
         </div>
       </div>
     </div>
@@ -554,8 +901,8 @@ export default function PipelineDevelopmentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<PipelineUnit | null>(null);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
 
-  // Fetch data
   const fetchData = useCallback(async () => {
     try {
       const response = await fetch(`/api/pipeline/${developmentId}`);
@@ -574,7 +921,6 @@ export default function PipelineDevelopmentPage() {
     fetchData();
   }, [fetchData]);
 
-  // Update field
   const handleUpdate = async (unitId: string, field: string, value: string) => {
     // Optimistic update
     setUnits(prev => prev.map(u => {
@@ -592,7 +938,6 @@ export default function PipelineDevelopmentPage() {
       });
 
       if (!response.ok) {
-        // Revert on error
         fetchData();
       }
     } catch (err) {
@@ -600,7 +945,6 @@ export default function PipelineDevelopmentPage() {
     }
   };
 
-  // Handle queries click - open slide-out panel
   const handleQueriesClick = (unit: PipelineUnit) => {
     setSelectedUnit(unit);
   };
@@ -608,7 +952,7 @@ export default function PipelineDevelopmentPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-[#94A3B8]" />
+        <Loader2 className="animate-spin" size={24} style={{ color: tokens.textTertiary }} />
       </div>
     );
   }
@@ -616,111 +960,154 @@ export default function PipelineDevelopmentPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-[#EF4444]">{error}</p>
+        <p style={{ color: tokens.alertBadge, fontSize: '14px' }}>{error}</p>
       </div>
     );
   }
 
+  // Column definitions
+  const columns = [
+    { key: 'unit', label: 'UNIT', width: '140px', frozen: true },
+    { key: 'name', label: 'NAME', width: '180px' },
+    { key: 'releaseDate', label: 'RELEASE', width: '72px' },
+    { key: 'saleAgreedDate', label: 'AGREED', width: '72px' },
+    { key: 'depositDate', label: 'DEPOSIT', width: '72px' },
+    { key: 'contractsIssuedDate', label: 'CONTRACTS OUT', width: '90px' },
+    { key: 'queries', label: 'QUERIES', width: '50px' },
+    { key: 'signedContractsDate', label: 'SIGNED IN', width: '72px' },
+    { key: 'counterSignedDate', label: 'COUNTER SIGNED', width: '95px' },
+    { key: 'kitchenDate', label: 'KITCHEN', width: '70px' },
+    { key: 'snagDate', label: 'SNAG', width: '60px' },
+    { key: 'drawdownDate', label: 'DRAWDOWN', width: '80px' },
+    { key: 'handoverDate', label: 'HANDOVER', width: '80px' },
+  ];
+
   return (
     <>
-      {/* Load DM Sans font and animations */}
+      {/* Load DM Sans */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes slideIn {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
       `}</style>
 
       <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
         {/* Header */}
-        <div className="border-b border-[#E2E8F0] px-6 py-4 flex items-center justify-between">
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '16px 24px',
+            borderBottom: `1px solid ${tokens.borderSubtle}`,
+          }}
+        >
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/developer/pipeline')}
-              className="p-2 hover:bg-[#F8FAFC] rounded"
+              className="p-2 rounded transition-colors hover:bg-gray-100"
             >
-              <ArrowLeft className="w-5 h-5 text-[#475569]" />
+              <ArrowLeft size={18} style={{ color: tokens.textSecondary }} />
             </button>
-            <h1 className="text-lg font-semibold text-[#0F172A]">
+            <h1 style={{ fontSize: '16px', fontWeight: 600, color: tokens.textPrimary }}>
               {development?.name || 'Pipeline'}
             </h1>
           </div>
           <button
-            onClick={() => {/* Release units - placeholder */}}
-            className="px-4 py-2 bg-[#0F172A] text-white text-sm font-medium rounded hover:bg-[#1E293B]"
+            onClick={() => setShowReleaseModal(true)}
+            className="px-4 py-2 rounded transition-colors"
+            style={{
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#FFFFFF',
+              backgroundColor: tokens.textPrimary,
+            }}
           >
             Release Units
           </button>
         </div>
 
-        {/* Table Container */}
+        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
-            {/* Header Row */}
+          <table
+            className="w-full"
+            style={{
+              borderCollapse: 'collapse',
+              minWidth: '1200px',
+            }}
+          >
+            {/* Header */}
             <thead>
-              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '140px' }}>
-                  Unit
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '160px' }}>
-                  Name
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '80px' }}>
-                  Release
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '80px' }}>
-                  Agreed
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '80px' }}>
-                  Deposit
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '90px' }}>
-                  Contracts Out
-                </th>
-                <th className="px-3 text-center text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '70px' }}>
-                  Queries
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '80px' }}>
-                  Signed In
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '100px' }}>
-                  Counter Signed
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '80px' }}>
-                  Kitchen
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '70px' }}>
-                  Snag
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider border-r border-[#E2E8F0]" style={{ height: '36px', minWidth: '90px' }}>
-                  Drawdown
-                </th>
-                <th className="px-3 text-left text-xs font-semibold text-[#475569] uppercase tracking-wider" style={{ height: '36px', minWidth: '90px' }}>
-                  Handover
-                </th>
+              <tr style={{ backgroundColor: tokens.bgSecondary }}>
+                {columns.map((col, i) => (
+                  <th
+                    key={col.key}
+                    style={{
+                      height: '40px',
+                      padding: '0 12px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: tokens.textSecondary,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.02em',
+                      textAlign: 'left',
+                      borderRight: i < columns.length - 1 ? `1px solid ${tokens.borderSubtle}` : 'none',
+                      borderBottom: `1px solid ${tokens.borderSubtle}`,
+                      whiteSpace: 'nowrap',
+                      minWidth: col.width,
+                      position: col.frozen ? 'sticky' : 'relative',
+                      left: col.frozen ? 0 : 'auto',
+                      zIndex: col.frozen ? 20 : 10,
+                      backgroundColor: tokens.bgSecondary,
+                    }}
+                  >
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
 
-            {/* Data Rows */}
+            {/* Body */}
             <tbody>
               {units.map((unit) => (
-                <tr key={unit.id} className="border-b border-[#E2E8F0] hover:bg-[#F8FAFC]/50">
-                  {/* Unit Address - not editable */}
+                <tr
+                  key={unit.id}
+                  className="transition-colors"
+                  onMouseEnter={(e) => {
+                    const cells = e.currentTarget.querySelectorAll('td');
+                    cells.forEach(cell => {
+                      if (!cell.classList.contains('date-complete')) {
+                        cell.style.backgroundColor = tokens.bgSecondary;
+                      }
+                    });
+                  }}
+                  onMouseLeave={(e) => {
+                    const cells = e.currentTarget.querySelectorAll('td');
+                    cells.forEach(cell => {
+                      if (!cell.classList.contains('date-complete')) {
+                        cell.style.backgroundColor = 'transparent';
+                      }
+                    });
+                  }}
+                >
+                  {/* Unit (frozen) */}
                   <td
-                    className="px-3 border-r border-[#E2E8F0] text-sm text-[#0F172A]"
-                    style={{ height: '36px', minWidth: '140px' }}
+                    style={{
+                      height: '36px',
+                      padding: '0 12px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      color: tokens.textPrimary,
+                      borderRight: `1px solid ${tokens.borderSubtle}`,
+                      borderBottom: `1px solid ${tokens.borderSubtle}`,
+                      minWidth: '140px',
+                      position: 'sticky',
+                      left: 0,
+                      backgroundColor: tokens.bgPrimary,
+                      zIndex: 5,
+                      boxShadow: '2px 0 4px rgba(0, 0, 0, 0.03)',
+                    }}
                   >
-                    {unit.unitNumber} {unit.address?.split(',')[0] || ''}
+                    {unit.unitNumber} {unit.address?.split(',')[0]?.replace(unit.unitNumber, '').trim() || ''}
                   </td>
 
-                  {/* Name - editable */}
+                  {/* Name */}
                   <NameCell
                     value={unit.purchaserName}
                     unitId={unit.id}
@@ -753,20 +1140,46 @@ export default function PipelineDevelopmentPage() {
           </table>
 
           {units.length === 0 && (
-            <div className="text-center py-12 text-[#94A3B8]">
-              No units in pipeline. Click "Release Units" to add units.
+            <div
+              className="flex flex-col items-center justify-center"
+              style={{ padding: '64px 24px' }}
+            >
+              <p style={{ fontSize: '14px', color: tokens.textTertiary, marginBottom: '16px' }}>
+                No units released yet.
+              </p>
+              <button
+                onClick={() => setShowReleaseModal(true)}
+                className="px-4 py-2 rounded transition-colors"
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#FFFFFF',
+                  backgroundColor: tokens.textPrimary,
+                }}
+              >
+                Release Units
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Queries Slide-Out Panel */}
+      {/* Queries Panel */}
       {selectedUnit && (
         <QueriesPanel
           unit={selectedUnit}
           developmentId={developmentId}
           onClose={() => setSelectedUnit(null)}
           onNotesChange={fetchData}
+        />
+      )}
+
+      {/* Release Units Modal */}
+      {showReleaseModal && (
+        <ReleaseUnitsModal
+          developmentId={developmentId}
+          onClose={() => setShowReleaseModal(false)}
+          onRelease={fetchData}
         />
       )}
     </>
