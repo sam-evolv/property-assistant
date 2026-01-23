@@ -1,4 +1,5 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
@@ -9,6 +10,13 @@ export type { AdminRole, AdminSession } from './types';
 
 export async function createServerSupabaseClient() {
   return createServerComponentClient({ cookies });
+}
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 }
 
 export type SessionResult = 
@@ -31,9 +39,12 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     }
 
     const userEmail = user.email as string;
-    
+
+    // Try Drizzle first, fallback to Supabase
+    let admin: any = null;
+
     try {
-      const admin = await db.query.admins.findFirst({
+      admin = await db.query.admins.findFirst({
         where: eq(admins.email, userEmail),
         columns: {
           id: true,
@@ -43,31 +54,50 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
           tenant_id: true,
         },
       });
-
-      if (!admin) {
-        console.log('[AUTH] User authenticated but not provisioned:', user.email);
-        return { 
-          status: 'not_provisioned', 
-          email: user.email,
-          reason: 'Account not set up for portal access. Please contact your administrator.'
-        };
-      }
-
-      console.log('[AUTH] Admin found in Drizzle DB:', admin.email, 'role:', admin.role, 'preferred_role:', admin.preferred_role);
-      return {
-        status: 'authenticated',
-        session: {
-          id: admin.id,
-          email: admin.email,
-          role: admin.role as AdminRole,
-          preferredRole: admin.preferred_role as AdminRole | null,
-          tenantId: admin.tenant_id,
-        }
-      };
+      console.log('[AUTH] Admin found via Drizzle:', !!admin);
     } catch (dbError: any) {
-      console.error('[AUTH] Drizzle DB error fetching admin:', dbError.message);
-      return { status: 'not_authenticated', reason: 'Database error: ' + dbError.message };
+      console.error('[AUTH] Drizzle DB error (falling back to Supabase):', dbError.message);
+
+      // Fallback to Supabase
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: supabaseAdminData, error: supabaseError } = await supabaseAdmin
+          .from('admins')
+          .select('id, email, role, preferred_role, tenant_id')
+          .eq('email', userEmail)
+          .single();
+
+        if (supabaseError && supabaseError.code !== 'PGRST116') {
+          console.error('[AUTH] Supabase fallback error:', supabaseError);
+        }
+        admin = supabaseAdminData;
+        console.log('[AUTH] Admin found via Supabase fallback:', !!admin);
+      } catch (fallbackError: any) {
+        console.error('[AUTH] Supabase fallback failed:', fallbackError.message);
+        return { status: 'not_authenticated', reason: 'Database error: ' + dbError.message };
+      }
     }
+
+    if (!admin) {
+      console.log('[AUTH] User authenticated but not provisioned:', user.email);
+      return {
+        status: 'not_provisioned',
+        email: user.email,
+        reason: 'Account not set up for portal access. Please contact your administrator.'
+      };
+    }
+
+    console.log('[AUTH] Admin found:', admin.email, 'role:', admin.role, 'preferred_role:', admin.preferred_role);
+    return {
+      status: 'authenticated',
+      session: {
+        id: admin.id,
+        email: admin.email,
+        role: admin.role as AdminRole,
+        preferredRole: admin.preferred_role as AdminRole | null,
+        tenantId: admin.tenant_id,
+      }
+    };
   } catch (error: any) {
     console.error('[AUTH] Failed to get session:', error);
     return { status: 'not_authenticated', reason: error.message || 'Session check failed' };
