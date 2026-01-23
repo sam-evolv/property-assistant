@@ -1000,10 +1000,39 @@ export default function PipelineDevelopmentPage() {
     // TODO: Implement export
   };
 
-  const handleUpdateUnitStage = (unitId: string, stage: PipelineStage) => {
-    console.log('Update unit', unitId, 'to stage', stage);
-    // TODO: Implement stage update API call
-    setSelectedUnit(null);
+  const handleUpdateUnitStage = async (unitId: string, stage: PipelineStage) => {
+    // Map stage to the corresponding date field
+    const stageToFieldMap: Record<PipelineStage, string> = {
+      available: 'releaseDate',
+      reserved: 'saleAgreedDate',
+      contracts_out: 'contractsIssuedDate',
+      signed: 'signedContractsDate',
+      complete: 'handoverDate',
+    };
+
+    const field = stageToFieldMap[stage];
+    const now = new Date().toISOString();
+
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: now }),
+      });
+
+      if (response.ok) {
+        // Refresh data to show updated stage
+        fetchData();
+        setSelectedUnit(null);
+      } else {
+        const data = await response.json();
+        console.error('Failed to update stage:', data.error);
+        alert(`Failed to update stage: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Failed to update stage:', err);
+      alert('Failed to update stage. Please try again.');
+    }
   };
 
   // Loading state
