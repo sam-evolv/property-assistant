@@ -48,11 +48,14 @@ interface PipelineUnit {
   unresolvedNotesCount: number;
 }
 
-// Helper to check if pipeline tables exist
-async function checkPipelineTablesExist(): Promise<boolean> {
+// Helper to check if pipeline tables exist using Supabase
+async function checkPipelineTablesExist(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<boolean> {
   try {
-    await db.execute(sql`SELECT 1 FROM unit_sales_pipeline LIMIT 1`);
-    return true;
+    const { error } = await supabase
+      .from('unit_sales_pipeline')
+      .select('id')
+      .limit(1);
+    return !error;
   } catch (e) {
     return false;
   }
@@ -116,7 +119,7 @@ export async function GET(
     const search = searchParams.get('search')?.toLowerCase() || '';
 
     // Check if pipeline tables exist
-    const pipelineTablesExist = await checkPipelineTablesExist();
+    const pipelineTablesExist = await checkPipelineTablesExist(supabaseAdmin);
 
     // Get all units for this development - try Drizzle first, fallback to Supabase
     let unitData: any[] = [];
@@ -298,7 +301,7 @@ export async function POST(
     const supabaseAdmin = getSupabaseAdmin();
 
     // Check if pipeline tables exist
-    const pipelineTablesExist = await checkPipelineTablesExist();
+    const pipelineTablesExist = await checkPipelineTablesExist(supabaseAdmin);
     if (!pipelineTablesExist) {
       return NextResponse.json(
         { error: 'Pipeline tables not yet created. Please run the database migration first.' },
@@ -393,20 +396,24 @@ export async function POST(
       throw insertError;
     }
 
-    // Audit log
-    await db.insert(audit_log).values({
-      tenant_id: tenantId,
-      type: 'pipeline',
-      action: 'units_released',
-      actor: email,
-      actor_id: adminId,
-      actor_role: role,
-      metadata: {
-        development_id: developmentId,
-        unit_ids: unitsToRelease.map((u) => u.id),
-        count: unitsToRelease.length,
-      },
-    });
+    // Audit log using Supabase (skip if it fails - non-critical)
+    try {
+      await supabaseAdmin.from('audit_log').insert({
+        tenant_id: tenantId,
+        type: 'pipeline',
+        action: 'units_released',
+        actor: email,
+        actor_id: adminId,
+        actor_role: role,
+        metadata: {
+          development_id: developmentId,
+          unit_ids: unitsToRelease.map((u) => u.id),
+          count: unitsToRelease.length,
+        },
+      });
+    } catch (auditError) {
+      console.error('[Pipeline Release API] Audit log failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       message: `Released ${unitsToRelease.length} units`,

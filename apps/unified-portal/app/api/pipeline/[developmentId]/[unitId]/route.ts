@@ -8,9 +8,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
-import { db } from '@openhouse/db/client';
-import { units, audit_log } from '@openhouse/db/schema';
-import { eq, sql, and } from 'drizzle-orm';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -42,16 +39,6 @@ const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserPhone: 'purchaser_phone',
 };
 
-// Check if pipeline tables exist
-async function checkPipelineTablesExist(): Promise<boolean> {
-  try {
-    await db.execute(sql`SELECT 1 FROM unit_sales_pipeline LIMIT 1`);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ developmentId: string; unitId: string }> }
@@ -66,15 +53,6 @@ export async function PATCH(
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-
-    // Check if pipeline tables exist
-    const pipelineTablesExist = await checkPipelineTablesExist();
-    if (!pipelineTablesExist) {
-      return NextResponse.json(
-        { error: 'Pipeline tables not yet created. Please run the database migration first.' },
-        { status: 400 }
-      );
-    }
 
     const body = await request.json();
     const { field, value } = body;
@@ -188,23 +166,27 @@ export async function PATCH(
       }
     }
 
-    // Audit log
-    await db.insert(audit_log).values({
-      tenant_id: tenantId,
-      type: 'pipeline',
-      action: 'field_updated',
-      actor: email,
-      actor_id: adminId,
-      actor_role: role,
-      metadata: {
-        pipeline_id: pipelineId,
-        unit_id: unitId,
-        development_id: developmentId,
-        field,
-        old_value: oldValue,
-        new_value: value,
-      },
-    });
+    // Audit log using Supabase (skip if it fails - non-critical)
+    try {
+      await supabaseAdmin.from('audit_log').insert({
+        tenant_id: tenantId,
+        type: 'pipeline',
+        action: 'field_updated',
+        actor: email,
+        actor_id: adminId,
+        actor_role: role,
+        metadata: {
+          pipeline_id: pipelineId,
+          unit_id: unitId,
+          development_id: developmentId,
+          field,
+          old_value: oldValue,
+          new_value: value,
+        },
+      });
+    } catch (auditError) {
+      console.error('[Pipeline Unit Update API] Audit log failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       success: true,
@@ -219,7 +201,7 @@ export async function PATCH(
         oldValue,
         newValue: value,
         updatedBy: adminId,
-        updatedAt: now.toISOString(),
+        updatedAt: now,
       },
     });
   } catch (error) {
@@ -251,44 +233,22 @@ export async function GET(
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Get unit - try Drizzle first, fallback to Supabase
-    let unit: any = null;
+    // Get unit using Supabase
+    const { data: unit, error: unitError } = await supabaseAdmin
+      .from('units')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('id', unitId)
+      .eq('development_id', developmentId)
+      .single();
 
-    try {
-      const [drizzleUnit] = await db
-        .select()
-        .from(units)
-        .where(
-          and(
-            eq(units.tenant_id, tenantId),
-            eq(units.id, unitId),
-            eq(units.development_id, developmentId)
-          )
-        );
-      unit = drizzleUnit;
-    } catch (drizzleError) {
-      console.error('[Pipeline Unit Get API] Drizzle error (falling back to Supabase):', drizzleError);
-      const { data: supabaseUnit, error: supabaseError } = await supabaseAdmin
-        .from('units')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('id', unitId)
-        .eq('development_id', developmentId)
-        .single();
-
-      if (supabaseError && supabaseError.code !== 'PGRST116') {
-        console.error('[Pipeline Unit Get API] Supabase error:', supabaseError);
-      }
-      unit = supabaseUnit;
-    }
-
-    if (!unit) {
+    if (unitError || !unit) {
+      console.error('[Pipeline Unit Get API] Unit not found:', unitError);
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
     // Get pipeline data using Supabase
-    let pipeline: any = null;
-    const { data: pipelineData, error: pipelineError } = await supabaseAdmin
+    const { data: pipeline, error: pipelineError } = await supabaseAdmin
       .from('unit_sales_pipeline')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -298,7 +258,6 @@ export async function GET(
     if (pipelineError && pipelineError.code !== 'PGRST116') {
       console.error('[Pipeline Unit Get API] Error fetching pipeline:', pipelineError);
     }
-    pipeline = pipelineData;
 
     // Safely convert dates
     const safeDate = (dateVal: any): string | null => {
