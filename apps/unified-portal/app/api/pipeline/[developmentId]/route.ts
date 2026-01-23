@@ -149,25 +149,35 @@ export async function GET(
         const pipeline = pipelineData.get(unit.id);
         const notes = notesCounts.get(pipeline?.id || '') || { total: 0, unresolved: 0 };
 
+        // Safely convert dates
+        const safeDate = (dateVal: any): string | null => {
+          if (!dateVal) return null;
+          try {
+            return new Date(dateVal).toISOString();
+          } catch {
+            return null;
+          }
+        };
+
         return {
           id: unit.id,
           pipelineId: pipeline?.id || null,
-          unitNumber: unit.unit_number,
-          address: unit.address_line_1,
-          houseTypeCode: unit.house_type_code,
+          unitNumber: unit.unit_number || '',
+          address: unit.address_line_1 || '',
+          houseTypeCode: unit.house_type_code || '',
           purchaserName: pipeline?.purchaser_name || unit.purchaser_name || null,
           purchaserEmail: pipeline?.purchaser_email || unit.purchaser_email || null,
           purchaserPhone: pipeline?.purchaser_phone || unit.purchaser_phone || null,
-          releaseDate: pipeline?.release_date ? new Date(pipeline.release_date).toISOString() : null,
-          saleAgreedDate: pipeline?.sale_agreed_date ? new Date(pipeline.sale_agreed_date).toISOString() : null,
-          depositDate: pipeline?.deposit_date ? new Date(pipeline.deposit_date).toISOString() : null,
-          contractsIssuedDate: pipeline?.contracts_issued_date ? new Date(pipeline.contracts_issued_date).toISOString() : null,
-          signedContractsDate: pipeline?.signed_contracts_date ? new Date(pipeline.signed_contracts_date).toISOString() : null,
-          counterSignedDate: pipeline?.counter_signed_date ? new Date(pipeline.counter_signed_date).toISOString() : null,
-          kitchenDate: pipeline?.kitchen_date ? new Date(pipeline.kitchen_date).toISOString() : null,
-          snagDate: pipeline?.snag_date ? new Date(pipeline.snag_date).toISOString() : null,
-          drawdownDate: pipeline?.drawdown_date ? new Date(pipeline.drawdown_date).toISOString() : null,
-          handoverDate: pipeline?.handover_date ? new Date(pipeline.handover_date).toISOString() : null,
+          releaseDate: safeDate(pipeline?.release_date),
+          saleAgreedDate: safeDate(pipeline?.sale_agreed_date),
+          depositDate: safeDate(pipeline?.deposit_date),
+          contractsIssuedDate: safeDate(pipeline?.contracts_issued_date),
+          signedContractsDate: safeDate(pipeline?.signed_contracts_date),
+          counterSignedDate: safeDate(pipeline?.counter_signed_date),
+          kitchenDate: safeDate(pipeline?.kitchen_date),
+          snagDate: safeDate(pipeline?.snag_date),
+          drawdownDate: safeDate(pipeline?.drawdown_date),
+          handoverDate: safeDate(pipeline?.handover_date),
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
         };
@@ -204,7 +214,11 @@ export async function GET(
     });
   } catch (error) {
     console.error('[Pipeline Development API] Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Pipeline Development API] Stack:', error instanceof Error ? error.stack : 'No stack');
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
