@@ -91,68 +91,60 @@ export async function PATCH(
       return NextResponse.json({ error: `Invalid field: ${field}` }, { status: 400 });
     }
 
-    // Get existing pipeline record
-    const existingResult = await db.execute(sql`
-      SELECT * FROM unit_sales_pipeline
-      WHERE tenant_id = ${tenantId}::uuid
-      AND unit_id = ${unitId}::uuid
-      LIMIT 1
-    `);
-    const existingPipeline = existingResult.rows?.[0] as any;
+    // Get existing pipeline record using Supabase
+    const { data: existingPipeline, error: fetchError } = await supabaseAdmin
+      .from('unit_sales_pipeline')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('unit_id', unitId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('[Pipeline Unit Update API] Error fetching pipeline:', fetchError);
+    }
 
     // If no pipeline record exists, create one first
     let pipelineId: string;
 
     if (!existingPipeline) {
-      // Get unit to verify it exists and get development context - try Drizzle first, fallback to Supabase
-      let unit: any = null;
+      // Get unit to verify it exists
+      const { data: unit, error: unitError } = await supabaseAdmin
+        .from('units')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('id', unitId)
+        .eq('development_id', developmentId)
+        .single();
 
-      try {
-        const [drizzleUnit] = await db
-          .select()
-          .from(units)
-          .where(
-            and(
-              eq(units.tenant_id, tenantId),
-              eq(units.id, unitId),
-              eq(units.development_id, developmentId)
-            )
-          );
-        unit = drizzleUnit;
-      } catch (drizzleError) {
-        console.error('[Pipeline Unit Update API] Drizzle error (falling back to Supabase):', drizzleError);
-        const { data: supabaseUnit, error: supabaseError } = await supabaseAdmin
-          .from('units')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('id', unitId)
-          .eq('development_id', developmentId)
-          .single();
-
-        if (supabaseError && supabaseError.code !== 'PGRST116') {
-          console.error('[Pipeline Unit Update API] Supabase error:', supabaseError);
-        }
-        unit = supabaseUnit;
-      }
-
-      if (!unit) {
+      if (unitError || !unit) {
+        console.error('[Pipeline Unit Update API] Unit not found:', unitError);
         return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
       }
 
-      // Create pipeline record
-      const insertResult = await db.execute(sql`
-        INSERT INTO unit_sales_pipeline
-          (id, tenant_id, development_id, unit_id, purchaser_name, purchaser_email, purchaser_phone, created_at, updated_at)
-        VALUES
-          (gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${unitId}::uuid, ${unit.purchaser_name}, ${unit.purchaser_email}, ${unit.purchaser_phone}, NOW(), NOW())
-        RETURNING id
-      `);
-      pipelineId = (insertResult.rows?.[0] as any)?.id;
+      // Create pipeline record using Supabase
+      const { data: newPipeline, error: insertError } = await supabaseAdmin
+        .from('unit_sales_pipeline')
+        .insert({
+          tenant_id: tenantId,
+          development_id: developmentId,
+          unit_id: unitId,
+          purchaser_name: unit.purchaser_name || null,
+          purchaser_email: unit.purchaser_email || null,
+          purchaser_phone: unit.purchaser_phone || null,
+        })
+        .select('id')
+        .single();
+
+      if (insertError || !newPipeline) {
+        console.error('[Pipeline Unit Update API] Error creating pipeline:', insertError);
+        return NextResponse.json({ error: 'Failed to create pipeline record' }, { status: 500 });
+      }
+      pipelineId = newPipeline.id;
     } else {
       pipelineId = existingPipeline.id;
     }
 
-    const now = new Date();
+    const now = new Date().toISOString();
     let oldValue: any;
 
     if (isDateField) {
@@ -161,27 +153,39 @@ export async function PATCH(
       // Get old value for audit
       oldValue = existingPipeline?.[dateField] || null;
 
-      // Parse the new date value
-      const newDate = value ? new Date(value) : null;
+      // Update using Supabase
+      const updateData: Record<string, any> = {
+        [dateField]: value || null,
+        [updatedByField]: adminId,
+        [updatedAtField]: now,
+        updated_at: now,
+      };
 
-      await db.execute(sql`
-        UPDATE unit_sales_pipeline
-        SET ${sql.identifier(dateField)} = ${newDate}::timestamptz,
-            ${sql.identifier(updatedByField)} = ${adminId}::uuid,
-            ${sql.identifier(updatedAtField)} = ${now}::timestamptz,
-            updated_at = ${now}::timestamptz
-        WHERE id = ${pipelineId}::uuid
-      `);
+      const { error: updateError } = await supabaseAdmin
+        .from('unit_sales_pipeline')
+        .update(updateData)
+        .eq('id', pipelineId);
+
+      if (updateError) {
+        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
+        return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
+      }
     } else {
       const dbField = TEXT_FIELD_MAPPING[field];
       oldValue = existingPipeline?.[dbField] || null;
 
-      await db.execute(sql`
-        UPDATE unit_sales_pipeline
-        SET ${sql.identifier(dbField)} = ${value || null},
-            updated_at = ${now}::timestamptz
-        WHERE id = ${pipelineId}::uuid
-      `);
+      const { error: updateError } = await supabaseAdmin
+        .from('unit_sales_pipeline')
+        .update({
+          [dbField]: value || null,
+          updated_at: now,
+        })
+        .eq('id', pipelineId);
+
+      if (updateError) {
+        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
+        return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
+      }
     }
 
     // Audit log
@@ -282,19 +286,19 @@ export async function GET(
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Check if pipeline tables exist and get pipeline data
+    // Get pipeline data using Supabase
     let pipeline: any = null;
-    const pipelineTablesExist = await checkPipelineTablesExist();
+    const { data: pipelineData, error: pipelineError } = await supabaseAdmin
+      .from('unit_sales_pipeline')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('unit_id', unitId)
+      .single();
 
-    if (pipelineTablesExist) {
-      const pipelineResult = await db.execute(sql`
-        SELECT * FROM unit_sales_pipeline
-        WHERE tenant_id = ${tenantId}::uuid
-        AND unit_id = ${unitId}::uuid
-        LIMIT 1
-      `);
-      pipeline = pipelineResult.rows?.[0];
+    if (pipelineError && pipelineError.code !== 'PGRST116') {
+      console.error('[Pipeline Unit Get API] Error fetching pipeline:', pipelineError);
     }
+    pipeline = pipelineData;
 
     // Safely convert dates
     const safeDate = (dateVal: any): string | null => {
