@@ -75,8 +75,8 @@ export async function GET(request: NextRequest) {
             // Count released units (have pipeline record with release_date)
             const releasedResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}
-              AND development_id = ${dev.id}
+              WHERE tenant_id = ${tenantId}::uuid
+              AND development_id = ${dev.id}::uuid
               AND release_date IS NOT NULL
             `);
             releasedCount = Number(releasedResult.rows?.[0]?.count || 0);
@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
             // Count handed over units
             const handedOverResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}
-              AND development_id = ${dev.id}
+              WHERE tenant_id = ${tenantId}::uuid
+              AND development_id = ${dev.id}::uuid
               AND handover_date IS NOT NULL
             `);
             handedOverCount = Number(handedOverResult.rows?.[0]?.count || 0);
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
             // Count in-progress (released but not handed over)
             const inProgressResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}
-              AND development_id = ${dev.id}
+              WHERE tenant_id = ${tenantId}::uuid
+              AND development_id = ${dev.id}::uuid
               AND release_date IS NOT NULL
               AND handover_date IS NULL
             `);
@@ -103,10 +103,10 @@ export async function GET(request: NextRequest) {
             // Count unresolved notes
             const unresolvedResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_pipeline_notes
-              WHERE tenant_id = ${tenantId}
+              WHERE tenant_id = ${tenantId}::uuid
               AND pipeline_id IN (
                 SELECT id FROM unit_sales_pipeline
-                WHERE development_id = ${dev.id}
+                WHERE development_id = ${dev.id}::uuid
               )
               AND is_resolved = false
             `);

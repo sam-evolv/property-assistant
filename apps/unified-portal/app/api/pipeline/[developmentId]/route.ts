@@ -110,8 +110,8 @@ export async function GET(
         // Get pipeline records for these units
         const pipelineResult = await db.execute(sql`
           SELECT * FROM unit_sales_pipeline
-          WHERE tenant_id = ${tenantId}
-          AND development_id = ${developmentId}
+          WHERE tenant_id = ${tenantId}::uuid
+          AND development_id = ${developmentId}::uuid
         `);
 
         for (const row of pipelineResult.rows || []) {
