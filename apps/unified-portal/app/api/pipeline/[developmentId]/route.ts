@@ -339,13 +339,18 @@ export async function POST(
       return NextResponse.json({ error: 'Some units not found' }, { status: 400 });
     }
 
-    // Check which units already have pipeline records
-    // Build the array literal manually for PostgreSQL
-    const unitIdsArrayLiteral = `{${unitIds.join(',')}}`;
-    const existingPipelinesResult = await db.execute(sql`
-      SELECT unit_id FROM unit_sales_pipeline
-      WHERE unit_id = ANY(${unitIdsArrayLiteral}::uuid[])
-    `);
+    // Check which units already have pipeline records using Supabase
+    // (Drizzle has issues with array syntax, so use Supabase for this query)
+    const { data: existingPipelinesData, error: existingPipelinesError } = await supabaseAdmin
+      .from('unit_sales_pipeline')
+      .select('unit_id')
+      .in('unit_id', unitIds);
+
+    if (existingPipelinesError) {
+      console.error('[Pipeline Release API] Error checking existing pipelines:', existingPipelinesError);
+      throw existingPipelinesError;
+    }
+    const existingPipelinesResult = { rows: existingPipelinesData || [] };
 
     const existingUnitIds = new Set((existingPipelinesResult.rows || []).map((p: any) => p.unit_id));
     const unitsToRelease = existingUnits.filter((u) => !existingUnitIds.has(u.id));
@@ -357,17 +362,28 @@ export async function POST(
       });
     }
 
-    // Create pipeline records
-    const now = new Date();
-    const values = unitsToRelease.map((unit) =>
-      sql`(gen_random_uuid(), ${tenantId}::uuid, ${developmentId}::uuid, ${unit.id}::uuid, ${unit.purchaser_name}, ${unit.purchaser_email}, ${unit.purchaser_phone}, ${now}::timestamptz, ${adminId}::uuid, ${now}::timestamptz, NOW(), NOW())`
-    );
+    // Create pipeline records using Supabase for reliability
+    const now = new Date().toISOString();
+    const pipelineRecords = unitsToRelease.map((unit) => ({
+      tenant_id: tenantId,
+      development_id: developmentId,
+      unit_id: unit.id,
+      purchaser_name: unit.purchaser_name || null,
+      purchaser_email: unit.purchaser_email || null,
+      purchaser_phone: unit.purchaser_phone || null,
+      release_date: now,
+      release_updated_by: adminId,
+      release_updated_at: now,
+    }));
 
-    await db.execute(sql`
-      INSERT INTO unit_sales_pipeline
-        (id, tenant_id, development_id, unit_id, purchaser_name, purchaser_email, purchaser_phone, release_date, release_updated_by, release_updated_at, created_at, updated_at)
-      VALUES ${sql.join(values, sql`, `)}
-    `);
+    const { error: insertError } = await supabaseAdmin
+      .from('unit_sales_pipeline')
+      .insert(pipelineRecords);
+
+    if (insertError) {
+      console.error('[Pipeline Release API] Error inserting pipeline records:', insertError);
+      throw insertError;
+    }
 
     // Audit log
     await db.insert(audit_log).values({
