@@ -692,6 +692,7 @@ interface ReleaseUnitsModalProps {
 function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: ReleaseUnitsModalProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const unreleasedUnits = units.filter((u) => !u.releaseDate);
 
@@ -716,6 +717,7 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
   const handleRelease = async () => {
     if (selectedIds.size === 0) return;
     setIsSubmitting(true);
+    setError(null);
     try {
       const response = await fetch(`/api/pipeline/${developmentId}`, {
         method: 'POST',
@@ -725,9 +727,13 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
       if (response.ok) {
         onReleased();
         onClose();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to release units. Please try again.');
       }
-    } catch (error) {
-      console.error('Failed to release units:', error);
+    } catch (err) {
+      console.error('Failed to release units:', err);
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -757,6 +763,14 @@ function ReleaseUnitsModal({ units, developmentId, onClose, onReleased }: Releas
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
