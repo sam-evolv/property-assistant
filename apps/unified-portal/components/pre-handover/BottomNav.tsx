@@ -1,10 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Home, FileText, MessageSquare, Menu } from 'lucide-react';
+import { Home, FileText, MessageSquare, Menu, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navItems = [
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: boolean;
+}
+
+const navItems: NavItem[] = [
   { id: 'home', label: 'Home', icon: Home },
   { id: 'docs', label: 'Docs', icon: FileText },
   { id: 'chat', label: 'Chat', icon: MessageSquare, badge: true },
@@ -20,36 +27,39 @@ export function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 24px)' }}
     >
       <div className="flex items-center justify-around py-2 px-4 max-w-md mx-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={cn(
-              'flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all duration-200',
-              activeTab === item.id && 'bg-[#D4AF37]/10'
-            )}
-          >
-            <div className="relative">
-              <item.icon
-                className={cn(
-                  'w-6 h-6 transition-colors',
-                  activeTab === item.id ? 'text-[#D4AF37]' : 'text-gray-400'
-                )}
-              />
-              {item.badge && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#D4AF37]" />
-              )}
-            </div>
-            <span
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
               className={cn(
-                'text-xs transition-colors',
-                activeTab === item.id ? 'text-[#D4AF37] font-semibold' : 'text-gray-400'
+                'flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all duration-200',
+                activeTab === item.id && 'bg-[#D4AF37]/10'
               )}
             >
-              {item.label}
-            </span>
-          </button>
-        ))}
+              <div className="relative">
+                <Icon
+                  className={cn(
+                    'w-6 h-6 transition-colors',
+                    activeTab === item.id ? 'text-[#D4AF37]' : 'text-gray-400'
+                  )}
+                />
+                {item.badge && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#D4AF37]" />
+                )}
+              </div>
+              <span
+                className={cn(
+                  'text-xs transition-colors',
+                  activeTab === item.id ? 'text-[#D4AF37] font-semibold' : 'text-gray-400'
+                )}
+              >
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

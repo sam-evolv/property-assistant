@@ -1,12 +1,20 @@
 'use client';
 
-import { Clock, FileText, HelpCircle, Phone } from 'lucide-react';
+import { Clock, FileText, HelpCircle, Phone, LucideIcon } from 'lucide-react';
 
 interface Props {
   onOpenSheet: (name: string) => void;
 }
 
-const actions = [
+interface Action {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  bgColor: string;
+  iconColor: string;
+}
+
+const actions: Action[] = [
   {
     id: 'timeline',
     label: 'Timeline',
@@ -28,20 +36,23 @@ const actions = [
 export function QuickActionsGrid({ onOpenSheet }: Props) {
   return (
     <div className="grid grid-cols-4 gap-2">
-      {actions.map((action) => (
-        <button
-          key={action.id}
-          onClick={() => onOpenSheet(action.id)}
-          className="bg-white/85 backdrop-blur border border-white/90 rounded-xl p-3 text-center active:scale-95 transition-transform shadow-[0_2px_12px_rgba(12,12,12,0.04)]"
-        >
-          <div
-            className={`w-10 h-10 mx-auto rounded-xl ${action.bgColor} flex items-center justify-center mb-2`}
+      {actions.map((action) => {
+        const Icon = action.icon;
+        return (
+          <button
+            key={action.id}
+            onClick={() => onOpenSheet(action.id)}
+            className="bg-white/85 backdrop-blur border border-white/90 rounded-xl p-3 text-center active:scale-95 transition-transform shadow-[0_2px_12px_rgba(12,12,12,0.04)]"
           >
-            <action.icon className={`w-5 h-5 ${action.iconColor}`} />
-          </div>
-          <span className="text-xs font-medium text-gray-600">{action.label}</span>
-        </button>
-      ))}
+            <div
+              className={`w-10 h-10 mx-auto rounded-xl ${action.bgColor} flex items-center justify-center mb-2`}
+            >
+              <Icon className={`w-5 h-5 ${action.iconColor}`} />
+            </div>
+            <span className="text-xs font-medium text-gray-600">{action.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
