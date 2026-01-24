@@ -56,8 +56,6 @@ interface PipelineUnit {
   id: string;
   unitNumber: string;
   address: string;
-  type?: string;
-  price?: number;
   purchaserName: string | null;
   purchaserEmail?: string | null;
   purchaserPhone?: string | null;
@@ -76,9 +74,11 @@ interface PipelineUnit {
   notesCount: number;
   unresolvedNotesCount: number;
   // Property details from database
-  houseTypeCode?: string; // BD01, BS01, BT01
-  propertyDesignation?: string | null; // Apt, SD, D, Duplex, Terrace
+  houseTypeCode?: string | null; // BD01, BS01, BT01
+  propertyDesignation?: string | null; // D (Detached), SD (Semi-Detached), T (Terrace)
+  propertyType?: string | null; // HO (House), AP (Apartment), DP (Duplex)
   bedrooms?: number | null;
+  bathrooms?: number | null;
   floorAreaM2?: number | null;
   squareFootage?: number | null;
 }
@@ -133,10 +133,6 @@ function formatFullDate(dateStr: string | null): string {
   const d = new Date(dateStr);
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function formatPrice(p: number): string {
-  return '€' + p.toLocaleString();
 }
 
 function getProgress(unit: PipelineUnit): number {
@@ -505,8 +501,8 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                   {unit.houseTypeCode && <span className="px-2 py-0.5 text-xs font-bold bg-white/20 text-white rounded">{unit.houseTypeCode}</span>}
                   {unit.propertyDesignation && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.propertyDesignation}</span>}
                   {unit.bedrooms && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.bedrooms} Bed</span>}
-                  {unit.floorAreaM2 && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.floorAreaM2} sqm / {Math.round(unit.floorAreaM2 * 10.764)} sqft</span>}
-                  {unit.price && <span className="px-2 py-0.5 text-xs font-semibold rounded" style={{ backgroundColor: `${tokens.gold}30`, color: tokens.gold }}>{formatPrice(unit.price)}</span>}
+                  {unit.bathrooms && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.bathrooms} Bath</span>}
+                  {unit.squareFootage && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{Math.round(unit.squareFootage)} sqft</span>}
                 </div>
               </div>
             </div>
@@ -1152,16 +1148,16 @@ export default function PipelineDevelopmentPage() {
       if (!response.ok) throw new Error('Failed to fetch data');
       const data = await response.json();
       setDevelopment(data.development);
-      // Use real data from API, fill in demo data for missing fields
-      const designations = ['Apt', 'SD', 'D', 'Duplex', 'Terrace'];
-      const priceOptions = [285000, 325000, 385000, 425000, 465000, 545000, 625000, 795000];
-
+      // Use real data from API - no demo data fallbacks
       const unitsWithData = (data.units || []).map((unit: PipelineUnit, idx: number) => {
         const enrichedUnit = {
           ...unit,
-          // Fill in missing property data with demo values
-          propertyDesignation: unit.propertyDesignation || designations[idx % designations.length],
-          price: unit.price || priceOptions[idx % priceOptions.length],
+          // Use real data from API - these fields come from the database
+          propertyDesignation: unit.propertyDesignation || null,
+          bedrooms: unit.bedrooms || null,
+          squareFootage: unit.squareFootage || null,
+          floorAreaM2: unit.floorAreaM2 || null,
+          houseTypeCode: unit.houseTypeCode || null,
         };
 
         // First 10 units get demo queries if they have no real queries
@@ -1502,28 +1498,31 @@ export default function PipelineDevelopmentPage() {
                         <td className="sticky left-[44px] z-10 bg-white px-4 py-2">
                           <div className="flex items-center gap-3">
                             <div className="min-w-0 flex-1">
-                              {/* Row 1: Unit number, designation, bedrooms */}
+                              {/* Row 1: Unit number, house type, bedrooms, sqft */}
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-bold text-gray-900">{unit.unitNumber}</p>
+                                {unit.houseTypeCode && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded" style={{ backgroundColor: `${tokens.gold}20`, color: tokens.goldDark }}>
+                                    {unit.houseTypeCode}
+                                  </span>
+                                )}
                                 {unit.propertyDesignation && (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-600">
+                                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">
                                     {unit.propertyDesignation}
                                   </span>
                                 )}
                                 {unit.bedrooms && (
                                   <span className="text-[10px] font-medium text-gray-500">{unit.bedrooms} bed</span>
                                 )}
+                                {unit.squareFootage && (
+                                  <span className="text-[10px] font-medium text-gray-400">{Math.round(unit.squareFootage)} sqft</span>
+                                )}
                               </div>
-                              {/* Row 2: Purchaser name + Price side by side */}
+                              {/* Row 2: Purchaser name */}
                               <div className="flex items-center gap-2 mt-0.5">
                                 <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-700' : 'text-gray-400'}`}>
                                   {unit.purchaserName || 'Available'}
                                 </p>
-                                {unit.price && (
-                                  <span className="text-xs font-semibold" style={{ color: tokens.gold }}>
-                                    {formatPrice(unit.price)}
-                                  </span>
-                                )}
                               </div>
                             </div>
                             <div className="row-arrow opacity-0 transform translate-x-1 transition-all text-gold-500">

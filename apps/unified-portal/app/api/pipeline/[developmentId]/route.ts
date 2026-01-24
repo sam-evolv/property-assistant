@@ -31,6 +31,12 @@ interface PipelineUnit {
   unitNumber: string;
   address: string;
   houseTypeCode: string;
+  propertyDesignation: string | null;
+  propertyType: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  squareFootage: number | null;
+  floorAreaM2: number | null;
   purchaserName: string | null;
   purchaserEmail: string | null;
   purchaserPhone: string | null;
@@ -224,6 +230,12 @@ export async function GET(
           unitNumber: unit.unit_number || '',
           address: unit.address_line_1 || '',
           houseTypeCode: unit.house_type_code || '',
+          propertyDesignation: unit.property_designation || null,
+          propertyType: unit.property_type || null,
+          bedrooms: unit.bedrooms ? Number(unit.bedrooms) : null,
+          bathrooms: unit.bathrooms ? Number(unit.bathrooms) : null,
+          squareFootage: unit.square_footage ? Number(unit.square_footage) : null,
+          floorAreaM2: unit.floor_area_m2 ? Number(unit.floor_area_m2) : null,
           purchaserName: pipeline?.purchaser_name || unit.purchaser_name || null,
           purchaserEmail: pipeline?.purchaser_email || unit.purchaser_email || null,
           purchaserPhone: pipeline?.purchaser_phone || unit.purchaser_phone || null,
