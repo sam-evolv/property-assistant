@@ -92,10 +92,7 @@ export function PropertyCard({ property, milestones }: Props) {
         {/* Current Milestone */}
         {currentMilestone && (
           <div className="mt-3 flex items-center justify-center gap-2">
-            <span
-              className="w-2 h-2 rounded-full bg-[#D4AF37]"
-              style={{ animation: 'pulse 2s ease-in-out infinite' }}
-            />
+            <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
             <span className="text-sm text-gray-600">
               <strong className="font-semibold text-gray-900">{currentMilestone.label}</strong>
               <span className="text-gray-400"> · Est. {currentMilestone.estimatedDate}</span>
@@ -103,18 +100,6 @@ export function PropertyCard({ property, milestones }: Props) {
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        @keyframes pulse {
-          0%,
-          100% {
-            box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4);
-          }
-          50% {
-            box-shadow: 0 0 0 6px rgba(212, 175, 55, 0);
-          }
-        }
-      `}</style>
     </div>
   );
 }
