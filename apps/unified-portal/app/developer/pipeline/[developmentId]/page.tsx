@@ -851,8 +851,9 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
         if (response.ok) {
           const data = await response.json();
           const notes = data.notes || [];
-          // If no real notes, show sample queries for demo
-          if (notes.length === 0) {
+          // Only show demo queries if the unit has unresolvedNotesCount > 0 (from fetchData)
+          // This ensures consistency between what's shown in the table and the panel
+          if (notes.length === 0 && unit.unresolvedNotesCount > 0) {
             setQueries([
               { id: 'demo-1', content: 'Can you confirm the completion date for the kitchen installation?', resolved: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
               { id: 'demo-2', content: 'Please provide the updated floor plan with the recent modifications.', resolved: true, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie', resolvedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
