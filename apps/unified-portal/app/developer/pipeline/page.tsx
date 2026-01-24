@@ -100,18 +100,19 @@ const ChevronRightIcon = () => (
 interface StatCardProps {
   icon: React.ReactNode;
   iconBg: string;
+  iconColor: string;
   label: string;
   value: number | string;
   subtitle?: string;
 }
 
-function StatCard({ icon, iconBg, label, value, subtitle }: StatCardProps) {
+function StatCard({ icon, iconBg, iconColor, label, value, subtitle }: StatCardProps) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-200 hover:shadow-lg hover:border-gray-200">
       <div className="mb-4">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ backgroundColor: iconBg }}
+          style={{ backgroundColor: iconBg, color: iconColor }}
         >
           {icon}
         </div>
@@ -347,13 +348,15 @@ export default function PipelinePage() {
         <div className="grid grid-cols-5 gap-5 mb-8">
           <StatCard
             icon={<BuildingIcon />}
-            iconBg={tokens.warmGray}
+            iconBg="#fef3c7"
+            iconColor={tokens.gold}
             label="Total Units"
             value={aggregateStats.total}
           />
           <StatCard
             icon={<ClockIcon />}
             iconBg="#fef3c7"
+            iconColor="#d97706"
             label="Available"
             value={aggregateStats.available}
             subtitle="Ready for sale"
@@ -361,18 +364,21 @@ export default function PipelinePage() {
           <StatCard
             icon={<TrendingUpIcon />}
             iconBg="#dbeafe"
+            iconColor="#2563eb"
             label="In Progress"
             value={aggregateStats.inProgress}
           />
           <StatCard
             icon={<CheckCircleIcon />}
             iconBg="#dcfce7"
+            iconColor="#16a34a"
             label="Complete"
             value={aggregateStats.complete}
           />
           <StatCard
             icon={<AlertCircleIcon />}
             iconBg="#fee2e2"
+            iconColor="#dc2626"
             label="Open Queries"
             value={aggregateStats.openQueries}
             subtitle={aggregateStats.openQueries > 0 ? 'Awaiting response' : 'All clear'}
