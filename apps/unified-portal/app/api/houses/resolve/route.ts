@@ -332,18 +332,18 @@ export async function POST(req: Request) {
       // First try unit_uid lookup
       const { data: byUid, error: uidError } = await supabase
         .from('units')
-        .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms')
+        .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms, handover_date')
         .eq('unit_uid', token)
         .single();
-      
+
       if (byUid && !uidError) {
         supabaseUnit = byUid;
-        console.log("[Resolve] Found by unit_uid:", byUid.unit_uid);
+        console.log("[Resolve] Found by unit_uid:", byUid.unit_uid, "handover_date:", byUid.handover_date);
       } else if (isUuid) {
         // Fallback to id lookup for UUID tokens
         const { data: byId, error: idError } = await supabase
           .from('units')
-          .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms')
+          .select('id, address, purchaser_name, project_id, unit_uid, house_type_code, bedrooms, bathrooms, handover_date')
           .eq('id', token)
           .single();
         supabaseUnit = byId;
@@ -420,6 +420,10 @@ export async function POST(req: Request) {
           }
         }
         
+        // handover_complete is true if handover_date is set (from sales pipeline)
+        const isHandoverComplete = !!supabaseUnit.handover_date;
+        console.log("[Resolve] Unit handover status:", { handover_date: supabaseUnit.handover_date, isComplete: isHandoverComplete });
+
         const responseData = {
           success: true,
           unitId: supabaseUnit.id,
@@ -447,6 +451,10 @@ export async function POST(req: Request) {
           latitude: coordinates?.lat || null,
           longitude: coordinates?.lng || null,
           specs: null,
+          // Pre-handover portal data - derive from handover_date
+          handover_complete: isHandoverComplete,
+          handover_date: supabaseUnit.handover_date || null,
+          current_milestone: isHandoverComplete ? 'handover' : 'sale_agreed',
           request_id: requestId,
         };
         
