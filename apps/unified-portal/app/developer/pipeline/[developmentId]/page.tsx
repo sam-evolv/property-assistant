@@ -270,6 +270,24 @@ const CheckIcon = () => (
   </svg>
 );
 
+const ActivityIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const ChartIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
+
+const MessageCircleIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  </svg>
+);
+
 // =============================================================================
 // Toast Component
 // =============================================================================
@@ -482,10 +500,10 @@ function PredictedCell({ unit }: PredictedCellProps) {
 
   const dateStr = formatDate(prediction.date.toISOString());
   const statusStyles = {
-    on_track: { bg: '#f0fdf4', color: '#15803d' },
-    delayed: { bg: '#fffbeb', color: '#b45309' },
-    at_risk: { bg: '#fef2f2', color: '#dc2626' },
-    not_started: { bg: '#f5f5f5', color: '#6b7280' },
+    on_track: { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+    delayed: { bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
+    at_risk: { bg: '#ef4444', color: '#ffffff', border: '#ef4444' },
+    not_started: { bg: '#f5f5f5', color: '#6b7280', border: '#e5e7eb' },
   };
   const style = statusStyles[prediction.status] || statusStyles.not_started;
 
@@ -493,8 +511,8 @@ function PredictedCell({ unit }: PredictedCellProps) {
     <td className="border-l border-gray-50">
       <div className="h-11 px-2 flex items-center justify-center">
         <span
-          className="text-xs font-semibold px-2.5 py-1 rounded-md"
-          style={{ backgroundColor: style.bg, color: style.color }}
+          className="text-xs font-semibold px-2.5 py-1 rounded-md border"
+          style={{ backgroundColor: style.bg, color: style.color, borderColor: style.border }}
         >
           {dateStr}
         </span>
@@ -748,6 +766,248 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
 }
 
 // =============================================================================
+// Activity Sidebar Component
+// =============================================================================
+
+interface ActivityItem {
+  id: string;
+  type: 'stage_update' | 'query' | 'document' | 'completion';
+  title: string;
+  unit: string;
+  timestamp: string;
+}
+
+interface ActivitySidebarProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+function ActivitySidebar({ visible, onClose }: ActivitySidebarProps) {
+  // Mock activity data - would come from API
+  const activities: { group: string; items: ActivityItem[] }[] = [
+    {
+      group: 'Today',
+      items: [
+        { id: '1', type: 'stage_update', title: 'Contracts Signed', unit: 'Unit 12A', timestamp: '2 hours ago' },
+        { id: '2', type: 'query', title: 'New query received', unit: 'Unit 8B', timestamp: '4 hours ago' },
+        { id: '3', type: 'completion', title: 'Sale completed', unit: 'Unit 3C', timestamp: '5 hours ago' },
+      ],
+    },
+    {
+      group: 'Yesterday',
+      items: [
+        { id: '4', type: 'document', title: 'Documents uploaded', unit: 'Unit 15D', timestamp: 'Yesterday' },
+        { id: '5', type: 'stage_update', title: 'Deposit received', unit: 'Unit 7A', timestamp: 'Yesterday' },
+      ],
+    },
+    {
+      group: 'This Week',
+      items: [
+        { id: '6', type: 'query', title: 'Query resolved', unit: 'Unit 22B', timestamp: '3 days ago' },
+        { id: '7', type: 'stage_update', title: 'Kitchen selected', unit: 'Unit 11C', timestamp: '4 days ago' },
+      ],
+    },
+  ];
+
+  const getIcon = (type: ActivityItem['type']) => {
+    switch (type) {
+      case 'stage_update': return <ChevronRightIcon />;
+      case 'query': return <MessageCircleIcon />;
+      case 'document': return <ExportIcon />;
+      case 'completion': return <CheckIcon />;
+      default: return <ChevronRightIcon />;
+    }
+  };
+
+  const getColor = (type: ActivityItem['type']) => {
+    switch (type) {
+      case 'stage_update': return tokens.gold;
+      case 'query': return '#3b82f6';
+      case 'document': return '#8b5cf6';
+      case 'completion': return tokens.success;
+      default: return tokens.gold;
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 animate-fadeIn" onClick={onClose} />
+      <div
+        className="fixed right-0 top-0 bottom-0 w-80 bg-white z-50 overflow-hidden animate-slideIn"
+        style={{ boxShadow: '-20px 0 60px rgba(0, 0, 0, 0.12)' }}
+      >
+        <div className="h-full flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-base font-bold" style={{ color: tokens.dark }}>Activity</h2>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {activities.map((group) => (
+              <div key={group.group} className="px-5 py-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">{group.group}</p>
+                <div className="space-y-2">
+                  {group.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer"
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${getColor(item.type)}15`, color: getColor(item.type) }}
+                      >
+                        {getIcon(item.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: tokens.dark }}>{item.title}</p>
+                        <p className="text-xs text-gray-400">{item.unit} · {item.timestamp}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// =============================================================================
+// Query Panel Component
+// =============================================================================
+
+interface Query {
+  id: string;
+  question: string;
+  status: 'pending' | 'answered';
+  sentAt: string;
+  answeredAt?: string;
+  response?: string;
+}
+
+interface QueryPanelProps {
+  unit: PipelineUnit | null;
+  onClose: () => void;
+  onReply: (queryId: string) => void;
+}
+
+function QueryPanel({ unit, onClose, onReply }: QueryPanelProps) {
+  if (!unit) return null;
+
+  // Mock queries - would come from API
+  const queries: Query[] = [
+    {
+      id: '1',
+      question: 'Can you confirm the completion date for the kitchen installation?',
+      status: 'pending',
+      sentAt: '2 days ago',
+    },
+    {
+      id: '2',
+      question: 'Please provide the updated floor plan with the recent modifications.',
+      status: 'answered',
+      sentAt: '5 days ago',
+      answeredAt: '3 days ago',
+      response: 'Floor plan has been updated and attached to the documents section.',
+    },
+    {
+      id: '3',
+      question: 'What is the status of the parking space allocation?',
+      status: 'pending',
+      sentAt: '1 week ago',
+    },
+  ];
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 animate-fadeIn" onClick={onClose} />
+      <div
+        className="fixed right-0 top-0 bottom-0 w-[420px] bg-white z-50 overflow-hidden animate-slideIn"
+        style={{ boxShadow: '-20px 0 60px rgba(0, 0, 0, 0.12)' }}
+      >
+        <div className="h-full flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold" style={{ color: tokens.dark }}>Queries</h2>
+              <p className="text-xs text-gray-400 mt-0.5">{unit.unitNumber} · {unit.purchaserName || 'No purchaser'}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto p-6">
+            {queries.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: tokens.warmGray }}>
+                  <MessageCircleIcon />
+                </div>
+                <p className="text-sm text-gray-500">No queries for this unit</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {queries.map((query) => (
+                  <div
+                    key={query.id}
+                    className="rounded-xl border border-gray-100 overflow-hidden"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+                  >
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <p className="text-sm font-medium" style={{ color: tokens.dark }}>{query.question}</p>
+                        <span
+                          className={`shrink-0 text-[10px] font-semibold px-2 py-1 rounded ${
+                            query.status === 'pending'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {query.status === 'pending' ? 'Pending' : 'Answered'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">Sent {query.sentAt}</p>
+                      {query.answeredAt && (
+                        <p className="text-xs text-gray-400">Answered {query.answeredAt}</p>
+                      )}
+                    </div>
+                    {query.response && (
+                      <div className="px-4 py-3 border-t border-gray-100" style={{ backgroundColor: tokens.warmGray }}>
+                        <p className="text-xs text-gray-600">{query.response}</p>
+                      </div>
+                    )}
+                    {query.status === 'pending' && (
+                      <div className="px-4 py-3 border-t border-gray-100">
+                        <button
+                          onClick={() => onReply(query.id)}
+                          className="w-full py-2 text-xs font-semibold rounded-lg transition-all"
+                          style={{ backgroundColor: tokens.gold, color: tokens.dark }}
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// =============================================================================
 // Bulk Actions Bar Component
 // =============================================================================
 
@@ -899,6 +1159,9 @@ export default function PipelineDevelopmentPage() {
   const [selectedUnit, setSelectedUnit] = useState<PipelineUnit | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState({ message: '', visible: false });
+  const [showActivity, setShowActivity] = useState(false);
+  const [queryUnit, setQueryUnit] = useState<PipelineUnit | null>(null);
+  const [hasNewActivity] = useState(true); // Would come from API
 
   const showToast = useCallback((message: string) => {
     setToast({ message, visible: true });
@@ -928,6 +1191,8 @@ export default function PipelineDevelopmentPage() {
       if (e.key === 'Escape') {
         setSelectedUnit(null);
         setSelectedRows(new Set());
+        setShowActivity(false);
+        setQueryUnit(null);
       }
     };
     document.addEventListener('keydown', handleEscape);
@@ -1094,6 +1359,12 @@ export default function PipelineDevelopmentPage() {
         .table-row:hover { background: linear-gradient(90deg, #fdfcfa 0%, #ffffff 100%); }
         .table-row.selected { background: linear-gradient(90deg, rgba(212, 168, 83, 0.08) 0%, rgba(212, 168, 83, 0.03) 100%); }
         .table-row:hover .row-arrow { opacity: 1; transform: translateX(0); }
+        .stat-card { transition: all 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important; }
+        .sparkline-path { stroke-dasharray: 150; stroke-dashoffset: 150; animation: drawSparkline 1.5s ease-out forwards; }
+        @keyframes drawSparkline { to { stroke-dashoffset: 0; } }
+        .activity-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 83, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(212, 168, 83, 0); } }
       `}</style>
 
       <div className="min-h-screen pb-28" style={{ backgroundColor: tokens.cream, fontFamily: "'DM Sans', sans-serif" }}>
@@ -1114,6 +1385,23 @@ export default function PipelineDevelopmentPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowActivity(true)}
+                className={`relative px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2 ${hasNewActivity ? 'activity-pulse' : ''}`}
+              >
+                <ActivityIcon />
+                Activity
+                {hasNewActivity && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tokens.gold }} />
+                )}
+              </button>
+              <button
+                onClick={() => router.push(`/developer/pipeline/${developmentId}/analysis`)}
+                className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2"
+              >
+                <ChartIcon />
+                Analysis
+              </button>
               <button className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2">
                 <ExportIcon />
                 Export
@@ -1130,23 +1418,29 @@ export default function PipelineDevelopmentPage() {
 
           {/* Stats Row */}
           <div className="grid grid-cols-5 gap-5 mb-8">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Units</p>
               <p className="text-3xl font-bold mt-1" style={{ color: tokens.dark }}>{stats.total}</p>
+              <svg viewBox="0 0 100 30" className="w-full h-8 mt-3">
+                <path d="M0,25 Q20,20 40,22 T60,18 T80,15 T100,10" fill="none" stroke={tokens.gold} strokeWidth="2" strokeLinecap="round" className="sparkline-path" />
+              </svg>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Available</p>
               <p className="text-3xl font-bold mt-1" style={{ color: tokens.dark }}>{stats.available}</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">In Progress</p>
               <p className="text-3xl font-bold mt-1" style={{ color: tokens.gold }}>{stats.inProgress}</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Complete</p>
               <p className="text-3xl font-bold mt-1" style={{ color: tokens.success }}>{stats.complete}</p>
+              <svg viewBox="0 0 100 30" className="w-full h-8 mt-3">
+                <path d="M0,28 Q15,26 30,24 T50,20 T70,14 T100,8" fill="none" stroke={tokens.success} strokeWidth="2" strokeLinecap="round" className="sparkline-path" />
+              </svg>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Open Queries</p>
               <p className="text-3xl font-bold mt-1" style={{ color: stats.openQueries > 0 ? tokens.danger : tokens.dark }}>{stats.openQueries}</p>
             </div>
@@ -1236,7 +1530,7 @@ export default function PipelineDevelopmentPage() {
                         <QueriesCell
                           count={unit.notesCount}
                           unresolvedCount={unit.unresolvedNotesCount}
-                          onClick={(e) => { e.stopPropagation(); setSelectedUnit(unit); }}
+                          onClick={(e) => { e.stopPropagation(); setQueryUnit(unit); }}
                         />
 
                         <DateCell value={unit.signedContractsDate} unitId={unit.id} field="signedContractsDate" onUpdate={handleUpdate} />
@@ -1277,6 +1571,12 @@ export default function PipelineDevelopmentPage() {
       {selectedUnit && (
         <ProfilePanel unit={selectedUnit} onClose={() => setSelectedUnit(null)} onCopy={handleCopy} />
       )}
+
+      {/* Activity Sidebar */}
+      <ActivitySidebar visible={showActivity} onClose={() => setShowActivity(false)} />
+
+      {/* Query Panel */}
+      <QueryPanel unit={queryUnit} onClose={() => setQueryUnit(null)} onReply={(id) => showToast(`Replying to query ${id}`)} />
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
