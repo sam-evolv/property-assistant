@@ -8,15 +8,15 @@ function getSupabaseClient() {
   );
 }
 
-// GET /api/developments/:developmentId/units
+// GET /api/developments/:id/units
 // Returns all units for a development with handover status
 export async function GET(
   request: NextRequest,
-  { params }: { params: { developmentId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const supabase = getSupabaseClient();
-    const { developmentId } = params;
+    const { id } = params;
 
     // Fetch units for this development
     const { data: units, error } = await supabase
@@ -35,7 +35,7 @@ export async function GET(
         est_snagging_date,
         est_handover_date
       `)
-      .eq('development_id', developmentId)
+      .eq('development_id', id)
       .order('unit_code', { ascending: true });
 
     if (error) {

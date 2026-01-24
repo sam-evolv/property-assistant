@@ -8,19 +8,19 @@ function getSupabaseClient() {
   );
 }
 
-// GET /api/developments/:developmentId/prehandover-config
+// GET /api/developments/:id/prehandover-config
 export async function GET(
   request: NextRequest,
-  { params }: { params: { developmentId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const supabase = getSupabaseClient();
-    const { developmentId } = params;
+    const { id } = params;
 
     const { data, error } = await supabase
       .from('developments')
       .select('prehandover_config')
-      .eq('id', developmentId)
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -58,20 +58,20 @@ export async function GET(
   }
 }
 
-// PUT /api/developments/:developmentId/prehandover-config
+// PUT /api/developments/:id/prehandover-config
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { developmentId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const supabase = getSupabaseClient();
-    const { developmentId } = params;
+    const { id } = params;
     const config = await request.json();
 
     const { error } = await supabase
       .from('developments')
       .update({ prehandover_config: config })
-      .eq('id', developmentId);
+      .eq('id', id);
 
     if (error) {
       console.error('Error updating prehandover config:', error);
