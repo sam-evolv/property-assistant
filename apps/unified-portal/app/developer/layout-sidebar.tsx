@@ -7,7 +7,8 @@ import { useState } from 'react';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield, AlertTriangle, Settings,
-  Layers, ClipboardList, ShieldCheck, GitBranch, Key, Mail, Command
+  Layers, ClipboardList, ShieldCheck, GitBranch, Key, Mail, Command,
+  CalendarCheck
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -36,6 +37,7 @@ const navSections: NavSection[] = [
   {
     title: 'Developer Tools',
     items: [
+      { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
       { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
       { label: 'Snagging', href: '/developer/snagging', icon: ClipboardList },
       { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },

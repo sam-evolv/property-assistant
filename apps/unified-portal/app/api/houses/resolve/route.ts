@@ -175,9 +175,9 @@ export async function POST(req: Request) {
     // Use different query based on whether token is UUID format or not
     let unitResult;
     try {
-      unitResult = isUuid 
+      unitResult = isUuid
         ? await db.execute(sql`
-            SELECT 
+            SELECT
               u.id,
               u.unit_uid,
               u.development_id,
@@ -190,19 +190,26 @@ export async function POST(req: Request) {
               u.tenant_id,
               u.latitude,
               u.longitude,
+              u.bedrooms,
+              u.handover_complete,
+              u.current_milestone,
+              u.milestone_dates,
+              u.est_snagging_date,
+              u.est_handover_date,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
               d.logo_url as dev_logo_url,
               d.latitude as dev_latitude,
-              d.longitude as dev_longitude
+              d.longitude as dev_longitude,
+              d.prehandover_config as dev_prehandover_config
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
             WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
             LIMIT 1
           `)
         : await db.execute(sql`
-            SELECT 
+            SELECT
               u.id,
               u.unit_uid,
               u.development_id,
@@ -215,12 +222,19 @@ export async function POST(req: Request) {
               u.tenant_id,
               u.latitude,
               u.longitude,
+              u.bedrooms,
+              u.handover_complete,
+              u.current_milestone,
+              u.milestone_dates,
+              u.est_snagging_date,
+              u.est_handover_date,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
               d.logo_url as dev_logo_url,
               d.latitude as dev_latitude,
-              d.longitude as dev_longitude
+              d.longitude as dev_longitude,
+              d.prehandover_config as dev_prehandover_config
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
             WHERE u.unit_uid = ${token}
@@ -283,11 +297,19 @@ export async function POST(req: Request) {
         project_id: unit.development_id,
         houseType: unit.house_type_code || null,
         house_type: unit.house_type_code || null,
+        bedrooms: unit.bedrooms || 0,
         floorPlanUrl: null,
         floor_plan_pdf_url: null,
         latitude: coordinates?.lat || null,
         longitude: coordinates?.lng || null,
         specs: null,
+        // Pre-handover portal data
+        handover_complete: unit.handover_complete || false,
+        current_milestone: unit.current_milestone || 'sale_agreed',
+        milestone_dates: unit.milestone_dates || {},
+        est_snagging_date: unit.est_snagging_date || null,
+        est_handover_date: unit.est_handover_date || null,
+        prehandover_config: unit.dev_prehandover_config || null,
       };
 
       globalCache.set(cacheKey, responseData, 60000);

@@ -8,6 +8,8 @@ import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User } from
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
+import { PreHandoverPortal } from '@/components/pre-handover';
+import type { MilestoneDates, ContactInfo, FAQ, Document } from '@/components/pre-handover/types';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -50,6 +52,16 @@ interface HouseContext {
   user_id?: string | null;
   project_id?: string | null;
   floor_plan_pdf_url?: string | null;
+  // Pre-handover portal fields
+  handover_complete?: boolean;
+  current_milestone?: string;
+  milestone_dates?: MilestoneDates;
+  est_snagging_date?: string | null;
+  est_handover_date?: string | null;
+  prehandover_config?: {
+    contacts?: ContactInfo;
+    faqs?: FAQ[];
+  } | null;
 }
 
 const LANGUAGES = [
@@ -178,8 +190,15 @@ export default function HomeResidentPage() {
             user_id: data.user_id,
             project_id: data.project_id,
             floor_plan_pdf_url: data.floorPlanUrl || data.floor_plan_pdf_url,
+            // Pre-handover portal fields
+            handover_complete: data.handover_complete || false,
+            current_milestone: data.current_milestone || 'sale_agreed',
+            milestone_dates: data.milestone_dates || {},
+            est_snagging_date: data.est_snagging_date || null,
+            est_handover_date: data.est_handover_date || null,
+            prehandover_config: data.prehandover_config || null,
           };
-          
+
           setHouse(houseData);
 
           // Fire qr_scan analytics event (fire-and-forget, log failures loudly)
@@ -358,6 +377,31 @@ export default function HomeResidentPage() {
         address={house.address}
         logoUrl={house.development_logo_url}
         onComplete={handleIntroComplete}
+      />
+    );
+  }
+
+  // PRE-HANDOVER PORTAL: Show for purchasers before handover is complete
+  // This takes precedence over the main Property Assistant view
+  if (house && !house.handover_complete) {
+    // Fetch documents for this unit (we'll do this in a separate effect or inline)
+    return (
+      <PreHandoverPortal
+        unitId={house.unit_id}
+        propertyName={house.address || `Unit ${house.unit_id}`}
+        propertyType={`${house.bedrooms || 3} Bed`}
+        houseType={house.house_type || 'House'}
+        purchaserName={house.purchaser_name}
+        developmentName={house.development_name}
+        developmentLogoUrl={house.development_logo_url}
+        handoverComplete={house.handover_complete || false}
+        currentMilestone={house.current_milestone || 'sale_agreed'}
+        milestoneDates={house.milestone_dates || {}}
+        estSnaggingDate={house.est_snagging_date || null}
+        estHandoverDate={house.est_handover_date || null}
+        documents={[]} // Documents will be fetched by the portal component
+        contacts={house.prehandover_config?.contacts || {}}
+        faqs={house.prehandover_config?.faqs || []}
       />
     );
   }
