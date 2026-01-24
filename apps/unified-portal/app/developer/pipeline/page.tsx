@@ -9,9 +9,9 @@ import { useRouter } from 'next/navigation';
 
 const tokens = {
   // Brand Colors
-  gold: '#D4A853',
-  goldLight: '#e8c878',
-  goldDark: '#b8923f',
+  gold: '#D4AF37',
+  goldLight: '#F5D874',
+  goldDark: '#B8934C',
   dark: '#1a1a1a',
   darker: '#0f0f0f',
   cream: '#fafaf8',

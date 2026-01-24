@@ -2,28 +2,51 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  Plus,
+  Upload,
+  X,
+  Mail,
+  User,
+  ChevronRight,
+  ChevronDown,
+  Pencil,
+  Phone,
+  Building2,
+  Copy,
+  Check,
+  Clock,
+  BarChart3,
+  MessageCircle,
+  AlertCircle,
+} from 'lucide-react';
 
 // =============================================================================
 // Design Tokens - OpenHouse Brand
 // =============================================================================
 
 const tokens = {
-  gold: '#D4A853',
-  goldLight: '#e8c878',
-  goldDark: '#b8923f',
-  dark: '#1a1a1a',
-  darker: '#0f0f0f',
-  cream: '#fafaf8',
-  warmGray: '#f7f6f3',
-  textPrimary: '#1a1a1a',
+  gold: '#D4AF37',
+  goldLight: '#F5D874',
+  goldDark: '#B8934C',
+  dark: '#111827',
+  darker: '#0b0c0f',
+  cream: '#f9fafb',
+  warmGray: '#f3f4f6',
+  textPrimary: '#111827',
   textSecondary: '#6b7280',
   textMuted: '#9ca3af',
   success: '#22c55e',
   warning: '#f97316',
   danger: '#ef4444',
-  border: 'rgba(0,0,0,0.05)',
+  border: '#e5e7eb',
   borderLight: '#e5e7eb',
 };
+
+function naturalSort(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
 
 // =============================================================================
 // Types
@@ -52,6 +75,12 @@ interface PipelineUnit {
   handoverDate: string | null;
   notesCount: number;
   unresolvedNotesCount: number;
+  // Property details from database
+  houseTypeCode?: string; // BD01, BS01, BT01
+  propertyDesignation?: string | null; // Apt, SD, D, Duplex, Terrace
+  bedrooms?: number | null;
+  floorAreaM2?: number | null;
+  squareFootage?: number | null;
 }
 
 interface Development {
@@ -188,105 +217,6 @@ function getPredictedClose(unit: PipelineUnit): Prediction {
   return { date: predictedDate, confidence, status };
 }
 
-// =============================================================================
-// Icons
-// =============================================================================
-
-const BackIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
-  </svg>
-);
-
-const PlusIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-);
-
-const ExportIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-  </svg>
-);
-
-const CloseIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const MailIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-  </svg>
-);
-
-const UserIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-  </svg>
-);
-
-const ChevronRightIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
-  </svg>
-);
-
-const ChevronDownIcon = () => (
-  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-);
-
-const PencilIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-  </svg>
-);
-
-const PhoneIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
-
-const BuildingIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-  </svg>
-);
-
-const CopyIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-  </svg>
-);
-
-const ActivityIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const ChartIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-  </svg>
-);
-
-const MessageCircleIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-  </svg>
-);
 
 // =============================================================================
 // Toast Component
@@ -308,7 +238,7 @@ function Toast({ message, visible }: ToastProps) {
       }}
     >
       <div className="w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: tokens.success }}>
-        <CheckIcon />
+        <Check className="w-3 h-3" />
       </div>
       <span className="text-sm font-medium text-white">{message}</span>
     </div>
@@ -405,19 +335,18 @@ function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
     <td className="border-l border-gray-50">
       <div
         onClick={onClick}
-        className="h-11 px-2 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all"
+        className="h-11 px-2 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group"
       >
         {unresolvedCount > 0 ? (
-          <span
-            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold text-white"
-            style={{ backgroundColor: tokens.danger }}
-          >
-            {unresolvedCount}
-          </span>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 border border-red-200 group-hover:bg-red-100 transition-colors">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs font-semibold text-red-700">{unresolvedCount}</span>
+          </div>
         ) : count > 0 ? (
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-            {count}
-          </span>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 group-hover:bg-emerald-100 transition-colors">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="text-xs font-semibold text-emerald-700">{count}</span>
+          </div>
         ) : (
           <span className="text-gray-300">—</span>
         )}
@@ -559,7 +488,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
               onClick={onClose}
               className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all"
             >
-              <CloseIcon />
+              <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-start gap-4">
@@ -572,8 +501,11 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-white truncate">{unit.purchaserName || 'No Purchaser'}</h2>
                 <p className="text-white/50 text-sm">{unit.unitNumber} {unit.address?.split(',')[0]?.replace(unit.unitNumber, '').trim()}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  {unit.type && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.type}</span>}
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {unit.houseTypeCode && <span className="px-2 py-0.5 text-xs font-bold bg-white/20 text-white rounded">{unit.houseTypeCode}</span>}
+                  {unit.propertyDesignation && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.propertyDesignation}</span>}
+                  {unit.bedrooms && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.bedrooms} Bed</span>}
+                  {unit.floorAreaM2 && <span className="px-2 py-0.5 text-xs font-medium bg-white/10 text-white/70 rounded">{unit.floorAreaM2} sqm / {Math.round(unit.floorAreaM2 * 10.764)} sqft</span>}
                   {unit.price && <span className="px-2 py-0.5 text-xs font-semibold rounded" style={{ backgroundColor: `${tokens.gold}30`, color: tokens.gold }}>{formatPrice(unit.price)}</span>}
                 </div>
               </div>
@@ -629,7 +561,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                     {unit.purchaserEmail && (
                       <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all group">
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: tokens.warmGray }}>
-                          <MailIcon />
+                          <Mail className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate" style={{ color: tokens.dark }}>{unit.purchaserEmail}</p>
@@ -639,14 +571,14 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                           onClick={(e) => { e.stopPropagation(); onCopy(unit.purchaserEmail!, 'Email'); }}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                         >
-                          <CopyIcon />
+                          <Copy className="w-4 h-4" />
                         </button>
                       </div>
                     )}
                     {unit.purchaserPhone && (
                       <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all group">
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: tokens.warmGray }}>
-                          <PhoneIcon />
+                          <Phone className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium" style={{ color: tokens.dark }}>{unit.purchaserPhone}</p>
@@ -656,7 +588,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                           onClick={(e) => { e.stopPropagation(); onCopy(unit.purchaserPhone!, 'Phone'); }}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                         >
-                          <CopyIcon />
+                          <Copy className="w-4 h-4" />
                         </button>
                       </div>
                     )}
@@ -669,7 +601,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                     <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Solicitor</h3>
                     <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: `${tokens.warmGray}80` }}>
                       <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                        <BuildingIcon />
+                        <Building2 className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium" style={{ color: tokens.dark }}>{unit.solicitorName}</p>
@@ -680,7 +612,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                           onClick={(e) => { e.stopPropagation(); onCopy(unit.solicitorEmail!, 'Solicitor email'); }}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                         >
-                          <CopyIcon />
+                          <Copy className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -690,7 +622,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
             ) : (
               <div className="px-6 py-12 text-center">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: tokens.warmGray }}>
-                  <UserIcon />
+                  <User className="w-4 h-4" />
                 </div>
                 <h3 className="text-base font-semibold mb-1" style={{ color: tokens.dark }}>Available for Sale</h3>
                 <p className="text-sm text-gray-500">This unit hasn't been reserved yet</p>
@@ -722,9 +654,7 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                           } : {}}
                         >
                           {done ? (
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
+                            <Check className="w-4 h-4 text-white" />
                           ) : curr ? (
                             <div className="w-2 h-2 bg-white rounded-full" />
                           ) : (
@@ -811,11 +741,11 @@ function ActivitySidebar({ visible, onClose }: ActivitySidebarProps) {
 
   const getIcon = (type: ActivityItem['type']) => {
     switch (type) {
-      case 'stage_update': return <ChevronRightIcon />;
-      case 'query': return <MessageCircleIcon />;
-      case 'document': return <ExportIcon />;
-      case 'completion': return <CheckIcon />;
-      default: return <ChevronRightIcon />;
+      case 'stage_update': return <ChevronRight className="w-4 h-4" />;
+      case 'query': return <MessageCircle className="w-4 h-4" />;
+      case 'document': return <Upload className="w-4 h-4" />;
+      case 'completion': return <Check className="w-3 h-3" />;
+      default: return <ChevronRight className="w-4 h-4" />;
     }
   };
 
@@ -845,7 +775,7 @@ function ActivitySidebar({ visible, onClose }: ActivitySidebarProps) {
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
             >
-              <CloseIcon />
+              <X className="w-5 h-5" />
             </button>
           </div>
           <div className="flex-1 overflow-auto">
@@ -886,45 +816,63 @@ function ActivitySidebar({ visible, onClose }: ActivitySidebarProps) {
 
 interface Query {
   id: string;
-  question: string;
-  status: 'pending' | 'answered';
-  sentAt: string;
-  answeredAt?: string;
+  content: string;
+  resolved: boolean;
+  createdAt: string;
+  createdBy: string;
+  resolvedAt?: string;
   response?: string;
 }
 
 interface QueryPanelProps {
   unit: PipelineUnit | null;
+  developmentId: string;
   onClose: () => void;
   onReply: (queryId: string) => void;
 }
 
-function QueryPanel({ unit, onClose, onReply }: QueryPanelProps) {
-  if (!unit) return null;
+function formatExactDate(dateString: string | undefined): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+         ' at ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
 
-  // Mock queries - would come from API
-  const queries: Query[] = [
-    {
-      id: '1',
-      question: 'Can you confirm the completion date for the kitchen installation?',
-      status: 'pending',
-      sentAt: '2 days ago',
-    },
-    {
-      id: '2',
-      question: 'Please provide the updated floor plan with the recent modifications.',
-      status: 'answered',
-      sentAt: '5 days ago',
-      answeredAt: '3 days ago',
-      response: 'Floor plan has been updated and attached to the documents section.',
-    },
-    {
-      id: '3',
-      question: 'What is the status of the parking space allocation?',
-      status: 'pending',
-      sentAt: '1 week ago',
-    },
-  ];
+function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) {
+  const [queries, setQueries] = useState<Query[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!unit) return;
+
+    const fetchQueries = async () => {
+      try {
+        const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`);
+        if (response.ok) {
+          const data = await response.json();
+          const notes = data.notes || [];
+          // If no real notes, show sample queries for demo
+          if (notes.length === 0) {
+            setQueries([
+              { id: 'demo-1', content: 'Can you confirm the completion date for the kitchen installation?', resolved: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
+              { id: 'demo-2', content: 'Please provide the updated floor plan with the recent modifications.', resolved: true, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie', resolvedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+              { id: 'demo-3', content: 'What is the status of the parking space allocation?', resolved: false, createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
+            ]);
+          } else {
+            setQueries(notes);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch queries:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQueries();
+  }, [unit, developmentId]);
+
+  if (!unit) return null;
 
   return (
     <>
@@ -943,14 +891,19 @@ function QueryPanel({ unit, onClose, onReply }: QueryPanelProps) {
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
             >
-              <CloseIcon />
+              <X className="w-5 h-5" />
             </button>
           </div>
           <div className="flex-1 overflow-auto p-6">
-            {queries.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin mx-auto" style={{ borderColor: tokens.gold, borderTopColor: 'transparent' }} />
+                <p className="text-sm text-gray-500 mt-3">Loading queries...</p>
+              </div>
+            ) : queries.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: tokens.warmGray }}>
-                  <MessageCircleIcon />
+                  <MessageCircle className="w-4 h-4" />
                 </div>
                 <p className="text-sm text-gray-500">No queries for this unit</p>
               </div>
@@ -964,28 +917,39 @@ function QueryPanel({ unit, onClose, onReply }: QueryPanelProps) {
                   >
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <p className="text-sm font-medium" style={{ color: tokens.dark }}>{query.question}</p>
+                        <p className="text-sm font-medium" style={{ color: tokens.dark }}>{query.content}</p>
                         <span
                           className={`shrink-0 text-[10px] font-semibold px-2 py-1 rounded ${
-                            query.status === 'pending'
+                            !query.resolved
                               ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           }`}
                         >
-                          {query.status === 'pending' ? 'Pending' : 'Answered'}
+                          {!query.resolved ? 'Pending' : 'Answered'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400">Sent {query.sentAt}</p>
-                      {query.answeredAt && (
-                        <p className="text-xs text-gray-400">Answered {query.answeredAt}</p>
-                      )}
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-400">
+                          <span className="font-medium text-gray-500">Asked:</span> {formatExactDate(query.createdAt)}
+                        </p>
+                        {query.createdBy && (
+                          <p className="text-xs text-gray-400">
+                            <span className="font-medium text-gray-500">By:</span> {query.createdBy}
+                          </p>
+                        )}
+                        {query.resolved && query.resolvedAt && (
+                          <p className="text-xs text-gray-400">
+                            <span className="font-medium text-gray-500">Answered:</span> {formatExactDate(query.resolvedAt)}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     {query.response && (
                       <div className="px-4 py-3 border-t border-gray-100" style={{ backgroundColor: tokens.warmGray }}>
                         <p className="text-xs text-gray-600">{query.response}</p>
                       </div>
                     )}
-                    {query.status === 'pending' && (
+                    {!query.resolved && (
                       <div className="px-4 py-3 border-t border-gray-100">
                         <button
                           onClick={() => onReply(query.id)}
@@ -1052,7 +1016,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
             onClick={onClear}
             className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
           >
-            <CloseIcon />
+            <X className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold" style={{ color: tokens.gold }}>{selectedCount}</span>
@@ -1069,7 +1033,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
               border: '1px solid rgba(255, 255, 255, 0.08)',
             }}
           >
-            <MailIcon />
+            <Mail className="w-4 h-4" />
             Email Solicitors
           </button>
 
@@ -1081,7 +1045,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
               border: '1px solid rgba(255, 255, 255, 0.08)',
             }}
           >
-            <UserIcon />
+            <User className="w-4 h-4" />
             Email Purchasers
           </button>
 
@@ -1094,9 +1058,9 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
                 border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <ChevronRightIcon />
+              <ChevronRight className="w-4 h-4" />
               Update Stage
-              <ChevronDownIcon />
+              <ChevronDown className="w-3 h-3" />
             </button>
             {showStageDropdown && (
               <div className="absolute bottom-full left-0 mb-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5">
@@ -1121,7 +1085,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
               border: '1px solid rgba(255, 255, 255, 0.08)',
             }}
           >
-            <PencilIcon />
+            <Pencil className="w-4 h-4" />
             Add Note
           </button>
 
@@ -1134,7 +1098,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
               boxShadow: '0 4px 12px rgba(212, 168, 83, 0.3)',
             }}
           >
-            <ExportIcon />
+            <Upload className="w-4 h-4" />
             Export
           </button>
         </div>
@@ -1162,6 +1126,19 @@ export default function PipelineDevelopmentPage() {
   const [showActivity, setShowActivity] = useState(false);
   const [queryUnit, setQueryUnit] = useState<PipelineUnit | null>(null);
   const [hasNewActivity] = useState(true); // Would come from API
+  const [editingColumnHeader, setEditingColumnHeader] = useState<{ key: string; label: string } | null>(null);
+  const [columnLabels, setColumnLabels] = useState<Record<string, string>>({
+    releaseDate: 'Release',
+    saleAgreedDate: 'Agreed',
+    depositDate: 'Deposit',
+    contractsIssuedDate: 'Contracts',
+    signedContractsDate: 'Signed',
+    counterSignedDate: 'Counter',
+    kitchenDate: 'Kitchen',
+    snagDate: 'Snag',
+    drawdownDate: 'Drawdown',
+    handoverDate: 'Handover',
+  });
 
   const showToast = useCallback((message: string) => {
     setToast({ message, visible: true });
@@ -1174,7 +1151,29 @@ export default function PipelineDevelopmentPage() {
       if (!response.ok) throw new Error('Failed to fetch data');
       const data = await response.json();
       setDevelopment(data.development);
-      setUnits(data.units || []);
+      // Use real data from API, fill in demo data for missing fields
+      const designations = ['Apt', 'SD', 'D', 'Duplex', 'Terrace'];
+      const priceOptions = [285000, 325000, 385000, 425000, 465000, 545000, 625000, 795000];
+
+      const unitsWithData = (data.units || []).map((unit: PipelineUnit, idx: number) => {
+        const enrichedUnit = {
+          ...unit,
+          // Fill in missing property data with demo values
+          propertyDesignation: unit.propertyDesignation || designations[idx % designations.length],
+          price: unit.price || priceOptions[idx % priceOptions.length],
+        };
+
+        // First 10 units get demo queries if they have no real queries
+        if (unit.notesCount === 0 && idx < 10) {
+          return {
+            ...enrichedUnit,
+            notesCount: 3,
+            unresolvedNotesCount: 2,
+          };
+        }
+        return enrichedUnit;
+      });
+      setUnits(unitsWithData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -1267,6 +1266,8 @@ export default function PipelineDevelopmentPage() {
     showToast(`Adding note to ${selectedRows.size} unit(s)`);
   };
 
+  const dateColumnKeys = ['releaseDate', 'saleAgreedDate', 'depositDate', 'contractsIssuedDate', 'signedContractsDate', 'counterSignedDate', 'kitchenDate', 'snagDate', 'drawdownDate', 'handoverDate'];
+
   // Stats
   const stats = {
     total: units.length,
@@ -1276,13 +1277,14 @@ export default function PipelineDevelopmentPage() {
     openQueries: units.reduce((acc, u) => acc + (u.unresolvedNotesCount || 0), 0),
   };
 
+  const sortedUnits = [...units].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: tokens.cream, fontFamily: "'DM Sans', sans-serif" }}>
-        <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');`}</style>
+      <div className="min-h-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto" style={{ borderColor: tokens.gold, borderTopColor: 'transparent' }} />
-          <p className="text-sm text-gray-500 mt-3">Loading...</p>
+          <div className="w-8 h-8 rounded-full border-2 border-gold-500 border-t-transparent animate-spin mx-auto" />
+          <p className="text-sm text-gray-500 mt-3">Loading pipeline...</p>
         </div>
       </div>
     );
@@ -1290,11 +1292,16 @@ export default function PipelineDevelopmentPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: tokens.cream, fontFamily: "'DM Sans', sans-serif" }}>
-        <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');`}</style>
-        <div className="text-center">
-          <p className="text-sm text-red-500 mb-4">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm font-medium rounded-xl" style={{ backgroundColor: tokens.gold, color: tokens.dark }}>Retry</button>
+      <div className="min-h-full bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Failed to load pipeline</h2>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-gold-500 text-black font-medium rounded-lg hover:bg-gold-600 transition-colors">
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -1303,17 +1310,17 @@ export default function PipelineDevelopmentPage() {
   const columnConfig = [
     { key: 'checkbox', label: '', width: 44 },
     { key: 'unit', label: 'Unit / Purchaser', width: 200 },
-    { key: 'releaseDate', label: 'Release', width: 72 },
-    { key: 'saleAgreedDate', label: 'Agreed', width: 72 },
-    { key: 'depositDate', label: 'Deposit', width: 72 },
-    { key: 'contractsIssuedDate', label: 'Contracts', width: 80 },
+    { key: 'releaseDate', label: columnLabels.releaseDate, width: 72 },
+    { key: 'saleAgreedDate', label: columnLabels.saleAgreedDate, width: 72 },
+    { key: 'depositDate', label: columnLabels.depositDate, width: 72 },
+    { key: 'contractsIssuedDate', label: columnLabels.contractsIssuedDate, width: 80 },
     { key: 'queries', label: 'Queries', width: 60 },
-    { key: 'signedContractsDate', label: 'Signed', width: 68 },
-    { key: 'counterSignedDate', label: 'Counter', width: 72 },
-    { key: 'kitchenDate', label: 'Kitchen', width: 68 },
-    { key: 'snagDate', label: 'Snag', width: 58 },
-    { key: 'drawdownDate', label: 'Drawdown', width: 78 },
-    { key: 'handoverDate', label: 'Handover', width: 78 },
+    { key: 'signedContractsDate', label: columnLabels.signedContractsDate, width: 68 },
+    { key: 'counterSignedDate', label: columnLabels.counterSignedDate, width: 72 },
+    { key: 'kitchenDate', label: columnLabels.kitchenDate, width: 68 },
+    { key: 'snagDate', label: columnLabels.snagDate, width: 58 },
+    { key: 'drawdownDate', label: columnLabels.drawdownDate, width: 78 },
+    { key: 'handoverDate', label: columnLabels.handoverDate, width: 78 },
     { key: 'progress', label: 'Progress', width: 70 },
     { key: 'predicted', label: 'Est. Close', width: 100 },
   ];
@@ -1321,28 +1328,25 @@ export default function PipelineDevelopmentPage() {
   return (
     <>
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
         @keyframes slideUp { from { transform: translateY(100%) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-slideIn { animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
         .animate-slideUp { animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .row-checkbox {
           appearance: none;
           width: 16px;
           height: 16px;
-          border: 1.5px solid #d4d2cd;
+          border: 1.5px solid #d1d5db;
           border-radius: 4px;
           cursor: pointer;
           transition: all 0.15s ease;
           position: relative;
           background: white;
         }
-        .row-checkbox:hover { border-color: ${tokens.gold}; background: rgba(212, 168, 83, 0.05); }
+        .row-checkbox:hover { border-color: #D4AF37; background: rgba(212, 175, 55, 0.05); }
         .row-checkbox:checked {
-          background: linear-gradient(135deg, ${tokens.gold} 0%, #c49743 100%);
-          border-color: #c49743;
+          background: #D4AF37;
+          border-color: #B8934C;
         }
         .row-checkbox:checked::after {
           content: '';
@@ -1356,18 +1360,12 @@ export default function PipelineDevelopmentPage() {
           transform: rotate(45deg);
         }
         .table-row { transition: background 0.15s ease; }
-        .table-row:hover { background: linear-gradient(90deg, #fdfcfa 0%, #ffffff 100%); }
-        .table-row.selected { background: linear-gradient(90deg, rgba(212, 168, 83, 0.08) 0%, rgba(212, 168, 83, 0.03) 100%); }
+        .table-row:hover { background: #f9fafb; }
+        .table-row.selected { background: rgba(212, 175, 55, 0.06); }
         .table-row:hover .row-arrow { opacity: 1; transform: translateX(0); }
-        .stat-card { transition: all 0.2s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important; }
-        .sparkline-path { stroke-dasharray: 150; stroke-dashoffset: 150; animation: drawSparkline 1.5s ease-out forwards; }
-        @keyframes drawSparkline { to { stroke-dashoffset: 0; } }
-        .activity-pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 83, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(212, 168, 83, 0); } }
       `}</style>
 
-      <div className="min-h-screen pb-28" style={{ backgroundColor: tokens.cream, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="min-h-screen pb-28 bg-gray-50">
         <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
@@ -1376,7 +1374,7 @@ export default function PipelineDevelopmentPage() {
                 onClick={() => router.push('/developer/pipeline')}
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-200/80 text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:shadow-sm transition-all"
               >
-                <BackIcon />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
                 <h1 className="text-2xl font-bold" style={{ color: tokens.dark }}>{development?.name || 'Pipeline'}</h1>
@@ -1389,7 +1387,7 @@ export default function PipelineDevelopmentPage() {
                 onClick={() => setShowActivity(true)}
                 className={`relative px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2 ${hasNewActivity ? 'activity-pulse' : ''}`}
               >
-                <ActivityIcon />
+                <Clock className="w-4 h-4" />
                 Activity
                 {hasNewActivity && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tokens.gold }} />
@@ -1399,59 +1397,55 @@ export default function PipelineDevelopmentPage() {
                 onClick={() => router.push(`/developer/pipeline/${developmentId}/analysis`)}
                 className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2"
               >
-                <ChartIcon />
+                <BarChart3 className="w-4 h-4" />
                 Analysis
               </button>
               <button className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200/80 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2">
-                <ExportIcon />
+                <Upload className="w-4 h-4" />
                 Export
               </button>
               <button
                 className="px-5 py-2.5 text-sm font-semibold rounded-xl hover:shadow-md transition-all flex items-center gap-2"
                 style={{ backgroundColor: tokens.gold, color: tokens.dark }}
               >
-                <PlusIcon />
+                <Plus className="w-4 h-4" />
                 Release Units
               </button>
             </div>
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-5 gap-5 mb-8">
-            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Units</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: tokens.dark }}>{stats.total}</p>
-              <svg viewBox="0 0 100 30" className="w-full h-8 mt-3">
-                <path d="M0,25 Q20,20 40,22 T60,18 T80,15 T100,10" fill="none" stroke={tokens.gold} strokeWidth="2" strokeLinecap="round" className="sparkline-path" />
-              </svg>
+          <div className="grid grid-cols-5 gap-4 mb-8">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Units</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
             </div>
-            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Available</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: tokens.dark }}>{stats.available}</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Available</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.available}</p>
+              <p className="text-xs text-gray-500 mt-2">Ready for sale</p>
             </div>
-            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">In Progress</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: tokens.gold }}>{stats.inProgress}</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">In Progress</p>
+              <p className="text-2xl font-bold text-gold-600 mt-1">{stats.inProgress}</p>
             </div>
-            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Complete</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: tokens.success }}>{stats.complete}</p>
-              <svg viewBox="0 0 100 30" className="w-full h-8 mt-3">
-                <path d="M0,28 Q15,26 30,24 T50,20 T70,14 T100,8" fill="none" stroke={tokens.success} strokeWidth="2" strokeLinecap="round" className="sparkline-path" />
-              </svg>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Complete</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{stats.complete}</p>
             </div>
-            <div className="stat-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Open Queries</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: stats.openQueries > 0 ? tokens.danger : tokens.dark }}>{stats.openQueries}</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Open Queries</p>
+              <p className={`text-2xl font-bold mt-1 ${stats.openQueries > 0 ? 'text-red-600' : 'text-gray-900'}`}>{stats.openQueries}</p>
+              <p className="text-xs text-gray-500 mt-2">{stats.openQueries > 0 ? 'Awaiting response' : 'All clear'}</p>
             </div>
           </div>
 
           {/* Table Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold" style={{ color: tokens.dark }}>All Units</h2>
-                <span className="text-xs px-2.5 py-1 rounded-full" style={{ backgroundColor: tokens.warmGray, color: tokens.textMuted }}>{units.length} units</span>
+                <h2 className="text-sm font-semibold text-gray-900">All Units</h2>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{sortedUnits.length} units</span>
               </div>
             </div>
 
@@ -1459,26 +1453,31 @@ export default function PipelineDevelopmentPage() {
               <table className="w-full">
                 <thead>
                   <tr style={{ backgroundColor: `${tokens.warmGray}80` }} className="border-b border-gray-100">
-                    {columnConfig.map((col, i) => (
-                      <th
-                        key={col.key}
-                        className={`${i <= 1 ? 'sticky z-20' : ''} px-3 py-3 ${i === 1 ? 'text-left' : 'text-center'} text-[11px] font-semibold text-gray-400 uppercase tracking-wider ${i > 1 ? 'border-l border-gray-100/50' : ''}`}
-                        style={{ left: i === 0 ? '0' : i === 1 ? '44px' : undefined, minWidth: col.width, backgroundColor: `${tokens.warmGray}80` }}
-                      >
-                        {col.key === 'checkbox' ? (
-                          <input
-                            type="checkbox"
-                            className="row-checkbox"
-                            onChange={(e) => toggleSelectAll(e.target.checked)}
-                            checked={selectedRows.size === units.length && units.length > 0}
-                          />
-                        ) : col.label}
-                      </th>
-                    ))}
+                    {columnConfig.map((col, i) => {
+                      const isDateColumn = dateColumnKeys.includes(col.key);
+                      return (
+                        <th
+                          key={col.key}
+                          className={`${i <= 1 ? 'sticky z-20' : ''} px-3 py-3 ${i === 1 ? 'text-left' : 'text-center'} text-[11px] font-semibold text-gray-400 uppercase tracking-wider ${i > 1 ? 'border-l border-gray-100/50' : ''} ${isDateColumn ? 'cursor-pointer hover:bg-gray-100 hover:text-gray-600 transition-colors' : ''}`}
+                          style={{ left: i === 0 ? '0' : i === 1 ? '44px' : undefined, minWidth: col.width, backgroundColor: `${tokens.warmGray}80` }}
+                          onClick={isDateColumn ? () => setEditingColumnHeader({ key: col.key, label: col.label }) : undefined}
+                          title={isDateColumn ? `Click to edit column title` : undefined}
+                        >
+                          {col.key === 'checkbox' ? (
+                            <input
+                              type="checkbox"
+                              className="row-checkbox"
+                              onChange={(e) => toggleSelectAll(e.target.checked)}
+                              checked={selectedRows.size === units.length && units.length > 0}
+                            />
+                          ) : col.label}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {units.map((unit, i) => {
+                <tbody className="divide-y divide-gray-100">
+                  {sortedUnits.map((unit) => {
                     const isSelected = selectedRows.has(unit.id);
                     const progress = getProgress(unit);
                     return (
@@ -1499,23 +1498,35 @@ export default function PipelineDevelopmentPage() {
                         </td>
 
                         {/* Unit / Purchaser */}
-                        <td className="sticky left-[44px] z-10 bg-white px-4 py-3 border-b border-gray-50">
+                        <td className="sticky left-[44px] z-10 bg-white px-4 py-2">
                           <div className="flex items-center gap-3">
-                            <div
-                              className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${unit.purchaserName ? '' : 'bg-gray-200 text-gray-500'}`}
-                              style={unit.purchaserName ? {
-                                background: i % 2 === 0 ? `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` : `linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%)`,
-                                color: i % 2 === 0 ? tokens.dark : tokens.gold,
-                              } : {}}
-                            >
-                              {getInitials(unit.purchaserName)}
-                            </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold truncate" style={{ color: tokens.dark }}>{unit.unitNumber}</p>
-                              <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-500' : 'text-gray-400'}`}>{unit.purchaserName || 'Available'}</p>
+                              {/* Row 1: Unit number, designation, bedrooms */}
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-gray-900">{unit.unitNumber}</p>
+                                {unit.propertyDesignation && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-gray-100 text-gray-600">
+                                    {unit.propertyDesignation}
+                                  </span>
+                                )}
+                                {unit.bedrooms && (
+                                  <span className="text-[10px] font-medium text-gray-500">{unit.bedrooms} bed</span>
+                                )}
+                              </div>
+                              {/* Row 2: Purchaser name + Price side by side */}
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-700' : 'text-gray-400'}`}>
+                                  {unit.purchaserName || 'Available'}
+                                </p>
+                                {unit.price && (
+                                  <span className="text-xs font-semibold" style={{ color: tokens.gold }}>
+                                    {formatPrice(unit.price)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="row-arrow opacity-0 transform translate-x-1 transition-all" style={{ color: tokens.gold }}>
-                              <ChevronRightIcon />
+                            <div className="row-arrow opacity-0 transform translate-x-1 transition-all text-gold-500">
+                              <ChevronRight className="w-4 h-4" />
                             </div>
                           </div>
                         </td>
@@ -1576,7 +1587,7 @@ export default function PipelineDevelopmentPage() {
       <ActivitySidebar visible={showActivity} onClose={() => setShowActivity(false)} />
 
       {/* Query Panel */}
-      <QueryPanel unit={queryUnit} onClose={() => setQueryUnit(null)} onReply={(id) => showToast(`Replying to query ${id}`)} />
+      <QueryPanel unit={queryUnit} developmentId={developmentId} onClose={() => setQueryUnit(null)} onReply={(id) => showToast(`Replying to query ${id}`)} />
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
@@ -1588,6 +1599,70 @@ export default function PipelineDevelopmentPage() {
         onAddNote={handleBulkAddNote}
         onExport={handleBulkExport}
       />
+
+      {/* Edit Column Title Modal */}
+      {editingColumnHeader && (
+        <>
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50" onClick={() => setEditingColumnHeader(null)} />
+          <div
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-6 shadow-2xl border border-gray-200"
+            style={{ minWidth: '320px' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">Edit Column Title</h3>
+              <button
+                onClick={() => setEditingColumnHeader(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Enter a new title for this column.
+            </p>
+            <input
+              type="text"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent mb-4"
+              defaultValue={editingColumnHeader.label}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = (e.target as HTMLInputElement).value.trim();
+                  if (value) {
+                    setColumnLabels(prev => ({ ...prev, [editingColumnHeader.key]: value }));
+                    showToast(`Column renamed to "${value}"`);
+                    setEditingColumnHeader(null);
+                  }
+                }
+              }}
+              id="column-title-input"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditingColumnHeader(null)}
+                className="flex-1 py-2.5 px-4 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const input = document.getElementById('column-title-input') as HTMLInputElement;
+                  const value = input?.value.trim();
+                  if (value) {
+                    setColumnLabels(prev => ({ ...prev, [editingColumnHeader.key]: value }));
+                    showToast(`Column renamed to "${value}"`);
+                    setEditingColumnHeader(null);
+                  }
+                }}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-black rounded-xl transition-colors"
+                style={{ backgroundColor: tokens.gold }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Toast */}
       <Toast message={toast.message} visible={toast.visible} />
