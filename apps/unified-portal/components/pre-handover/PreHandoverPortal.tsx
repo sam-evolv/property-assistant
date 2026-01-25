@@ -154,16 +154,27 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
 
         {/* Property Card - Cleaner Design */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          {/* Home Icon */}
+          {/* Development Logo or Home Icon */}
           <div className="flex justify-center mb-4">
             <div className="relative">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 
-                flex items-center justify-center border border-[#D4AF37]/20">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
-                  flex items-center justify-center shadow-sm">
-                  <Home className="w-5 h-5 text-white" />
+              {props.developmentLogoUrl ? (
+                <div className="w-16 h-16 rounded-full bg-white border border-gray-200 
+                  flex items-center justify-center overflow-hidden shadow-sm">
+                  <img 
+                    src={props.developmentLogoUrl} 
+                    alt={props.developmentName || 'Development'} 
+                    className="w-12 h-12 object-contain"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-50 to-amber-100 
+                  flex items-center justify-center border border-[#D4AF37]/20">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
+                    flex items-center justify-center shadow-sm">
+                    <Home className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+              )}
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-gray-200 
                 flex items-center justify-center shadow-sm">
                 <span className="text-[9px] font-bold text-[#D4AF37]">{completedCount}/{MILESTONE_ORDER.length}</span>
