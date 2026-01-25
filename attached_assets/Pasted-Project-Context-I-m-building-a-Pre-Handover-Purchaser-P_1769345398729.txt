@@ -1,0 +1,97 @@
+Project Context
+I'm building a Pre-Handover Purchaser Portal - a mobile-first experience for homebuyers before their keys are handed over. This portal will be merged into our main Property Assistant app, so the design must be consistent with the existing app's premium aesthetic.
+Current Location
+The pre-handover portal is at:
+
+Route: /purchaser/pre-handover
+Components: apps/unified-portal/components/pre-handover/
+
+Key files to redesign:
+
+PreHandoverHome.tsx - Main dashboard layout
+PropertyCard.tsx - Hero property card with progress
+QuickActionsGrid.tsx - 4-button action grid (Timeline, Docs, FAQ, Contact)
+KeyDatesCard.tsx - Calendar integration card
+AskQuestionCard.tsx - AI chat entry point
+BottomNav.tsx - Fixed bottom navigation
+BottomSheet.tsx - Slide-up sheet component
+TimelineSheet.tsx - Journey milestone timeline
+DocumentsSheet.tsx - Document list
+FAQSheet.tsx - FAQ accordion
+ContactSheet.tsx - Contact options
+CalendarSheet.tsx - Add to calendar options
+SettingsSheet.tsx - Settings menu
+ChatSheet.tsx - AI question input
+
+Design System (Must Follow)
+Use these OpenHouse design tokens consistently:
+javascript// Colors
+gold: {
+  50: '#FEFCE8',
+  100: '#FEF9C3',
+  200: '#FEF08A',
+  300: '#FDE047',
+  400: '#FACC15',
+  500: '#D4AF37',  // Primary gold
+  600: '#B8941F',
+  700: '#A67C3A',
+  800: '#8B6428',
+  900: '#6B4E1C',
+}
+
+grey: {
+  50: '#F9FAFB',
+  100: '#F6F6F6',
+  200: '#EDEDED',
+  300: '#D5D5D5',
+  400: '#9CA3AF',
+  500: '#6B7280',
+  600: '#4B5563',
+  700: '#374151',
+  800: '#1F2937',
+  900: '#111827',
+}
+
+black: '#0B0B0B'
+
+// Background
+Portal background: linear-gradient(180deg, #FAF8F3 0%, #F5F1EA 100%)
+
+// Card styling
+Glass card: bg-white/85 backdrop-blur-xl border border-white/90
+Shadow: 0 2px 12px rgba(12,12,12,0.04)
+Border radius: rounded-2xl (cards), rounded-xl (buttons)
+
+// Typography
+Font: Inter
+Design Goals
+
+Premium & Elegant - Luxury property feel, not generic app
+Mobile-First - Touch-friendly, iOS safe areas, smooth animations
+Consistent with Property Assistant - Same visual language as the main app
+Intuitive UX - Clear hierarchy, obvious actions, delightful interactions
+Accessible - Good contrast, readable text, clear touch targets
+
+Current Features to Preserve
+
+Property Card - Shows address, type, status badge, progress bar, current milestone
+Quick Actions - 4-button grid opening bottom sheets
+Key Dates Card - Add upcoming dates to calendar
+Ask Question Card - Entry point to AI chat
+Bottom Navigation - Home, Docs, Chat, More tabs
+Bottom Sheets - Slide-up panels for Timeline, Docs, FAQ, Contact, Calendar, Settings, Chat
+
+What to Improve
+
+Make it feel more premium and polished
+Better visual hierarchy
+Smoother animations and micro-interactions
+More consistent spacing and alignment
+Better status indicators
+More engaging progress visualization
+Ensure it matches the Property Assistant app's dark/light aesthetic
+
+API Endpoint
+Demo data is served from: /api/purchaser/pre-handover
+Output
+After redesigning, I will export the updated component files and implement them in the production app via Cowork.
