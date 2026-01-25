@@ -265,7 +265,7 @@ export default function PreHandoverSettingsPage() {
             </div>
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => developmentId && window.open(`/developer/pre-handover-settings/preview?developmentId=${developmentId}`, '_blank')}
+                onClick={() => developmentId && window.open(`/preview?developmentId=${developmentId}`, '_blank')}
                 disabled={!developmentId}
                 className="bg-white text-gray-700 px-5 py-2.5 rounded-lg font-medium text-sm border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
