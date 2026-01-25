@@ -320,16 +320,16 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
       >
         <div className="flex items-center justify-around py-2 px-4 max-w-md mx-auto">
           {[
-            { id: 'home', label: 'Assistant', icon: MessageSquare, active: true },
-            { id: 'maps', label: 'Maps', icon: MapPin },
-            { id: 'noticeboard', label: 'Noticeboard', icon: Bell },
+            { id: 'home', label: 'Home', icon: Home, active: true },
             { id: 'docs', label: 'Docs', icon: FileText },
+            { id: 'chat', label: 'Chat', icon: MessageSquare },
+            { id: 'more', label: 'More', icon: Settings },
           ].map((item) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.id}
-                onClick={() => item.id === 'docs' && openSheet('docs')}
+                onClick={() => item.id !== 'home' && openSheet(item.id as SheetType)}
                 className="flex flex-col items-center gap-1 py-1 px-3 transition-all duration-150"
               >
                 <Icon 
@@ -537,6 +537,53 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
           </div>
           <h3 className="text-base font-semibold text-gray-900 mb-2">Coming Soon</h3>
           <p className="text-sm text-gray-500 max-w-xs mx-auto">Our AI assistant will be available to answer your questions about your new home.</p>
+        </div>
+      </BottomSheet>
+
+      {/* More Sheet */}
+      <BottomSheet isOpen={activeSheet === 'more'} onClose={closeSheet}>
+        <SheetHeader title="More Options" />
+        <div className="px-5 py-4 space-y-2">
+          <SheetItem onClick={() => { closeSheet(); setTimeout(() => openSheet('timeline'), 100); }}>
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center border border-[#D4AF37]/10">
+              <Clock className="w-5 h-5 text-[#B8941F]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Timeline</p>
+              <p className="text-xs text-gray-500">View your home journey</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </SheetItem>
+          <SheetItem onClick={() => { closeSheet(); setTimeout(() => openSheet('faq'), 100); }}>
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center border border-[#D4AF37]/10">
+              <HelpCircle className="w-5 h-5 text-[#B8941F]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">FAQ</p>
+              <p className="text-xs text-gray-500">Frequently asked questions</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </SheetItem>
+          <SheetItem onClick={() => { closeSheet(); setTimeout(() => openSheet('contact'), 100); }}>
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center border border-[#D4AF37]/10">
+              <Phone className="w-5 h-5 text-[#B8941F]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Contact</p>
+              <p className="text-xs text-gray-500">Get in touch with us</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </SheetItem>
+          <SheetItem onClick={() => { closeSheet(); setTimeout(() => openSheet('settings'), 100); }}>
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center border border-[#D4AF37]/10">
+              <Settings className="w-5 h-5 text-[#B8941F]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">Settings</p>
+              <p className="text-xs text-gray-500">Preferences and account</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </SheetItem>
         </div>
       </BottomSheet>
 
