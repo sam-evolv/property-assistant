@@ -548,10 +548,10 @@ export default function PreHandoverSettingsPage() {
                   <span className="text-xs text-gray-600">Tap to interact</span>
                 </div>
 
-                {/* Phone Device Frame */}
-                <div className="w-[280px] h-[580px] bg-white rounded-[32px] border-[8px] border-gray-900 overflow-hidden relative">
+                {/* Phone Device Frame - Rose Gold */}
+                <div className="w-[280px] h-[580px] bg-white rounded-[32px] border-[8px] border-[#E8C8B8] overflow-hidden relative shadow-xl">
                   {/* Notch */}
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120px] h-[28px] bg-gray-900 rounded-b-2xl z-10" />
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[100px] h-[24px] bg-[#E8C8B8] rounded-b-xl z-10" />
 
                   {/* Backdrop */}
                   <div 
@@ -559,18 +559,22 @@ export default function PreHandoverSettingsPage() {
                     onClick={closeSheet}
                   />
 
-                  <div className="h-full pt-10 pb-4 px-4 flex flex-col overflow-hidden relative">
+                  <div className="h-full pt-8 flex flex-col overflow-hidden relative bg-white">
                     {/* Phone Header */}
-                    <div className="flex items-center justify-between py-3">
-                      <div>
-                        <p className="text-[10px] text-gray-700">{getTimeGreeting()}</p>
-                        <p className="text-sm font-semibold text-gray-900">My Home</p>
+                    <div className="flex items-center justify-between px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded bg-gray-900 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L8 6H4v4l-4 4 4 4v4h4l4 4 4-4h4v-4l4-4-4-4V6h-4l-4-4z"/>
+                          </svg>
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-900">Longview</span>
                       </div>
                       <button 
                         onClick={() => openSheet('settings')}
-                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-sm"
+                        className="w-6 h-6 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
                       >
-                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -578,126 +582,160 @@ export default function PreHandoverSettingsPage() {
                     </div>
 
                     {/* Phone Main Content */}
-                    <div className="flex-1 flex flex-col items-center pt-2 overflow-auto scrollbar-hide cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div className="flex-1 flex flex-col px-4 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                       {/* Welcome Greeting */}
-                      <p className="text-[10px] text-gray-600 mb-2 text-center px-2">
-                        {config.greeting}, <strong>Sarah</strong>
+                      <p className="text-[11px] text-gray-900 text-center mt-2 mb-4">
+                        {getTimeGreeting()}, <strong>Showhouse</strong>
                       </p>
 
                       {/* Property Card */}
-                      <div className="bg-white rounded-2xl p-4 w-full text-center shadow-sm border border-gray-100">
-                        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#D4AF37]/5 flex items-center justify-center border border-[#D4AF37]/20">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37] to-amber-600 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 3L4 9v12h5v-7h6v7h5V9l-8-6z"/>
-                            </svg>
-                          </div>
+                      <div className="border border-gray-200 rounded-xl p-4 text-center">
+                        {/* Development Logo */}
+                        <div className="w-10 h-10 mx-auto mb-2 rounded bg-gray-900 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L8 6H4v4l-4 4 4 4v4h4l4 4 4-4h4v-4l4-4-4-4V6h-4l-4-4z"/>
+                          </svg>
                         </div>
-                        <p className="font-serif text-base text-gray-900">14 Example Park</p>
-                        <p className="text-[10px] text-gray-700 mt-0.5">3 Bed Semi-Detached · Type B</p>
+                        <p className="text-[10px] text-gray-500 mb-1">Longview</p>
                         
-                        <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span className="text-[10px] font-medium text-emerald-700">
+                        <p className="text-sm font-semibold text-gray-900">14 Example Park</p>
+                        <p className="text-[11px] text-gray-600 mt-0.5">3 Bed · Type B</p>
+                        
+                        {/* Status Badge */}
+                        <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E8F5E9] border border-[#C8E6C9] rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4CAF50]" />
+                          <span className="text-[10px] font-medium text-[#2E7D32]">
                             {config.statusMessages.onTrack} · Est. {formatEstMonth(config.estHandover)}
                           </span>
                         </div>
 
-                        <div className="my-3 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-
-                        <div className="text-left">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[9px] font-medium text-gray-600 uppercase tracking-wider">Progress</span>
-                            <span className="text-[10px] font-semibold text-[#D4AF37]">{progressPercent}%</span>
+                        {/* Progress Section */}
+                        <div className="mt-4 text-left">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Progress</span>
+                            <span className="text-[11px] font-semibold text-[#D4AF37]">{progressPercent}%</span>
                           </div>
-                          <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                          
+                          {/* Multi-step Progress Bar */}
+                          <div className="relative">
+                            <div className="h-1 bg-gray-200 rounded-full" />
                             <div 
-                              className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-amber-400 transition-all duration-300"
+                              className="absolute top-0 left-0 h-1 bg-[#4CAF50] rounded-full transition-all duration-300"
                               style={{ width: `${progressPercent}%` }}
                             />
+                            {/* Milestone Dots */}
+                            <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-0">
+                              {enabledMilestones.map((m, i) => (
+                                <div 
+                                  key={m.id}
+                                  className={`w-2 h-2 rounded-full border-2 ${
+                                    i < currentMilestoneIndex 
+                                      ? 'bg-[#4CAF50] border-[#4CAF50]' 
+                                      : i === currentMilestoneIndex 
+                                        ? 'bg-white border-[#4CAF50]' 
+                                        : 'bg-white border-gray-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
                           </div>
-                          <div className="mt-2 flex items-center justify-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
-                            <span className="text-[10px] text-gray-600">
-                              <span className="font-medium">{enabledMilestones[currentMilestoneIndex]?.label || 'Snagging'}</span>
-                              <span className="text-gray-600"> · Est. 28 Jan</span>
+                          
+                          {/* Current Milestone */}
+                          <div className="mt-3 flex items-center justify-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-[#FFC107]" />
+                            <span className="text-[11px] text-gray-900 font-medium">
+                              {enabledMilestones[currentMilestoneIndex]?.label || 'Closing'}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Buttons Grid */}
-                      <div className="grid grid-cols-4 gap-1.5 mt-3 w-full">
-                        <button onClick={() => openSheet('timeline')} className="bg-white rounded-xl p-2 text-center border border-gray-100 hover:scale-105 active:scale-95 transition-transform shadow-sm">
-                          <div className="w-6 h-6 mx-auto rounded-lg bg-violet-50 flex items-center justify-center mb-1">
-                            <svg className="w-3 h-3 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </div>
-                          <span className="text-[8px] text-gray-600">Timeline</span>
+                      {/* Action Pill Buttons */}
+                      <div className="flex items-center justify-center gap-2 mt-4">
+                        <button onClick={() => openSheet('timeline')} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors">
+                          <svg className="w-3.5 h-3.5 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <span className="text-[10px] text-gray-900">Timeline</span>
                         </button>
-                        <button onClick={() => openSheet('docs')} className="bg-white rounded-xl p-2 text-center border border-gray-100 hover:scale-105 active:scale-95 transition-transform shadow-sm">
-                          <div className="w-6 h-6 mx-auto rounded-lg bg-blue-50 flex items-center justify-center mb-1">
-                            <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                          </div>
-                          <span className="text-[8px] text-gray-600">Docs</span>
+                        <button onClick={() => openSheet('docs')} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors">
+                          <svg className="w-3.5 h-3.5 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                          <span className="text-[10px] text-gray-900">Docs</span>
                         </button>
-                        <button onClick={() => openSheet('faq')} className="bg-white rounded-xl p-2 text-center border border-gray-100 hover:scale-105 active:scale-95 transition-transform shadow-sm">
-                          <div className="w-6 h-6 mx-auto rounded-lg bg-amber-50 flex items-center justify-center mb-1">
-                            <svg className="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          </div>
-                          <span className="text-[8px] text-gray-600">FAQ</span>
-                        </button>
-                        <button onClick={() => openSheet('contact')} className="bg-white rounded-xl p-2 text-center border border-gray-100 hover:scale-105 active:scale-95 transition-transform shadow-sm">
-                          <div className="w-6 h-6 mx-auto rounded-lg bg-emerald-50 flex items-center justify-center mb-1">
-                            <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                          </div>
-                          <span className="text-[8px] text-gray-600">Contact</span>
+                        <button onClick={() => openSheet('faq')} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors">
+                          <svg className="w-3.5 h-3.5 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <span className="text-[10px] text-gray-900">FAQ</span>
                         </button>
                       </div>
 
                       {/* Key Dates Card */}
                       <button
                         onClick={() => openSheet('calendar')}
-                        className="w-full mt-3 bg-white rounded-xl p-3 border border-gray-100 shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-transform text-left"
+                        className="w-full mt-4 bg-white rounded-xl p-3 border border-gray-200 hover:border-gray-300 transition-colors text-left"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center">
-                              <svg className="w-3 h-3 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
                             <div>
-                              <p className="text-[10px] font-medium text-gray-900">Key Dates</p>
-                              <p className="text-[8px] text-gray-700">Snagging, Handover</p>
+                              <p className="text-[11px] font-medium text-gray-900">Key Dates</p>
+                              <p className="text-[10px] text-gray-500">Snagging, Handover</p>
                             </div>
                           </div>
-                          <span className="text-[8px] text-[#D4AF37] font-medium">Add to Calendar →</span>
+                          <span className="text-[10px] text-[#D4AF37] font-medium">Add to Calendar &gt;</span>
+                        </div>
+                      </button>
+
+                      {/* Ask a Question Card */}
+                      <button
+                        onClick={() => openSheet('faq')}
+                        className="w-full mt-2 bg-white rounded-xl p-3 border border-gray-200 hover:border-gray-300 transition-colors text-left mb-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#FFF8E1] flex items-center justify-center">
+                              <svg className="w-4 h-4 text-[#F9A825]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-medium text-gray-900">Ask a Question</p>
+                              <p className="text-[10px] text-gray-500">Get answers about your home</p>
+                            </div>
+                          </div>
+                          <svg className="w-4 h-4 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
                         </div>
                       </button>
                     </div>
 
                     {/* Phone Bottom Navigation */}
-                    <div className="mt-auto pt-2 border-t border-gray-200/50 relative z-10 bg-gradient-to-t from-white to-transparent">
+                    <div className="border-t border-gray-100 bg-white py-2 px-2">
                       <div className="flex items-center justify-around">
                         {[
-                          { id: 'home', icon: 'home', label: 'Home' },
-                          { id: 'docs', icon: 'doc', label: 'Docs' },
-                          { id: 'faq', icon: 'question', label: 'FAQ' },
+                          { id: 'home', label: 'Home', icon: 'home' },
+                          { id: 'docs', label: 'Docs', icon: 'doc' },
+                          { id: 'chat', label: 'Chat', icon: 'chat' },
+                          { id: 'more', label: 'More', icon: 'more' },
                         ].map(nav => (
                           <button
                             key={nav.id}
                             onClick={() => {
                               if (nav.id === 'home') closeSheet();
-                              else openSheet(nav.id);
+                              else if (nav.id === 'docs') openSheet('docs');
+                              else if (nav.id === 'more') openSheet('settings');
                             }}
-                            className="text-center"
+                            className="flex flex-col items-center gap-0.5 py-1 px-2"
                           >
-                            <svg className={`w-5 h-5 mx-auto ${activeNav === nav.id ? 'text-[#D4AF37]' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-5 h-5 ${nav.id === 'home' ? 'text-[#D4AF37]' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               {nav.icon === 'home' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />}
                               {nav.icon === 'doc' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />}
-                              {nav.icon === 'question' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                              {nav.icon === 'chat' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />}
+                              {nav.icon === 'more' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />}
                             </svg>
-                            <span className={`text-[8px] ${activeNav === nav.id ? 'text-[#D4AF37] font-semibold' : 'text-gray-400'}`}>{nav.label}</span>
+                            <span className={`text-[9px] ${nav.id === 'home' ? 'text-[#D4AF37] font-medium' : 'text-gray-400'}`}>{nav.label}</span>
                           </button>
                         ))}
                       </div>
