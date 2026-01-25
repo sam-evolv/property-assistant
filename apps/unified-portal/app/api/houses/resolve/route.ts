@@ -420,9 +420,52 @@ export async function POST(req: Request) {
           }
         }
         
-        // handover_complete is true if handover_date is set (from sales pipeline)
-        const isHandoverComplete = !!supabaseUnit.handover_date;
-        console.log("[Resolve] Unit handover status:", { handover_date: supabaseUnit.handover_date, isComplete: isHandoverComplete });
+        // Fetch pipeline data to calculate current milestone
+        let currentMilestone = 'sale_agreed';
+        let milestoneDates: Record<string, string | null> = {};
+        let isHandoverComplete = !!supabaseUnit.handover_date;
+        
+        try {
+          const supabase = getSupabaseClient();
+          const { data: pipeline } = await supabase
+            .from('unit_sales_pipeline')
+            .select('*')
+            .eq('unit_id', supabaseUnit.id)
+            .single();
+          
+          if (pipeline) {
+            // Calculate current milestone from pipeline dates (most advanced first)
+            if (pipeline.handover_date) {
+              currentMilestone = 'handover';
+              isHandoverComplete = true;
+            } else if (pipeline.drawdown_date) {
+              currentMilestone = 'closing';
+            } else if (pipeline.snag_date) {
+              currentMilestone = 'snagging';
+            } else if (pipeline.kitchen_date) {
+              currentMilestone = 'kitchen_selection';
+            } else if (pipeline.signed_contracts_date || pipeline.counter_signed_date) {
+              currentMilestone = 'contracts_signed';
+            } else if (pipeline.sale_agreed_date) {
+              currentMilestone = 'sale_agreed';
+            }
+            
+            milestoneDates = {
+              sale_agreed: pipeline.sale_agreed_date || null,
+              contracts_signed: pipeline.signed_contracts_date || pipeline.counter_signed_date || null,
+              kitchen_selection: pipeline.kitchen_date || null,
+              snagging: pipeline.snag_date || null,
+              closing: pipeline.drawdown_date || null,
+              handover: pipeline.handover_date || null,
+            };
+            
+            console.log("[Resolve] Pipeline data found, milestone:", currentMilestone);
+          }
+        } catch (pipelineErr: any) {
+          console.log("[Resolve] Pipeline lookup failed (non-critical):", pipelineErr.message);
+        }
+        
+        console.log("[Resolve] Unit handover status:", { handover_date: supabaseUnit.handover_date, isComplete: isHandoverComplete, currentMilestone });
 
         const responseData = {
           success: true,
@@ -451,10 +494,11 @@ export async function POST(req: Request) {
           latitude: coordinates?.lat || null,
           longitude: coordinates?.lng || null,
           specs: null,
-          // Pre-handover portal data - derive from handover_date
+          // Pre-handover portal data - from pipeline
           handover_complete: isHandoverComplete,
           handover_date: supabaseUnit.handover_date || null,
-          current_milestone: isHandoverComplete ? 'handover' : 'sale_agreed',
+          current_milestone: currentMilestone,
+          milestone_dates: milestoneDates,
           request_id: requestId,
         };
         
