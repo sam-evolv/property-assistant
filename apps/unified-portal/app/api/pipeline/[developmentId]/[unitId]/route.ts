@@ -39,6 +39,30 @@ const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserPhone: 'purchaser_phone',
 };
 
+// Calculate current milestone from pipeline dates (matches MILESTONE_ORDER in pre-handover portal)
+function calculateCurrentMilestone(pipeline: any): string {
+  // Check milestones in reverse order (most advanced first)
+  if (pipeline?.handover_date) return 'handover';
+  if (pipeline?.drawdown_date) return 'closing';
+  if (pipeline?.snag_date) return 'snagging';
+  if (pipeline?.kitchen_date) return 'kitchen_selection';
+  if (pipeline?.signed_contracts_date || pipeline?.counter_signed_date) return 'contracts_signed';
+  if (pipeline?.sale_agreed_date) return 'sale_agreed';
+  return 'sale_agreed'; // Default to first milestone
+}
+
+// Calculate milestone dates for pre-handover portal
+function calculateMilestoneDates(pipeline: any): Record<string, string | null> {
+  return {
+    sale_agreed: pipeline?.sale_agreed_date || null,
+    contracts_signed: pipeline?.signed_contracts_date || pipeline?.counter_signed_date || null,
+    kitchen_selection: pipeline?.kitchen_date || null,
+    snagging: pipeline?.snag_date || null,
+    closing: pipeline?.drawdown_date || null,
+    handover: pipeline?.handover_date || null,
+  };
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ developmentId: string; unitId: string }> }
@@ -163,6 +187,45 @@ export async function PATCH(
       if (updateError) {
         console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
         return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
+      }
+    }
+
+    // Sync current_milestone and milestone_dates to units table for pre-handover portal
+    if (isDateField) {
+      try {
+        // Fetch the updated pipeline record
+        const { data: updatedPipeline } = await supabaseAdmin
+          .from('unit_sales_pipeline')
+          .select('*')
+          .eq('id', pipelineId)
+          .single();
+
+        if (updatedPipeline) {
+          const currentMilestone = calculateCurrentMilestone(updatedPipeline);
+          const milestoneDates = calculateMilestoneDates(updatedPipeline);
+          const isHandoverComplete = !!updatedPipeline.handover_date;
+
+          // Update the units table with milestone data
+          const { error: unitUpdateError } = await supabaseAdmin
+            .from('units')
+            .update({
+              current_milestone: currentMilestone,
+              milestone_dates: milestoneDates,
+              handover_complete: isHandoverComplete,
+              est_snagging_date: updatedPipeline.snag_date || null,
+              est_handover_date: updatedPipeline.handover_date || null,
+            })
+            .eq('id', unitId)
+            .eq('tenant_id', tenantId);
+
+          if (unitUpdateError) {
+            console.error('[Pipeline Unit Update API] Failed to sync milestone to units table:', unitUpdateError);
+          } else {
+            console.log(`[Pipeline Unit Update API] Synced milestone '${currentMilestone}' to unit ${unitId}`);
+          }
+        }
+      } catch (syncError) {
+        console.error('[Pipeline Unit Update API] Milestone sync failed (non-critical):', syncError);
       }
     }
 
