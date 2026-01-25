@@ -249,6 +249,12 @@ export default function PreHandoverSettingsPage() {
         {toast.message}
       </div>
 
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
+
       <main className="px-8 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Page Header */}
@@ -539,7 +545,7 @@ export default function PreHandoverSettingsPage() {
               <div className="sticky top-8">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-gray-900">Live Preview</h3>
-                  <span className="text-xs text-gray-400">Tap to interact</span>
+                  <span className="text-xs text-gray-600">Tap to interact</span>
                 </div>
 
                 {/* Phone Device Frame */}
@@ -557,7 +563,7 @@ export default function PreHandoverSettingsPage() {
                     {/* Phone Header */}
                     <div className="flex items-center justify-between py-3">
                       <div>
-                        <p className="text-[10px] text-gray-500">{getTimeGreeting()}</p>
+                        <p className="text-[10px] text-gray-700">{getTimeGreeting()}</p>
                         <p className="text-sm font-semibold text-gray-900">My Home</p>
                       </div>
                       <button 
@@ -572,7 +578,7 @@ export default function PreHandoverSettingsPage() {
                     </div>
 
                     {/* Phone Main Content */}
-                    <div className="flex-1 flex flex-col items-center pt-2 overflow-auto">
+                    <div className="flex-1 flex flex-col items-center pt-2 overflow-auto scrollbar-hide cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                       {/* Welcome Greeting */}
                       <p className="text-[10px] text-gray-600 mb-2 text-center px-2">
                         {config.greeting}, <strong>Sarah</strong>
@@ -588,7 +594,7 @@ export default function PreHandoverSettingsPage() {
                           </div>
                         </div>
                         <p className="font-serif text-base text-gray-900">14 Example Park</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">3 Bed Semi-Detached · Type B</p>
+                        <p className="text-[10px] text-gray-700 mt-0.5">3 Bed Semi-Detached · Type B</p>
                         
                         <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -601,7 +607,7 @@ export default function PreHandoverSettingsPage() {
 
                         <div className="text-left">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wider">Progress</span>
+                            <span className="text-[9px] font-medium text-gray-600 uppercase tracking-wider">Progress</span>
                             <span className="text-[10px] font-semibold text-[#D4AF37]">{progressPercent}%</span>
                           </div>
                           <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
@@ -614,7 +620,7 @@ export default function PreHandoverSettingsPage() {
                             <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
                             <span className="text-[10px] text-gray-600">
                               <span className="font-medium">{enabledMilestones[currentMilestoneIndex]?.label || 'Snagging'}</span>
-                              <span className="text-gray-400"> · Est. 28 Jan</span>
+                              <span className="text-gray-600"> · Est. 28 Jan</span>
                             </span>
                           </div>
                         </div>
@@ -662,7 +668,7 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div>
                               <p className="text-[10px] font-medium text-gray-900">Key Dates</p>
-                              <p className="text-[8px] text-gray-500">Snagging, Handover</p>
+                              <p className="text-[8px] text-gray-700">Snagging, Handover</p>
                             </div>
                           </div>
                           <span className="text-[8px] text-[#D4AF37] font-medium">Add to Calendar →</span>
@@ -703,17 +709,17 @@ export default function PreHandoverSettingsPage() {
                       <div className="p-4">
                         <div className="w-8 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
                         <h3 className="font-semibold text-sm text-gray-900 mb-3">Your Timeline</h3>
-                        <div className="space-y-2 max-h-[280px] overflow-auto">
+                        <div className="space-y-2 max-h-[280px] overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                           {enabledMilestones.map((m, i) => (
                             <div key={m.id} className="flex items-center gap-3 p-2 bg-white border border-gray-100 rounded-lg">
                               <div className={`w-6 h-6 rounded-full flex items-center justify-center ${i <= currentMilestoneIndex ? 'bg-[#D4AF37]' : 'bg-gray-200'}`}>
                                 {i <= currentMilestoneIndex ? (
                                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 ) : (
-                                  <span className="text-[8px] text-gray-500">{i + 1}</span>
+                                  <span className="text-[8px] text-gray-700">{i + 1}</span>
                                 )}
                               </div>
-                              <span className={`text-[10px] ${i <= currentMilestoneIndex ? 'font-medium text-gray-900' : 'text-gray-500'}`}>{m.label}</span>
+                              <span className={`text-[10px] ${i <= currentMilestoneIndex ? 'font-medium text-gray-900' : 'text-gray-700'}`}>{m.label}</span>
                             </div>
                           ))}
                         </div>
@@ -732,7 +738,7 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-medium text-gray-900">Floor Plans - Type B</p>
-                              <p className="text-[8px] text-gray-500">PDF · 2.4 MB</p>
+                              <p className="text-[8px] text-gray-700">PDF · 2.4 MB</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3 p-2 bg-white border border-gray-100 rounded-lg">
@@ -741,7 +747,7 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-medium text-gray-900">Contract of Sale</p>
-                              <p className="text-[8px] text-gray-500">PDF · 1.8 MB</p>
+                              <p className="text-[8px] text-gray-700">PDF · 1.8 MB</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3 p-2 bg-white border border-gray-100 rounded-lg">
@@ -750,11 +756,11 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-medium text-gray-900">Kitchen Selections</p>
-                              <p className="text-[8px] text-gray-500">PDF · 856 KB</p>
+                              <p className="text-[8px] text-gray-700">PDF · 856 KB</p>
                             </div>
                           </div>
                         </div>
-                        <p className="text-[8px] text-gray-400 mt-3 text-center">Documents matched to your house type</p>
+                        <p className="text-[8px] text-gray-600 mt-3 text-center">Documents matched to your house type</p>
                       </div>
                     </div>
 
@@ -763,14 +769,14 @@ export default function PreHandoverSettingsPage() {
                       <div className="p-4">
                         <div className="w-8 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
                         <h3 className="font-semibold text-sm text-gray-900 mb-3">FAQ</h3>
-                        <div className="space-y-2 max-h-[280px] overflow-auto">
+                        <div className="space-y-2 max-h-[280px] overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                           {config.faqs.length === 0 ? (
-                            <p className="text-[10px] text-gray-400 text-center py-4">No FAQs configured</p>
+                            <p className="text-[10px] text-gray-600 text-center py-4">No FAQs configured</p>
                           ) : (
                             config.faqs.map((faq, i) => (
                               <div key={faq.id} className="p-2 bg-white border border-gray-100 rounded-lg">
                                 <p className="text-[10px] font-medium text-gray-900">{faq.question || 'Question ' + (i + 1)}</p>
-                                <p className="text-[8px] text-gray-500 mt-0.5">{faq.answer || 'Answer not set'}</p>
+                                <p className="text-[8px] text-gray-700 mt-0.5">{faq.answer || 'Answer not set'}</p>
                               </div>
                             ))
                           )}
@@ -790,7 +796,7 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-medium text-gray-900">Phone</p>
-                              <p className="text-[8px] text-gray-500">{config.contacts.salesPhone || 'Not set'}</p>
+                              <p className="text-[8px] text-gray-700">{config.contacts.salesPhone || 'Not set'}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3 p-2 bg-white border border-gray-100 rounded-lg">
@@ -799,7 +805,7 @@ export default function PreHandoverSettingsPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-[10px] font-medium text-gray-900">Email</p>
-                              <p className="text-[8px] text-gray-500">{config.contacts.salesEmail || 'Not set'}</p>
+                              <p className="text-[8px] text-gray-700">{config.contacts.salesEmail || 'Not set'}</p>
                             </div>
                           </div>
                           {config.contacts.showHouseAddress && (
@@ -809,7 +815,7 @@ export default function PreHandoverSettingsPage() {
                               </div>
                               <div className="flex-1">
                                 <p className="text-[10px] font-medium text-gray-900">Show House</p>
-                                <p className="text-[8px] text-gray-500">{config.contacts.showHouseAddress}</p>
+                                <p className="text-[8px] text-gray-700">{config.contacts.showHouseAddress}</p>
                               </div>
                             </div>
                           )}
@@ -876,13 +882,13 @@ export default function PreHandoverSettingsPage() {
                             <span className="text-[10px] font-medium text-gray-900">Help & Support</span>
                           </div>
                         </div>
-                        <p className="text-[8px] text-gray-400 mt-4 text-center">OpenHouse v1.0.0</p>
+                        <p className="text-[8px] text-gray-600 mt-4 text-center">OpenHouse v1.0.0</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-400 mt-4 text-center">Tap buttons to preview sheets. Data updates in real-time.</p>
+                <p className="text-xs text-gray-600 mt-4 text-center">Tap buttons to preview sheets. Data updates in real-time.</p>
               </div>
             </div>
           </div>
