@@ -1,77 +1,10 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { BottomSheet } from './BottomSheet';
-import { TimelineSheet } from './sheets/TimelineSheet';
-import { DocsSheet } from './sheets/DocsSheet';
-import { FAQSheet } from './sheets/FAQSheet';
-import { ContactSheet } from './sheets/ContactSheet';
-import { CalendarSheet } from './sheets/CalendarSheet';
+import { BottomSheet, SheetHeader, SheetItem } from './BottomSheet';
 import { SettingsSheet } from './sheets/SettingsSheet';
 import { MILESTONE_ORDER, MILESTONE_LABELS, type UnitPreHandoverData, type SheetType, type Document, type ContactInfo, type FAQ, type MilestoneDates } from './types';
-
-// =============================================================================
-// Icons
-// =============================================================================
-
-const HouseIcon = () => (
-  <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 3L4 9v12h5v-7h6v7h5V9l-8-6z" />
-  </svg>
-);
-
-const SettingsIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const ClockIcon = () => (
-  <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const DocsIcon = () => (
-  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-);
-
-const FAQIcon = () => (
-  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const ContactIcon = () => (
-  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
-
-const HomeNavIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-  </svg>
-);
-
-const ClipboardIcon = () => (
-  <svg className="w-5 h-5 text-brand-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-  </svg>
-);
-
-const HandoverHomeIcon = () => (
-  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-  </svg>
-);
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
+import { Home, Settings, Clock, FileText, HelpCircle, Phone, Calendar, ChevronRight, Check, Mail, MapPin, Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -83,25 +16,19 @@ function getGreeting(): string {
 function formatMonth(dateStr: string | null): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function formatShortDate(dateStr: string | null): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-// =============================================================================
-// Main Component
-// =============================================================================
-
 interface PreHandoverPortalProps {
-  // Can pass a full unit object OR individual props
   unit?: UnitPreHandoverData;
-  // Individual props (used when unit is not provided)
   unitId?: string;
   propertyName?: string;
   propertyType?: string;
@@ -123,7 +50,6 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
   const [activeSheet, setActiveSheet] = useState<SheetType>(null);
   const [loadedDocuments, setLoadedDocuments] = useState<Document[]>([]);
 
-  // Build unit data from either full unit object or individual props
   const unit: UnitPreHandoverData = props.unit || {
     unitId: props.unitId || '',
     propertyName: props.propertyName || '',
@@ -139,7 +65,6 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
     faqs: props.faqs || [],
   };
 
-  // Fetch documents if not provided
   useEffect(() => {
     if (!props.unit && (!props.documents || props.documents.length === 0) && props.unitId) {
       fetch(`/api/units/${props.unitId}/prehandover`)
@@ -153,7 +78,6 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
     }
   }, [props.unitId, props.unit, props.documents]);
 
-  // Update documents in unit if loaded
   const effectiveDocuments = props.documents && props.documents.length > 0
     ? props.documents
     : loadedDocuments;
@@ -161,288 +85,454 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
   const openSheet = useCallback((sheet: SheetType) => setActiveSheet(sheet), []);
   const closeSheet = useCallback(() => setActiveSheet(null), []);
 
-  // Calculate progress
   const milestoneIndex = MILESTONE_ORDER.indexOf(unit.currentMilestone as typeof MILESTONE_ORDER[number]);
   const completedCount = milestoneIndex >= 0 ? milestoneIndex + 1 : 0;
   const progressPercent = Math.round((completedCount / MILESTONE_ORDER.length) * 100);
   const currentMilestoneLabel = MILESTONE_LABELS[unit.currentMilestone] || 'Unknown';
 
-  // Estimated date for current milestone
   const estDate = unit.currentMilestone === 'snagging'
     ? unit.estSnaggingDate
     : unit.currentMilestone === 'handover'
     ? unit.estHandoverDate
     : null;
 
+  const quickActions = [
+    { id: 'timeline', label: 'Timeline', icon: Clock, bgGradient: 'from-[#FEFCE8] to-[#FEF9C3]', iconColor: 'text-[#A67C3A]' },
+    { id: 'docs', label: 'Docs', icon: FileText, bgGradient: 'from-[#FEF9C3] to-[#FEF08A]', iconColor: 'text-[#8B6428]' },
+    { id: 'faq', label: 'FAQ', icon: HelpCircle, bgGradient: 'from-[#FDE047]/30 to-[#FACC15]/30', iconColor: 'text-[#B8941F]' },
+    { id: 'contact', label: 'Contact', icon: Phone, bgGradient: 'from-[#D4AF37]/20 to-[#B8941F]/20', iconColor: 'text-[#D4AF37]' },
+  ];
+
   return (
-    <>
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+    <div className="min-h-screen pb-20" style={{ background: 'linear-gradient(180deg, #FAFAF8 0%, #F5F1EA 100%)', fontFamily: "'Inter', -apple-system, sans-serif" }}>
+      <header className="px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-2 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-gray-500 font-medium">{getGreeting()}</p>
+          <h1 className="text-lg font-bold text-gray-900 tracking-tight">My Home</h1>
+        </div>
+        <button
+          onClick={() => openSheet('settings')}
+          className="group w-9 h-9 rounded-lg bg-white/90 backdrop-blur-xl border border-white/90 
+            flex items-center justify-center active:scale-95 transition-all duration-200
+            shadow-[0_2px_8px_rgba(12,12,12,0.04)] hover:border-[#D4AF37]/20"
+        >
+          <Settings className="w-4 h-4 text-gray-500 group-hover:text-[#D4AF37] group-hover:rotate-45 transition-all duration-200" />
+        </button>
+      </header>
 
-        :root {
-          --brand-gold: #C9A227;
-          --brand-gold-light: #E8D48A;
-          --brand-cream: #FAF8F3;
-          --brand-warm: #F5F1EA;
-          --brand-dark: #1C1917;
-          --brand-muted: #78716C;
-        }
+      <main className="px-4 space-y-3">
+        {props.purchaserName && (
+          <p className="text-xs text-gray-600 text-center">
+            Welcome to your new home journey,{' '}
+            <strong className="text-gray-900 font-semibold">{props.purchaserName}</strong>
+          </p>
+        )}
 
-        .font-serif { font-family: 'Instrument Serif', Georgia, serif; }
-
-        @keyframes fade-up {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulse-gold {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.4); }
-          50% { box-shadow: 0 0 0 8px rgba(201, 162, 39, 0); }
-        }
-
-        .fade-up { animation: fade-up 0.6s ease-out forwards; }
-        .delay-1 { animation-delay: 0.1s; opacity: 0; }
-        .delay-2 { animation-delay: 0.2s; opacity: 0; }
-        .animate-pulse-gold { animation: pulse-gold 2.5s ease-in-out infinite; }
-
-        .card {
-          background: rgba(255, 255, 255, 0.7);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.8);
-          box-shadow: 0 1px 2px rgba(0,0,0,0.02), 0 4px 16px rgba(0,0,0,0.04);
-        }
-
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
-
-        .progress-track { background: linear-gradient(90deg, #E8E4DC 0%, #DDD8CE 100%); }
-        .progress-fill { background: linear-gradient(90deg, var(--brand-gold) 0%, var(--brand-gold-light) 100%); box-shadow: 0 2px 8px rgba(201,162,39,0.3); }
-
-        .status-badge {
-          background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.05) 100%);
-          border: 1px solid rgba(16,185,129,0.2);
-        }
-
-        .icon-ring {
-          background: linear-gradient(135deg, rgba(201,162,39,0.15) 0%, rgba(201,162,39,0.05) 100%);
-          border: 1px solid rgba(201,162,39,0.2);
-        }
-
-        .pattern-bg {
-          background-image: radial-gradient(circle at 1px 1px, rgba(201,162,39,0.08) 1px, transparent 0);
-          background-size: 24px 24px;
-        }
-
-        .nav-item { transition: all 0.2s ease; }
-        .nav-item.active { color: var(--brand-gold); }
-
-        .text-brand-gold { color: var(--brand-gold); }
-        .text-brand-dark { color: var(--brand-dark); }
-        .text-brand-muted { color: var(--brand-muted); }
-        .bg-brand-gold { background-color: var(--brand-gold); }
-      `}</style>
-
-      <div
-        className="min-h-screen flex flex-col"
-        style={{
-          background: 'linear-gradient(180deg, #FAF8F3 0%, #F5F1EA 100%)',
-          fontFamily: "'DM Sans', -apple-system, sans-serif",
-        }}
-      >
-        {/* Pattern Background */}
-        <div className="pattern-bg fixed inset-0 pointer-events-none" />
-
-        {/* Header */}
-        <header className="relative z-10 flex items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-xs text-brand-muted">{getGreeting()}</p>
-            <h1 className="text-lg font-semibold text-brand-dark">My Home</h1>
-          </div>
-          <button
-            onClick={() => openSheet('settings')}
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/60 border border-white/80 text-brand-muted hover:bg-white transition-colors"
-          >
-            <SettingsIcon />
-          </button>
-        </header>
-
-        {/* Main Content */}
-        <main className="relative z-10 flex-1 flex flex-col items-center px-6 pt-4 pb-8">
-          {/* Property Card */}
-          <div className="w-full max-w-sm fade-up">
-            <div className="card rounded-3xl p-6 text-center">
-              {/* House Icon */}
-              <div className="w-20 h-20 mx-auto mb-5 rounded-full icon-ring flex items-center justify-center">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-gold to-amber-600 flex items-center justify-center shadow-lg shadow-amber-900/20">
-                  <HouseIcon />
+        <div className="bg-white/90 backdrop-blur-xl border border-white/90 rounded-2xl p-4 
+          shadow-[0_4px_20px_rgba(12,12,12,0.05)] transition-all duration-200">
+          <div className="flex justify-center mb-3">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#FEFCE8] via-[#FEF9C3] to-[#FEF08A] 
+                flex items-center justify-center border border-[#D4AF37]/20 shadow-[0_4px_16px_rgba(212,175,55,0.1)]">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
+                  flex items-center justify-center shadow-[0_2px_8px_rgba(212,175,55,0.2)]">
+                  <Home className="w-4.5 h-4.5 text-white" />
                 </div>
               </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white border border-[#D4AF37]/30 
+                flex items-center justify-center shadow-sm">
+                <span className="text-[8px] font-bold text-[#D4AF37]">{completedCount}/{MILESTONE_ORDER.length}</span>
+              </div>
+            </div>
+          </div>
 
-              {/* Property Info */}
-              <h1 className="font-serif text-2xl text-brand-dark">{unit.propertyName}</h1>
-              <p className="text-brand-muted text-sm mt-1.5">
-                {unit.propertyType} · {unit.houseType}
-              </p>
+          <div className="text-center">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight leading-tight">{unit.propertyName}</h2>
+            <p className="text-[11px] text-gray-500 mt-1">
+              {unit.propertyType} · {unit.houseType}
+            </p>
 
-              {/* Status Badge */}
-              <div className="mt-5 inline-flex items-center gap-2.5 px-4 py-2.5 status-badge rounded-full">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
-                <span className="text-sm font-medium text-emerald-700">
+            <div className="mt-2.5 flex justify-center">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full 
+                bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200/80 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-semibold text-emerald-700">
                   On Track · Est. {formatMonth(unit.estHandoverDate)}
                 </span>
               </div>
-
-              <div className="my-6 h-px bg-gradient-to-r from-transparent via-stone-200 to-transparent" />
-
-              {/* Progress Section */}
-              <div className="text-left">
-                <div className="flex items-baseline justify-between mb-3">
-                  <span className="text-xs font-medium text-brand-muted uppercase tracking-wider">
-                    Your Progress
-                  </span>
-                  <span className="text-sm font-semibold text-brand-gold">{progressPercent}%</span>
-                </div>
-                <div className="h-2.5 rounded-full progress-track overflow-hidden">
-                  <div
-                    className="h-full rounded-full progress-fill transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-brand-gold animate-pulse-gold" />
-                  <span className="text-sm text-brand-dark">
-                    <span className="font-semibold">{currentMilestoneLabel}</span>
-                    {estDate && (
-                      <span className="text-brand-muted"> · Est. {formatShortDate(estDate)}</span>
-                    )}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Action Cards */}
-          <div className="w-full max-w-sm mt-5 grid grid-cols-4 gap-2 fade-up delay-1">
-            <button onClick={() => openSheet('timeline')} className="card card-hover rounded-2xl p-3 text-center">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center mb-2">
-                <ClockIcon />
-              </div>
-              <span className="text-[11px] font-medium text-brand-dark">Timeline</span>
-            </button>
-            <button onClick={() => openSheet('docs')} className="card card-hover rounded-2xl p-3 text-center">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center mb-2">
-                <DocsIcon />
-              </div>
-              <span className="text-[11px] font-medium text-brand-dark">Docs</span>
-            </button>
-            <button onClick={() => openSheet('faq')} className="card card-hover rounded-2xl p-3 text-center">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center mb-2">
-                <FAQIcon />
-              </div>
-              <span className="text-[11px] font-medium text-brand-dark">FAQ</span>
-            </button>
-            <button onClick={() => openSheet('contact')} className="card card-hover rounded-2xl p-3 text-center">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center mb-2">
-                <ContactIcon />
-              </div>
-              <span className="text-[11px] font-medium text-brand-dark">Contact</span>
-            </button>
-          </div>
+          <div className="my-4 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/20 to-transparent" />
 
-          {/* Key Dates Card */}
-          <div className="w-full max-w-sm mt-5 fade-up delay-2">
-            <div className="card rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-brand-muted uppercase tracking-wider">
-                  Key Dates
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Progress</span>
+              <span className="text-xs font-bold text-[#D4AF37]">{progressPercent}%</span>
+            </div>
+            
+            <div className="relative">
+              <div className="h-2 rounded-full bg-gradient-to-r from-gray-100 to-gray-200 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] via-[#FACC15] to-[#D4AF37] 
+                    transition-all duration-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              
+              <div className="absolute inset-0 flex items-center justify-between px-0.5">
+                {MILESTONE_ORDER.slice(0, 6).map((milestoneId, idx) => {
+                  const isCompleted = idx < milestoneIndex;
+                  const isCurrent = idx === milestoneIndex;
+                  return (
+                    <div
+                      key={milestoneId}
+                      className={`w-3 h-3 rounded-full flex items-center justify-center transition-all duration-300
+                        ${isCompleted 
+                          ? 'bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.4)]' 
+                          : isCurrent
+                            ? 'bg-white border-[1.5px] border-[#D4AF37] shadow-sm'
+                            : 'bg-gray-200 border border-gray-300'
+                        }`}
+                    >
+                      {isCompleted && <Check className="w-2 h-2 text-white" strokeWidth={3} />}
+                      {isCurrent && <span className="w-1 h-1 rounded-full bg-[#D4AF37] animate-pulse" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg 
+              bg-gradient-to-r from-[#FEFCE8]/50 to-[#FEF9C3]/50 border border-[#D4AF37]/10">
+              <span className="w-2 h-2 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#FACC15] animate-pulse 
+                shadow-[0_0_6px_rgba(212,175,55,0.4)]" />
+              <span className="text-xs text-gray-700">
+                <strong className="font-semibold text-gray-900">{currentMilestoneLabel}</strong>
+                {estDate && <span className="text-gray-400"> · Est. {formatShortDate(estDate)}</span>}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                onClick={() => openSheet(action.id as SheetType)}
+                className="group bg-white/90 backdrop-blur-xl border border-white/90 rounded-xl py-3 px-2 text-center 
+                  active:scale-[0.96] transition-all duration-200
+                  shadow-[0_2px_8px_rgba(12,12,12,0.03)] hover:shadow-[0_4px_12px_rgba(212,175,55,0.1)]
+                  hover:border-[#D4AF37]/20"
+              >
+                <div className={`w-9 h-9 mx-auto rounded-lg bg-gradient-to-br ${action.bgGradient} flex items-center justify-center mb-1.5
+                  border border-[#D4AF37]/10 group-hover:border-[#D4AF37]/25 transition-all duration-200`}>
+                  <Icon className={`w-4 h-4 ${action.iconColor} transition-transform duration-200 group-hover:scale-110`} />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-700 group-hover:text-[#8B6428] transition-colors duration-200">
+                  {action.label}
                 </span>
-                <button
-                  onClick={() => openSheet('calendar')}
-                  className="text-xs font-medium text-brand-gold hover:underline"
-                >
-                  Add to Calendar
-                </button>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={() => openSheet('calendar')}
+          className="group w-full bg-white/90 backdrop-blur-xl border border-white/90 rounded-xl p-3 
+            active:scale-[0.98] transition-all duration-200
+            shadow-[0_2px_8px_rgba(12,12,12,0.03)] hover:shadow-[0_4px_12px_rgba(212,175,55,0.08)]
+            hover:border-[#D4AF37]/20"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] 
+                flex items-center justify-center border border-[#D4AF37]/15
+                group-hover:shadow-[0_0_12px_rgba(212,175,55,0.12)] transition-all duration-200">
+                <Calendar className="w-4 h-4 text-[#A67C3A] group-hover:scale-110 transition-transform duration-200" />
               </div>
-              <div className="space-y-3">
-                {unit.estSnaggingDate && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-gold/10 flex items-center justify-center">
-                      <ClipboardIcon />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-dark">Snagging Inspection</p>
-                      <p className="text-xs text-brand-muted">Est. {formatShortDate(unit.estSnaggingDate)}</p>
-                    </div>
-                  </div>
-                )}
-                {unit.estHandoverDate && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                      <HandoverHomeIcon />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-dark">Handover</p>
-                      <p className="text-xs text-brand-muted">Est. {formatMonth(unit.estHandoverDate)}</p>
-                    </div>
-                  </div>
-                )}
+              <div className="text-left">
+                <p className="text-xs font-semibold text-gray-900">Key Dates</p>
+                <p className="text-[10px] text-gray-500 leading-tight">Snagging, Handover</p>
               </div>
             </div>
+            <span className="text-[10px] font-semibold text-[#D4AF37] flex items-center gap-0.5 
+              group-hover:gap-1 transition-all duration-200">
+              Add
+              <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
+            </span>
           </div>
-        </main>
+        </button>
 
-        {/* Bottom Nav */}
-        <nav className="relative z-10 bg-white/80 backdrop-blur-xl border-t border-stone-100 px-6 py-4">
-          <div className="flex items-center justify-around max-w-sm mx-auto">
-            <button className="nav-item active flex flex-col items-center gap-1.5">
-              <HomeNavIcon />
-              <span className="text-[10px] font-semibold uppercase tracking-wide">Home</span>
-            </button>
-            <button
-              onClick={() => openSheet('docs')}
-              className="nav-item text-brand-muted flex flex-col items-center gap-1.5"
-            >
-              <DocsIcon />
-              <span className="text-[10px] font-medium uppercase tracking-wide">Docs</span>
-            </button>
-            <button
-              onClick={() => openSheet('faq')}
-              className="nav-item text-brand-muted flex flex-col items-center gap-1.5"
-            >
-              <FAQIcon />
-              <span className="text-[10px] font-medium uppercase tracking-wide">FAQ</span>
-            </button>
+        <button
+          onClick={() => openSheet('chat')}
+          className="group w-full bg-gradient-to-r from-white/95 to-[#FEFCE8]/60 backdrop-blur-xl 
+            border border-[#D4AF37]/20 rounded-xl p-3 
+            active:scale-[0.98] transition-all duration-200
+            shadow-[0_2px_12px_rgba(212,175,55,0.06)] hover:shadow-[0_4px_16px_rgba(212,175,55,0.12)]
+            hover:border-[#D4AF37]/25"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
+                flex items-center justify-center shadow-[0_2px_8px_rgba(212,175,55,0.2)]
+                group-hover:shadow-[0_4px_12px_rgba(212,175,55,0.28)] transition-all duration-200">
+                <MessageSquare className="w-4 h-4 text-white group-hover:scale-110 transition-transform duration-200" />
+              </div>
+              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-gradient-to-br from-[#FACC15] to-[#D4AF37] 
+                flex items-center justify-center shadow-sm">
+                <Sparkles className="w-2.5 h-2.5 text-white" />
+              </div>
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-xs font-semibold text-gray-900">Ask a Question</p>
+              <p className="text-[10px] text-gray-500 leading-tight">Get instant answers about your home</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#D4AF37] group-hover:translate-x-0.5 transition-transform duration-200" />
           </div>
-        </nav>
+        </button>
+      </main>
 
-        {/* Bottom Sheets */}
-        <BottomSheet isOpen={activeSheet === 'timeline'} onClose={closeSheet}>
-          <TimelineSheet unit={unit} />
-        </BottomSheet>
+      <nav
+        className="fixed bottom-0 left-0 right-0 bg-white/98 backdrop-blur-2xl border-t border-[#D4AF37]/15 z-30
+          shadow-[0_-4px_16px_rgba(12,12,12,0.04)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
+      >
+        <div className="flex items-center justify-around py-1.5 px-2 max-w-md mx-auto">
+          {[
+            { id: 'home', label: 'Home', icon: Home, active: true },
+            { id: 'docs', label: 'Docs', icon: FileText },
+            { id: 'chat', label: 'Chat', icon: MessageSquare, badge: true },
+            { id: 'faq', label: 'FAQ', icon: HelpCircle },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => item.id !== 'home' && openSheet(item.id as SheetType)}
+                className={`relative flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-xl transition-all duration-200
+                  ${item.active ? 'bg-gradient-to-b from-[#D4AF37]/10 to-[#D4AF37]/5' : ''}`}
+              >
+                {item.active && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full 
+                    bg-gradient-to-r from-[#D4AF37] to-[#FACC15] shadow-[0_0_8px_rgba(212,175,55,0.4)]" />
+                )}
+                <div className="relative">
+                  <Icon className={`w-5 h-5 transition-all duration-200 ${item.active ? 'text-[#D4AF37] scale-105' : 'text-gray-400'}`} />
+                  {item.badge && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#D4AF37]" />
+                  )}
+                </div>
+                <span className={`text-[10px] transition-all duration-200 ${item.active ? 'text-[#D4AF37] font-semibold' : 'text-gray-400 font-medium'}`}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
-        <BottomSheet isOpen={activeSheet === 'docs'} onClose={closeSheet}>
-          <DocsSheet documents={effectiveDocuments} />
-        </BottomSheet>
+      {/* Timeline Sheet */}
+      <BottomSheet isOpen={activeSheet === 'timeline'} onClose={closeSheet}>
+        <SheetHeader title="Your Timeline" />
+        <div className="px-4 py-3 space-y-1 overflow-auto" style={{ maxHeight: 'calc(70vh - 80px)' }}>
+          {MILESTONE_ORDER.map((milestoneId, idx) => {
+            const isComplete = idx < milestoneIndex;
+            const isCurrent = idx === milestoneIndex;
+            const isPending = idx > milestoneIndex;
+            const isHandover = milestoneId === 'handover';
+            const label = MILESTONE_LABELS[milestoneId] || milestoneId;
+            const date = unit.milestoneDates[milestoneId];
+            return (
+              <div key={milestoneId} className={`flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 ${
+                isCurrent ? 'bg-gradient-to-r from-[#FEFCE8]/80 to-[#FEF9C3]/60 border border-[#D4AF37]/20' : 'border border-transparent'
+              } ${isPending ? 'opacity-50' : ''}`}>
+                {isComplete && (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] flex items-center justify-center shadow-[0_2px_8px_rgba(212,175,55,0.2)]">
+                    <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  </div>
+                )}
+                {isCurrent && (
+                  <div className="w-8 h-8 rounded-full bg-white border-2 border-[#D4AF37] flex items-center justify-center shadow-[0_0_8px_rgba(212,175,55,0.25)]">
+                    <div className="w-2.5 h-2.5 bg-gradient-to-br from-[#D4AF37] to-[#FACC15] rounded-full animate-pulse" />
+                  </div>
+                )}
+                {isPending && (
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
+                    {isHandover ? <Home className="w-3.5 h-3.5 text-gray-300" /> : <div className="w-2 h-2 bg-gray-300 rounded-full" />}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <span className={`text-xs ${isCurrent ? 'font-semibold text-gray-900' : isComplete ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+                    {label}
+                  </span>
+                  {isCurrent && <span className="ml-1.5 text-[10px] font-semibold text-[#D4AF37]">Current</span>}
+                </div>
+                <span className={`text-[10px] font-medium ${isCurrent ? 'text-[#D4AF37]' : isComplete ? 'text-gray-500' : 'text-gray-300'}`}>
+                  {date ? formatShortDate(date) : 'Pending'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </BottomSheet>
 
-        <BottomSheet isOpen={activeSheet === 'faq'} onClose={closeSheet} maxHeight="80vh">
-          <FAQSheet faqs={unit.faqs} />
-        </BottomSheet>
+      {/* Documents Sheet */}
+      <BottomSheet isOpen={activeSheet === 'docs'} onClose={closeSheet}>
+        <SheetHeader title="Your Documents" />
+        <div className="px-4 py-3 space-y-2">
+          {effectiveDocuments.length === 0 ? (
+            <div className="text-center py-6">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center border border-[#D4AF37]/20">
+                <FileText className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <p className="text-xs text-gray-500">No documents available yet</p>
+            </div>
+          ) : (
+            effectiveDocuments.map((doc) => (
+              <SheetItem key={doc.id} onClick={() => window.open(doc.url, '_blank')}>
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center border border-[#D4AF37]/10">
+                  <FileText className="w-5 h-5 text-[#D4AF37]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-900">{doc.name}</p>
+                  <p className="text-[10px] text-gray-500">{doc.type} · {doc.size}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+              </SheetItem>
+            ))
+          )}
+        </div>
+      </BottomSheet>
 
-        <BottomSheet isOpen={activeSheet === 'contact'} onClose={closeSheet}>
-          <ContactSheet contacts={unit.contacts} />
-        </BottomSheet>
+      {/* FAQ Sheet */}
+      <BottomSheet isOpen={activeSheet === 'faq'} onClose={closeSheet} maxHeight="75vh">
+        <SheetHeader title="Frequently Asked" />
+        <div className="px-4 py-3 space-y-2 overflow-auto" style={{ maxHeight: 'calc(75vh - 80px)' }}>
+          {(unit.faqs || []).length === 0 ? (
+            <div className="text-center py-6">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center border border-[#D4AF37]/20">
+                <HelpCircle className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <p className="text-xs text-gray-500">No FAQs available yet</p>
+            </div>
+          ) : (
+            (unit.faqs || []).map((faq, index) => {
+              const icons = [Key, ClipboardCheck, Zap, Wifi, AlertTriangle];
+              const Icon = icons[index % 5];
+              return (
+                <details key={faq.id} className="group rounded-xl bg-gray-50/80 overflow-hidden border border-transparent hover:border-[#D4AF37]/15 transition-all duration-200">
+                  <summary className="flex items-center gap-2.5 p-3 cursor-pointer list-none">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center shrink-0 border border-[#D4AF37]/10">
+                      <Icon className="w-4 h-4 text-[#A67C3A]" />
+                    </div>
+                    <span className="flex-1 text-xs font-medium text-gray-900">{faq.question}</span>
+                    <ChevronDown className="w-4 h-4 text-gray-400 transition-transform duration-200 group-open:rotate-180" />
+                  </summary>
+                  <div className="px-3 pb-3 ml-[42px]">
+                    <p className="text-[11px] text-gray-600 leading-relaxed">{faq.answer}</p>
+                  </div>
+                </details>
+              );
+            })
+          )}
+        </div>
+      </BottomSheet>
 
-        <BottomSheet isOpen={activeSheet === 'calendar'} onClose={closeSheet}>
-          <CalendarSheet unit={unit} onClose={closeSheet} />
-        </BottomSheet>
+      {/* Contact Sheet */}
+      <BottomSheet isOpen={activeSheet === 'contact'} onClose={closeSheet}>
+        <SheetHeader title="Get in Touch" />
+        <div className="px-4 py-3 space-y-2">
+          {unit.contacts?.salesPhone && (
+            <SheetItem onClick={() => window.location.href = `tel:${unit.contacts?.salesPhone}`}>
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center border border-[#D4AF37]/10">
+                <Phone className="w-5 h-5 text-[#A67C3A]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-gray-900">Call Sales Team</p>
+                <p className="text-[10px] text-gray-500">{unit.contacts.salesPhone}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+            </SheetItem>
+          )}
+          {unit.contacts?.salesEmail && (
+            <SheetItem onClick={() => window.location.href = `mailto:${unit.contacts?.salesEmail}`}>
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FEF9C3] to-[#FEF08A] flex items-center justify-center border border-[#D4AF37]/10">
+                <Mail className="w-5 h-5 text-[#8B6428]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-gray-900">Email Us</p>
+                <p className="text-[10px] text-gray-500">{unit.contacts.salesEmail}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+            </SheetItem>
+          )}
+          {unit.contacts?.showHouseAddress && (
+            <SheetItem onClick={() => window.open(`https://maps.google.com?q=${encodeURIComponent(unit.contacts?.showHouseAddress || '')}`, '_blank')}>
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FDE047]/30 to-[#FACC15]/30 flex items-center justify-center border border-[#D4AF37]/10">
+                <MapPin className="w-5 h-5 text-[#B8941F]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-gray-900">Show House</p>
+                <p className="text-[10px] text-gray-500">{unit.contacts.showHouseAddress}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+            </SheetItem>
+          )}
+          {!unit.contacts?.salesPhone && !unit.contacts?.salesEmail && !unit.contacts?.showHouseAddress && (
+            <div className="text-center py-6">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3] flex items-center justify-center border border-[#D4AF37]/20">
+                <Phone className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <p className="text-xs text-gray-500">Contact information coming soon</p>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
 
-        <BottomSheet isOpen={activeSheet === 'settings'} onClose={closeSheet}>
-          <SettingsSheet />
-        </BottomSheet>
-      </div>
-    </>
+      {/* Calendar Sheet */}
+      <BottomSheet isOpen={activeSheet === 'calendar'} onClose={closeSheet}>
+        <SheetHeader title="Add to Calendar" subtitle="Add key dates to your calendar" />
+        <div className="px-4 py-3 space-y-2">
+          <SheetItem onClick={() => { closeSheet(); }}>
+            <div className="w-10 h-10 rounded-lg bg-white border border-[#D4AF37]/15 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-[#D4AF37]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-gray-900">Google Calendar</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+          </SheetItem>
+          <SheetItem onClick={() => { closeSheet(); }}>
+            <div className="w-10 h-10 rounded-lg bg-white border border-[#D4AF37]/15 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-gray-800" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-gray-900">Apple Calendar</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-all duration-200" />
+          </SheetItem>
+        </div>
+      </BottomSheet>
+
+      {/* Chat Sheet */}
+      <BottomSheet isOpen={activeSheet === 'chat'} onClose={closeSheet}>
+        <SheetHeader title="Ask a Question" subtitle="Get help with your home journey" />
+        <div className="px-4 py-6 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] flex items-center justify-center shadow-[0_4px_16px_rgba(212,175,55,0.25)]">
+            <MessageSquare className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Coming Soon</h3>
+          <p className="text-xs text-gray-500">Our AI assistant will be available to answer your questions about your new home.</p>
+        </div>
+      </BottomSheet>
+
+      {/* Settings Sheet */}
+      <BottomSheet isOpen={activeSheet === 'settings'} onClose={closeSheet}>
+        <SettingsSheet />
+      </BottomSheet>
+    </div>
   );
 }

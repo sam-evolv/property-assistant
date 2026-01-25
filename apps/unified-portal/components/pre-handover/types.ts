@@ -88,4 +88,4 @@ export interface PreHandoverConfig {
   };
 }
 
-export type SheetType = 'timeline' | 'docs' | 'faq' | 'contact' | 'calendar' | 'settings' | null;
+export type SheetType = 'timeline' | 'docs' | 'faq' | 'contact' | 'calendar' | 'settings' | 'chat' | 'more' | null;
