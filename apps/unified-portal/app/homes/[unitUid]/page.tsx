@@ -393,7 +393,7 @@ export default function HomeResidentPage() {
         houseType={house.house_type || 'House'}
         purchaserName={house.purchaser_name}
         developmentName={house.development_name}
-        developmentLogoUrl={house.development_logo_url}
+        developmentLogoUrl={house.development_logo_url || (house.development_name?.toLowerCase().includes('longview') ? '/longview-logo.png' : null)}
         handoverComplete={house.handover_complete || false}
         currentMilestone={house.current_milestone || 'sale_agreed'}
         milestoneDates={house.milestone_dates || {}}
