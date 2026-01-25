@@ -39,17 +39,21 @@ export function BottomSheet({ isOpen, onClose, children, maxHeight = '75vh' }: B
 
       {/* Sheet Content */}
       <div
-        className={`absolute bottom-0 left-0 right-0 rounded-t-[28px] overflow-hidden transition-transform duration-[400ms] ${
+        className={`absolute bottom-0 left-0 right-0 rounded-t-[32px] transition-transform duration-[400ms] ${
           isOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
           maxHeight,
           background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAF8 100%)',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.12), 0 -2px 16px rgba(212,175,55,0.08)',
+          boxShadow: '0 -12px 48px rgba(0,0,0,0.14), 0 -4px 24px rgba(212,175,55,0.1), inset 0 1px 0 rgba(255,255,255,0.9)',
           transitionTimingFunction: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          borderRadius: '32px 32px 0 0',
+          overflow: 'hidden',
         }}
       >
-        {children}
+        <div className="overflow-auto" style={{ maxHeight }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -62,11 +66,12 @@ interface SheetHeaderProps {
 
 export function SheetHeader({ title, subtitle }: SheetHeaderProps) {
   return (
-    <div className="sticky top-0 bg-white/95 backdrop-blur-xl px-6 py-5 border-b border-[#D4AF37]/10">
-      <div className="w-12 h-1.5 bg-gradient-to-r from-[#D4AF37] to-[#FACC15] rounded-full mx-auto mb-4 
-        shadow-[0_0_8px_rgba(212,175,55,0.3)]" />
+    <div className="sticky top-0 bg-white/98 backdrop-blur-2xl px-8 pt-5 pb-4 border-b border-[#D4AF37]/10
+      rounded-t-[28px]">
+      <div className="w-14 h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#FACC15] to-[#D4AF37] rounded-full mx-auto mb-5 
+        shadow-[0_0_12px_rgba(212,175,55,0.4)]" />
       <h2 className="font-semibold text-xl text-gray-900 tracking-tight">{title}</h2>
-      {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+      {subtitle && <p className="text-sm text-gray-500 mt-1.5">{subtitle}</p>}
     </div>
   );
 }
