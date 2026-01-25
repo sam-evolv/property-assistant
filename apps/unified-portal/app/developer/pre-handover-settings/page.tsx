@@ -280,41 +280,11 @@ export default function PreHandoverSettingsPage() {
           <div className="grid grid-cols-3 gap-8">
             {/* LEFT COLUMN: Configuration Forms */}
             <div className="col-span-2 space-y-6">
-              {/* Welcome Message Section */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900">Welcome Message</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">Personalised greeting shown to purchasers</p>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Greeting</label>
-                    <input
-                      type="text"
-                      value={config.greeting}
-                      onChange={(e) => setConfig(prev => ({ ...prev, greeting: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
-                      placeholder="e.g., Welcome to Rathard Park"
-                    />
-                    <p className="text-xs text-gray-400 mt-1.5">The purchaser's name is added automatically: "{config.greeting}, <strong>Sarah</strong>"</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Introduction Text</label>
-                    <textarea
-                      value={config.introText}
-                      onChange={(e) => setConfig(prev => ({ ...prev, introText: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 resize-y min-h-[80px] focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
-                      placeholder="Optional welcome paragraph..."
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* Key Dates Section */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="mb-4">
                   <h3 className="font-semibold text-gray-900">Key Dates</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">Default estimated dates and calendar options</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Dates are pulled automatically from Sales Pipeline</p>
                 </div>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
