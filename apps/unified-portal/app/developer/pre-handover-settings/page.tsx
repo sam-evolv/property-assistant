@@ -394,7 +394,7 @@ export default function PreHandoverSettingsPage() {
                         type="text"
                         value={milestone.label}
                         onChange={(e) => updateMilestoneLabel(milestone.id, e.target.value)}
-                        className="flex-1 bg-white rounded-lg px-3 py-2 text-sm border border-gray-200 focus:outline-none focus:border-[#D4AF37]"
+                        className="flex-1 bg-white rounded-lg px-3 py-2 text-sm text-gray-900 border border-gray-200 focus:outline-none focus:border-[#D4AF37]"
                       />
                       <button
                         onClick={() => toggleMilestone(milestone.id)}
@@ -438,14 +438,14 @@ export default function PreHandoverSettingsPage() {
                           type="text"
                           value={faq.question}
                           onChange={(e) => updateFaq(faq.id, 'question', e.target.value)}
-                          className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:border-[#D4AF37]"
+                          className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 mb-2 focus:outline-none focus:border-[#D4AF37]"
                           placeholder="Enter question..."
                         />
                         <textarea
                           value={faq.answer}
                           onChange={(e) => updateFaq(faq.id, 'answer', e.target.value)}
                           rows={2}
-                          className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm resize-y focus:outline-none focus:border-[#D4AF37]"
+                          className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 resize-y focus:outline-none focus:border-[#D4AF37]"
                           placeholder="Enter answer..."
                         />
                       </div>
@@ -474,7 +474,7 @@ export default function PreHandoverSettingsPage() {
                       type="tel"
                       value={config.contacts.salesPhone}
                       onChange={(e) => setConfig(prev => ({ ...prev, contacts: { ...prev.contacts, salesPhone: e.target.value } }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37]"
                       placeholder="+353 21 456 7890"
                     />
                   </div>
@@ -484,7 +484,7 @@ export default function PreHandoverSettingsPage() {
                       type="email"
                       value={config.contacts.salesEmail}
                       onChange={(e) => setConfig(prev => ({ ...prev, contacts: { ...prev.contacts, salesEmail: e.target.value } }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37]"
                       placeholder="sales@development.ie"
                     />
                   </div>
@@ -494,7 +494,7 @@ export default function PreHandoverSettingsPage() {
                       type="text"
                       value={config.contacts.showHouseAddress}
                       onChange={(e) => setConfig(prev => ({ ...prev, contacts: { ...prev.contacts, showHouseAddress: e.target.value } }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37]"
                       placeholder="123 Main Street, Cork"
                     />
                   </div>
@@ -519,7 +519,7 @@ export default function PreHandoverSettingsPage() {
                       type="text"
                       value={config.statusMessages.onTrack}
                       onChange={(e) => setConfig(prev => ({ ...prev, statusMessages: { ...prev.statusMessages, onTrack: e.target.value } }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37]"
                     />
                   </div>
                   <div>
@@ -533,7 +533,7 @@ export default function PreHandoverSettingsPage() {
                       type="text"
                       value={config.statusMessages.delayed}
                       onChange={(e) => setConfig(prev => ({ ...prev, statusMessages: { ...prev.statusMessages, delayed: e.target.value } }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37]"
                     />
                   </div>
                 </div>
