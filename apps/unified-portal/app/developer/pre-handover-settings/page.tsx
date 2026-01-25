@@ -293,7 +293,7 @@ export default function PreHandoverSettingsPage() {
                       type="text"
                       value={config.greeting}
                       onChange={(e) => setConfig(prev => ({ ...prev, greeting: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
                       placeholder="e.g., Welcome to Rathard Park"
                     />
                     <p className="text-xs text-gray-400 mt-1.5">The purchaser's name is added automatically: "{config.greeting}, <strong>Sarah</strong>"</p>
@@ -303,7 +303,7 @@ export default function PreHandoverSettingsPage() {
                     <textarea
                       value={config.introText}
                       onChange={(e) => setConfig(prev => ({ ...prev, introText: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm resize-y min-h-[80px] focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 resize-y min-h-[80px] focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all"
                       placeholder="Optional welcome paragraph..."
                     />
                   </div>
@@ -548,10 +548,10 @@ export default function PreHandoverSettingsPage() {
                   <span className="text-xs text-gray-600">Tap to interact</span>
                 </div>
 
-                {/* Phone Device Frame - Rose Gold */}
-                <div className="w-[280px] h-[580px] bg-white rounded-[32px] border-[8px] border-[#E8C8B8] overflow-hidden relative shadow-xl">
+                {/* Phone Device Frame - Black */}
+                <div className="w-[280px] h-[580px] bg-white rounded-[32px] border-[8px] border-gray-900 overflow-hidden relative shadow-xl">
                   {/* Notch */}
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[100px] h-[24px] bg-[#E8C8B8] rounded-b-xl z-10" />
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[100px] h-[24px] bg-gray-900 rounded-b-xl z-10" />
 
                   {/* Backdrop */}
                   <div 
