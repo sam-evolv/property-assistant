@@ -148,7 +148,7 @@ export default function PurchaserLoginPage() {
 
           <div className="text-center mb-8">
             <h1 className="text-2xl md:text-[1.65rem] font-semibold mb-2" style={{ color: '#f5f5f4' }}>
-              Welcome Home
+              Your Home Journey
             </h1>
             <p className="text-sm tracking-wide" style={{ color: '#6b7280' }}>
               Enter your OpenHouse code to access your home
