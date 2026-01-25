@@ -100,7 +100,6 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'docs', label: 'Docs', icon: FileText },
     { id: 'faq', label: 'FAQ', icon: HelpCircle },
-    { id: 'contact', label: 'Contact', icon: Phone },
   ];
 
   return (
