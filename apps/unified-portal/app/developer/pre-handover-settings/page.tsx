@@ -323,7 +323,7 @@ export default function PreHandoverSettingsPage() {
                       <select
                         value={config.estHandover}
                         onChange={(e) => setConfig(prev => ({ ...prev, estHandover: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all bg-white"
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all bg-white"
                       >
                         <option value="">Select month...</option>
                         {['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'].map(m => {
@@ -338,7 +338,7 @@ export default function PreHandoverSettingsPage() {
                       <select
                         value={config.snaggingLead}
                         onChange={(e) => setConfig(prev => ({ ...prev, snaggingLead: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all bg-white"
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10 transition-all bg-white"
                       >
                         <option value="2">2 weeks before handover</option>
                         <option value="3">3 weeks before handover</option>
