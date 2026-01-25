@@ -33,20 +33,20 @@ export function BottomSheet({ isOpen, onClose, children, maxHeight = '75vh' }: B
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-[#0B0B0B]/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Sheet Content */}
       <div
-        className={`absolute bottom-0 left-0 right-0 rounded-t-3xl overflow-hidden transition-transform duration-400 ${
+        className={`absolute bottom-0 left-0 right-0 rounded-t-[28px] overflow-hidden transition-transform duration-[400ms] ${
           isOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
           maxHeight,
-          background: 'linear-gradient(180deg, #FFFFFF 0%, #FAF8F3 100%)',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.12)',
-          transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
+          background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAF8 100%)',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.12), 0 -2px 16px rgba(212,175,55,0.08)',
+          transitionTimingFunction: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
         }}
       >
         {children}
@@ -55,7 +55,6 @@ export function BottomSheet({ isOpen, onClose, children, maxHeight = '75vh' }: B
   );
 }
 
-// Sheet Header Component
 interface SheetHeaderProps {
   title: string;
   subtitle?: string;
@@ -63,15 +62,15 @@ interface SheetHeaderProps {
 
 export function SheetHeader({ title, subtitle }: SheetHeaderProps) {
   return (
-    <div className="sticky top-0 bg-white px-6 py-5 border-b border-stone-100">
-      <div className="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mb-4" />
-      <h2 className="font-serif text-xl text-brand-dark">{title}</h2>
-      {subtitle && <p className="text-sm text-brand-muted mt-1">{subtitle}</p>}
+    <div className="sticky top-0 bg-white/95 backdrop-blur-xl px-6 py-5 border-b border-[#D4AF37]/10">
+      <div className="w-12 h-1.5 bg-gradient-to-r from-[#D4AF37] to-[#FACC15] rounded-full mx-auto mb-4 
+        shadow-[0_0_8px_rgba(212,175,55,0.3)]" />
+      <h2 className="font-semibold text-xl text-gray-900 tracking-tight">{title}</h2>
+      {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
     </div>
   );
 }
 
-// Sheet Item Component
 interface SheetItemProps {
   children: React.ReactNode;
   onClick?: () => void;
@@ -85,9 +84,14 @@ export function SheetItem({ children, onClick, className = '', highlight = false
   return (
     <Component
       onClick={onClick}
-      className={`w-full flex items-center gap-4 p-4 rounded-2xl bg-stone-50 text-left transition-all hover:bg-brand-gold/5 ${
-        highlight ? 'bg-brand-gold/5' : ''
-      } ${className}`}
+      className={`group w-full flex items-center gap-4 p-4 rounded-2xl text-left 
+        transition-all duration-[250ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
+        ${highlight 
+          ? 'bg-gradient-to-r from-[#FEFCE8]/80 to-[#FEF9C3]/60 border border-[#D4AF37]/20' 
+          : 'bg-gray-50/80 hover:bg-[#FEFCE8]/60 border border-transparent hover:border-[#D4AF37]/15'
+        }
+        ${onClick ? 'active:scale-[0.98] cursor-pointer' : ''} 
+        ${className}`}
     >
       {children}
     </Component>

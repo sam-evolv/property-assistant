@@ -2,43 +2,7 @@
 
 import { SheetHeader } from '../BottomSheet';
 import type { FAQ } from '../types';
-
-// Icons
-const KeyIcon = () => (
-  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-  </svg>
-);
-
-const ClipboardIcon = () => (
-  <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-  </svg>
-);
-
-const LightningIcon = () => (
-  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-  </svg>
-);
-
-const WifiIcon = () => (
-  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-  </svg>
-);
-
-const AlertIcon = () => (
-  <svg className="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-  </svg>
-);
-
-const ChevronDownIcon = () => (
-  <svg className="chevron w-5 h-5 text-stone-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-);
+import { Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown } from 'lucide-react';
 
 interface FAQSheetProps {
   faqs: FAQ[];
@@ -72,13 +36,13 @@ const DEFAULT_FAQS: FAQ[] = [
   },
 ];
 
-const ICON_STYLES: Record<number, { bg: string; icon: React.ReactNode }> = {
-  0: { bg: 'from-amber-100 to-amber-50', icon: <KeyIcon /> },
-  1: { bg: 'from-violet-100 to-violet-50', icon: <ClipboardIcon /> },
-  2: { bg: 'from-blue-100 to-blue-50', icon: <LightningIcon /> },
-  3: { bg: 'from-emerald-100 to-emerald-50', icon: <WifiIcon /> },
-  4: { bg: 'from-rose-100 to-rose-50', icon: <AlertIcon /> },
-};
+const ICON_STYLES = [
+  { bg: 'from-[#FEFCE8] to-[#FEF9C3]', iconColor: 'text-[#A67C3A]', Icon: Key },
+  { bg: 'from-[#FEF9C3] to-[#FEF08A]', iconColor: 'text-[#8B6428]', Icon: ClipboardCheck },
+  { bg: 'from-[#FDE047]/30 to-[#FACC15]/30', iconColor: 'text-[#B8941F]', Icon: Zap },
+  { bg: 'from-[#D4AF37]/15 to-[#B8941F]/15', iconColor: 'text-[#D4AF37]', Icon: Wifi },
+  { bg: 'from-[#FEFCE8] to-[#FEF9C3]', iconColor: 'text-[#A67C3A]', Icon: AlertTriangle },
+];
 
 export function FAQSheet({ faqs }: FAQSheetProps) {
   const displayFaqs = faqs.length > 0 ? faqs : DEFAULT_FAQS;
@@ -89,19 +53,22 @@ export function FAQSheet({ faqs }: FAQSheetProps) {
       <div className="px-6 py-5 space-y-3 overflow-auto" style={{ maxHeight: 'calc(80vh - 100px)' }}>
         {displayFaqs.map((faq, index) => {
           const style = ICON_STYLES[index % 5];
+          const Icon = style.Icon;
           return (
-            <details key={faq.id} className="group rounded-2xl bg-stone-50 overflow-hidden">
-              <summary className="flex items-center gap-3 p-4 cursor-pointer list-none">
+            <details key={faq.id} className="group rounded-2xl bg-gray-50/80 overflow-hidden
+              border border-transparent hover:border-[#D4AF37]/15 transition-all duration-[250ms]">
+              <summary className="flex items-center gap-3.5 p-4 cursor-pointer list-none">
                 <div
-                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${style.bg} flex items-center justify-center shrink-0`}
+                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${style.bg} flex items-center justify-center shrink-0
+                    border border-[#D4AF37]/10`}
                 >
-                  {style.icon}
+                  <Icon className={`w-5 h-5 ${style.iconColor}`} />
                 </div>
-                <span className="flex-1 text-sm font-medium text-brand-dark">{faq.question}</span>
-                <ChevronDownIcon />
+                <span className="flex-1 text-sm font-medium text-gray-900">{faq.question}</span>
+                <ChevronDown className="chevron w-5 h-5 text-gray-400 transition-transform duration-[250ms]" />
               </summary>
-              <div className="px-4 pb-4 ml-[52px]">
-                <p className="text-sm text-brand-muted leading-relaxed">{faq.answer}</p>
+              <div className="px-4 pb-4 ml-[54px]">
+                <p className="text-sm text-gray-600 leading-relaxed">{faq.answer}</p>
               </div>
             </details>
           );
@@ -111,6 +78,10 @@ export function FAQSheet({ faqs }: FAQSheetProps) {
       <style jsx>{`
         details[open] summary .chevron {
           transform: rotate(180deg);
+        }
+        details[open] {
+          background: linear-gradient(to right, rgba(254, 252, 232, 0.6), rgba(254, 249, 195, 0.4));
+          border-color: rgba(212, 175, 55, 0.15);
         }
         summary::-webkit-details-marker {
           display: none;

@@ -2,19 +2,7 @@
 
 import { SheetHeader } from '../BottomSheet';
 import { MILESTONE_ORDER, MILESTONE_LABELS, type UnitPreHandoverData } from '../types';
-
-// Icons
-const CheckIcon = () => (
-  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-  </svg>
-);
-
-const HomeIcon = () => (
-  <svg className="w-4 h-4 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-  </svg>
-);
+import { Check, Home } from 'lucide-react';
 
 interface TimelineSheetProps {
   unit: UnitPreHandoverData;
@@ -33,7 +21,7 @@ export function TimelineSheet({ unit }: TimelineSheetProps) {
   return (
     <>
       <SheetHeader title="Your Timeline" />
-      <div className="px-6 py-5 space-y-1 overflow-auto" style={{ maxHeight: 'calc(75vh - 100px)' }}>
+      <div className="px-6 py-5 space-y-1.5 overflow-auto" style={{ maxHeight: 'calc(75vh - 100px)' }}>
         {MILESTONE_ORDER.map((milestone, index) => {
           const isComplete = index < currentIndex;
           const isCurrent = index === currentIndex;
@@ -49,27 +37,29 @@ export function TimelineSheet({ unit }: TimelineSheetProps) {
           return (
             <div
               key={milestone}
-              className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                isCurrent ? 'bg-brand-gold/5' : ''
-              } ${isPending ? 'opacity-50' : ''} hover:bg-brand-gold/5`}
+              className={`flex items-center gap-4 p-3.5 rounded-xl transition-all duration-[250ms] ${
+                isCurrent ? 'bg-gradient-to-r from-[#FEFCE8]/80 to-[#FEF9C3]/60 border border-[#D4AF37]/20' : 'border border-transparent'
+              } ${isPending ? 'opacity-50' : ''} hover:bg-[#FEFCE8]/60`}
             >
               {/* Status Icon */}
               {isComplete && (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-gold to-amber-600 flex items-center justify-center shadow-md">
-                  <CheckIcon />
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
+                  flex items-center justify-center shadow-[0_4px_12px_rgba(212,175,55,0.25)]">
+                  <Check className="w-4 h-4 text-white" strokeWidth={3} />
                 </div>
               )}
               {isCurrent && (
-                <div className="w-10 h-10 rounded-full bg-white border-2 border-brand-gold flex items-center justify-center animate-pulse-gold">
-                  <div className="w-3 h-3 bg-brand-gold rounded-full" />
+                <div className="w-10 h-10 rounded-full bg-white border-2 border-[#D4AF37] flex items-center justify-center
+                  shadow-[0_0_12px_rgba(212,175,55,0.3)]">
+                  <div className="w-3 h-3 bg-gradient-to-br from-[#D4AF37] to-[#FACC15] rounded-full animate-pulse" />
                 </div>
               )}
               {isPending && (
-                <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
                   {isHandover ? (
-                    <HomeIcon />
+                    <Home className="w-4 h-4 text-gray-300" />
                   ) : (
-                    <div className="w-2.5 h-2.5 bg-stone-300 rounded-full" />
+                    <div className="w-2.5 h-2.5 bg-gray-300 rounded-full" />
                   )}
                 </div>
               )}
@@ -79,27 +69,27 @@ export function TimelineSheet({ unit }: TimelineSheetProps) {
                 <span
                   className={`text-sm ${
                     isCurrent
-                      ? 'font-semibold text-brand-dark'
+                      ? 'font-semibold text-gray-900'
                       : isComplete
-                      ? 'font-medium text-brand-dark'
-                      : 'text-brand-muted'
+                      ? 'font-medium text-gray-900'
+                      : 'text-gray-500'
                   }`}
                 >
                   {MILESTONE_LABELS[milestone]}
                 </span>
                 {isCurrent && (
-                  <span className="ml-2 text-xs font-medium text-brand-gold">Current</span>
+                  <span className="ml-2 text-xs font-semibold text-[#D4AF37]">Current</span>
                 )}
               </div>
 
               {/* Date */}
               <span
-                className={`text-xs ${
+                className={`text-xs font-medium ${
                   isCurrent
-                    ? 'font-semibold text-brand-gold'
+                    ? 'text-[#D4AF37]'
                     : isComplete
-                    ? 'text-brand-muted'
-                    : 'text-stone-300'
+                    ? 'text-gray-500'
+                    : 'text-gray-300'
                 }`}
               >
                 {date

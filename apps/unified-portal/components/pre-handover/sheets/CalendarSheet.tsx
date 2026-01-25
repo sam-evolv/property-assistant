@@ -27,7 +27,8 @@ const OutlookIcon = () => (
 );
 
 const ChevronRightIcon = () => (
-  <svg className="w-5 h-5 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 text-gray-300 group-hover:text-[#D4AF37] group-hover:translate-x-0.5 
+    transition-all duration-[250ms]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
   </svg>
 );
@@ -111,31 +112,34 @@ END:VEVENT
       <SheetHeader title="Add to Calendar" subtitle="Add key dates to your calendar" />
       <div className="px-6 py-5 space-y-3">
         <SheetItem onClick={addToGoogle}>
-          <div className="w-12 h-12 rounded-xl bg-white border border-stone-200 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-white border border-[#D4AF37]/15 flex items-center justify-center
+            group-hover:shadow-[0_0_12px_rgba(212,175,55,0.1)] transition-all duration-[250ms]">
             <GoogleIcon />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-brand-dark">Google Calendar</p>
+            <p className="text-sm font-semibold text-gray-900">Google Calendar</p>
           </div>
           <ChevronRightIcon />
         </SheetItem>
 
         <SheetItem onClick={downloadICS}>
-          <div className="w-12 h-12 rounded-xl bg-white border border-stone-200 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-white border border-[#D4AF37]/15 flex items-center justify-center
+            group-hover:shadow-[0_0_12px_rgba(212,175,55,0.1)] transition-all duration-[250ms]">
             <AppleIcon />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-brand-dark">Apple Calendar</p>
+            <p className="text-sm font-semibold text-gray-900">Apple Calendar</p>
           </div>
           <ChevronRightIcon />
         </SheetItem>
 
         <SheetItem onClick={downloadICS}>
-          <div className="w-12 h-12 rounded-xl bg-white border border-stone-200 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-white border border-[#D4AF37]/15 flex items-center justify-center
+            group-hover:shadow-[0_0_12px_rgba(212,175,55,0.1)] transition-all duration-[250ms]">
             <OutlookIcon />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-brand-dark">Outlook</p>
+            <p className="text-sm font-semibold text-gray-900">Outlook</p>
           </div>
           <ChevronRightIcon />
         </SheetItem>
