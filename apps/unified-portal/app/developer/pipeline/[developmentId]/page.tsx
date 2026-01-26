@@ -245,14 +245,33 @@ function Toast({ message, visible }: ToastProps) {
 // Date Cell Component
 // =============================================================================
 
+// Traffic light computation
+function computeTrafficLight(
+  stageDate: string | null,
+  referenceDate: string | null,
+  amberDays: number,
+  redDays: number
+): 'green' | 'amber' | 'red' | null {
+  if (stageDate) return 'green';
+  if (!referenceDate) return null;
+  const now = new Date();
+  const ref = new Date(referenceDate);
+  const daysSince = Math.floor((now.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysSince >= redDays) return 'red';
+  if (daysSince >= amberDays) return 'amber';
+  return null;
+}
+
 interface DateCellProps {
   value: string | null;
   unitId: string;
   field: string;
   onUpdate: (unitId: string, field: string, value: string) => void;
+  trafficLight?: 'green' | 'amber' | 'red' | null;
+  onChase?: () => void;
 }
 
-function DateCell({ value, unitId, field, onUpdate }: DateCellProps) {
+function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: DateCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -298,19 +317,44 @@ function DateCell({ value, unitId, field, onUpdate }: DateCellProps) {
     );
   }
 
+  // Traffic light styling
+  const getTrafficLightStyle = () => {
+    if (!trafficLight || trafficLight === 'green') {
+      if (!isEmpty) {
+        return { background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', color: '#166534' };
+      }
+      return { background: '#fafaf9' };
+    }
+    if (trafficLight === 'amber') {
+      return { background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', color: '#92400e', borderLeft: '3px solid #f59e0b' };
+    }
+    if (trafficLight === 'red') {
+      return { background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)', color: '#991b1b', borderLeft: '3px solid #ef4444' };
+    }
+    return { background: '#fafaf9' };
+  };
+
   return (
     <td className="border-l border-gray-50">
       <div
         onClick={handleClick}
-        className={`h-11 px-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all ${
+        className={`h-11 px-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all relative ${
           isEmpty ? 'text-gray-400 hover:bg-gray-100' : ''
         }`}
-        style={!isEmpty ? {
-          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-          color: '#166534',
-        } : { background: '#fafaf9' }}
+        style={getTrafficLightStyle()}
       >
         {formatted || '—'}
+        {(trafficLight === 'red' || trafficLight === 'amber') && onChase && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onChase(); }}
+            className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${
+              trafficLight === 'red' ? 'hover:bg-red-200' : 'hover:bg-amber-200'
+            }`}
+            title="Send chase email"
+          >
+            <Mail className={`w-3 h-3 ${trafficLight === 'red' ? 'text-red-700' : 'text-amber-700'}`} />
+          </button>
+        )}
       </div>
     </td>
   );
@@ -1218,6 +1262,26 @@ export default function PipelineDevelopmentPage() {
     }
   };
 
+  const handleChaseEmail = (unit: PipelineUnit, stage: string) => {
+    if (!unit.purchaserEmail) {
+      showToast('No purchaser email available');
+      return;
+    }
+    const stageLabels: Record<string, string> = {
+      contracts: 'Signed Contracts',
+      kitchen: 'Kitchen Selection',
+      snag: 'Snagging Inspection',
+    };
+    const subject = encodeURIComponent(`Action Required: ${stageLabels[stage] || stage} - ${unit.unitNumber}`);
+    const body = encodeURIComponent(
+      `Dear ${unit.purchaserName?.split(' ')[0] || 'Purchaser'},\n\n` +
+      `This is a reminder regarding your ${stageLabels[stage]?.toLowerCase() || stage} for ${unit.unitNumber}.\n\n` +
+      `Please take action at your earliest convenience.\n\n` +
+      `Best regards,\nThe Sales Team`
+    );
+    window.open(`mailto:${unit.purchaserEmail}?subject=${subject}&body=${body}`, '_blank');
+  };
+
   const toggleRowSelection = (id: string, selected: boolean) => {
     const newSelection = new Set(selectedRows);
     if (selected) newSelection.add(id);
@@ -1544,10 +1608,31 @@ export default function PipelineDevelopmentPage() {
                           onClick={(e) => { e.stopPropagation(); setQueryUnit(unit); }}
                         />
 
-                        <DateCell value={unit.signedContractsDate} unitId={unit.id} field="signedContractsDate" onUpdate={handleUpdate} />
+                        <DateCell 
+                          value={unit.signedContractsDate} 
+                          unitId={unit.id} 
+                          field="signedContractsDate" 
+                          onUpdate={handleUpdate}
+                          trafficLight={computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42)}
+                          onChase={() => handleChaseEmail(unit, 'contracts')}
+                        />
                         <DateCell value={unit.counterSignedDate} unitId={unit.id} field="counterSignedDate" onUpdate={handleUpdate} />
-                        <DateCell value={unit.kitchenDate} unitId={unit.id} field="kitchenDate" onUpdate={handleUpdate} />
-                        <DateCell value={unit.snagDate} unitId={unit.id} field="snagDate" onUpdate={handleUpdate} />
+                        <DateCell 
+                          value={unit.kitchenDate} 
+                          unitId={unit.id} 
+                          field="kitchenDate" 
+                          onUpdate={handleUpdate}
+                          trafficLight={computeTrafficLight(unit.kitchenDate, unit.signedContractsDate, 14, 28)}
+                          onChase={() => handleChaseEmail(unit, 'kitchen')}
+                        />
+                        <DateCell 
+                          value={unit.snagDate} 
+                          unitId={unit.id} 
+                          field="snagDate" 
+                          onUpdate={handleUpdate}
+                          trafficLight={computeTrafficLight(unit.snagDate, unit.kitchenDate, 14, 30)}
+                          onChase={() => handleChaseEmail(unit, 'snag')}
+                        />
                         <DateCell value={unit.drawdownDate} unitId={unit.id} field="drawdownDate" onUpdate={handleUpdate} />
                         <DateCell value={unit.handoverDate} unitId={unit.id} field="handoverDate" onUpdate={handleUpdate} />
 
