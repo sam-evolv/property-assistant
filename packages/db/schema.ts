@@ -36,12 +36,14 @@ export const developments = pgTable('developments', {
   longitude: decimal('longitude', { precision: 9, scale: 6 }),
   logo_url: text('logo_url'),
   important_docs_version: integer('important_docs_version').default(1).notNull(),
+  archive_mode: archiveModeEnum('archive_mode').default('shared').notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('developments_tenant_idx').on(table.tenant_id),
   codeIdx: index('developments_code_idx').on(table.code),
   developerIdx: index('developments_developer_idx').on(table.developer_user_id),
   createdByIdx: index('developments_created_by_idx').on(table.created_by),
+  archiveModeIdx: index('developments_archive_mode_idx').on(table.archive_mode),
 }));
 
 export const houseTypes = pgTable('house_types', {
@@ -1561,11 +1563,6 @@ export const unitSalesPipeline = pgTable('unit_sales_pipeline', {
   snag_updated_by: uuid('snag_updated_by').references(() => admins.id),
   snag_updated_at: timestamp('snag_updated_at', { withTimezone: true }),
 
-  // 8b. De-snag Complete - Fixes signed off
-  desnag_date: timestamp('desnag_date', { withTimezone: true }),
-  desnag_updated_by: uuid('desnag_updated_by').references(() => admins.id),
-  desnag_updated_at: timestamp('desnag_updated_at', { withTimezone: true }),
-
   // 9. Drawdown - mortgage funds released
   drawdown_date: timestamp('drawdown_date', { withTimezone: true }),
   drawdown_updated_by: uuid('drawdown_updated_by').references(() => admins.id),
@@ -1575,10 +1572,6 @@ export const unitSalesPipeline = pgTable('unit_sales_pipeline', {
   handover_date: timestamp('handover_date', { withTimezone: true }),
   handover_updated_by: uuid('handover_updated_by').references(() => admins.id),
   handover_updated_at: timestamp('handover_updated_at', { withTimezone: true }),
-
-  // === ADDITIONAL FIELDS FOR ANALYTICS & ALERTS ===
-  mortgage_expiry_date: timestamp('mortgage_expiry_date', { withTimezone: true }),
-  solicitor_firm: text('solicitor_firm'),
 
   // === METADATA ===
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -1655,52 +1648,6 @@ export const unitPipelineNotesRelations = relations(unitPipelineNotes, ({ one })
     fields: [unitPipelineNotes.resolved_by],
     references: [admins.id],
   }),
-}));
-
-// Pipeline settings - threshold overrides per development
-export const pipelineSettings = pgTable('pipeline_settings', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  development_id: uuid('development_id').references(() => developments.id, { onDelete: 'cascade' }).notNull().unique(),
-
-  // Contracts thresholds (days from contracts_issued_date to signed_contracts_date)
-  contracts_amber_days: integer('contracts_amber_days').default(28).notNull(),
-  contracts_red_days: integer('contracts_red_days').default(42).notNull(),
-
-  // Kitchen thresholds (days from signed_contracts_date to kitchen_date)
-  kitchen_amber_days: integer('kitchen_amber_days').default(14).notNull(),
-  kitchen_red_days: integer('kitchen_red_days').default(28).notNull(),
-
-  // Snagging thresholds (days until handover_date when snag should be scheduled)
-  snag_amber_days: integer('snag_amber_days').default(14).notNull(),
-  snag_red_days: integer('snag_red_days').default(30).notNull(),
-
-  // De-snag thresholds (days until drawdown_date when desnag should be complete)
-  desnag_amber_days: integer('desnag_amber_days').default(3).notNull(),
-  desnag_red_days: integer('desnag_red_days').default(7).notNull(),
-
-  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => ({
-  tenantIdx: index('pipeline_settings_tenant_idx').on(table.tenant_id),
-  developmentIdx: index('pipeline_settings_development_idx').on(table.development_id),
-}));
-
-// Digest preferences - email digest settings per admin
-export const digestPreferences = pgTable('digest_preferences', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  admin_id: uuid('admin_id').references(() => admins.id, { onDelete: 'cascade' }).notNull().unique(),
-
-  enabled: boolean('enabled').default(true).notNull(),
-  delivery_day: integer('delivery_day').default(1).notNull(), // 1 = Monday
-  delivery_hour: integer('delivery_hour').default(7).notNull(), // 7am
-
-  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => ({
-  tenantIdx: index('digest_prefs_tenant_idx').on(table.tenant_id),
-  adminIdx: index('digest_prefs_admin_idx').on(table.admin_id),
 }));
 
 // Alias exports for camelCase naming convention compatibility
