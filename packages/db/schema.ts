@@ -36,14 +36,12 @@ export const developments = pgTable('developments', {
   longitude: decimal('longitude', { precision: 9, scale: 6 }),
   logo_url: text('logo_url'),
   important_docs_version: integer('important_docs_version').default(1).notNull(),
-  archive_mode: archiveModeEnum('archive_mode').default('shared').notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   tenantIdx: index('developments_tenant_idx').on(table.tenant_id),
   codeIdx: index('developments_code_idx').on(table.code),
   developerIdx: index('developments_developer_idx').on(table.developer_user_id),
   createdByIdx: index('developments_created_by_idx').on(table.created_by),
-  archiveModeIdx: index('developments_archive_mode_idx').on(table.archive_mode),
 }));
 
 export const houseTypes = pgTable('house_types', {
