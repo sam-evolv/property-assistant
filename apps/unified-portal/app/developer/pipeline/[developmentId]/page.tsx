@@ -273,6 +273,7 @@ interface DateCellProps {
 
 function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: DateCellProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [pendingValue, setPendingValue] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -287,14 +288,31 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
+      inputRef.current.showPicker?.();
     }
   }, [isEditing]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.value) {
-      onUpdate(unitId, field, e.target.value);
+    setPendingValue(e.target.value);
+  };
+
+  const handleBlur = () => {
+    if (pendingValue && pendingValue !== value) {
+      onUpdate(unitId, field, pendingValue);
     }
+    setPendingValue(null);
     setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && pendingValue) {
+      onUpdate(unitId, field, pendingValue);
+      setPendingValue(null);
+      setIsEditing(false);
+    } else if (e.key === 'Escape') {
+      setPendingValue(null);
+      setIsEditing(false);
+    }
   };
 
   const isEmpty = !value;
@@ -309,7 +327,8 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
             type="date"
             defaultValue={value || ''}
             onChange={handleChange}
-            onBlur={() => setIsEditing(false)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
             className="w-full h-full bg-transparent text-xs text-center outline-none"
           />
         </div>
