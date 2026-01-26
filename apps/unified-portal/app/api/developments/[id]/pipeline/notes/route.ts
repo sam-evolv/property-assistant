@@ -7,13 +7,20 @@ import { eq, and, desc } from 'drizzle-orm';
 export const dynamic = 'force-dynamic';
 
 async function verifyPipelineAccess(pipelineId: string, developmentId: string, tenantId: string): Promise<boolean> {
+  const [dev] = await db
+    .select({ id: developments.id })
+    .from(developments)
+    .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)))
+    .limit(1);
+  
+  if (!dev) return false;
+
   const [record] = await db
     .select({ id: unitSalesPipeline.id })
     .from(unitSalesPipeline)
     .where(and(
       eq(unitSalesPipeline.id, pipelineId),
-      eq(unitSalesPipeline.development_id, developmentId),
-      eq(unitSalesPipeline.tenant_id, tenantId)
+      eq(unitSalesPipeline.development_id, developmentId)
     ))
     .limit(1);
   return !!record;
@@ -56,10 +63,7 @@ export async function GET(
       })
       .from(unitPipelineNotes)
       .leftJoin(admins, eq(unitPipelineNotes.created_by, admins.id))
-      .where(and(
-        eq(unitPipelineNotes.pipeline_id, pipelineId),
-        eq(unitPipelineNotes.tenant_id, tenantId)
-      ))
+      .where(eq(unitPipelineNotes.pipeline_id, pipelineId))
       .orderBy(desc(unitPipelineNotes.created_at));
 
     return NextResponse.json({ notes });

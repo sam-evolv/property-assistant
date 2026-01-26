@@ -72,10 +72,7 @@ export async function GET(
     const [settings] = await db
       .select()
       .from(pipelineSettings)
-      .where(and(
-        eq(pipelineSettings.development_id, developmentId),
-        eq(pipelineSettings.tenant_id, tenantId)
-      ))
+      .where(eq(pipelineSettings.development_id, developmentId))
       .limit(1);
 
     const thresholds = {
@@ -115,10 +112,7 @@ export async function GET(
       })
       .from(unitSalesPipeline)
       .leftJoin(units, eq(unitSalesPipeline.unit_id, units.id))
-      .where(and(
-        eq(unitSalesPipeline.development_id, developmentId),
-        eq(unitSalesPipeline.tenant_id, tenantId)
-      ))
+      .where(eq(unitSalesPipeline.development_id, developmentId))
       .orderBy(units.unit_number);
 
     const rows = pipelineData.map(row => {
@@ -220,13 +214,22 @@ export async function PATCH(
       );
     }
 
+    const [development] = await db
+      .select()
+      .from(developments)
+      .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)))
+      .limit(1);
+
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
     const [pipelineRecord] = await db
       .select({ id: unitSalesPipeline.id })
       .from(unitSalesPipeline)
       .where(and(
         eq(unitSalesPipeline.id, pipelineId),
-        eq(unitSalesPipeline.development_id, developmentId),
-        eq(unitSalesPipeline.tenant_id, tenantId)
+        eq(unitSalesPipeline.development_id, developmentId)
       ))
       .limit(1);
 
@@ -266,7 +269,7 @@ export async function PATCH(
     await db
       .update(unitSalesPipeline)
       .set(updateData)
-      .where(and(eq(unitSalesPipeline.id, pipelineId), eq(unitSalesPipeline.tenant_id, tenantId)));
+      .where(eq(unitSalesPipeline.id, pipelineId));
 
     return NextResponse.json({ success: true, updated: updateData });
 

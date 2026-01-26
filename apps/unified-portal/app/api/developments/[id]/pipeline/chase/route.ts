@@ -109,8 +109,7 @@ export async function GET(
       .leftJoin(units, eq(unitSalesPipeline.unit_id, units.id))
       .where(and(
         eq(unitSalesPipeline.id, pipelineId),
-        eq(unitSalesPipeline.development_id, developmentId),
-        eq(unitSalesPipeline.tenant_id, tenantId)
+        eq(unitSalesPipeline.development_id, developmentId)
       ));
 
     if (!row) {
