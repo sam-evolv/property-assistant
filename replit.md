@@ -107,10 +107,43 @@ OpenHouse AI/
 
 **Key Features:**
 - 24-hour session persistence via localStorage
-- Backward-compatible fallback to quick prompts when flag is off
-- Intent metadata plumbing through chat API (source, intentKey, templateId, pillId)
-- Follow-up intent carryover using lastIntentKey in conversation state
-- Pills rendered as sector-diverse rotating suggestions in chat UI
+
+### Sales Pipeline Feature (January 2026) - IN PROGRESS
+
+**Developer-facing dense table interface for tracking unit sales from Release to Handover:**
+
+**Database Schema (packages/db/schema.ts):**
+1. `unitSalesPipeline`: Tracks 11 date stages per unit with audit fields
+   - Pipeline stages: release → sale_agreed → deposit → contracts_issued → signed_contracts → counter_signed → kitchen → snag → desnag → drawdown → handover
+   - Additional fields: purchaser info, solicitor_firm, mortgage_expiry_date
+   - Each date field has corresponding `_updated_by` and `_updated_at` audit columns
+
+2. `unitPipelineNotes`: Query/note tracking per unit
+   - is_query flag for distinguishing questions from notes
+   - is_resolved flag with resolved_by and resolved_at
+
+3. `pipelineSettings`: Threshold overrides per development
+   - Contracts, kitchen, snag, desnag thresholds (amber/red days)
+
+4. `digestPreferences`: Email digest settings per admin
+
+**API Endpoints (apps/unified-portal/app/api/developments/[id]/pipeline/):**
+- `GET/PATCH /pipeline` - Fetch and update pipeline data with traffic light indicators
+- `GET/POST/PATCH /pipeline/notes` - Manage unit notes and queries
+- `GET /pipeline/chase` - Generate chase email for overdue items
+
+**UI Pages (apps/unified-portal/app/developer/pipeline/):**
+- `/developer/pipeline` - Development list with stats and alert counts
+- `/developer/pipeline/[developmentId]` - Dense table with 14 columns, inline editing
+- `/developer/pipeline/[developmentId]/analysis` - Analytics with tabs for alerts, bottlenecks, solicitors, comparison
+
+**Key Features:**
+- Traffic light indicators (green/amber/red) based on configurable thresholds
+- Click empty cell to set today's date
+- Click existing date to edit
+- Sliding notes panel for unit queries
+- Chase email generation for overdue items
+- 36px row height for dense viewing
 
 **Key Files:**
 - `apps/unified-portal/lib/assistant/suggested-pills/registry.ts`

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { unitSalesPipeline, units, developments, pipelineSettings } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,9 +64,15 @@ export async function GET(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
+    const tenantId = session.tenantId;
     const { searchParams } = new URL(request.url);
     const pipelineId = searchParams.get('pipelineId');
     const stage = searchParams.get('stage');
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
     if (!pipelineId || !stage) {
       return NextResponse.json({ error: 'pipelineId and stage are required' }, { status: 400 });
@@ -75,14 +81,12 @@ export async function GET(
     const [development] = await db
       .select()
       .from(developments)
-      .where(eq(developments.id, params.id))
+      .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)))
       .limit(1);
 
-    const [settings] = await db
-      .select()
-      .from(pipelineSettings)
-      .where(eq(pipelineSettings.development_id, params.id))
-      .limit(1);
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
 
     const [row] = await db
       .select({
@@ -103,10 +107,18 @@ export async function GET(
       })
       .from(unitSalesPipeline)
       .leftJoin(units, eq(unitSalesPipeline.unit_id, units.id))
-      .where(eq(unitSalesPipeline.id, pipelineId));
+      .where(and(
+        eq(unitSalesPipeline.id, pipelineId),
+        eq(unitSalesPipeline.development_id, developmentId),
+        eq(unitSalesPipeline.tenant_id, tenantId)
+      ));
 
     if (!row) {
       return NextResponse.json({ error: 'Pipeline record not found' }, { status: 404 });
+    }
+
+    if (!row.purchaser_email) {
+      return NextResponse.json({ error: 'No purchaser email available' }, { status: 400 });
     }
 
     let daysPending = 0;
@@ -144,7 +156,7 @@ export async function GET(
       stage,
     };
 
-    const emailBody = generateChaseEmail(emailData, development?.name || 'the development');
+    const emailBody = generateChaseEmail(emailData, development.name || 'the development');
 
     return NextResponse.json({
       email: {

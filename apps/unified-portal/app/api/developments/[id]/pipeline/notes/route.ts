@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { unitPipelineNotes, admins } from '@openhouse/db/schema';
+import { unitPipelineNotes, unitSalesPipeline, admins, developments } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
+
+async function verifyPipelineAccess(pipelineId: string, developmentId: string, tenantId: string): Promise<boolean> {
+  const [record] = await db
+    .select({ id: unitSalesPipeline.id })
+    .from(unitSalesPipeline)
+    .where(and(
+      eq(unitSalesPipeline.id, pipelineId),
+      eq(unitSalesPipeline.development_id, developmentId),
+      eq(unitSalesPipeline.tenant_id, tenantId)
+    ))
+    .limit(1);
+  return !!record;
+}
 
 export async function GET(
   request: NextRequest,
@@ -12,11 +25,22 @@ export async function GET(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
+    const tenantId = session.tenantId;
     const { searchParams } = new URL(request.url);
     const pipelineId = searchParams.get('pipelineId');
 
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
+
     if (!pipelineId) {
       return NextResponse.json({ error: 'pipelineId is required' }, { status: 400 });
+    }
+
+    const hasAccess = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 });
     }
 
     const notes = await db
@@ -32,7 +56,10 @@ export async function GET(
       })
       .from(unitPipelineNotes)
       .leftJoin(admins, eq(unitPipelineNotes.created_by, admins.id))
-      .where(eq(unitPipelineNotes.pipeline_id, pipelineId))
+      .where(and(
+        eq(unitPipelineNotes.pipeline_id, pipelineId),
+        eq(unitPipelineNotes.tenant_id, tenantId)
+      ))
       .orderBy(desc(unitPipelineNotes.created_at));
 
     return NextResponse.json({ notes });
@@ -49,15 +76,25 @@ export async function POST(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
+    const tenantId = session.tenantId;
     const body = await request.json();
     const { pipelineId, note, isQuery } = body;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
     if (!pipelineId || !note) {
       return NextResponse.json({ error: 'pipelineId and note are required' }, { status: 400 });
     }
 
+    const hasAccess = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 });
+    }
+
     const adminId = (session as any).admin?.id;
-    const tenantId = (session as any).admin?.tenant_id;
 
     const [newNote] = await db
       .insert(unitPipelineNotes)
@@ -84,11 +121,35 @@ export async function PATCH(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
+    const tenantId = session.tenantId;
     const body = await request.json();
     const { noteId, resolve } = body;
 
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
+
     if (!noteId) {
       return NextResponse.json({ error: 'noteId is required' }, { status: 400 });
+    }
+
+    const [existingNote] = await db
+      .select({ id: unitPipelineNotes.id, pipeline_id: unitPipelineNotes.pipeline_id })
+      .from(unitPipelineNotes)
+      .where(and(
+        eq(unitPipelineNotes.id, noteId),
+        eq(unitPipelineNotes.tenant_id, tenantId)
+      ))
+      .limit(1);
+
+    if (!existingNote) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    }
+
+    const hasAccess = await verifyPipelineAccess(existingNote.pipeline_id, developmentId, tenantId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
     const adminId = (session as any).admin?.id;
@@ -100,7 +161,7 @@ export async function PATCH(
         resolved_by: resolve ? adminId : null,
         resolved_at: resolve ? new Date() : null,
       })
-      .where(eq(unitPipelineNotes.id, noteId))
+      .where(and(eq(unitPipelineNotes.id, noteId), eq(unitPipelineNotes.tenant_id, tenantId)))
       .returning();
 
     return NextResponse.json({ note: updated });

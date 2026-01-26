@@ -53,11 +53,16 @@ export async function GET(
   try {
     const session = await requireRole(['developer', 'super_admin']);
     const developmentId = params.id;
+    const tenantId = session.tenantId;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
     const [development] = await db
       .select()
       .from(developments)
-      .where(eq(developments.id, developmentId))
+      .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)))
       .limit(1);
 
     if (!development) {
@@ -67,7 +72,10 @@ export async function GET(
     const [settings] = await db
       .select()
       .from(pipelineSettings)
-      .where(eq(pipelineSettings.development_id, developmentId))
+      .where(and(
+        eq(pipelineSettings.development_id, developmentId),
+        eq(pipelineSettings.tenant_id, tenantId)
+      ))
       .limit(1);
 
     const thresholds = {
@@ -107,7 +115,10 @@ export async function GET(
       })
       .from(unitSalesPipeline)
       .leftJoin(units, eq(unitSalesPipeline.unit_id, units.id))
-      .where(eq(unitSalesPipeline.development_id, developmentId))
+      .where(and(
+        eq(unitSalesPipeline.development_id, developmentId),
+        eq(unitSalesPipeline.tenant_id, tenantId)
+      ))
       .orderBy(units.unit_number);
 
     const rows = pipelineData.map(row => {
@@ -193,14 +204,34 @@ export async function PATCH(
 ) {
   try {
     const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
+    const tenantId = session.tenantId;
     const body = await request.json();
     const { pipelineId, field, value } = body;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
     if (!pipelineId || !field) {
       return NextResponse.json(
         { error: 'Missing pipelineId or field' },
         { status: 400 }
       );
+    }
+
+    const [pipelineRecord] = await db
+      .select({ id: unitSalesPipeline.id })
+      .from(unitSalesPipeline)
+      .where(and(
+        eq(unitSalesPipeline.id, pipelineId),
+        eq(unitSalesPipeline.development_id, developmentId),
+        eq(unitSalesPipeline.tenant_id, tenantId)
+      ))
+      .limit(1);
+
+    if (!pipelineRecord) {
+      return NextResponse.json({ error: 'Pipeline record not found' }, { status: 404 });
     }
 
     const dateFields = [
@@ -235,7 +266,7 @@ export async function PATCH(
     await db
       .update(unitSalesPipeline)
       .set(updateData)
-      .where(eq(unitSalesPipeline.id, pipelineId));
+      .where(and(eq(unitSalesPipeline.id, pipelineId), eq(unitSalesPipeline.tenant_id, tenantId)));
 
     return NextResponse.json({ success: true, updated: updateData });
 
