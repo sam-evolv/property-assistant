@@ -428,9 +428,6 @@ export default function DeveloperOverviewPage() {
   // Calculate stats
   const totalMessages = data.summary.totalMessages;
   const messageGrowth = data.summary.messageGrowth;
-  const activeRate = data.summary.registeredHomeowners > 0
-    ? Math.round((data.summary.activeHomeowners / data.summary.registeredHomeowners) * 100)
-    : 0;
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -479,7 +476,6 @@ export default function DeveloperOverviewPage() {
             <StatCard
               label="Active (7d)"
               value={data.summary.activeHomeowners}
-              suffix={`${activeRate}%`}
               icon={Activity}
               iconColor="text-green-500"
               trend={data.kpis.engagementRate.delta}
