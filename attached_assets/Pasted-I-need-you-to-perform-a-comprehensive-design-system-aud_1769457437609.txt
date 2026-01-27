@@ -1,0 +1,65 @@
+I need you to perform a comprehensive design system audit of this codebase and output a complete design specification document. This will be used to create a design system reference for another AI tool, so be exhaustive and precise.
+
+## What to Extract
+
+### 1. Design Tokens
+Scan all CSS files, Tailwind config, tailwind-preset.js, theme files, and any design token files for:
+
+- **Colors**: Every color value used, organized by purpose (primary, secondary, neutrals, semantic colors like success/error/warning). Include the exact hex/rgb values and any CSS variable names.
+- **Typography**: Font families (with fallbacks), font sizes, line heights, font weights, letter spacing. Note which fonts are used for headings vs body text.
+- **Spacing**: Any custom spacing scale or common spacing values used throughout.
+- **Border Radius**: All radius values and where each is typically used.
+- **Shadows**: Every box-shadow definition, named if possible.
+- **Transitions/Animations**: All easing curves (cubic-bezier values), durations, and any keyframe animations defined.
+- **Breakpoints**: Media query breakpoints for responsive design.
+- **Z-index scale**: If there's a defined z-index system.
+
+### 2. Component Patterns
+Find examples of these components in the codebase and extract the exact className strings or styled-component definitions:
+
+- Buttons (primary, secondary, ghost, disabled states)
+- Cards (standard, glass/frosted, interactive)
+- Input fields (text, select, textarea - including focus states)
+- Navigation elements
+- Modals/dialogs
+- Tables/data display
+- Stat cards or dashboard widgets
+- Alert/notification components
+- Loading states/skeletons
+- Any glass-morphism or blur effects
+
+### 3. Layout Patterns
+- Common container widths
+- Grid systems used
+- Common flex patterns
+- Page layout structures
+
+### 4. Icon Usage
+- What icon library is used (Lucide, Heroicons, custom SVGs)?
+- Standard icon sizes
+- Icon styling conventions
+
+### 5. Interactive States
+For buttons, links, cards, and inputs, document:
+- Default state
+- Hover state
+- Focus state
+- Active/pressed state
+- Disabled state
+
+## Output Format
+
+Structure your output as a single markdown document with code blocks showing the exact values. For component patterns, include the full className strings or CSS exactly as they appear in the codebase.
+
+Example format for a button:
+```tsx
+// Primary Button - from [filename]
+className="bg-gold-400 text-white font-medium px-6 py-3 rounded-lg shadow-gold transition-all duration-250 ease-premium hover:bg-gold-500 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+```
+
+## Important
+- Include EXACT values, not approximations
+- Note which file each pattern comes from
+- If there are inconsistencies in the codebase, flag them
+- Include any CSS custom properties (--variable-name) definitions
+- Don't skip anything - completeness is critical
