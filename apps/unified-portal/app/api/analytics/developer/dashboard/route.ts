@@ -194,23 +194,48 @@ export async function GET(request: NextRequest) {
         }
         const { count } = await supabaseActiveQuery;
         supabaseActiveCount = count || 0;
-        console.log(`[DeveloperDashboard] Active from Supabase units: ${supabaseActiveCount}`);
+        console.log(`[DeveloperDashboard] Active from Supabase units (docs): ${supabaseActiveCount}`);
       } catch (supabaseError) {
         console.log(`[DeveloperDashboard] Supabase active query failed:`, supabaseError);
       }
 
-      // Combine all sources - use the maximum since there's likely overlap
-      activeHomeowners = Math.max(drizzleActiveCount, supabaseActiveCount, purchaserAgreementsActiveCount);
+      // Also count recently registered units as "active" - new signups in last 7 days
+      let recentlyRegisteredCount = 0;
+      try {
+        let recentlyRegisteredQuery = supabaseAdmin
+          .from('units')
+          .select('id', { count: 'exact', head: true })
+          .not('purchaser_name', 'is', null)
+          .gte('created_at', sevenDaysAgo.toISOString());
+
+        if (developmentId) {
+          recentlyRegisteredQuery = recentlyRegisteredQuery.eq('project_id', developmentId);
+        }
+        const { count } = await recentlyRegisteredQuery;
+        recentlyRegisteredCount = count || 0;
+        console.log(`[DeveloperDashboard] Active from recent registrations: ${recentlyRegisteredCount}`);
+      } catch (recentRegError) {
+        console.log(`[DeveloperDashboard] Recently registered query failed:`, recentRegError);
+      }
+
+      // Combine all sources - get the maximum of all unique activity indicators
+      const allActivityCounts = [
+        drizzleActiveCount, 
+        supabaseActiveCount, 
+        purchaserAgreementsActiveCount, 
+        recentlyRegisteredCount
+      ];
+      activeHomeowners = Math.max(...allActivityCounts);
 
       // If multiple sources have activity, add them with overlap adjustment
-      const activeSources = [drizzleActiveCount, supabaseActiveCount, purchaserAgreementsActiveCount].filter(c => c > 0);
+      const activeSources = allActivityCounts.filter(c => c > 0);
       if (activeSources.length > 1) {
         // Sum them but reduce for expected overlap
         const total = activeSources.reduce((a, b) => a + b, 0);
         activeHomeowners = Math.max(activeHomeowners, Math.floor(total * 0.7)); // 30% overlap assumed
       }
 
-      console.log(`[DeveloperDashboard] Active users: drizzle=${drizzleActiveCount}, supabase=${supabaseActiveCount}, agreements=${purchaserAgreementsActiveCount}, combined=${activeHomeowners}`);
+      console.log(`[DeveloperDashboard] Active users: drizzle=${drizzleActiveCount}, supabase=${supabaseActiveCount}, agreements=${purchaserAgreementsActiveCount}, recentReg=${recentlyRegisteredCount}, combined=${activeHomeowners}`);
 
       // Previous period for comparison
       const prevResult = await (developmentId
