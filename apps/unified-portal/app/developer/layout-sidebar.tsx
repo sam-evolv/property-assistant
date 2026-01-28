@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
-  FolderArchive, MessageSquare, Shield, AlertTriangle, Settings,
-  Layers, ClipboardList, ShieldCheck, GitBranch, Key, Mail, Command,
+  FolderArchive, MessageSquare, Shield,
+  Layers, ShieldCheck, GitBranch, Key, Mail, Command,
   CalendarCheck
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
@@ -39,7 +39,6 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
       { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
-      { label: 'Snagging', href: '/developer/snagging', icon: ClipboardList },
       { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
       { label: 'Digital Handover', href: '/developer/handover', icon: Key },
       { label: 'Communications', href: '/developer/communications', icon: Mail },
@@ -48,7 +47,6 @@ const navSections: NavSection[] = [
   {
     title: 'Management',
     items: [
-      { label: 'Scheme Setup', href: '/developer/scheme-setup', icon: Settings },
       { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
       { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
       { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
@@ -67,7 +65,6 @@ const navSections: NavSection[] = [
       { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
       { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
       { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
-      { label: 'Error Dashboard', href: '/developer/errors', icon: AlertTriangle },
     ],
   },
 ];
