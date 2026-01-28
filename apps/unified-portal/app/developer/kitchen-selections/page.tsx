@@ -38,6 +38,7 @@ interface KitchenUnit {
   id: string;
   unitId: string;
   unitNumber: string;
+  address: string | null;
   purchaserName: string | null;
   houseType: string;
   hasKitchen: boolean | null;
@@ -643,6 +644,9 @@ export default function KitchenSelectionsPage() {
                       Unit
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                      Address
+                    </th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
                       Purchaser
                     </th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
@@ -685,6 +689,14 @@ export default function KitchenSelectionsPage() {
                         <div className="h-14 flex items-center">
                           <span className="text-sm font-semibold" style={{ color: tokens.dark }}>
                             {unit.unitNumber}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 border-b border-gray-100">
+                        <div className="h-14 flex items-center">
+                          <span className={`text-sm ${unit.address ? 'text-gray-700' : 'text-gray-300'}`}>
+                            {unit.address || '—'}
                           </span>
                         </div>
                       </td>

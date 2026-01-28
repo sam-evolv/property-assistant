@@ -19,6 +19,7 @@ interface KitchenUnit {
   id: string;
   unitId: string;
   unitNumber: string;
+  address: string | null;
   purchaserName: string | null;
   houseType: string;
   hasKitchen: boolean | null;
@@ -191,6 +192,7 @@ export async function GET(
         id: selection?.id || '',
         unitId: unit.id,
         unitNumber: unit.unit_number,
+        address: unit.address_line_1 || null,
         purchaserName: unit.purchaser_name,
         houseType: unit.house_type_code,
         hasKitchen: hasKitchen,
@@ -250,23 +252,26 @@ export async function PUT(
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const [existingUnit] = await db
-      .select()
-      .from(units)
-      .where(and(
-        eq(units.id, unitId),
-        eq(units.tenant_id, tenantId),
-        eq(units.development_id, developmentId)
-      ));
+    const supabaseAdmin = getSupabaseAdmin();
 
-    if (!existingUnit) {
+    // Verify unit exists using Supabase
+    const { data: existingUnit, error: unitError } = await supabaseAdmin
+      .from('units')
+      .select('id')
+      .eq('id', unitId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (unitError || !existingUnit) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const [existing] = await db
-      .select()
-      .from(kitchenSelections)
-      .where(eq(kitchenSelections.unit_id, unitId));
+    // Check for existing selection
+    const { data: existing } = await supabaseAdmin
+      .from('kitchen_selections')
+      .select('id')
+      .eq('unit_id', unitId)
+      .single();
 
     const fieldMap: Record<string, string> = {
       hasKitchen: 'has_kitchen',
@@ -285,21 +290,35 @@ export async function PUT(
 
     let result;
     if (existing) {
-      [result] = await db
-        .update(kitchenSelections)
-        .set({ [dbField]: value, updated_at: new Date() })
-        .where(eq(kitchenSelections.id, existing.id))
-        .returning();
+      const { data, error } = await supabaseAdmin
+        .from('kitchen_selections')
+        .update({ [dbField]: value, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[Kitchen Selections API] Update error:', error);
+        return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+      }
+      result = data;
     } else {
-      [result] = await db
-        .insert(kitchenSelections)
-        .values({
+      const { data, error } = await supabaseAdmin
+        .from('kitchen_selections')
+        .insert({
           tenant_id: tenantId,
           development_id: developmentId,
           unit_id: unitId,
           [dbField]: value,
         })
-        .returning();
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[Kitchen Selections API] Insert error:', error);
+        return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
+      }
+      result = data;
     }
 
     return NextResponse.json({ success: true, selection: result });
