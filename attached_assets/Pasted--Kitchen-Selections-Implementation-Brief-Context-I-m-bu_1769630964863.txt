@@ -1,0 +1,90 @@
+# Kitchen Selections - Implementation Brief
+
+## Context
+
+I'm building a developer dashboard for OpenHouse AI, a property-tech platform that replaces paper handover folders with an AI-powered resident portal. The platform needs to feel premium, polished, and worth paying for.
+
+I've attached a ZIP file containing React components, Supabase hooks, and database schema for a new **Kitchen Selections** feature. This replaces the current card-based Kitchen Selections page with a clean, simple table view.
+
+## Your Task
+
+Implement these components into the existing codebase, but **match the existing styling patterns** already in the project. The attached components have functional logic that works - your job is to:
+
+1. **Integrate the components** into the project structure
+2. **Adapt the styling** to perfectly match the existing design language used elsewhere in the developer dashboard (look at Sales Pipeline for reference)
+3. **Run the database schema** in Supabase
+4. **Wire up the routing** and data connections
+5. **Polish everything** to world-class standard
+
+## Design Requirements
+
+This needs to look **beautiful, premium, and stupidly simple**. The target users are property developers who are typically older and not tech-savvy. They need to understand what they're looking at within 5 seconds.
+
+**Reference:** Look at the Sales Pipeline table (`/developer/pipeline`) - the Kitchen Selections table should feel like it belongs in the same family. Same visual weight, same interaction patterns, same level of polish.
+
+**Key principles:**
+- Clean white backgrounds with subtle borders
+- Gold accent color (#D4AF37) for primary actions and progress
+- Generous whitespace - don't cram things together
+- Obvious visual hierarchy - addresses should pop, status should be glanceable
+- Smooth micro-interactions on all interactive elements
+- No visual clutter - if something doesn't need to be there, remove it
+
+## Functional Requirements
+
+**The Table:**
+- Each row = one unit in the development
+- Columns: Address, Purchaser, Kitchen (Y/N), Counter, Units, Handle, Wardrobe (Y/N), Style, Status, Updated, Comments
+- Address should be prominent (e.g., "1 Longview Park") with unit type badge below
+- Dropdowns for all selection fields
+- When Kitchen = "No", disable Counter/Units/Handle dropdowns
+- When Wardrobe = "No", disable Style dropdown
+- Status auto-calculates: "Complete" when all required fields filled, "Pending" otherwise
+- Status syncs back to Sales Pipeline when complete
+
+**Settings Modal:**
+- Developer defines their available options (counter types, unit finishes, handle styles, wardrobe styles)
+- Options apply to all units in the development
+- Simple add/remove interface with chips
+
+**Filter & Search:**
+- Tabs: All Units | Complete | Pending (with counts)
+- Search by address or purchaser name
+
+**Progress:**
+- Progress bar showing X% complete
+- "Send Reminders" button for pending selections
+
+## Files Included
+
+```
+kitchen-selections-components/
+├── components/           # React components (adapt styling to match project)
+├── hooks/               # Supabase data hooks (adjust imports to match project)
+├── types.ts             # TypeScript interfaces
+├── database-schema.sql  # Run this in Supabase SQL Editor
+├── index.ts             # Exports
+└── REPLIT-INSTRUCTIONS.md  # Technical integration steps
+```
+
+## What Success Looks Like
+
+When done, this page should:
+- Load instantly with skeleton states
+- Feel buttery smooth when interacting with dropdowns
+- Be immediately obvious what each column means
+- Make the developer feel like they're using premium software
+- Match the rest of the dashboard so perfectly that it looks like it was always there
+
+## Important Notes
+
+- The database schema includes RLS policies - make sure they work with your existing auth setup
+- The hooks use `@supabase/auth-helpers-nextjs` - adapt to whatever Supabase client pattern you're using
+- Connect the comments button to the existing smart comments system
+- If column names in the database differ from what the hooks expect, adjust accordingly
+
+## Quality Bar
+
+This is going in front of property developers who will judge the entire platform based on first impressions. Every pixel matters. Every interaction should feel considered. No rough edges.
+
+Make it beautiful. Make it simple. Make it work.
