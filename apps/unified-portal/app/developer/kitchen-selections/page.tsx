@@ -14,7 +14,7 @@ import {
   ChevronDown,
   Loader2,
 } from 'lucide-react';
-import { useDevelopment } from '@/contexts/DevelopmentContext';
+import { useCurrentContext } from '@/contexts/CurrentContext';
 
 const tokens = {
   gold: '#D4AF37',
@@ -374,7 +374,7 @@ function SettingsModal({
 
 export default function KitchenSelectionsPage() {
   const router = useRouter();
-  const { developmentId } = useDevelopment();
+  const { developmentId } = useCurrentContext();
 
   const [units, setUnits] = useState<KitchenUnit[]>([]);
   const [development, setDevelopment] = useState<DevelopmentInfo | null>(null);
