@@ -37,61 +37,155 @@ export async function GET(
 ) {
   try {
     const { developmentId } = await params;
+    console.log('[Kitchen Selections API] GET request for development:', developmentId);
+    
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
+    console.log('[Kitchen Selections API] Session tenant:', tenantId);
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+    let usedFallback = false;
 
-    const [development] = await db
-      .select({
-        id: developments.id,
-        name: developments.name,
-        code: developments.code,
-      })
-      .from(developments)
-      .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
+    // Get development - try Drizzle first, fallback to Supabase
+    let development: any = null;
+    try {
+      const [drizzleDev] = await db
+        .select({
+          id: developments.id,
+          name: developments.name,
+          code: developments.code,
+        })
+        .from(developments)
+        .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
+      development = drizzleDev;
+      console.log('[Kitchen Selections API] Drizzle development found:', !!development);
+    } catch (drizzleError: any) {
+      console.error('[Kitchen Selections API] Drizzle error, falling back to Supabase:', drizzleError.message);
+      usedFallback = true;
+      
+      const { data: supabaseDev, error: supabaseError } = await supabaseAdmin
+        .from('developments')
+        .select('id, name, code')
+        .eq('id', developmentId)
+        .eq('tenant_id', tenantId)
+        .single();
+      
+      if (supabaseError && supabaseError.code !== 'PGRST116') {
+        console.error('[Kitchen Selections API] Supabase error:', supabaseError);
+      }
+      development = supabaseDev;
+      console.log('[Kitchen Selections API] Supabase development found:', !!development);
+    }
 
     if (!development) {
+      console.log('[Kitchen Selections API] Development not found:', developmentId);
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
-    const allUnits = await db
-      .select()
-      .from(units)
-      .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
-      .orderBy(sql`${units.unit_number} ASC`);
+    // Get units - try Drizzle first, fallback to Supabase
+    let allUnits: any[] = [];
+    try {
+      if (!usedFallback) {
+        allUnits = await db
+          .select()
+          .from(units)
+          .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
+          .orderBy(sql`${units.unit_number} ASC`);
+        console.log('[Kitchen Selections API] Drizzle units:', allUnits.length);
+      } else {
+        throw new Error('Using Supabase fallback');
+      }
+    } catch (e) {
+      console.log('[Kitchen Selections API] Falling back to Supabase for units');
+      const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
+        .from('units')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .order('unit_number', { ascending: true });
+      
+      if (supabaseError) {
+        console.error('[Kitchen Selections API] Supabase units error:', supabaseError);
+      }
+      allUnits = supabaseUnits || [];
+      console.log('[Kitchen Selections API] Supabase units:', allUnits.length);
+    }
 
-    const selections = await db
-      .select()
-      .from(kitchenSelections)
-      .where(and(
-        eq(kitchenSelections.tenant_id, tenantId),
-        eq(kitchenSelections.development_id, developmentId)
-      ));
+    // Get kitchen selections - try Supabase (new tables)
+    let selections: any[] = [];
+    try {
+      const { data: supabaseSelections, error } = await supabaseAdmin
+        .from('kitchen_selections')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId);
+      
+      if (error) {
+        console.error('[Kitchen Selections API] Selections query error:', error);
+      }
+      selections = supabaseSelections || [];
+      console.log('[Kitchen Selections API] Kitchen selections found:', selections.length);
+    } catch (e: any) {
+      console.error('[Kitchen Selections API] Selections error:', e.message);
+    }
 
     const selectionsMap = new Map(selections.map(s => [s.unit_id, s]));
 
-    let [options] = await db
-      .select()
-      .from(kitchenSelectionOptions)
-      .where(and(
-        eq(kitchenSelectionOptions.tenant_id, tenantId),
-        eq(kitchenSelectionOptions.development_id, developmentId)
-      ));
-
-    if (!options) {
-      const [newOptions] = await db
-        .insert(kitchenSelectionOptions)
-        .values({
-          tenant_id: tenantId,
-          development_id: developmentId,
-        })
-        .returning();
-      options = newOptions;
+    // Get or create selection options
+    let options: any = null;
+    try {
+      const { data: supabaseOptions, error } = await supabaseAdmin
+        .from('kitchen_selection_options')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Kitchen Selections API] Options query error:', error);
+      }
+      options = supabaseOptions;
+      
+      if (!options) {
+        console.log('[Kitchen Selections API] Creating default options');
+        const { data: newOptions, error: insertError } = await supabaseAdmin
+          .from('kitchen_selection_options')
+          .insert({
+            tenant_id: tenantId,
+            development_id: developmentId,
+            counter_types: ['Granite', 'Quartz', 'Marble', 'Laminate'],
+            unit_finishes: ['Matt White', 'Gloss White', 'Oak', 'Walnut'],
+            handle_styles: ['Bar', 'Knob', 'Integrated', 'Cup'],
+            wardrobe_styles: ['Sliding', 'Hinged', 'Walk-in'],
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('[Kitchen Selections API] Options insert error:', insertError);
+          options = {
+            counter_types: ['Granite', 'Quartz', 'Marble', 'Laminate'],
+            unit_finishes: ['Matt White', 'Gloss White', 'Oak', 'Walnut'],
+            handle_styles: ['Bar', 'Knob', 'Integrated', 'Cup'],
+            wardrobe_styles: ['Sliding', 'Hinged', 'Walk-in'],
+          };
+        } else {
+          options = newOptions;
+        }
+      }
+      console.log('[Kitchen Selections API] Options ready');
+    } catch (e: any) {
+      console.error('[Kitchen Selections API] Options error:', e.message);
+      options = {
+        counter_types: ['Granite', 'Quartz', 'Marble', 'Laminate'],
+        unit_finishes: ['Matt White', 'Gloss White', 'Oak', 'Walnut'],
+        handle_styles: ['Bar', 'Knob', 'Integrated', 'Cup'],
+        wardrobe_styles: ['Sliding', 'Hinged', 'Walk-in'],
+      };
     }
 
     const kitchenUnits: KitchenUnit[] = allUnits.map(unit => {
