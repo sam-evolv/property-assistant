@@ -398,7 +398,9 @@ export default function KitchenSelectionsPage() {
 
     try {
       setLoading(true);
-      const res = await fetch(`/api/kitchen-selections/${developmentId}`);
+      const res = await fetch(`/api/kitchen-selections/${developmentId}`, {
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Failed to fetch data');
       const data = await res.json();
 
@@ -474,6 +476,7 @@ export default function KitchenSelectionsPage() {
       await fetch(`/api/kitchen-selections/${developmentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ unitId, field, value }),
       });
     } catch (err) {
