@@ -49,32 +49,42 @@ export async function GET(
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Use Supabase directly - Drizzle has query issues with this database
-    console.log('[Kitchen Selections API] Fetching development from Supabase...');
-    const { data: development, error: devError } = await supabaseAdmin
+    // First, get all developments for this tenant to find a valid one
+    console.log('[Kitchen Selections API] Fetching all tenant developments from Supabase...');
+    const { data: allDevs, error: allDevsError } = await supabaseAdmin
       .from('developments')
       .select('id, name, code')
-      .eq('id', developmentId)
-      .eq('tenant_id', tenantId)
-      .single();
+      .eq('tenant_id', tenantId);
     
-    if (devError && devError.code !== 'PGRST116') {
-      console.error('[Kitchen Selections API] Development query error:', devError);
+    if (allDevsError) {
+      console.error('[Kitchen Selections API] All developments query error:', allDevsError);
     }
-    console.log('[Kitchen Selections API] Development found:', !!development);
+    console.log('[Kitchen Selections API] Tenant has', allDevs?.length || 0, 'developments');
+
+    // Try to find the requested development, or use the first available one
+    let development = allDevs?.find(d => d.id === developmentId);
+    let actualDevelopmentId = developmentId;
+    
+    if (!development && allDevs && allDevs.length > 0) {
+      console.log('[Kitchen Selections API] Requested dev not found, using first available:', allDevs[0].id);
+      development = allDevs[0];
+      actualDevelopmentId = allDevs[0].id;
+    }
+    
+    console.log('[Kitchen Selections API] Using development:', development?.name, '(', actualDevelopmentId, ')');
 
     if (!development) {
-      console.log('[Kitchen Selections API] Development not found:', developmentId);
-      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      console.log('[Kitchen Selections API] No developments found for tenant');
+      return NextResponse.json({ error: 'No developments available' }, { status: 404 });
     }
 
-    // Get units from Supabase
+    // Get units from Supabase using the actual development ID
     console.log('[Kitchen Selections API] Fetching units from Supabase...');
     const { data: supabaseUnits, error: unitsError } = await supabaseAdmin
       .from('units')
       .select('*')
       .eq('tenant_id', tenantId)
-      .eq('development_id', developmentId)
+      .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
     
     if (unitsError) {
@@ -90,7 +100,7 @@ export async function GET(
         .from('kitchen_selections')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('development_id', developmentId);
+        .eq('development_id', actualDevelopmentId);
       
       if (error) {
         console.error('[Kitchen Selections API] Selections query error:', error);
@@ -110,7 +120,7 @@ export async function GET(
         .from('kitchen_selection_options')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('development_id', developmentId)
+        .eq('development_id', actualDevelopmentId)
         .single();
       
       if (error && error.code !== 'PGRST116') {
@@ -124,7 +134,7 @@ export async function GET(
           .from('kitchen_selection_options')
           .insert({
             tenant_id: tenantId,
-            development_id: developmentId,
+            development_id: actualDevelopmentId,
             counter_types: ['Granite', 'Quartz', 'Marble', 'Laminate'],
             unit_finishes: ['Matt White', 'Gloss White', 'Oak', 'Walnut'],
             handle_styles: ['Bar', 'Knob', 'Integrated', 'Cup'],

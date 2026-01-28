@@ -404,35 +404,12 @@ export default function KitchenSelectionsPage() {
         credentials: 'include',
       });
       
-      // If development not found (404), try to get available developments
-      if (res.status === 404) {
-        console.log('[Kitchen Selections] Development not found, fetching available developments...');
-        const devsRes = await fetch('/api/developments', { credentials: 'include' });
-        if (devsRes.ok) {
-          const devsData = await devsRes.json();
-          if (devsData.developments?.length > 0) {
-            const firstDev = devsData.developments[0];
-            console.log('[Kitchen Selections] Switching to first available development:', firstDev.id);
-            // Try fetching with the first available development
-            const retryRes = await fetch(`/api/kitchen-selections/${firstDev.id}`, {
-              credentials: 'include',
-            });
-            if (retryRes.ok) {
-              const data = await retryRes.json();
-              setDevelopment(data.development);
-              setUnits(data.units);
-              setOptions(data.options);
-              setError(null);
-              return;
-            }
-          }
-        }
-        throw new Error('The selected development is no longer available. Please select a different one from the sidebar.');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch data');
       }
       
-      if (!res.ok) throw new Error('Failed to fetch data');
       const data = await res.json();
-
       setDevelopment(data.development);
       setUnits(data.units);
       setOptions(data.options);
