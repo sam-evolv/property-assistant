@@ -1650,6 +1650,83 @@ export const unitPipelineNotesRelations = relations(unitPipelineNotes, ({ one })
   }),
 }));
 
+// Kitchen Selections - tracks kitchen and wardrobe selections for each unit
+export const kitchenSelections = pgTable('kitchen_selections', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  unit_id: uuid('unit_id').references(() => units.id).notNull().unique(),
+  
+  // Kitchen selections
+  has_kitchen: boolean('has_kitchen').default(false).notNull(),
+  counter_type: text('counter_type'),
+  unit_finish: text('unit_finish'),
+  handle_style: text('handle_style'),
+  
+  // Wardrobe selections
+  has_wardrobe: boolean('has_wardrobe').default(false).notNull(),
+  wardrobe_style: text('wardrobe_style'),
+  
+  // Notes
+  notes: text('notes'),
+  
+  // Timestamps
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('kitchen_selections_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('kitchen_selections_development_idx').on(table.development_id),
+  unitIdx: index('kitchen_selections_unit_idx').on(table.unit_id),
+  tenantDevIdx: index('kitchen_selections_tenant_dev_idx').on(table.tenant_id, table.development_id),
+}));
+
+// Kitchen Selection Options - configurable options for kitchen selections
+export const kitchenSelectionOptions = pgTable('kitchen_selection_options', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  
+  // Option categories stored as JSON arrays
+  counter_types: jsonb('counter_types').default(sql`'["Granite", "Quartz", "Marble", "Laminate"]'::jsonb`).notNull(),
+  unit_finishes: jsonb('unit_finishes').default(sql`'["Matt White", "Gloss White", "Oak", "Walnut"]'::jsonb`).notNull(),
+  handle_styles: jsonb('handle_styles').default(sql`'["Bar", "Knob", "Integrated", "Cup"]'::jsonb`).notNull(),
+  wardrobe_styles: jsonb('wardrobe_styles').default(sql`'["Sliding", "Hinged", "Walk-in"]'::jsonb`).notNull(),
+  
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('kitchen_selection_options_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('kitchen_selection_options_development_idx').on(table.development_id),
+  uniqueTenantDev: uniqueIndex('kitchen_selection_options_unique_idx').on(table.tenant_id, table.development_id),
+}));
+
+// Relations for kitchen selections
+export const kitchenSelectionsRelations = relations(kitchenSelections, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [kitchenSelections.tenant_id],
+    references: [tenants.id],
+  }),
+  development: one(developments, {
+    fields: [kitchenSelections.development_id],
+    references: [developments.id],
+  }),
+  unit: one(units, {
+    fields: [kitchenSelections.unit_id],
+    references: [units.id],
+  }),
+}));
+
+export const kitchenSelectionOptionsRelations = relations(kitchenSelectionOptions, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [kitchenSelectionOptions.tenant_id],
+    references: [tenants.id],
+  }),
+  development: one(developments, {
+    fields: [kitchenSelectionOptions.development_id],
+    references: [developments.id],
+  }),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
