@@ -40,11 +40,11 @@ interface KitchenUnit {
   unitNumber: string;
   purchaserName: string | null;
   houseType: string;
-  hasKitchen: boolean;
+  hasKitchen: boolean | null;
   counterType: string | null;
   unitFinish: string | null;
   handleStyle: string | null;
-  hasWardrobe: boolean;
+  hasWardrobe: boolean | null;
   wardrobeStyle: string | null;
   notes: string | null;
   status: 'complete' | 'pending';
@@ -74,7 +74,7 @@ function naturalSort(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
-function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function YesNoToggle({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
   return (
     <div className="h-14 flex items-center justify-center">
       <div className="flex gap-1">
@@ -452,13 +452,18 @@ export default function KitchenSelectionsPage() {
         const updated = { ...u, [field]: value };
 
         const hasAllKitchenFields =
-          updated.hasKitchen && updated.counterType && updated.unitFinish && updated.handleStyle;
-        const hasAllWardrobeFields = updated.hasWardrobe && updated.wardrobeStyle;
+          updated.hasKitchen === true && updated.counterType && updated.unitFinish && updated.handleStyle;
+        const hasAllWardrobeFields = updated.hasWardrobe === true && updated.wardrobeStyle;
 
+        const kitchenComplete = updated.hasKitchen === false || hasAllKitchenFields;
+        const wardrobeComplete = updated.hasWardrobe === false || hasAllWardrobeFields;
+
+        const hasAnySelection = updated.hasKitchen !== null || updated.hasWardrobe !== null;
         const isComplete =
-          (updated.hasKitchen ? hasAllKitchenFields : true) &&
-          (updated.hasWardrobe ? hasAllWardrobeFields : true) &&
-          (updated.hasKitchen || updated.hasWardrobe);
+          hasAnySelection &&
+          (updated.hasKitchen !== null ? kitchenComplete : true) &&
+          (updated.hasWardrobe !== null ? wardrobeComplete : true) &&
+          (updated.hasKitchen === true || updated.hasWardrobe === true);
 
         updated.status = isComplete ? 'complete' : 'pending';
         return updated;
@@ -698,7 +703,7 @@ export default function KitchenSelectionsPage() {
                           value={unit.counterType}
                           options={options.counterTypes}
                           onChange={(val) => updateUnit(unit.unitId, 'counterType', val)}
-                          disabled={!unit.hasKitchen}
+                          disabled={unit.hasKitchen !== true}
                         />
                       </td>
 
@@ -707,7 +712,7 @@ export default function KitchenSelectionsPage() {
                           value={unit.unitFinish}
                           options={options.unitFinishes}
                           onChange={(val) => updateUnit(unit.unitId, 'unitFinish', val)}
-                          disabled={!unit.hasKitchen}
+                          disabled={unit.hasKitchen !== true}
                         />
                       </td>
 
@@ -716,7 +721,7 @@ export default function KitchenSelectionsPage() {
                           value={unit.handleStyle}
                           options={options.handleStyles}
                           onChange={(val) => updateUnit(unit.unitId, 'handleStyle', val)}
-                          disabled={!unit.hasKitchen}
+                          disabled={unit.hasKitchen !== true}
                         />
                       </td>
 
@@ -729,7 +734,7 @@ export default function KitchenSelectionsPage() {
                           value={unit.wardrobeStyle}
                           options={options.wardrobeStyles}
                           onChange={(val) => updateUnit(unit.unitId, 'wardrobeStyle', val)}
-                          disabled={!unit.hasWardrobe}
+                          disabled={unit.hasWardrobe !== true}
                         />
                       </td>
 

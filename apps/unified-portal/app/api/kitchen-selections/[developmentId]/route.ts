@@ -21,11 +21,11 @@ interface KitchenUnit {
   unitNumber: string;
   purchaserName: string | null;
   houseType: string;
-  hasKitchen: boolean;
+  hasKitchen: boolean | null;
   counterType: string | null;
   unitFinish: string | null;
   handleStyle: string | null;
-  hasWardrobe: boolean;
+  hasWardrobe: boolean | null;
   wardrobeStyle: string | null;
   notes: string | null;
   status: 'complete' | 'pending';
@@ -97,15 +97,23 @@ export async function GET(
     const kitchenUnits: KitchenUnit[] = allUnits.map(unit => {
       const selection = selectionsMap.get(unit.id);
       
-      const hasAllKitchenFields = selection?.has_kitchen && 
+      const hasKitchen = selection ? selection.has_kitchen : null;
+      const hasWardrobe = selection ? selection.has_wardrobe : null;
+      
+      const hasAllKitchenFields = hasKitchen === true && 
         selection?.counter_type && 
         selection?.unit_finish && 
         selection?.handle_style;
-      const hasAllWardrobeFields = selection?.has_wardrobe && selection?.wardrobe_style;
+      const hasAllWardrobeFields = hasWardrobe === true && selection?.wardrobe_style;
       
-      const isComplete = (selection?.has_kitchen ? hasAllKitchenFields : true) && 
-                         (selection?.has_wardrobe ? hasAllWardrobeFields : true) &&
-                         (selection?.has_kitchen || selection?.has_wardrobe);
+      const kitchenComplete = hasKitchen === false || hasAllKitchenFields;
+      const wardrobeComplete = hasWardrobe === false || hasAllWardrobeFields;
+      
+      const hasAnySelection = hasKitchen !== null || hasWardrobe !== null;
+      const isComplete = hasAnySelection && 
+                         (hasKitchen !== null ? kitchenComplete : true) && 
+                         (hasWardrobe !== null ? wardrobeComplete : true) &&
+                         (hasKitchen === true || hasWardrobe === true);
 
       return {
         id: selection?.id || '',
@@ -113,11 +121,11 @@ export async function GET(
         unitNumber: unit.unit_number,
         purchaserName: unit.purchaser_name,
         houseType: unit.house_type_code,
-        hasKitchen: selection?.has_kitchen || false,
+        hasKitchen: hasKitchen,
         counterType: selection?.counter_type || null,
         unitFinish: selection?.unit_finish || null,
         handleStyle: selection?.handle_style || null,
-        hasWardrobe: selection?.has_wardrobe || false,
+        hasWardrobe: hasWardrobe,
         wardrobeStyle: selection?.wardrobe_style || null,
         notes: selection?.notes || null,
         status: isComplete ? 'complete' : 'pending',
