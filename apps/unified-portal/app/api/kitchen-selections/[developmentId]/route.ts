@@ -192,7 +192,7 @@ export async function GET(
         id: selection?.id || '',
         unitId: unit.id,
         unitNumber: unit.unit_number,
-        address: unit.address_line_1 || null,
+        address: `${unit.unit_number} ${development.name}`,
         purchaserName: unit.purchaser_name,
         houseType: unit.house_type_code,
         hasKitchen: hasKitchen,
