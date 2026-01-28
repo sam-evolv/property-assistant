@@ -890,20 +890,25 @@ export default function CompliancePage() {
   const [selectedHouseType, setSelectedHouseType] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<DocumentStatus | 'all'>('all');
-  const [documents, setDocuments] = useState<ComplianceDocument[]>(mockDocuments);
+  const [documents, setDocuments] = useState<ComplianceDocument[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<ComplianceDocument | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<ComplianceDocument | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentDevelopment, setCurrentDevelopment] = useState<string | null>(null);
 
   const fetchComplianceData = useCallback(async () => {
-    if (!developmentId) return;
+    if (!developmentId) {
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
+      setError(null);
       const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
       const res = await fetch(`/api/compliance/${developmentId}${nameParam}`, {
         credentials: 'include',
@@ -911,19 +916,51 @@ export default function CompliancePage() {
       
       if (!res.ok) {
         console.error('[Compliance] API error:', res.status);
+        setError('Failed to load compliance data');
+        setDocuments([]);
         return;
       }
       
       const data = await res.json();
       setCurrentDevelopment(data.development?.name || null);
       
-      if (data.documentTypes?.length > 0 && data.units?.length > 0) {
-        const transformedDocs: ComplianceDocument[] = [];
-        
+      if (!data.documentTypes?.length) {
+        setDocuments([]);
+        return;
+      }
+      
+      const transformedDocs: ComplianceDocument[] = [];
+      const units = data.units || [];
+      const documents = data.documents || [];
+      
+      if (units.length > 0) {
+        units.forEach((unit: any) => {
+          const houseType = unit.house_type || unit.type || 'Unknown';
+          
+          data.documentTypes.forEach((docType: any) => {
+            const existingDoc = documents.find(
+              (d: any) => d.document_type_id === docType.id && d.unit_id === unit.id
+            );
+            
+            transformedDocs.push({
+              id: existingDoc?.id || `${unit.id}-${docType.id}`,
+              name: docType.name,
+              category: docType.category,
+              houseType,
+              status: existingDoc?.status || 'missing',
+              uploadedDate: existingDoc?.created_at ? new Date(existingDoc.created_at) : undefined,
+              expiryDate: existingDoc?.expiry_date ? new Date(existingDoc.expiry_date) : undefined,
+              uploadedBy: existingDoc?.uploaded_by,
+              version: existingDoc?.version,
+              notes: existingDoc?.notes,
+              description: docType.description,
+            });
+          });
+        });
+      } else {
         data.documentTypes.forEach((docType: any) => {
           const houseType = docType.house_type || 'All Types';
-          
-          const existingDoc = data.documents?.find((d: any) => d.document_type_id === docType.id);
+          const existingDoc = documents.find((d: any) => d.document_type_id === docType.id);
           
           transformedDocs.push({
             id: existingDoc?.id || `${docType.id}-pending`,
@@ -939,13 +976,13 @@ export default function CompliancePage() {
             description: docType.description,
           });
         });
-        
-        if (transformedDocs.length > 0) {
-          setDocuments(transformedDocs);
-        }
       }
+      
+      setDocuments(transformedDocs);
     } catch (err) {
       console.error('[Compliance] Fetch error:', err);
+      setError('Failed to load compliance data');
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -1117,6 +1154,23 @@ export default function CompliancePage() {
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
           <p className="text-gray-500">Loading compliance data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-full bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+          <p className="text-gray-700 font-medium">{error}</p>
+          <button
+            onClick={() => fetchComplianceData()}
+            className="px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
