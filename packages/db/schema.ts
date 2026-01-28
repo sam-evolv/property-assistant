@@ -1727,6 +1727,115 @@ export const kitchenSelectionOptionsRelations = relations(kitchenSelectionOption
   }),
 }));
 
+// Compliance Document Types - defines required documents for a development (per house type)
+export const complianceDocumentTypes = pgTable('compliance_document_types', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  
+  name: text('name').notNull(), // e.g., "BER Certificate", "Fire Safety Certificate"
+  category: text('category').notNull(), // e.g., "Certification", "Safety", "Registration", "Warranty"
+  description: text('description'),
+  house_type: text('house_type'), // null means applies to all house types
+  required: boolean('required').default(true).notNull(),
+  
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('compliance_doc_types_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('compliance_doc_types_development_idx').on(table.development_id),
+  tenantDevIdx: index('compliance_doc_types_tenant_dev_idx').on(table.tenant_id, table.development_id),
+}));
+
+// Compliance Documents - tracks document status per unit
+export const complianceDocuments = pgTable('compliance_documents', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  development_id: uuid('development_id').references(() => developments.id).notNull(),
+  unit_id: uuid('unit_id').references(() => units.id).notNull(),
+  document_type_id: uuid('document_type_id').references(() => complianceDocumentTypes.id).notNull(),
+  
+  status: text('status').default('missing').notNull(), // 'missing', 'uploaded', 'verified', 'expired'
+  uploaded_by: text('uploaded_by'),
+  verified_by: text('verified_by'),
+  verified_at: timestamp('verified_at', { withTimezone: true }),
+  expiry_date: timestamp('expiry_date', { withTimezone: true }),
+  notes: text('notes'),
+  version: integer('version').default(1).notNull(),
+  
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('compliance_docs_tenant_idx').on(table.tenant_id),
+  developmentIdx: index('compliance_docs_development_idx').on(table.development_id),
+  unitIdx: index('compliance_docs_unit_idx').on(table.unit_id),
+  docTypeIdx: index('compliance_docs_type_idx').on(table.document_type_id),
+  unitDocTypeUnique: uniqueIndex('compliance_docs_unit_type_unique').on(table.unit_id, table.document_type_id),
+}));
+
+// Compliance Files - stores file metadata for each document upload
+export const complianceFiles = pgTable('compliance_files', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  document_id: uuid('document_id').references(() => complianceDocuments.id).notNull(),
+  
+  file_name: text('file_name').notNull(),
+  file_size: integer('file_size').notNull(), // in bytes
+  file_type: text('file_type').notNull(), // MIME type
+  storage_path: text('storage_path').notNull(), // Supabase storage path
+  version: integer('version').default(1).notNull(),
+  uploaded_by: text('uploaded_by'),
+  
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  documentIdx: index('compliance_files_document_idx').on(table.document_id),
+  tenantIdx: index('compliance_files_tenant_idx').on(table.tenant_id),
+}));
+
+// Relations for compliance
+export const complianceDocumentTypesRelations = relations(complianceDocumentTypes, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [complianceDocumentTypes.tenant_id],
+    references: [tenants.id],
+  }),
+  development: one(developments, {
+    fields: [complianceDocumentTypes.development_id],
+    references: [developments.id],
+  }),
+  documents: many(complianceDocuments),
+}));
+
+export const complianceDocumentsRelations = relations(complianceDocuments, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [complianceDocuments.tenant_id],
+    references: [tenants.id],
+  }),
+  development: one(developments, {
+    fields: [complianceDocuments.development_id],
+    references: [developments.id],
+  }),
+  unit: one(units, {
+    fields: [complianceDocuments.unit_id],
+    references: [units.id],
+  }),
+  documentType: one(complianceDocumentTypes, {
+    fields: [complianceDocuments.document_type_id],
+    references: [complianceDocumentTypes.id],
+  }),
+  files: many(complianceFiles),
+}));
+
+export const complianceFilesRelations = relations(complianceFiles, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [complianceFiles.tenant_id],
+    references: [tenants.id],
+  }),
+  document: one(complianceDocuments, {
+    fields: [complianceFiles.document_id],
+    references: [complianceDocuments.id],
+  }),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;

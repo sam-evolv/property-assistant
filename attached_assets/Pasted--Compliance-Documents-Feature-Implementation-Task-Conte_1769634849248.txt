@@ -1,0 +1,143 @@
+# Compliance Documents Feature - Implementation Task
+
+## Context
+
+You are working on **OpenHouse AI**, a property developer dashboard built with:
+- **React + TypeScript**
+- **Tailwind CSS**
+- **Supabase** (database + storage + auth)
+- **Vercel** deployment
+
+The app already has:
+- Authentication working
+- Developments and Units tables
+- Sales Pipeline page
+- Kitchen Selections page
+- Sidebar navigation
+
+## Your Task
+
+Implement a new **Compliance Documents** feature using the provided component files. This feature lets developers track and upload compliance documents (BER certs, fire safety, etc.) for each unit in their development.
+
+## Files Provided
+
+I'm giving you a zip file `compliance-components.zip` containing:
+
+```
+compliance-replit/
+├── components/
+│   ├── CompliancePage.tsx          # Main page - USE THIS
+│   └── compliance/
+│       ├── UnitAccordion.tsx       # Expandable unit cards
+│       ├── DocumentRow.tsx         # Document rows with upload buttons
+│       ├── UploadModal.tsx         # File upload modal
+│       ├── AddDocTypeModal.tsx     # Add document type modal
+│       └── Badges.tsx              # TypeBadge, CategoryBadge
+├── hooks/
+│   ├── useComplianceDocuments.ts   # Data fetching + uploads
+│   └── useDocumentTypes.ts         # Document type CRUD
+├── types/
+│   └── compliance.ts               # TypeScript interfaces
+└── database-schema.sql             # Supabase schema
+```
+
+## Steps to Complete
+
+### 1. Database Setup
+Run `database-schema.sql` in Supabase SQL Editor. This creates:
+- `compliance_document_types` table
+- `compliance_documents` table  
+- `compliance_files` table
+- Storage bucket `compliance-documents`
+- RLS policies
+
+### 2. Copy Components
+Place the component files into the existing project structure:
+- Components go in `src/components/`
+- Hooks go in `src/hooks/`
+- Types go in `src/types/`
+
+### 3. Fix Import Paths
+Update the Supabase import in the hooks to match your project:
+```typescript
+// Change this line in useComplianceDocuments.ts and useDocumentTypes.ts
+import { supabase } from '../lib/supabase'; 
+// To match your actual path, e.g.:
+import { supabase } from '@/lib/supabaseClient';
+```
+
+### 4. Add Route
+Add the compliance page to your router. It needs the current development ID:
+```tsx
+import { CompliancePage } from '@/components/CompliancePage';
+
+// In your routes
+<Route 
+  path="/developer/compliance" 
+  element={
+    <CompliancePage 
+      developmentId={currentDevelopment?.id} 
+      developmentName={currentDevelopment?.name}
+    />
+  } 
+/>
+```
+
+### 5. Add Sidebar Link
+Add "Compliance" to the sidebar navigation under DEVELOPER TOOLS, linking to `/developer/compliance`.
+
+### 6. Seed Document Types
+Add default document types for testing:
+```sql
+INSERT INTO compliance_document_types (development_id, name, category, required) VALUES
+  ('YOUR_DEVELOPMENT_ID', 'BER Certificate', 'Certification', true),
+  ('YOUR_DEVELOPMENT_ID', 'Fire Safety Certificate', 'Safety', true),
+  ('YOUR_DEVELOPMENT_ID', 'Gas Safety Certificate', 'Safety', true),
+  ('YOUR_DEVELOPMENT_ID', 'Electrical Certificate', 'Certification', true),
+  ('YOUR_DEVELOPMENT_ID', 'HomeBond Registration', 'Registration', true);
+```
+
+## Styling Requirements
+
+**DO NOT change the component styling.** The components are already styled to match the OpenHouse design:
+- White background
+- Gold upload buttons (`bg-amber-500 text-white`)
+- Gray outlined View buttons
+- Green checkmarks for complete
+- Progress circles with percentage
+
+## Expected Behavior
+
+1. Page shows all units in the development
+2. Each unit expands to show required documents
+3. Missing documents have gold "Upload" button
+4. Uploaded documents show "View" button + download icon
+5. "Add Document Type" creates new requirement for ALL units
+6. Upload modal has "Apply to all units" checkbox
+7. Incomplete units auto-sort to top
+
+## Don't Do
+
+- Don't restyle the components
+- Don't change the color scheme
+- Don't add extra features
+- Don't modify the database schema
+
+## Do
+
+- Fix any import path issues
+- Wire up to existing auth/development context
+- Test upload functionality works
+- Ensure RLS policies allow access
+
+## Testing
+
+After implementation:
+1. Navigate to Compliance page
+2. Expand a unit - should see document list
+3. Click Upload on a missing document
+4. Upload a PDF - should appear with View button
+5. Click "Add Document Type" - should add to all units
+6. Check "Apply to all units" when uploading - should upload to every unit
+
+Let me know if you have questions about the existing project structure.
