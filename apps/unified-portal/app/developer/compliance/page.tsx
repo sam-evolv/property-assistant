@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   ShieldCheck,
@@ -25,8 +25,10 @@ import {
   ChevronRight,
   File,
   FolderOpen,
+  Loader2,
 } from 'lucide-react';
 
+import { useCurrentContext } from '@/contexts/CurrentContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
@@ -883,6 +885,8 @@ function DocumentRow({
 
 // Main Compliance Page
 export default function CompliancePage() {
+  const { developmentId, developmentName } = useCurrentContext();
+  
   const [selectedHouseType, setSelectedHouseType] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<DocumentStatus | 'all'>('all');
@@ -892,6 +896,64 @@ export default function CompliancePage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<ComplianceDocument | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [currentDevelopment, setCurrentDevelopment] = useState<string | null>(null);
+
+  const fetchComplianceData = useCallback(async () => {
+    if (!developmentId) return;
+    
+    try {
+      setLoading(true);
+      const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
+      const res = await fetch(`/api/compliance/${developmentId}${nameParam}`, {
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        console.error('[Compliance] API error:', res.status);
+        return;
+      }
+      
+      const data = await res.json();
+      setCurrentDevelopment(data.development?.name || null);
+      
+      if (data.documentTypes?.length > 0 && data.units?.length > 0) {
+        const transformedDocs: ComplianceDocument[] = [];
+        
+        data.documentTypes.forEach((docType: any) => {
+          const houseType = docType.house_type || 'All Types';
+          
+          const existingDoc = data.documents?.find((d: any) => d.document_type_id === docType.id);
+          
+          transformedDocs.push({
+            id: existingDoc?.id || `${docType.id}-pending`,
+            name: docType.name,
+            category: docType.category,
+            houseType,
+            status: existingDoc?.status || 'missing',
+            uploadedDate: existingDoc?.created_at ? new Date(existingDoc.created_at) : undefined,
+            expiryDate: existingDoc?.expiry_date ? new Date(existingDoc.expiry_date) : undefined,
+            uploadedBy: existingDoc?.uploaded_by,
+            version: existingDoc?.version,
+            notes: existingDoc?.notes,
+            description: docType.description,
+          });
+        });
+        
+        if (transformedDocs.length > 0) {
+          setDocuments(transformedDocs);
+        }
+      }
+    } catch (err) {
+      console.error('[Compliance] Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [developmentId, developmentName]);
+
+  useEffect(() => {
+    fetchComplianceData();
+  }, [fetchComplianceData]);
 
   // Calculate compliance by house type
   const houseTypeCompliance = useMemo(() => {
@@ -1049,6 +1111,17 @@ export default function CompliancePage() {
     // In real app, would process files and match to documents
   }, []);
 
+  if (loading) {
+    return (
+      <div className="min-h-full bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
+          <p className="text-gray-500">Loading compliance data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-full bg-gray-50">
       <div className="p-6 lg:p-8">
@@ -1058,7 +1131,7 @@ export default function CompliancePage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Compliance Documents</h1>
               <p className="text-sm text-gray-500 mt-1">
-                Track BCMS, HomeBond, and regulatory documents
+                {currentDevelopment ? `${currentDevelopment} - ` : ''}Track BCMS, HomeBond, and regulatory documents
               </p>
             </div>
             <div className="flex items-center gap-2">
