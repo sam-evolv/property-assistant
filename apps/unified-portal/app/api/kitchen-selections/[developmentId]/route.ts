@@ -50,6 +50,11 @@ export async function GET(
 
     const supabaseAdmin = getSupabaseAdmin();
 
+    // Get development name from query param if provided
+    const url = new URL(request.url);
+    const devName = url.searchParams.get('name');
+    console.log('[Kitchen Selections API] Requested development:', developmentId, 'name param:', devName);
+
     // First, get all developments for this tenant to find a valid one
     console.log('[Kitchen Selections API] Fetching all tenant developments from Supabase...');
     const { data: allDevs, error: allDevsError } = await supabaseAdmin
@@ -62,10 +67,20 @@ export async function GET(
     }
     console.log('[Kitchen Selections API] Tenant has', allDevs?.length || 0, 'developments');
 
-    // Try to find the requested development, or use the first available one
+    // Try to find the requested development by ID first
     let development = allDevs?.find(d => d.id === developmentId);
     let actualDevelopmentId = developmentId;
     
+    // If not found by ID and name is provided, try to match by name
+    if (!development && devName && allDevs) {
+      development = allDevs.find(d => d.name.toLowerCase() === devName.toLowerCase());
+      if (development) {
+        console.log('[Kitchen Selections API] Found development by name:', development.name);
+        actualDevelopmentId = development.id;
+      }
+    }
+    
+    // If still not found, use the first available one
     if (!development && allDevs && allDevs.length > 0) {
       console.log('[Kitchen Selections API] Requested dev not found, using first available:', allDevs[0].id);
       development = allDevs[0];
@@ -245,6 +260,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
+    // Get development name from query param
+    const url = new URL(request.url);
+    const devName = url.searchParams.get('name');
+    console.log('[Kitchen Selections API] PUT request for development:', developmentId, 'name:', devName);
+
     const body = await request.json();
     const { unitId, field, value } = body;
 
@@ -253,6 +273,33 @@ export async function PUT(
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+
+    // Find the correct development ID using Supabase
+    const { data: allDevs } = await supabaseAdmin
+      .from('developments')
+      .select('id, name')
+      .eq('tenant_id', tenantId);
+
+    let actualDevelopmentId = developmentId;
+    let development = allDevs?.find(d => d.id === developmentId);
+    
+    // If not found by ID and name is provided, try to match by name
+    if (!development && devName && allDevs) {
+      development = allDevs.find(d => d.name.toLowerCase() === devName.toLowerCase());
+      if (development) {
+        console.log('[Kitchen Selections API] PUT: Found development by name:', development.name);
+        actualDevelopmentId = development.id;
+      }
+    }
+    
+    // If still not found, use the first available
+    if (!development && allDevs && allDevs.length > 0) {
+      console.log('[Kitchen Selections API] PUT: Using first available development');
+      development = allDevs[0];
+      actualDevelopmentId = allDevs[0].id;
+    }
+
+    console.log('[Kitchen Selections API] PUT: Using development ID:', actualDevelopmentId);
 
     // Verify unit exists using Supabase
     const { data: existingUnit, error: unitError } = await supabaseAdmin
@@ -307,7 +354,7 @@ export async function PUT(
         .from('kitchen_selections')
         .insert({
           tenant_id: tenantId,
-          development_id: developmentId,
+          development_id: actualDevelopmentId,
           unit_id: unitId,
           [dbField]: value,
         })

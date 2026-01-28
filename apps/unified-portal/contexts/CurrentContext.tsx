@@ -27,8 +27,9 @@ export interface CurrentContextValue {
   tenantId: string | null;
   archiveScope: ArchiveScope;
   developmentId: string | null;
+  developmentName: string | null;
   setArchiveScope: (scope: ArchiveScope) => void;
-  setDevelopmentId: (id: string | null) => void;
+  setDevelopmentId: (id: string | null, name?: string | null) => void;
   isHydrated: boolean;
   isLoading: boolean;
 }
@@ -39,6 +40,7 @@ const DEFAULT_CURRENT_STATE: CurrentContextValue = {
   tenantId: null,
   archiveScope: DEFAULT_ARCHIVE_SCOPE,
   developmentId: null,
+  developmentName: null,
   setArchiveScope: () => {
     console.warn('[CurrentContext] setArchiveScope called before provider initialized');
   },
@@ -111,6 +113,7 @@ export function CurrentContextProvider({
     : DEFAULT_ARCHIVE_SCOPE;
   
   const [archiveScope, setArchiveScopeState] = useState<ArchiveScope>(initialScope);
+  const [developmentName, setDevelopmentName] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -154,9 +157,10 @@ export function CurrentContextProvider({
     saveToStorage(tenantId, scope);
   }, [tenantId, archiveScope]);
 
-  const setDevelopmentId = useCallback((id: string | null) => {
+  const setDevelopmentId = useCallback((id: string | null, name?: string | null) => {
     const newScope = id ? createSchemeScope(id) : createAllSchemesScope();
     setArchiveScope(newScope);
+    setDevelopmentName(name || null);
   }, [setArchiveScope]);
 
   const developmentId = getSchemeId(archiveScope);
@@ -165,6 +169,7 @@ export function CurrentContextProvider({
     tenantId,
     archiveScope,
     developmentId,
+    developmentName,
     setArchiveScope,
     setDevelopmentId,
     isHydrated,

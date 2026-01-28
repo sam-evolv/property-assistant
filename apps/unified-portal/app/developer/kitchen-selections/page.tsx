@@ -375,7 +375,7 @@ function SettingsModal({
 
 export default function KitchenSelectionsPage() {
   const router = useRouter();
-  const { developmentId } = useCurrentContext();
+  const { developmentId, developmentName } = useCurrentContext();
 
   const [units, setUnits] = useState<KitchenUnit[]>([]);
   const [development, setDevelopment] = useState<DevelopmentInfo | null>(null);
@@ -399,9 +399,10 @@ export default function KitchenSelectionsPage() {
 
     try {
       setLoading(true);
-      console.log('[Kitchen Selections] Fetching for development:', developmentId);
+      console.log('[Kitchen Selections] Fetching for development:', developmentId, 'name:', developmentName);
       
-      const res = await fetch(`/api/kitchen-selections/${developmentId}`, {
+      const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
+      const res = await fetch(`/api/kitchen-selections/${developmentId}${nameParam}`, {
         credentials: 'include',
       });
       
@@ -421,7 +422,7 @@ export default function KitchenSelectionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [developmentId]);
+  }, [developmentId, developmentName]);
 
   useEffect(() => {
     fetchData();
@@ -480,7 +481,8 @@ export default function KitchenSelectionsPage() {
     );
 
     try {
-      await fetch(`/api/kitchen-selections/${developmentId}`, {
+      const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
+      await fetch(`/api/kitchen-selections/${developmentId}${nameParam}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

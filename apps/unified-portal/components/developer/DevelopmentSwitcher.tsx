@@ -94,10 +94,10 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
   const currentDevelopment = developments.find(d => d.id === developmentId);
   const displayName = currentDevelopment?.name || 'All Schemes';
 
-  const handleSelect = (id: string | null) => {
-    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes');
+  const handleSelect = (id: string | null, name?: string | null) => {
+    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes', 'name:', name);
     console.log('[DevelopmentSwitcher] Available developments:', developments.map(d => ({ id: d.id, name: d.name })));
-    setDevelopmentId(id);
+    setDevelopmentId(id, name);
     setIsOpen(false);
     console.log('[DevelopmentSwitcher] Selection complete');
   };
@@ -180,7 +180,7 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
           {developments.map((dev) => (
             <button
               key={dev.id}
-              onClick={() => handleSelect(dev.id)}
+              onClick={() => handleSelect(dev.id, dev.name)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gold-500/10 transition-colors ${
                 developmentId === dev.id ? 'bg-gold-500/20' : ''
               }`}
