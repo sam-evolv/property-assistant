@@ -48,72 +48,40 @@ export async function GET(
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    let usedFallback = false;
 
-    // Get development - try Drizzle first, fallback to Supabase
-    let development: any = null;
-    try {
-      const [drizzleDev] = await db
-        .select({
-          id: developments.id,
-          name: developments.name,
-          code: developments.code,
-        })
-        .from(developments)
-        .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
-      development = drizzleDev;
-      console.log('[Kitchen Selections API] Drizzle development found:', !!development);
-    } catch (drizzleError: any) {
-      console.error('[Kitchen Selections API] Drizzle error, falling back to Supabase:', drizzleError.message);
-      usedFallback = true;
-      
-      const { data: supabaseDev, error: supabaseError } = await supabaseAdmin
-        .from('developments')
-        .select('id, name, code')
-        .eq('id', developmentId)
-        .eq('tenant_id', tenantId)
-        .single();
-      
-      if (supabaseError && supabaseError.code !== 'PGRST116') {
-        console.error('[Kitchen Selections API] Supabase error:', supabaseError);
-      }
-      development = supabaseDev;
-      console.log('[Kitchen Selections API] Supabase development found:', !!development);
+    // Use Supabase directly - Drizzle has query issues with this database
+    console.log('[Kitchen Selections API] Fetching development from Supabase...');
+    const { data: development, error: devError } = await supabaseAdmin
+      .from('developments')
+      .select('id, name, code')
+      .eq('id', developmentId)
+      .eq('tenant_id', tenantId)
+      .single();
+    
+    if (devError && devError.code !== 'PGRST116') {
+      console.error('[Kitchen Selections API] Development query error:', devError);
     }
+    console.log('[Kitchen Selections API] Development found:', !!development);
 
     if (!development) {
       console.log('[Kitchen Selections API] Development not found:', developmentId);
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
-    // Get units - try Drizzle first, fallback to Supabase
-    let allUnits: any[] = [];
-    try {
-      if (!usedFallback) {
-        allUnits = await db
-          .select()
-          .from(units)
-          .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
-          .orderBy(sql`${units.unit_number} ASC`);
-        console.log('[Kitchen Selections API] Drizzle units:', allUnits.length);
-      } else {
-        throw new Error('Using Supabase fallback');
-      }
-    } catch (e) {
-      console.log('[Kitchen Selections API] Falling back to Supabase for units');
-      const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
-        .from('units')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('development_id', developmentId)
-        .order('unit_number', { ascending: true });
-      
-      if (supabaseError) {
-        console.error('[Kitchen Selections API] Supabase units error:', supabaseError);
-      }
-      allUnits = supabaseUnits || [];
-      console.log('[Kitchen Selections API] Supabase units:', allUnits.length);
+    // Get units from Supabase
+    console.log('[Kitchen Selections API] Fetching units from Supabase...');
+    const { data: supabaseUnits, error: unitsError } = await supabaseAdmin
+      .from('units')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('development_id', developmentId)
+      .order('unit_number', { ascending: true });
+    
+    if (unitsError) {
+      console.error('[Kitchen Selections API] Units query error:', unitsError);
     }
+    const allUnits = supabaseUnits || [];
+    console.log('[Kitchen Selections API] Units found:', allUnits.length);
 
     // Get kitchen selections - try Supabase (new tables)
     let selections: any[] = [];
