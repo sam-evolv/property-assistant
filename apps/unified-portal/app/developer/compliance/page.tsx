@@ -604,7 +604,7 @@ function DocumentDetailModal({
             <EmptyState
               title="No version history"
               description="Version history will appear here after uploads"
-              icon={History}
+              lucideIcon={History}
             />
           )}
         </div>
@@ -1332,7 +1332,7 @@ export default function CompliancePage() {
               <EmptyState
                 title="No documents found"
                 description="No documents match your current filters"
-                icon={FolderOpen}
+                lucideIcon={FolderOpen}
               />
             ) : (
               filteredDocuments.map((doc) => (
