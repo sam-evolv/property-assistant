@@ -55,13 +55,16 @@ export async function GET(
     }
 
     console.log('[Compliance API] Using development:', development.name, '(', actualDevelopmentId, ')');
+    console.log('[Compliance API] Querying units for tenant:', tenantId, 'development:', actualDevelopmentId);
 
-    const { data: units } = await supabaseAdmin
+    const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
       .select('id, name, unit_number, purchaser_name, house_type_code, bedrooms, address')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
+    
+    console.log('[Compliance API] Units query result:', units?.length || 0, 'units, error:', unitsError?.message || 'none');
 
     const { data: documentTypes } = await supabaseAdmin
       .from('compliance_document_types')
