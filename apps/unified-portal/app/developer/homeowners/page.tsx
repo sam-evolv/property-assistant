@@ -49,19 +49,35 @@ export default async function HomeownersPage({
     redirect('/unauthorized');
   }
 
+  const tenantId = session.tenantId;
+  
+  // SECURITY: Require tenant context
+  if (!tenantId) {
+    console.error('[HomeownersPage] SECURITY: No tenant context');
+    redirect('/unauthorized');
+  }
+
   let unitsData: any[] = [];
   let developmentData: any = null;
   let allProjects: any[] = [];
   const supabaseAdmin = getSupabaseAdmin();
   
   try {
-    // Fetch all projects first for the dropdown
-    const { data: projects } = await supabaseAdmin.from('projects').select('*').order('name');
+    // Fetch all projects for this tenant - SECURITY: Filter by tenant_id
+    const { data: projects } = await supabaseAdmin
+      .from('projects')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('name');
     allProjects = projects || [];
     const projectsMap = new Map(allProjects.map((p: any) => [p.id, p]));
     
-    // Fetch units from Supabase - filter by developmentId if provided
-    let unitsQuery = supabaseAdmin.from('units').select('*').order('created_at', { ascending: false });
+    // Fetch units from Supabase - SECURITY: Filter by tenant_id unconditionally
+    let unitsQuery = supabaseAdmin
+      .from('units')
+      .select('*')
+      .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
+      .order('created_at', { ascending: false });
     
     if (searchParams.developmentId) {
       unitsQuery = unitsQuery.eq('project_id', searchParams.developmentId);

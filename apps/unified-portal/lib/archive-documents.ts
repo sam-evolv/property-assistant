@@ -121,18 +121,58 @@ export async function fetchDocumentsByDiscipline({
 }): Promise<FetchDocumentsResult> {
   const effectiveLimit = pageSize || limit || 50;
   
+  // SECURITY: Tenant filtering is mandatory
+  if (!tenantId) {
+    console.error('[Archive Documents] SECURITY: tenantId is required');
+    return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
+  }
+  
   try {
-    console.log('[Archive Documents] Fetching documents for scheme:', developmentId || 'ALL');
+    console.log('[Archive Documents] Fetching documents for tenant:', tenantId, 'scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
-    let query = supabase
-      .from('document_sections')
-      .select('id, metadata, content, project_id');
+    // SECURITY: Get all development IDs for this tenant to ensure tenant isolation
+    let allowedProjectIds: string[] = [];
     
     if (developmentId) {
+      // Verify the development belongs to this tenant before querying
+      const { data: devCheck } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('id', developmentId)
+        .eq('tenant_id', tenantId)
+        .single();
+      
+      if (!devCheck) {
+        console.error('[Archive Documents] SECURITY: Development does not belong to tenant');
+        return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
+      }
+      
       const supabaseProjectId = getSupabaseProjectId(developmentId);
-      query = query.eq('project_id', supabaseProjectId);
+      allowedProjectIds = [supabaseProjectId];
+    } else {
+      // No specific development - get ALL developments for this tenant
+      const { data: tenantDevs } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      if (!tenantDevs || tenantDevs.length === 0) {
+        console.log('[Archive Documents] No developments found for tenant');
+        return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
+      }
+      
+      // Map all tenant developments to their Supabase project IDs
+      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
+    
+    console.log('[Archive Documents] Allowed project IDs:', allowedProjectIds.length);
+    
+    // Query documents filtered by allowed project IDs
+    let query = supabase
+      .from('document_sections')
+      .select('id, metadata, content, project_id')
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
 

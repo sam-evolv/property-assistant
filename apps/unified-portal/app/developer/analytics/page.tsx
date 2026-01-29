@@ -15,18 +15,33 @@ function getSupabaseAdmin() {
 
 export default async function DeveloperAnalyticsPage() {
   const session = await requireRole(['developer', 'admin', 'super_admin']);
+  const tenantId = session.tenantId;
+
+  // SECURITY: Require tenant context
+  if (!tenantId) {
+    console.error('[AnalyticsPage] SECURITY: No tenant context');
+    return (
+      <AnalyticsClient
+        tenantId=""
+        serverHomeownerCount={0}
+        serverHomeownersByProject={{}}
+      />
+    );
+  }
 
   // Fetch homeowner counts server-side - SAME approach as Homeowners page.tsx
-  // This is the source of truth that shows 171 homeowners
+  // SECURITY: Filter by tenant_id to prevent cross-tenant data leakage
   const supabaseAdmin = getSupabaseAdmin();
 
   let totalHomeowners = 0;
   let homeownersByProject: Record<string, number> = {};
 
   try {
+    // SECURITY: Filter by tenant_id unconditionally
     const { data: units, error } = await supabaseAdmin
       .from('units')
-      .select('id, project_id');
+      .select('id, project_id')
+      .eq('tenant_id', tenantId);
 
     if (error) {
       console.error('[AnalyticsPage] Error fetching units:', error);
@@ -39,7 +54,7 @@ export default async function DeveloperAnalyticsPage() {
         homeownersByProject[pid] = (homeownersByProject[pid] || 0) + 1;
       });
 
-      console.log('[AnalyticsPage] Loaded homeowner counts from Supabase:', {
+      console.log('[AnalyticsPage] Loaded homeowner counts from Supabase for tenant:', tenantId, {
         total: totalHomeowners,
         byProject: homeownersByProject
       });

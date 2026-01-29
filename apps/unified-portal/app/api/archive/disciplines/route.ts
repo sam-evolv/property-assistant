@@ -107,20 +107,56 @@ async function fetchDocuments(params: {
   pageSize?: number;
   searchQuery?: string;
 }) {
-  const { developmentId, discipline, folderId, page = 1, pageSize = 50, searchQuery } = params;
+  const { tenantId, developmentId, discipline, folderId, page = 1, pageSize = 50, searchQuery } = params;
+  
+  // SECURITY: Tenant filtering is mandatory
+  if (!tenantId) {
+    console.error('[Disciplines API] SECURITY: tenantId is required');
+    return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
+  }
   
   try {
-    console.log('[Disciplines API] Fetching documents for scheme:', developmentId || 'ALL');
+    console.log('[Disciplines API] Fetching documents for tenant:', tenantId, 'scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
+    
+    // SECURITY: Get allowed project IDs for this tenant
+    let allowedProjectIds: string[] = [];
+    
+    if (developmentId) {
+      // Verify the development belongs to this tenant
+      const { data: devCheck } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('id', developmentId)
+        .eq('tenant_id', tenantId)
+        .single();
+      
+      if (!devCheck) {
+        console.error('[Disciplines API] SECURITY: Development does not belong to tenant');
+        return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
+      }
+      
+      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      allowedProjectIds = [supabaseProjectId];
+    } else {
+      // Get all developments for this tenant
+      const { data: tenantDevs } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      if (!tenantDevs || tenantDevs.length === 0) {
+        console.log('[Disciplines API] No developments found for tenant');
+        return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
+      }
+      
+      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
+    }
     
     let query = supabase
       .from('document_sections')
-      .select('id, metadata, content, project_id');
-    
-    if (developmentId) {
-      const supabaseProjectId = getSupabaseProjectId(developmentId);
-      query = query.eq('project_id', supabaseProjectId);
-    }
+      .select('id, metadata, content, project_id')
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
 
@@ -186,20 +222,55 @@ async function fetchDisciplines(params: {
   tenantId: string;
   developmentId?: string | null;
 }): Promise<DisciplineSummary[]> {
-  const { developmentId } = params;
+  const { tenantId, developmentId } = params;
+  
+  // SECURITY: Tenant filtering is mandatory
+  if (!tenantId) {
+    console.error('[Disciplines API] SECURITY: tenantId is required');
+    return [];
+  }
   
   try {
     const supabase = getSupabaseClient();
     
-    let query = supabase.from('document_sections').select('id, metadata, project_id');
+    // SECURITY: Get allowed project IDs for this tenant
+    let allowedProjectIds: string[] = [];
     
     if (developmentId) {
+      // Verify the development belongs to this tenant
+      const { data: devCheck } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('id', developmentId)
+        .eq('tenant_id', tenantId)
+        .single();
+      
+      if (!devCheck) {
+        console.error('[Disciplines API] SECURITY: Development does not belong to tenant');
+        return [];
+      }
+      
       const supabaseProjectId = getSupabaseProjectId(developmentId);
       console.log('[Disciplines API] Fetching disciplines for SCHEME:', developmentId, '-> project_id:', supabaseProjectId);
-      query = query.eq('project_id', supabaseProjectId);
+      allowedProjectIds = [supabaseProjectId];
     } else {
-      console.log('[Disciplines API] Fetching disciplines for ALL_SCHEMES (no filter)');
+      // Get all developments for this tenant
+      const { data: tenantDevs } = await supabase
+        .from('developments')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      if (!tenantDevs || tenantDevs.length === 0) {
+        console.log('[Disciplines API] No developments found for tenant');
+        return [];
+      }
+      
+      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
+      console.log('[Disciplines API] Fetching disciplines for ALL_SCHEMES (filtered by tenant):', allowedProjectIds.length, 'projects');
     }
+    
+    let query = supabase.from('document_sections').select('id, metadata, project_id')
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
 
