@@ -83,12 +83,12 @@ export default function DeveloperOnboardingPage() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      router.push('/developments/new');
+      router.push('/onboarding/create-development');
     }
   };
 
   const handleSkip = () => {
-    router.push('/dashboard');
+    router.push('/developer');
   };
 
   const step = steps[currentStep];

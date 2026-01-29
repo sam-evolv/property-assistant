@@ -97,6 +97,34 @@ export const developmentRequests = pgTable('development_requests', {
   statusIdx: index('dev_requests_status_idx').on(table.status),
 }));
 
+export const onboardingSubmissions = pgTable('onboarding_submissions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  developer_id: uuid('developer_id').references(() => admins.id),
+  developer_email: text('developer_email').notNull(),
+  developer_name: text('developer_name'),
+  company_name: text('company_name'),
+  development_name: text('development_name').notNull(),
+  development_address: text('development_address').notNull(),
+  county: text('county').notNull(),
+  estimated_units: integer('estimated_units').notNull(),
+  expected_handover_date: timestamp('expected_handover_date', { withTimezone: true }),
+  planning_reference: text('planning_reference'),
+  planning_pack_url: text('planning_pack_url'),
+  master_spreadsheet_url: text('master_spreadsheet_url'),
+  supporting_documents_urls: jsonb('supporting_documents_urls').default(sql`'[]'::jsonb`),
+  notes: text('notes'),
+  status: varchar('status', { length: 50 }).default('pending').notNull(),
+  admin_notes: text('admin_notes'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index('onboarding_sub_tenant_idx').on(table.tenant_id),
+  developerIdx: index('onboarding_sub_developer_idx').on(table.developer_id),
+  statusIdx: index('onboarding_sub_status_idx').on(table.status),
+  emailIdx: index('onboarding_sub_email_idx').on(table.developer_email),
+}));
+
 export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
