@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { getResendClient, sendOnboardingSubmissionNotification } from '@/lib/resend';
 
 export const dynamic = 'force-dynamic';
@@ -90,29 +92,25 @@ async function uploadFile(
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin();
+    const cookieStore = cookies();
+    const authClient = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabaseAdmin = getSupabaseAdmin();
     
-    const accessToken = request.cookies.get('sb-access-token')?.value || 
-      request.headers.get('authorization')?.replace('Bearer ', '') || '';
+    const { data: { session }, error: sessionError } = await authClient.auth.getSession();
     
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (sessionError || !session?.user) {
+      console.error('[OnboardingSubmit] No valid session:', sessionError);
+      return NextResponse.json({ error: 'Authentication required. Please log in again.' }, { status: 401 });
     }
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
-    
-    if (authError || !user) {
-      console.error('[OnboardingSubmit] Auth error:', authError);
-      return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 });
-    }
-    
+    const user = session.user;
     const developerEmail = user.email || '';
     const developerName = user.user_metadata?.full_name || '';
     const companyName = user.user_metadata?.company_name || '';
     let tenantId = user.user_metadata?.tenant_id || '';
     let developerId = null;
     
-    const { data: admin } = await supabase
+    const { data: admin } = await supabaseAdmin
       .from('admins')
       .select('id, tenant_id')
       .eq('email', developerEmail)
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No tenant context. Please complete signup first.' }, { status: 403 });
     }
     
-    await ensureStorageBucket(supabase);
+    await ensureStorageBucket(supabaseAdmin);
     
     const formData = await request.formData();
     
@@ -150,19 +148,19 @@ export async function POST(request: NextRequest) {
     let masterSpreadsheetUrl: string | null = null;
     const masterFile = formData.get('masterSpreadsheet') as File | null;
     if (masterFile && masterFile.size > 0) {
-      masterSpreadsheetUrl = await uploadFile(supabase, masterFile, submissionId, 'spreadsheet');
+      masterSpreadsheetUrl = await uploadFile(supabaseAdmin, masterFile, submissionId, 'spreadsheet');
     }
     
     const supportingDocsUrls: string[] = [];
     const entries = Array.from(formData.entries());
     for (const [key, value] of entries) {
       if (key.startsWith('supportingDoc_') && value instanceof File && value.size > 0) {
-        const url = await uploadFile(supabase, value, submissionId, 'documents');
+        const url = await uploadFile(supabaseAdmin, value, submissionId, 'documents');
         if (url) supportingDocsUrls.push(url);
       }
     }
     
-    const { data: submission, error: insertError } = await supabase
+    const { data: submission, error: insertError } = await supabaseAdmin
       .from('onboarding_submissions')
       .insert({
         id: submissionId,

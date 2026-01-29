@@ -86,6 +86,7 @@ export default function CreateDevelopmentPage() {
       const response = await fetch('/api/onboarding/submit', {
         method: 'POST',
         body: formPayload,
+        credentials: 'include',
       });
 
       const result = await response.json();
@@ -141,7 +142,7 @@ export default function CreateDevelopmentPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Development Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -151,12 +152,12 @@ export default function CreateDevelopmentPage() {
                 onChange={handleInputChange}
                 required
                 placeholder="e.g., Riverside Manor"
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Development Address <span className="text-red-500">*</span>
               </label>
               <input
@@ -166,12 +167,12 @@ export default function CreateDevelopmentPage() {
                 onChange={handleInputChange}
                 required
                 placeholder="e.g., Main Street, Swords"
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 County <span className="text-red-500">*</span>
               </label>
               <select
@@ -179,7 +180,7 @@ export default function CreateDevelopmentPage() {
                 value={formData.county}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all bg-white"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all bg-white text-neutral-900"
               >
                 <option value="">Select county...</option>
                 {IRISH_COUNTIES.map(county => (
@@ -189,7 +190,7 @@ export default function CreateDevelopmentPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Estimated Number of Units <span className="text-red-500">*</span>
               </label>
               <input
@@ -200,12 +201,12 @@ export default function CreateDevelopmentPage() {
                 required
                 min="1"
                 placeholder="e.g., 50"
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Expected First Handovers
               </label>
               <input
@@ -213,12 +214,12 @@ export default function CreateDevelopmentPage() {
                 name="expectedHandoverDate"
                 value={formData.expectedHandoverDate}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Planning Reference
               </label>
               <input
@@ -227,12 +228,12 @@ export default function CreateDevelopmentPage() {
                 value={formData.planningReference}
                 onChange={handleInputChange}
                 placeholder="e.g., 22/12345"
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Planning Pack URL
               </label>
               <input
@@ -241,12 +242,12 @@ export default function CreateDevelopmentPage() {
                 value={formData.planningPackUrl}
                 onChange={handleInputChange}
                 placeholder="Link to your public planning documents website"
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Master Spreadsheet
               </label>
               <div className="border-2 border-dashed border-grey-300 rounded-lg p-4 hover:border-gold-500 transition-colors">
@@ -254,14 +255,14 @@ export default function CreateDevelopmentPage() {
                   type="file"
                   accept=".xlsx,.csv"
                   onChange={handleMasterSpreadsheetChange}
-                  className="w-full text-sm text-grey-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gold-50 file:text-gold-700 hover:file:bg-gold-100"
+                  className="w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gold-50 file:text-gold-700 hover:file:bg-gold-100"
                 />
                 <p className="mt-2 text-xs text-grey-500">Accepted formats: .xlsx, .csv</p>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Supporting Documents
               </label>
               <div className="border-2 border-dashed border-grey-300 rounded-lg p-4 hover:border-gold-500 transition-colors">
@@ -270,13 +271,13 @@ export default function CreateDevelopmentPage() {
                   accept=".pdf,.docx,.doc"
                   multiple
                   onChange={handleSupportingDocsChange}
-                  className="w-full text-sm text-grey-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gold-50 file:text-gold-700 hover:file:bg-gold-100"
+                  className="w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gold-50 file:text-gold-700 hover:file:bg-gold-100"
                 />
                 <p className="mt-2 text-xs text-grey-500">Accepted formats: .pdf, .docx (multiple files allowed)</p>
                 {supportingDocs.length > 0 && (
                   <div className="mt-3 space-y-1">
                     {supportingDocs.map((file, index) => (
-                      <div key={index} className="text-sm text-grey-600 flex items-center gap-2">
+                      <div key={index} className="text-sm text-neutral-700 flex items-center gap-2">
                         <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
@@ -289,7 +290,7 @@ export default function CreateDevelopmentPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-grey-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-900 mb-2">
                 Notes
               </label>
               <textarea
@@ -298,7 +299,7 @@ export default function CreateDevelopmentPage() {
                 onChange={handleInputChange}
                 rows={4}
                 placeholder="Any additional information about your development..."
-                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all resize-none"
+                className="w-full px-4 py-3 border border-grey-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none transition-all resize-none text-neutral-900 placeholder:text-grey-400"
               />
             </div>
 
