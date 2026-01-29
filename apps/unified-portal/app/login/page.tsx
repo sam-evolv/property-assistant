@@ -154,7 +154,20 @@ function LoginForm() {
           body: JSON.stringify({ code: invitationCode, email }),
         });
 
-        // Step 4: Redirect to onboarding
+        // Step 4: Send notification email
+        await fetch('/api/notify/new-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: fullName.trim(),
+            email,
+            phone: phoneNumber.trim(),
+            companyName: finalCompanyName,
+            code: invitationCode,
+          }),
+        });
+
+        // Step 5: Redirect to onboarding
         router.push('/onboarding');
         return;
       } else if (mode === 'forgot') {
