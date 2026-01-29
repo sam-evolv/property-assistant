@@ -388,27 +388,38 @@ export async function GET(request: Request) {
         console.log(`[ANALYTICS SUMMARY] Drizzle purchaser_agreements fallback failed:`, fallbackError);
 
         // FINAL FALLBACK: Try Supabase to count total units with any activity
-        try {
-          const supabaseAdmin = getSupabaseAdmin();
+        // SECURITY: Always filter by tenant_id to prevent cross-tenant data leakage
+        // For developer scope, require developer_id; only allow unfiltered for superadmin
+        if (scope === 'developer' && !developer_id) {
+          // SECURITY: Fail closed - developer scope must have tenant filter
+          console.log(`[ANALYTICS SUMMARY] Supabase fallback skipped - developer scope requires developer_id`);
+        } else {
+          try {
+            const supabaseAdmin = getSupabaseAdmin();
 
-          // Count units that exist (as a baseline) - better than showing 0
-          let unitQuery = supabaseAdmin
-            .from('units')
-            .select('id', { count: 'exact', head: true });
+            // Count units that exist (as a baseline) - better than showing 0
+            let unitQuery = supabaseAdmin
+              .from('units')
+              .select('id', { count: 'exact', head: true });
 
-          if (project_id) {
-            unitQuery = unitQuery.eq('project_id', project_id);
+            if (project_id) {
+              unitQuery = unitQuery.eq('project_id', project_id);
+            } else if (developer_id) {
+              // SECURITY: Filter by tenant_id when no specific project is selected
+              unitQuery = unitQuery.eq('tenant_id', developer_id);
+            }
+            // Note: superadmin scope without filters is allowed to see cross-tenant data
+
+            const { count: unitCount } = await unitQuery;
+            // Use 50% of total units as an estimate of "active" if we can't get real data
+            // This is better than showing 0 which is clearly wrong
+            if (unitCount && unitCount > 0) {
+              activeUnitsInWindow = Math.floor(unitCount * 0.5);
+              console.log(`[ANALYTICS SUMMARY] Supabase estimate fallback: ${activeUnitsInWindow} active units (50% of ${unitCount} total)`);
+            }
+          } catch (supabaseError) {
+            console.log(`[ANALYTICS SUMMARY] Supabase fallback also failed:`, supabaseError);
           }
-
-          const { count: unitCount } = await unitQuery;
-          // Use 50% of total units as an estimate of "active" if we can't get real data
-          // This is better than showing 0 which is clearly wrong
-          if (unitCount && unitCount > 0) {
-            activeUnitsInWindow = Math.floor(unitCount * 0.5);
-            console.log(`[ANALYTICS SUMMARY] Supabase estimate fallback: ${activeUnitsInWindow} active units (50% of ${unitCount} total)`);
-          }
-        } catch (supabaseError) {
-          console.log(`[ANALYTICS SUMMARY] Supabase fallback also failed:`, supabaseError);
         }
       }
     }

@@ -73,10 +73,12 @@ export async function GET(request: NextRequest) {
 
     // Run queries sequentially to avoid connection pool exhaustion
     // Units are stored in Supabase, use Supabase client to query them
+    // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
     let totalUnits = 0;
     let onboardedUnits = 0;
     try {
-      let unitsQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true });
+      let unitsQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId); // SECURITY: Always filter by tenant
       if (developmentId) {
         unitsQuery = unitsQuery.eq('project_id', developmentId);
       }
@@ -88,7 +90,10 @@ export async function GET(request: NextRequest) {
       }
       
       // Count onboarded units - those with purchaser_name set (using correct Supabase syntax)
-      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true }).not('purchaser_name', 'is', null);
+      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
+      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
+        .not('purchaser_name', 'is', null);
       if (developmentId) {
         onboardedQuery = onboardedQuery.eq('project_id', developmentId);
       }
@@ -182,11 +187,13 @@ export async function GET(request: NextRequest) {
       }
 
       // Also count from Supabase units table - users who acknowledged docs in last 7 days
+      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
       let supabaseActiveCount = 0;
       try {
         let supabaseActiveQuery = supabaseAdmin
           .from('units')
           .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
           .gte('important_docs_agreed_at', sevenDaysAgo.toISOString());
 
         if (developmentId) {
@@ -200,11 +207,13 @@ export async function GET(request: NextRequest) {
       }
 
       // Also count recently registered units as "active" - new signups in last 7 days
+      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
       let recentlyRegisteredCount = 0;
       try {
         let recentlyRegisteredQuery = supabaseAdmin
           .from('units')
           .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
           .not('purchaser_name', 'is', null)
           .gte('created_at', sevenDaysAgo.toISOString());
 
@@ -219,11 +228,13 @@ export async function GET(request: NextRequest) {
       }
 
       // Also count recently updated units as "active" - units updated in last 7 days
+      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
       let recentlyUpdatedCount = 0;
       try {
         let recentlyUpdatedQuery = supabaseAdmin
           .from('units')
           .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
           .not('purchaser_name', 'is', null)
           .gte('updated_at', sevenDaysAgo.toISOString());
 
@@ -373,7 +384,9 @@ export async function GET(request: NextRequest) {
     let mustRead = { total_units: totalUnits, acknowledged: 0 };
     try {
       // Get unit IDs from Supabase
-      let unitsQuery = supabaseAdmin.from('units').select('id, project_id');
+      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
+      let unitsQuery = supabaseAdmin.from('units').select('id, project_id')
+        .eq('tenant_id', tenantId); // SECURITY: Always filter by tenant
       if (developmentId) {
         unitsQuery = unitsQuery.eq('project_id', developmentId);
       }
@@ -476,9 +489,16 @@ export async function GET(request: NextRequest) {
     }
     
     // House type engagement from Supabase
+    // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
     let houseTypeEngagementResult = { rows: [] as any[] };
     try {
-      const { data: unitsData } = await supabaseAdmin.from('units').select('house_type_code').not('house_type_code', 'is', null);
+      let houseTypeQuery = supabaseAdmin.from('units').select('house_type_code')
+        .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
+        .not('house_type_code', 'is', null);
+      if (developmentId) {
+        houseTypeQuery = houseTypeQuery.eq('project_id', developmentId);
+      }
+      const { data: unitsData } = await houseTypeQuery;
       const houseTypeCounts = (unitsData || []).reduce((acc: any, u: any) => {
         acc[u.house_type_code] = (acc[u.house_type_code] || 0) + 1;
         return acc;
