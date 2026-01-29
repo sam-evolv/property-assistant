@@ -59,12 +59,15 @@ export async function GET(
 
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('id, name, unit_number, purchaser_name, house_type_code, bedrooms, address')
+      .select('id, unit_number, purchaser_name, house_type_code, bedrooms, address')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
     
     console.log('[Compliance API] Units query result:', units?.length || 0, 'units, error:', unitsError?.message || 'none');
+    if (units?.length) {
+      console.log('[Compliance API] Sample unit:', units[0]?.unit_number, units[0]?.purchaser_name);
+    }
 
     const { data: documentTypes } = await supabaseAdmin
       .from('compliance_document_types')

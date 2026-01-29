@@ -353,12 +353,13 @@ export default function CompliancePage() {
           };
         });
         
-        let displayAddress = unit.name;
-        if (!displayAddress && unit.unit_number && devName) {
+        let displayAddress = '';
+        if (unit.unit_number && devName) {
           displayAddress = `${unit.unit_number} ${devName}`;
-        }
-        if (!displayAddress) {
-          displayAddress = unit.address?.split(',')[0] || `Unit ${unit.unit_number || unit.id?.slice(0, 8) || '?'}`;
+        } else if (unit.address) {
+          displayAddress = unit.address.split(',')[0];
+        } else {
+          displayAddress = `Unit ${unit.unit_number || unit.id?.slice(0, 8) || '?'}`;
         }
         
         return {
