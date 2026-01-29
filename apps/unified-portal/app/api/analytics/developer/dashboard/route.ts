@@ -370,11 +370,33 @@ export async function GET(request: NextRequest) {
     }
     
     // Document coverage from Supabase instead of Drizzle
+    // SECURITY: Filter by tenant's project IDs
     let docCoverage = { total_docs: 0, covered_house_types: 0, total_house_types: 0 };
     try {
-      const { data: docs, count: docCount } = await supabaseAdmin.from('document_sections').select('metadata', { count: 'exact' });
-      const houseTypes = new Set((docs || []).map((d: any) => d.metadata?.house_type_code).filter(Boolean));
-      docCoverage = { total_docs: docCount || 0, covered_house_types: houseTypes.size, total_house_types: houseTypes.size || 1 };
+      // First get the project IDs for this tenant's developments
+      const { data: tenantDevs } = await supabaseAdmin
+        .from('developments')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      if (tenantDevs && tenantDevs.length > 0) {
+        const allowedProjectIds = tenantDevs.map(d => d.id);
+        
+        // Filter document_sections by project_id
+        let docsQuery = supabaseAdmin
+          .from('document_sections')
+          .select('metadata', { count: 'exact' })
+          .in('project_id', allowedProjectIds);
+        
+        if (developmentId) {
+          docsQuery = docsQuery.eq('project_id', developmentId);
+        }
+        
+        const { data: docs, count: docCount } = await docsQuery;
+        const houseTypes = new Set((docs || []).map((d: any) => d.metadata?.house_type_code).filter(Boolean));
+        docCoverage = { total_docs: docCount || 0, covered_house_types: houseTypes.size, total_house_types: houseTypes.size || 1 };
+      }
+      // If no developments for this tenant, docCoverage stays at 0
     } catch (e) {
       console.log(`[DeveloperDashboard] Document coverage query failed (graceful fallback):`, e);
     }
