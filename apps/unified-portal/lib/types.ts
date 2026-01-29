@@ -6,4 +6,5 @@ export interface AdminSession {
   role: AdminRole;
   preferredRole?: AdminRole | null;
   tenantId: string;
+  displayName?: string | null;
 }

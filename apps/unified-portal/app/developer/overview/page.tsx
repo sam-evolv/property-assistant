@@ -210,7 +210,7 @@ function generateAlerts(data: DashboardData): Alert[] {
   return alerts;
 }
 
-// Generate activity feed from chat activity
+// Generate activity feed from chat activity - only real data, no mock entries
 function generateActivityFeed(chatActivity: Array<{ date: string; count: number }>): ActivityType[] {
   const activities: ActivityType[] = [];
   const recentDays = chatActivity.slice(-7).reverse();
@@ -225,24 +225,6 @@ function generateActivityFeed(chatActivity: Array<{ date: string; count: number 
         timestamp: new Date(day.date),
       });
     }
-  });
-
-  // Add some simulated activities for demonstration
-  activities.push({
-    id: 'doc-1',
-    type: 'document',
-    title: 'User manual uploaded',
-    description: 'Kitchen Appliances Guide',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    link: '/developer/archive',
-  });
-
-  activities.push({
-    id: 'email-1',
-    type: 'email',
-    title: 'Welcome email sent',
-    description: 'New homeowner onboarded',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
   });
 
   return activities.slice(0, 8);
@@ -306,13 +288,14 @@ function getQuickActions(
 
 // Main Dashboard Component
 export default function DeveloperOverviewPage() {
-  const { email } = useAuth();
+  const { email, displayName: authDisplayName } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<DashboardError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   
-  const displayName = email ? email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'there';
+  // Use full name from signup if available, otherwise derive from email
+  const displayName = authDisplayName || (email ? email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'there');
 
   const fetchDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {

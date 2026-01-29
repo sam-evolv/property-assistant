@@ -12,6 +12,7 @@ interface DeveloperLayoutProviderProps {
     email: string;
     role: string;
     tenantId: string;
+    displayName?: string | null;
   } | null;
 }
 
@@ -27,12 +28,14 @@ export function DeveloperLayoutProvider({ children, session }: DeveloperLayoutPr
     tenantId: session.tenantId,
     adminId: session.id,
     email: session.email,
+    displayName: session.displayName || null,
     isLoading: false,
   } : {
     userRole: null,
     tenantId: null,
     adminId: null,
     email: null,
+    displayName: null,
     isLoading: !isHydrated,
   };
 

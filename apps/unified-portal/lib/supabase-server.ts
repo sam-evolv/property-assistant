@@ -87,7 +87,8 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
       };
     }
 
-    console.log('[AUTH] Admin found:', admin.email, 'role:', admin.role, 'preferred_role:', admin.preferred_role);
+    const displayName = user.user_metadata?.full_name || null;
+    console.log('[AUTH] Admin found:', admin.email, 'role:', admin.role, 'displayName:', displayName);
     return {
       status: 'authenticated',
       session: {
@@ -96,6 +97,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         role: admin.role as AdminRole,
         preferredRole: admin.preferred_role as AdminRole | null,
         tenantId: admin.tenant_id,
+        displayName,
       }
     };
   } catch (error: any) {

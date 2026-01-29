@@ -19,6 +19,7 @@ export interface AuthContextType {
   tenantId: string | null;
   adminId: string | null;
   email: string | null;
+  displayName: string | null;
   isLoading: boolean;
   isHydrated: boolean;
 }
@@ -28,6 +29,7 @@ const DEFAULT_AUTH_STATE: AuthContextType = {
   tenantId: null,
   adminId: null,
   email: null,
+  displayName: null,
   isLoading: false,
   isHydrated: false,
 };
