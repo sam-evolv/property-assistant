@@ -13,17 +13,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, fullName, tenantId, companyName } = body;
     
-    if (!email || !tenantId) {
+    console.log('[ProvisionDeveloper] Request received:', { email, fullName, tenantId: tenantId || 'MISSING', companyName });
+    
+    if (!email) {
+      console.error('[ProvisionDeveloper] Missing email');
       return NextResponse.json({ 
         success: false, 
-        error: 'Email and tenant ID required' 
+        error: 'Email is required' 
       }, { status: 400 });
     }
     
     const { data: existing } = await supabase
       .from('admins')
       .select('id, role')
-      .eq('email', email)
+      .eq('email', email.toLowerCase().trim())
       .single();
     
     if (existing) {
@@ -36,31 +39,56 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('id', tenantId)
-      .single();
+    let finalTenantId = tenantId;
     
-    if (!tenant) {
-      console.error('[ProvisionDeveloper] Tenant not found:', tenantId);
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid tenant' 
-      }, { status: 400 });
+    if (tenantId) {
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('id', tenantId)
+        .single();
+      
+      if (!tenant) {
+        console.log('[ProvisionDeveloper] Tenant not found, will create new one');
+        finalTenantId = null;
+      }
+    }
+    
+    if (!finalTenantId) {
+      const tenantName = companyName || email.split('@')[0] + ' Development';
+      const slug = tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      
+      console.log('[ProvisionDeveloper] Creating new tenant:', tenantName);
+      
+      const { data: newTenant, error: tenantError } = await supabase
+        .from('tenants')
+        .insert({
+          name: tenantName,
+          slug: slug + '-' + Date.now(),
+          created_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+      
+      if (tenantError) {
+        console.error('[ProvisionDeveloper] Failed to create tenant:', tenantError);
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Failed to create organization' 
+        }, { status: 500 });
+      }
+      
+      finalTenantId = newTenant.id;
+      console.log('[ProvisionDeveloper] Created new tenant:', finalTenantId);
     }
     
     const { data: newAdmin, error: insertError } = await supabase
       .from('admins')
       .insert({
         email: email.toLowerCase().trim(),
-        name: fullName || email.split('@')[0],
         role: 'developer',
-        tenant_id: tenantId,
-        company_name: companyName || null,
-        is_active: true,
+        tenant_id: finalTenantId,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select('id, role')
       .single();
@@ -73,12 +101,13 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    console.log('[ProvisionDeveloper] Created admin:', email, 'role:', newAdmin.role, 'tenant:', tenantId);
+    console.log('[ProvisionDeveloper] Created admin:', email, 'role:', newAdmin.role, 'tenant:', finalTenantId);
     
     return NextResponse.json({ 
       success: true, 
       adminId: newAdmin.id,
       role: newAdmin.role,
+      tenantId: finalTenantId,
       message: 'Developer account created'
     });
   } catch (error: any) {

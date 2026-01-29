@@ -1,0 +1,29 @@
+CRITICAL BUG: Multiple security and provisioning failures during developer signup
+A user just signed up with an invitation code (samdonfx@gmail.com) but has full super_admin access. Multiple things are broken:
+Problem 1: No admin record created
+The signup flow was supposed to call /api/auth/provision-developer to create an admin record, but NO record exists:
+sqlSELECT * FROM admins WHERE email = 'samdonfx@gmail.com';
+-- Returns 0 rows
+Problem 2: Dashboard shows ALL developers
+The "Developer" dropdown in the sidebar shows "All Developers" plus every developer company (OpenHouse AI, Longview Estates, etc.). A new developer should ONLY see their own company.
+Problem 3: Dashboard shows ALL schemes/developments
+The "Current Scheme" dropdown shows ALL schemes across ALL developers (Longview Park, OpenHouse Park, Rathard Lawn, Rathard Park). A new developer should see ZERO schemes since they haven't created any yet.
+Problem 4: Dashboard shows wrong user name
+The dashboard says "Good evening, Sam" but the user who signed up entered "Test Flow" as their name. It's pulling the wrong user's name from somewhere.
+Problem 5: Fallback to super_admin
+When no admin record exists, the app is defaulting to super_admin access instead of showing "Access Not Configured" or denying access.
+Root causes to investigate:
+
+Is /api/auth/provision-developer being called? Add logging.
+Is it failing silently? Check for try/catch swallowing errors.
+Why does AuthContext/middleware grant super_admin when no admin record exists?
+Where does the dashboard get the user's display name? It should come from the current session, not a hardcoded value or wrong user.
+The TenantSwitcher and DevelopmentSwitcher components should be hidden entirely for non-super_admin users.
+
+Expected behavior for a new developer signup:
+
+Admin record created with role: 'developer' and correct tenant_id
+Dashboard shows ONLY their company name (no dropdown)
+Schemes dropdown shows ONLY their developments (empty for new signup)
+Greeting shows THEIR name from signup form
+Zero visibility into other developers' data

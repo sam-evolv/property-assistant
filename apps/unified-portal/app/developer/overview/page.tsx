@@ -42,6 +42,7 @@ import {
   ActivityFeedSkeleton,
 } from '@/components/ui/Skeleton';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Dynamic chart imports
 const TopQuestionsChart = dynamic(
@@ -305,10 +306,13 @@ function getQuickActions(
 
 // Main Dashboard Component
 export default function DeveloperOverviewPage() {
+  const { email } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<DashboardError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  const displayName = email ? email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'there';
 
   const fetchDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -435,7 +439,7 @@ export default function DeveloperOverviewPage() {
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header with refresh */}
           <div className="flex items-start justify-between">
-            <PageHeader developerName="Sam" />
+            <PageHeader developerName={displayName} />
             <button
               onClick={() => fetchDashboard(true)}
               disabled={refreshing}
