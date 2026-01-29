@@ -8,6 +8,11 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
+  const [invitationCodeError, setInvitationCodeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -81,6 +86,12 @@ function LoginForm() {
 
         window.location.href = finalRedirect;
       } else if (mode === 'signup') {
+        setInvitationCodeError(null);
+        
+        if (!fullName.trim()) {
+          throw new Error('Full name is required.');
+        }
+
         if (password !== confirmPassword) {
           throw new Error('Passwords do not match.');
         }
@@ -89,11 +100,46 @@ function LoginForm() {
           throw new Error('Password must be at least 8 characters.');
         }
 
+        if (!invitationCode.trim()) {
+          setInvitationCodeError('Invitation code is required');
+          throw new Error('Invitation code is required');
+        }
+
+        // Step 1: Validate the invitation code
+        const validateRes = await fetch('/api/auth/validate-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: invitationCode }),
+        });
+        const validateData = await validateRes.json();
+
+        if (!validateData.valid) {
+          const errorMessage = validateData.error === 'Invalid code' 
+            ? 'Invalid code'
+            : validateData.error === 'Code already used'
+            ? 'This code has already been used'
+            : validateData.error === 'Code has expired'
+            ? 'This code has expired'
+            : validateData.error || 'Invalid invitation code';
+          setInvitationCodeError(errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        // Pre-fill company name from code's tenant_name if not already set
+        const finalCompanyName = companyName.trim() || validateData.tenantName || '';
+
+        // Step 2: Create the Supabase account with user metadata
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              full_name: fullName.trim(),
+              company_name: finalCompanyName,
+              phone: phoneNumber.trim(),
+              tenant_id: validateData.tenantId,
+            },
           },
         });
 
@@ -101,10 +147,16 @@ function LoginForm() {
           throw signUpError;
         }
 
-        setSuccess('Account created! Check your email to confirm your account.');
-        setMode('signin');
-        setPassword('');
-        setConfirmPassword('');
+        // Step 3: Mark the code as used
+        await fetch('/api/auth/use-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: invitationCode, email }),
+        });
+
+        // Step 4: Redirect to onboarding
+        router.push('/onboarding');
+        return;
       } else if (mode === 'forgot') {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -240,9 +292,104 @@ function LoginForm() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {mode === 'signup' && (
+              <>
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
+                    Full Name <span style={{ color: '#d4af37' }}>*</span>
+                  </label>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    autoComplete="name"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                    style={{
+                      backgroundColor: '#0e1116',
+                      border: '1px solid rgba(212, 175, 55, 0.12)',
+                      color: '#e4e4e7',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                    placeholder="Your full name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
+                    Company Name
+                  </label>
+                  <input
+                    id="companyName"
+                    name="companyName"
+                    type="text"
+                    autoComplete="organization"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                    style={{
+                      backgroundColor: '#0e1116',
+                      border: '1px solid rgba(212, 175, 55, 0.12)',
+                      color: '#e4e4e7',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                    placeholder="Your company name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
+                    Phone Number <span className="text-xs" style={{ color: '#6b7280' }}>(recommended)</span>
+                  </label>
+                  <input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    autoComplete="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                    style={{
+                      backgroundColor: '#0e1116',
+                      border: '1px solid rgba(212, 175, 55, 0.12)',
+                      color: '#e4e4e7',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                    placeholder="For onboarding coordination"
+                  />
+                </div>
+              </>
+            )}
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                Email Address
+                Email Address {mode === 'signup' && <span style={{ color: '#d4af37' }}>*</span>}
               </label>
               <input
                 id="email"
@@ -328,7 +475,7 @@ function LoginForm() {
             {mode === 'signup' && (
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                  Confirm Password
+                  Confirm Password <span style={{ color: '#d4af37' }}>*</span>
                 </label>
                 <input
                   id="confirmPassword"
@@ -355,6 +502,52 @@ function LoginForm() {
                   }}
                   placeholder="Confirm your password"
                 />
+              </div>
+            )}
+
+            {mode === 'signup' && (
+              <div>
+                <label htmlFor="invitationCode" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
+                  Invitation Code <span style={{ color: '#d4af37' }}>*</span>
+                </label>
+                <input
+                  id="invitationCode"
+                  name="invitationCode"
+                  type="text"
+                  required
+                  value={invitationCode}
+                  onChange={(e) => {
+                    setInvitationCode(e.target.value.toUpperCase());
+                    setInvitationCodeError(null);
+                  }}
+                  className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+                  style={{
+                    backgroundColor: '#0e1116',
+                    border: invitationCodeError 
+                      ? '1px solid rgba(185, 28, 28, 0.5)' 
+                      : '1px solid rgba(212, 175, 55, 0.12)',
+                    color: '#e4e4e7',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => {
+                    if (!invitationCodeError) {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!invitationCodeError) {
+                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
+                      e.target.style.boxShadow = 'none';
+                    }
+                  }}
+                  placeholder="e.g., DEVELOPER-2026-X7K"
+                />
+                {invitationCodeError ? (
+                  <p className="mt-2 text-sm" style={{ color: '#fca5a5' }}>{invitationCodeError}</p>
+                ) : (
+                  <p className="mt-2 text-xs" style={{ color: '#6b7280' }}>Enter the code provided by OpenHouse AI</p>
+                )}
               </div>
             )}
 
@@ -467,6 +660,11 @@ function LoginForm() {
                     setError(null);
                     setSuccess(null);
                     setConfirmPassword('');
+                    setFullName('');
+                    setCompanyName('');
+                    setPhoneNumber('');
+                    setInvitationCode('');
+                    setInvitationCodeError(null);
                   }}
                   className="font-medium transition-colors"
                   style={{ color: '#b8934c' }}
