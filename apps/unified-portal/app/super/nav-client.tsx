@@ -26,7 +26,8 @@ import {
   Zap,
   HeartPulse,
   Menu,
-  X
+  X,
+  Ticket
 } from 'lucide-react';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
@@ -56,6 +57,7 @@ const menuSections = [
     label: 'Management',
     items: [
       { href: '/super/developers', label: 'Developers', icon: UserCog },
+      { href: '/super/developer-codes', label: 'Invitation Codes', icon: Ticket },
       { href: '/super/developments', label: 'Developments', icon: Building2 },
       { href: '/super/units', label: 'Units', icon: Home },
       { href: '/super/homeowners', label: 'Homeowners', icon: Users },

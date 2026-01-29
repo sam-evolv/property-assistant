@@ -1,0 +1,122 @@
+The database table ALREADY EXISTS in Supabase - do NOT create it. Just implement the code.
+Here's the full spec:
+
+What It Does
+Sam generates invitation codes for property developers. When a developer signs up, they enter this code to link their account. Codes look like: CAIRN-2026-X7K
+
+Files to Create
+1. app/api/super/developer-codes/route.ts
+typescriptimport { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+function generateCode(tenantName: string): string {
+  const prefix = tenantName.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6) || 'DEV';
+  const year = new Date().getFullYear();
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let suffix = '';
+  for (let i = 0; i < 3; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${prefix}-${year}-${suffix}`;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { data, error } = await supabase
+      .from('developer_codes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ codes: data });
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { tenantName, tenantId, notes, expiresInDays } = body;
+    
+    if (!tenantName) {
+      return NextResponse.json({ error: 'Tenant name is required' }, { status: 400 });
+    }
+    
+    let code = generateCode(tenantName);
+    
+    // Check for collision
+    const { data: existing } = await supabase
+      .from('developer_codes')
+      .select('id')
+      .eq('code', code)
+      .single();
+    
+    if (existing) {
+      code = generateCode(tenantName);
+    }
+    
+    let expiresAt = null;
+    if (expiresInDays && expiresInDays > 0) {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + expiresInDays);
+      expiresAt = expiry.toISOString();
+    }
+    
+    const { data, error } = await supabase
+      .from('developer_codes')
+      .insert({
+        code,
+        tenant_id: tenantId || null,
+        tenant_name: tenantName,
+        notes: notes || null,
+        expires_at: expiresAt,
+        is_active: true,
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ success: true, code: data });
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+2. app/super/developer-codes/page.tsx
+Create a super admin page with:
+
+Table showing all codes (columns: Code, Developer, Status, Created, Expires, Used By)
+"Generate Code" button that opens a form
+Form fields: Developer Name (required), Expires In Days (default 30), Notes
+Copy to clipboard button next to each code
+Status badges: Available (gold), Used (green), Expired (orange), Inactive (red)
+
+Use the existing OpenHouse design system with gold brand color (#D4AF37).
+
+Database Schema (ALREADY EXISTS - DO NOT CREATE)
+sql-- This table already exists in Supabase
+developer_codes (
+  id UUID PRIMARY KEY,
+  code VARCHAR(30) UNIQUE NOT NULL,
+  tenant_id UUID,
+  tenant_name TEXT,
+  created_by UUID,
+  used_by_email VARCHAR(255),
+  used_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+)
