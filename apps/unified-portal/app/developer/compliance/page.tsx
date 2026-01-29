@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Upload, Eye, Download, ChevronDown, Plus, X, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Upload, Eye, Download, ChevronDown, Plus, X, Check, Loader2, AlertCircle, Settings, Trash2 } from 'lucide-react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 
 interface ComplianceFile {
@@ -295,6 +295,9 @@ export default function CompliancePage() {
   const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
   const [uploadModal, setUploadModal] = useState<{ doc: ComplianceDocument; unit: Unit } | null>(null);
   const [currentDevelopment, setCurrentDevelopment] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState<{ id: string; name: string; category: string }[]>([]);
+  const [newDocType, setNewDocType] = useState({ name: '', category: 'Certification' });
 
   const fetchData = useCallback(async () => {
     if (!developmentId) {
@@ -318,11 +321,15 @@ export default function CompliancePage() {
       }
       
       const data = await res.json();
-      setCurrentDevelopment(data.development?.name || null);
+      const devName = data.development?.name || null;
+      setCurrentDevelopment(devName);
       
       const fetchedUnits = data.units || [];
-      const documentTypes = data.documentTypes || [];
+      const fetchedDocTypes = data.documentTypes || [];
       const documents = data.documents || [];
+      
+      setDocumentTypes(fetchedDocTypes.map((dt: any) => ({ id: dt.id, name: dt.name, category: dt.category })));
+      const documentTypes = fetchedDocTypes;
       
       const transformedUnits: Unit[] = fetchedUnits.map((unit: any) => {
         const unitDocs: ComplianceDocument[] = documentTypes.map((docType: any) => {
@@ -346,17 +353,29 @@ export default function CompliancePage() {
           };
         });
         
-        const addressParts = unit.address?.split(',') || [];
-        const shortAddress = addressParts[0] || unit.name || `Unit ${unit.id}`;
+        let displayAddress = unit.name;
+        if (!displayAddress && unit.unit_number && devName) {
+          displayAddress = `${unit.unit_number} ${devName}`;
+        }
+        if (!displayAddress) {
+          displayAddress = unit.address?.split(',')[0] || `Unit ${unit.unit_number || unit.id?.slice(0, 8) || '?'}`;
+        }
         
         return {
           id: unit.id,
-          address: shortAddress,
-          type: unit.house_type || unit.type || 'N/A',
+          address: displayAddress,
+          type: unit.house_type_code || unit.house_type || unit.type || 'N/A',
           beds: unit.bedrooms ? `${unit.bedrooms} bed` : '',
           purchaser: unit.purchaser_name || '',
           documents: unitDocs,
         };
+      });
+      
+      transformedUnits.sort((a, b) => {
+        const numA = parseInt(a.address.match(/^\d+/)?.[0] || '999');
+        const numB = parseInt(b.address.match(/^\d+/)?.[0] || '999');
+        if (numA !== numB) return numA - numB;
+        return a.address.localeCompare(b.address);
       });
       
       setUnits(transformedUnits);
@@ -395,6 +414,47 @@ export default function CompliancePage() {
     console.log('Uploading file:', file.name, 'for', uploadModal.doc.name, 'at', uploadModal.unit.address);
     setUploadModal(null);
     fetchData();
+  };
+
+  const handleAddDocType = async () => {
+    if (!newDocType.name.trim() || !developmentId) return;
+    
+    try {
+      const nameParam = developmentName ? `&name=${encodeURIComponent(developmentName)}` : '';
+      const res = await fetch(`/api/compliance/${developmentId}?action=addDocType${nameParam}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newDocType.name, category: newDocType.category }),
+      });
+      
+      if (res.ok) {
+        setNewDocType({ name: '', category: 'Certification' });
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Error adding document type:', err);
+    }
+  };
+
+  const handleRemoveDocType = async (docTypeId: string) => {
+    if (!developmentId) return;
+    
+    try {
+      const nameParam = developmentName ? `&name=${encodeURIComponent(developmentName)}` : '';
+      const res = await fetch(`/api/compliance/${developmentId}?action=removeDocType${nameParam}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ docTypeId }),
+      });
+      
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Error removing document type:', err);
+    }
   };
 
   const filteredUnits = units.filter(unit => {
@@ -456,6 +516,13 @@ export default function CompliancePage() {
                 {currentDevelopment || 'Select a development'} · Track certificates and regulatory documents per unit
               </p>
             </div>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              Document Types
+            </button>
           </div>
 
           {/* Stats Bar */}
@@ -521,6 +588,94 @@ export default function CompliancePage() {
           onClose={() => setUploadModal(null)}
           onUpload={handleFileUpload}
         />
+      )}
+
+      {/* Document Types Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowSettings(false)} />
+          
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Document Types</h2>
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {/* Add new document type */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Add New Document Type</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Document name..."
+                    value={newDocType.name}
+                    onChange={(e) => setNewDocType(prev => ({ ...prev, name: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                  />
+                  <select
+                    value={newDocType.category}
+                    onChange={(e) => setNewDocType(prev => ({ ...prev, category: e.target.value }))}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                  >
+                    <option value="Certification">Certification</option>
+                    <option value="Safety">Safety</option>
+                    <option value="Registration">Registration</option>
+                    <option value="Warranty">Warranty</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <button
+                    onClick={handleAddDocType}
+                    disabled={!newDocType.name.trim()}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Existing document types */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Current Document Types</h3>
+                <div className="space-y-2">
+                  {documentTypes.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No document types configured</p>
+                  ) : (
+                    documentTypes.map((docType) => (
+                      <div key={docType.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-900">{docType.name}</span>
+                          <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">{docType.category}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveDocType(docType.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

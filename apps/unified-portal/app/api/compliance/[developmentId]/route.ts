@@ -58,7 +58,7 @@ export async function GET(
 
     const { data: units } = await supabaseAdmin
       .from('units')
-      .select('id, unit_number, purchaser_name, house_type_code')
+      .select('id, name, unit_number, purchaser_name, house_type_code, bedrooms, address')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
@@ -117,12 +117,13 @@ export async function POST(
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { action, ...data } = body;
-
     const supabaseAdmin = getSupabaseAdmin();
 
     const url = new URL(request.url);
+    const actionParam = url.searchParams.get('action');
+    const body = await request.json();
+    const action = actionParam || body.action;
+    const data = body;
     const devName = url.searchParams.get('name');
 
     const { data: allDevs } = await supabaseAdmin
@@ -148,6 +149,7 @@ export async function POST(
     }
 
     switch (action) {
+      case 'addDocType':
       case 'add_document_type': {
         const { name, category, description, houseType, required } = data;
         
@@ -157,7 +159,7 @@ export async function POST(
             tenant_id: tenantId,
             development_id: actualDevelopmentId,
             name,
-            category,
+            category: category || 'Certification',
             description,
             house_type: houseType || null,
             required: required !== false,
@@ -171,6 +173,33 @@ export async function POST(
         }
 
         return NextResponse.json({ success: true, documentType: newType });
+      }
+
+      case 'removeDocType':
+      case 'remove_document_type': {
+        const { docTypeId } = data;
+        
+        if (!docTypeId) {
+          return NextResponse.json({ error: 'Document type ID required' }, { status: 400 });
+        }
+
+        await supabaseAdmin
+          .from('compliance_documents')
+          .delete()
+          .eq('document_type_id', docTypeId);
+
+        const { error } = await supabaseAdmin
+          .from('compliance_document_types')
+          .delete()
+          .eq('id', docTypeId)
+          .eq('tenant_id', tenantId);
+
+        if (error) {
+          console.error('[Compliance API] Error removing document type:', error);
+          return NextResponse.json({ error: 'Failed to remove document type' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
       }
 
       case 'update_document': {
