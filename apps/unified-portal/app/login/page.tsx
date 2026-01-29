@@ -154,7 +154,23 @@ function LoginForm() {
           body: JSON.stringify({ code: invitationCode, email }),
         });
 
-        // Step 4: Send notification email
+        // Step 4: Create admin record with 'developer' role
+        const provisionRes = await fetch('/api/auth/provision-developer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            fullName: fullName.trim(),
+            tenantId: validateData.tenantId,
+            companyName: finalCompanyName,
+          }),
+        });
+        
+        if (!provisionRes.ok) {
+          console.error('Failed to provision developer account');
+        }
+
+        // Step 5: Send notification email
         await fetch('/api/notify/new-signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,7 +183,7 @@ function LoginForm() {
           }),
         });
 
-        // Step 5: Redirect to onboarding
+        // Step 6: Redirect to onboarding
         router.push('/onboarding');
         return;
       } else if (mode === 'forgot') {
