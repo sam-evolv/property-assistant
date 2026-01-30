@@ -35,6 +35,10 @@ export const developments = pgTable('developments', {
   latitude: decimal('latitude', { precision: 9, scale: 6 }),
   longitude: decimal('longitude', { precision: 9, scale: 6 }),
   logo_url: text('logo_url'),
+  sidebar_logo_url: text('sidebar_logo_url'),
+  assistant_logo_url: text('assistant_logo_url'),
+  toolbar_logo_url: text('toolbar_logo_url'),
+  from_submission_id: uuid('from_submission_id').references(() => onboardingSubmissions.id),
   important_docs_version: integer('important_docs_version').default(1).notNull(),
   archive_mode: archiveModeEnum('archive_mode').default('shared').notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -44,6 +48,7 @@ export const developments = pgTable('developments', {
   developerIdx: index('developments_developer_idx').on(table.developer_user_id),
   createdByIdx: index('developments_created_by_idx').on(table.created_by),
   archiveModeIdx: index('developments_archive_mode_idx').on(table.archive_mode),
+  fromSubmissionIdx: index('developments_from_submission_idx').on(table.from_submission_id),
 }));
 
 export const houseTypes = pgTable('house_types', {

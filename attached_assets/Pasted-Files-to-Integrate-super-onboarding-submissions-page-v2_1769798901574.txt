@@ -1,0 +1,91 @@
+Files to Integrate
+
+super-onboarding-submissions-page-v2.tsx
+
+Replace: /app/super/onboarding-submissions/page.tsx
+Changes:
+
+Added "Create Development" button on each row AND in expanded view
+Fixed file download URLs to use proper Supabase storage paths
+Clicking "Create Development" navigates to /super/projects/new with query params pre-filled from submission
+
+
+
+
+development-branding-component.tsx
+
+Location: /components/super/DevelopmentBranding.tsx
+New drag-and-drop logo upload component with 3 zones:
+
+Sidebar Logo - Top-left of developer dashboard
+Assistant Logo - Center of property assistant chat
+Toolbar Logo - Top toolbar of property assistant
+
+
+
+
+api-branding-upload-route.ts
+
+Location: /app/api/super/branding/upload/route.ts
+Handles file upload to Supabase storage branding bucket
+
+
+
+Critical Fixes Needed
+1. File Download 404 Error
+The uploaded files (Planning Pack PDF, Master Spreadsheet) return 404. The URLs stored in onboarding_submissions may be:
+
+Relative paths like onboarding-files/abc123.pdf
+Missing the full Supabase storage URL
+
+Fix: In the submissions page, construct full URLs:
+typescriptconst getFileUrl = (path: string) => {
+  if (path.startsWith('http')) return path;
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${path}`;
+};
+Also check the onboarding-files bucket exists and has public access enabled in Supabase.
+2. New Project Page - Link to Submission
+When navigating from a submission, the New Project page should:
+
+Show a banner: "Creating from submission: {development_name}"
+Pre-fill fields from query params: name, address, county, units, tenant_id, planning_ref
+Store from_submission ID so when development is created, the submission status updates to "completed"
+
+3. New Project Branding Section
+Replace the current "Logo URL" and "Hero Image URL" text inputs with the DevelopmentBranding component:
+tsximport { DevelopmentBranding } from '@/components/super/DevelopmentBranding';
+
+// In the form:
+<DevelopmentBranding
+  sidebarLogo={sidebarLogo}
+  assistantLogo={assistantLogo}
+  toolbarLogo={toolbarLogo}
+  onSidebarLogoChange={setSidebarLogo}
+  onAssistantLogoChange={setAssistantLogo}
+  onToolbarLogoChange={setToolbarLogo}
+  onUpload={async (file, type) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    const res = await fetch('/api/super/branding/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    return data.url;
+  }}
+/>
+4. Database Schema Update
+Add columns to developments table (if not present):
+sqlALTER TABLE developments ADD COLUMN IF NOT EXISTS sidebar_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS assistant_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS toolbar_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS from_submission_id UUID REFERENCES onboarding_submissions(id);
+5. Create Supabase Storage Bucket
+Create a branding bucket for logo uploads:
+
+Name: branding
+Public: Yes
+File size limit: 2MB
+Allowed MIME types: image/png, image/jpeg, image/svg+xml, image/webp
+
+
+Summary of Changes
+FeatureStatusActionCreate Development buttonNewAdd to submissions pageFile download 404BugFix URL constructionSubmission → New Project linkNewPass data via query paramsDrag-drop logo uploadNewReplace text inputs with componentBranding storage bucketNewCreate in Supabase

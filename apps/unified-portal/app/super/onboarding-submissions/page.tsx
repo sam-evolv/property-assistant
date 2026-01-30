@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, memo } from 'react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 import {
   ClipboardList,
   Clock,
@@ -17,7 +18,8 @@ import {
   MapPin,
   ExternalLink,
   Loader2,
-  MoreHorizontal,
+  Plus,
+  Download,
 } from 'lucide-react';
 import {
   PageHeader,
@@ -100,12 +102,21 @@ function getStatusBadge(status: string) {
   }
 }
 
+function getFileUrl(path: string | undefined): string {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  return `${supabaseUrl}/storage/v1/object/public/${path}`;
+}
+
 const SubmissionRow = memo(function SubmissionRow({
   submission,
   onStatusChange,
+  onCreateDevelopment,
 }: {
   submission: Submission;
   onStatusChange: (id: string, status: string) => void;
+  onCreateDevelopment: (submission: Submission) => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -127,6 +138,9 @@ const SubmissionRow = memo(function SubmissionRow({
       setUpdating(false);
     }
   };
+
+  const planningPackUrl = getFileUrl(submission.planning_pack_url);
+  const masterSpreadsheetUrl = getFileUrl(submission.master_spreadsheet_url);
 
   return (
     <>
@@ -166,6 +180,16 @@ const SubmissionRow = memo(function SubmissionRow({
             >
               <Eye className="w-4 h-4" />
             </button>
+            {submission.status !== 'completed' && (
+              <button
+                onClick={() => onCreateDevelopment(submission)}
+                className="px-3 py-1.5 text-xs font-medium bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg transition-colors flex items-center gap-1"
+                title="Create Development"
+              >
+                <Plus className="w-3 h-3" />
+                Create
+              </button>
+            )}
             {submission.status === 'pending' && (
               <button
                 onClick={() => handleStatusChange('in_review')}
@@ -214,30 +238,54 @@ const SubmissionRow = memo(function SubmissionRow({
                 </div>
               )}
               <div className="col-span-2 md:col-span-4 flex gap-4 flex-wrap">
-                {submission.planning_pack_url && (
+                {planningPackUrl && (
                   <a
-                    href={submission.planning_pack_url}
+                    href={planningPackUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-medium"
                   >
                     <FileText className="w-4 h-4" />
                     Planning Pack
-                    <ExternalLink className="w-3 h-3" />
+                    <Download className="w-3 h-3" />
                   </a>
                 )}
-                {submission.master_spreadsheet_url && (
+                {masterSpreadsheetUrl && (
                   <a
-                    href={submission.master_spreadsheet_url}
+                    href={masterSpreadsheetUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-medium"
                   >
                     <FileText className="w-4 h-4" />
                     Master Spreadsheet
-                    <ExternalLink className="w-3 h-3" />
+                    <Download className="w-3 h-3" />
                   </a>
                 )}
+                {submission.supporting_documents_urls && submission.supporting_documents_urls.length > 0 && (
+                  submission.supporting_documents_urls.map((url, idx) => (
+                    <a
+                      key={idx}
+                      href={getFileUrl(url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-medium"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Document {idx + 1}
+                      <Download className="w-3 h-3" />
+                    </a>
+                  ))
+                )}
+              </div>
+              <div className="col-span-2 md:col-span-4 pt-2 border-t border-neutral-200">
+                <button
+                  onClick={() => onCreateDevelopment(submission)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors font-medium"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Create Development from this Submission
+                </button>
               </div>
             </div>
           </td>
@@ -248,6 +296,7 @@ const SubmissionRow = memo(function SubmissionRow({
 });
 
 export default function OnboardingSubmissionsPage() {
+  const router = useRouter();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [stats, setStats] = useState<Stats>({
     total: 0,
@@ -303,6 +352,19 @@ export default function OnboardingSubmissionsPage() {
       }
       return updated;
     });
+  };
+
+  const handleCreateDevelopment = (submission: Submission) => {
+    const params = new URLSearchParams({
+      from_submission: submission.id,
+      name: submission.development_name,
+      address: submission.development_address,
+      county: submission.county,
+      units: submission.estimated_units.toString(),
+      tenant_id: submission.tenant_id,
+      planning_ref: submission.planning_reference || '',
+    });
+    router.push(`/super/projects/new?${params.toString()}`);
   };
 
   const filteredSubmissions = submissions.filter((sub) => {
@@ -489,6 +551,7 @@ export default function OnboardingSubmissionsPage() {
                           key={submission.id}
                           submission={submission}
                           onStatusChange={handleStatusChange}
+                          onCreateDevelopment={handleCreateDevelopment}
                         />
                       ))}
                     </tbody>
