@@ -113,7 +113,8 @@ export async function POST(request: NextRequest) {
         .from('knowledge_base')
         .select('title, content, category')
         .or(`development_id.eq.${development.id},development_id.is.null`)
-        .eq('active', true);
+        .eq('active', true)
+        .limit(5);
 
       if (knowledge && knowledge.length > 0) {
         knowledgeContext = '\n\n## Additional Knowledge:\n' +
@@ -124,33 +125,8 @@ export async function POST(request: NextRequest) {
       console.log('[Test Assistant] Knowledge base query failed (table may not exist):', kbError);
     }
 
-    // 4. Search for relevant document chunks using vector similarity (via Supabase RPC)
+    // 4. Vector search disabled for speed - use Custom Q&A and Knowledge Base instead
     let documentContext = '';
-    try {
-      // Generate embedding for the user's question
-      const embeddingResponse = await openai.embeddings.create({
-        model: 'text-embedding-ada-002',
-        input: message,
-      });
-      const queryEmbedding = embeddingResponse.data[0].embedding;
-
-      // Search for similar document chunks via Supabase RPC
-      const { data: chunks, error: searchError } = await supabaseAdmin
-        .rpc('match_document_sections', {
-          query_embedding: queryEmbedding,
-          match_threshold: 0.7,
-          match_count: 5,
-          p_development_id: development.id
-        });
-
-      if (!searchError && chunks && chunks.length > 0) {
-        documentContext = '\n\n## Relevant Document Excerpts:\n' +
-          chunks.map((chunk: any) => `---\n${chunk.content}\n---`).join('\n');
-        console.log('[Test Assistant] Found', chunks.length, 'relevant document chunks');
-      }
-    } catch (embeddingError) {
-      console.log('[Test Assistant] Vector search not available:', embeddingError);
-    }
 
     // 5. Build system prompt
     const systemPrompt = `You are an AI assistant for ${development.name}, a residential development${development.address ? ` located at ${development.address}` : ''}.
@@ -170,7 +146,7 @@ ${documentContext}
 - For complex issues, suggest contacting the developer or management company
 - Keep responses focused and practical`;
 
-    // 6. Call OpenAI
+    // 6. Call OpenAI (optimized for speed)
     console.log('[Test Assistant] Calling OpenAI...');
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -178,8 +154,8 @@ ${documentContext}
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
       ],
-      max_tokens: 1024,
-      temperature: 0.7
+      max_tokens: 256,
+      temperature: 0.3
     });
 
     const assistantResponse = response.choices[0]?.message?.content || 
