@@ -1,393 +1,336 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Users,
-  MessageSquare,
-  Activity,
-  CheckCircle2,
-  Home,
   Search,
-  Filter,
-  Download,
   RefreshCw,
   Mail,
-  ChevronRight,
-  TrendingUp,
-  UserCheck,
-  UserX,
+  Phone,
+  Home,
+  Calendar,
+  MessageSquare,
+  Activity,
+  Loader2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   PageHeader,
-  MetricCard,
-  MetricCardGrid,
+  Card,
+  CardContent,
   Button,
   Badge,
-  EmptyState,
 } from '@/components/ui/premium';
-import { DataTable, Column } from '@/components/admin-enterprise/DataTable';
-import { useProjectContext } from '@/contexts/ProjectContext';
 
-// ============================================================================
-// TYPES
-// ============================================================================
 interface Homeowner {
   id: string;
   name: string;
   email: string;
-  house_type: string | null;
-  address: string | null;
-  development_name: string | null;
-  created_at: string;
-  chat_message_count: number;
-  last_active: string | null;
-  handover_date?: string | null;
-  is_registered?: boolean;
+  phone: string;
+  unit: {
+    id: string;
+    number: string;
+    address: string;
+  };
+  development: {
+    id: string;
+    name: string;
+  };
+  consentDate: string | null;
+  lastActivity: string | null;
+  questionsCount: number;
+  status: 'active' | 'pending' | 'inactive';
 }
 
-// ============================================================================
-// LOADING SKELETON
-// ============================================================================
-function HomeownersSkeleton() {
+interface Development {
+  id: string;
+  name: string;
+}
+
+interface Stats {
+  total: number;
+  active: number;
+  questionsTotal: number;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const variants: Record<string, { variant: 'success' | 'warning' | 'neutral', label: string }> = {
+    active: { variant: 'success', label: 'Active' },
+    pending: { variant: 'warning', label: 'Pending' },
+    inactive: { variant: 'neutral', label: 'Inactive' },
+  };
+  const config = variants[status] || { variant: 'neutral', label: status };
+  return <Badge variant={config.variant} size="sm">{config.label}</Badge>;
+}
+
+function HomeownerRow({ homeowner }: { homeowner: Homeowner }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="p-8 min-h-screen bg-neutral-50">
-      <div className="max-w-7xl mx-auto animate-pulse">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="h-8 w-64 bg-neutral-200 rounded-lg mb-2" />
-            <div className="h-4 w-96 bg-neutral-100 rounded" />
-          </div>
-          <div className="flex gap-3">
-            <div className="h-10 w-28 bg-neutral-200 rounded-lg" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-neutral-200 p-6">
-              <div className="h-4 w-24 bg-neutral-100 rounded mb-3" />
-              <div className="h-8 w-16 bg-neutral-200 rounded" />
+    <>
+      <tr
+        className="hover:bg-neutral-50 transition-colors cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <span className="text-amber-700 font-semibold text-sm">
+                {homeowner.name?.charAt(0)?.toUpperCase() || '?'}
+              </span>
             </div>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-xl border border-neutral-200">
-          <div className="h-14 border-b border-neutral-100" />
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-16 border-b border-neutral-100" />
-          ))}
-        </div>
-      </div>
-    </div>
+            <div>
+              <p className="font-medium text-neutral-900">{homeowner.name || 'Unknown'}</p>
+              <p className="text-sm text-neutral-500">{homeowner.email}</p>
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <p className="text-sm text-neutral-700">{homeowner.unit?.number || 'N/A'}</p>
+          <p className="text-xs text-neutral-500">{homeowner.development?.name}</p>
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-neutral-400" />
+            <span className="text-sm text-neutral-700">{homeowner.questionsCount || 0}</span>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <StatusBadge status={homeowner.status} />
+        </td>
+        <td className="px-6 py-4">
+          {expanded ? (
+            <ChevronUp className="w-5 h-5 text-neutral-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-neutral-400" />
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="bg-neutral-50">
+          <td colSpan={5} className="px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <h4 className="text-sm font-semibold text-neutral-700 mb-2 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Contact Details
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <p className="text-neutral-600">{homeowner.email || 'No email'}</p>
+                  <p className="flex items-center gap-2 text-neutral-600">
+                    <Phone className="w-3 h-3" />
+                    {homeowner.phone || 'No phone'}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-neutral-700 mb-2 flex items-center gap-2">
+                  <Home className="w-4 h-4" />
+                  Property
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <p className="text-neutral-600">Unit: {homeowner.unit?.number || 'N/A'}</p>
+                  <p className="text-neutral-600">{homeowner.unit?.address || 'N/A'}</p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-neutral-700 mb-2 flex items-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  Activity
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <p className="text-neutral-600">
+                    Consented: {homeowner.consentDate ? new Date(homeowner.consentDate).toLocaleDateString() : 'N/A'}
+                  </p>
+                  <p className="text-neutral-600">
+                    Last Active: {homeowner.lastActivity ? new Date(homeowner.lastActivity).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
 export function HomeownersDirectory() {
-  const { selectedProjectId, selectedProject, isLoading: projectsLoading } = useProjectContext();
   const [homeowners, setHomeowners] = useState<Homeowner[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [developmentFilter, setDevelopmentFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchHomeowners = useCallback(async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
 
     try {
-      if (selectedProjectId) {
-        const url = `/api/super/homeowners?projectId=${selectedProjectId}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch homeowners');
-        const data = await res.json();
-        setHomeowners(data.homeowners || []);
-      } else {
-        const url = '/api/admin/homeowners/stats';
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch homeowners');
-        const data = await res.json();
-        setHomeowners(data.homeowners || []);
-      }
-    } catch (err: any) {
-      console.error('[HomeownersDirectory] Error:', err);
-      setError(err.message);
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (developmentFilter) params.set('development_id', developmentFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const res = await fetch(`/api/super/homeowners?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch homeowners');
+
+      const data = await res.json();
+      setHomeowners(data.homeowners || []);
+      setDevelopments(data.developments || []);
+      setStats(data.stats);
+    } catch (err) {
+      console.error('Homeowners fetch error:', err);
+      setError('Failed to load homeowners');
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      setIsLoading(false);
     }
-  }, [selectedProjectId]);
+  }, [search, developmentFilter, statusFilter]);
 
   useEffect(() => {
-    if (projectsLoading) return;
-    fetchHomeowners();
-  }, [selectedProjectId, projectsLoading, fetchHomeowners]);
+    const timer = setTimeout(() => fetchHomeowners(), 300);
+    return () => clearTimeout(timer);
+  }, [fetchHomeowners]);
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchHomeowners();
-  };
-
-  // Activity status helper
-  const getActivityStatus = (lastActive: string | null) => {
-    if (!lastActive) return { label: 'Never', status: 'inactive' as const, color: 'text-neutral-400' };
-
-    const daysSince = Math.floor(
-      (Date.now() - new Date(lastActive).getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (daysSince === 0) return { label: 'Today', status: 'active' as const, color: 'text-emerald-600' };
-    if (daysSince <= 7) return { label: `${daysSince}d ago`, status: 'active' as const, color: 'text-emerald-500' };
-    if (daysSince <= 30) return { label: `${daysSince}d ago`, status: 'inactive' as const, color: 'text-amber-600' };
-    return { label: `${daysSince}d ago`, status: 'inactive' as const, color: 'text-neutral-500' };
-  };
-
-  // Filter homeowners
-  const filteredHomeowners = useMemo(() => {
-    return homeowners.filter((ho) => {
-      const matchesSearch =
-        ho.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ho.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ho.development_name?.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const activity = getActivityStatus(ho.last_active);
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'active' && activity.status === 'active') ||
-        (statusFilter === 'inactive' && activity.status === 'inactive');
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [homeowners, searchQuery, statusFilter]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const total = homeowners.length;
-    const active = homeowners.filter((ho) => getActivityStatus(ho.last_active).status === 'active').length;
-    const totalMessages = homeowners.reduce((acc, ho) => acc + ho.chat_message_count, 0);
-    const registered = homeowners.filter((ho) => ho.is_registered).length;
-
-    return { total, active, totalMessages, registered };
-  }, [homeowners]);
-
-  if (loading || projectsLoading) {
-    return <HomeownersSkeleton />;
-  }
-
-  if (error) {
-    return (
-      <div className="p-8 min-h-screen bg-neutral-50">
-        <div className="max-w-7xl mx-auto">
-          <EmptyState
-            icon={Users}
-            title="Failed to load homeowners"
-            description={error}
-            action={{
-              label: 'Try Again',
-              onClick: fetchHomeowners,
-            }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  const columns: Column<Homeowner>[] = [
-    {
-      key: 'name',
-      label: 'Homeowner',
-      sortable: true,
-      render: (item) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-100 to-brand-50 flex items-center justify-center">
-            <span className="text-brand-700 font-semibold text-sm">
-              {item.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div>
-            <p className="font-medium text-neutral-900">{item.name}</p>
-            <p className="text-xs text-neutral-500">{item.email}</p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'house_type',
-      label: 'House Type',
-      sortable: true,
-      render: (item) =>
-        item.house_type ? (
-          <Badge variant="info" size="sm">
-            {item.house_type}
-          </Badge>
-        ) : (
-          <span className="text-neutral-400 text-sm">—</span>
-        ),
-    },
-    {
-      key: 'development_name',
-      label: 'Development',
-      sortable: true,
-      render: (item) => (
-        <span className="text-neutral-700">{item.development_name || '—'}</span>
-      ),
-    },
-    {
-      key: 'chat_message_count',
-      label: 'Messages',
-      sortable: true,
-      render: (item) => (
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-brand-500" />
-          <span className="font-medium text-neutral-900">{item.chat_message_count}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'last_active',
-      label: 'Last Active',
-      sortable: true,
-      render: (item) => {
-        const activity = getActivityStatus(item.last_active);
-        return (
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'w-2 h-2 rounded-full',
-                activity.status === 'active' ? 'bg-emerald-500' : 'bg-neutral-300'
-              )}
-            />
-            <span className={cn('text-sm', activity.color)}>{activity.label}</span>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'is_registered',
-      label: 'Status',
-      sortable: true,
-      render: (item) => (
-        <Badge variant={item.is_registered ? 'success' : 'neutral'} size="sm">
-          {item.is_registered ? 'Registered' : 'Pending'}
-        </Badge>
-      ),
-    },
+  const statusOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'pending', label: 'Pending' },
   ];
 
   return (
-    <div className="p-8 min-h-screen bg-neutral-50">
-      <div className="max-w-7xl mx-auto">
-        {/* Page Header */}
+    <div className="p-6 lg:p-8 min-h-screen bg-neutral-50">
+      <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader
-          title="Homeowner Directory"
-          subtitle={
-            selectedProject
-              ? `Viewing homeowners for ${selectedProject.name}`
-              : 'All homeowners across all developments'
-          }
+          title="Homeowners Directory"
+          subtitle="View and manage all homeowners across developments"
           icon={Users}
-          badge={{ label: 'Live', variant: 'live' }}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
           actions={
-            <Button variant="outline" leftIcon={Download}>
-              Export
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={RefreshCw}
+              onClick={fetchHomeowners}
+              disabled={isLoading}
+              className={cn(isLoading && '[&_svg]:animate-spin')}
+            >
+              Refresh
             </Button>
           }
         />
 
-        {/* Stats Grid */}
-        <MetricCardGrid columns={4} className="mb-8">
-          <MetricCard
-            label="Total Homeowners"
-            value={stats.total}
-            icon={Users}
-            variant="highlighted"
-          />
-          <MetricCard
-            label="Active (7d)"
-            value={stats.active}
-            icon={UserCheck}
-            description={`${Math.round((stats.active / stats.total) * 100) || 0}% engagement`}
-            variant="success"
-          />
-          <MetricCard
-            label="Total Messages"
-            value={stats.totalMessages.toLocaleString()}
-            icon={MessageSquare}
-            trend={12}
-          />
-          <MetricCard
-            label="Registered"
-            value={stats.registered}
-            icon={CheckCircle2}
-            description={`${Math.round((stats.registered / stats.total) * 100) || 0}% completion`}
-          />
-        </MetricCardGrid>
-
-        {/* Filters */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <input
-              type="text"
-              placeholder="Search homeowners..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            {(['all', 'active', 'inactive'] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={cn(
-                  'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
-                  statusFilter === status
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-600 hover:bg-neutral-50 border border-neutral-200'
-                )}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-card overflow-hidden">
-          {filteredHomeowners.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title={searchQuery ? 'No homeowners found' : 'No homeowners yet'}
-              description={
-                searchQuery
-                  ? 'Try adjusting your search or filters'
-                  : 'Homeowners will appear here once they register'
-              }
-            />
-          ) : (
-            <DataTable
-              data={filteredHomeowners}
-              columns={columns}
-              pageSize={15}
-              searchable={false}
-            />
-          )}
-        </div>
-
-        {/* Footer */}
-        {filteredHomeowners.length > 0 && (
-          <div className="mt-4 text-center text-sm text-neutral-500">
-            Showing {filteredHomeowners.length} of {homeowners.length} homeowners
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-neutral-500">Total Homeowners</p>
+                <p className="text-2xl font-bold text-neutral-900">{stats.total}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-neutral-500">Active</p>
+                <p className="text-2xl font-bold text-emerald-600">{stats.active}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="text-sm text-neutral-500">Total Questions</p>
+                <p className="text-2xl font-bold text-amber-600">{stats.questionsTotal}</p>
+              </CardContent>
+            </Card>
           </div>
         )}
+
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, unit..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={developmentFilter}
+                  onChange={(e) => setDevelopmentFilter(e.target.value)}
+                  className="px-4 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">All Developments</option>
+                  {developments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <div className="flex items-center bg-white rounded-lg border border-neutral-200 p-1">
+                  {statusOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setStatusFilter(opt.value)}
+                      className={cn(
+                        'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                        statusFilter === opt.value
+                          ? 'bg-neutral-900 text-white'
+                          : 'text-neutral-600 hover:text-neutral-900'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="py-20 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+              </div>
+            ) : error ? (
+              <div className="py-12 text-center">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <p className="text-neutral-600">{error}</p>
+              </div>
+            ) : homeowners.length === 0 ? (
+              <div className="py-12 text-center">
+                <Users className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+                <p className="text-neutral-600">No homeowners found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-neutral-50 border-b border-neutral-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-600 uppercase">Homeowner</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-600 uppercase">Unit</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-600 uppercase">Questions</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-600 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-600 uppercase"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200">
+                    {homeowners.map((homeowner) => (
+                      <HomeownerRow key={homeowner.id} homeowner={homeowner} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

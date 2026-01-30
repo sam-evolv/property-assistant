@@ -1,8 +1,13 @@
 import { requireRole } from '@/lib/supabase-server';
+import { redirect } from 'next/navigation';
 import AnalyticsClient from './analytics-client';
 
 export default async function AnalyticsPage() {
-  const session = await requireRole(['super_admin', 'admin']);
+  try {
+    await requireRole(['super_admin']);
+  } catch {
+    redirect('/unauthorized');
+  }
 
-  return <AnalyticsClient tenantId={session.tenantId} />;
+  return <AnalyticsClient />;
 }

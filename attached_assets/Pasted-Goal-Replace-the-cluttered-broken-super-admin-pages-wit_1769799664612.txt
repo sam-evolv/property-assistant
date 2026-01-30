@@ -1,0 +1,58 @@
+Goal
+Replace the cluttered, broken super admin pages with clean, simple, actionable interfaces.
+Files to Replace
+FileLocationPurposesuper-overview-page-v2.tsx/app/super/page.tsxClean dashboard with key metrics & quick actionssuper-analytics-page-v2.tsx/app/super/analytics/page.tsxSimplified analytics with 3 tabs: Overview, Questions, Knowledge Gapssuper-units-explorer-page-v2.tsx/app/super/units/page.tsxEnhanced units with purchaser details, timeline, expandable rowssuper-homeowners-page-v2.tsx/app/super/homeowners/page.tsxWorking homeowners page (was broken)
+New API Routes
+FileLocationPurposeapi-super-dashboard-stats-route.ts/app/api/super/dashboard-stats/route.tsAggregated stats for overviewapi-super-analytics-route.ts/app/api/super/analytics/route.tsClean analytics data (no SQL errors)api-super-homeowners-route.ts/app/api/super/homeowners/route.tsHomeowners from units tableapi-super-units-route.ts/app/api/super/units/route.tsEnhanced units data
+Key Improvements
+1. Overview Dashboard (was cluttered)
+
+4 key metrics cards (Developers, Developments, Units, Questions)
+Action Required banner for pending items
+Quick Actions panel (Create Development, Generate Code, Review Submissions)
+Recent Activity feed
+Platform Health status
+
+2. Platform Analytics (was showing SQL errors)
+
+Removed complex failing queries
+3 simple tabs: Overview, Recent Questions, Knowledge Gaps
+Time range filter (7d, 30d, 90d)
+Top questions list
+Questions by development breakdown
+Knowledge gap detection with suggestions
+
+3. Units Explorer (needed more info)
+
+Stats: Total, With Purchaser, Handed Over, Pending
+Filters: Development dropdown, Status, Search
+Expandable rows showing:
+
+Contact details (email, phone)
+Timeline (created, handover date, last activity)
+Activity stats (documents, questions)
+Quick actions (Documents, QR Code)
+
+
+
+4. Homeowners (was broken - "Failed to load")
+
+Pulls from units table where purchaser_name exists
+Stats: Total, Active, Inactive, Pending
+Search & status filters
+Contact info, property details
+Engagement metrics (questions asked, docs viewed)
+
+Design Principles Applied
+
+Simplicity first - Removed all clutter
+Actionable - Every page leads to clear actions
+No SQL errors - Graceful fallbacks when data missing
+Premium feel - Gold accents (#D4AF37), proper spacing
+Mobile responsive - Works on all screens
+
+Remove/Replace
+
+Delete the old PlatformAnalytics page with the SQL error banner
+Delete the old Overview with generic stats
+Replace broken Homeowners endpoint

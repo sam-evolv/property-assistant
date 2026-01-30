@@ -1,263 +1,313 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Activity, 
-  Database,
-  FileText,
-  Home,
-  Users,
-  Target,
+import { useState, useEffect, useCallback } from 'react';
+import { cn } from '@/lib/utils';
+import {
+  BarChart3,
   MessageSquare,
-  Calendar,
-  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  TrendingUp,
+  Building2,
+  HelpCircle,
+  Lightbulb,
+  Loader2,
 } from 'lucide-react';
-import { OverviewTab } from './tabs/overview';
-import { TrendsTab } from './tabs/trends';
-import { KnowledgeTab } from './tabs/knowledge';
-import { RAGTab } from './tabs/rag';
-import { DocumentsTab } from './tabs/documents';
-import { EngagementTab } from './tabs/engagement';
-import { UnitsTab } from './tabs/units';
-import { QuestionsTab } from './tabs/questions';
-import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { useCanonicalSuperadmin } from '@/hooks/useCanonicalAnalytics';
-import { formatLastActivityTime, type CanonicalTimeWindow } from '@/lib/canonical-analytics';
+import {
+  PageHeader,
+  Card,
+  CardHeader,
+  CardContent,
+  Button,
+  Badge,
+} from '@/components/ui/premium';
 
-type TabId = 'overview' | 'questions' | 'trends' | 'knowledge-gaps' | 'rag-performance' | 'documents' | 'homeowners' | 'units';
-type TimeWindow = 7 | 14 | 30 | 90;
+type Tab = 'overview' | 'questions' | 'gaps';
 
-interface Tab {
-  id: TabId;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-const tabs: Tab[] = [
-  { id: 'overview', label: 'Overview', icon: Target },
-  { id: 'questions', label: 'Questions', icon: MessageSquare },
-  { id: 'trends', label: 'Trends', icon: TrendingUp },
-  { id: 'knowledge-gaps', label: 'Knowledge Gaps', icon: Activity },
-  { id: 'rag-performance', label: 'RAG Performance', icon: Database },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'homeowners', label: 'Homeowners', icon: Users },
-  { id: 'units', label: 'Units', icon: Home },
-];
-
-const timeWindows: { value: TimeWindow; label: string }[] = [
-  { value: 7, label: 'Last 7 days' },
-  { value: 14, label: 'Last 14 days' },
-  { value: 30, label: 'Last 30 days' },
-  { value: 90, label: 'Last 90 days' },
-];
-
-interface AnalyticsClientProps {
-  tenantId: string;
-}
-
-function daysToCanonicalWindow(days: number): CanonicalTimeWindow {
-  if (days <= 7) return '7d';
-  if (days <= 14) return '14d';
-  if (days <= 30) return '30d';
-  return '90d';
-}
-
-export default function AnalyticsClient({ tenantId }: AnalyticsClientProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [days, setDays] = useState<TimeWindow>(30);
-  const { developmentId } = useSafeCurrentContext();
-  
-  const canonicalTimeWindow = daysToCanonicalWindow(days);
-  const { data: canonicalSummary, error: canonicalError, isLoading: canonicalLoading } = useCanonicalSuperadmin({
-    project_id: developmentId ?? undefined,
-    time_window: canonicalTimeWindow,
-  });
-
-  const hasAnalyticsErrors = canonicalSummary?.errors && canonicalSummary.errors.length > 0;
-  const showConsistencyWarning = process.env.NODE_ENV === 'development' && hasAnalyticsErrors;
-  const showLoadingState = canonicalLoading && !canonicalSummary;
-  const showErrorState = !!canonicalError && !canonicalSummary;
-
-  const tabProps = { 
-    tenantId, 
-    developmentId: developmentId ?? undefined,
-    days 
+interface AnalyticsData {
+  overview: {
+    totalQuestions: number;
+    questionsInRange: number;
+    range: string;
+    avgQuestionsPerDay: number;
   };
+  recentQuestions: Array<{
+    id: string;
+    question: string;
+    topic: string;
+    timestamp: string;
+  }>;
+  questionsByDevelopment: Array<{
+    development_id: string;
+    name: string;
+    count: number;
+  }>;
+  topQuestions: Array<{
+    topic: string;
+    count: number;
+  }>;
+  knowledgeGaps: Array<{
+    topic: string;
+    mentions: number;
+    suggestion: string;
+  }>;
+}
+
+export default function AnalyticsClient() {
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [range, setRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnalytics = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/super/analytics?range=${range}`);
+      if (!res.ok) throw new Error('Failed to fetch analytics');
+
+      const result = await res.json();
+      setData(result);
+    } catch (err) {
+      console.error('Analytics fetch error:', err);
+      setError('Failed to load analytics data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [range]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'questions', label: 'Recent Questions', icon: MessageSquare },
+    { id: 'gaps', label: 'Knowledge Gaps', icon: Lightbulb },
+  ];
+
+  const ranges = [
+    { value: '7d', label: '7 Days' },
+    { value: '30d', label: '30 Days' },
+    { value: '90d', label: '90 Days' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white border-b border-gold-500/30 shadow-xl">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="p-3 bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600 rounded-xl shadow-lg">
-              <BarChart3 className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight">Enterprise Analytics Dashboard</h1>
-              <p className="text-gray-300 text-base mt-1">
-                Performance, engagement, RAG intelligence, and operational metrics across all developments
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 mt-4">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
-              {timeWindows.map((tw) => (
-                <button
-                  key={tw.value}
-                  onClick={() => setDays(tw.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    days === tw.value
-                      ? 'bg-gold-500 text-gray-900'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  {tw.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Sticky Tab Navigation */}
-        <div className="sticky top-0 z-40 bg-gray-900 border-t border-gray-800 shadow-md">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`
-                      flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all whitespace-nowrap
-                      border-b-2 hover:bg-gray-800
-                      ${isActive 
-                        ? 'border-gold-400 text-white bg-gray-800' 
-                        : 'border-transparent text-gray-400 hover:text-white'
-                      }
-                    `}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Error State Banner */}
-      {showErrorState && (
-        <div className="max-w-7xl mx-auto px-6 pt-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-red-800">Failed to load analytics</p>
-              <p className="text-xs text-red-600 mt-1">
-                {canonicalError?.message || 'Unable to fetch analytics data. Please try refreshing the page.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {showLoadingState && (
-        <div className="max-w-7xl mx-auto px-6 pt-4">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+    <div className="p-6 lg:p-8 min-h-screen bg-neutral-50">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <PageHeader
+          title="Platform Analytics"
+          subtitle="Insights into platform usage and user questions"
+          icon={BarChart3}
+          actions={
             <div className="flex items-center gap-3">
-              <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-              <p className="text-sm text-gray-600">Loading analytics...</p>
+              <div className="flex items-center bg-white rounded-lg border border-neutral-200 p-1">
+                {ranges.map((r) => (
+                  <button
+                    key={r.value}
+                    onClick={() => setRange(r.value as any)}
+                    className={cn(
+                      'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                      range === r.value
+                        ? 'bg-neutral-900 text-white'
+                        : 'text-neutral-600 hover:text-neutral-900'
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={RefreshCw}
+                onClick={fetchAnalytics}
+                disabled={isLoading}
+                className={cn(isLoading && '[&_svg]:animate-spin')}
+              >
+                Refresh
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
+          }
+        />
 
-      {/* Consistency Warning Banner (dev mode only) */}
-      {showConsistencyWarning && (
-        <div className="max-w-7xl mx-auto px-6 pt-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-amber-800">Analytics consistency check failed</p>
-              <p className="text-xs text-amber-600 mt-1">
-                {canonicalSummary?.errors.map(e => `${e.metric}: ${e.reason}`).join('; ')}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 border-b border-neutral-200 pb-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                activeTab === tab.id
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-neutral-600 hover:bg-neutral-100'
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Canonical Summary Quick Stats */}
-      {canonicalSummary && !canonicalError && (
-        <div className="max-w-7xl mx-auto px-6 pt-4">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Canonical Analytics Summary ({canonicalSummary.time_window})
-              </h4>
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-blue-600 font-medium">
-                  {formatLastActivityTime(canonicalSummary.last_analytics_event_at)}
-                </span>
-                <span className="text-xs text-gray-400">Computed: {new Date(canonicalSummary.computed_at).toLocaleTimeString()}</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.total_questions.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">Total Questions</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.questions_in_window.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">Questions ({canonicalSummary.time_window})</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.active_tenants_in_window.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">Active Users ({canonicalSummary.time_window})</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.qr_scans_in_window.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">QR Scans ({canonicalSummary.time_window})</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{canonicalSummary.signups_in_window.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">Signups ({canonicalSummary.time_window})</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{canonicalSummary.live_events_count.toLocaleString()}</p>
-                <p className="text-xs text-gray-500">Live Events</p>
-              </div>
-            </div>
-            {canonicalSummary.recovered_events_count > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-500">
-                  <span className="font-medium text-blue-600">{canonicalSummary.recovered_events_count.toLocaleString()}</span> recovered events | 
-                  <span className="font-medium text-purple-600 ml-1">{canonicalSummary.inferred_events_count.toLocaleString()}</span> inferred events
-                </p>
+        {isLoading ? (
+          <div className="py-20 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+          </div>
+        ) : error ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <p className="text-neutral-600">{error}</p>
+              <Button variant="outline" onClick={fetchAnalytics} className="mt-4">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="py-6 text-center">
+                      <p className="text-sm text-neutral-500">Total Questions</p>
+                      <p className="text-4xl font-bold text-neutral-900 mt-2">
+                        {data?.overview.totalQuestions.toLocaleString() || 0}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-6 text-center">
+                      <p className="text-sm text-neutral-500">Questions ({range})</p>
+                      <p className="text-4xl font-bold text-amber-600 mt-2">
+                        {data?.overview.questionsInRange.toLocaleString() || 0}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="py-6 text-center">
+                      <p className="text-sm text-neutral-500">Avg/Day</p>
+                      <p className="text-4xl font-bold text-neutral-900 mt-2">
+                        {data?.overview.avgQuestionsPerDay || 0}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-amber-500" />
+                        Top Question Topics
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      {data?.topQuestions && data.topQuestions.length > 0 ? (
+                        <div className="space-y-3">
+                          {data.topQuestions.map((q, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <span className="text-sm text-neutral-700">{q.topic}</span>
+                              <Badge variant="neutral" size="sm">{q.count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-neutral-500 text-sm">No topic data available</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-amber-500" />
+                        Questions by Development
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      {data?.questionsByDevelopment && data.questionsByDevelopment.length > 0 ? (
+                        <div className="space-y-3">
+                          {data.questionsByDevelopment.map((d, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <span className="text-sm text-neutral-700">{d.name}</span>
+                              <Badge variant="neutral" size="sm">{d.count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-neutral-500 text-sm">No development data available</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'overview' && <OverviewTab {...tabProps} />}
-        {activeTab === 'questions' && <QuestionsTab {...tabProps} />}
-        {activeTab === 'trends' && <TrendsTab {...tabProps} />}
-        {activeTab === 'knowledge-gaps' && <KnowledgeTab {...tabProps} />}
-        {activeTab === 'rag-performance' && <RAGTab {...tabProps} />}
-        {activeTab === 'documents' && <DocumentsTab {...tabProps} />}
-        {activeTab === 'homeowners' && <EngagementTab {...tabProps} />}
-        {activeTab === 'units' && <UnitsTab {...tabProps} />}
+            {activeTab === 'questions' && (
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold text-neutral-900">Recent Questions</h3>
+                </CardHeader>
+                <CardContent>
+                  {data?.recentQuestions && data.recentQuestions.length > 0 ? (
+                    <div className="space-y-4">
+                      {data.recentQuestions.map((q) => (
+                        <div key={q.id} className="p-4 border border-neutral-100 rounded-lg">
+                          <p className="text-sm text-neutral-800">{q.question || 'No question text'}</p>
+                          <div className="flex items-center gap-3 mt-2">
+                            {q.topic && <Badge variant="info" size="sm">{q.topic}</Badge>}
+                            <span className="text-xs text-neutral-400">
+                              {q.timestamp ? new Date(q.timestamp).toLocaleString() : 'Recently'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-neutral-500 text-sm py-8 text-center">No recent questions</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === 'gaps' && (
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                    <Lightbulb className="w-5 h-5 text-amber-500" />
+                    Knowledge Gaps
+                  </h3>
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Topics where users frequently ask questions but may lack documentation
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {data?.knowledgeGaps && data.knowledgeGaps.length > 0 ? (
+                    <div className="space-y-4">
+                      {data.knowledgeGaps.map((gap, idx) => (
+                        <div key={idx} className="p-4 border border-orange-100 bg-orange-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-neutral-900">{gap.topic}</span>
+                            <Badge variant="warning" size="sm">{gap.mentions} mentions</Badge>
+                          </div>
+                          <p className="text-sm text-neutral-600">
+                            <HelpCircle className="w-4 h-4 inline mr-1 text-orange-500" />
+                            {gap.suggestion}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-neutral-500 text-sm py-8 text-center">No knowledge gaps identified</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
