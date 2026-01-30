@@ -231,10 +231,10 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
   };
 
   return (
-    <div className="bg-white border border-gold-100 rounded-lg shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-neutral-100 bg-neutral-50">
-        <h3 className="font-semibold text-neutral-900">Import Units</h3>
-        <p className="text-sm text-gray-900 mt-1">
+    <div className="bg-white border-2 border-gold-400 rounded-lg shadow-md overflow-hidden">
+      <div className="px-6 py-4 border-b-2 border-neutral-200 bg-neutral-100">
+        <h3 className="text-xl font-bold text-black">Import Units</h3>
+        <p className="text-base text-black mt-1 font-bold">
           Upload a spreadsheet to bulk import units for {developmentName}
         </p>
       </div>
@@ -245,7 +245,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
-              className="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-brand-400 hover:bg-brand-50/50 transition-colors cursor-pointer"
+              className="border-2 border-dashed border-gray-400 rounded-lg p-10 text-center hover:border-black hover:bg-gray-50 transition-all cursor-pointer bg-white"
               onClick={() => document.getElementById('file-input')?.click()}
             >
               <input
@@ -255,21 +255,21 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
                 className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
               />
-              <FileSpreadsheet className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-900">
+              <FileSpreadsheet className="w-16 h-16 text-black mx-auto mb-4" />
+              <p className="text-lg font-bold text-black">
                 Drop your spreadsheet here or click to browse
               </p>
-              <p className="text-xs text-gray-900 mt-1">
+              <p className="text-sm text-black mt-2 font-bold">
                 Supports Excel (.xlsx, .xls) and CSV files
               </p>
             </div>
 
             {spreadsheetUrl && (
               <div className="text-center">
-                <span className="text-sm text-gray-900">or</span>
+                <span className="text-base text-black font-bold">or</span>
                 <button
                   onClick={loadFromUrl}
-                  className="block w-full mt-2 px-4 py-2 bg-neutral-100 text-gray-900 rounded-lg text-sm font-medium hover:bg-neutral-200 transition-colors"
+                  className="block w-full mt-2 px-6 py-3 bg-neutral-200 text-black rounded-lg text-lg font-bold hover:bg-neutral-300 transition-colors border-2 border-gray-400"
                 >
                   Load from Onboarding Submission
                 </button>
@@ -277,8 +277,8 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
             )}
 
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-lg text-base text-red-900 font-bold">
+                <AlertCircle className="w-6 h-6 flex-shrink-0" />
                 {error}
               </div>
             )}
@@ -289,43 +289,43 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-neutral-900">
+                <p className="text-lg font-bold text-black">
                   {file?.name || 'Spreadsheet'}
                 </p>
-                <p className="text-xs text-gray-900">
+                <p className="text-base text-black font-bold">
                   {parsedData.length} rows found
                 </p>
               </div>
               <button
                 onClick={() => setStep('upload')}
-                className="text-sm text-gray-900 hover:text-gray-900"
+                className="text-base text-black font-bold hover:text-gray-900 underline underline-offset-4"
               >
                 Change file
               </button>
             </div>
 
-            <div className="border border-neutral-200 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto max-h-64">
+            <div className="border-2 border-gray-300 rounded-lg overflow-hidden shadow-sm">
+              <div className="overflow-x-auto max-h-80">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 sticky top-0">
+                  <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0">
                     <tr>
                       {headers.slice(0, 6).map((header, i) => (
-                        <th key={i} className="px-3 py-2 text-left text-xs font-semibold text-neutral-500 uppercase">
+                        <th key={i} className="px-4 py-3 text-left text-xs font-bold text-black uppercase tracking-wider">
                           {header}
                         </th>
                       ))}
                       {headers.length > 6 && (
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-black uppercase tracking-wider">
                           +{headers.length - 6} more
                         </th>
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {parsedData.slice(0, 5).map((row, i) => (
-                      <tr key={i} className="hover:bg-neutral-50">
+                  <tbody className="divide-y divide-gray-200">
+                    {parsedData.slice(0, 10).map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
                         {headers.slice(0, 6).map((header, j) => (
-                          <td key={j} className="px-3 py-2 text-neutral-700 truncate max-w-[150px]">
+                          <td key={j} className="px-4 py-3 text-black font-medium truncate max-w-[200px]">
                             {String(row[header] ?? '-')}
                           </td>
                         ))}
@@ -334,71 +334,71 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
                   </tbody>
                 </table>
               </div>
-              {parsedData.length > 5 && (
-                <div className="px-3 py-2 bg-neutral-50 text-xs text-neutral-500 border-t border-neutral-200">
-                  Showing 5 of {parsedData.length} rows
+              {parsedData.length > 10 && (
+                <div className="px-4 py-2 bg-gray-100 text-sm text-black font-bold border-t border-gray-300">
+                  Showing 10 of {parsedData.length} rows
                 </div>
               )}
             </div>
 
             <button
               onClick={() => setStep('mapping')}
-              className="w-full px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-brand-500 text-white rounded-lg font-bold text-lg hover:bg-brand-600 transition-all flex items-center justify-center gap-2 shadow-md"
             >
               Continue to Column Mapping
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-5 h-5" />
             </button>
           </div>
         )}
 
         {step === 'mapping' && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-900">
-              Map your spreadsheet columns to unit fields. We've auto-detected some mappings.
+          <div className="space-y-6">
+            <p className="text-lg text-black font-bold bg-amber-50 p-3 rounded-lg border border-amber-200">
+              Map your spreadsheet columns to unit fields. Required fields marked with *
             </p>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {TARGET_FIELDS.map((field) => (
-                <div key={field.key} className="flex items-center gap-4">
-                  <div className="w-40 flex-shrink-0">
-                    <span className="text-sm font-medium text-neutral-700">
+                <div key={field.key} className="flex items-center gap-6">
+                  <div className="w-48 flex-shrink-0">
+                    <span className="text-base font-bold text-black">
                       {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                      {field.required && <span className="text-red-600 ml-1 font-black text-lg">*</span>}
                     </span>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                  <ArrowRight className="w-5 h-5 text-black flex-shrink-0" />
                   <select
                     value={mappings[field.key] || ''}
                     onChange={(e) => setMappings({ ...mappings, [field.key]: e.target.value })}
-                    className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none ${
+                    className={`flex-1 px-4 py-2.5 border-2 rounded-lg text-base font-bold focus:border-brand-500 focus:ring-4 focus:ring-brand-500/20 focus:outline-none transition-all ${
                       mappings[field.key] 
-                        ? 'border-emerald-300 bg-emerald-50' 
-                        : 'border-neutral-200 bg-white'
+                        ? 'border-emerald-500 bg-emerald-50' 
+                        : 'border-gray-300 bg-white'
                     }`}
                   >
-                    <option value="">-- Select column --</option>
+                    <option value="">-- Select spreadsheet column --</option>
                     {headers.map((header) => (
                       <option key={header} value={header}>{header}</option>
                     ))}
                   </select>
                   {mappings[field.key] && (
-                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <Check className="w-6 h-6 text-emerald-600 flex-shrink-0 stroke-[3]" />
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-4 pt-6">
               <button
                 onClick={() => setStep('preview')}
-                className="px-4 py-2 border border-neutral-200 text-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 transition-colors"
+                className="px-8 py-3 border-2 border-gray-400 text-black rounded-lg text-lg font-bold hover:bg-gray-100 transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={handleImport}
                 disabled={!mappings.unit_number && !mappings.address}
-                className="flex-1 px-4 py-2.5 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-8 py-3 bg-brand-500 text-white rounded-lg font-bold text-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md"
               >
                 Import {parsedData.length} Units
               </button>
@@ -407,13 +407,13 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
         )}
 
         {step === 'importing' && (
-          <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-brand-500 animate-spin mx-auto mb-4" />
-            <p className="text-lg font-medium text-neutral-900">Importing Units...</p>
-            <p className="text-sm text-gray-900 mt-1">{importProgress}% complete</p>
-            <div className="w-full max-w-xs mx-auto mt-4 h-2 bg-neutral-200 rounded-full overflow-hidden">
+          <div className="text-center py-12">
+            <Loader2 className="w-16 h-16 text-brand-500 animate-spin mx-auto mb-6" />
+            <p className="text-2xl font-bold text-black">Importing Units...</p>
+            <p className="text-lg text-black mt-2 font-bold">{importProgress}% complete</p>
+            <div className="w-full max-w-md mx-auto mt-8 h-4 bg-gray-200 rounded-full overflow-hidden border border-gray-300 shadow-inner">
               <div 
-                className="h-full bg-brand-500 transition-all duration-300"
+                className="h-full bg-brand-500 transition-all duration-300 shadow-lg"
                 style={{ width: `${importProgress}%` }}
               />
             </div>
@@ -421,40 +421,43 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
         )}
 
         {step === 'complete' && importResult && (
-          <div className="space-y-4">
-            <div className="text-center py-4">
+          <div className="space-y-6">
+            <div className="text-center py-6">
               {importResult.success > 0 ? (
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-emerald-600" />
+                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Check className="w-10 h-10 text-emerald-600 stroke-[3]" />
                 </div>
               ) : (
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <X className="w-8 h-8 text-red-600" />
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <X className="w-10 h-10 text-red-600 stroke-[3]" />
                 </div>
               )}
-              <h3 className="text-lg font-semibold text-neutral-900">Import Complete</h3>
+              <h3 className="text-2xl font-bold text-black">Import Complete</h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-emerald-50 rounded-lg text-center">
-                <p className="text-2xl font-bold text-emerald-700">{importResult.success}</p>
-                <p className="text-sm text-emerald-600">Units Created</p>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="p-6 bg-emerald-50 border-2 border-emerald-200 rounded-xl text-center shadow-sm">
+                <p className="text-4xl font-black text-emerald-700">{importResult.success}</p>
+                <p className="text-lg text-emerald-800 font-bold mt-1">Units Created</p>
               </div>
-              <div className="p-4 bg-neutral-100 rounded-lg text-center">
-                <p className="text-2xl font-bold text-neutral-700">{importResult.failed}</p>
-                <p className="text-sm text-gray-900">Failed</p>
+              <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl text-center shadow-sm">
+                <p className="text-4xl font-black text-red-700">{importResult.failed}</p>
+                <p className="text-lg text-red-800 font-bold mt-1">Failed</p>
               </div>
             </div>
 
             {importResult.errors.length > 0 && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm font-medium text-red-700 mb-2">Errors:</p>
-                <ul className="text-xs text-red-600 space-y-1 max-h-32 overflow-y-auto">
-                  {importResult.errors.slice(0, 10).map((err, i) => (
-                    <li key={i}>• {err}</li>
+              <div className="p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+                <p className="text-lg font-bold text-red-900 mb-3">Error Details:</p>
+                <ul className="text-base text-red-900 font-bold space-y-2 max-h-48 overflow-y-auto">
+                  {importResult.errors.slice(0, 20).map((err, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="text-red-400">•</span>
+                      {err}
+                    </li>
                   ))}
-                  {importResult.errors.length > 10 && (
-                    <li>...and {importResult.errors.length - 10} more</li>
+                  {importResult.errors.length > 20 && (
+                    <li className="italic text-red-600 font-medium">...and {importResult.errors.length - 20} more errors</li>
                   )}
                 </ul>
               </div>
@@ -469,9 +472,9 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
                 setMappings({});
                 setImportResult(null);
               }}
-              className="w-full px-4 py-2 border border-neutral-200 text-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full px-8 py-4 border-2 border-gray-400 text-black rounded-lg text-xl font-bold hover:bg-gray-100 transition-all flex items-center justify-center gap-3 shadow-sm"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-6 h-6" />
               Import More Units
             </button>
           </div>

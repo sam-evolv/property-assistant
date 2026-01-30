@@ -218,9 +218,9 @@ function NewProjectWizardContent() {
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="p-8 bg-white min-h-screen">
       <div className="max-w-3xl mx-auto">
-        <Link href="/super/developments" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6">
+        <Link href="/super/developments" className="inline-flex items-center gap-2 text-black hover:text-gray-900 mb-6 font-bold">
           <ArrowLeft className="w-4 h-4" />
           Back to Developments
         </Link>
@@ -231,18 +231,18 @@ function NewProjectWizardContent() {
         />
 
         {fromSubmissionId && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-lg">
             <div className="flex items-start gap-3">
               <FileText className="w-5 h-5 text-amber-600 mt-0.5" />
               <div>
-                <p className="font-medium text-amber-900">Creating from Onboarding Submission</p>
-                <p className="text-sm text-amber-700 mt-0.5">
-                  Development: <strong>{prefillName}</strong>
+                <p className="font-bold text-black">Creating from Onboarding Submission</p>
+                <p className="text-sm text-black mt-0.5 font-bold">
+                  Development: <span className="text-black">{prefillName}</span>
                   {prefillAddress && ` | ${prefillAddress}`}
                   {prefillCounty && `, ${prefillCounty}`}
                 </p>
                 {prefillUnits && (
-                  <p className="text-xs text-amber-600 mt-1">
+                  <p className="text-xs text-black mt-1 font-bold">
                     Estimated Units: {prefillUnits} | Planning Ref: {prefillPlanningRef || 'N/A'}
                   </p>
                 )}
@@ -254,39 +254,39 @@ function NewProjectWizardContent() {
         <div className="flex items-center gap-2 mb-8 flex-wrap">
           {stepOrder.map((s, idx) => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step === s ? 'bg-amber-500 text-white' : 
-                stepOrder.indexOf(step) > idx ? 'bg-green-500 text-white' :
-                'bg-gray-200 text-gray-600'
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${
+                step === s ? 'bg-amber-500 text-white border-amber-600' : 
+                stepOrder.indexOf(step) > idx ? 'bg-green-600 text-white border-green-700' :
+                'bg-gray-200 text-black border-gray-400'
               }`}>
-                {stepOrder.indexOf(step) > idx ? <Check className="w-4 h-4" /> : idx + 1}
+                {stepOrder.indexOf(step) > idx ? <Check className="w-4 h-4 stroke-[3]" /> : idx + 1}
               </div>
-              <span className={`text-sm ${step === s ? 'font-medium text-gray-900' : 'text-gray-900'}`}>
+              <span className={`text-sm font-bold text-black`}>
                 {stepLabels[s]}
               </span>
-              {idx < stepOrder.length - 1 && <div className="w-8 h-px bg-gray-300" />}
+              {idx < stepOrder.length - 1 && <div className="w-8 h-0.5 bg-gray-400" />}
             </div>
           ))}
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700 text-sm">{error}</p>
+            <p className="text-red-900 text-sm font-bold">{error}</p>
           </div>
         )}
 
         {step === 'details' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <Building2 className="w-6 h-6 text-amber-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Development Details</h2>
+              <h2 className="text-xl font-bold text-black">Development Details</h2>
             </div>
             
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-bold text-black mb-1">
                     Development Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -294,11 +294,11 @@ function NewProjectWizardContent() {
                     value={projectDetails.name}
                     onChange={(e) => setProjectDetails({ ...projectDetails, name: e.target.value })}
                     placeholder="e.g., Parkview Gardens"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-black font-medium placeholder:text-gray-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-bold text-black mb-1">
                     Development Code <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -306,19 +306,19 @@ function NewProjectWizardContent() {
                     value={projectDetails.code}
                     onChange={(e) => setProjectDetails({ ...projectDetails, code: e.target.value.toUpperCase() })}
                     placeholder="e.g., PVG-001"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono"
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-black font-bold placeholder:text-gray-500"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-black mb-1">
                   Tenant <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={projectDetails.tenant_id}
                   onChange={(e) => setProjectDetails({ ...projectDetails, tenant_id: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-black font-bold"
                   disabled={tenantsLoading}
                 >
                   <option value="">Select a tenant...</option>
@@ -331,13 +331,13 @@ function NewProjectWizardContent() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-bold text-black mb-1">Address</label>
                 <input
                   type="text"
                   value={projectDetails.address}
                   onChange={(e) => setProjectDetails({ ...projectDetails, address: e.target.value })}
                   placeholder="e.g., 123 Main Street, Dublin"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-black font-medium placeholder:text-gray-500"
                 />
               </div>
             </div>
@@ -346,7 +346,7 @@ function NewProjectWizardContent() {
               <button
                 onClick={() => setStep('branding')}
                 disabled={!canProceedToUpload}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
               >
                 Next: Branding
                 <ArrowRight className="w-4 h-4" />
@@ -356,13 +356,13 @@ function NewProjectWizardContent() {
         )}
 
         {step === 'branding' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <ImageIcon className="w-6 h-6 text-amber-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Development Branding</h2>
+              <h2 className="text-xl font-bold text-black">Development Branding</h2>
             </div>
             
-            <p className="text-sm text-gray-900 mb-6">
+            <p className="text-sm text-black mb-6 font-bold">
               Upload logos for different areas of the purchaser portal. You can skip this step and add logos later.
             </p>
             
@@ -379,14 +379,14 @@ function NewProjectWizardContent() {
             <div className="mt-6 flex justify-between">
               <button
                 onClick={() => setStep('details')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-black border-2 border-gray-300 hover:bg-gray-100 rounded-lg font-bold"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </button>
               <button
                 onClick={() => setStep('upload')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-bold"
               >
                 Next: Upload Data
                 <ArrowRight className="w-4 h-4" />
@@ -396,21 +396,21 @@ function NewProjectWizardContent() {
         )}
 
         {step === 'upload' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <FileSpreadsheet className="w-6 h-6 text-amber-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Upload Excel File (Optional)</h2>
+              <h2 className="text-xl font-bold text-black">Upload Excel File (Optional)</h2>
             </div>
             
-            <p className="text-sm text-gray-900 mb-4">
+            <p className="text-sm text-black mb-4 font-bold">
               This step is optional. You can skip it and add units later through the development management interface.
               If you have a prepared Excel file with <strong>unit_types</strong> and <strong>units</strong> sheets, you can upload it for validation preview.
             </p>
             
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <Upload className="w-10 h-10 text-gray-400 mx-auto mb-4" />
+            <div className="border-2 border-dashed border-gray-400 rounded-lg p-8 text-center bg-gray-50">
+              <Upload className="w-10 h-10 text-black mx-auto mb-4" />
               <label className="cursor-pointer">
-                <span className="text-amber-600 hover:text-amber-700 font-medium">Choose file</span>
+                <span className="text-amber-600 hover:text-amber-700 font-bold text-lg underline">Choose file</span>
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
@@ -418,21 +418,21 @@ function NewProjectWizardContent() {
                   className="hidden"
                 />
               </label>
-              {file && <p className="mt-2 text-sm text-gray-600">{file.name}</p>}
+              {file && <p className="mt-2 text-base text-black font-bold">{file.name}</p>}
             </div>
             
             {parsedData.unitTypes.length > 0 && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-700 text-sm font-medium">
+              <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+                <p className="text-green-900 text-base font-bold">
                   Found {parsedData.unitTypes.length} unit types and {parsedData.units.length} units
                 </p>
               </div>
             )}
             
             {parsedData.errors.length > 0 && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700 text-sm font-medium mb-2">Validation errors:</p>
-                <ul className="list-disc list-inside text-sm text-red-600">
+              <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+                <p className="text-red-900 text-base font-bold mb-2">Validation errors:</p>
+                <ul className="list-disc list-inside text-sm text-red-900 font-bold">
                   {parsedData.errors.map((err, i) => <li key={i}>{err}</li>)}
                 </ul>
               </div>
@@ -441,7 +441,7 @@ function NewProjectWizardContent() {
             <div className="mt-6 flex justify-between">
               <button
                 onClick={() => setStep('branding')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-black border-2 border-gray-300 hover:bg-gray-100 rounded-lg font-bold"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -449,7 +449,7 @@ function NewProjectWizardContent() {
               <button
                 onClick={() => setStep('review')}
                 disabled={!canProceedToReview}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
               >
                 Next: Review
                 <ArrowRight className="w-4 h-4" />
@@ -459,57 +459,57 @@ function NewProjectWizardContent() {
         )}
 
         {step === 'review' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Review & Confirm</h2>
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6 shadow-sm">
+            <h2 className="text-2xl font-bold text-black mb-6">Review & Confirm</h2>
             
             <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-2">Development</h3>
-                <p className="text-gray-700">{projectDetails.name}</p>
-                <p className="text-sm text-gray-500">Code: {projectDetails.code}</p>
-                {projectDetails.address && <p className="text-sm text-gray-500">{projectDetails.address}</p>}
-                <p className="text-sm text-gray-500">
+              <div className="p-4 bg-gray-100 border-2 border-gray-200 rounded-lg">
+                <h3 className="text-lg font-bold text-black mb-2">Development</h3>
+                <p className="text-black font-bold">{projectDetails.name}</p>
+                <p className="text-base text-black font-medium">Code: {projectDetails.code}</p>
+                {projectDetails.address && <p className="text-base text-black font-medium">{projectDetails.address}</p>}
+                <p className="text-base text-black font-medium">
                   Tenant: {tenants.find(t => t.id === projectDetails.tenant_id)?.name || 'N/A'}
                 </p>
               </div>
               
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-2">Branding</h3>
+              <div className="p-4 bg-gray-100 border-2 border-gray-200 rounded-lg">
+                <h3 className="text-lg font-bold text-black mb-2">Branding</h3>
                 <div className="flex gap-4">
                   {projectDetails.sidebar_logo_url ? (
-                    <img src={projectDetails.sidebar_logo_url} alt="Sidebar" className="h-10 object-contain" />
-                  ) : <span className="text-sm text-gray-400">No sidebar logo</span>}
+                    <img src={projectDetails.sidebar_logo_url} alt="Sidebar" className="h-12 object-contain" />
+                  ) : <span className="text-base text-black font-bold">No sidebar logo</span>}
                   {projectDetails.assistant_logo_url ? (
-                    <img src={projectDetails.assistant_logo_url} alt="Assistant" className="h-10 object-contain" />
-                  ) : <span className="text-sm text-gray-400">No assistant logo</span>}
+                    <img src={projectDetails.assistant_logo_url} alt="Assistant" className="h-12 object-contain" />
+                  ) : <span className="text-base text-black font-bold">No assistant logo</span>}
                   {projectDetails.toolbar_logo_url ? (
-                    <img src={projectDetails.toolbar_logo_url} alt="Toolbar" className="h-10 object-contain" />
-                  ) : <span className="text-sm text-gray-400">No toolbar logo</span>}
+                    <img src={projectDetails.toolbar_logo_url} alt="Toolbar" className="h-12 object-contain" />
+                  ) : <span className="text-base text-black font-bold">No toolbar logo</span>}
                 </div>
               </div>
               
               {(parsedData.unitTypes.length > 0 || parsedData.units.length > 0) && (
                 <>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-2">Unit Types ({parsedData.unitTypes.length})</h3>
-                    <ul className="text-sm text-gray-600 space-y-1">
+                  <div className="p-4 bg-gray-100 border-2 border-gray-200 rounded-lg">
+                    <h3 className="text-lg font-bold text-black mb-2">Unit Types ({parsedData.unitTypes.length})</h3>
+                    <ul className="text-base text-black font-bold space-y-1">
                       {parsedData.unitTypes.slice(0, 5).map((ut, i) => (
                         <li key={i}>{ut.name}</li>
                       ))}
                       {parsedData.unitTypes.length > 5 && (
-                        <li className="text-gray-400">...and {parsedData.unitTypes.length - 5} more</li>
+                        <li className="text-gray-600 italic">...and {parsedData.unitTypes.length - 5} more</li>
                       )}
                     </ul>
                   </div>
                   
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-2">Units ({parsedData.units.length})</h3>
-                    <ul className="text-sm text-gray-600 space-y-1">
+                  <div className="p-4 bg-gray-100 border-2 border-gray-200 rounded-lg">
+                    <h3 className="text-lg font-bold text-black mb-2">Units ({parsedData.units.length})</h3>
+                    <ul className="text-base text-black font-bold space-y-1">
                       {parsedData.units.slice(0, 5).map((u, i) => (
                         <li key={i}>{u.address} - {u.unit_type_name}</li>
                       ))}
                       {parsedData.units.length > 5 && (
-                        <li className="text-gray-400">...and {parsedData.units.length - 5} more</li>
+                        <li className="text-gray-600 italic">...and {parsedData.units.length - 5} more</li>
                       )}
                     </ul>
                   </div>
@@ -520,7 +520,7 @@ function NewProjectWizardContent() {
             <div className="mt-6 flex justify-between">
               <button
                 onClick={() => setStep('upload')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-black border-2 border-gray-300 hover:bg-gray-100 rounded-lg font-bold"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -528,41 +528,38 @@ function NewProjectWizardContent() {
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit || isSubmitting}
-                className="inline-flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg shadow-md"
               >
                 {isSubmitting ? 'Creating...' : 'Create Development'}
-                <Check className="w-4 h-4" />
+                <Check className="w-5 h-5 stroke-[3]" />
               </button>
             </div>
           </div>
         )}
 
         {step === 'complete' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 shadow-sm text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-green-600" />
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-10 shadow-sm text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Check className="w-10 h-10 text-green-600 stroke-[3]" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Development Created Successfully!</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="text-3xl font-bold text-black mb-4">Development Created Successfully!</h2>
+            <p className="text-lg text-black font-bold mb-10">
               {fromSubmissionId 
                 ? 'The development has been created and the onboarding submission has been marked as completed.'
                 : 'Your development has been set up with all configurations.'
               }
             </p>
             
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/super/developments"
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
+            <div className="flex justify-center gap-6">
+              <Link href="/super/developments" className="px-6 py-3 text-black border-2 border-gray-400 rounded-lg hover:bg-gray-50 font-bold text-lg">
                 Back to Developments
               </Link>
               {createdProjectId && (
                 <Link
                   href={`/super/projects/${createdProjectId}/unit-types`}
-                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
+                  className="px-8 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-bold text-lg shadow-md"
                 >
-                  View Unit Types
+                  Manage Development
                 </Link>
               )}
             </div>
@@ -576,8 +573,8 @@ function NewProjectWizardContent() {
 export default function NewProjectWizard() {
   return (
     <Suspense fallback={
-      <div className="p-8 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
       </div>
     }>
       <NewProjectWizardContent />

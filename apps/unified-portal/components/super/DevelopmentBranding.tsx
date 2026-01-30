@@ -89,11 +89,11 @@ function UploadZone({ label, description, value, onChange, onUpload, aspectHint 
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <label className="block text-sm font-medium text-neutral-700">{label}</label>
-          <p className="text-xs text-neutral-500">{description}</p>
+          <label className="block text-sm font-bold text-black">{label}</label>
+          <p className="text-xs text-black font-bold">{description}</p>
         </div>
         {aspectHint && (
-          <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-1 rounded">{aspectHint}</span>
+          <span className="text-xs text-black bg-gray-200 px-2 py-1 rounded font-bold border border-gray-400">{aspectHint}</span>
         )}
       </div>
       
@@ -105,9 +105,9 @@ function UploadZone({ label, description, value, onChange, onUpload, aspectHint 
         className={cn(
           'relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all',
           isDragging && 'border-brand-500 bg-brand-50',
-          !isDragging && !value && 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50',
-          value && 'border-emerald-300 bg-emerald-50/50',
-          error && 'border-red-300 bg-red-50/50'
+          !isDragging && !value && 'border-gray-400 hover:border-black hover:bg-gray-50',
+          value && 'border-emerald-500 bg-emerald-50/50',
+          error && 'border-red-500 bg-red-50/50'
         )}
       >
         <input
@@ -120,42 +120,42 @@ function UploadZone({ label, description, value, onChange, onUpload, aspectHint 
         
         {isUploading ? (
           <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
-            <span className="text-sm text-neutral-600">Uploading...</span>
+            <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+            <span className="text-sm text-black font-bold">Uploading...</span>
           </div>
         ) : uploadSuccess ? (
           <div className="flex flex-col items-center gap-2">
-            <Check className="w-8 h-8 text-emerald-500" />
-            <span className="text-sm text-emerald-600">Uploaded!</span>
+            <Check className="w-8 h-8 text-emerald-600" />
+            <span className="text-sm text-black font-bold">Uploaded!</span>
           </div>
         ) : value ? (
           <div className="relative w-full h-full p-2 flex items-center justify-center">
             <img
               src={value}
               alt={label}
-              className="max-h-24 max-w-full object-contain rounded"
+              className="max-h-24 max-w-full object-contain rounded shadow-sm"
             />
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleRemove();
               }}
-              className="absolute top-2 right-2 p-1 bg-white rounded-full shadow hover:bg-neutral-100 transition-colors"
+              className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-md border border-gray-200 hover:bg-gray-100 transition-colors"
             >
-              <X className="w-4 h-4 text-neutral-600" />
+              <X className="w-4 h-4 text-black" />
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <Upload className="w-8 h-8 text-neutral-400" />
-            <span className="text-sm text-neutral-600">Drag & drop or click to upload</span>
-            <span className="text-xs text-neutral-400">PNG, JPEG, SVG, WebP (max 2MB)</span>
+            <Upload className="w-8 h-8 text-black" />
+            <span className="text-sm text-black font-bold">Drag & drop or click to upload</span>
+            <span className="text-xs text-black font-bold">PNG, JPEG, SVG, WebP (max 2MB)</span>
           </div>
         )}
       </div>
       
       {error && (
-        <p className="text-xs text-red-600">{error}</p>
+        <p className="text-xs text-red-600 font-bold">{error}</p>
       )}
     </div>
   );
@@ -172,9 +172,9 @@ export function DevelopmentBranding({
 }: DevelopmentBrandingProps) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 pb-2 border-b border-neutral-200">
-        <ImageIcon className="w-5 h-5 text-brand-600" />
-        <h3 className="text-base font-semibold text-neutral-900">Development Branding</h3>
+      <div className="flex items-center gap-2 pb-2 border-b-2 border-gray-300">
+        <ImageIcon className="w-5 h-5 text-amber-600" />
+        <h3 className="text-base font-bold text-black">Development Branding</h3>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -8,9 +8,9 @@ export function SectionHeader({ title, description, action }: SectionHeaderProps
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+        <h2 className="text-2xl font-bold text-black">{title}</h2>
         {description && (
-          <p className="mt-1 text-sm text-gray-600">{description}</p>
+          <p className="mt-1 text-sm text-black font-medium">{description}</p>
         )}
       </div>
       {action && <div>{action}</div>}

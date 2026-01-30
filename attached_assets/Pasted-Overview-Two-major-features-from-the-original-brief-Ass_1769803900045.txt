@@ -1,0 +1,55 @@
+Overview
+Two major features from the original brief:
+
+Assistant Training Portal - Test, train, customize AI per development
+R&D Analytics Dashboard - Platform-wide insights, trends, knowledge gaps
+
+Files to Integrate
+FileLocationPurposesuper-assistant-training-page.tsx/app/super/assistant-training/page.tsx4-tab training portalsuper-rd-analytics-page.tsx/app/super/rd-analytics/page.tsxR&D insights dashboardapi-super-assistant-qa-route.ts/app/api/super/assistant/qa/route.tsCustom Q&A CRUDapi-super-assistant-test-route.ts/app/api/super/assistant/test/route.tsTest assistant with Claudeapi-super-rd-analytics-route.ts/app/api/super/rd-analytics/route.tsAggregated platform analyticsmigration-assistant-training-tables.sqlRun in Supabase SQL EditorCreate required tables
+Sidebar Navigation
+Add to super admin sidebar:
+INTELLIGENCE
+├── Assistant Training  → /super/assistant-training
+├── R&D Analytics       → /super/rd-analytics
+Database Migration
+Run the SQL migration first - creates these tables:
+
+custom_qa - Development-specific Q&A overrides
+knowledge_base - Additional knowledge per development
+question_analytics - Track all questions for insights
+platform_insights - AI-generated insights storage
+
+Feature: Assistant Training Portal
+4 Tabs:
+
+Test Assistant - Live chat to test responses per development
+Custom Q&A - Add question/answer pairs that override AI
+System Instructions - Custom prompts per development
+Knowledge Base - Add facts/info the AI can reference
+
+How it works:
+
+Select development from dropdown
+Custom Q&As take priority over AI responses
+System instructions prepended to all prompts
+Test changes immediately in Test tab
+
+Feature: R&D Analytics Dashboard
+5 Sections:
+
+Overview - Topic breakdown with trends
+Trending Questions - Most asked nationwide
+Regional Breakdown - Activity by county
+Knowledge Gaps - Low-confidence topics
+All Insights - AI-generated recommendations
+
+Key Metrics:
+
+Total questions nationwide
+Avg questions per unit
+Satisfaction rate
+Topic breakdown with trends
+Regional comparison
+
+Environment Variables
+Ensure ANTHROPIC_API_KEY is set for the test assistant feature.
