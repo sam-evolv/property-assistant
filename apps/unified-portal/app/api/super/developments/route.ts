@@ -14,11 +14,14 @@ export async function GET() {
       .select({
         id: developments.id,
         name: developments.name,
+        code: developments.code,
+        slug: developments.slug,
         address: developments.address,
         is_active: developments.is_active,
         created_at: developments.created_at,
         tenant_id: developments.tenant_id,
         tenant_name: tenants.name,
+        system_instructions: developments.system_instructions,
       })
       .from(developments)
       .leftJoin(tenants, eq(developments.tenant_id, tenants.id))
@@ -50,9 +53,12 @@ export async function GET() {
     const formattedDevelopments = developmentsData.map(dev => ({
       id: dev.id,
       name: dev.name,
+      code: dev.code || '',
+      slug: dev.slug || '',
       address: dev.address,
       is_active: dev.is_active,
       created_at: dev.created_at,
+      system_instructions: dev.system_instructions || '',
       tenant: dev.tenant_id ? {
         id: dev.tenant_id,
         name: dev.tenant_name || 'Unknown',
