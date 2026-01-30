@@ -341,7 +341,7 @@ export default function AssistantTrainingPage() {
         >
           {developments.map((dev) => (
             <option key={dev.id} value={dev.id}>
-              {dev.name} ({dev.code})
+              {dev.name}{dev.code ? ` (${dev.code})` : ''}
             </option>
           ))}
         </select>
