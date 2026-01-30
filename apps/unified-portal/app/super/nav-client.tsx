@@ -23,6 +23,8 @@ import {
   Menu,
   X,
   Ticket,
+  Brain,
+  TrendingUp,
 } from 'lucide-react';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
@@ -59,6 +61,13 @@ const menuSections = [
       { href: '/super/units', label: 'Units', icon: Home },
       { href: '/super/homeowners', label: 'Homeowners', icon: Users },
       { href: '/super/documents', label: 'Documents', icon: FileText },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { href: '/super/assistant-training', label: 'Assistant Training', icon: Brain },
+      { href: '/super/rd-analytics', label: 'R&D Analytics', icon: TrendingUp },
     ],
   },
   {

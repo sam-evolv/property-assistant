@@ -73,6 +73,36 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Intelligence Features (January 2026)
+
+**Assistant Training Portal** (`/super/assistant-training`)
+4-tab interface for testing, training, and customizing AI per development:
+- **Test Assistant:** Live chat with the AI to test responses
+- **Custom Q&A:** Add question/answer pairs that override AI responses
+- **System Instructions:** Custom prompts prepended to all AI interactions
+- **Knowledge Base:** Add facts and information the AI can reference
+
+**R&D Analytics Dashboard** (`/super/rd-analytics`)
+Platform-wide insights across all developments:
+- **Overview:** Total questions, satisfaction rate, topic breakdown with trends
+- **Trending Questions:** Most asked questions nationwide
+- **Regional Breakdown:** Activity by county/region
+- **Knowledge Gaps:** Low-confidence topics needing improvement
+- **AI Insights:** Platform-generated recommendations
+
+**Database Tables Required:**
+- `custom_qa` - Development-specific Q&A overrides (development_id, question, answer, active)
+- `knowledge_base` - Additional knowledge per development (development_id, title, content, category)
+- `question_analytics` - Track all questions for insights (development_id, question, topic, confidence_score, satisfaction_score, user_id)
+- `platform_insights` - AI-generated insights storage (type, title, description)
+
+**API Routes:**
+- `/api/super/assistant/test` - Test assistant with OpenAI (gpt-4o-mini)
+- `/api/super/assistant/qa` - CRUD for custom Q&A pairs
+- `/api/super/assistant/knowledge` - CRUD for knowledge base items
+- `/api/super/assistant/instructions` - Save system instructions
+- `/api/super/rd-analytics` - Aggregated platform analytics
+
 ### Suggested Pills V2 (January 2026)
 
 **Sector-diverse rotating question pills with intent routing and Global Safety Contract:**

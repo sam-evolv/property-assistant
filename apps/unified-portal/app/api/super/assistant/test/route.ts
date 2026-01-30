@@ -1,6 +1,7 @@
 // /api/super/assistant/test/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 import OpenAI from 'openai';
 
 const supabaseAdmin = createClient(
@@ -14,6 +15,8 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole(['super_admin', 'admin']);
+    
     const body = await request.json();
     const { development_id, message, include_custom_qa } = body;
 
