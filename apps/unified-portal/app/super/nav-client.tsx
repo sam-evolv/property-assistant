@@ -10,24 +10,19 @@ import {
   Home, 
   Users, 
   FileText, 
-  Database, 
-  MessageSquare, 
   FileWarning, 
   Activity, 
   UserCog,
   Upload,
   BarChart3,
-  Search,
-  ChevronRight,
   Smartphone,
   FolderPlus,
   Layers,
-  FileUp,
   Zap,
   HeartPulse,
   Menu,
   X,
-  Ticket
+  Ticket,
 } from 'lucide-react';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
@@ -56,9 +51,11 @@ const menuSections = [
   {
     label: 'Management',
     items: [
+      { href: '/super/tenants', label: 'Tenants', icon: Building2 },
       { href: '/super/developers', label: 'Developers', icon: UserCog },
       { href: '/super/developer-codes', label: 'Invitation Codes', icon: Ticket },
-      { href: '/super/developments', label: 'Developments', icon: Building2 },
+      { href: '/super/onboarding-submissions', label: 'Onboarding Submissions', icon: FolderPlus },
+      { href: '/super/developments', label: 'Developments', icon: Layers },
       { href: '/super/units', label: 'Units', icon: Home },
       { href: '/super/homeowners', label: 'Homeowners', icon: Users },
       { href: '/super/documents', label: 'Documents', icon: FileText },

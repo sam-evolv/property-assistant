@@ -1,0 +1,72 @@
+I've created 5 files. Here's the Replit Prompt to integrate these plus fix the remaining issues:
+
+REPLIT AGENT PROMPT: Super Admin Dashboard Overhaul
+Files to Integrate
+I've created the following files that need to be integrated:
+1. Onboarding Submissions Page
+
+File: super-onboarding-submissions-page.tsx
+Location: /app/super/onboarding-submissions/page.tsx
+Purpose: View and manage questionnaire submissions from new developers
+
+2. Tenants/Developers Management Page
+
+File: super-tenants-page.tsx
+Location: /app/super/tenants/page.tsx
+Purpose: Create and manage developer companies (tenants)
+
+3. API Routes
+
+api-super-onboarding-submissions-route.ts → /app/api/super/onboarding-submissions/route.ts
+api-super-onboarding-submissions-id-route.ts → /app/api/super/onboarding-submissions/[id]/route.ts
+api-super-tenants-route.ts → /app/api/super/tenants/route.ts
+
+Sidebar Navigation Updates
+Add to super admin sidebar:
+
+"Tenants" → /super/tenants (under MANAGEMENT section)
+"Onboarding Submissions" → /super/onboarding-submissions (under MANAGEMENT section)
+
+Critical Bugs to Fix
+1. Developers page API broken
+
+/super/developers shows "Failed to Load - API may not be available"
+Fix the /api/super/developers endpoint or merge with /api/super/tenants
+
+2. Developments page showing 0
+
+/super/developments shows "No developments yet" but Longview Park has 75 units
+The query is likely filtering by wrong project/tenant context
+Should show ALL developments across ALL tenants for super admin
+
+3. Add "status" column to onboarding_submissions table
+sqlALTER TABLE onboarding_submissions 
+ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';
+New Project Flow Enhancement
+The existing "New Project" wizard (Details → Upload → Review → Complete) needs:
+
+Tenant selection dropdown at the start - "Which developer is this for?"
+If creating for a new developer, option to create tenant inline
+After creating development, link it to the selected tenant_id
+
+Database Schema Check
+Ensure onboarding_submissions table has these columns:
+
+id, tenant_id, developer_id, developer_email
+development_name, development_address, county
+estimated_units, expected_handover_date
+planning_reference, planning_pack_url
+master_spreadsheet_url, supporting_documents_urls
+notes, status (pending/in_review/completed/rejected)
+created_at, updated_at
+
+Design Requirements
+All new pages must follow OpenHouse design system:
+
+Gold accents: #D4AF37
+Lucide icons only (no emojis)
+Card style: bg-white border border-gold-100 rounded-lg shadow-sm
+Button style: bg-brand-500 text-white hover:bg-brand-600
+Font: Inter
+Transitions: transition-all duration-150
+

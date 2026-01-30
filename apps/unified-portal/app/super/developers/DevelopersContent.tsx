@@ -213,58 +213,36 @@ export const DevelopersContent = memo(function DevelopersContent() {
     setError(null);
 
     try {
-      // Use the admin endpoint since it queries the admins table directly
-      const response = await fetch('/api/admin/users');
+      const response = await fetch('/api/super/admins');
 
       if (!response.ok) {
-        // Fallback: Try to fetch directly from DB via a simpler endpoint
-        // For now, show empty state with instructions
         throw new Error('Unable to load developers');
       }
 
       const data = await response.json();
-      const developersList: Developer[] = data.users || data.admins || [];
+      const developersList: Developer[] = data.admins || data.users || [];
 
       setDevelopers(developersList);
 
-      // Calculate stats
-      const stats: DevelopersStats = {
-        total: developersList.length,
-        superAdmins: developersList.filter((d: Developer) => d.role === 'super_admin').length,
-        admins: developersList.filter((d: Developer) => d.role === 'admin').length,
-        developers: developersList.filter((d: Developer) => d.role === 'developer').length,
-        activeToday: developersList.filter((d: Developer) => {
-          if (!d.last_login_at) return false;
-          const lastLogin = new Date(d.last_login_at);
-          const today = new Date();
-          return lastLogin.toDateString() === today.toDateString();
-        }).length,
-      };
-      setStats(stats);
+      // Use stats from API or calculate locally
+      if (data.stats) {
+        setStats({
+          ...data.stats,
+          activeToday: 0,
+        });
+      } else {
+        const stats: DevelopersStats = {
+          total: developersList.length,
+          superAdmins: developersList.filter((d: Developer) => d.role === 'super_admin').length,
+          admins: developersList.filter((d: Developer) => d.role === 'admin').length,
+          developers: developersList.filter((d: Developer) => d.role === 'developer').length,
+          activeToday: 0,
+        };
+        setStats(stats);
+      }
     } catch (err) {
       console.error('Error fetching developers:', err);
-      // Try alternate endpoint
-      try {
-        const altResponse = await fetch('/api/super/users');
-        if (altResponse.ok) {
-          const data = await altResponse.json();
-          const developersList: Developer[] = data.users || data.admins || [];
-          setDevelopers(developersList);
-
-          const stats: DevelopersStats = {
-            total: developersList.length,
-            superAdmins: developersList.filter((d: Developer) => d.role === 'super_admin').length,
-            admins: developersList.filter((d: Developer) => d.role === 'admin').length,
-            developers: developersList.filter((d: Developer) => d.role === 'developer').length,
-            activeToday: 0,
-          };
-          setStats(stats);
-          return;
-        }
-      } catch {
-        // Ignore alternate endpoint errors
-      }
-      setError('Unable to load developers. The API may not be available.');
+      setError('Unable to load developers. Please try again.');
     } finally {
       setIsLoading(false);
     }
