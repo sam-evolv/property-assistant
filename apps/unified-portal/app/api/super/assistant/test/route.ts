@@ -1,20 +1,27 @@
 // /api/super/assistant/test/route.ts
-// Direct test that queries documents from Supabase and calls OpenAI
+// Direct test that queries documents and calls OpenAI
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@openhouse/db/client';
+import { developments } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireRole } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
+// Supabase client for tables not in Drizzle schema and vector search RPC
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function POST(request: NextRequest) {
   try {
+    await requireRole(['super_admin', 'admin']);
+    
     const body = await request.json();
     const { development_id, message, include_custom_qa } = body;
 
@@ -27,27 +34,35 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 1. Get development details - try multiple approaches
-    let development = null;
+    // 1. Get development details using Drizzle (consistent with other APIs)
+    let development: { id: string; name: string; system_instructions: string | null; address: string | null } | null = null;
     
-    // First try by ID
-    const { data: devById, error: idError } = await supabaseAdmin
-      .from('developments')
-      .select('id, name, system_instructions, address, county')
-      .eq('id', development_id)
-      .single();
-    
+    const [devById] = await db
+      .select({
+        id: developments.id,
+        name: developments.name,
+        system_instructions: developments.system_instructions,
+        address: developments.address,
+      })
+      .from(developments)
+      .where(eq(developments.id, development_id))
+      .limit(1);
+
     if (devById) {
       development = devById;
     } else {
-      console.log('[Test Assistant] Not found by ID, trying slug lookup');
-      // Maybe it's a slug instead of UUID
-      const { data: devBySlug } = await supabaseAdmin
-        .from('developments')
-        .select('id, name, system_instructions, address, county')
-        .eq('slug', development_id)
-        .single();
-      
+      // Try slug fallback
+      const [devBySlug] = await db
+        .select({
+          id: developments.id,
+          name: developments.name,
+          system_instructions: developments.system_instructions,
+          address: developments.address,
+        })
+        .from(developments)
+        .where(eq(developments.slug, development_id))
+        .limit(1);
+
       if (devBySlug) {
         development = devBySlug;
       }
@@ -55,9 +70,9 @@ export async function POST(request: NextRequest) {
 
     if (!development) {
       // List available developments for debugging
-      const { data: allDevs } = await supabaseAdmin
-        .from('developments')
-        .select('id, name, slug')
+      const allDevs = await db
+        .select({ id: developments.id, name: developments.name, slug: developments.slug })
+        .from(developments)
         .limit(10);
       
       console.log('[Test Assistant] Development not found. Available:', allDevs);
@@ -65,29 +80,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Development not found',
         searched_id: development_id,
-        available_developments: allDevs?.map(d => ({ id: d.id, name: d.name, slug: d.slug })) || []
+        available_developments: allDevs
       }, { status: 404 });
     }
 
     console.log('[Test Assistant] Found development:', development.name);
 
-    // 2. Get custom Q&As if enabled
+    // 2. Get custom Q&As if enabled (via Supabase - not in Drizzle schema)
     let customQAContext = '';
     if (include_custom_qa !== false) {
-      const { data: qas } = await supabaseAdmin
-        .from('custom_qa')
-        .select('question, answer')
-        .eq('development_id', development.id)
-        .eq('active', true);
+      try {
+        const { data: qas } = await supabaseAdmin
+          .from('custom_qa')
+          .select('question, answer')
+          .eq('development_id', development.id)
+          .eq('active', true);
 
-      if (qas && qas.length > 0) {
-        customQAContext = '\n\n## Custom Q&A (use these exact answers when questions match):\n' +
-          qas.map(qa => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
-        console.log('[Test Assistant] Found', qas.length, 'custom Q&As');
+        if (qas && qas.length > 0) {
+          customQAContext = '\n\n## Custom Q&A (use these exact answers when questions match):\n' +
+            qas.map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
+          console.log('[Test Assistant] Found', qas.length, 'custom Q&As');
+        }
+      } catch (qaError) {
+        console.log('[Test Assistant] Custom Q&A query failed (table may not exist):', qaError);
       }
     }
 
-    // 3. Get knowledge base (development-specific + platform-wide)
+    // 3. Get knowledge base (development-specific + platform-wide) via Supabase
     let knowledgeContext = '';
     try {
       const { data: knowledge } = await supabaseAdmin
@@ -98,14 +117,14 @@ export async function POST(request: NextRequest) {
 
       if (knowledge && knowledge.length > 0) {
         knowledgeContext = '\n\n## Additional Knowledge:\n' +
-          knowledge.map(k => `### ${k.title} (${k.category})\n${k.content}`).join('\n\n');
+          knowledge.map((k: any) => `### ${k.title} (${k.category})\n${k.content}`).join('\n\n');
         console.log('[Test Assistant] Found', knowledge.length, 'knowledge items');
       }
     } catch (kbError) {
       console.log('[Test Assistant] Knowledge base query failed (table may not exist):', kbError);
     }
 
-    // 4. Search for relevant document chunks using vector similarity
+    // 4. Search for relevant document chunks using vector similarity (via Supabase RPC)
     let documentContext = '';
     try {
       // Generate embedding for the user's question
@@ -115,7 +134,7 @@ export async function POST(request: NextRequest) {
       });
       const queryEmbedding = embeddingResponse.data[0].embedding;
 
-      // Search for similar document chunks
+      // Search for similar document chunks via Supabase RPC
       const { data: chunks, error: searchError } = await supabaseAdmin
         .rpc('match_document_sections', {
           query_embedding: queryEmbedding,
@@ -134,7 +153,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Build system prompt
-    const systemPrompt = `You are an AI assistant for ${development.name}, a residential development${development.address ? ` located at ${development.address}` : ''}${development.county ? `, Co. ${development.county}` : ''}.
+    const systemPrompt = `You are an AI assistant for ${development.name}, a residential development${development.address ? ` located at ${development.address}` : ''}.
 
 You help homeowners with questions about their property, including warranty information, maintenance, documents, facilities, and general queries.
 
