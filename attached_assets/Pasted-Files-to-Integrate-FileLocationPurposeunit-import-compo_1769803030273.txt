@@ -1,0 +1,36 @@
+Files to Integrate
+FileLocationPurposeunit-import-component.tsx/components/super/UnitImport.tsxSpreadsheet parser with drag-drop, column mapping, bulk importsuper-new-development-page.tsx/app/super/projects/new/page.tsx5-step wizard: Details → Branding → AI Config → Import Units → Completeapi-super-units-create-route.ts/app/api/super/units/create/route.tsCreate individual unit with auto-generated access codeapi-super-units-count-route.ts/app/api/super/units/count/route.tsGet unit count per developmentapi-super-developments-create-route.ts/app/api/super/developments/create/route.tsCreate development, link to submission
+Dependencies
+Add SheetJS for spreadsheet parsing:
+bashnpm install xlsx
+Database Schema Updates
+sql-- Add columns to developments table
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS sidebar_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS assistant_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS toolbar_logo_url TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS system_instructions TEXT;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS from_submission_id UUID REFERENCES onboarding_submissions(id);
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS expected_handover_date DATE;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS estimated_units INTEGER;
+ALTER TABLE developments ADD COLUMN IF NOT EXISTS planning_reference TEXT;
+
+-- Add access_code to units table
+ALTER TABLE units ADD COLUMN IF NOT EXISTS access_code VARCHAR(20) UNIQUE;
+ALTER TABLE units ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'available';
+Flow
+
+From Submissions page → Click "Create Development" → Pre-fills form with submission data
+Step 1: Details → Name, address, tenant, units estimate
+Step 2: Branding → Drag-drop 3 logos (sidebar, assistant, toolbar)
+Step 3: AI Config → Custom system instructions
+Step 4: Import Units → Upload spreadsheet, map columns, auto-generate access codes (format: LVP-001-X7K2)
+Step 5: Complete → Success + links to manage
+
+Access Code Format
+{DEV_PREFIX}-{UNIT_NUM}-{RANDOM4}
+
+DEV_PREFIX: First letters of development name (e.g., "Longview Park" → "LVP")
+UNIT_NUM: 3-digit padded number (001, 002, etc.)
+RANDOM4: 4 random alphanumeric chars (no 0/O/1/I to avoid confusion)
+
+Example: LVP-001-A2X9, LVP-002-K7M3
