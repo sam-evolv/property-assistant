@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { units, developments, messages } from '@openhouse/db/schema';
-import { eq, desc, sql, count, inArray } from 'drizzle-orm';
+import { developments } from '@openhouse/db/schema';
+import { sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,96 +14,80 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const developmentId = searchParams.get('development_id') || '';
-    const status = searchParams.get('status') || 'all';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    let baseCondition = sql`${units.purchaser_name} IS NOT NULL AND ${units.purchaser_name} != ''`;
+    let countQuery;
+    let unitsQuery;
 
-    if (search) {
-      baseCondition = sql`${baseCondition} AND (
-        ${units.purchaser_name} ILIKE ${'%' + search + '%'} OR
-        ${units.purchaser_email} ILIKE ${'%' + search + '%'} OR
-        ${units.address_line_1} ILIKE ${'%' + search + '%'} OR
-        ${units.unit_number} ILIKE ${'%' + search + '%'}
-      )`;
+    if (search && developmentId) {
+      const searchPattern = `%${search}%`;
+      countQuery = sql`
+        SELECT COUNT(*) as count FROM units u 
+        WHERE (u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern})
+        AND u.development_id = ${developmentId}
+      `;
+      unitsQuery = sql`
+        SELECT 
+          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
+          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
+          u.created_at, u.development_id, d.name as development_name
+        FROM units u
+        LEFT JOIN developments d ON u.development_id = d.id
+        WHERE (u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern})
+        AND u.development_id = ${developmentId}
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else if (search) {
+      const searchPattern = `%${search}%`;
+      countQuery = sql`
+        SELECT COUNT(*) as count FROM units u 
+        WHERE u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern}
+      `;
+      unitsQuery = sql`
+        SELECT 
+          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
+          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
+          u.created_at, u.development_id, d.name as development_name
+        FROM units u
+        LEFT JOIN developments d ON u.development_id = d.id
+        WHERE u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern}
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else if (developmentId) {
+      countQuery = sql`SELECT COUNT(*) as count FROM units u WHERE u.development_id = ${developmentId}`;
+      unitsQuery = sql`
+        SELECT 
+          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
+          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
+          u.created_at, u.development_id, d.name as development_name
+        FROM units u
+        LEFT JOIN developments d ON u.development_id = d.id
+        WHERE u.development_id = ${developmentId}
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else {
+      countQuery = sql`SELECT COUNT(*) as count FROM units`;
+      unitsQuery = sql`
+        SELECT 
+          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
+          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
+          u.created_at, u.development_id, d.name as development_name
+        FROM units u
+        LEFT JOIN developments d ON u.development_id = d.id
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
     }
 
-    if (developmentId) {
-      baseCondition = sql`${baseCondition} AND ${units.development_id} = ${developmentId}`;
-    }
+    const countResult = await db.execute(countQuery);
+    const totalCount = Number((countResult.rows[0] as any)?.count || 0);
 
-    if (status === 'active') {
-      baseCondition = sql`${baseCondition} AND ${units.consent_at} IS NOT NULL`;
-    } else if (status === 'pending') {
-      baseCondition = sql`${baseCondition} AND ${units.consent_at} IS NULL`;
-    }
-
-    const [totalCount] = await db
-      .select({ count: count() })
-      .from(units)
-      .where(baseCondition);
-
-    const homeowners = await db
-      .select({
-        id: units.id,
-        unit_uid: units.unit_uid,
-        unit_number: units.unit_number,
-        purchaser_name: units.purchaser_name,
-        purchaser_email: units.purchaser_email,
-        purchaser_phone: units.purchaser_phone,
-        address_line_1: units.address_line_1,
-        address_line_2: units.address_line_2,
-        city: units.city,
-        eircode: units.eircode,
-        property_type: units.property_type,
-        house_type_code: units.house_type_code,
-        bedrooms: units.bedrooms,
-        consent_at: units.consent_at,
-        last_chat_at: units.last_chat_at,
-        created_at: units.created_at,
-        development_id: units.development_id,
-        development_name: developments.name,
-      })
-      .from(units)
-      .leftJoin(developments, eq(units.development_id, developments.id))
-      .where(baseCondition)
-      .orderBy(desc(units.created_at))
-      .limit(limit)
-      .offset(offset);
-
-    let questionCounts: Record<string, number> = {};
-    try {
-      const unitIds = homeowners.map(h => h.id).filter(Boolean);
-      if (unitIds.length > 0) {
-        const counts = await db
-          .select({
-            unit_id: messages.unit_id,
-            count: count(),
-          })
-          .from(messages)
-          .where(inArray(messages.unit_id, unitIds))
-          .groupBy(messages.unit_id);
-
-        questionCounts = counts.reduce((acc, c) => {
-          if (c.unit_id) acc[c.unit_id] = Number(c.count);
-          return acc;
-        }, {} as Record<string, number>);
-      }
-    } catch (e) {
-      console.log('[Homeowners] Question counts failed', e);
-    }
-
-    const [activeCount] = await db
-      .select({ count: count() })
-      .from(units)
-      .where(sql`${units.purchaser_name} IS NOT NULL AND ${units.purchaser_name} != '' AND ${units.consent_at} IS NOT NULL`);
-
-    const [pendingCount] = await db
-      .select({ count: count() })
-      .from(units)
-      .where(sql`${units.purchaser_name} IS NOT NULL AND ${units.purchaser_name} != '' AND ${units.consent_at} IS NULL`);
+    const unitsResult = await db.execute(unitsQuery);
 
     const allDevelopments = await db
       .select({
@@ -113,26 +97,24 @@ export async function GET(request: NextRequest) {
       .from(developments)
       .orderBy(developments.name);
 
-    const totalQuestionsSum = Object.values(questionCounts).reduce((a, b) => a + b, 0);
-
-    const formattedHomeowners = homeowners.map(h => ({
-      id: h.id,
-      name: h.purchaser_name || `Unit ${h.unit_number || 'Unknown'}`,
-      email: h.purchaser_email || '',
-      phone: h.purchaser_phone || '',
+    const formattedHomeowners = (unitsResult.rows as any[]).map(u => ({
+      id: u.id,
+      name: `Unit ${u.unit_number || u.unit_code || 'Unknown'}`,
+      email: '',
+      phone: '',
       unit: {
-        id: h.id,
-        number: h.unit_number || 'N/A',
-        address: [h.address_line_1, h.address_line_2, h.city, h.eircode].filter(Boolean).join(', '),
+        id: u.id,
+        number: u.unit_number || 'N/A',
+        address: [u.address_line_1, u.address_line_2, u.city, u.eircode].filter(Boolean).join(', '),
       },
       development: {
-        id: h.development_id || '',
-        name: h.development_name || 'Unknown',
+        id: u.development_id || '',
+        name: u.development_name || 'Unknown',
       },
-      consentDate: h.consent_at,
-      lastActivity: h.last_chat_at,
-      questionsCount: questionCounts[h.id] || 0,
-      status: h.consent_at ? 'active' : 'pending',
+      consentDate: null,
+      lastActivity: null,
+      questionsCount: 0,
+      status: 'pending',
     }));
 
     return NextResponse.json({
@@ -142,13 +124,13 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: Number(totalCount?.count || 0),
-        totalPages: Math.ceil(Number(totalCount?.count || 0) / limit),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit),
       },
       stats: {
-        total: Number(totalCount?.count || 0),
-        active: Number(activeCount?.count || 0),
-        questionsTotal: totalQuestionsSum,
+        total: totalCount,
+        active: 0,
+        questionsTotal: 0,
       },
     });
   } catch (error: any) {
