@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('units')
       .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .order('address_line_1', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (search) {
