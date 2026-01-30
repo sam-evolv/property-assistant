@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
-import { db } from '@openhouse/db/client';
-import { developments } from '@openhouse/db/schema';
-import { sql } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { persistSession: false },
+      db: { schema: 'public' }
+    }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,108 +23,72 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const developmentId = searchParams.get('development_id') || '';
+    const status = searchParams.get('status') || 'all';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    let countQuery;
-    let unitsQuery;
+    const supabaseAdmin = getSupabaseAdmin();
 
-    if (search && developmentId) {
-      const searchPattern = `%${search}%`;
-      countQuery = sql`
-        SELECT COUNT(*) as count FROM units u 
-        WHERE (u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern})
-        AND u.development_id = ${developmentId}
-      `;
-      unitsQuery = sql`
-        SELECT 
-          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
-          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
-          u.created_at, u.development_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE (u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern})
-        AND u.development_id = ${developmentId}
-        ORDER BY u.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `;
-    } else if (search) {
-      const searchPattern = `%${search}%`;
-      countQuery = sql`
-        SELECT COUNT(*) as count FROM units u 
-        WHERE u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern}
-      `;
-      unitsQuery = sql`
-        SELECT 
-          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
-          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
-          u.created_at, u.development_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE u.unit_number ILIKE ${searchPattern} OR u.address_line_1 ILIKE ${searchPattern} OR u.unit_code ILIKE ${searchPattern}
-        ORDER BY u.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `;
-    } else if (developmentId) {
-      countQuery = sql`SELECT COUNT(*) as count FROM units u WHERE u.development_id = ${developmentId}`;
-      unitsQuery = sql`
-        SELECT 
-          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
-          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
-          u.created_at, u.development_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        WHERE u.development_id = ${developmentId}
-        ORDER BY u.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `;
-    } else {
-      countQuery = sql`SELECT COUNT(*) as count FROM units`;
-      unitsQuery = sql`
-        SELECT 
-          u.id, u.unit_uid, u.unit_number, u.unit_code, u.address_line_1, u.address_line_2,
-          u.city, u.eircode, u.property_type, u.house_type_code, u.bedrooms,
-          u.created_at, u.development_id, d.name as development_name
-        FROM units u
-        LEFT JOIN developments d ON u.development_id = d.id
-        ORDER BY u.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `;
+    let query = supabaseAdmin
+      .from('units')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (search) {
+      query = query.or(`unit_number.ilike.%${search}%,address_line_1.ilike.%${search}%,unit_code.ilike.%${search}%`);
     }
 
-    const countResult = await db.execute(countQuery);
-    const totalCount = Number((countResult.rows[0] as any)?.count || 0);
+    if (developmentId) {
+      query = query.or(`development_id.eq.${developmentId},project_id.eq.${developmentId}`);
+    }
 
-    const unitsResult = await db.execute(unitsQuery);
+    const { data: unitsData, error: unitsError, count } = await query;
 
-    const allDevelopments = await db
-      .select({
-        id: developments.id,
-        name: developments.name,
-      })
-      .from(developments)
-      .orderBy(developments.name);
+    if (unitsError) {
+      console.error('[Homeowners API] Query error:', unitsError);
+      return NextResponse.json({ error: unitsError.message }, { status: 500 });
+    }
 
-    const formattedHomeowners = (unitsResult.rows as any[]).map(u => ({
+    const { data: projectsData } = await supabaseAdmin
+      .from('projects')
+      .select('id, name');
+    
+    const { data: developmentsData } = await supabaseAdmin
+      .from('developments')
+      .select('id, name');
+
+    const projectsMap = new Map((projectsData || []).map(p => [p.id, p.name]));
+    const developmentsMap = new Map((developmentsData || []).map(d => [d.id, d.name]));
+
+    const allDevelopments = [
+      ...(projectsData || []).map(p => ({ id: p.id, name: p.name })),
+      ...(developmentsData || []).map(d => ({ id: d.id, name: d.name })),
+    ];
+
+    const formattedHomeowners = (unitsData || []).map((u: any) => ({
       id: u.id,
-      name: `Unit ${u.unit_number || u.unit_code || 'Unknown'}`,
-      email: '',
-      phone: '',
+      name: u.purchaser_name || u.owner_name || `Unit ${u.unit_number || u.unit_code || u.lot_number || 'Unknown'}`,
+      email: u.purchaser_email || u.owner_email || '',
+      phone: u.purchaser_phone || '',
       unit: {
         id: u.id,
-        number: u.unit_number || 'N/A',
-        address: [u.address_line_1, u.address_line_2, u.city, u.eircode].filter(Boolean).join(', '),
+        number: u.unit_number || u.lot_number || 'N/A',
+        address: [u.address_line_1, u.address_line_2, u.city, u.eircode].filter(Boolean).join(', ') || u.address || '',
       },
       development: {
-        id: u.development_id || '',
-        name: u.development_name || 'Unknown',
+        id: u.development_id || u.project_id || '',
+        name: developmentsMap.get(u.development_id) || projectsMap.get(u.project_id) || 'Unknown',
       },
-      consentDate: null,
-      lastActivity: null,
+      consentDate: u.consent_at || u.registered_at,
+      lastActivity: u.last_chat_at,
       questionsCount: 0,
-      status: 'pending',
+      status: u.consent_at ? 'active' : 'pending',
     }));
+
+    const totalCount = count || 0;
+    const activeCount = (unitsData || []).filter((u: any) => u.consent_at).length;
 
     return NextResponse.json({
       homeowners: formattedHomeowners,
@@ -129,7 +102,7 @@ export async function GET(request: NextRequest) {
       },
       stats: {
         total: totalCount,
-        active: 0,
+        active: activeCount,
         questionsTotal: 0,
       },
     });
