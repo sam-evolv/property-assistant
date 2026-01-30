@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { developments, tenants, units, homeowners } from '@openhouse/db/schema';
+import { developments, tenants, units } from '@openhouse/db/schema';
 import { eq, sql, count } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
@@ -24,41 +24,27 @@ export async function GET() {
       .leftJoin(tenants, eq(developments.tenant_id, tenants.id))
       .orderBy(sql`${developments.created_at} DESC`);
 
-    const developmentIds = developmentsData.map(d => d.id);
-
     let unitCounts: Record<string, number> = {};
-    let homeownerCounts: Record<string, number> = {};
 
-    if (developmentIds.length > 0) {
-      const unitCountsResult = await db
-        .select({
-          development_id: units.development_id,
-          count: count(),
-        })
-        .from(units)
-        .groupBy(units.development_id);
+    if (developmentsData.length > 0) {
+      try {
+        const unitCountsResult = await db
+          .select({
+            development_id: units.development_id,
+            count: count(),
+          })
+          .from(units)
+          .groupBy(units.development_id);
 
-      unitCounts = unitCountsResult.reduce((acc, row) => {
-        if (row.development_id) {
-          acc[row.development_id] = Number(row.count);
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-      const homeownerCountsResult = await db
-        .select({
-          development_id: homeowners.development_id,
-          count: count(),
-        })
-        .from(homeowners)
-        .groupBy(homeowners.development_id);
-
-      homeownerCounts = homeownerCountsResult.reduce((acc, row) => {
-        if (row.development_id) {
-          acc[row.development_id] = Number(row.count);
-        }
-        return acc;
-      }, {} as Record<string, number>);
+        unitCounts = unitCountsResult.reduce((acc, row) => {
+          if (row.development_id) {
+            acc[row.development_id] = Number(row.count);
+          }
+          return acc;
+        }, {} as Record<string, number>);
+      } catch (unitError) {
+        console.log('[Super Developments API] Units table query failed, using 0 counts');
+      }
     }
 
     const formattedDevelopments = developmentsData.map(dev => ({
@@ -73,7 +59,7 @@ export async function GET() {
       } : null,
       _count: {
         units: unitCounts[dev.id] || 0,
-        homeowners: homeownerCounts[dev.id] || 0,
+        homeowners: 0,
       },
     }));
 

@@ -15,7 +15,6 @@ export async function GET() {
         id: tenants.id,
         name: tenants.name,
         slug: tenants.slug,
-        description: tenants.description,
         created_at: tenants.created_at,
       })
       .from(tenants)
@@ -62,7 +61,6 @@ export async function GET() {
       id: tenant.id,
       name: tenant.name,
       slug: tenant.slug,
-      description: tenant.description,
       created_at: tenant.created_at,
       _count: {
         developments: developmentCounts[tenant.id] || 0,
@@ -88,7 +86,7 @@ export async function POST(request: Request) {
     await requireRole(['super_admin']);
 
     const body = await request.json();
-    const { name, slug, description } = body;
+    const { name, slug } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -101,7 +99,6 @@ export async function POST(request: Request) {
       .values({
         name,
         slug: tenantSlug,
-        description: description || null,
       })
       .returning();
 

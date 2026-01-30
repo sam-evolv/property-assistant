@@ -33,7 +33,6 @@ interface Tenant {
   id: string;
   name: string;
   slug: string;
-  description?: string;
   created_at: string;
   _count?: {
     developments: number;
@@ -78,9 +77,6 @@ const TenantRow = memo(function TenantRow({
               <Calendar className="w-3.5 h-3.5" />
               Created {formatDate(tenant.created_at)}
             </span>
-            {tenant.description && (
-              <span className="max-w-xs truncate">{tenant.description}</span>
-            )}
           </div>
         </div>
       </div>
@@ -116,7 +112,6 @@ function CreateTenantModal({
   onSuccess: () => void;
 }) {
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,7 +129,7 @@ function CreateTenantModal({
       const res = await fetch('/api/super/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify({ name }),
       });
 
       if (!res.ok) {
@@ -143,7 +138,6 @@ function CreateTenantModal({
       }
 
       setName('');
-      setDescription('');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -180,19 +174,6 @@ function CreateTenantModal({
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Cairn Homes"
               className="w-full px-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of the developer company..."
-              rows={3}
-              className="w-full px-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
             />
           </div>
 
@@ -257,8 +238,7 @@ export default function TenantsPage() {
 
   const filteredTenants = tenants.filter((tenant) =>
     tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tenant.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tenant.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    tenant.slug.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const totalDevelopments = tenants.reduce((acc, t) => acc + (t._count?.developments || 0), 0);
