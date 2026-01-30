@@ -92,7 +92,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
         return;
       }
 
-      const headerRow = jsonData[0] as string[];
+      const headerRow = jsonData[0] as unknown as (string | number | null)[];
       const cleanHeaders = headerRow.map(h => String(h || '').trim());
       setHeaders(cleanHeaders);
 
@@ -185,13 +185,11 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
             if (target === 'handover_date' && value) {
               const parsed = new Date(value as string);
               if (!isNaN(parsed.getTime())) {
-                value = parsed.toISOString().split('T')[0];
-              } else {
-                value = null;
+                unitData[target] = parsed.toISOString().split('T')[0];
               }
+            } else {
+              unitData[target] = value;
             }
-            
-            unitData[target] = value;
           }
         }
 
