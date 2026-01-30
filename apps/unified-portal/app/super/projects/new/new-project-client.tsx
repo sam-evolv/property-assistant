@@ -261,7 +261,7 @@ function NewProjectWizardContent() {
               }`}>
                 {stepOrder.indexOf(step) > idx ? <Check className="w-4 h-4" /> : idx + 1}
               </div>
-              <span className={`text-sm ${step === s ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+              <span className={`text-sm ${step === s ? 'font-medium text-gray-900' : 'text-gray-900'}`}>
                 {stepLabels[s]}
               </span>
               {idx < stepOrder.length - 1 && <div className="w-8 h-px bg-gray-300" />}
@@ -362,7 +362,7 @@ function NewProjectWizardContent() {
               <h2 className="text-lg font-semibold text-gray-900">Development Branding</h2>
             </div>
             
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-sm text-gray-900 mb-6">
               Upload logos for different areas of the purchaser portal. You can skip this step and add logos later.
             </p>
             
@@ -402,7 +402,7 @@ function NewProjectWizardContent() {
               <h2 className="text-lg font-semibold text-gray-900">Upload Excel File (Optional)</h2>
             </div>
             
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-900 mb-4">
               This step is optional. You can skip it and add units later through the development management interface.
               If you have a prepared Excel file with <strong>unit_types</strong> and <strong>units</strong> sheets, you can upload it for validation preview.
             </p>

@@ -234,7 +234,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
     <div className="bg-white border border-gold-100 rounded-lg shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-neutral-100 bg-neutral-50">
         <h3 className="font-semibold text-neutral-900">Import Units</h3>
-        <p className="text-sm text-neutral-500 mt-1">
+        <p className="text-sm text-gray-900 mt-1">
           Upload a spreadsheet to bulk import units for {developmentName}
         </p>
       </div>
@@ -256,20 +256,20 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
                 onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
               />
               <FileSpreadsheet className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-neutral-700">
+              <p className="text-sm font-medium text-gray-900">
                 Drop your spreadsheet here or click to browse
               </p>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs text-gray-900 mt-1">
                 Supports Excel (.xlsx, .xls) and CSV files
               </p>
             </div>
 
             {spreadsheetUrl && (
               <div className="text-center">
-                <span className="text-sm text-neutral-500">or</span>
+                <span className="text-sm text-gray-900">or</span>
                 <button
                   onClick={loadFromUrl}
-                  className="block w-full mt-2 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-200 transition-colors"
+                  className="block w-full mt-2 px-4 py-2 bg-neutral-100 text-gray-900 rounded-lg text-sm font-medium hover:bg-neutral-200 transition-colors"
                 >
                   Load from Onboarding Submission
                 </button>
@@ -292,13 +292,13 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
                 <p className="text-sm font-medium text-neutral-900">
                   {file?.name || 'Spreadsheet'}
                 </p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-gray-900">
                   {parsedData.length} rows found
                 </p>
               </div>
               <button
                 onClick={() => setStep('upload')}
-                className="text-sm text-neutral-500 hover:text-neutral-700"
+                className="text-sm text-gray-900 hover:text-gray-900"
               >
                 Change file
               </button>
@@ -353,7 +353,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
 
         {step === 'mapping' && (
           <div className="space-y-4">
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-gray-900">
               Map your spreadsheet columns to unit fields. We've auto-detected some mappings.
             </p>
 
@@ -410,7 +410,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
           <div className="text-center py-8">
             <Loader2 className="w-12 h-12 text-brand-500 animate-spin mx-auto mb-4" />
             <p className="text-lg font-medium text-neutral-900">Importing Units...</p>
-            <p className="text-sm text-neutral-500 mt-1">{importProgress}% complete</p>
+            <p className="text-sm text-gray-900 mt-1">{importProgress}% complete</p>
             <div className="w-full max-w-xs mx-auto mt-4 h-2 bg-neutral-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-brand-500 transition-all duration-300"
@@ -442,7 +442,7 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
               </div>
               <div className="p-4 bg-neutral-100 rounded-lg text-center">
                 <p className="text-2xl font-bold text-neutral-700">{importResult.failed}</p>
-                <p className="text-sm text-neutral-500">Failed</p>
+                <p className="text-sm text-gray-900">Failed</p>
               </div>
             </div>
 
