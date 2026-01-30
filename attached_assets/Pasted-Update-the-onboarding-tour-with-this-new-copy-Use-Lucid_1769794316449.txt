@@ -1,0 +1,60 @@
+Update the onboarding tour with this new copy. Use Lucide icons instead of emojis. Match the styling and quality of the marketing site (openhouseai.ie) - premium, clean, professional.
+
+
+Slide 1: Welcome
+"Welcome to OpenHouse Ai"
+The smarter way to manage homebuyers and handovers
+From first sale to final handover - and beyond. One platform to manage your buyers, track progress, and give homeowners a premium digital experience.
+[Skip tour] [Continue →]
+
+Slide 2: Pre-Handover Portal
+"Track Every Sale, Every Buyer"
+Your pre-handover command centre
+
+Sales Pipeline - Track every unit from reserved to sold to handed over
+Kitchen Selections - Buyers choose upgrades, you see selections instantly
+Compliance Tracking - Chase documents, track acknowledgments, stay audit-ready
+Buyer Communications - Message buyers directly, all in one place
+
+Use Lucide icons: BarChart3, ChefHat, ClipboardCheck, Mail
+[Skip tour] [Continue →]
+
+Slide 3: Homeowner Portal
+"A Premium Experience for Homeowners"
+Happy homeowners, fewer phone calls
+
+Digital Document Pack - Warranties, manuals, certs - searchable, always available
+24/7 Ai Assistant - Answers questions instantly using your documents
+Legal Protection - Timestamped acknowledgments prove what was delivered and when
+Works Everywhere - Mobile, tablet, desktop - no app download needed
+
+Use Lucide icons: FileText, Bot, Shield, Smartphone
+[Skip tour] [Continue →]
+
+Slide 4: Benefits for You
+"Why Developers Choose OpenHouse Ai"
+Save time. Reduce risk. Look professional.
+
+Cut admin time by 80% - No more printing, posting, or chasing paper
+Legal protection built-in - Timestamped proof of every document delivered
+Fewer support calls - Ai handles the "where's my boiler manual?" questions
+Premium brand experience - White-labelled portal with your logo and colours
+Real-time insights - See engagement, track handovers, spot issues early
+
+Use Lucide icons: Clock, ShieldCheck, PhoneOff, Palette, TrendingUp
+[Skip tour] [Continue →]
+
+Slide 5: Get Started
+"Let's Set Up Your First Development"
+Takes about 2 minutes
+Tell us about your development and we'll be in touch within 48 hours to get you live.
+[Skip tour] [Create Development →]
+
+Design requirements:
+
+Match openhouseai.ie marketing site styling
+Use OpenHouse design system (gold #D4AF37 accents)
+Lucide React icons only, no emojis
+Clean, premium, professional look
+Generous whitespace
+Inter font family
