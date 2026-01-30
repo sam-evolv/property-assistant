@@ -76,11 +76,22 @@ OpenHouse AI/
 ### Intelligence Features (January 2026)
 
 **Assistant Training Portal** (`/super/assistant-training`)
-4-tab interface for testing, training, and customizing AI per development:
-- **Test Assistant:** Live chat with the AI to test responses
+5-tab interface for testing, training, and customizing AI per development:
+- **Test Assistant:** Routes through REAL /api/chat endpoint with all documents + RAG - gives identical answers to homeowner portal
 - **Custom Q&A:** Add question/answer pairs that override AI responses
 - **System Instructions:** Custom prompts prepended to all AI interactions
 - **Knowledge Base:** Add facts and information the AI can reference
+- **Bulk Import:** Paste large content (research, docs, guides), GPT-4o-mini auto-chunks into knowledge entries
+
+**How Test Assistant Works:**
+Test Message → /api/super/assistant/test → /api/chat (real) → Documents + RAG → Response
+The test assistant gives the SAME answers as the real homeowner portal.
+
+**How Bulk Import Works:**
+1. Paste content (research, documentation, guides)
+2. AI processes with GPT-4o-mini - breaks into discrete chunks with titles, content, categories
+3. Review & edit chunks, toggle selection
+4. Import to development-specific OR platform-wide knowledge base
 
 **R&D Analytics Dashboard** (`/super/rd-analytics`)
 Platform-wide insights across all developments:
@@ -92,16 +103,17 @@ Platform-wide insights across all developments:
 
 **Database Tables Required:**
 - `custom_qa` - Development-specific Q&A overrides (development_id, question, answer, active)
-- `knowledge_base` - Additional knowledge per development (development_id, title, content, category)
+- `knowledge_base` - Additional knowledge per development (development_id, title, content, category, source_url)
 - `question_analytics` - Track all questions for insights (development_id, question, topic, confidence_score, satisfaction_score, user_id)
 - `platform_insights` - AI-generated insights storage (type, title, description)
 
 **API Routes:**
-- `/api/super/assistant/test` - Test assistant with OpenAI (gpt-4o-mini)
+- `/api/super/assistant/test` - Routes test through real /api/chat for accurate RAG testing
 - `/api/super/assistant/qa` - CRUD for custom Q&A pairs
-- `/api/super/assistant/knowledge` - CRUD for knowledge base items
+- `/api/super/assistant/knowledge` - CRUD for knowledge base items + bulk import (PUT)
+- `/api/super/assistant/process-knowledge` - GPT-4o-mini chunks large content into knowledge entries
 - `/api/super/assistant/instructions` - Save system instructions
-- `/api/super/rd-analytics` - Aggregated platform analytics
+- `/api/super/rd-analytics` - Aggregated platform analytics (deterministic, shows "no data" when empty)
 
 ### Suggested Pills V2 (January 2026)
 

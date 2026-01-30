@@ -1,17 +1,12 @@
-// /api/super/assistant/test/route.ts
+// /api/super/assistant/test/route.ts - Routes through real chat API for accurate testing
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
-import OpenAI from 'openai';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,69 +19,111 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'development_id and message required' }, { status: 400 });
     }
 
-    // Fetch development details
-    const { data: development } = await supabaseAdmin
-      .from('developments')
-      .select('name, system_instructions')
-      .eq('id', development_id)
+    // Get a unit from this development to use for testing
+    // First try Drizzle units table
+    const { data: drizzleUnit } = await supabaseAdmin
+      .from('units')
+      .select('id, unit_uid, development_id')
+      .eq('development_id', development_id)
+      .limit(1)
       .single();
 
-    // Fetch custom Q&As if enabled
-    let customQAContext = '';
-    if (include_custom_qa) {
-      const { data: qas } = await supabaseAdmin
-        .from('custom_qa')
-        .select('question, answer')
-        .eq('development_id', development_id)
-        .eq('active', true);
+    let unitUid: string | null = null;
 
-      if (qas && qas.length > 0) {
-        customQAContext = '\n\nCustom Q&A pairs for this development (use these exact answers when questions match):\n' +
-          qas.map(qa => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
+    if (drizzleUnit?.unit_uid) {
+      unitUid = drizzleUnit.unit_uid;
+    } else {
+      // Fallback: try to find any unit linked to this development through projects
+      const { data: development } = await supabaseAdmin
+        .from('developments')
+        .select('id, name')
+        .eq('id', development_id)
+        .single();
+
+      if (development) {
+        // Try to find project linked to this development
+        const { data: project } = await supabaseAdmin
+          .from('projects')
+          .select('id')
+          .ilike('name', `%${development.name}%`)
+          .limit(1)
+          .single();
+
+        if (project) {
+          const { data: supabaseUnit } = await supabaseAdmin
+            .from('units')
+            .select('id, unit_uid')
+            .eq('project_id', project.id)
+            .limit(1)
+            .single();
+
+          if (supabaseUnit?.unit_uid) {
+            unitUid = supabaseUnit.unit_uid;
+          } else if (supabaseUnit?.id) {
+            unitUid = supabaseUnit.id;
+          }
+        }
       }
     }
 
-    // Fetch knowledge base items
-    const { data: knowledge } = await supabaseAdmin
-      .from('knowledge_base')
-      .select('title, content')
-      .eq('development_id', development_id);
-
-    let knowledgeContext = '';
-    if (knowledge && knowledge.length > 0) {
-      knowledgeContext = '\n\nAdditional knowledge for this development:\n' +
-        knowledge.map(k => `${k.title}: ${k.content}`).join('\n\n');
+    if (!unitUid) {
+      // No unit found - cannot route through real chat API
+      // Return a helpful error message
+      return NextResponse.json({ 
+        error: 'No units found for this development. Please add at least one unit to test the assistant with real RAG and documents.',
+        response: 'Unable to test: No units have been assigned to this development yet. The assistant test requires at least one unit to provide proper context for document retrieval.',
+        diagnostics: {
+          development_id,
+          used_real_rag: false,
+          reason: 'no_units_found',
+        },
+      });
     }
 
-    // Build system prompt
-    const systemPrompt = `You are an AI assistant for ${development?.name || 'a residential development'}. 
-You help homeowners with questions about their property, warranty, maintenance, documents, and general queries.
+    // Build the request URL for the real chat endpoint
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const host = request.headers.get('host') || 'localhost:5000';
+    const chatUrl = `${protocol}://${host}/api/chat`;
 
-${development?.system_instructions || ''}
-${customQAContext}
-${knowledgeContext}
-
-Guidelines:
-- Be helpful, friendly, and concise
-- If a custom Q&A matches the user's question, use that exact answer
-- If you don't know something specific to this development, say so
-- Direct complex issues to the developer or management company`;
-
-    // Call OpenAI API
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ],
-      max_tokens: 1024,
-      temperature: 0.7
+    // Make request to real chat API
+    const chatResponse = await fetch(chatUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': request.headers.get('cookie') || '',
+      },
+      body: JSON.stringify({
+        message,
+        unitUid,
+        userId: 'super-admin-test',
+        hasBeenWelcomed: true,
+        language: 'en',
+      }),
     });
 
-    const assistantResponse = response.choices[0]?.message?.content || 
-      'I apologize, I could not generate a response.';
+    if (!chatResponse.ok) {
+      const errorText = await chatResponse.text();
+      console.error('[Assistant Test] Chat API error:', chatResponse.status, errorText);
+      return NextResponse.json({ 
+        error: 'Chat API returned error', 
+        details: errorText 
+      }, { status: chatResponse.status });
+    }
 
-    return NextResponse.json({ response: assistantResponse });
+    // Parse the real chat response
+    const chatData = await chatResponse.json();
+
+    // Return the response in a consistent format
+    return NextResponse.json({
+      response: chatData.answer || chatData.response || chatData.message || 'No response generated',
+      sources: chatData.sources || [],
+      diagnostics: {
+        unit_used: unitUid,
+        development_id,
+        used_real_rag: true,
+        chat_diagnostics: chatData.diagnostics,
+      },
+    });
   } catch (err) {
     console.error('Error testing assistant:', err);
     return NextResponse.json({ error: 'Failed to get response' }, { status: 500 });

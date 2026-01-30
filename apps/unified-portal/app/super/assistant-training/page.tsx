@@ -14,9 +14,11 @@ import {
   Check, 
   X,
   Save,
-  AlertCircle
+  AlertCircle,
+  Upload
 } from 'lucide-react';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
+import BulkKnowledgeImport from '@/components/super/BulkKnowledgeImport';
 
 interface Development {
   id: string;
@@ -37,6 +39,7 @@ interface KnowledgeItem {
   title: string;
   content: string;
   category: string;
+  isPlatformWide?: boolean;
 }
 
 interface Message {
@@ -44,7 +47,7 @@ interface Message {
   content: string;
 }
 
-type Tab = 'test' | 'qa' | 'instructions' | 'knowledge';
+type Tab = 'test' | 'qa' | 'instructions' | 'knowledge' | 'bulk';
 
 export default function AssistantTrainingPage() {
   const [activeTab, setActiveTab] = useState<Tab>('test');
@@ -123,10 +126,13 @@ export default function AssistantTrainingPage() {
 
   const fetchKnowledgeItems = async () => {
     try {
-      const res = await fetch(`/api/super/assistant/knowledge?development_id=${selectedDevelopmentId}`);
+      const res = await fetch(`/api/super/assistant/knowledge?development_id=${selectedDevelopmentId}&include_platform_wide=true`);
       if (res.ok) {
         const data = await res.json();
-        setKnowledgeItems(data.items || []);
+        // Combine development-specific and platform-wide items, marking platform items
+        const devItems = (data.items || []).map((item: any) => ({ ...item, isPlatformWide: false }));
+        const platformItems = (data.platformItems || []).map((item: any) => ({ ...item, isPlatformWide: true }));
+        setKnowledgeItems([...devItems, ...platformItems]);
       }
     } catch (err) {
       console.error('Failed to fetch knowledge items:', err);
@@ -303,6 +309,7 @@ export default function AssistantTrainingPage() {
     { id: 'qa', label: 'Custom Q&A', icon: HelpCircle },
     { id: 'instructions', label: 'System Instructions', icon: Settings },
     { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
+    { id: 'bulk', label: 'Bulk Import', icon: Upload },
   ];
 
   const selectedDev = developments.find(d => d.id === selectedDevelopmentId);
@@ -660,7 +667,7 @@ Example:
             ) : (
               <div className="divide-y divide-gray-200">
                 {knowledgeItems.map((item) => (
-                  <div key={item.id} className="p-4">
+                  <div key={item.id} className={`p-4 ${item.isPlatformWide ? 'bg-blue-50' : ''}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -668,6 +675,11 @@ Example:
                           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full font-medium border border-gray-200">
                             {item.category}
                           </span>
+                          {item.isPlatformWide && (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-bold border border-blue-200">
+                              Platform-wide
+                            </span>
+                          )}
                         </div>
                         <p className="text-black text-sm">{item.content}</p>
                       </div>
@@ -683,6 +695,20 @@ Example:
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'bulk' && selectedDev && (
+        <div className="bg-white border-2 border-gray-200 rounded-lg p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-black mb-4">Bulk Knowledge Import</h3>
+          <BulkKnowledgeImport
+            developmentId={selectedDevelopmentId}
+            developmentName={selectedDev.name}
+            onImportComplete={() => {
+              fetchKnowledgeItems();
+              setActiveTab('knowledge');
+            }}
+          />
         </div>
       )}
     </div>
