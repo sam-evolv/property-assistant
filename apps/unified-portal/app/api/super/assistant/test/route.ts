@@ -1,5 +1,5 @@
 // /api/super/assistant/test/route.ts
-// Direct test that queries documents and calls OpenAI
+// Ultra-fast test endpoint - optimized for speed
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments } from '@openhouse/db/schema';
@@ -12,7 +12,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-// Supabase client for tables not in Drizzle schema and vector search RPC
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -25,151 +24,74 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { development_id, message, include_custom_qa } = body;
 
-    console.log('[Test Assistant] Received request:', { development_id, message: message?.substring(0, 50) });
-
     if (!development_id || !message) {
-      return NextResponse.json({ 
-        error: 'development_id and message required',
-        received: { development_id, hasMessage: !!message }
-      }, { status: 400 });
+      return NextResponse.json({ error: 'development_id and message required' }, { status: 400 });
     }
 
-    // 1. Get development details using Drizzle (consistent with other APIs)
-    let development: { id: string; name: string; system_instructions: string | null; address: string | null } | null = null;
-    
-    const [devById] = await db
+    // 1. Get development (fast query)
+    const [development] = await db
       .select({
         id: developments.id,
         name: developments.name,
         system_instructions: developments.system_instructions,
-        address: developments.address,
       })
       .from(developments)
       .where(eq(developments.id, development_id))
       .limit(1);
 
-    if (devById) {
-      development = devById;
-    } else {
-      // Try slug fallback
-      const [devBySlug] = await db
-        .select({
-          id: developments.id,
-          name: developments.name,
-          system_instructions: developments.system_instructions,
-          address: developments.address,
-        })
-        .from(developments)
-        .where(eq(developments.slug, development_id))
-        .limit(1);
-
-      if (devBySlug) {
-        development = devBySlug;
-      }
-    }
-
     if (!development) {
-      // List available developments for debugging
-      const allDevs = await db
-        .select({ id: developments.id, name: developments.name, slug: developments.slug })
-        .from(developments)
-        .limit(10);
-      
-      console.log('[Test Assistant] Development not found. Available:', allDevs);
-      
-      return NextResponse.json({ 
-        error: 'Development not found',
-        searched_id: development_id,
-        available_developments: allDevs
-      }, { status: 404 });
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
-    console.log('[Test Assistant] Found development:', development.name);
-
-    // 2. Get custom Q&As if enabled (via Supabase - not in Drizzle schema)
-    let customQAContext = '';
-    if (include_custom_qa !== false) {
-      try {
-        const { data: qas } = await supabaseAdmin
-          .from('custom_qa')
-          .select('question, answer')
-          .eq('development_id', development.id)
-          .eq('active', true);
-
-        if (qas && qas.length > 0) {
-          customQAContext = '\n\n## Custom Q&A (use these exact answers when questions match):\n' +
-            qas.map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
-          console.log('[Test Assistant] Found', qas.length, 'custom Q&As');
-        }
-      } catch (qaError) {
-        console.log('[Test Assistant] Custom Q&A query failed (table may not exist):', qaError);
-      }
-    }
-
-    // 3. Get knowledge base (development-specific + platform-wide) via Supabase
-    let knowledgeContext = '';
-    try {
-      const { data: knowledge } = await supabaseAdmin
+    // 2. Parallel fetch Q&As and Knowledge (run simultaneously)
+    const [qasResult, knowledgeResult] = await Promise.all([
+      include_custom_qa !== false 
+        ? supabaseAdmin
+            .from('custom_qa')
+            .select('question, answer')
+            .eq('development_id', development.id)
+            .eq('active', true)
+            .limit(3)
+        : Promise.resolve({ data: null }),
+      supabaseAdmin
         .from('knowledge_base')
-        .select('title, content, category')
+        .select('title, content')
         .or(`development_id.eq.${development.id},development_id.is.null`)
         .eq('active', true)
-        .limit(5);
+        .limit(3)
+    ]);
 
-      if (knowledge && knowledge.length > 0) {
-        knowledgeContext = '\n\n## Additional Knowledge:\n' +
-          knowledge.map((k: any) => `### ${k.title} (${k.category})\n${k.content}`).join('\n\n');
-        console.log('[Test Assistant] Found', knowledge.length, 'knowledge items');
-      }
-    } catch (kbError) {
-      console.log('[Test Assistant] Knowledge base query failed (table may not exist):', kbError);
+    // Build compact context
+    let context = '';
+    if (qasResult.data?.length) {
+      context += qasResult.data.map((qa: any) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n');
+    }
+    if (knowledgeResult.data?.length) {
+      context += '\n' + knowledgeResult.data.map((k: any) => `${k.title}: ${k.content}`).join('\n');
     }
 
-    // 4. Vector search disabled for speed - use Custom Q&A and Knowledge Base instead
-    let documentContext = '';
-
-    // 5. Build system prompt
-    const systemPrompt = `You are an AI assistant for ${development.name}, a residential development${development.address ? ` located at ${development.address}` : ''}.
-
-You help homeowners with questions about their property, including warranty information, maintenance, documents, facilities, and general queries.
-
+    // 3. Minimal system prompt for speed
+    const systemPrompt = `You are an assistant for ${development.name}. Be concise.
 ${development.system_instructions || ''}
-${customQAContext}
-${knowledgeContext}
-${documentContext}
+${context}`;
 
-## Guidelines:
-- Be helpful, friendly, and concise
-- If a custom Q&A matches the user's question, use that exact answer
-- If relevant document excerpts are provided, base your answer on them
-- If you don't have specific information about something, say so honestly
-- For complex issues, suggest contacting the developer or management company
-- Keep responses focused and practical`;
-
-    // 6. Call OpenAI (optimized for speed)
-    console.log('[Test Assistant] Calling OpenAI...');
+    // 4. Fast OpenAI call
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
       ],
-      max_tokens: 256,
-      temperature: 0.3
+      max_tokens: 150,
+      temperature: 0.2
     });
 
-    const assistantResponse = response.choices[0]?.message?.content || 
-      'I apologize, I could not generate a response.';
-
-    console.log('[Test Assistant] Response generated successfully');
-
     return NextResponse.json({ 
-      response: assistantResponse,
+      response: response.choices[0]?.message?.content || 'No response.',
       debug: {
         developmentName: development.name,
-        hasCustomQA: customQAContext.length > 0,
-        hasKnowledge: knowledgeContext.length > 0,
-        hasDocuments: documentContext.length > 0
+        hasCustomQA: !!qasResult.data?.length,
+        hasKnowledge: !!knowledgeResult.data?.length,
       }
     });
   } catch (err) {
