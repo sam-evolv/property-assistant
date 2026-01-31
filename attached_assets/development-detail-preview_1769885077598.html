@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Development Detail Page - Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#FEFCE8',
+              100: '#FEF9C3',
+              200: '#FEF08A',
+              300: '#FDE047',
+              400: '#FACC15',
+              500: '#D4AF37',
+              600: '#C9A961',
+              700: '#B8934C',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .tab-active { border-color: #D4AF37; color: #B8934C; }
+  </style>
+</head>
+<body class="bg-neutral-50 min-h-screen">
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    // Icon components (simplified)
+    const Icon = ({ name, className }) => (
+      <i data-lucide={name} className={className}></i>
+    );
+
+    // Main App
+    function App() {
+      const [activeTab, setActiveTab] = useState('overview');
+      const [importStep, setImportStep] = useState('upload');
+
+      const development = {
+        name: 'Árdan View',
+        code: 'ARDAN_VIEW',
+        address: 'Laherdane, Ballyvolane, Cork City, Cork',
+        description: 'Neighbourhood 5 in the Longview Estates Development',
+        tenantName: 'Longview Estates',
+        developerEmail: 'sam@evolvai.ie',
+        isActive: true,
+        createdAt: '2026-01-31',
+        unitsCount: 0,
+        homeownersCount: 0,
+      };
+
+      return (
+        <div className="min-h-screen bg-neutral-50">
+          {/* Header */}
+          <div className="bg-white border-b border-neutral-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {/* Back button */}
+              <button className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-4 transition-colors duration-150">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                Back to Developments
+              </button>
+
+              {/* Development header */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-neutral-100 rounded-xl flex items-center justify-center border border-neutral-200">
+                    <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h1 className="text-2xl font-semibold text-neutral-900">{development.name}</h1>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Active
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        {development.address}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                        {development.code}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 h-9 px-4 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Edit
+                  </button>
+                  <button className="inline-flex items-center justify-center gap-2 font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 h-9 px-4 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-1 mt-6 -mb-px">
+                {[
+                  { id: 'overview', label: 'Overview', icon: 'building-2' },
+                  { id: 'units', label: 'Units', icon: 'users' },
+                  { id: 'import', label: 'Sales Pipeline Import', icon: 'upload' },
+                  { id: 'settings', label: 'Settings', icon: 'file-text' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-150 ${
+                      activeTab === tab.id
+                        ? 'border-brand-500 text-brand-600'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {activeTab === 'overview' && <OverviewTab development={development} />}
+            {activeTab === 'units' && <UnitsTab onImportClick={() => setActiveTab('import')} />}
+            {activeTab === 'import' && <ImportTab importStep={importStep} setImportStep={setImportStep} />}
+            {activeTab === 'settings' && <SettingsTab />}
+          </div>
+        </div>
+      );
+    }
+
+    // Overview Tab
+    function OverviewTab({ development }) {
+      return (
+        <div className="space-y-6">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCard label="Total Units" value="0" />
+            <StatCard label="With Pipeline Data" value="0" />
+            <StatCard label="Homeowners" value="0" />
+            <StatCard label="Documents" value="0" />
+          </div>
+
+          {/* Development Details */}
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-neutral-100">
+              <h2 className="text-lg font-semibold text-neutral-900">Development Details</h2>
+            </div>
+            <div className="p-6">
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                <DetailRow label="Name" value={development.name} />
+                <DetailRow label="Code" value={development.code} />
+                <DetailRow label="Address" value={development.address} />
+                <DetailRow label="Tenant/Organisation" value={development.tenantName} />
+                <DetailRow label="Assigned Developer" value={development.developerEmail} />
+                <DetailRow label="Created" value="31 Jan 2026" />
+                <div className="md:col-span-2">
+                  <DetailRow label="Description" value={development.description} />
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          {/* Branding Preview */}
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-neutral-100">
+              <h2 className="text-lg font-semibold text-neutral-900">Branding</h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <BrandingPreview label="Pre-Handover Portal Logo" />
+                <BrandingPreview label="Property Assistant Logo" />
+                <BrandingPreview label="Developer Dashboard Logo" />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function StatCard({ label, value }) {
+      return (
+        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-neutral-500">{label}</p>
+              <p className="text-2xl font-semibold text-neutral-900 mt-1">{value}</p>
+            </div>
+            <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function DetailRow({ label, value }) {
+      return (
+        <div>
+          <dt className="text-sm text-neutral-500">{label}</dt>
+          <dd className="text-sm font-medium text-neutral-900 mt-1">{value}</dd>
+        </div>
+      );
+    }
+
+    function BrandingPreview({ label }) {
+      return (
+        <div>
+          <p className="text-sm text-neutral-500 mb-2">{label}</p>
+          <div className="aspect-video bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center">
+            <div className="text-center">
+              <svg className="w-8 h-8 text-neutral-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <p className="text-xs text-neutral-400 mt-2">No image uploaded</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Units Tab
+    function UnitsTab({ onImportClick }) {
+      return (
+        <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+          </div>
+          <h3 className="text-lg font-semibold text-neutral-900 mb-2">No units yet</h3>
+          <p className="text-sm text-neutral-500 mb-6 max-w-md mx-auto">
+            Units will be created when you import your sales pipeline data, or you can add them manually.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+              + Add Unit Manually
+            </button>
+            <button
+              onClick={onImportClick}
+              className="inline-flex items-center justify-center gap-2 font-medium bg-brand-500 text-white hover:bg-brand-600 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              Import from Sales Pipeline
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Import Tab
+    function ImportTab({ importStep, setImportStep }) {
+      if (importStep === 'upload') {
+        return (
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-8">
+            <div className="max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-neutral-900 mb-2">Import Sales Pipeline Data</h2>
+              <p className="text-sm text-neutral-500 mb-6">
+                Upload your Excel spreadsheet to import units and sales pipeline data.
+              </p>
+
+              <div className="border-2 border-dashed border-neutral-300 rounded-xl p-12 text-center hover:border-neutral-400 transition-all duration-150">
+                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                </div>
+                <p className="text-sm font-medium text-neutral-900 mb-1">
+                  Drop Excel file here or click to upload
+                </p>
+                <p className="text-xs text-neutral-500 mb-4">
+                  Supports .xlsx, .xls files
+                </p>
+                <button 
+                  onClick={() => setImportStep('mapping')}
+                  className="inline-flex items-center justify-center gap-2 font-medium bg-brand-500 text-white hover:bg-brand-600 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  Select File (Demo)
+                </button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <button className="inline-flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download Sample Template
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (importStep === 'mapping') {
+        const mappings = [
+          { source: 'Address of Dwelling', target: 'Unit Address', required: true },
+          { source: 'Property Designation', target: 'House Type Code', required: false },
+          { source: 'Bedrooms', target: 'Bedrooms', required: false },
+          { source: 'Price', target: 'Sale Price', required: false },
+          { source: 'Status', target: 'Status', required: true },
+          { source: 'Purchaser Information', target: 'Purchaser Name', required: false },
+          { source: 'Release', target: 'Release Date', required: false },
+          { source: 'Date of Queries Raised', target: 'Queries Raised Date', required: false },
+          { source: 'Projected Handover Date', target: 'Estimated Close Date', required: false },
+        ];
+
+        return (
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Map Your Columns</h2>
+                <p className="text-sm text-neutral-500 mt-1">68 rows detected in Sales_Progress_N5.xlsx</p>
+              </div>
+              <button onClick={() => setImportStep('upload')} className="text-sm text-neutral-500 hover:text-neutral-700">
+                Change file
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 max-w-3xl">
+                {mappings.map((mapping, idx) => (
+                  <div key={idx} className="flex items-center gap-4">
+                    <div className="flex-1 bg-neutral-50 rounded-lg px-4 py-2.5 text-sm text-neutral-700">
+                      {mapping.source}
+                    </div>
+                    <svg className="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    <div className="flex-1">
+                      <select className="w-full h-10 bg-white border border-neutral-200 rounded-lg px-3 text-sm text-neutral-700 focus:border-brand-500 focus:outline-none">
+                        <option>{mapping.target}</option>
+                        <option>Skip this column</option>
+                      </select>
+                    </div>
+                    {mapping.required && (
+                      <span className="text-xs text-brand-600 font-medium">Required</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-neutral-100 space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-neutral-300 text-brand-500" />
+                  <span className="text-sm text-neutral-700">Extract handover date from Comments if "Complete" mentioned</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-neutral-300 text-brand-500" />
+                  <span className="text-sm text-neutral-700">Auto-calculate drawdown (handover - 14 days)</span>
+                </label>
+              </div>
+
+              <div className="mt-8 flex items-center justify-end gap-3">
+                <button onClick={() => setImportStep('upload')} className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                  Back
+                </button>
+                <button onClick={() => setImportStep('preview')} className="inline-flex items-center justify-center gap-2 font-medium bg-brand-500 text-white hover:bg-brand-600 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  Preview Import
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (importStep === 'preview') {
+        const mockData = [
+          { num: 1, address: '1 Árdan View', status: 'Agreed', price: '€485,000', purchaser: 'Ms Ellaine Marin & Mr Jason Ma...', release: '7 Apr 25', agreed: '15 May 25', queries: '23 May 25' },
+          { num: 2, address: '2 Árdan View', status: 'For Sale', price: '€445,000', purchaser: '—', release: '7 Apr 25', agreed: '—', queries: '—' },
+          { num: 3, address: '3 Árdan View', status: 'Agreed', price: '€445,000', purchaser: 'Robert & Cordelia Foley', release: '7 Apr 25', agreed: '12 May 25', queries: '—' },
+          { num: 4, address: '4 Árdan View', status: 'Signed', price: '€445,000', purchaser: 'Naga Venkata Mahesh & Gowri...', release: '7 Apr 25', agreed: '9 May 25', queries: '4 Jun 25' },
+          { num: 5, address: '5 Árdan View', status: 'Agreed', price: '€445,000', purchaser: 'Mr Marcelo Acher & Lislaine...', release: '7 Apr 25', agreed: '20 May 25', queries: '—' },
+        ];
+
+        return (
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Preview Import</h2>
+                <p className="text-sm text-neutral-500 mt-1">68 units to import</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <select className="h-9 bg-white border border-neutral-200 rounded-lg px-3 text-sm text-neutral-700">
+                  <option>All Status</option>
+                </select>
+                <input type="text" placeholder="Search units..." className="h-9 w-48 bg-white border border-neutral-200 rounded-lg px-3 text-sm placeholder:text-neutral-400" />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-neutral-50 border-b border-neutral-200">
+                  <tr>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">#</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Address</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Status</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Price</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Purchaser</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Release</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Agreed</th>
+                    <th className="text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider px-4 py-3">Queries</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {mockData.map((unit) => (
+                    <tr key={unit.num} className="hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-neutral-500">{unit.num}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-neutral-900">{unit.address}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          unit.status === 'Signed' ? 'bg-emerald-50 text-emerald-700' :
+                          unit.status === 'Agreed' ? 'bg-blue-50 text-blue-700' :
+                          'bg-neutral-100 text-neutral-600'
+                        }`}>
+                          {unit.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-neutral-900">{unit.price}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-700 max-w-[200px] truncate">{unit.purchaser}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-600">{unit.release}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-600">{unit.agreed}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-600">{unit.queries}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-6 py-4 border-t border-neutral-100 bg-neutral-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6 text-sm">
+                  <span className="text-neutral-500"><strong className="text-neutral-900">68</strong> total units</span>
+                  <span className="text-neutral-500"><strong className="text-neutral-900">28</strong> Agreed</span>
+                  <span className="text-neutral-500"><strong className="text-neutral-900">23</strong> Signed</span>
+                  <span className="text-neutral-500"><strong className="text-neutral-900">17</strong> For Sale</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-sm text-emerald-700">All data looks valid</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-neutral-200 flex items-center justify-end gap-3">
+              <button onClick={() => setImportStep('mapping')} className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                Back to Mapping
+              </button>
+              <button onClick={() => setImportStep('success')} className="inline-flex items-center justify-center gap-2 font-medium bg-brand-500 text-white hover:bg-brand-600 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import 68 Units
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (importStep === 'success') {
+        return (
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <h2 className="text-xl font-semibold text-neutral-900 mb-2">Import Successful!</h2>
+              <p className="text-sm text-neutral-500 mb-8">Your sales pipeline data has been imported.</p>
+
+              <div className="bg-neutral-50 rounded-xl p-6 mb-8">
+                <div className="grid grid-cols-2 gap-4 text-left">
+                  <div>
+                    <p className="text-sm text-neutral-500">Units Created</p>
+                    <p className="text-2xl font-semibold text-neutral-900">68</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-neutral-500">Pipeline Records</p>
+                    <p className="text-2xl font-semibold text-neutral-900">68</p>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-neutral-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-600">For Sale</span>
+                    <span className="font-medium text-neutral-900">17</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-2">
+                    <span className="text-neutral-600">Agreed</span>
+                    <span className="font-medium text-neutral-900">28</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-2">
+                    <span className="text-neutral-600">Signed</span>
+                    <span className="font-medium text-neutral-900">23</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3">
+                <button className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  View in Developer Dashboard
+                </button>
+                <button onClick={() => setImportStep('upload')} className="inline-flex items-center justify-center gap-2 font-medium bg-brand-500 text-white hover:bg-brand-600 h-10 px-5 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Import Another File
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    // Settings Tab
+    function SettingsTab() {
+      return (
+        <div className="space-y-6">
+          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-neutral-100">
+              <h2 className="text-lg font-semibold text-neutral-900">Development Settings</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-neutral-500">Settings and editing functionality coming soon...</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-red-200 rounded-xl shadow-sm">
+            <div className="px-6 py-4 border-b border-red-100">
+              <h2 className="text-lg font-semibold text-red-600">Danger Zone</h2>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-neutral-900">Delete this development</p>
+                  <p className="text-sm text-neutral-500 mt-1">Once you delete a development, there is no going back.</p>
+                </div>
+                <button className="inline-flex items-center justify-center gap-2 font-medium bg-red-500 text-white hover:bg-red-600 h-9 px-4 text-sm rounded-lg transition-all duration-150 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete Development
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Render
+    ReactDOM.render(<App />, document.getElementById('app'));
+  </script>
+</body>
+</html>

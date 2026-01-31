@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments, units, unitSalesPipeline, tenants } from '@openhouse/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 import * as XLSX from 'xlsx';
 
@@ -295,35 +295,49 @@ export async function POST(
         try {
           const unitNumber = extractUnitNumber(row.address);
 
-          const [newUnit] = await db
-            .insert(units)
-            .values({
-              development_id: developmentId,
-              tenant_id: development.tenant_id,
-              unit_number: unitNumber,
-              address_line_1: row.address,
-              house_type_code: row.house_type_code || 'UNKNOWN',
-              bedrooms: row._raw.bedroomsNum || 3,
-            })
-            .returning({ id: units.id });
+          // Use raw SQL to avoid schema mismatch issues with missing columns
+          const unitResult = await db.execute(sql`
+            INSERT INTO units (tenant_id, development_id, unit_number, address_line_1, house_type_code, bedrooms)
+            VALUES (
+              ${development.tenant_id}::uuid,
+              ${developmentId}::uuid,
+              ${unitNumber},
+              ${row.address},
+              ${row.house_type_code || 'UNKNOWN'},
+              ${row._raw.bedroomsNum || 3}
+            )
+            RETURNING id
+          `);
+
+          const newUnitId = unitResult.rows?.[0]?.id;
+          if (!newUnitId) {
+            console.error('Failed to get new unit ID for:', row.address);
+            continue;
+          }
 
           unitsCreated++;
 
-          await db.insert(unitSalesPipeline).values({
-            unit_id: newUnit.id,
-            development_id: developmentId,
-            tenant_id: development.tenant_id,
-            purchaser_name: row.purchaser || null,
-            release_date: row._raw.releaseDate,
-            deposit_date: row._raw.depositDate,
-            sale_agreed_date: row._raw.saleAgreedDate,
-            contracts_issued_date: row._raw.contractsIssuedDate,
-            signed_contracts_date: row._raw.signedContractsDate,
-            counter_signed_date: row._raw.counterSignedDate,
-            snag_date: row._raw.snagDate,
-            drawdown_date: row._raw.drawdownDate,
-            handover_date: row._raw.handoverDate,
-          });
+          await db.execute(sql`
+            INSERT INTO unit_sales_pipeline (
+              unit_id, development_id, tenant_id, purchaser_name,
+              release_date, deposit_date, sale_agreed_date, contracts_issued_date,
+              signed_contracts_date, counter_signed_date, snag_date, drawdown_date, handover_date
+            ) VALUES (
+              ${newUnitId}::uuid,
+              ${developmentId}::uuid,
+              ${development.tenant_id}::uuid,
+              ${row.purchaser || null},
+              ${row._raw.releaseDate || null},
+              ${row._raw.depositDate || null},
+              ${row._raw.saleAgreedDate || null},
+              ${row._raw.contractsIssuedDate || null},
+              ${row._raw.signedContractsDate || null},
+              ${row._raw.counterSignedDate || null},
+              ${row._raw.snagDate || null},
+              ${row._raw.drawdownDate || null},
+              ${row._raw.handoverDate || null}
+            )
+          `);
 
           pipelineCreated++;
           summary[row._raw.statusMapped] = (summary[row._raw.statusMapped] || 0) + 1;
