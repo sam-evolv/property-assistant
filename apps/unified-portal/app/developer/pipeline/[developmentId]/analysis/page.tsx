@@ -136,9 +136,9 @@ function MetricBox({ label, value, subtext, color = 'gray' }: { label: string; v
   };
   return (
     <div>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xs font-medium text-gray-900 uppercase tracking-wider">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${colorClasses[color] || colorClasses.gray}`}>{value}</p>
-      {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+      {subtext && <p className="text-xs text-gray-900 mt-1">{subtext}</p>}
     </div>
   );
 }
@@ -149,7 +149,7 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
     <div className="space-y-3">
       {metrics.map((m) => (
         <div key={m.stage} className="flex items-center gap-4">
-          <div className="w-40 text-xs text-gray-600 text-right">{m.label}</div>
+          <div className="w-40 text-xs text-gray-900 text-right">{m.label}</div>
           <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
             <div
               className="h-full rounded-full transition-all"
@@ -158,11 +158,11 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
                 background: `linear-gradient(90deg, ${tokens.gold}, ${tokens.goldLight})`,
               }}
             />
-            <span className="absolute inset-y-0 right-3 flex items-center text-xs font-medium text-gray-700">
+            <span className="absolute inset-y-0 right-3 flex items-center text-xs font-medium text-gray-900">
               {m.avgDays > 0 ? formatDays(m.avgDays) : 'N/A'}
             </span>
           </div>
-          <div className="w-16 text-xs text-gray-500 text-right">{m.count} units</div>
+          <div className="w-16 text-xs text-gray-900 text-right">{m.count} units</div>
         </div>
       ))}
     </div>
@@ -174,7 +174,7 @@ function SalesFunnel({ funnel }: { funnel: { stage: string; label: string; count
     <div className="space-y-2">
       {funnel.map((f, i) => (
         <div key={f.stage} className="flex items-center gap-3">
-          <div className="w-32 text-xs text-gray-600 text-right">{f.label}</div>
+          <div className="w-32 text-xs text-gray-900 text-right">{f.label}</div>
           <div className="flex-1 h-7 bg-gray-100 rounded overflow-hidden relative">
             <div
               className="h-full transition-all"

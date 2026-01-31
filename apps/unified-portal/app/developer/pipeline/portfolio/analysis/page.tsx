@@ -135,7 +135,7 @@ export default function PortfolioAnalysisPage() {
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Portfolio Analytics</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-gray-900 mt-0.5">
                 Combined analysis across {data?.portfolioOverview?.totalDevelopments || 0} developments
               </p>
             </div>
@@ -257,7 +257,7 @@ function OverviewTab({ data }: { data: any }) {
           <div className="space-y-3">
             {(data?.funnel || []).map((stage: any, idx: number) => (
               <div key={stage.stage} className="flex items-center gap-3">
-                <div className="w-32 text-sm text-gray-600">{stage.label}</div>
+                <div className="w-32 text-sm text-gray-900">{stage.label}</div>
                 <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
@@ -283,10 +283,10 @@ function OverviewTab({ data }: { data: any }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Development</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Social Units</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Housing Agency</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Development</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Social Units</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Housing Agency</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -330,14 +330,14 @@ function ComparisonTab({ data }: { data: any }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Development</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Units</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Sold</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">In Progress</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Available</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Revenue</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Avg Price</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-600">Avg Cycle</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Development</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Units</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Sold</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">In Progress</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Available</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Revenue</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Avg Price</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Avg Cycle</th>
               </tr>
             </thead>
             <tbody>
@@ -379,9 +379,9 @@ function ComparisonTab({ data }: { data: any }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Metric</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Metric</th>
                 {developments.map((dev: any) => (
-                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-600">
+                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-900">
                     <div className="flex items-center justify-end gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dev.color }} />
                       {dev.name}
@@ -418,9 +418,9 @@ function ComparisonTab({ data }: { data: any }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-600">Type</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900">Type</th>
                 {developments.map((dev: any) => (
-                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-600">{dev.name}</th>
+                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-900">{dev.name}</th>
                 ))}
                 <th className="text-right py-3 px-4 font-semibold" style={{ color: tokens.gold }}>Overall Avg</th>
               </tr>
@@ -454,7 +454,7 @@ function VelocityTab({ data }: { data: any }) {
     <div className="space-y-8">
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales Velocity by Development</h3>
-        <p className="text-sm text-gray-500 mb-4">Units sold per month across all developments</p>
+        <p className="text-sm text-gray-900 mb-4">Units sold per month across all developments</p>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.velocityTrend || []}>
@@ -486,17 +486,17 @@ function VelocityTab({ data }: { data: any }) {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Avg Cycle Time</span>
+                <span className="text-sm text-gray-900">Avg Cycle Time</span>
                 <span className="font-medium">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Completion Rate</span>
+                <span className="text-sm text-gray-900">Completion Rate</span>
                 <span className="font-medium">
                   {dev.privateUnits > 0 ? `${Math.round((dev.sold / dev.privateUnits) * 100)}%` : '—'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Total Sold</span>
+                <span className="text-sm text-gray-900">Total Sold</span>
                 <span className="font-medium text-green-600">{dev.sold}</span>
               </div>
             </div>
@@ -542,7 +542,7 @@ function PipelineTab({ data }: { data: any }) {
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500">{stage.percentage}%</span>
+                    <span className="text-sm text-gray-900">{stage.percentage}%</span>
                     <span className="font-semibold" style={{ color: tokens.goldDark }}>{stage.count}</span>
                   </div>
                 </div>
@@ -818,7 +818,7 @@ function MetricCard({ icon, label, value, color }: { icon: React.ReactNode; labe
     <div className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
       <div className="flex items-center gap-2 mb-2" style={{ color }}>
         {icon}
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-semibold text-gray-900 uppercase tracking-wider">{label}</span>
       </div>
       <p className="text-2xl font-bold" style={{ color }}>{value}</p>
     </div>
