@@ -1,0 +1,202 @@
+Build Development Detail Page in Super Admin when clicking on a development row
+Currently clicking on a development row in the Developments tab does nothing. Build a full detail page that shows all development info and allows sales pipeline import.
+Navigation
+
+Click development row → Navigate to /admin/developments/[developmentId]
+Add back button to return to developments list
+
+Page Structure
+Header Section
+← Back to Developments
+
+[Development Logo]  Árdan View                    [Edit] [Delete]
+                    Laherdane, Ballyvolane, Cork
+                    Code: ARDAN_VIEW
+                    Created: 31 Jan 2026
+Tab Navigation
+[Overview]  [Units]  [Sales Pipeline Import]  [Settings]
+
+Tab 1: Overview
+Development Details Card
+FieldValueNameÁrdan ViewCodeARDAN_VIEWAddressLaherdane, Ballyvolane, Cork City, CorkDescriptionNeighbourhood 5 in the Longview Estates DevelopmentTenant/OrganisationLongview EstatesAssigned Developersam@evolvai.ieStatusActive ✓Created31 Jan 2026
+Branding Preview
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ [Pre-Handover   │  │ [Property       │  │ [Developer      │
+│  Portal Logo]   │  │  Assistant Logo]│  │  Dashboard Logo]│
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+Quick Stats
+┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
+│ Total Units│  │ With Data  │  │ Pipeline   │  │ Documents  │
+│     68     │  │     0      │  │  Not Set   │  │     0      │
+└────────────┘  └────────────┘  └────────────┘  └────────────┘
+
+Tab 2: Units
+Units Table
+Search: [____________]  [+ Add Unit]  [Bulk Import Units]
+
+┌──────┬─────────────────┬──────────┬───────────┬────────────┬─────────┐
+│ Unit │ Address         │ Bedrooms │ Type Code │ Pipeline   │ Actions │
+├──────┼─────────────────┼──────────┼───────────┼────────────┼─────────┤
+│ 1    │ 1 Árdan View    │ 4        │ BD06      │ ✓ Linked   │ [Edit]  │
+│ 2    │ 2 Árdan View    │ 3        │ BS08      │ ✓ Linked   │ [Edit]  │
+│ 3    │ 3 Árdan View    │ 3        │ BS08      │ ✗ Missing  │ [Edit]  │
+│ ...  │                 │          │           │            │         │
+└──────┴─────────────────┴──────────┴───────────┴────────────┴─────────┘
+
+Showing 1-20 of 68 units  [< Prev] [Next >]
+If no units exist yet, show:
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  📦 No units yet                                               │
+│                                                                 │
+│  Units will be created when you import your sales pipeline     │
+│  data, or you can add them manually.                           │
+│                                                                 │
+│  [+ Add Unit Manually]  [Import from Sales Pipeline]           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Tab 3: Sales Pipeline Import ⭐ (Most Important)
+Import Sales Pipeline Data
+
+Upload your Excel spreadsheet to import units and sales pipeline data.
+This will create units and populate all sales tracking information.
+
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│     📄 Drop Excel file here or click to upload                 │
+│        Supports .xlsx, .xls                                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+[Download Sample Template]
+After file upload - Sheet Selection (if multiple sheets):
+Select Sheet to Import
+
+Found 4 sheets in your file:
+○ Sales Progress - LP (75 rows)
+○ Sales Progress - RP (40 rows)  
+○ Sales Progress - RL (3 rows)
+● Sales Progress - N5 (68 rows) ← Auto-selected if matches development
+
+[Continue]
+Column Mapping Screen:
+Map Your Columns                                    68 rows detected
+
+Your Spreadsheet Column          Maps To
+───────────────────────────────────────────────────────────────────
+Address of Dwelling         →   [Unit Address ▼]         ✓ Required
+Property Designation        →   [House Type Code ▼]
+Bedrooms                    →   [Bedrooms ▼]
+Price                       →   [Sale Price ▼]
+Status                      →   [Status ▼]               ✓ Required
+Purchaser Information       →   [Purchaser Name ▼]
+Release                     →   [Release Date ▼]
+Deposit                     →   [Deposit Date ▼]
+Sale Agreed & Loan Approved →   [Sale Agreed Date ▼]
+Date of Contract Issue      →   [Contracts Issued Date ▼]
+Date of Queries Raised      →   [Queries Raised Date ▼]
+Date of Reply to Queries    →   [Queries Replied Date ▼]
+Date of Receipt of Signed   →   [Signed Contracts Date ▼]
+Date of One Part Contract   →   [Counter Signed Date ▼]
+Projected Handover Date     →   [Estimated Close Date ▼]
+Snagging Start Date         →   [Snag Date ▼]
+Comments                    →   [Comments ▼]
+
+☑ Extract handover date from Comments if "Complete" mentioned
+☑ Auto-calculate drawdown (handover - 14 days)
+☑ Auto-calculate snag date if not provided
+
+[Back]  [Preview Import]
+Preview Screen (CRITICAL - must show data clearly):
+Preview Import                                    68 units to import
+
+Filter: [All ▼]  Status: [All ▼]  Search: [____________]
+
+┌────┬────────────────┬────────┬───────────┬─────────────────────────┬──────────┬──────────┬──────────┐
+│ #  │ Address        │ Status │ Price     │ Purchaser               │ Release  │ Agreed   │ Queries  │
+├────┼────────────────┼────────┼───────────┼─────────────────────────┼──────────┼──────────┼──────────┤
+│ 1  │ 1 Árdan View   │ Agreed │ €485,000  │ Ms Ellaine Marin & Mr J │ 7 Apr 25 │ 15 May 25│ 23 May 25│
+│ 2  │ 2 Árdan View   │ For Sale│ €445,000 │ —                       │ 7 Apr 25 │ —        │ —        │
+│ 3  │ 3 Árdan View   │ Agreed │ €445,000  │ Robert & Cordelia Foley │ 7 Apr 25 │ 12 May 25│ —        │
+│ 4  │ 4 Árdan View   │ Signed │ €445,000  │ Naga Venkata Mahesh...  │ 7 Apr 25 │ 9 May 25 │ 4 Jun 25 │
+│ 5  │ 5 Árdan View   │ Agreed │ €445,000  │ Mr Marcelo Acher & Li...│ 7 Apr 25 │ 20 May 25│ —        │
+│ ...│                │        │           │                         │          │          │          │
+└────┴────────────────┴────────┴───────────┴─────────────────────────┴──────────┴──────────┴──────────┘
+
+← Scroll horizontally to see: Deposit, Contracts, Signed, Counter, Snag, Drawdown, Handover, Est. Close
+
+Summary:
+- 68 total units
+- 28 Agreed, 23 Signed, 17 For Sale
+- 0 Social Housing units
+- 51 with purchaser assigned
+
+⚠️ Warnings (0)
+✓ All data looks valid
+
+[Back to Mapping]  [Import 68 Units]
+Import Progress:
+Importing...
+
+Creating units:      ████████████████████░░░░  45/68
+Creating pipeline:   ░░░░░░░░░░░░░░░░░░░░░░░░  0/68
+
+Please wait...
+Success Screen:
+✅ Import Successful!
+
+Created:
+- 68 units
+- 68 pipeline records
+
+Summary:
+┌────────────────┬───────┐
+│ For Sale       │   17  │
+│ Agreed         │   28  │
+│ Signed         │   23  │
+│ Sold/Complete  │    0  │
+└────────────────┴───────┘
+
+[View in Developer Dashboard]  [View Units]  [Import Another File]
+
+Tab 4: Settings
+
+Edit development details
+Update branding/logos
+AI Configuration
+Danger zone (deactivate/delete)
+
+
+Technical Implementation
+Import Logic
+
+Parse Excel using SheetJS or similar
+Create units in units table with:
+
+Normalized address: "{unit_number} {development_name}"
+Extract unit_number from address
+bedrooms, house_type_code
+development_id, tenant_id
+
+
+Create pipeline records in unit_sales_pipeline with:
+
+All mapped date fields
+status mapping: "For Sale"→'for_sale', "Agreed"→'agreed', "Signed"→'signed', "Sold"→'sold'
+sale_type: 'private' (or 'social' if Clúid detected)
+housing_agency if social
+
+
+Date parsing - handle formats:
+
+DD-Mon-YY (e.g., "7-Apr-25")
+DD/MM/YYYY
+Excel date numbers
+
+
+Special handling:
+
+If Comments contains "Complete", extract date for handover_date
+Calculate drawdown = handover - 14 days
+Calculate snag = drawdown if not provided
