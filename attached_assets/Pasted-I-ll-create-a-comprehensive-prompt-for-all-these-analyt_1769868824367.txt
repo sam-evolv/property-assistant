@@ -1,0 +1,161 @@
+I'll create a comprehensive prompt for all these analytics. Let me break it into sections:
+
+Add comprehensive analytics dashboard to the Sales Pipeline Analysis page.
+The Analysis page should be a powerful, visually stunning dashboard with all the metrics below. Use clean card-based layouts, charts where appropriate, and the OpenHouse design system (brand gold #D4AF37 for highlights). Data comes from unit_sales_pipeline joined with units tables.
+
+SECTION 1: SALES VELOCITY & TIMING
+Card: Average Sales Cycle
+Display each stage's average duration in days as a horizontal pipeline/funnel visualization:
+StageAvg DaysRelease → AgreedX daysAgreed → DepositX daysDeposit → ContractsX daysContracts → QueriesX daysQueries → SignedX daysSigned → CounterX daysCounter → HandoverX daysTotal CycleX days
+Calculate as:
+
+AVG(sale_agreed_date - release_date) etc.
+Only include units where both dates exist
+
+Card: Sales Velocity Trend
+Line chart showing number of units reaching "Sale Agreed" per month over time.
+
+X-axis: Months (Oct 2024, Nov 2024, Dec 2024, etc.)
+Y-axis: Number of sales agreed
+Shows if sales are speeding up or slowing down
+
+Card: Fastest & Slowest Sales
+MetricUnitDaysPurchaserFastest Sale (Release to Agreed)5 Longview Park3 daysMr Tadhg HegartySlowest Sale (Release to Agreed)19 Longview Park45 daysMs Jithara MichaelFastest Completion (Release to Handover)7 Longview Park95 daysMs Orla BradySlowest Completion (Release to Handover)48 Longview Park180 daysBrian Goulding
+
+SECTION 2: PIPELINE HEALTH
+Card: Sales Funnel
+Visual funnel showing units at each stage RIGHT NOW:
+Released:    ████████████████████████ 75
+Agreed:      ███████████████████████  72
+Deposit:     ██████████████████████   70
+Contracts:   █████████████████████    68
+Signed:      ████████████████████     65
+Counter:     ███████████████████      63
+Complete:    █████████████████        61
+Each bar is clickable to filter the main table to those units.
+Card: Bottleneck Analysis
+Highlight which stage has the longest average wait time:
+
+"⚠️ Contracts → Signed averages 28 days - longest stage in your pipeline"
+Show comparison: "Industry average: 14 days" (or your historical average)
+
+Card: Units Needing Attention
+Table of units that appear stuck:
+UnitCurrent StageDays at StageLast Activity13 Longview ParkContracts45 daysQueries replied 3 Apr14 Longview ParkContracts42 daysQueries replied 14 Mar
+Flag units where:
+
+At any stage for >30 days
+Queries raised but not replied for >7 days
+Contracts issued but not signed for >21 days
+
+Card: Queries Performance
+MetricValueTotal Queries Raised43Queries Resolved23Open Queries20Avg Response Time2.3 daysFastest ResponseSame day (15 units)Slowest Response7 days (Unit 19)
+
+SECTION 3: REVENUE & PRICING
+Card: Revenue Summary
+MetricValueTotal Revenue (Sold)€28,450,000Projected Revenue (Agreed, not complete)€4,200,000Total Portfolio Value€32,650,000Private Units62Social Units13
+Card: Price by Property Type
+TypeUnitsAvg PriceMinMaxTotal Revenue2 Bed Terrace (BS01)12€385,000€375,000€395,000€4,620,0003 Bed Semi (BD01)28€425,000€415,000€435,000€11,900,0003 Bed Detached (BD02)15€475,000€465,000€490,000€7,125,0004 Bed Detached (BD04)7€525,000€515,000€545,000€3,675,000
+Note: Join with units table to get property type (type/beds columns).
+Card: Price per Square Foot (if sq ft data available)
+TypeAvg Sq FtAvg PriceAvg €/Sq Ft2 Bed Terrace850€385,000€4533 Bed Semi1,100€425,000€3863 Bed Detached1,350€475,000€3524 Bed Detached1,650€525,000€318Overall1,150€452,000€393
+Card: Price Trend by Phase
+PhaseUnitsAvg PriceRelease PeriodPhase 1 (Units 1-23)23€448,000Oct 2024Phase 2 (Units 24-45)22€455,000Nov 2024Phase 3 (Units 46-66)21€462,000Feb 2025
+Shows if you achieved price growth across phases.
+
+SECTION 4: FORECASTING
+Card: Upcoming Handovers
+PeriodUnitsProjected RevenueThis Month4€1,800,000Next Month6€2,700,000Next 3 Months14€6,300,000
+List of units with handover dates in each period.
+Card: Cash Flow Projection
+Bar chart showing expected revenue by month based on estimated_close_date or handover_date:
+
+X-axis: Months (Jan 2025, Feb 2025, Mar 2025, etc.)
+Y-axis: Revenue in €
+Stacked bars: Completed (green) vs Projected (gold/amber)
+
+Card: At Risk Units
+Units where mortgage offer may expire before completion (if mortgage_expiry_date is tracked):
+UnitPurchaserMortgage ExpiresDays RemainingCurrent Stage28 Longview ParkYan Zhao15 Feb 202514 daysCounter Signed
+
+SECTION 5: PURCHASER & SOLICITOR INSIGHTS
+Card: Purchaser Profile (if data available)
+TypeCount%First-Time Buyers4573%Movers1219%Investors58%
+Card: Solicitor Performance (if solicitor info tracked)
+Solicitor FirmUnitsAvg Days to SignQueries RaisedMurphy & Co1218 days8O'Brien Legal824 days12Walsh Solicitors1521 days9
+Helps identify which solicitors cause delays.
+
+SECTION 6: PHASE COMPARISON
+Card: Phase Performance Comparison
+MetricPhase 1Phase 2Phase 3Units232221Avg Price€448K€455K€462KAvg Days to Agreed8 days6 days4 daysAvg Total Cycle120 days105 days95 daysCompletion Rate100%95%85%Total Revenue€10.3M€10.0M€9.7M
+Shows improvement (or not) across phases.
+
+DESIGN & LAYOUT GUIDELINES
+
+Page Structure:
+
+Use a tab or section navigation: Overview | Velocity | Pipeline | Revenue | Forecasting | Insights
+Or a single scrollable dashboard with clear section headers
+
+
+Cards:
+
+White background with subtle shadow
+Consistent padding (24px)
+Clear titles in semi-bold
+Key metrics in large font (32-48px) with brand gold for important numbers
+
+
+Charts:
+
+Use a quality chart library (Recharts, Chart.js)
+Consistent color palette:
+
+Primary: Brand gold (#D4AF37)
+Secondary: Slate (#4A5568)
+Success: Green (#48BB78)
+Warning: Amber (#ECC94B)
+Danger: Red (#F56565)
+
+
+Tooltips on hover with detailed breakdowns
+
+
+Tables:
+
+Zebra striping for readability
+Right-align numbers
+Sortable columns where useful
+Clickable rows to drill down to specific units
+
+
+Responsive:
+
+Cards should reflow on smaller screens
+Charts should resize gracefully
+
+
+Loading States:
+
+Skeleton loaders for cards while data fetches
+No jarring layout shifts
+
+
+
+
+DATA REQUIREMENTS
+Ensure these columns exist in unit_sales_pipeline:
+
+release_date, sale_agreed_date, deposit_date, contracts_issued_date
+queries_raised_date, queries_replied_date
+signed_contracts_date, counter_signed_date
+snag_date, drawdown_date, handover_date, estimated_close_date
+sale_price, sale_type, status
+
+From units table:
+
+type or unit_type (e.g., BD01, BS01)
+beds (e.g., 3)
+floor_area or sq_ft (if available)
+
+If any columns are missing, the relevant metrics should show "Data not available" gracefully.
