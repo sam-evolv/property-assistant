@@ -529,7 +529,7 @@ function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) 
 
   if (isEditing) {
     return (
-      <td colSpan={5} className="border-l border-gray-50">
+      <td colSpan={8} className="border-l border-gray-50">
         <div 
           className="h-11 px-4 flex items-center gap-3"
           style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}
@@ -550,7 +550,7 @@ function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) 
             {COMMON_AGENCIES.slice(0, 4).map((agency) => (
               <button
                 key={agency}
-                onClick={(e) => { e.stopPropagation(); handleQuickSelect(agency); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleQuickSelect(agency); }}
                 className="px-2 py-1 text-[10px] font-medium rounded-full whitespace-nowrap transition-colors"
                 style={{ 
                   backgroundColor: '#5B8A8A15', 
@@ -577,7 +577,7 @@ function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) 
   const bgColor = showSuccess ? '#f0fdf4' : socialBgColor;
 
   return (
-    <td colSpan={5} className="border-l border-gray-50 group/agency">
+    <td colSpan={8} className="border-l border-gray-50 group/agency">
       <div
         onClick={handleClick}
         className="h-11 px-4 flex items-center justify-center cursor-pointer transition-all hover:bg-[#F3F2EE]"
