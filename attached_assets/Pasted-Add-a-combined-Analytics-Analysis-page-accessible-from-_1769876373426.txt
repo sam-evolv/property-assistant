@@ -1,0 +1,65 @@
+Add a combined Analytics/Analysis page accessible from the Sales Pipeline homepage that aggregates data across ALL developments.
+When viewing "All Schemes" in the Sales Pipeline, add an "Analysis" button (same as individual developments have) that shows combined metrics across all developments.
+Page Structure
+Header Section
+
+Title: "Portfolio Analytics" or "All Developments Analysis"
+Subtitle: "Combined analysis across X developments"
+Date range filter (optional)
+Export button
+
+Section 1: Portfolio Overview
+MetricValueTotal Developments3Total Units170Private Units115Social Units55Total Revenue (Private)€XX.XMAverage Price€XXX,XXX
+Section 2: Development Comparison Table
+DevelopmentUnitsSoldIn ProgressAvailableRevenueAvg PriceAvg CycleLongview Park7561140€28.5M€458K95 daysRathard Park529412€18.2M€455K82 daysRathard Lawn45300€1.6M€525K78 daysTOTAL17273552€48.3M€462K85 days
+Section 3: Combined Sales Velocity
+
+Chart showing sales agreed per month across ALL developments (stacked bar or line chart with different colors per development)
+Compare velocity between developments
+Identify which development is selling fastest
+
+Section 4: Combined Pipeline Funnel
+Aggregated funnel across all developments:
+Released:    ████████████████████████ 170
+Agreed:      ███████████████████████  155
+Deposit:     ██████████████████████   148
+Contracts:   █████████████████████    140
+Signed:      ████████████████████     125
+Complete:    █████████████████        73
+Section 5: Revenue by Development (Pie/Donut Chart)
+Visual breakdown of total revenue contribution by each development.
+Section 6: Price Comparison by House Type (Across Developments)
+TypeLongview ParkRathard ParkRathard LawnOverall Avg2 Bed€385K€390K-€387K3 Bed Semi€425K€440K-€432K3 Bed Detached€475K€485K€525K€495K4 Bed Detached€525K€495K€525K€515K
+Shows pricing consistency/variation across developments.
+Section 7: Cash Flow Projection (Combined)
+
+Stacked bar chart showing projected revenue by month
+Color-coded by development
+Shows total expected inflow across portfolio
+
+Section 8: Social Housing Summary
+DevelopmentSocial UnitsHousing AgencyStatusLongview Park13ClúidCompleteRathard Park12ClúidCompleteRathard Lawn42ClúidCompleteTotal67
+Section 9: Alerts & Attention Items (Combined)
+
+Units stuck across all developments
+Open queries across all developments
+Upcoming handovers (next 30 days) across all developments
+At-risk units (mortgage expiry, delays)
+
+Section 10: Performance Benchmarks
+MetricLongview ParkRathard ParkRathard LawnBestAvg Days to Agreed8 days6 days5 daysRathard LawnAvg Days to Complete95 days82 days78 daysRathard LawnQuery Response Time2.3 days1.8 days2.1 daysRathard ParkCompletion Rate81%17%7%Longview Park
+Highlights which development is performing best on each metric.
+Design Guidelines
+
+Consistent with individual development Analysis page styling
+Use brand gold (#D4AF37) for key metrics
+Charts should be interactive with tooltips
+Development colors should be consistent throughout (e.g., Longview = blue, Rathard Park = green, Rathard Lawn = purple)
+Responsive layout - cards should stack on mobile
+Loading states for each section
+
+Data Source
+
+Aggregate from unit_sales_pipeline joined with units and developments tables
+Filter by tenant_id to show only the logged-in developer's developments
+Exclude developments with 0 units
