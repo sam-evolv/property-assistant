@@ -85,6 +85,13 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
   const openSheet = useCallback((sheet: SheetType) => setActiveSheet(sheet), []);
   const closeSheet = useCallback(() => setActiveSheet(null), []);
 
+  const handleSwitchToAssistant = useCallback(() => {
+    if (props.unitId) {
+      localStorage.setItem(`handover_override_${props.unitId}`, 'true');
+      window.location.reload();
+    }
+  }, [props.unitId]);
+
   const milestoneIndex = MILESTONE_ORDER.indexOf(unit.currentMilestone as typeof MILESTONE_ORDER[number]);
   const completedCount = milestoneIndex >= 0 ? milestoneIndex + 1 : 0;
   const progressPercent = Math.round((completedCount / MILESTONE_ORDER.length) * 100);
@@ -599,7 +606,7 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
 
       {/* Settings Sheet */}
       <BottomSheet isOpen={activeSheet === 'settings'} onClose={closeSheet}>
-        <SettingsSheet />
+        <SettingsSheet onSwitchToAssistant={handleSwitchToAssistant} />
       </BottomSheet>
     </div>
   );

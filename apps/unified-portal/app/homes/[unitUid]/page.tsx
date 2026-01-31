@@ -102,6 +102,9 @@ export default function HomeResidentPage() {
   const [consentRequired, setConsentRequired] = useState(false);
   const [agreeingToDocs, setAgreeingToDocs] = useState(false);
   
+  // Manual handover override (when user switches to assistant before pipeline is updated)
+  const [handoverOverride, setHandoverOverride] = useState(false);
+  
   const MAX_RETRIES = 3;
   const RETRY_DELAY_MS = 2000;
 
@@ -112,7 +115,11 @@ export default function HomeResidentPage() {
 
     const savedTheme = localStorage.getItem('purchaser_theme');
     if (savedTheme === 'dark') setIsDarkMode(true);
-  }, []);
+    
+    // Check for manual handover override
+    const override = localStorage.getItem(`handover_override_${unitUid}`);
+    if (override === 'true') setHandoverOverride(true);
+  }, [unitUid]);
 
   useEffect(() => {
     const fetchHouse = async (attempt: number = 0) => {
@@ -383,7 +390,8 @@ export default function HomeResidentPage() {
 
   // PRE-HANDOVER PORTAL: Show for purchasers before handover is complete
   // This takes precedence over the main Property Assistant view
-  if (house && !house.handover_complete) {
+  // Unless user has manually switched to assistant via handoverOverride
+  if (house && !house.handover_complete && !handoverOverride) {
     // Fetch documents for this unit (we'll do this in a separate effect or inline)
     return (
       <PreHandoverPortal
