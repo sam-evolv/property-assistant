@@ -76,6 +76,9 @@ interface PipelineUnit {
   // Query tracking
   queriesRaisedDate: string | null;
   queriesRepliedDate: string | null;
+  // Sale type (private or social)
+  saleType: string | null;
+  socialHousingProvider?: string | null;
   // Property details from database
   houseTypeCode?: string | null; // BD01, BS01, BT01
   propertyDesignation?: string | null; // D (Detached), SD (Semi-Detached), T (Terrace)
@@ -142,6 +145,14 @@ function getProgress(unit: PipelineUnit): number {
   let count = 0;
   stages.forEach(s => { if (unit[s as keyof PipelineUnit]) count++; });
   return Math.round((count / stages.length) * 100);
+}
+
+// Social housing progress - only counts Snag and Handover (2 stages)
+function getSocialHousingProgress(unit: PipelineUnit): number {
+  let count = 0;
+  if (unit.snagDate) count++;
+  if (unit.handoverDate) count++;
+  return Math.round((count / 2) * 100);
 }
 
 function getCurrentStageIndex(unit: PipelineUnit): number {
@@ -418,11 +429,33 @@ function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
 }
 
 // =============================================================================
+// Inactive Cell Component (for social housing rows)
+// =============================================================================
+
+interface InactiveCellProps {
+  isSocial?: boolean;
+}
+
+function InactiveCell({ isSocial = false }: InactiveCellProps) {
+  return (
+    <td className="border-l border-gray-50">
+      <div 
+        className="h-11 px-2 flex items-center justify-center"
+        style={{ backgroundColor: isSocial ? '#F8F7F5' : undefined }}
+      >
+        <span className="text-[#D0D0D0] text-xs">—</span>
+      </div>
+    </td>
+  );
+}
+
+// =============================================================================
 // Progress Cell Component
 // =============================================================================
 
 interface ProgressCellProps {
   progress: number;
+  isSocialHousing?: boolean;
 }
 
 function ProgressCell({ progress }: ProgressCellProps) {
@@ -1618,15 +1651,30 @@ export default function PipelineDevelopmentPage() {
                 <tbody className="divide-y divide-gray-100">
                   {sortedUnits.map((unit) => {
                     const isSelected = selectedRows.has(unit.id);
-                    const progress = getProgress(unit);
+                    const isSocialHousing = unit.saleType === 'social';
+                    const progress = isSocialHousing ? getSocialHousingProgress(unit) : getProgress(unit);
+                    const socialBgColor = '#F8F7F5';
+                    const socialHoverBgColor = '#F3F2EE';
+                    
                     return (
                       <tr
                         key={unit.id}
-                        className={`table-row cursor-pointer ${isSelected ? 'selected' : ''}`}
+                        className={`table-row cursor-pointer ${isSelected ? 'selected' : ''} ${isSocialHousing ? 'social-housing-row' : ''}`}
+                        style={isSocialHousing ? { backgroundColor: socialBgColor } : undefined}
                         onClick={() => setSelectedUnit(unit)}
+                        onMouseEnter={(e) => {
+                          if (isSocialHousing) {
+                            e.currentTarget.style.backgroundColor = socialHoverBgColor;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isSocialHousing) {
+                            e.currentTarget.style.backgroundColor = socialBgColor;
+                          }
+                        }}
                       >
                         {/* Checkbox */}
-                        <td className="sticky left-0 z-10 bg-white w-11 px-3 py-3">
+                        <td className="sticky left-0 z-10 w-11 px-3 py-3" style={{ backgroundColor: isSocialHousing ? socialBgColor : 'white' }}>
                           <input
                             type="checkbox"
                             className="row-checkbox"
@@ -1637,7 +1685,7 @@ export default function PipelineDevelopmentPage() {
                         </td>
 
                         {/* Unit / Purchaser */}
-                        <td className="sticky left-[44px] z-10 bg-white px-4 py-2">
+                        <td className="sticky left-[44px] z-10 px-4 py-2" style={{ backgroundColor: isSocialHousing ? socialBgColor : 'white' }}>
                           <div className="flex items-center gap-3">
                             <div className="min-w-0 flex-1">
                               {/* Row 1: Unit number, house type, bedrooms, sqft */}
@@ -1660,11 +1708,25 @@ export default function PipelineDevelopmentPage() {
                                   <span className="text-[10px] font-medium text-gray-400">{Math.round(unit.squareFootage)} sqft</span>
                                 )}
                               </div>
-                              {/* Row 2: Purchaser name */}
+                              {/* Row 2: Purchaser name or Social Housing label */}
                               <div className="flex items-center gap-2 mt-0.5">
-                                <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-700' : 'text-gray-400'}`}>
-                                  {unit.purchaserName || 'Available'}
-                                </p>
+                                {isSocialHousing ? (
+                                  <>
+                                    <p className="text-xs text-gray-500">Social Housing</p>
+                                    {unit.socialHousingProvider && (
+                                      <span 
+                                        className="px-2 py-0.5 text-[10px] font-semibold rounded-full"
+                                        style={{ backgroundColor: '#5B8A8A15', color: '#5B8A8A', border: '1px solid #5B8A8A30' }}
+                                      >
+                                        {unit.socialHousingProvider}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-700' : 'text-gray-400'}`}>
+                                    {unit.purchaserName || 'Available'}
+                                  </p>
+                                )}
                               </div>
                             </div>
                             <div className="row-arrow opacity-0 transform translate-x-1 transition-all text-gold-500">
@@ -1673,43 +1735,56 @@ export default function PipelineDevelopmentPage() {
                           </div>
                         </td>
 
-                        {/* Date Cells */}
-                        <DateCell value={unit.releaseDate} unitId={unit.id} field="releaseDate" onUpdate={handleUpdate} />
-                        <DateCell value={unit.saleAgreedDate} unitId={unit.id} field="saleAgreedDate" onUpdate={handleUpdate} />
-                        <DateCell value={unit.depositDate} unitId={unit.id} field="depositDate" onUpdate={handleUpdate} />
-                        <DateCell value={unit.contractsIssuedDate} unitId={unit.id} field="contractsIssuedDate" onUpdate={handleUpdate} />
+                        {/* Date Cells - Inactive for social housing (Release through Kitchen) */}
+                        {isSocialHousing ? (
+                          <>
+                            <InactiveCell isSocial />
+                            <InactiveCell isSocial />
+                            <InactiveCell isSocial />
+                            <InactiveCell isSocial />
+                            <InactiveCell isSocial />
+                          </>
+                        ) : (
+                          <>
+                            <DateCell value={unit.releaseDate} unitId={unit.id} field="releaseDate" onUpdate={handleUpdate} />
+                            <DateCell value={unit.saleAgreedDate} unitId={unit.id} field="saleAgreedDate" onUpdate={handleUpdate} />
+                            <DateCell value={unit.depositDate} unitId={unit.id} field="depositDate" onUpdate={handleUpdate} />
+                            <DateCell value={unit.contractsIssuedDate} unitId={unit.id} field="contractsIssuedDate" onUpdate={handleUpdate} />
+                            {/* Queries */}
+                            <QueriesCell
+                              count={unit.notesCount}
+                              unresolvedCount={unit.unresolvedNotesCount}
+                              onClick={(e) => { e.stopPropagation(); setQueryUnit(unit); }}
+                            />
 
-                        {/* Queries */}
-                        <QueriesCell
-                          count={unit.notesCount}
-                          unresolvedCount={unit.unresolvedNotesCount}
-                          onClick={(e) => { e.stopPropagation(); setQueryUnit(unit); }}
-                        />
+                            <DateCell 
+                              value={unit.signedContractsDate} 
+                              unitId={unit.id} 
+                              field="signedContractsDate" 
+                              onUpdate={handleUpdate}
+                              trafficLight={computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42)}
+                              onChase={() => handleChaseEmail(unit, 'contracts')}
+                            />
+                            <DateCell value={unit.counterSignedDate} unitId={unit.id} field="counterSignedDate" onUpdate={handleUpdate} />
+                            <DateCell 
+                              value={unit.kitchenDate} 
+                              unitId={unit.id} 
+                              field="kitchenDate" 
+                              onUpdate={handleUpdate}
+                              trafficLight={computeTrafficLight(unit.kitchenDate, unit.signedContractsDate, 14, 28)}
+                              onChase={() => handleChaseEmail(unit, 'kitchen')}
+                            />
+                          </>
+                        )}
 
-                        <DateCell 
-                          value={unit.signedContractsDate} 
-                          unitId={unit.id} 
-                          field="signedContractsDate" 
-                          onUpdate={handleUpdate}
-                          trafficLight={computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42)}
-                          onChase={() => handleChaseEmail(unit, 'contracts')}
-                        />
-                        <DateCell value={unit.counterSignedDate} unitId={unit.id} field="counterSignedDate" onUpdate={handleUpdate} />
-                        <DateCell 
-                          value={unit.kitchenDate} 
-                          unitId={unit.id} 
-                          field="kitchenDate" 
-                          onUpdate={handleUpdate}
-                          trafficLight={computeTrafficLight(unit.kitchenDate, unit.signedContractsDate, 14, 28)}
-                          onChase={() => handleChaseEmail(unit, 'kitchen')}
-                        />
+                        {/* Snag, Drawdown, Handover - Active for ALL units including social housing */}
                         <DateCell 
                           value={unit.snagDate} 
                           unitId={unit.id} 
                           field="snagDate" 
                           onUpdate={handleUpdate}
-                          trafficLight={computeTrafficLight(unit.snagDate, unit.kitchenDate, 14, 30)}
-                          onChase={() => handleChaseEmail(unit, 'snag')}
+                          trafficLight={!isSocialHousing ? computeTrafficLight(unit.snagDate, unit.kitchenDate, 14, 30) : null}
+                          onChase={!isSocialHousing ? () => handleChaseEmail(unit, 'snag') : undefined}
                         />
                         <DateCell value={unit.drawdownDate} unitId={unit.id} field="drawdownDate" onUpdate={handleUpdate} />
                         <DateCell value={unit.handoverDate} unitId={unit.id} field="handoverDate" onUpdate={handleUpdate} />

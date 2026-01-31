@@ -1,0 +1,58 @@
+Here's the Replit prompt:
+
+Redesign social housing unit rows in the Sales Pipeline for a premium, differentiated appearance.
+Social housing units (sale_type = 'social' in unit_sales_pipeline table) follow a different process than private sales - they don't have individual purchasers, deposits, contracts, or queries. They only need Snag and Handover tracking.
+Design requirements for social housing rows:
+
+Row Background: Subtle warm grey background (#F8F7F5 or similar) to visually separate from white private sale rows - should feel premium, not "disabled"
+Unit/Purchaser Column:
+
+Show unit number and address as normal (e.g., "29 Longview Park")
+Replace purchaser name with elegant "Social Housing" label in muted text
+Add a refined badge: small, rounded pill with "Clúid" in a sophisticated teal or slate blue (#5B8A8A or similar) - not garish, should feel professional
+
+
+Sales Process Columns (Release through Kitchen):
+
+These columns should appear "inactive" but not broken
+Show a subtle "—" in a lighter grey (#D0D0D0)
+Or leave cells empty with just the muted background
+No interaction/click states on these cells
+
+
+Active Columns (Snag, Drawdown, Handover, Progress, Est. Close):
+
+These remain fully functional and styled normally
+Should have white or slightly lighter background to stand out from the muted row
+Dates display and edit as normal
+
+
+Visual Hierarchy:
+
+The row should feel "complete but different" not "broken or empty"
+When scanning the table, your eye should naturally focus on private sales while social units recede slightly but remain readable
+Maintain consistent row height - don't collapse or shrink social rows
+
+
+Hover State:
+
+Subtle hover effect that's slightly different from private rows
+Perhaps a gentle transition to a slightly warmer grey
+
+
+Progress Column:
+
+Social units should still show progress based on Snag/Handover completion
+If both Snag and Handover are complete, show 100% green
+If only Snag, show partial progress
+
+
+
+Quality Standards:
+
+No harsh color contrasts
+Smooth transitions and hover states
+Typography should remain crisp and readable
+The overall effect should feel like a premium property management tool, not a basic spreadsheet
+Test with the Longview Park data where units 29-32 and 67-75 are social housing
+
