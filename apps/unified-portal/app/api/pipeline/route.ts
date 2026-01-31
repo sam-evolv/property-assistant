@@ -26,40 +26,62 @@ export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
+    const isSuperAdmin = session.role === 'super_admin';
 
-    if (!tenantId) {
+    if (!tenantId && !isSuperAdmin) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Get all developments for this tenant - try Drizzle first, fallback to Supabase
+    // Get all developments - for super_admin, get ALL developments; otherwise filter by tenant
     let devList: any[] = [];
     let usedFallback = false;
 
     try {
-      devList = await db
-        .select({
-          id: developments.id,
-          name: developments.name,
-          code: developments.code,
-          address: developments.address,
-          is_active: developments.is_active,
-        })
-        .from(developments)
-        .where(eq(developments.tenant_id, tenantId))
-        .orderBy(sql`name ASC`);
+      if (isSuperAdmin) {
+        // Super admin sees all developments
+        devList = await db
+          .select({
+            id: developments.id,
+            name: developments.name,
+            code: developments.code,
+            address: developments.address,
+            is_active: developments.is_active,
+            tenant_id: developments.tenant_id,
+          })
+          .from(developments)
+          .orderBy(sql`name ASC`);
+      } else {
+        devList = await db
+          .select({
+            id: developments.id,
+            name: developments.name,
+            code: developments.code,
+            address: developments.address,
+            is_active: developments.is_active,
+            tenant_id: developments.tenant_id,
+          })
+          .from(developments)
+          .where(eq(developments.tenant_id, tenantId!))
+          .orderBy(sql`name ASC`);
+      }
       console.log('[Pipeline API] Drizzle developments:', devList.length);
     } catch (drizzleError) {
       console.error('[Pipeline API] Drizzle error (falling back to Supabase):', drizzleError);
       usedFallback = true;
 
       // Fallback to Supabase
-      const { data: supabaseDevs, error: supabaseError } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('developments')
-        .select('id, name, code, address, is_active')
-        .eq('tenant_id', tenantId)
+        .select('id, name, code, address, is_active, tenant_id')
         .order('name', { ascending: true });
+      
+      if (!isSuperAdmin && tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+      
+      const { data: supabaseDevs, error: supabaseError } = await query;
 
       if (supabaseError) {
         console.error('[Pipeline API] Supabase fallback error:', supabaseError);
@@ -83,6 +105,9 @@ export async function GET(request: NextRequest) {
     // Get stats for each development
     const developmentsWithStats = await Promise.all(
       devList.map(async (dev) => {
+        // Use the development's tenant_id for all queries
+        const devTenantId = dev.tenant_id;
+        
         // Count total units - try Drizzle first, fallback to Supabase
         let totalCount = 0;
 
@@ -91,7 +116,7 @@ export async function GET(request: NextRequest) {
             const [totalResult] = await db
               .select({ count: count() })
               .from(units)
-              .where(sql`${units.tenant_id} = ${tenantId} AND ${units.development_id} = ${dev.id}`);
+              .where(sql`${units.development_id} = ${dev.id}`);
             totalCount = totalResult?.count || 0;
           } else {
             throw new Error('Using Supabase fallback');
@@ -101,7 +126,6 @@ export async function GET(request: NextRequest) {
           const { count: supabaseCount } = await supabaseAdmin
             .from('units')
             .select('*', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId)
             .eq('development_id', dev.id);
           totalCount = supabaseCount || 0;
         }
@@ -117,8 +141,7 @@ export async function GET(request: NextRequest) {
             // Count released units (have pipeline record with release_date)
             const releasedResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}::uuid
-              AND development_id = ${dev.id}::uuid
+              WHERE development_id = ${dev.id}::uuid
               AND release_date IS NOT NULL
             `);
             releasedCount = Number(releasedResult.rows?.[0]?.count || 0);
@@ -126,8 +149,7 @@ export async function GET(request: NextRequest) {
             // Count handed over units
             const handedOverResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}::uuid
-              AND development_id = ${dev.id}::uuid
+              WHERE development_id = ${dev.id}::uuid
               AND handover_date IS NOT NULL
             `);
             handedOverCount = Number(handedOverResult.rows?.[0]?.count || 0);
@@ -135,8 +157,7 @@ export async function GET(request: NextRequest) {
             // Count in-progress (released but not handed over)
             const inProgressResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_sales_pipeline
-              WHERE tenant_id = ${tenantId}::uuid
-              AND development_id = ${dev.id}::uuid
+              WHERE development_id = ${dev.id}::uuid
               AND release_date IS NOT NULL
               AND handover_date IS NULL
             `);
@@ -145,8 +166,7 @@ export async function GET(request: NextRequest) {
             // Count unresolved notes
             const unresolvedResult = await db.execute(sql`
               SELECT COUNT(*) as count FROM unit_pipeline_notes
-              WHERE tenant_id = ${tenantId}::uuid
-              AND pipeline_id IN (
+              WHERE pipeline_id IN (
                 SELECT id FROM unit_sales_pipeline
                 WHERE development_id = ${dev.id}::uuid
               )
