@@ -118,10 +118,10 @@ export async function GET(
       .select(`
         id,
         unit_number,
-        address,
-        type,
-        beds,
-        floor_area,
+        address_line_1,
+        property_type,
+        bedrooms,
+        square_footage,
         unit_sales_pipeline (
           id,
           sale_type,
@@ -157,9 +157,9 @@ export async function GET(
     const pipelineUnits = (units || []).map(u => ({
       id: u.id,
       unitNumber: u.unit_number,
-      type: u.type,
-      beds: u.beds,
-      floorArea: u.floor_area,
+      type: u.property_type,
+      beds: u.bedrooms ? Number(u.bedrooms) : null,
+      floorArea: u.square_footage ? Number(u.square_footage) : null,
       pipeline: Array.isArray(u.unit_sales_pipeline) ? u.unit_sales_pipeline[0] : u.unit_sales_pipeline,
     })).filter(u => u.pipeline);
 
@@ -219,6 +219,13 @@ export async function GET(
     });
     const totalCycleAvg = totalCycles.length > 0 ? Math.round(totalCycles.reduce((a, b) => a + b, 0) / totalCycles.length) : 0;
 
+    // Helper to safely parse sale price (stored as DECIMAL string like "475000.00")
+    const parsePrice = (price: any): number => {
+      if (price === null || price === undefined) return 0;
+      const parsed = parseFloat(String(price));
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     // Sales Velocity Trend (units agreed per month)
     const velocityByMonth: Record<string, { count: number; revenue: number }> = {};
     privateUnits.forEach(u => {
@@ -227,7 +234,7 @@ export async function GET(
         const key = getMonthKey(agreedDate);
         if (!velocityByMonth[key]) velocityByMonth[key] = { count: 0, revenue: 0 };
         velocityByMonth[key].count++;
-        velocityByMonth[key].revenue += u.pipeline.sale_price || 0;
+        velocityByMonth[key].revenue += parsePrice(u.pipeline.sale_price);
       }
     });
 
@@ -341,21 +348,22 @@ export async function GET(
     // SECTION 3: REVENUE & PRICING
     // ==========================================================================
 
-    const soldUnits = privateUnits.filter(u => u.pipeline.handover_date && u.pipeline.sale_price);
-    const agreedNotComplete = privateUnits.filter(u => u.pipeline.sale_agreed_date && !u.pipeline.handover_date && u.pipeline.sale_price);
+    const soldUnits = privateUnits.filter(u => u.pipeline.handover_date && parsePrice(u.pipeline.sale_price) > 0);
+    const agreedNotComplete = privateUnits.filter(u => u.pipeline.sale_agreed_date && !u.pipeline.handover_date && parsePrice(u.pipeline.sale_price) > 0);
 
-    const totalRevenueSold = soldUnits.reduce((sum, u) => sum + (u.pipeline.sale_price || 0), 0);
-    const projectedRevenue = agreedNotComplete.reduce((sum, u) => sum + (u.pipeline.sale_price || 0), 0);
+    const totalRevenueSold = soldUnits.reduce((sum, u) => sum + parsePrice(u.pipeline.sale_price), 0);
+    const projectedRevenue = agreedNotComplete.reduce((sum, u) => sum + parsePrice(u.pipeline.sale_price), 0);
     const totalPortfolioValue = totalRevenueSold + projectedRevenue;
 
     // Price by Property Type
     const typeGroups: Record<string, { units: any[]; prices: number[]; sqFts: number[] }> = {};
     privateUnits.forEach(u => {
-      if (u.pipeline.sale_price) {
+      const price = parsePrice(u.pipeline.sale_price);
+      if (price > 0) {
         const typeKey = u.type || 'Unknown';
         if (!typeGroups[typeKey]) typeGroups[typeKey] = { units: [], prices: [], sqFts: [] };
         typeGroups[typeKey].units.push(u);
-        typeGroups[typeKey].prices.push(u.pipeline.sale_price);
+        typeGroups[typeKey].prices.push(price);
         if (u.floorArea) typeGroups[typeKey].sqFts.push(u.floorArea);
       }
     });
@@ -380,7 +388,7 @@ export async function GET(
     }).sort((a, b) => b.units - a.units);
 
     // Overall price per sq ft
-    const allPrices = privateUnits.filter(u => u.pipeline.sale_price).map(u => u.pipeline.sale_price);
+    const allPrices = privateUnits.filter(u => parsePrice(u.pipeline.sale_price) > 0).map(u => parsePrice(u.pipeline.sale_price));
     const allSqFts = privateUnits.filter(u => u.floorArea).map(u => u.floorArea);
     const overallAvgPrice = allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : 0;
     const overallAvgSqFt = allSqFts.length > 0 ? Math.round(allSqFts.reduce((a, b) => a + b, 0) / allSqFts.length) : null;
@@ -406,25 +414,26 @@ export async function GET(
       if (!handoverDate || u.pipeline.handover_date) return; // Skip already completed
 
       const d = new Date(handoverDate);
+      const price = parsePrice(u.pipeline.sale_price);
       const unitInfo = {
         unitNumber: u.unitNumber,
         purchaserName: u.pipeline.purchaser_name,
         date: handoverDate,
-        price: u.pipeline.sale_price,
+        price: price > 0 ? price : null,
       };
 
       if (d.getMonth() === thisMonth.getMonth() && d.getFullYear() === thisMonth.getFullYear()) {
         upcomingHandovers[0].units++;
-        upcomingHandovers[0].projectedRevenue += u.pipeline.sale_price || 0;
+        upcomingHandovers[0].projectedRevenue += price;
         upcomingHandovers[0].unitList.push(unitInfo);
       } else if (d.getMonth() === nextMonth.getMonth() && d.getFullYear() === nextMonth.getFullYear()) {
         upcomingHandovers[1].units++;
-        upcomingHandovers[1].projectedRevenue += u.pipeline.sale_price || 0;
+        upcomingHandovers[1].projectedRevenue += price;
         upcomingHandovers[1].unitList.push(unitInfo);
       }
       if (d < threeMonths) {
         upcomingHandovers[2].units++;
-        upcomingHandovers[2].projectedRevenue += u.pipeline.sale_price || 0;
+        upcomingHandovers[2].projectedRevenue += price;
         upcomingHandovers[2].unitList.push(unitInfo);
       }
     });
@@ -435,7 +444,7 @@ export async function GET(
     privateUnits.forEach(u => {
       const handoverDate = u.pipeline.handover_date;
       const estDate = u.pipeline.estimated_close_date;
-      const price = u.pipeline.sale_price || 0;
+      const price = parsePrice(u.pipeline.sale_price);
 
       if (handoverDate) {
         const key = getMonthKey(handoverDate);
@@ -467,7 +476,7 @@ export async function GET(
           totalUnits: pipelineUnits.length,
           privateUnits: privateUnits.length,
           socialUnits: socialUnits.length,
-          unitsWithPrice: privateUnits.filter(u => u.pipeline.sale_price).length,
+          unitsWithPrice: privateUnits.filter(u => parsePrice(u.pipeline.sale_price) > 0).length,
           completedUnits: soldUnits.length,
           inProgress: privateUnits.length - soldUnits.length,
         },
