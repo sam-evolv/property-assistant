@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const developmentId = params.id;
 
@@ -117,7 +117,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const developmentId = params.id;
     const body = await request.json();
@@ -149,7 +149,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const developmentId = params.id;
 

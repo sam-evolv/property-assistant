@@ -105,7 +105,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const developmentId = params.id;
     const formData = await request.formData();

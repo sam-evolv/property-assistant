@@ -109,23 +109,16 @@ const STATUS_OPTIONS = [
   { value: 'unit_address', label: 'Unit Address' },
   { value: 'house_type_code', label: 'House Type Code' },
   { value: 'bedrooms', label: 'Bedrooms' },
-  { value: 'sale_price', label: 'Sale Price' },
-  { value: 'status', label: 'Status' },
   { value: 'purchaser_name', label: 'Purchaser Name' },
   { value: 'release_date', label: 'Release Date' },
   { value: 'deposit_date', label: 'Deposit Date' },
   { value: 'sale_agreed_date', label: 'Sale Agreed Date' },
   { value: 'contracts_issued_date', label: 'Contracts Issued Date' },
-  { value: 'queries_raised_date', label: 'Queries Raised Date' },
-  { value: 'queries_replied_date', label: 'Queries Replied Date' },
   { value: 'signed_contracts_date', label: 'Signed Contracts Date' },
   { value: 'counter_signed_date', label: 'Counter Signed Date' },
-  { value: 'estimated_close_date', label: 'Estimated Close Date' },
   { value: 'snag_date', label: 'Snag Date' },
-  { value: 'handover_date', label: 'Handover Date' },
   { value: 'drawdown_date', label: 'Drawdown Date' },
-  { value: 'comments', label: 'Comments' },
-  { value: 'housing_agency', label: 'Housing Agency' },
+  { value: 'handover_date', label: 'Handover Date' },
 ];
 
 export default function DevelopmentDetailClient({
@@ -923,17 +916,16 @@ export default function DevelopmentDetailClient({
                   </div>
 
                   <div className="border-2 border-neutral-200 rounded-lg overflow-x-auto">
-                    <table className="w-full min-w-[1200px]">
+                    <table className="w-full min-w-[1000px]">
                       <thead className="bg-neutral-50 border-b-2 border-neutral-200">
                         <tr>
                           <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">#</th>
                           <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Address</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Status</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Price</th>
                           <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Purchaser</th>
                           <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Release</th>
                           <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Agreed</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Queries</th>
+                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Contracts</th>
+                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Handover</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
@@ -941,22 +933,11 @@ export default function DevelopmentDetailClient({
                           <tr key={idx} className="hover:bg-neutral-50">
                             <td className="px-4 py-3 text-sm text-neutral-900">{idx + 1}</td>
                             <td className="px-4 py-3 text-sm text-neutral-900 font-medium">{row.address}</td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className={cn(
-                                'px-2 py-1 rounded-full text-xs font-medium',
-                                row.status === 'For Sale' && 'bg-blue-100 text-blue-700',
-                                row.status === 'Agreed' && 'bg-amber-100 text-amber-700',
-                                row.status === 'Signed' && 'bg-green-100 text-green-700',
-                                row.status === 'Sold' && 'bg-purple-100 text-purple-700'
-                              )}>
-                                {row.status || '—'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.price || '—'}</td>
                             <td className="px-4 py-3 text-sm text-neutral-900 max-w-[200px] truncate">{row.purchaser || '—'}</td>
                             <td className="px-4 py-3 text-sm text-neutral-900">{row.release_date || '—'}</td>
                             <td className="px-4 py-3 text-sm text-neutral-900">{row.sale_agreed_date || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.queries_raised_date || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-900">{row.contracts_issued_date || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-900">{row.handover_date || '—'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -972,11 +953,10 @@ export default function DevelopmentDetailClient({
                   <div className="bg-neutral-50 border-2 border-neutral-200 rounded-lg p-4">
                     <h4 className="text-sm font-semibold text-neutral-900 mb-2">Summary</h4>
                     <ul className="text-sm text-neutral-600 space-y-1">
-                      <li>• {previewData.length} total units</li>
-                      <li>• {previewData.filter(r => r.status === 'For Sale').length} For Sale</li>
-                      <li>• {previewData.filter(r => r.status === 'Agreed').length} Agreed</li>
-                      <li>• {previewData.filter(r => r.status === 'Signed').length} Signed</li>
+                      <li>• {previewData.length} total units to create</li>
                       <li>• {previewData.filter(r => r.purchaser).length} with purchaser assigned</li>
+                      <li>• {previewData.filter(r => r.sale_agreed_date).length} with sale agreed date</li>
+                      <li>• {previewData.filter(r => r.handover_date).length} with handover date</li>
                     </ul>
                   </div>
 

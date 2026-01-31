@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin']);
+    await requireRole(['super_admin', 'admin']);
 
     const developmentId = params.id;
 
