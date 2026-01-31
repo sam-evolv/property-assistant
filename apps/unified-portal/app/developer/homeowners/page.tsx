@@ -63,13 +63,32 @@ export default async function HomeownersPage({
   const supabaseAdmin = getSupabaseAdmin();
   
   try {
-    // Fetch all projects for this tenant - SECURITY: Filter by tenant_id
+    // Fetch all developments for this tenant - SECURITY: Filter by tenant_id
+    // Try developments table first (primary), fallback to projects table
+    const { data: developments } = await supabaseAdmin
+      .from('developments')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('name');
+    
+    // Also check projects table for legacy data
     const { data: projects } = await supabaseAdmin
       .from('projects')
       .select('*')
       .eq('tenant_id', tenantId)
       .order('name');
-    allProjects = projects || [];
+    
+    // Merge both sources, dedupe by id
+    const devMap = new Map();
+    for (const dev of (developments || [])) {
+      devMap.set(dev.id, dev);
+    }
+    for (const proj of (projects || [])) {
+      if (!devMap.has(proj.id)) {
+        devMap.set(proj.id, proj);
+      }
+    }
+    allProjects = Array.from(devMap.values());
     const projectsMap = new Map(allProjects.map((p: any) => [p.id, p]));
     
     // Fetch units from Supabase - SECURITY: Filter by tenant_id unconditionally
