@@ -273,11 +273,11 @@ export default function AnalysisPage() {
                 onClick={() => router.push(`/developer/pipeline/${developmentId}`)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
+                <ArrowLeft className="w-5 h-5 text-gray-900" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Analysis</h1>
-                <p className="text-sm text-gray-500">{developmentName}</p>
+                <p className="text-sm text-gray-900">{developmentName}</p>
               </div>
             </div>
           </div>
@@ -400,10 +400,10 @@ export default function AnalysisPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Metric</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Unit</th>
-                      <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Days</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Purchaser</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Metric</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Unit</th>
+                      <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Days</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Purchaser</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -482,10 +482,10 @@ export default function AnalysisPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Unit</th>
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Current Stage</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Days at Stage</th>
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Purchaser</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Unit</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Current Stage</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Days at Stage</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Purchaser</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -548,16 +548,16 @@ export default function AnalysisPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Units</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Avg Price</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Min</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Max</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Total Revenue</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Type</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Units</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Avg Price</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Min</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Max</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Total Revenue</th>
                         {revenue.priceByType.some(p => p.avgSqFt) && (
                           <>
-                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Avg Sq Ft</th>
-                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">€/Sq Ft</th>
+                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Avg Sq Ft</th>
+                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">€/Sq Ft</th>
                           </>
                         )}
                       </tr>
