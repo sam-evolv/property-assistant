@@ -109,16 +109,20 @@ const STATUS_OPTIONS = [
   { value: 'unit_address', label: 'Unit Address' },
   { value: 'house_type_code', label: 'House Type Code' },
   { value: 'bedrooms', label: 'Bedrooms' },
+  { value: 'sale_price', label: 'Sale Price' },
   { value: 'purchaser_name', label: 'Purchaser Name' },
   { value: 'release_date', label: 'Release Date' },
   { value: 'deposit_date', label: 'Deposit Date' },
   { value: 'sale_agreed_date', label: 'Sale Agreed Date' },
   { value: 'contracts_issued_date', label: 'Contracts Issued Date' },
+  { value: 'queries_raised_date', label: 'Queries Raised Date' },
+  { value: 'queries_replied_date', label: 'Queries Replied Date' },
   { value: 'signed_contracts_date', label: 'Signed Contracts Date' },
   { value: 'counter_signed_date', label: 'Counter Signed Date' },
   { value: 'snag_date', label: 'Snag Date' },
   { value: 'drawdown_date', label: 'Drawdown Date' },
   { value: 'handover_date', label: 'Handover Date' },
+  { value: 'estimated_close_date', label: 'Estimated Close Date' },
 ];
 
 export default function DevelopmentDetailClient({
@@ -286,14 +290,12 @@ export default function DevelopmentDetailClient({
 
   const autoMapColumns = (columns: string[]) => {
     const mappings: Record<string, string> = {};
-    const lowerColumns = columns.map(c => c.toLowerCase());
 
     const autoMappings: Record<string, string[]> = {
       'unit_address': ['address', 'dwelling', 'unit', 'property address'],
       'house_type_code': ['property designation', 'type', 'house type', 'designation'],
       'bedrooms': ['bedrooms', 'beds', 'bed'],
       'sale_price': ['price', 'sale price', 'amount'],
-      'status': ['status'],
       'purchaser_name': ['purchaser', 'buyer', 'name', 'purchaser information'],
       'release_date': ['release'],
       'deposit_date': ['deposit'],
@@ -305,8 +307,8 @@ export default function DevelopmentDetailClient({
       'counter_signed_date': ['one part', 'counter signed', 'countersigned'],
       'estimated_close_date': ['projected handover', 'estimated close', 'projected'],
       'snag_date': ['snagging', 'snag'],
-      'comments': ['comments', 'notes'],
-      'housing_agency': ['housing body', 'agency', 'ahb'],
+      'drawdown_date': ['drawdown', 'draw down'],
+      'handover_date': ['handover', 'hand over', 'completion'],
     };
 
     columns.forEach((col, idx) => {
@@ -915,49 +917,131 @@ export default function DevelopmentDetailClient({
                     <span className="text-sm text-neutral-500">{previewData.length} units to import</span>
                   </div>
 
-                  <div className="border-2 border-neutral-200 rounded-lg overflow-x-auto">
-                    <table className="w-full min-w-[1000px]">
+                  <div className="border-2 border-neutral-200 rounded-lg overflow-x-auto relative">
+                    <table className="w-full" style={{ minWidth: '1800px' }}>
                       <thead className="bg-neutral-50 border-b-2 border-neutral-200">
                         <tr>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">#</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Address</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Purchaser</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Release</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Agreed</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Contracts</th>
-                          <th className="text-left px-4 py-3 text-sm font-semibold text-neutral-900">Handover</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-neutral-900 sticky left-0 bg-neutral-50 z-10 border-r-2 border-neutral-200 min-w-[220px]">Unit / Purchaser</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Price</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Release</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Agreed</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Deposit</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Contracts</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Queries</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Signed</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Counter</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Kitchen</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Snag</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Drawdown</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Handover</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Progress</th>
+                          <th className="text-left px-3 py-3 text-xs font-semibold text-neutral-900 whitespace-nowrap">Est. Close</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
-                        {previewData.slice(0, 20).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50">
-                            <td className="px-4 py-3 text-sm text-neutral-900">{idx + 1}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900 font-medium">{row.address}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900 max-w-[200px] truncate">{row.purchaser || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.release_date || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.sale_agreed_date || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.contracts_issued_date || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-neutral-900">{row.handover_date || '—'}</td>
-                          </tr>
-                        ))}
+                        {previewData.slice(0, 30).map((row, idx) => {
+                          const stages = [
+                            row.release_date,
+                            row.sale_agreed_date,
+                            row.deposit_date,
+                            row.contracts_issued_date,
+                            row.signed_contracts_date,
+                            row.counter_signed_date,
+                            row.snag_date,
+                            row.drawdown_date,
+                            row.handover_date,
+                          ];
+                          const completedStages = stages.filter(Boolean).length;
+                          const progressPercent = Math.round((completedStages / stages.length) * 100);
+                          
+                          return (
+                            <tr key={idx} className="hover:bg-neutral-50">
+                              <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r-2 border-neutral-100 min-w-[220px]">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-neutral-900">{row.address || '—'}</span>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {row.house_type_code && (
+                                      <span className="text-xs px-1.5 py-0.5 bg-neutral-100 text-neutral-600 rounded font-medium">{row.house_type_code}</span>
+                                    )}
+                                    {row.bedrooms && (
+                                      <span className="text-xs text-neutral-500">{row.bedrooms} bed</span>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-neutral-500 mt-0.5">{row.purchaser || '—'}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.price || '—'}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.release_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.sale_agreed_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.deposit_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.contracts_issued_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm whitespace-nowrap">
+                                {row.queries_raised_date ? (
+                                  row.queries_replied_date ? (
+                                    <span className="text-xs px-2 py-1 bg-neutral-100 text-neutral-600 rounded-full">Resolved</span>
+                                  ) : (
+                                    <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Pending</span>
+                                  )
+                                ) : (
+                                  <span className="text-neutral-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.signed_contracts_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.counter_signed_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm whitespace-nowrap"><span className="text-neutral-400">—</span></td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.snag_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.drawdown_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.handover_date || <span className="text-neutral-400">—</span>}</td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-2 bg-neutral-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={cn(
+                                        'h-full rounded-full',
+                                        progressPercent === 100 ? 'bg-green-500' :
+                                        progressPercent >= 70 ? 'bg-[#D4AF37]' :
+                                        progressPercent >= 30 ? 'bg-blue-500' : 'bg-neutral-300'
+                                      )}
+                                      style={{ width: `${progressPercent}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-neutral-600">{progressPercent}%</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-sm text-neutral-900 whitespace-nowrap">{row.estimated_close_date || <span className="text-neutral-400">—</span>}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
 
-                  {previewData.length > 20 && (
+                  {previewData.length > 30 && (
                     <p className="text-sm text-neutral-500 text-center">
-                      Showing 20 of {previewData.length} rows. Scroll horizontally to see more columns.
+                      Showing 30 of {previewData.length} rows. Scroll horizontally to see all columns.
                     </p>
                   )}
 
                   <div className="bg-neutral-50 border-2 border-neutral-200 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-neutral-900 mb-2">Summary</h4>
-                    <ul className="text-sm text-neutral-600 space-y-1">
-                      <li>• {previewData.length} total units to create</li>
-                      <li>• {previewData.filter(r => r.purchaser).length} with purchaser assigned</li>
-                      <li>• {previewData.filter(r => r.sale_agreed_date).length} with sale agreed date</li>
-                      <li>• {previewData.filter(r => r.handover_date).length} with handover date</li>
-                    </ul>
+                    <h4 className="text-sm font-semibold text-neutral-900 mb-2">Import Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-neutral-500">Total Units</span>
+                        <p className="text-lg font-semibold text-neutral-900">{previewData.length}</p>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">With Purchaser</span>
+                        <p className="text-lg font-semibold text-neutral-900">{previewData.filter(r => r.purchaser).length}</p>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Sale Agreed</span>
+                        <p className="text-lg font-semibold text-neutral-900">{previewData.filter(r => r.sale_agreed_date).length}</p>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Handed Over</span>
+                        <p className="text-lg font-semibold text-neutral-900">{previewData.filter(r => r.handover_date).length}</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-4">
