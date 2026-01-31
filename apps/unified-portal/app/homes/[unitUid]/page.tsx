@@ -383,6 +383,7 @@ export default function HomeResidentPage() {
         purchaserName={house.purchaser_name}
         address={house.address}
         logoUrl={house.development_logo_url}
+        handoverComplete={house.handover_complete || handoverOverride}
         onComplete={handleIntroComplete}
       />
     );

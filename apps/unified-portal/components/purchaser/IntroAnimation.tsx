@@ -7,6 +7,7 @@ interface IntroAnimationProps {
   purchaserName: string;
   address: string;
   logoUrl?: string | null;
+  handoverComplete?: boolean;
   onComplete: () => void;
 }
 
@@ -15,6 +16,7 @@ export default function IntroAnimation({
   purchaserName,
   address,
   logoUrl,
+  handoverComplete = false,
   onComplete,
 }: IntroAnimationProps) {
   const [step, setStep] = useState(0);
@@ -55,7 +57,7 @@ export default function IntroAnimation({
           }`}
         >
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">
-            Your Home Journey
+            {handoverComplete ? 'Welcome Home' : 'Your Home Journey'}
           </h1>
         </div>
 
