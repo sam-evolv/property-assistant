@@ -39,6 +39,11 @@ const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserPhone: 'purchaser_phone',
 };
 
+// Numeric fields mapping
+const NUMERIC_FIELD_MAPPING: Record<string, string> = {
+  salePrice: 'sale_price',
+};
+
 // Calculate current milestone from pipeline dates (matches MILESTONE_ORDER in pre-handover portal)
 function calculateCurrentMilestone(pipeline: any): string {
   // Check milestones in reverse order (most advanced first)
@@ -85,11 +90,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'field is required' }, { status: 400 });
     }
 
-    // Check if it's a date field or text field
+    // Check if it's a date field, text field, or numeric field
     const isDateField = field in FIELD_MAPPING;
     const isTextField = field in TEXT_FIELD_MAPPING;
+    const isNumericField = field in NUMERIC_FIELD_MAPPING;
 
-    if (!isDateField && !isTextField) {
+    if (!isDateField && !isTextField && !isNumericField) {
       return NextResponse.json({ error: `Invalid field: ${field}` }, { status: 400 });
     }
 
@@ -166,6 +172,25 @@ export async function PATCH(
       const { error: updateError } = await supabaseAdmin
         .from('unit_sales_pipeline')
         .update(updateData)
+        .eq('id', pipelineId);
+
+      if (updateError) {
+        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
+        return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
+      }
+    } else if (isNumericField) {
+      const dbField = NUMERIC_FIELD_MAPPING[field];
+      oldValue = existingPipeline?.[dbField] || null;
+      
+      // Parse numeric value
+      const numericValue = value ? parseFloat(value) : null;
+
+      const { error: updateError } = await supabaseAdmin
+        .from('unit_sales_pipeline')
+        .update({
+          [dbField]: numericValue,
+          updated_at: now,
+        })
         .eq('id', pipelineId);
 
       if (updateError) {

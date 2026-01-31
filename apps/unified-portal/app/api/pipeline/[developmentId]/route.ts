@@ -54,6 +54,7 @@ interface PipelineUnit {
   queriesRepliedDate: string | null;
   saleType: string | null;
   socialHousingProvider: string | null;
+  salePrice: number | null;
   notesCount: number;
   unresolvedNotesCount: number;
 }
@@ -257,6 +258,7 @@ export async function GET(
           queriesRepliedDate: safeDate(pipeline?.queries_replied_date),
           saleType: pipeline?.sale_type || null,
           socialHousingProvider: pipeline?.social_housing_provider || null,
+          salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
         };

@@ -79,6 +79,8 @@ interface PipelineUnit {
   // Sale type (private or social)
   saleType: string | null;
   socialHousingProvider?: string | null;
+  // Sale price
+  salePrice: number | null;
   // Property details from database
   houseTypeCode?: string | null; // BD01, BS01, BT01
   propertyDesignation?: string | null; // D (Detached), SD (Semi-Detached), T (Terrace)
@@ -139,6 +141,26 @@ function formatFullDate(dateStr: string | null): string {
   const d = new Date(dateStr);
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Price formatting utilities
+function formatPrice(price: number | null): string {
+  if (price === null || price === undefined) return '—';
+  return new Intl.NumberFormat('en-IE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(price);
+}
+
+function formatCompactPrice(amount: number): string {
+  if (amount >= 1000000) {
+    return `€${(amount / 1000000).toFixed(1)}M`;
+  } else if (amount >= 1000) {
+    return `€${(amount / 1000).toFixed(0)}K`;
+  }
+  return `€${amount.toFixed(0)}`;
 }
 
 function getProgress(unit: PipelineUnit): number {
@@ -444,6 +466,102 @@ function InactiveCell({ isSocial = false }: InactiveCellProps) {
         style={{ backgroundColor: isSocial ? '#F8F7F5' : undefined }}
       >
         <span className="text-[#D0D0D0] text-xs">—</span>
+      </div>
+    </td>
+  );
+}
+
+// =============================================================================
+// Price Cell Component (editable)
+// =============================================================================
+
+interface PriceCellProps {
+  value: number | null;
+  unitId: string;
+  onUpdate: (unitId: string, field: string, value: string) => void;
+  isSocialHousing?: boolean;
+}
+
+function PriceCell({ value, unitId, onUpdate, isSocialHousing = false }: PriceCellProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSocialHousing) return;
+    setInputValue(value ? value.toString() : '');
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSave = () => {
+    const numValue = inputValue.trim() === '' ? '' : inputValue.replace(/[^0-9.]/g, '');
+    onUpdate(unitId, 'salePrice', numValue);
+    setIsEditing(false);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 1500);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <td className="border-l border-gray-50">
+        <div className="h-11 px-2 flex items-center justify-end" style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}>
+          <span className="text-gray-400 text-xs mr-1">€</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="w-20 h-full bg-transparent text-xs text-right outline-none font-mono"
+            placeholder="0"
+          />
+        </div>
+      </td>
+    );
+  }
+
+  const bgColor = isSocialHousing ? '#F8F7F5' : (showSuccess ? '#f0fdf4' : undefined);
+
+  return (
+    <td className="border-l border-gray-50">
+      <div
+        onClick={handleClick}
+        className={`h-11 px-3 flex items-center justify-end transition-all ${
+          isSocialHousing ? '' : 'cursor-pointer hover:bg-gray-50'
+        }`}
+        style={{ backgroundColor: bgColor }}
+      >
+        {value ? (
+          <span 
+            className="text-xs font-semibold font-mono"
+            style={{ color: tokens.goldDark }}
+          >
+            {formatPrice(value)}
+          </span>
+        ) : (
+          <span className="text-gray-300 text-xs">—</span>
+        )}
+        {showSuccess && (
+          <Check className="w-3 h-3 ml-1 text-emerald-500" />
+        )}
       </div>
     </td>
   );
@@ -1440,13 +1558,22 @@ export default function PipelineDevelopmentPage() {
 
   const dateColumnKeys = ['releaseDate', 'saleAgreedDate', 'depositDate', 'contractsIssuedDate', 'signedContractsDate', 'counterSignedDate', 'kitchenDate', 'snagDate', 'drawdownDate', 'handoverDate'];
 
-  // Stats
+  // Stats (exclude social housing from revenue calculations)
+  const privateUnits = units.filter(u => u.saleType !== 'social');
+  const unitsWithPrice = privateUnits.filter(u => u.salePrice && u.salePrice > 0);
+  const totalRevenue = unitsWithPrice.reduce((acc, u) => acc + (u.salePrice || 0), 0);
+  const avgPrice = unitsWithPrice.length > 0 ? totalRevenue / unitsWithPrice.length : 0;
+  const socialUnitsCount = units.filter(u => u.saleType === 'social').length;
+  
   const stats = {
     total: units.length,
-    available: units.filter(u => !u.purchaserName).length,
+    available: units.filter(u => !u.purchaserName && u.saleType !== 'social').length,
     inProgress: units.filter(u => u.purchaserName && !u.handoverDate).length,
     complete: units.filter(u => u.handoverDate).length,
     openQueries: units.reduce((acc, u) => acc + (u.unresolvedNotesCount || 0), 0),
+    totalRevenue,
+    avgPrice,
+    socialUnits: socialUnitsCount,
   };
 
   const sortedUnits = [...units].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
@@ -1482,6 +1609,7 @@ export default function PipelineDevelopmentPage() {
   const columnConfig = [
     { key: 'checkbox', label: '', width: 44 },
     { key: 'unit', label: 'Unit / Purchaser', width: 200 },
+    { key: 'price', label: 'Price', width: 85 },
     { key: 'releaseDate', label: columnLabels.releaseDate, width: 72 },
     { key: 'saleAgreedDate', label: columnLabels.saleAgreedDate, width: 72 },
     { key: 'depositDate', label: columnLabels.depositDate, width: 72 },
@@ -1610,6 +1738,18 @@ export default function PipelineDevelopmentPage() {
               <p className={`text-2xl font-bold mt-1 ${stats.openQueries > 0 ? 'text-red-600' : 'text-gray-900'}`}>{stats.openQueries}</p>
               <p className="text-xs text-gray-500 mt-2">{stats.openQueries > 0 ? 'Awaiting response' : 'All clear'}</p>
             </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gold-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Revenue</p>
+              <p className="text-2xl font-bold mt-1 font-mono" style={{ color: tokens.gold }}>{formatCompactPrice(stats.totalRevenue)}</p>
+              <p className="text-xs text-gray-500 mt-2">{unitsWithPrice.length} priced units</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gold-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Price</p>
+              <p className="text-2xl font-bold mt-1 font-mono" style={{ color: tokens.goldDark }}>{formatCompactPrice(stats.avgPrice)}</p>
+              {stats.socialUnits > 0 && (
+                <p className="text-xs text-gray-500 mt-2">{stats.socialUnits} social units</p>
+              )}
+            </div>
           </div>
 
           {/* Table Card */}
@@ -1734,6 +1874,14 @@ export default function PipelineDevelopmentPage() {
                             </div>
                           </div>
                         </td>
+
+                        {/* Price Cell */}
+                        <PriceCell 
+                          value={unit.salePrice} 
+                          unitId={unit.id} 
+                          onUpdate={handleUpdate}
+                          isSocialHousing={isSocialHousing}
+                        />
 
                         {/* Date Cells - Inactive for social housing (Release through Kitchen) */}
                         {isSocialHousing ? (
