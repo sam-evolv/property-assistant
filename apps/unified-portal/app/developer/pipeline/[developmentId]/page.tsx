@@ -577,7 +577,7 @@ function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) 
   const bgColor = showSuccess ? '#f0fdf4' : socialBgColor;
 
   return (
-    <td colSpan={5} className="border-l border-gray-50">
+    <td colSpan={5} className="border-l border-gray-50 group/agency">
       <div
         onClick={handleClick}
         className="h-11 px-4 flex items-center justify-center cursor-pointer transition-all hover:bg-[#F3F2EE]"
@@ -588,12 +588,12 @@ function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) 
           style={{ 
             backgroundColor: '#5B8A8A15', 
             color: '#5B8A8A', 
-            border: '1px solid #5B8A8A30' 
+            border: '2px solid #D4AF37' 
           }}
         >
           {displayValue}
         </span>
-        <Pencil className="w-3 h-3 ml-2 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <Pencil className="w-3 h-3 ml-2 text-gray-400 opacity-0 group-hover/agency:opacity-100 transition-opacity" />
       </div>
     </td>
   );
