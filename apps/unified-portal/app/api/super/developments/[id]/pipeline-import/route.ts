@@ -158,12 +158,28 @@ export async function POST(
       const options: ImportOptions = JSON.parse(optionsStr || '{}');
 
       const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
+      const rawData = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
+      
+      console.log('[Pipeline Import] Sheet:', sheetName || workbook.SheetNames[0]);
+      console.log('[Pipeline Import] Raw data rows:', rawData.length);
+      console.log('[Pipeline Import] First row keys:', rawData[0] ? Object.keys(rawData[0]) : 'no data');
+      console.log('[Pipeline Import] Mappings received:', mappings);
+      
+      const data = rawData.map((row) => {
+        const normalizedRow: Record<string, any> = {};
+        for (const [key, value] of Object.entries(row)) {
+          normalizedRow[key.trim()] = value;
+        }
+        return normalizedRow;
+      });
 
       const reverseMapping: Record<string, string> = {};
       for (const [col, field] of Object.entries(mappings)) {
-        if (field) reverseMapping[field] = col;
+        if (field) reverseMapping[field] = col.trim();
       }
+      
+      console.log('[Pipeline Import] Reverse mapping:', reverseMapping);
+      console.log('[Pipeline Import] Normalized first row keys:', data[0] ? Object.keys(data[0]) : 'no data');
 
       const rows = data.map((row) => {
         const getValue = (field: string) => {
