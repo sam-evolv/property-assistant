@@ -17,6 +17,7 @@ interface Unit {
   created_at: string;
   important_docs_agreed_version: number;
   important_docs_agreed_at: string | null;
+  house_type_code: string | null;
   development?: {
     id: string;
     name: string;
@@ -427,7 +428,7 @@ export function HomeownersList({
                 const residentName = unit.purchaser_name || unit.resident_name || unit.name || 'Unassigned';
 
                 const hasAgreed = hasUnitAcknowledged(unit);
-                const developmentName = unit.development?.name || 'Unknown';
+                const houseType = unit.house_type_code || 'Not specified';
                 const isSelected = selectedIds.has(unit.id);
 
                 return (
@@ -468,7 +469,7 @@ export function HomeownersList({
                           <div className="mt-1 space-y-1">
                             <div className="flex items-center gap-1.5 text-xs text-grey-500">
                               <Home className="w-3.5 h-3.5" />
-                              <span className="truncate">{developmentName}</span>
+                              <span className="truncate">{houseType}</span>
                             </div>
                             {unit.address && (
                               <p className="text-xs text-grey-500 truncate">{unit.address}</p>
