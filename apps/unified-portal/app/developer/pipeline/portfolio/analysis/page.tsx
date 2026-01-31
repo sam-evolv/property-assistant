@@ -487,11 +487,11 @@ function VelocityTab({ data }: { data: any }) {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-900">Avg Cycle Time</span>
-                <span className="font-medium">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</span>
+                <span className="font-medium text-gray-900">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-900">Completion Rate</span>
-                <span className="font-medium">
+                <span className="font-medium text-gray-900">
                   {dev.privateUnits > 0 ? `${Math.round((dev.sold / dev.privateUnits) * 100)}%` : '—'}
                 </span>
               </div>
@@ -560,8 +560,8 @@ function PipelineTab({ data }: { data: any }) {
               return (
                 <div key={stage.stage}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">{funnel[idx].label} → {stage.label}</span>
-                    <span className="font-medium">{convRate}%</span>
+                    <span className="text-gray-900">{funnel[idx].label} → {stage.label}</span>
+                    <span className="font-medium text-gray-900">{convRate}%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
@@ -721,20 +721,20 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Purchaser</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Current Stage</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-600">Days Stuck</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Current Stage</th>
+                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Days Stuck</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.stuckUnits.map((unit: any) => (
                   <tr key={unit.id} className="border-b border-gray-100 hover:bg-red-50">
-                    <td className="py-2 px-3 font-medium">{unit.unitNumber}</td>
-                    <td className="py-2 px-3">{unit.developmentName}</td>
-                    <td className="py-2 px-3">{unit.purchaserName || '—'}</td>
-                    <td className="py-2 px-3">{unit.currentStage}</td>
+                    <td className="py-2 px-3 font-medium text-gray-900">{unit.unitNumber}</td>
+                    <td className="py-2 px-3 text-gray-900">{unit.developmentName}</td>
+                    <td className="py-2 px-3 text-gray-900">{unit.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 text-gray-900">{unit.currentStage}</td>
                     <td className="py-2 px-3 text-right text-red-600 font-semibold">{unit.daysStuck} days</td>
                   </tr>
                 ))}
@@ -754,18 +754,18 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Purchaser</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-600">Days Open</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
+                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Days Open</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.openQueries.map((query: any) => (
                   <tr key={query.id} className="border-b border-gray-100 hover:bg-amber-50">
-                    <td className="py-2 px-3 font-medium">{query.unitNumber}</td>
-                    <td className="py-2 px-3">{query.developmentName}</td>
-                    <td className="py-2 px-3">{query.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 font-medium text-gray-900">{query.unitNumber}</td>
+                    <td className="py-2 px-3 text-gray-900">{query.developmentName}</td>
+                    <td className="py-2 px-3 text-gray-900">{query.purchaserName || '—'}</td>
                     <td className="py-2 px-3 text-right text-amber-600 font-semibold">{query.daysOpen} days</td>
                   </tr>
                 ))}
@@ -785,20 +785,20 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Purchaser</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Expected Date</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-600">Price</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Expected Date</th>
+                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Price</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.upcomingHandovers.map((handover: any) => (
                   <tr key={handover.id} className="border-b border-gray-100 hover:bg-green-50">
-                    <td className="py-2 px-3 font-medium">{handover.unitNumber}</td>
-                    <td className="py-2 px-3">{handover.developmentName}</td>
-                    <td className="py-2 px-3">{handover.purchaserName || '—'}</td>
-                    <td className="py-2 px-3">{new Date(handover.expectedDate).toLocaleDateString('en-IE')}</td>
+                    <td className="py-2 px-3 font-medium text-gray-900">{handover.unitNumber}</td>
+                    <td className="py-2 px-3 text-gray-900">{handover.developmentName}</td>
+                    <td className="py-2 px-3 text-gray-900">{handover.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 text-gray-900">{new Date(handover.expectedDate).toLocaleDateString('en-IE')}</td>
                     <td className="py-2 px-3 text-right font-semibold" style={{ color: tokens.goldDark }}>
                       {handover.price > 0 ? formatEuro(handover.price) : '—'}
                     </td>
