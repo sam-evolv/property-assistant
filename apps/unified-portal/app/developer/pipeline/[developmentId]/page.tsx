@@ -73,6 +73,9 @@ interface PipelineUnit {
   handoverDate: string | null;
   notesCount: number;
   unresolvedNotesCount: number;
+  // Query tracking
+  queriesRaisedDate: string | null;
+  queriesRepliedDate: string | null;
   // Property details from database
   houseTypeCode?: string | null; // BD01, BS01, BT01
   propertyDesignation?: string | null; // D (Detached), SD (Semi-Detached), T (Terrace)
@@ -897,6 +900,23 @@ function formatExactDate(dateString: string | undefined): string {
          ' at ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDateOnly(dateString: string | null): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function calculateResponseTime(raisedDate: string | null, repliedDate: string | null): string {
+  if (!raisedDate || !repliedDate) return '';
+  const raised = new Date(raisedDate);
+  const replied = new Date(repliedDate);
+  const diffMs = replied.getTime() - raised.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Same day';
+  if (diffDays === 1) return '1 day';
+  return `${diffDays} days`;
+}
+
 function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) {
   const [queries, setQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -934,6 +954,8 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
 
   if (!unit) return null;
 
+  const responseTime = calculateResponseTime(unit.queriesRaisedDate, unit.queriesRepliedDate);
+
   return (
     <>
       <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 animate-fadeIn" onClick={onClose} />
@@ -954,6 +976,43 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
               <X className="w-5 h-5" />
             </button>
           </div>
+          
+          {/* Query Summary Section */}
+          <div className="px-6 py-4 border-b border-gray-100" style={{ backgroundColor: tokens.warmGray }}>
+            {!unit.queriesRaisedDate ? (
+              <div className="text-center py-2">
+                <p className="text-sm text-gray-500">No queries raised</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Queries Raised</span>
+                  <span className="text-sm font-semibold" style={{ color: tokens.dark }}>
+                    {formatDateOnly(unit.queriesRaisedDate)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Queries Replied</span>
+                  {unit.queriesRepliedDate ? (
+                    <span className="text-sm font-semibold text-emerald-600">
+                      {formatDateOnly(unit.queriesRepliedDate)}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold text-amber-600">Awaiting response</span>
+                  )}
+                </div>
+                {responseTime && (
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Response Time</span>
+                    <span className="text-sm font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
+                      {responseTime}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 overflow-auto p-6">
             {isLoading ? (
               <div className="text-center py-12">

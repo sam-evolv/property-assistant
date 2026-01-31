@@ -50,6 +50,8 @@ interface PipelineUnit {
   snagDate: string | null;
   drawdownDate: string | null;
   handoverDate: string | null;
+  queriesRaisedDate: string | null;
+  queriesRepliedDate: string | null;
   notesCount: number;
   unresolvedNotesCount: number;
 }
@@ -249,6 +251,8 @@ export async function GET(
           snagDate: safeDate(pipeline?.snag_date),
           drawdownDate: safeDate(pipeline?.drawdown_date),
           handoverDate: safeDate(pipeline?.handover_date),
+          queriesRaisedDate: safeDate(pipeline?.queries_raised_date),
+          queriesRepliedDate: safeDate(pipeline?.queries_replied_date),
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
         };
