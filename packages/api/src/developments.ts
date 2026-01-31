@@ -162,9 +162,7 @@ export async function handleCreateDevelopment(req: NextRequest) {
       system_instructions: systemInstructions || '',
       created_by: adminContext.id,
       developer_user_id: assignedDeveloperId || null,
-      sidebar_logo_url: sidebar_logo_url || null,
-      assistant_logo_url: assistant_logo_url || null,
-      toolbar_logo_url: toolbar_logo_url || null,
+      logo_url: sidebar_logo_url || null,
     }).returning();
 
     console.log(`[DEVELOPMENT] Created: ${name} (code: ${developmentCode}) for tenant ${tenantId}, developer: ${assignedDeveloperId || 'none'}`);
