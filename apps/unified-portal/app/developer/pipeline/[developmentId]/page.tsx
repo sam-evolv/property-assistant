@@ -443,7 +443,10 @@ function QueriesCell({ queriesRaisedDate, queriesRepliedDate, onClick }: Queries
             <span className="text-xs font-semibold text-emerald-700">Open</span>
           </div>
         ) : isResolved ? (
-          <span className="text-gray-300">—</span>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-100 border border-gray-200 group-hover:bg-gray-150 transition-colors">
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+            <span className="text-xs font-medium text-gray-500">Resolved</span>
+          </div>
         ) : (
           <span className="text-gray-300">—</span>
         )}
