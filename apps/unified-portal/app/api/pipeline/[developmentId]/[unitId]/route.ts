@@ -37,6 +37,7 @@ const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserName: 'purchaser_name',
   purchaserEmail: 'purchaser_email',
   purchaserPhone: 'purchaser_phone',
+  housingAgency: 'housing_agency',
 };
 
 // Numeric fields mapping
@@ -367,6 +368,9 @@ export async function GET(
         purchaserName: pipeline?.purchaser_name || unit.purchaser_name || null,
         purchaserEmail: pipeline?.purchaser_email || unit.purchaser_email || null,
         purchaserPhone: pipeline?.purchaser_phone || unit.purchaser_phone || null,
+        saleType: pipeline?.sale_type || null,
+        housingAgency: pipeline?.housing_agency || null,
+        salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,
         releaseDate: safeDate(pipeline?.release_date),
         saleAgreedDate: safeDate(pipeline?.sale_agreed_date),
         depositDate: safeDate(pipeline?.deposit_date),

@@ -1,0 +1,50 @@
+Redesign social housing rows - current design looks broken, needs to be intentional and polished.
+The current social housing rows show endless "—" dashes across all columns which looks like missing data, not a different unit type. The lonely EST. CLOSE date at the end makes it worse.
+New Design Approach - Merged/Collapsed Row:
+For social housing units (sale_type = 'social'), instead of showing all columns with empty dashes:
+
+Merge the middle columns into a single span:
+
+UNIT/PURCHASER column: Show unit number, type badge (BT01), and "Social Housing" label as normal
+PRICE column: Show "—" or "N/A" (no sale price for social)
+RELEASE through COUNTER columns: Merge into ONE cell that spans across all these columns and displays a clean label like:
+
+"Social Housing - Clúid" centered in a subtle teal/slate pill badge
+Or simply leave it as an elegant empty merged cell with a very subtle background
+
+
+KITCHEN, SNAG, DRAWDOWN, HANDOVER: Show actual dates if available, or "—" if not
+PROGRESS: Show progress based on handover status
+EST. CLOSE: Show date if available
+
+
+Visual Treatment:
+
+Subtle warm grey background (#FAFAF9) for the entire row
+The merged middle section should feel intentional, not broken
+No individual cell borders in the merged section
+A refined "Clúid" or "Social" badge in the UNIT column (teal/slate, not garish)
+
+
+Alternative Simpler Approach:
+
+Keep all columns but instead of "—" in each cell, show nothing (empty)
+Add a subtle left border accent in teal/slate to indicate social housing
+The row should feel "quiet" not "broken"
+
+
+
+Visual Mockup:
+| 28 | BD05 | Yan Zhao...        | €525,000 | 11 Nov | 9 Jan | ... | 25 Jul |  90  |        |
+|----|------------------------------------------------------------|------|--------|--------|
+| 29 | BT01 | Social Housing     |    —     | [    Social Housing - Clúid    ] | 16 Mar |   0  | 16 Mar |
+| 30 | BT01 | Social Housing     |    —     | [    Social Housing - Clúid    ] | 16 Mar |   0  | 16 Mar |
+|----|------------------------------------------------------------|------|--------|--------|
+| 33 | BS03 | Lucy Crowley       | €425,000 | 11 Nov | 27 Jan | ... | 12 Aug |  90  |        |
+
+Key Principles:
+
+It should be immediately obvious these are different, but look designed not broken
+The eye should flow naturally past them when scanning private sales
+When you do look at them, they should feel complete and intentional
+No awkward orphaned cells or misaligned elements

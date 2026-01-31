@@ -78,7 +78,7 @@ interface PipelineUnit {
   queriesRepliedDate: string | null;
   // Sale type (private or social)
   saleType: string | null;
-  socialHousingProvider?: string | null;
+  housingAgency?: string | null;
   // Sale price
   salePrice: number | null;
   // Property details from database
@@ -472,6 +472,134 @@ function InactiveCell({ isSocial = false }: InactiveCellProps) {
 }
 
 // =============================================================================
+// Housing Agency Cell Component (editable, spans 5 columns for social housing)
+// =============================================================================
+
+const COMMON_AGENCIES = ['Clúid', 'Respond', 'Tuath', 'Circle', 'Co-operative Housing Ireland', 'Approved Housing Body'];
+
+interface HousingAgencyCellProps {
+  value: string | null | undefined;
+  unitId: string;
+  onUpdate: (unitId: string, field: string, value: string) => void;
+}
+
+function HousingAgencyCell({ value, unitId, onUpdate }: HousingAgencyCellProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setInputValue(value || '');
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSave = () => {
+    onUpdate(unitId, 'housingAgency', inputValue.trim());
+    setIsEditing(false);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 1500);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  const handleQuickSelect = (agency: string) => {
+    setInputValue(agency);
+    onUpdate(unitId, 'housingAgency', agency);
+    setIsEditing(false);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 1500);
+  };
+
+  const socialBgColor = '#F8F7F5';
+
+  if (isEditing) {
+    return (
+      <td colSpan={5} className="border-l border-gray-50">
+        <div 
+          className="h-11 px-4 flex items-center gap-3"
+          style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter housing agency name..."
+            className="flex-1 h-full bg-transparent text-xs outline-none"
+            style={{ minWidth: 150 }}
+          />
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {COMMON_AGENCIES.slice(0, 4).map((agency) => (
+              <button
+                key={agency}
+                onClick={(e) => { e.stopPropagation(); handleQuickSelect(agency); }}
+                className="px-2 py-1 text-[10px] font-medium rounded-full whitespace-nowrap transition-colors"
+                style={{ 
+                  backgroundColor: '#5B8A8A15', 
+                  color: '#5B8A8A', 
+                  border: '1px solid #5B8A8A30' 
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#5B8A8A25';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#5B8A8A15';
+                }}
+              >
+                {agency}
+              </button>
+            ))}
+          </div>
+        </div>
+      </td>
+    );
+  }
+
+  const displayValue = value ? `Social Housing — ${value}` : 'Social Housing';
+  const bgColor = showSuccess ? '#f0fdf4' : socialBgColor;
+
+  return (
+    <td colSpan={5} className="border-l border-gray-50">
+      <div
+        onClick={handleClick}
+        className="h-11 px-4 flex items-center justify-center cursor-pointer transition-all hover:bg-[#F3F2EE]"
+        style={{ backgroundColor: bgColor }}
+      >
+        <span 
+          className="px-4 py-1.5 text-xs font-semibold rounded-full"
+          style={{ 
+            backgroundColor: '#5B8A8A15', 
+            color: '#5B8A8A', 
+            border: '1px solid #5B8A8A30' 
+          }}
+        >
+          {displayValue}
+        </span>
+        <Pencil className="w-3 h-3 ml-2 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </td>
+  );
+}
+
+// =============================================================================
 // Price Cell Component (editable)
 // =============================================================================
 
@@ -490,7 +618,6 @@ function PriceCell({ value, unitId, onUpdate, isSocialHousing = false }: PriceCe
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSocialHousing) return;
     setInputValue(value ? value.toString() : '');
     setIsEditing(true);
   };
@@ -544,9 +671,7 @@ function PriceCell({ value, unitId, onUpdate, isSocialHousing = false }: PriceCe
     <td className="border-l border-gray-50">
       <div
         onClick={handleClick}
-        className={`h-11 px-3 flex items-center justify-end transition-all ${
-          isSocialHousing ? '' : 'cursor-pointer hover:bg-gray-50'
-        }`}
+        className="h-11 px-3 flex items-center justify-end transition-all cursor-pointer hover:bg-gray-50"
         style={{ backgroundColor: bgColor }}
       >
         {value ? (
@@ -1853,12 +1978,12 @@ export default function PipelineDevelopmentPage() {
                                 {isSocialHousing ? (
                                   <>
                                     <p className="text-xs text-gray-500">Social Housing</p>
-                                    {unit.socialHousingProvider && (
+                                    {unit.housingAgency && (
                                       <span 
                                         className="px-2 py-0.5 text-[10px] font-semibold rounded-full"
                                         style={{ backgroundColor: '#5B8A8A15', color: '#5B8A8A', border: '1px solid #5B8A8A30' }}
                                       >
-                                        {unit.socialHousingProvider}
+                                        {unit.housingAgency}
                                       </span>
                                     )}
                                   </>
@@ -1883,15 +2008,13 @@ export default function PipelineDevelopmentPage() {
                           isSocialHousing={isSocialHousing}
                         />
 
-                        {/* Date Cells - Inactive for social housing (Release through Kitchen) */}
+                        {/* Date Cells - Merged Housing Agency cell for social housing, individual cells for private */}
                         {isSocialHousing ? (
-                          <>
-                            <InactiveCell isSocial />
-                            <InactiveCell isSocial />
-                            <InactiveCell isSocial />
-                            <InactiveCell isSocial />
-                            <InactiveCell isSocial />
-                          </>
+                          <HousingAgencyCell 
+                            value={unit.housingAgency} 
+                            unitId={unit.id} 
+                            onUpdate={handleUpdate}
+                          />
                         ) : (
                           <>
                             <DateCell value={unit.releaseDate} unitId={unit.id} field="releaseDate" onUpdate={handleUpdate} />
