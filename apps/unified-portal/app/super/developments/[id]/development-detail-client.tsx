@@ -453,189 +453,245 @@ export default function DevelopmentDetailClient({
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto p-8">
-        <button
-          onClick={() => router.push('/super/developments')}
-          className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Developments
-        </button>
+    <div className="min-h-screen bg-neutral-50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-neutral-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Back button */}
+          <button
+            onClick={() => router.push('/super/developments')}
+            className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 mb-4 transition-colors duration-150"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Developments
+          </button>
 
-        <div className="flex items-start justify-between mb-8">
-          <div className="flex items-center gap-4">
-            {development.logo_url || development.toolbar_logo_url ? (
-              <img
-                src={development.toolbar_logo_url || development.logo_url}
-                alt={development.name}
-                className="w-16 h-16 rounded-xl object-cover border-2 border-neutral-200"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#D4AF37]/20 to-[#D4AF37]/10 flex items-center justify-center border-2 border-neutral-200">
-                <Building2 className="w-8 h-8 text-[#D4AF37]" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold text-neutral-900">{development.name}</h1>
-              <div className="flex items-center gap-3 text-sm text-neutral-600 mt-1">
-                {development.address && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    {development.address}
+          {/* Development header */}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              {development.logo_url || development.toolbar_logo_url ? (
+                <img
+                  src={development.toolbar_logo_url || development.logo_url}
+                  alt={development.name}
+                  className="w-16 h-16 rounded-xl object-cover border border-neutral-200"
+                />
+              ) : (
+                <div className="w-16 h-16 bg-neutral-100 rounded-xl flex items-center justify-center border border-neutral-200">
+                  <Building2 className="w-8 h-8 text-neutral-400" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-semibold text-neutral-900">{development.name}</h1>
+                  <span className={cn(
+                    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border',
+                    development.is_active
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-neutral-50 text-neutral-600 border-neutral-200'
+                  )}>
+                    {development.is_active ? 'Active' : 'Inactive'}
                   </span>
-                )}
+                </div>
+                <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                  {development.address && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {development.address}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <span className="text-neutral-400">#</span>
+                    {development.code}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-sm text-neutral-500 mt-1">
-                <span>Code: {development.code}</span>
-                <span>Created: {formatDate(development.created_at)}</span>
-              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setEditForm({
+                    name: development.name,
+                    address: development.address || '',
+                    description: development.description || '',
+                  });
+                  setEditingDevelopment(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 font-medium bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 h-9 px-4 text-sm rounded-lg transition-all duration-150 shadow-sm"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="inline-flex items-center justify-center gap-2 font-medium bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 h-9 px-4 text-sm rounded-lg transition-all duration-150 shadow-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setEditForm({
-                  name: development.name,
-                  address: development.address || '',
-                  description: development.description || '',
-                });
-                setEditingDevelopment(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 border-2 border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </button>
-            <button
-              onClick={() => setDeleteConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 border-2 border-red-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
-        </div>
-
-        <div className="border-b-2 border-neutral-200 mb-6">
-          <nav className="flex gap-0">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mt-6 -mb-px">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 -mb-[2px] transition-colors',
+                  'inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-150',
                   activeTab === tab.id
-                    ? 'border-[#D4AF37] text-[#D4AF37]'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                    ? 'border-[#D4AF37] text-[#B8934C]'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
                 )}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
               </button>
             ))}
-          </nav>
+          </div>
         </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div className="bg-white border-2 border-neutral-200 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-4">Development Details</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-3">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-neutral-500">Name</span>
-                    <p className="text-neutral-900 font-medium">{development.name}</p>
+                    <p className="text-sm text-neutral-500">Total Units</p>
+                    <p className="text-2xl font-semibold text-neutral-900 mt-1">{development._count?.units || units.length || 0}</p>
                   </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Code</span>
-                    <p className="text-neutral-900 font-medium">{development.code}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Address</span>
-                    <p className="text-neutral-900 font-medium">{development.address || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Description</span>
-                    <p className="text-neutral-900">{development.description || '—'}</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-sm text-neutral-500">Tenant/Organisation</span>
-                    <p className="text-neutral-900 font-medium">{development.tenant?.name || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Assigned Developer</span>
-                    <p className="text-neutral-900 font-medium">{development.developer?.email || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Status</span>
-                    <p className={cn('font-medium', development.is_active ? 'text-green-600' : 'text-neutral-500')}>
-                      {development.is_active ? 'Active ✓' : 'Inactive'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-neutral-500">Created</span>
-                    <p className="text-neutral-900">{formatDate(development.created_at)}</p>
+                  <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-amber-600" />
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="bg-white border-2 border-neutral-200 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-neutral-900 mb-4">Branding Preview</h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="border-2 border-neutral-200 rounded-lg p-4 text-center">
-                  {development.toolbar_logo_url ? (
-                    <img src={development.toolbar_logo_url} alt="Pre-Handover Portal" className="h-16 mx-auto object-contain" />
-                  ) : (
-                    <div className="h-16 flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-neutral-300" />
-                    </div>
-                  )}
-                  <p className="text-sm text-neutral-500 mt-2">Pre-Handover Portal Logo</p>
+              <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-neutral-500">With Pipeline Data</p>
+                    <p className="text-2xl font-semibold text-neutral-900 mt-1">{units.filter(u => u.has_pipeline).length}</p>
+                  </div>
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                  </div>
                 </div>
-                <div className="border-2 border-neutral-200 rounded-lg p-4 text-center">
-                  {development.assistant_logo_url ? (
-                    <img src={development.assistant_logo_url} alt="Property Assistant" className="h-16 mx-auto object-contain" />
-                  ) : (
-                    <div className="h-16 flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-neutral-300" />
-                    </div>
-                  )}
-                  <p className="text-sm text-neutral-500 mt-2">Property Assistant Logo</p>
+              </div>
+              <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-neutral-500">Homeowners</p>
+                    <p className="text-2xl font-semibold text-neutral-900 mt-1">{development._count?.homeowners || 0}</p>
+                  </div>
+                  <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                  </div>
                 </div>
-                <div className="border-2 border-neutral-200 rounded-lg p-4 text-center">
-                  {development.sidebar_logo_url ? (
-                    <img src={development.sidebar_logo_url} alt="Developer Dashboard" className="h-16 mx-auto object-contain" />
-                  ) : (
-                    <div className="h-16 flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-neutral-300" />
-                    </div>
-                  )}
-                  <p className="text-sm text-neutral-500 mt-2">Developer Dashboard Logo</p>
+              </div>
+              <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-neutral-500">Documents</p>
+                    <p className="text-2xl font-semibold text-neutral-900 mt-1">{development._count?.documents || 0}</p>
+                  </div>
+                  <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-purple-600" />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-neutral-900">{development._count?.units || 0}</p>
-                <p className="text-sm text-neutral-500">Total Units</p>
+            {/* Development Details */}
+            <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b border-neutral-100">
+                <h2 className="text-lg font-semibold text-neutral-900">Development Details</h2>
               </div>
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-neutral-900">0</p>
-                <p className="text-sm text-neutral-500">With Data</p>
+              <div className="p-6">
+                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  <div>
+                    <dt className="text-sm text-neutral-500">Name</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-neutral-500">Code</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.code}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-neutral-500">Address</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.address || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-neutral-500">Tenant/Organisation</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.tenant?.name || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-neutral-500">Assigned Developer</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.developer?.email || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-neutral-500">Created</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{formatDate(development.created_at)}</dd>
+                  </div>
+                  <div className="md:col-span-2">
+                    <dt className="text-sm text-neutral-500">Description</dt>
+                    <dd className="text-sm font-medium text-neutral-900 mt-1">{development.description || '—'}</dd>
+                  </div>
+                </dl>
               </div>
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-neutral-900">{development._count?.units ? 'Set' : 'Not Set'}</p>
-                <p className="text-sm text-neutral-500">Pipeline</p>
+            </div>
+
+            {/* Branding Preview */}
+            <div className="bg-white border border-neutral-200 rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b border-neutral-100">
+                <h2 className="text-lg font-semibold text-neutral-900">Branding</h2>
               </div>
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-neutral-900">{development._count?.documents || 0}</p>
-                <p className="text-sm text-neutral-500">Documents</p>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-sm text-neutral-500 mb-2">Pre-Handover Portal Logo</p>
+                    <div className="aspect-video bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center">
+                      {development.toolbar_logo_url ? (
+                        <img src={development.toolbar_logo_url} alt="Pre-Handover Portal" className="max-h-full max-w-full object-contain p-4" />
+                      ) : (
+                        <div className="text-center">
+                          <ImageIcon className="w-8 h-8 text-neutral-300 mx-auto" />
+                          <p className="text-xs text-neutral-400 mt-2">No image uploaded</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-neutral-500 mb-2">Property Assistant Logo</p>
+                    <div className="aspect-video bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center">
+                      {development.assistant_logo_url ? (
+                        <img src={development.assistant_logo_url} alt="Property Assistant" className="max-h-full max-w-full object-contain p-4" />
+                      ) : (
+                        <div className="text-center">
+                          <ImageIcon className="w-8 h-8 text-neutral-300 mx-auto" />
+                          <p className="text-xs text-neutral-400 mt-2">No image uploaded</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-neutral-500 mb-2">Developer Dashboard Logo</p>
+                    <div className="aspect-video bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center">
+                      {development.sidebar_logo_url ? (
+                        <img src={development.sidebar_logo_url} alt="Developer Dashboard" className="max-h-full max-w-full object-contain p-4" />
+                      ) : (
+                        <div className="text-center">
+                          <ImageIcon className="w-8 h-8 text-neutral-300 mx-auto" />
+                          <p className="text-xs text-neutral-400 mt-2">No image uploaded</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -648,16 +704,16 @@ export default function DevelopmentDetailClient({
                 <input
                   type="text"
                   placeholder="Search units..."
-                  className="w-full pl-4 pr-4 py-2.5 text-sm bg-white border-2 border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] transition-colors text-neutral-900"
+                  className="w-full pl-4 pr-4 py-2.5 text-sm bg-white border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] transition-colors text-neutral-900 shadow-sm"
                 />
               </div>
               <div className="flex gap-2">
-                <button className="flex items-center gap-2 px-4 py-2.5 border-2 border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-colors">
+                <button className="inline-flex items-center gap-2 px-4 py-2 font-medium bg-white text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 hover:border-neutral-300 transition-all duration-150 shadow-sm text-sm">
                   + Add Unit
                 </button>
                 <button
                   onClick={() => setActiveTab('import')}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#D4AF37] text-white rounded-lg hover:bg-[#C5A028] transition-colors font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-white rounded-lg hover:bg-[#C5A028] transition-all duration-150 font-medium shadow-sm text-sm"
                 >
                   <Upload className="w-4 h-4" />
                   Bulk Import Units
@@ -666,24 +722,26 @@ export default function DevelopmentDetailClient({
             </div>
 
             {unitsLoading ? (
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-8 text-center">
+              <div className="bg-white border border-neutral-200 rounded-xl p-8 text-center shadow-sm">
                 <RefreshCw className="w-8 h-8 text-neutral-300 animate-spin mx-auto" />
                 <p className="text-sm text-neutral-500 mt-3">Loading units...</p>
               </div>
             ) : units.length === 0 ? (
-              <div className="bg-white border-2 border-neutral-200 rounded-xl p-12 text-center">
-                <Package className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+              <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-12 text-center">
+                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Building2 className="w-8 h-8 text-neutral-400" />
+                </div>
                 <h3 className="text-lg font-semibold text-neutral-900 mb-2">No units yet</h3>
-                <p className="text-neutral-500 mb-6">
+                <p className="text-sm text-neutral-500 mb-6 max-w-md mx-auto">
                   Units will be created when you import your sales pipeline data, or you can add them manually.
                 </p>
                 <div className="flex items-center justify-center gap-3">
-                  <button className="flex items-center gap-2 px-4 py-2.5 border-2 border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-colors">
+                  <button className="inline-flex items-center gap-2 px-4 py-2 font-medium bg-white text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 hover:border-neutral-300 transition-all duration-150 shadow-sm text-sm">
                     + Add Unit Manually
                   </button>
                   <button
                     onClick={() => setActiveTab('import')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-[#D4AF37] text-white rounded-lg hover:bg-[#C5A028] transition-colors font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-white rounded-lg hover:bg-[#C5A028] transition-all duration-150 font-medium shadow-sm text-sm"
                   >
                     <Upload className="w-4 h-4" />
                     Import from Sales Pipeline
