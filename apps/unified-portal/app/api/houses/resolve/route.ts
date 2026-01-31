@@ -191,20 +191,23 @@ export async function POST(req: Request) {
               u.latitude,
               u.longitude,
               u.bedrooms,
-              u.handover_complete,
-              u.current_milestone,
-              u.milestone_dates,
-              u.est_snagging_date,
-              u.est_handover_date,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
               d.logo_url as dev_logo_url,
               d.latitude as dev_latitude,
               d.longitude as dev_longitude,
-              d.prehandover_config as dev_prehandover_config
+              d.prehandover_config as dev_prehandover_config,
+              p.handover_date as pipeline_handover_date,
+              p.sale_agreed_date,
+              p.signed_contracts_date,
+              p.counter_signed_date,
+              p.kitchen_date,
+              p.snag_date,
+              p.drawdown_date
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
+            LEFT JOIN unit_sales_pipeline p ON u.id = p.unit_id
             WHERE u.id = ${token}::uuid OR u.unit_uid = ${token}
             LIMIT 1
           `)
@@ -223,20 +226,23 @@ export async function POST(req: Request) {
               u.latitude,
               u.longitude,
               u.bedrooms,
-              u.handover_complete,
-              u.current_milestone,
-              u.milestone_dates,
-              u.est_snagging_date,
-              u.est_handover_date,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
               d.logo_url as dev_logo_url,
               d.latitude as dev_latitude,
               d.longitude as dev_longitude,
-              d.prehandover_config as dev_prehandover_config
+              d.prehandover_config as dev_prehandover_config,
+              p.handover_date as pipeline_handover_date,
+              p.sale_agreed_date,
+              p.signed_contracts_date,
+              p.counter_signed_date,
+              p.kitchen_date,
+              p.snag_date,
+              p.drawdown_date
             FROM units u
             LEFT JOIN developments d ON u.development_id = d.id
+            LEFT JOIN unit_sales_pipeline p ON u.id = p.unit_id
             WHERE u.unit_uid = ${token}
             LIMIT 1
           `);
@@ -277,6 +283,35 @@ export async function POST(req: Request) {
         coordinates = { lat: unit.dev_latitude, lng: unit.dev_longitude };
       }
 
+      // Calculate handover status from pipeline data
+      let isHandoverComplete = !!unit.pipeline_handover_date;
+      let currentMilestone = 'sale_agreed';
+      
+      if (unit.pipeline_handover_date) {
+        currentMilestone = 'handover';
+      } else if (unit.drawdown_date) {
+        currentMilestone = 'closing';
+      } else if (unit.snag_date) {
+        currentMilestone = 'snagging';
+      } else if (unit.kitchen_date) {
+        currentMilestone = 'kitchen_selection';
+      } else if (unit.signed_contracts_date || unit.counter_signed_date) {
+        currentMilestone = 'contracts_signed';
+      } else if (unit.sale_agreed_date) {
+        currentMilestone = 'sale_agreed';
+      }
+      
+      const milestoneDates = {
+        sale_agreed: unit.sale_agreed_date || null,
+        contracts_signed: unit.signed_contracts_date || unit.counter_signed_date || null,
+        kitchen_selection: unit.kitchen_date || null,
+        snagging: unit.snag_date || null,
+        closing: unit.drawdown_date || null,
+        handover: unit.pipeline_handover_date || null,
+      };
+      
+      console.log("[Resolve] Unit handover status:", { handover_date: unit.pipeline_handover_date, isComplete: isHandoverComplete, currentMilestone });
+
       const responseData = {
         success: true,
         unitId: unitIdentifier,
@@ -303,12 +338,12 @@ export async function POST(req: Request) {
         latitude: coordinates?.lat || null,
         longitude: coordinates?.lng || null,
         specs: null,
-        // Pre-handover portal data
-        handover_complete: unit.handover_complete || false,
-        current_milestone: unit.current_milestone || 'sale_agreed',
-        milestone_dates: unit.milestone_dates || {},
-        est_snagging_date: unit.est_snagging_date || null,
-        est_handover_date: unit.est_handover_date || null,
+        // Pre-handover portal data - calculated from pipeline
+        handover_complete: isHandoverComplete,
+        current_milestone: currentMilestone,
+        milestone_dates: milestoneDates,
+        est_snagging_date: null,
+        est_handover_date: null,
         prehandover_config: unit.dev_prehandover_config || null,
       };
 
