@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ImageUpload } from '@/components/ImageUpload';
 
 interface Tenant {
   id: string;
@@ -42,8 +43,9 @@ export function CreateDevelopmentForm({ tenants, developers, currentTenantId }: 
     expectedUnitCount: '',
     phase: '',
     isDemo: false,
-    logoUrl: '',
-    heroImageUrl: '',
+    sidebarLogoUrl: '',
+    assistantLogoUrl: '',
+    toolbarLogoUrl: '',
     systemInstructions: '',
     tenantId: currentTenantId,
     developerUserId: '',
@@ -110,6 +112,9 @@ export function CreateDevelopmentForm({ tenants, developers, currentTenantId }: 
           systemInstructions: formData.systemInstructions.trim() || null,
           tenantId: formData.tenantId,
           developerUserId: formData.developerUserId || null,
+          sidebar_logo_url: formData.sidebarLogoUrl || null,
+          assistant_logo_url: formData.assistantLogoUrl || null,
+          toolbar_logo_url: formData.toolbarLogoUrl || null,
         }),
       });
 
@@ -392,31 +397,31 @@ export function CreateDevelopmentForm({ tenants, developers, currentTenantId }: 
           <span className="w-8 h-8 bg-gold-500/20 text-gold-400 rounded-full flex items-center justify-center text-sm">4</span>
           Branding
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Logo URL
-            </label>
-            <input
-              type="url"
-              value={formData.logoUrl}
-              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
-              placeholder="https://..."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Hero Image URL
-            </label>
-            <input
-              type="url"
-              value={formData.heroImageUrl}
-              onChange={(e) => setFormData({ ...formData, heroImageUrl: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
-              placeholder="https://..."
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <ImageUpload
+            value={formData.sidebarLogoUrl}
+            onChange={(url) => setFormData({ ...formData, sidebarLogoUrl: url })}
+            label="Pre-Handover Portal Logo"
+            description="Logo shown on the purchaser pre-handover portal"
+            type="sidebar"
+            disabled={loading}
+          />
+          <ImageUpload
+            value={formData.assistantLogoUrl}
+            onChange={(url) => setFormData({ ...formData, assistantLogoUrl: url })}
+            label="Property Assistant Logo"
+            description="Logo shown in the AI chat/property assistant interface"
+            type="assistant"
+            disabled={loading}
+          />
+          <ImageUpload
+            value={formData.toolbarLogoUrl}
+            onChange={(url) => setFormData({ ...formData, toolbarLogoUrl: url })}
+            label="Developer Dashboard Logo"
+            description="Logo shown in the developer dashboard sidebar"
+            type="toolbar"
+            disabled={loading}
+          />
         </div>
       </div>
 
