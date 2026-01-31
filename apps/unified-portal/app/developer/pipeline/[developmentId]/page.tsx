@@ -238,7 +238,8 @@ function getPredictedClose(unit: PipelineUnit): Prediction {
   const expectedDaysInCurrent = nextStage ? avgStageDays[nextStage] || 14 : 14;
   let confidence = 85;
   if (daysInCurrent > expectedDaysInCurrent * 1.5) confidence -= 20;
-  if (unit.unresolvedNotesCount > 2) confidence -= 15;
+  const hasOpenQuery = unit.queriesRaisedDate && !unit.queriesRepliedDate;
+  if (hasOpenQuery) confidence -= 15;
   if (idx >= 7) confidence += 10;
   confidence = Math.max(40, Math.min(95, confidence));
   const predictedDate = new Date(lastDate);
@@ -420,28 +421,29 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
 // =============================================================================
 
 interface QueriesCellProps {
-  count: number;
-  unresolvedCount: number;
+  queriesRaisedDate: string | null;
+  queriesRepliedDate: string | null;
   onClick: (e: React.MouseEvent) => void;
 }
 
-function QueriesCell({ count, unresolvedCount, onClick }: QueriesCellProps) {
+function QueriesCell({ queriesRaisedDate, queriesRepliedDate, onClick }: QueriesCellProps) {
+  const hasQuery = queriesRaisedDate !== null;
+  const isResolved = queriesRaisedDate !== null && queriesRepliedDate !== null;
+  const isOpen = queriesRaisedDate !== null && queriesRepliedDate === null;
+
   return (
     <td className="border-l border-gray-50">
       <div
         onClick={onClick}
         className="h-11 px-2 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group"
       >
-        {unresolvedCount > 0 ? (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 border border-red-200 group-hover:bg-red-100 transition-colors">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-xs font-semibold text-red-700">{unresolvedCount}</span>
-          </div>
-        ) : count > 0 ? (
+        {isOpen ? (
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 group-hover:bg-emerald-100 transition-colors">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-xs font-semibold text-emerald-700">{count}</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-emerald-700">Open</span>
           </div>
+        ) : isResolved ? (
+          <span className="text-gray-300">—</span>
         ) : (
           <span className="text-gray-300">—</span>
         )}
@@ -881,8 +883,8 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
               </div>
               <div className="bg-white rounded-xl p-3 border border-gray-100">
                 <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Queries</p>
-                <p className={`text-sm font-bold mt-1 ${unit.unresolvedNotesCount > 0 ? 'text-red-500' : ''}`} style={{ color: unit.unresolvedNotesCount > 0 ? undefined : tokens.dark }}>
-                  {unit.unresolvedNotesCount || 'None'}
+                <p className={`text-sm font-bold mt-1 ${unit.queriesRaisedDate && !unit.queriesRepliedDate ? 'text-emerald-600' : ''}`} style={{ color: unit.queriesRaisedDate && !unit.queriesRepliedDate ? undefined : tokens.dark }}>
+                  {unit.queriesRaisedDate && !unit.queriesRepliedDate ? 'Open' : 'None'}
                 </p>
               </div>
             </div>
@@ -1206,9 +1208,10 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
         if (response.ok) {
           const data = await response.json();
           const notes = data.notes || [];
-          // Only show demo queries if the unit has unresolvedNotesCount > 0 (from fetchData)
+          // Only show demo queries if the unit has an open query (queriesRaisedDate set but not replied)
           // This ensures consistency between what's shown in the table and the panel
-          if (notes.length === 0 && unit.unresolvedNotesCount > 0) {
+          const hasOpenQuery = unit.queriesRaisedDate && !unit.queriesRepliedDate;
+          if (notes.length === 0 && hasOpenQuery) {
             setQueries([
               { id: 'demo-1', content: 'Can you confirm the completion date for the kitchen installation?', resolved: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
               { id: 'demo-2', content: 'Please provide the updated floor plan with the recent modifications.', resolved: true, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie', resolvedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
@@ -1558,14 +1561,6 @@ export default function PipelineDevelopmentPage() {
           houseTypeCode: unit.houseTypeCode || null,
         };
 
-        // First 10 units get demo queries if they have no real queries
-        if (unit.notesCount === 0 && idx < 10) {
-          return {
-            ...enrichedUnit,
-            notesCount: 3,
-            unresolvedNotesCount: 2,
-          };
-        }
         return enrichedUnit;
       });
       setUnits(unitsWithData);
@@ -1695,7 +1690,7 @@ export default function PipelineDevelopmentPage() {
     available: units.filter(u => !u.purchaserName && u.saleType !== 'social').length,
     inProgress: units.filter(u => u.purchaserName && !u.handoverDate).length,
     complete: units.filter(u => u.handoverDate).length,
-    openQueries: units.reduce((acc, u) => acc + (u.unresolvedNotesCount || 0), 0),
+    openQueries: units.filter(u => u.queriesRaisedDate && !u.queriesRepliedDate).length,
     totalRevenue,
     avgPrice,
     socialUnits: socialUnitsCount,
@@ -2023,8 +2018,8 @@ export default function PipelineDevelopmentPage() {
                             <DateCell value={unit.contractsIssuedDate} unitId={unit.id} field="contractsIssuedDate" onUpdate={handleUpdate} />
                             {/* Queries */}
                             <QueriesCell
-                              count={unit.notesCount}
-                              unresolvedCount={unit.unresolvedNotesCount}
+                              queriesRaisedDate={unit.queriesRaisedDate}
+                              queriesRepliedDate={unit.queriesRepliedDate}
                               onClick={(e) => { e.stopPropagation(); setQueryUnit(unit); }}
                             />
 
