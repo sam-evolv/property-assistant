@@ -179,6 +179,12 @@ export async function GET(
         if (pipelineError) {
           console.error('[Pipeline Development API] Error fetching pipeline data:', pipelineError);
         } else {
+          // Debug: Log first few rows to see if queries_raised_date is present
+          const rowsWithQueries = (pipelineRows || []).filter((r: any) => r.queries_raised_date);
+          console.log('[Pipeline DEBUG] Total rows:', pipelineRows?.length, 'Rows with queries_raised_date:', rowsWithQueries.length);
+          if (rowsWithQueries.length > 0) {
+            console.log('[Pipeline DEBUG] Sample row with queries:', JSON.stringify(rowsWithQueries[0], null, 2));
+          }
           for (const row of pipelineRows || []) {
             pipelineData.set(row.unit_id as string, row);
           }
@@ -218,6 +224,11 @@ export async function GET(
       .map((unit) => {
         const pipeline = pipelineData.get(unit.id);
         const notes = notesCounts.get(pipeline?.id || '') || { total: 0, unresolved: 0 };
+
+        // Debug: Log if pipeline has queries data
+        if (pipeline?.queries_raised_date) {
+          console.log('[Pipeline DEBUG] Unit', unit.unit_number, 'has queries_raised_date:', pipeline.queries_raised_date, 'replied:', pipeline.queries_replied_date);
+        }
 
         // Safely convert dates
         const safeDate = (dateVal: any): string | null => {
