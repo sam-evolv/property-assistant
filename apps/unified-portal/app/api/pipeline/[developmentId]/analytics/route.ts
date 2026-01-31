@@ -116,12 +116,7 @@ export async function GET(
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
       .select(`
-        id,
-        unit_number,
-        address_line_1,
-        property_type,
-        bedrooms,
-        square_footage,
+        *,
         unit_sales_pipeline (
           id,
           sale_type,
@@ -153,13 +148,13 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch analytics data' }, { status: 500 });
     }
 
-    // Process pipeline data
-    const pipelineUnits = (units || []).map(u => ({
+    // Process pipeline data - handle various column names that may exist
+    const pipelineUnits = (units || []).map((u: any) => ({
       id: u.id,
-      unitNumber: u.unit_number,
-      type: u.property_type,
+      unitNumber: u.unit_number || '',
+      type: u.property_type || u.house_type_code || u.property_designation || 'Unknown',
       beds: u.bedrooms ? Number(u.bedrooms) : null,
-      floorArea: u.square_footage ? Number(u.square_footage) : null,
+      floorArea: u.square_footage ? Number(u.square_footage) : (u.floor_area_m2 ? Number(u.floor_area_m2) : null),
       pipeline: Array.isArray(u.unit_sales_pipeline) ? u.unit_sales_pipeline[0] : u.unit_sales_pipeline,
     })).filter(u => u.pipeline);
 
