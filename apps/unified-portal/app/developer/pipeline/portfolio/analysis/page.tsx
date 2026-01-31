@@ -293,8 +293,8 @@ function OverviewTab({ data }: { data: any }) {
               {(data?.socialSummary || []).map((row: any) => (
                 <tr key={row.developmentId} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{row.developmentName}</td>
-                  <td className="py-3 px-4 text-right">{row.socialUnits}</td>
-                  <td className="py-3 px-4">{row.housingAgency}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{row.socialUnits}</td>
+                  <td className="py-3 px-4 text-gray-900">{row.housingAgency}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       row.status === 'Complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
@@ -304,9 +304,9 @@ function OverviewTab({ data }: { data: any }) {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-gray-50 font-semibold">
+              <tr className="bg-gray-50 font-semibold text-gray-900">
                 <td className="py-3 px-4">Total</td>
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right text-gray-900">
                   {(data?.socialSummary || []).reduce((sum: number, r: any) => sum + r.socialUnits, 0)}
                 </td>
                 <td className="py-3 px-4" colSpan={2}></td>
@@ -349,24 +349,24 @@ function ComparisonTab({ data }: { data: any }) {
                       <span className="font-medium text-gray-900">{dev.name}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-right">{dev.privateUnits}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{dev.privateUnits}</td>
                   <td className="py-3 px-4 text-right text-green-600 font-medium">{dev.sold}</td>
                   <td className="py-3 px-4 text-right text-amber-600">{dev.inProgress}</td>
-                  <td className="py-3 px-4 text-right">{dev.available}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{dev.available}</td>
                   <td className="py-3 px-4 text-right font-medium" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</td>
-                  <td className="py-3 px-4 text-right">{formatEuro(dev.avgPrice)}</td>
-                  <td className="py-3 px-4 text-right">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{formatEuro(dev.avgPrice)}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</td>
                 </tr>
               ))}
-              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
+              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300 text-gray-900">
                 <td className="py-3 px-4">TOTAL</td>
-                <td className="py-3 px-4 text-right">{developments.reduce((s: number, d: any) => s + d.privateUnits, 0)}</td>
+                <td className="py-3 px-4 text-right text-gray-900">{developments.reduce((s: number, d: any) => s + d.privateUnits, 0)}</td>
                 <td className="py-3 px-4 text-right text-green-600">{developments.reduce((s: number, d: any) => s + d.sold, 0)}</td>
                 <td className="py-3 px-4 text-right text-amber-600">{developments.reduce((s: number, d: any) => s + d.inProgress, 0)}</td>
-                <td className="py-3 px-4 text-right">{developments.reduce((s: number, d: any) => s + d.available, 0)}</td>
+                <td className="py-3 px-4 text-right text-gray-900">{developments.reduce((s: number, d: any) => s + d.available, 0)}</td>
                 <td className="py-3 px-4 text-right" style={{ color: tokens.goldDark }}>{formatEuro(developments.reduce((s: number, d: any) => s + d.revenue, 0))}</td>
-                <td className="py-3 px-4 text-right">—</td>
-                <td className="py-3 px-4 text-right">—</td>
+                <td className="py-3 px-4 text-right text-gray-900">—</td>
+                <td className="py-3 px-4 text-right text-gray-900">—</td>
               </tr>
             </tbody>
           </table>
@@ -396,7 +396,7 @@ function ComparisonTab({ data }: { data: any }) {
                 <tr key={row.metric} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{row.metric}</td>
                   {developments.map((dev: any) => (
-                    <td key={dev.id} className="py-3 px-4 text-right">
+                    <td key={dev.id} className="py-3 px-4 text-right text-gray-900">
                       {row.metric.includes('Rate') 
                         ? `${row[dev.id]}%`
                         : row.metric.includes('Time')
@@ -430,7 +430,7 @@ function ComparisonTab({ data }: { data: any }) {
                 <tr key={row.type} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 font-medium text-gray-900">{row.type}</td>
                   {developments.map((dev: any) => (
-                    <td key={dev.id} className="py-3 px-4 text-right">
+                    <td key={dev.id} className="py-3 px-4 text-right text-gray-900">
                       {row[dev.id] ? formatEuro(row[dev.id]) : '—'}
                     </td>
                   ))}
@@ -668,7 +668,7 @@ function RevenueTab({ data }: { data: any }) {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</div>
-                  <div className="text-xs text-gray-500">{dev.percentage}% of portfolio</div>
+                  <div className="text-xs text-gray-900">{dev.percentage}% of portfolio</div>
                 </div>
               </div>
             ))}
