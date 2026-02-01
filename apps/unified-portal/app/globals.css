@@ -565,15 +565,6 @@ nav,
   color: #1f2937 !important;
 }
 
-/* Catch common inline light color styles */
-[style*="color: #ccc"],
-[style*="color: #ddd"],
-[style*="color: #eee"],
-[style*="color:#ccc"],
-[style*="color:#ddd"],
-[style*="color:#eee"] {
-  color: #1f2937 !important;
-}
 
 /* Ensure input placeholders are visible but distinguishable */
 ::placeholder {
