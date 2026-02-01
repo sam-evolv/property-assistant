@@ -41,6 +41,7 @@ interface KitchenUnit {
   address: string | null;
   purchaserName: string | null;
   houseType: string;
+  bedrooms: number;
   hasKitchen: boolean | null;
   counterType: string | null;
   unitFinish: string | null;
@@ -49,6 +50,20 @@ interface KitchenUnit {
   wardrobeStyle: string | null;
   notes: string | null;
   status: 'complete' | 'pending';
+  pcSumKitchen: number;
+  pcSumWardrobes: number;
+  pcSumTotal: number;
+}
+
+function formatCurrency(value: number): string {
+  const absValue = Math.abs(value);
+  const formatted = new Intl.NumberFormat('en-IE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(absValue);
+  return value < 0 ? `-${formatted}` : formatted;
 }
 
 interface SelectionOptions {
@@ -525,7 +540,9 @@ export default function KitchenSelectionsPage() {
     const complete = units.filter((u) => u.status === 'complete').length;
     const pending = units.filter((u) => u.status === 'pending').length;
     const completionRate = total > 0 ? Math.round((complete / total) * 100) : 0;
-    return { total, complete, pending, completionRate };
+    const totalPcSumDeductions = units.reduce((acc, u) => acc + (u.pcSumTotal || 0), 0);
+    const unitsWithDeductions = units.filter((u) => (u.pcSumTotal || 0) < 0).length;
+    return { total, complete, pending, completionRate, totalPcSumDeductions, unitsWithDeductions };
   }, [units]);
 
   const filteredUnits = useMemo(() => {
@@ -659,44 +676,69 @@ export default function KitchenSelectionsPage() {
 
       <div className="p-6">
         <div className="max-w-[1600px] mx-auto space-y-5">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: tokens.dark }}>
-                  Selection Progress
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.complete} of {stats.total} units complete
-                </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: tokens.dark }}>
+                    Selection Progress
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {stats.complete} of {stats.total} units complete
+                  </p>
+                </div>
+                <div className="relative w-14 h-14">
+                  <svg className="w-14 h-14" style={{ transform: 'rotate(-90deg)' }} viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="24" fill="none" stroke="#f0efec" strokeWidth="4" />
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r="24"
+                      fill="none"
+                      stroke={stats.completionRate === 100 ? tokens.success : tokens.gold}
+                      strokeWidth="4"
+                      strokeDasharray={2 * Math.PI * 24}
+                      strokeDashoffset={2 * Math.PI * 24 - (stats.completionRate / 100) * 2 * Math.PI * 24}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: tokens.dark }}>
+                    {stats.completionRate}%
+                  </span>
+                </div>
               </div>
-              <div className="relative w-14 h-14">
-                <svg className="w-14 h-14" style={{ transform: 'rotate(-90deg)' }} viewBox="0 0 56 56">
-                  <circle cx="28" cy="28" r="24" fill="none" stroke="#f0efec" strokeWidth="4" />
-                  <circle
-                    cx="28"
-                    cy="28"
-                    r="24"
-                    fill="none"
-                    stroke={stats.completionRate === 100 ? tokens.success : tokens.gold}
-                    strokeWidth="4"
-                    strokeDasharray={2 * Math.PI * 24}
-                    strokeDashoffset={2 * Math.PI * 24 - (stats.completionRate / 100) * 2 * Math.PI * 24}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: tokens.dark }}>
-                  {stats.completionRate}%
-                </span>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${stats.completionRate}%`,
+                    backgroundColor: stats.completionRate === 100 ? tokens.success : tokens.gold,
+                  }}
+                />
               </div>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${stats.completionRate}%`,
-                  backgroundColor: stats.completionRate === 100 ? tokens.success : tokens.gold,
-                }}
-              />
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: tokens.dark }}>
+                    PC Sum Deductions
+                  </h3>
+                  <p className={`text-2xl font-bold mt-2 ${stats.totalPcSumDeductions < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    {formatCurrency(stats.totalPcSumDeductions)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {stats.unitsWithDeductions} units with deductions
+                  </p>
+                </div>
+                {stats.totalPcSumDeductions < 0 && (
+                  <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                    </svg>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -763,6 +805,9 @@ export default function KitchenSelectionsPage() {
                     </th>
                     <th className="text-left px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 border-l border-gray-100">
                       Style
+                    </th>
+                    <th className="text-right px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 border-l border-gray-100">
+                      PC Sum
                     </th>
                     <th className="text-center px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 border-l border-gray-100">
                       Status
@@ -851,6 +896,24 @@ export default function KitchenSelectionsPage() {
                           onChange={(val) => updateUnit(unit.unitId, 'wardrobeStyle', val)}
                           disabled={unit.hasWardrobe !== true}
                         />
+                      </td>
+
+                      <td className="px-3 border-b border-gray-100 border-l">
+                        <div className="h-14 flex items-center justify-end">
+                          <span className={`text-sm font-medium ${
+                            unit.hasKitchen === null
+                              ? 'text-gray-400'
+                              : unit.pcSumTotal < 0 
+                                ? 'text-red-600' 
+                                : 'text-gray-500'
+                          }`}>
+                            {unit.hasKitchen === null 
+                              ? '—' 
+                              : unit.pcSumTotal !== 0 
+                                ? formatCurrency(unit.pcSumTotal) 
+                                : '€0'}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="border-b border-gray-100 border-l">
