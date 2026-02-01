@@ -1,0 +1,93 @@
+Optimize AI Assistant Response Time - Target < 1.5 seconds perceived
+Current Problem
+Response time is 3-5 seconds which feels slow during demos.
+Priority 1: Enable Streaming Response
+This is the most important change. Even if the full response takes 2 seconds, streaming makes it feel instant because users see text appearing immediately.
+Backend Changes
+javascript// In the chat API endpoint
+export async function POST(req) {
+  const { message, unitId } = await req.json();
+  
+  // Get context (keep this fast)
+  const context = await getRelevantDocuments(message, unitId, 5); // Reduce from 20 to 5
+  
+  // Create streaming response
+  const stream = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Context:\n${context}\n\nQuestion: ${message}` }
+    ],
+    stream: true,
+    max_tokens: 500,  // Limit response length for speed
+  });
+
+  // Return as streaming response
+  const encoder = new TextEncoder();
+  const readable = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content || '';
+        controller.enqueue(encoder.encode(text));
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+Frontend Changes
+javascriptasync function sendMessage(message) {
+  setIsLoading(true);
+  setCurrentResponse(''); // Start with empty response
+  
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, unitId }),
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const text = decoder.decode(value);
+    setCurrentResponse(prev => prev + text); // Append each chunk
+  }
+  
+  setIsLoading(false);
+}
+Priority 2: Reduce Vector Search Overhead
+javascript// Reduce chunks from 20 to 5-8
+const relevantDocs = await supabase.rpc('match_document_sections', {
+  query_embedding: embedding,
+  match_threshold: 0.7,  // Increase threshold for better matches
+  match_count: 5,        // Reduce from 20
+});
+Priority 3: Add Loading Animation
+While streaming, show a subtle typing indicator that transitions smoothly into the response:
+jsx{isLoading && currentResponse === '' && (
+  <div className="typing-indicator">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+)}
+Priority 4: Preload Common Data
+On page load, prefetch the user's unit context so it's ready:
+javascriptuseEffect(() => {
+  // Prefetch unit context on mount
+  prefetchUnitContext(unitId);
+}, [unitId]);
+Expected Result
+MetricBeforeAfterTime to first character3-5 sec< 500msFull response3-5 sec1.5-2 secPerceived speedSlowFast (streaming)
+
+The streaming is the key. Even if the total time is the same, seeing text appear immediately makes it feel 10x faster.

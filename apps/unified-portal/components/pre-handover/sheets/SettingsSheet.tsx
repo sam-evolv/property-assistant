@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { SheetHeader, SheetItem } from '../BottomSheet';
-import { Bell, Languages, HelpCircle, ChevronRight, Home, AlertTriangle, X } from 'lucide-react';
+import { Bell, Languages, HelpCircle, ChevronRight, Home, AlertTriangle, X, Shield } from 'lucide-react';
 
 interface SettingsSheetProps {
   onSwitchToAssistant?: () => void;
@@ -77,6 +77,27 @@ export function SettingsSheet({ onSwitchToAssistant }: SettingsSheetProps) {
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#D4AF37] 
             group-hover:translate-x-0.5 transition-all duration-[250ms]" />
         </SheetItem>
+
+        <div className="pt-4 border-t border-[#D4AF37]/10 mt-4">
+          <div className="px-1 mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4 text-[#B8941F]" />
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data & Privacy</p>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              For data access requests, deletion requests, or privacy concerns:
+            </p>
+            <a 
+              href="mailto:privacy@longviewestates.ie" 
+              className="inline-block mt-1 text-xs font-semibold text-[#D4AF37] hover:text-[#B8941F] transition-colors"
+            >
+              privacy@longviewestates.ie
+            </a>
+            <p className="text-xs text-gray-400 mt-2">
+              We respond to all requests within 30 days as required by GDPR.
+            </p>
+          </div>
+        </div>
 
         <div className="pt-4 border-t border-[#D4AF37]/10 mt-4">
           <SheetItem onClick={handleSwitchClick}>

@@ -25,6 +25,7 @@ import {
   Ticket,
   Brain,
   TrendingUp,
+  Shield,
 } from 'lucide-react';
 import { ProjectSwitcher } from '@/components/developer/ProjectSwitcher';
 
@@ -75,6 +76,7 @@ const menuSections = [
     items: [
       { href: '/super/system-health', label: 'System Health', icon: HeartPulse },
       { href: '/super/system-logs', label: 'System Logs', icon: FileWarning },
+      { href: '/super/audit-log', label: 'Audit Log', icon: Shield },
       { href: '/super/training-jobs', label: 'Training Jobs', icon: Upload },
     ],
   },

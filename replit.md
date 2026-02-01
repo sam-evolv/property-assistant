@@ -73,6 +73,24 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### GDPR Compliance Features (February 2026)
+
+**Audit Logging for Data Access:**
+- `data_access_log` table tracks when developers/admins view personal data
+- Logs accessor ID, email, role, action, resource details, IP address, timestamp
+- Utility function: `lib/gdpr-audit-log.ts` - logDataAccess()
+- Integrated into `/api/super/analytics` and `/api/developments/[id]/analytics`
+
+**Super Admin Audit Log Viewer:**
+- Location: `/super/audit-log`
+- Features: Date range filtering, search by user/resource, pagination
+- API: `/api/super/audit-log` with server-side filtering
+
+**Privacy Contact in Purchaser Portal:**
+- Data & Privacy section in Settings sheet
+- Contact: privacy@longviewestates.ie
+- GDPR 30-day response commitment displayed
+
 ### Secure Unit Access Codes (February 2026)
 
 **New Secure Code Format:** `XX-NNN-XXXX` (e.g., `AV-001-ACF7`)

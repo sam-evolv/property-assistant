@@ -3,12 +3,22 @@ import { db } from '@openhouse/db/client';
 import { messages, developments, tenants } from '@openhouse/db/schema';
 import { sql, count, eq, desc, gte } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
+import { logDataAccess } from '@/lib/gdpr-audit-log';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(['super_admin']);
+    const session = await requireRole(['super_admin']);
+
+    await logDataAccess({
+      accessorId: session.id,
+      accessorEmail: session.email,
+      accessorRole: session.role,
+      action: 'viewed_chat_analytics',
+      resourceType: 'analytics_data',
+      resourceDescription: 'Viewed platform-wide chat analytics',
+    });
 
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || '30d';

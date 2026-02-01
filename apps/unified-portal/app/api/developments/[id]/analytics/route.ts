@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
-import { messages, documents } from '@openhouse/db/schema';
+import { messages, documents, developments } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
+import { logDataAccess } from '@/lib/gdpr-audit-log';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,19 @@ export async function GET(
   try {
     const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
+    const developmentId = (await params).id;
+    
+    const [dev] = await db.select({ name: developments.name }).from(developments).where(eq(developments.id, developmentId)).limit(1);
+    await logDataAccess({
+      accessorId: session.id,
+      accessorEmail: session.email,
+      accessorRole: session.role,
+      tenantId: session.tenantId,
+      action: 'viewed_chat_analytics',
+      resourceType: 'development_messages',
+      resourceId: developmentId,
+      resourceDescription: `Viewed chat analytics for ${dev?.name || 'development'}`,
+    });
     
     console.log('[Analytics] Fetching for project:', REAL_PROJECT_ID);
 
@@ -40,7 +54,6 @@ export async function GET(
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const developmentId = params.id;
 
     const [chatCount, documentCount, recentChatCount, messageVolumeData] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(messages)
