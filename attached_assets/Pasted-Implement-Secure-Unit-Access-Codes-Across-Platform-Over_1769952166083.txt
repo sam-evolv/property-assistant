@@ -1,0 +1,123 @@
+Implement Secure Unit Access Codes Across Platform
+Overview
+We've updated the unit_uid column in the units table to use secure, non-guessable access codes. The new format is:
+[DEV_PREFIX]-[UNIT_NUM]-[RANDOM_4_CHAR]
+Examples:
+
+AV-001-ACF7 (Árdan View, Unit 1)
+RP-017-7363 (Rathard Park, Unit 17)
+LP-003-D3EC (Longview Park, Unit 3)
+
+The random suffix prevents purchasers from guessing their neighbour's code.
+Database
+The unit_uid column in units table is already populated with the new secure codes.
+Changes Required
+1. Purchaser Login / Portal Access
+Update the login flow to accept the new code format:
+javascript// Old: Just accepted simple codes like "LV-PARK-001"
+// New: Accept secure codes like "AV-001-ACF7"
+
+// Validation regex for new format:
+const codePattern = /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/;
+```
+
+The portal should:
+- Accept the `unit_uid` as the access code
+- Look up the unit by `unit_uid` (not by constructing it from parts)
+- Show appropriate error if code not found
+
+### 2. Developer Dashboard - Display Codes
+
+In the Units tab and Sales Pipeline, show the access code:
+
+**Sales Pipeline Table:**
+Add a column or show in the unit popover:
+- Access Code: `AV-001-ACF7`
+- Add "Copy" button to easily copy the code
+
+**Units Tab:**
+- Show `unit_uid` column
+- Add "Copy Code" action
+
+### 3. Pre-Handover Portal Links
+
+When generating portal links or QR codes, use the `unit_uid`:
+```
+https://app.openhouse.ai/portal/{unit_uid}
+Example: https://app.openhouse.ai/portal/AV-001-ACF7
+4. Admin - Generate Codes for New Developments
+When a new development is created and units are imported, auto-generate secure codes:
+javascriptfunction generateSecureCode(developmentPrefix, unitNumber) {
+  const paddedNum = String(unitNumber).padStart(3, '0');
+  const randomSuffix = generateRandomString(4); // A-Z, 0-9
+  return `${developmentPrefix}-${paddedNum}-${randomSuffix}`;
+}
+
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+5. Development Settings - Configure Prefix
+Add a field in development settings for the code prefix:
+
+Árdan View → AV
+Rathard Park → RP
+Rathard Lawn → RL
+Longview Park → LP
+
+Store in developments table as code_prefix column:
+sqlALTER TABLE developments ADD COLUMN IF NOT EXISTS code_prefix VARCHAR(5);
+6. Bulk Code Regeneration (Admin Only)
+Add an admin function to regenerate codes for a development (in case of security concern):
+javascriptasync function regenerateCodesForDevelopment(developmentId) {
+  const units = await getUnitsForDevelopment(developmentId);
+  const prefix = await getDevelopmentPrefix(developmentId);
+  
+  for (const unit of units) {
+    const newCode = generateSecureCode(prefix, unit.unit_number);
+    await updateUnitCode(unit.id, newCode);
+  }
+}
+```
+
+⚠️ Warning: This invalidates all existing codes - purchasers would need new codes.
+
+### 7. Email/Communications Templates
+
+When sending portal access details to purchasers, include their unique code:
+```
+Your Portal Access Code: AV-001-ACF7
+
+Use this code to access your property portal at:
+https://app.openhouse.ai/portal
+8. API Endpoints
+GET /api/units/by-code/:code
+
+Look up unit by unit_uid
+Return unit details if found
+Return 404 if not found (don't reveal if code format is valid)
+
+POST /api/portal/login
+json{
+  "accessCode": "AV-001-ACF7"
+}
+9. Security Considerations
+
+Rate limit login attempts (max 5 per minute per IP)
+Log failed access attempts
+Don't reveal whether a code exists or is just wrong format
+Codes are case-insensitive for user convenience (normalize to uppercase)
+
+
+Summary
+The key changes are:
+
+Use unit_uid column as the access code
+Update login to accept new format
+Display codes in developer dashboard
+Auto-generate secure codes for new units
+Add code prefix setting per development

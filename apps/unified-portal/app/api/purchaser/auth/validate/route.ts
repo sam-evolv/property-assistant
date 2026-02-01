@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const failedAttempts = new Map<string, { count: number; lastAttempt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW = 60000;
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,161 +16,195 @@ function getSupabaseAdmin() {
   );
 }
 
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = failedAttempts.get(ip);
+  
+  if (record) {
+    if (now - record.lastAttempt > RATE_LIMIT_WINDOW) {
+      failedAttempts.delete(ip);
+      return true;
+    }
+    if (record.count >= RATE_LIMIT_MAX) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function recordFailedAttempt(ip: string): void {
+  const now = Date.now();
+  const record = failedAttempts.get(ip);
+  
+  if (record) {
+    if (now - record.lastAttempt > RATE_LIMIT_WINDOW) {
+      failedAttempts.set(ip, { count: 1, lastAttempt: now });
+    } else {
+      record.count++;
+      record.lastAttempt = now;
+    }
+  } else {
+    failedAttempts.set(ip, { count: 1, lastAttempt: now });
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  
+  if (!checkRateLimit(ip)) {
+    console.log('[Purchaser Auth] Rate limited IP:', ip);
+    return NextResponse.json(
+      { error: 'Too many attempts. Please wait a moment and try again.' },
+      { status: 429 }
+    );
+  }
+  
   try {
     const body = await req.json();
-    const { code } = body;
+    const { code, accessCode } = body;
+    const inputCode = code || accessCode;
 
-    if (!code || typeof code !== 'string') {
+    if (!inputCode || typeof inputCode !== 'string') {
       return NextResponse.json(
         { error: 'Please enter your OpenHouse code' },
         { status: 400 }
       );
     }
 
-    const trimmedCode = code.trim().toUpperCase();
+    const trimmedCode = inputCode.trim().toUpperCase();
     
     if (trimmedCode.length < 3) {
-      return NextResponse.json(
-        { error: 'Code is too short' },
-        { status: 400 }
-      );
-    }
-
-    console.log('[Purchaser Auth] Validating code:', trimmedCode);
-
-    const supabase = getSupabaseAdmin();
-    let unit: any = null;
-    let project: any = null;
-
-    // Parse QR code format: PREFIX-N where PREFIX identifies the project and N is 1-3 digits
-    // LV-PARK-XXX = Longview Park, RA-PARK-XXX = Rathard Park, RA-LAWN-XXX = Rathard Lawn
-    const codeMatch = trimmedCode.match(/^([A-Z]+-[A-Z]+)-(\d{1,3})$/);
-    
-    if (!codeMatch) {
-      console.log('[Purchaser Auth] Invalid code format:', trimmedCode);
-      return NextResponse.json(
-        { error: 'Invalid code format. Please check and try again.' },
-        { status: 400 }
-      );
-    }
-    
-    const [, prefix, unitNumStr] = codeMatch;
-    const unitNum = parseInt(unitNumStr, 10);
-    
-    // Map prefix to project name
-    const prefixToProjectName: Record<string, string> = {
-      'LV-PARK': 'Longview Park',
-      'RA-PARK': 'Rathard Park',
-      'RA-LAWN': 'Rathard Lawn',
-      'OH-PARK': 'OpenHouse Park',
-    };
-    
-    const expectedProjectName = prefixToProjectName[prefix];
-    if (!expectedProjectName) {
-      console.log('[Purchaser Auth] Unknown project prefix:', prefix);
+      recordFailedAttempt(ip);
       return NextResponse.json(
         { error: 'Invalid code. Please check and try again.' },
         { status: 400 }
       );
     }
+
+    console.log('[Purchaser Auth] Validating code');
+
+    const supabase = getSupabaseAdmin();
+    let unit: any = null;
+
+    // NEW SECURE FORMAT: XX-NNN-XXXX (e.g., AV-001-ACF7, RP-017-7363)
+    const secureCodePattern = /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/;
     
-    // Find the project by name
-    const { data: projectData, error: projectError } = await supabase
-      .from('projects')
-      .select('id, name')
-      .ilike('name', expectedProjectName)
-      .single();
-    
-    if (projectError || !projectData) {
-      console.log('[Purchaser Auth] Project not found for:', expectedProjectName);
-      return NextResponse.json(
-        { error: 'Development not found. Please check your code.' },
-        { status: 404 }
-      );
-    }
-    
-    console.log('[Purchaser Auth] Found project:', projectData.id, projectData.name, 'for prefix:', prefix);
-    
-    // First, try to find the unit directly by unit_uid (most reliable)
+    // LEGACY FORMAT: PREFIX-NNN (e.g., LV-PARK-001, RA-PARK-017)
+    const legacyCodePattern = /^([A-Z]+-[A-Z]+)-(\d{1,3})$/;
+
+    // Try direct lookup by unit_uid first (works for both new and legacy codes)
     const { data: directUnit, error: directError } = await supabase
       .from('units')
-      .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms')
+      .select(`
+        id, 
+        project_id,
+        development_id,
+        tenant_id,
+        unit_uid,
+        address, 
+        purchaser_name, 
+        house_type_code, 
+        bedrooms, 
+        bathrooms,
+        developments!units_development_id_fkey (
+          id,
+          name
+        ),
+        projects!units_project_id_fkey (
+          id,
+          name
+        )
+      `)
       .eq('unit_uid', trimmedCode)
       .single();
     
     if (directUnit && !directError) {
-      console.log('[Purchaser Auth] Found unit by unit_uid:', directUnit.id, 'Address:', directUnit.address);
+      console.log('[Purchaser Auth] Found unit by unit_uid');
       
-      project = projectData;
+      const devName = (directUnit.developments as any)?.name || (directUnit.projects as any)?.name || 'Unknown';
+      const devId = directUnit.development_id || directUnit.project_id;
+      
       unit = {
         id: directUnit.id,
-        development_id: directUnit.project_id,
+        development_id: devId,
         address: directUnit.address,
         purchaser_name: directUnit.purchaser_name,
-        tenant_id: projectData.id,
-        development_name: projectData.name,
+        tenant_id: directUnit.tenant_id,
+        development_name: devName,
         house_type_code: directUnit.house_type_code,
         bedrooms: directUnit.bedrooms,
         bathrooms: directUnit.bathrooms,
+        unit_uid: directUnit.unit_uid,
       };
-    } else {
-      // Fallback: Find the unit by address number within this specific project
-      const { data: projectUnits, error: unitsError } = await supabase
-        .from('units')
-        .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms')
-        .eq('project_id', projectData.id);
-      
-      if (unitsError) {
-        console.error('[Purchaser Auth] Error fetching units:', unitsError);
-        return NextResponse.json(
-          { error: 'Something went wrong. Please try again.' },
-          { status: 500 }
-        );
-      }
-      
-      // Find unit matching the address number
-      // Handle formats: "1 Longview Park...", "Unit 1, ...", just "1"
-      const matchedUnit = projectUnits?.find((u: any) => {
-        const addr = u.address?.trim();
-        if (!addr) return false;
+    } else if (legacyCodePattern.test(trimmedCode)) {
+      // Legacy format fallback
+      const legacyMatch = trimmedCode.match(legacyCodePattern);
+      if (legacyMatch) {
+        const [, prefix, unitNumStr] = legacyMatch;
+        const unitNum = parseInt(unitNumStr, 10);
         
-        // Match addresses that are just a number (e.g., "1", "10")
-        if (/^\d+$/.test(addr)) {
-          return parseInt(addr, 10) === unitNum;
-        }
-        
-        // Match "Unit X, ..." format (e.g., "Unit 21, Longview Park")
-        const unitMatch = addr.match(/^Unit\s+(\d+)/i);
-        if (unitMatch) {
-          return parseInt(unitMatch[1], 10) === unitNum;
-        }
-        
-        // Match addresses starting with a number followed by space (e.g., "1 Longview Park")
-        const addrMatch = addr.match(/^(\d+)\s/);
-        return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
-      });
-      
-      if (matchedUnit) {
-        console.log('[Purchaser Auth] Found unit by address match:', matchedUnit.id, 'in project:', projectData.name);
-        
-        project = projectData;
-        unit = {
-          id: matchedUnit.id,
-          development_id: matchedUnit.project_id,
-          address: matchedUnit.address,
-          purchaser_name: matchedUnit.purchaser_name,
-          tenant_id: projectData.id,
-          development_name: projectData.name,
-          house_type_code: matchedUnit.house_type_code,
-          bedrooms: matchedUnit.bedrooms,
-          bathrooms: matchedUnit.bathrooms,
+        const prefixToProjectName: Record<string, string> = {
+          'LV-PARK': 'Longview Park',
+          'RA-PARK': 'Rathard Park',
+          'RA-LAWN': 'Rathard Lawn',
+          'OH-PARK': 'OpenHouse Park',
         };
+        
+        const expectedProjectName = prefixToProjectName[prefix];
+        if (expectedProjectName) {
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select('id, name')
+            .ilike('name', expectedProjectName)
+            .single();
+          
+          if (projectData && !projectError) {
+            const { data: projectUnits } = await supabase
+              .from('units')
+              .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms, unit_uid')
+              .eq('project_id', projectData.id);
+            
+            const matchedUnit = projectUnits?.find((u: any) => {
+              const addr = u.address?.trim();
+              if (!addr) return false;
+              
+              if (/^\d+$/.test(addr)) {
+                return parseInt(addr, 10) === unitNum;
+              }
+              
+              const unitMatch = addr.match(/^Unit\s+(\d+)/i);
+              if (unitMatch) {
+                return parseInt(unitMatch[1], 10) === unitNum;
+              }
+              
+              const addrMatch = addr.match(/^(\d+)\s/);
+              return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
+            });
+            
+            if (matchedUnit) {
+              console.log('[Purchaser Auth] Found unit by legacy code match');
+              
+              unit = {
+                id: matchedUnit.id,
+                development_id: matchedUnit.project_id,
+                address: matchedUnit.address,
+                purchaser_name: matchedUnit.purchaser_name,
+                tenant_id: projectData.id,
+                development_name: projectData.name,
+                house_type_code: matchedUnit.house_type_code,
+                bedrooms: matchedUnit.bedrooms,
+                bathrooms: matchedUnit.bathrooms,
+                unit_uid: matchedUnit.unit_uid || trimmedCode,
+              };
+            }
+          }
+        }
       }
     }
 
     if (!unit) {
-      console.log('[Purchaser Auth] Code not found:', trimmedCode);
+      recordFailedAttempt(ip);
+      console.log('[Purchaser Auth] Code not found');
       return NextResponse.json(
         { error: 'Invalid code. Please check and try again.' },
         { status: 404 }

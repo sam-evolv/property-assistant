@@ -188,7 +188,7 @@ export default function PurchaserLoginPage() {
                   e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
                   e.target.style.boxShadow = 'none';
                 }}
-                placeholder="e.g. LV-PARK-001"
+                placeholder="e.g. AV-001-ACF7"
               />
             </div>
 
