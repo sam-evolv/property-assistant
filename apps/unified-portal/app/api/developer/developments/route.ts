@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminContextFromSession } from '@/lib/api-auth';
-import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { developments } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,8 +34,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-
     console.log('[Developer Developments API] Fetching for tenant:', tenantId, 'role:', role);
 
     let drizzleDevs: any[] = [];
@@ -67,21 +57,10 @@ export async function GET(request: NextRequest) {
         drizzleErr instanceof Error ? drizzleErr.message : 'Unknown error');
     }
 
-    // Query ALL projects from Supabase (organization_id filter was causing 0 results)
-    // Projects may not have organization_id set, so we fetch all and the user can see all available
-    const supabaseResult = await supabaseAdmin
-      .from('projects')
-      .select('id, name, address, organization_id, created_at')
-      .order('name', { ascending: true });
-
-    console.log('[Developer Developments API] Supabase projects found:', supabaseResult.data?.length || 0);
-
-    if (supabaseResult.error) {
-      console.warn('[Developer Developments API] Supabase fetch failed (non-blocking):', supabaseResult.error.message);
-    }
-
-    const drizzleIds = new Set(drizzleDevs.map(d => d.id));
-
+    // SECURITY: Only return developments from Drizzle that are properly tenant-filtered
+    // Do NOT merge Supabase projects as they may belong to other tenants
+    // The Drizzle query already filters by tenant_id which is the authoritative source
+    
     const normalizedDrizzleDevs = drizzleDevs.map(d => ({
       id: d.id,
       name: d.name,
@@ -93,20 +72,8 @@ export async function GET(request: NextRequest) {
       source: 'drizzle' as const,
     }));
 
-    const supabaseProjects = (supabaseResult.data || [])
-      .filter(p => !drizzleIds.has(p.id))
-      .map(p => ({
-        id: p.id,
-        name: p.name || 'Unnamed Project',
-        code: '',
-        slug: '',
-        address: p.address || null,
-        archive_mode: 'shared' as const,
-        is_active: true,
-        source: 'supabase' as const,
-      }));
-
-    const allDevelopments = [...normalizedDrizzleDevs, ...supabaseProjects];
+    // Only use tenant-isolated developments from Drizzle
+    const allDevelopments = normalizedDrizzleDevs;
 
     console.log('[Developer Developments API] Total:', allDevelopments.length);
 
