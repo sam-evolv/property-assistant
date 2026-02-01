@@ -514,3 +514,55 @@ nav,
     touch-action: manipulation;
   }
 }
+
+/* =============================================================================
+   GLOBAL TEXT CONTRAST FIX - Force all light grey text to black/dark
+   ============================================================================= */
+
+/* Override all light grey Tailwind text classes to dark colors */
+.text-gray-200,
+.text-gray-300,
+.text-gray-400 {
+  color: #374151 !important; /* gray-700 */
+}
+
+.text-grey-200,
+.text-grey-300,
+.text-grey-400 {
+  color: #374151 !important; /* gray-700 */
+}
+
+/* Ensure table cells have dark text */
+td, th {
+  color: #1f2937; /* gray-800 */
+}
+
+/* Fix chart/graph labels if present */
+.recharts-text,
+.recharts-cartesian-axis-tick-value,
+.recharts-legend-item-text {
+  fill: #1f2937 !important;
+  color: #1f2937 !important;
+}
+
+/* Catch common inline light color styles */
+[style*="color: #ccc"],
+[style*="color: #ddd"],
+[style*="color: #eee"],
+[style*="color:#ccc"],
+[style*="color:#ddd"],
+[style*="color:#eee"] {
+  color: #1f2937 !important;
+}
+
+/* Ensure input placeholders are visible but distinguishable */
+::placeholder {
+  color: #6b7280 !important; /* gray-500 - minimum contrast */
+  opacity: 1;
+}
+
+/* Fix any muted/secondary text classes */
+.text-muted,
+.text-secondary {
+  color: #4b5563 !important; /* gray-600 */
+}
