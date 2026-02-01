@@ -1,0 +1,30 @@
+Add PC Sum data to Portfolio Analysis (All Developments)
+Incorporate PC Sum deductions into the combined analysis without making it too prominent. Integrate it cleverly into existing sections.
+1. Revenue Summary Cards - Add Adjusted Revenue
+Update the existing revenue summary cards at the top:
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Total Revenue    │  │ Collected        │  │ Outstanding      │  │ Adjusted Revenue │
+│  €48,500,000     │  │  €32,100,000     │  │  €16,400,000     │  │  €48,369,000     │
+│                  │  │                  │  │                  │  │  (-€131K PC sums)│
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+The "Adjusted Revenue" card shows contracted revenue minus PC sum deductions, with a subtle note showing the deduction amount.
+2. Development Comparison Table - Add PC Sum Column
+In the existing development comparison table, add a PC Sum column:
+DevelopmentUnitsSoldRevenueAvg PricePC SumsAdjusted RevLongview Park7561€28.5M€458K€0€28.5MRathard Park5238€18.2M€455K-€80K€18.12MRathard Lawn453€1.6M€525K-€12K€1.59MÁrdan View6819€8.7M€458K-€39K€8.66MTOTAL240121€57M€471K-€131K€56.87M
+PC Sums column in subtle red text where negative.
+3. Small PC Sum Insight Box
+Add a compact insight box (not a full section) somewhere logical - perhaps near revenue or as a collapsible detail:
+┌─────────────────────────────────────────────────────────┐
+│ 💡 Kitchen Selection Impact                             │
+│                                                         │
+│ 20 of 60 decided purchasers (33%) are taking their own │
+│ kitchen, resulting in -€131,000 in PC sum deductions.  │
+│                                                         │
+│ Breakdown: Kitchen -€119K | Wardrobes -€12K            │
+└─────────────────────────────────────────────────────────┘
+Keep it informative but not dominant - one small card or expandable section.
+4. Cash Flow Projection Note
+If there's a cash flow or revenue projection section, add a footnote:
+* Projected revenue adjusted for €131K in PC sum deductions (20 units taking own kitchen/wardrobes)
+
+Key principle: PC sums should inform the analysis without cluttering it. Show the adjusted figures prominently, but keep the detailed breakdown subtle or expandable.

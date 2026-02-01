@@ -42,6 +42,41 @@ const parsePrice = (price: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+interface PCsumConfig {
+  kitchen4Bed: number;
+  kitchen3Bed: number;
+  kitchen2Bed: number;
+  wardrobes: number;
+}
+
+function calculatePCSum(
+  bedrooms: number,
+  hasKitchen: boolean | null,
+  hasWardrobe: boolean | null,
+  config: PCsumConfig
+): { pcSumKitchen: number; pcSumWardrobes: number; pcSumTotal: number } {
+  let pcSumKitchen = 0;
+  let pcSumWardrobes = 0;
+
+  // Kitchen PC Sum: deduct if NOT taking developer kitchen
+  if (hasKitchen === false) {
+    if (bedrooms >= 4) pcSumKitchen = -config.kitchen4Bed;
+    else if (bedrooms === 3) pcSumKitchen = -config.kitchen3Bed;
+    else pcSumKitchen = -config.kitchen2Bed;
+  }
+
+  // Wardrobe PC Sum: deduct if NOT taking developer wardrobes
+  if (hasWardrobe === false) {
+    pcSumWardrobes = -config.wardrobes;
+  }
+
+  return {
+    pcSumKitchen,
+    pcSumWardrobes,
+    pcSumTotal: pcSumKitchen + pcSumWardrobes,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
@@ -86,6 +121,8 @@ export async function GET(request: NextRequest) {
           signed_contracts_date,
           counter_signed_date,
           kitchen_date,
+          kitchen_selected,
+          kitchen_wardrobes,
           snag_date,
           drawdown_date,
           handover_date,
@@ -94,6 +131,16 @@ export async function GET(request: NextRequest) {
       `)
       .eq('tenant_id', tenantId)
       .order('unit_number');
+    
+    // Fetch kitchen selection options for PC Sum allowances
+    const { data: kitchenOptions } = await supabaseAdmin
+      .from('kitchen_selection_options')
+      .select('development_id, pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes')
+      .eq('tenant_id', tenantId);
+    
+    const kitchenOptionsMap = new Map(
+      (kitchenOptions || []).map(opt => [opt.development_id, opt])
+    );
 
     if (unitsError) {
       console.error('[Portfolio Analytics] Error fetching units:', unitsError);
@@ -127,6 +174,14 @@ export async function GET(request: NextRequest) {
     const soldUnits = privateUnits.filter(u => u.pipeline?.handover_date);
     const avgPrice = privateUnits.length > 0 ? totalRevenue / privateUnits.length : 0;
 
+    // Calculate total PC Sum across all developments (will be calculated after developmentStats)
+    let totalPcSumDeductions = 0;
+    let totalPcSumKitchen = 0;
+    let totalPcSumWardrobes = 0;
+    let totalDecided = 0;
+    let totalTakingOwnKitchen = 0;
+    let totalTakingOwnWardrobes = 0;
+
     const portfolioOverview = {
       totalDevelopments: developments?.length || 0,
       totalUnits: pipelineUnits.length,
@@ -136,6 +191,14 @@ export async function GET(request: NextRequest) {
       avgPrice,
       soldUnits: soldUnits.length,
       inProgress: privateUnits.filter(u => u.pipeline?.release_date && !u.pipeline?.handover_date).length,
+      // PC Sum fields will be added after development stats calculation
+      totalPcSumDeductions: 0,
+      totalPcSumKitchen: 0,
+      totalPcSumWardrobes: 0,
+      adjustedRevenue: 0,
+      totalDecided: 0,
+      totalTakingOwnKitchen: 0,
+      totalTakingOwnWardrobes: 0,
     };
 
     // ==========================================================================
@@ -165,6 +228,39 @@ export async function GET(request: NextRequest) {
       });
       const avgCycle = cycles.length > 0 ? Math.round(cycles.reduce((a, b) => a + b, 0) / cycles.length) : 0;
 
+      // Calculate PC Sum for this development
+      const devKitchenOptions = kitchenOptionsMap.get(dev.id);
+      const pcSumConfig: PCsumConfig = {
+        kitchen4Bed: devKitchenOptions?.pc_sum_kitchen_4bed ?? 7500,
+        kitchen3Bed: devKitchenOptions?.pc_sum_kitchen_3bed ?? 6500,
+        kitchen2Bed: devKitchenOptions?.pc_sum_kitchen_2bed ?? 5000,
+        wardrobes: devKitchenOptions?.pc_sum_wardrobes ?? 1000,
+      };
+
+      let devPcSumTotal = 0;
+      let devPcSumKitchen = 0;
+      let devPcSumWardrobes = 0;
+      let decidedCount = 0;
+      let takingOwnKitchen = 0;
+      let takingOwnWardrobes = 0;
+
+      devPrivate.forEach(u => {
+        const bedrooms = u.beds || 3;
+        const hasKitchen = u.pipeline?.kitchen_selected;
+        const hasWardrobe = u.pipeline?.kitchen_wardrobes;
+        
+        if (hasKitchen !== null || hasWardrobe !== null) {
+          decidedCount++;
+        }
+        if (hasKitchen === false) takingOwnKitchen++;
+        if (hasWardrobe === false) takingOwnWardrobes++;
+        
+        const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe, pcSumConfig);
+        devPcSumKitchen += pcSum.pcSumKitchen;
+        devPcSumWardrobes += pcSum.pcSumWardrobes;
+        devPcSumTotal += pcSum.pcSumTotal;
+      });
+
       developmentColors[dev.id] = colorPalette[idx % colorPalette.length];
 
       if (devUnits.length > 0) {
@@ -182,9 +278,35 @@ export async function GET(request: NextRequest) {
           revenue,
           avgPrice: avgPriceForDev,
           avgCycle,
+          pcSumTotal: devPcSumTotal,
+          pcSumKitchen: devPcSumKitchen,
+          pcSumWardrobes: devPcSumWardrobes,
+          adjustedRevenue: revenue + devPcSumTotal,
+          decidedCount,
+          takingOwnKitchen,
+          takingOwnWardrobes,
         });
       }
     });
+
+    // Accumulate PC Sum totals from all developments
+    developmentStats.forEach(d => {
+      totalPcSumDeductions += d.pcSumTotal;
+      totalPcSumKitchen += d.pcSumKitchen;
+      totalPcSumWardrobes += d.pcSumWardrobes;
+      totalDecided += d.decidedCount;
+      totalTakingOwnKitchen += d.takingOwnKitchen;
+      totalTakingOwnWardrobes += d.takingOwnWardrobes;
+    });
+
+    // Update portfolio overview with PC Sum data
+    portfolioOverview.totalPcSumDeductions = totalPcSumDeductions;
+    portfolioOverview.totalPcSumKitchen = totalPcSumKitchen;
+    portfolioOverview.totalPcSumWardrobes = totalPcSumWardrobes;
+    portfolioOverview.adjustedRevenue = totalRevenue + totalPcSumDeductions;
+    portfolioOverview.totalDecided = totalDecided;
+    portfolioOverview.totalTakingOwnKitchen = totalTakingOwnKitchen;
+    portfolioOverview.totalTakingOwnWardrobes = totalTakingOwnWardrobes;
 
     // ==========================================================================
     // SECTION 3: COMBINED SALES VELOCITY (by development per month)

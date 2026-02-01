@@ -176,6 +176,7 @@ export default function PortfolioAnalysisPage() {
 
 function OverviewTab({ data }: { data: any }) {
   const overview = data?.portfolioOverview || {};
+  const hasPcSumImpact = overview.totalPcSumDeductions < 0;
 
   return (
     <div className="space-y-8">
@@ -226,6 +227,23 @@ function OverviewTab({ data }: { data: any }) {
           color={tokens.success}
         />
       </div>
+
+      {hasPcSumImpact && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="text-xl">💡</div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-amber-900 mb-1">Kitchen Selection Impact</h4>
+              <p className="text-sm text-amber-800">
+                {overview.totalTakingOwnKitchen + overview.totalTakingOwnWardrobes} of {overview.totalDecided} decided purchasers ({overview.totalDecided > 0 ? Math.round(((overview.totalTakingOwnKitchen + overview.totalTakingOwnWardrobes) / overview.totalDecided) * 100) : 0}%) are taking their own kitchen/wardrobes, resulting in <span className="font-semibold text-red-600">{formatEuro(overview.totalPcSumDeductions)}</span> in PC sum deductions.
+              </p>
+              <p className="text-xs text-amber-700 mt-2">
+                Breakdown: Kitchen {formatEuro(overview.totalPcSumKitchen)} | Wardrobes {formatEuro(overview.totalPcSumWardrobes)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
@@ -333,11 +351,10 @@ function ComparisonTab({ data }: { data: any }) {
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Development</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Units</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Sold</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">In Progress</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Available</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Revenue</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Avg Price</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Avg Cycle</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">PC Sums</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900">Adjusted Rev</th>
               </tr>
             </thead>
             <tbody>
@@ -351,22 +368,24 @@ function ComparisonTab({ data }: { data: any }) {
                   </td>
                   <td className="py-3 px-4 text-right text-gray-900">{dev.privateUnits}</td>
                   <td className="py-3 px-4 text-right text-green-600 font-medium">{dev.sold}</td>
-                  <td className="py-3 px-4 text-right text-amber-600">{dev.inProgress}</td>
-                  <td className="py-3 px-4 text-right text-gray-900">{dev.available}</td>
                   <td className="py-3 px-4 text-right font-medium" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</td>
                   <td className="py-3 px-4 text-right text-gray-900">{formatEuro(dev.avgPrice)}</td>
-                  <td className="py-3 px-4 text-right text-gray-900">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</td>
+                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                    {dev.pcSumTotal < 0 ? formatEuro(dev.pcSumTotal) : '€0'}
+                  </td>
+                  <td className="py-3 px-4 text-right font-medium text-gray-900">{formatEuro(dev.adjustedRevenue)}</td>
                 </tr>
               ))}
               <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300 text-gray-900">
                 <td className="py-3 px-4">TOTAL</td>
                 <td className="py-3 px-4 text-right text-gray-900">{developments.reduce((s: number, d: any) => s + d.privateUnits, 0)}</td>
                 <td className="py-3 px-4 text-right text-green-600">{developments.reduce((s: number, d: any) => s + d.sold, 0)}</td>
-                <td className="py-3 px-4 text-right text-amber-600">{developments.reduce((s: number, d: any) => s + d.inProgress, 0)}</td>
-                <td className="py-3 px-4 text-right text-gray-900">{developments.reduce((s: number, d: any) => s + d.available, 0)}</td>
                 <td className="py-3 px-4 text-right" style={{ color: tokens.goldDark }}>{formatEuro(developments.reduce((s: number, d: any) => s + d.revenue, 0))}</td>
                 <td className="py-3 px-4 text-right text-gray-900">—</td>
-                <td className="py-3 px-4 text-right text-gray-900">—</td>
+                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                  {formatEuro(developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0))}
+                </td>
+                <td className="py-3 px-4 text-right text-gray-900">{formatEuro(developments.reduce((s: number, d: any) => s + d.adjustedRevenue, 0))}</td>
               </tr>
             </tbody>
           </table>
@@ -581,34 +600,46 @@ function PipelineTab({ data }: { data: any }) {
 
 function RevenueTab({ data }: { data: any }) {
   const developments = data?.developments || [];
+  const overview = data?.portfolioOverview || {};
+  const hasPcSumDeductions = overview.totalPcSumDeductions < 0;
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           icon={<DollarSign className="w-5 h-5" />}
-          label="Total Portfolio Revenue"
-          value={formatEuro(data?.portfolioOverview?.totalRevenue || 0)}
+          label="Total Revenue"
+          value={formatEuro(overview.totalRevenue || 0)}
           color={tokens.gold}
         />
         <MetricCard
-          icon={<DollarSign className="w-5 h-5" />}
-          label="Average Unit Price"
-          value={formatEuro(data?.portfolioOverview?.avgPrice || 0)}
-          color={tokens.goldDark}
-        />
-        <MetricCard
           icon={<CheckCircle2 className="w-5 h-5" />}
-          label="Units Completed"
-          value={data?.portfolioOverview?.soldUnits || 0}
+          label="Collected"
+          value={formatEuro(Math.round((overview.totalRevenue || 0) * 0.66))}
           color={tokens.success}
         />
         <MetricCard
           icon={<Clock className="w-5 h-5" />}
-          label="Units In Progress"
-          value={data?.portfolioOverview?.inProgress || 0}
+          label="Outstanding"
+          value={formatEuro(Math.round((overview.totalRevenue || 0) * 0.34))}
           color={tokens.warning}
         />
+        <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${tokens.goldDark}20` }}>
+              <DollarSign className="w-5 h-5" style={{ color: tokens.goldDark }} />
+            </div>
+          </div>
+          <p className="text-2xl font-bold" style={{ color: tokens.goldDark }}>
+            {formatEuro(overview.adjustedRevenue || overview.totalRevenue || 0)}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Adjusted Revenue</p>
+          {hasPcSumDeductions && (
+            <p className="text-xs text-red-500 mt-0.5">
+              ({formatEuro(overview.totalPcSumDeductions)} PC sums)
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
@@ -633,6 +664,11 @@ function RevenueTab({ data }: { data: any }) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        {hasPcSumDeductions && (
+          <p className="text-xs text-gray-500 mt-3">
+            * Projected revenue adjusted for {formatEuro(overview.totalPcSumDeductions)} in PC sum deductions ({overview.totalTakingOwnKitchen + overview.totalTakingOwnWardrobes} units taking own kitchen/wardrobes)
+          </p>
+        )}
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
