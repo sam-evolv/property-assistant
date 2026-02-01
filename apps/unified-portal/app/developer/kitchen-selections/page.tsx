@@ -143,7 +143,7 @@ function InlineDropdown({
   if (disabled) {
     return (
       <div className="h-14 flex items-center px-2">
-        <span className="text-xs text-gray-300">—</span>
+        <span className="text-xs text-gray-500">—</span>
       </div>
     );
   }
@@ -954,7 +954,7 @@ export default function KitchenSelectionsPage() {
 
             {filteredUnits.length === 0 && (
               <div className="py-12 text-center">
-                <p className="text-gray-400">No units found</p>
+                <p className="text-gray-500">No units found</p>
               </div>
             )}
           </div>

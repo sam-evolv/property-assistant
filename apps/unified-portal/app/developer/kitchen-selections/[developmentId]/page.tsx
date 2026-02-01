@@ -440,7 +440,7 @@ export default function KitchenSelectionsPage() {
 
             {filteredUnits.length === 0 && (
               <div className="px-6 py-16 text-center">
-                <ChefHat className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <ChefHat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-sm text-gray-500">
                   {searchQuery ? 'No units match your search.' : 'No units found for this development.'}
                 </p>

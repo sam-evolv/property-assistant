@@ -120,7 +120,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 function CardTitle({ children, icon: Icon }: { children: React.ReactNode; icon?: any }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      {Icon && <Icon className="w-5 h-5 text-gray-400" />}
+      {Icon && <Icon className="w-5 h-5 text-gray-500" />}
       <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">{children}</h3>
     </div>
   );
@@ -348,7 +348,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-400">
+                <div className="h-64 flex items-center justify-center text-gray-500">
                   <p>No velocity data available</p>
                 </div>
               )}
@@ -388,7 +388,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-72 flex items-center justify-center text-gray-400">
+                <div className="h-72 flex items-center justify-center text-gray-500">
                   <p>No velocity data available</p>
                 </div>
               )}
@@ -441,7 +441,7 @@ export default function AnalysisPage() {
                     )}
                     {!velocity.fastestSale && !velocity.slowestSale && (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-gray-400">No completed sales data available</td>
+                        <td colSpan={4} className="py-8 text-center text-gray-500">No completed sales data available</td>
                       </tr>
                     )}
                   </tbody>
@@ -583,7 +583,7 @@ export default function AnalysisPage() {
                   </table>
                 </div>
               ) : (
-                <div className="py-8 text-center text-gray-400">No pricing data available</div>
+                <div className="py-8 text-center text-gray-500">No pricing data available</div>
               )}
             </Card>
 
@@ -635,7 +635,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-72 flex items-center justify-center text-gray-400">
+                <div className="h-72 flex items-center justify-center text-gray-500">
                   <p>No cash flow data available</p>
                 </div>
               )}

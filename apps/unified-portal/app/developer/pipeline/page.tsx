@@ -117,9 +117,9 @@ function StatCard({ icon, iconBg, iconColor, label, value, subtitle }: StatCardP
           {icon}
         </div>
       </div>
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">{label}</p>
       <p className="text-3xl font-bold mt-1" style={{ color: tokens.dark }}>{value}</p>
-      {subtitle && <p className="text-xs text-gray-400 mt-3">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-gray-500 mt-3">{subtitle}</p>}
     </div>
   );
 }
@@ -184,7 +184,7 @@ function DevelopmentRow({ development, onClick }: DevelopmentRowProps) {
             {development.stats.openQueries}
           </span>
         ) : (
-          <span className="text-gray-300">—</span>
+          <span className="text-gray-500">—</span>
         )}
       </td>
       <td className="px-6 py-4">

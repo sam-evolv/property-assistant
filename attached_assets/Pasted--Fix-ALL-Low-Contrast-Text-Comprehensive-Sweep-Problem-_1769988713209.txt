@@ -1,0 +1,93 @@
+---
+
+**Fix ALL Low Contrast Text - Comprehensive Sweep**
+
+## Problem
+
+There is still light grey text on white backgrounds in the individual development analysis tabs that is hard to read. This needs to be fixed across the ENTIRE application.
+
+## Action Required
+
+Do a full sweep of the codebase and fix ALL instances of low contrast text.
+
+### 1. Search and Replace These Classes
+
+```bash
+# Find all instances of light grey text
+grep -rn "text-gray-200\|text-gray-300\|text-gray-400" --include="*.tsx" --include="*.jsx" --include="*.css"
+```
+
+**Replace:**
+| From | To |
+|------|-----|
+| `text-gray-200` | `text-gray-700` |
+| `text-gray-300` | `text-gray-700` |
+| `text-gray-400` | `text-gray-600` |
+
+### 2. Check These Specific Pages
+
+- [ ] Sales Pipeline Analysis → Overview tab
+- [ ] Sales Pipeline Analysis → Velocity tab
+- [ ] Sales Pipeline Analysis → Pipeline tab
+- [ ] Sales Pipeline Analysis → Revenue tab
+- [ ] Sales Pipeline Analysis → Forecasting tab
+- [ ] Kitchen Selections
+- [ ] Compliance
+- [ ] Analytics
+- [ ] AI Insights
+- [ ] Homeowners
+- [ ] Any modals or popovers
+
+### 3. Check Table Cells Specifically
+
+Tables are the worst offenders. Ensure ALL table cells have readable text:
+
+```jsx
+// WRONG
+<td className="text-gray-300">{value}</td>
+<td className="text-gray-400">{value}</td>
+<td style={{ color: '#ccc' }}>{value}</td>
+
+// CORRECT
+<td className="text-gray-800">{value}</td>
+<td className="text-gray-700">{value}</td>
+```
+
+### 4. Check Inline Styles
+
+Search for inline color styles:
+
+```bash
+grep -rn "color.*#[cdef]" --include="*.tsx" --include="*.jsx"
+grep -rn "color.*rgb" --include="*.tsx" --include="*.jsx"
+```
+
+Fix any colors lighter than `#767676`.
+
+### 5. Minimum Readable Colors
+
+On white/light backgrounds, never use anything lighter than:
+- `text-gray-500` (#6B7280)
+- `#767676`
+
+**Safe palette:**
+- Primary text: `text-gray-900` or `text-gray-800`
+- Secondary text: `text-gray-700` or `text-gray-600`
+- Muted/tertiary: `text-gray-500` (minimum)
+
+### 6. Quick Global Fix
+
+If there's a theme or global styles file, set minimums there:
+
+```css
+/* Ensure no text is too light */
+.text-muted, .text-secondary {
+  color: #6B7280 !important; /* gray-500 minimum */
+}
+```
+
+### 7. Test Visually
+
+After fixes, visually check every tab in the Analysis section to confirm all text is readable.
+
+---

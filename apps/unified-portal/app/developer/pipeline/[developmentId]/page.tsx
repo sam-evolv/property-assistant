@@ -464,7 +464,7 @@ function QueriesCell({ queriesRaisedDate, queriesRepliedDate, onClick }: Queries
             <span className="text-xs font-medium text-gray-500">Resolved</span>
           </div>
         ) : (
-          <span className="text-gray-300">—</span>
+          <span className="text-gray-500">—</span>
         )}
       </div>
     </td>
@@ -559,7 +559,7 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
           ) : isPending ? (
             <span className="text-xs font-medium text-amber-600">Pending</span>
           ) : (
-            <span className="text-xs text-gray-400">—</span>
+            <span className="text-xs text-gray-500">—</span>
           )}
         </div>
       </div>
@@ -884,7 +884,7 @@ function PriceCell({ value, unitId, onUpdate, isSocialHousing = false }: PriceCe
     return (
       <td className="border-l border-gray-50">
         <div className="h-11 px-2 flex items-center justify-end" style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}>
-          <span className="text-gray-400 text-xs mr-1">€</span>
+          <span className="text-gray-600 text-xs mr-1">€</span>
           <input
             ref={inputRef}
             type="text"
@@ -1158,7 +1158,7 @@ function PredictedCell({ unit }: PredictedCellProps) {
   if (prediction.status === 'available' || !prediction.date) {
     return (
       <td className="border-l border-gray-50">
-        <div className="h-11 px-2 flex items-center justify-center text-xs text-gray-300">—</div>
+        <div className="h-11 px-2 flex items-center justify-center text-xs text-gray-500">—</div>
       </td>
     );
   }
@@ -2858,7 +2858,7 @@ export default function PipelineDevelopmentPage() {
                                   <span className="text-[10px] font-medium text-gray-500">{unit.bedrooms} bed</span>
                                 )}
                                 {unit.squareFootage && (
-                                  <span className="text-[10px] font-medium text-gray-400">{Math.round(unit.squareFootage)} sqft</span>
+                                  <span className="text-[10px] font-medium text-gray-600">{Math.round(unit.squareFootage)} sqft</span>
                                 )}
                               </div>
                               {/* Row 2: Purchaser name or Social Housing label */}
