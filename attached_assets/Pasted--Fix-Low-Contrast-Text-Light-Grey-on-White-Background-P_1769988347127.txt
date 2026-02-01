@@ -1,0 +1,78 @@
+---
+
+**Fix Low Contrast Text - Light Grey on White Background**
+
+## Problem
+
+In the Sales Pipeline Analysis page (and other analysis tabs), there is light grey text on white backgrounds that is nearly invisible. This appears in:
+- "Price by Property Type" table - TYPE and UNITS columns are unreadable
+- Likely other tables/sections throughout the analysis views
+
+## Screenshot Shows
+
+The TYPE column (house type codes like BD01, BD02, SD, etc.) and UNITS column are barely visible - light grey (#ccc or similar) on white background.
+
+## Solution
+
+### 1. Find and Fix All Low Contrast Text
+
+Search the codebase for text colors like:
+- `text-gray-300`
+- `text-gray-200`
+- `#ccc`, `#ddd`, `#eee`
+- `rgb(200,200,200)` or similar
+- `opacity-50` on light text
+
+Replace with readable colors:
+- `text-gray-700` or `text-gray-800` for primary text
+- `text-gray-500` or `text-gray-600` for secondary text
+
+### 2. Specific Fix for Analysis Tables
+
+```jsx
+// BEFORE - hard to read
+<td className="text-gray-300">{houseType}</td>
+<td className="text-gray-300">{unitCount}</td>
+
+// AFTER - readable
+<td className="text-gray-800">{houseType}</td>
+<td className="text-gray-600">{unitCount}</td>
+```
+
+### 3. Global Check
+
+Check these pages/components for low contrast issues:
+- Sales Pipeline Analysis (Overview, Velocity, Pipeline, Revenue, Forecasting tabs)
+- Kitchen Selections
+- Compliance
+- Analytics
+- Any tables, charts, or data displays
+
+### 4. Minimum Contrast Ratio
+
+Follow WCAG guidelines - minimum 4.5:1 contrast ratio for normal text:
+- On white background (#fff): use text no lighter than `#767676` (gray-500)
+- On light gray background: use `text-gray-800` or darker
+
+### 5. CSS Variable Approach (Optional)
+
+Create consistent text color variables:
+
+```css
+:root {
+  --text-primary: #1f2937;    /* gray-800 */
+  --text-secondary: #4b5563;  /* gray-600 */
+  --text-muted: #6b7280;      /* gray-500 - minimum for white bg */
+}
+```
+
+### 6. Quick Search
+
+Find problematic styles:
+```bash
+grep -r "text-gray-2" --include="*.tsx" --include="*.jsx"
+grep -r "text-gray-3" --include="*.tsx" --include="*.jsx"
+grep -r "#ccc\|#ddd\|#eee" --include="*.tsx" --include="*.jsx" --include="*.css"
+```
+
+---

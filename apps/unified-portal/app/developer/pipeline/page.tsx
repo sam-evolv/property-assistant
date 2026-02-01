@@ -412,22 +412,22 @@ export default function PipelinePage() {
             <table className="w-full">
               <thead>
                 <tr style={{ backgroundColor: `${tokens.warmGray}80` }}>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Development
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Available
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     In Progress
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Complete
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Queries
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-48">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-48">
                     Progress
                   </th>
                   <th className="px-6 py-3 w-10"></th>

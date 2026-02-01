@@ -565,8 +565,8 @@ export default function AnalysisPage() {
                     <tbody className="divide-y divide-gray-50">
                       {revenue.priceByType.map(p => (
                         <tr key={p.type} className="hover:bg-gray-50">
-                          <td className="py-3 px-3 font-medium">{p.typeName}</td>
-                          <td className="py-3 px-3 text-right">{p.units}</td>
+                          <td className="py-3 px-3 font-medium text-gray-900">{p.typeName}</td>
+                          <td className="py-3 px-3 text-right text-gray-800">{p.units}</td>
                           <td className="py-3 px-3 text-right font-mono" style={{ color: tokens.gold }}>{formatEuro(p.avgPrice)}</td>
                           <td className="py-3 px-3 text-right font-mono text-gray-600">{formatEuro(p.minPrice)}</td>
                           <td className="py-3 px-3 text-right font-mono text-gray-600">{formatEuro(p.maxPrice)}</td>

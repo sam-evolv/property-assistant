@@ -370,7 +370,7 @@ function ComparisonTab({ data }: { data: any }) {
                   <td className="py-3 px-4 text-right text-green-600 font-medium">{dev.sold}</td>
                   <td className="py-3 px-4 text-right font-medium" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</td>
                   <td className="py-3 px-4 text-right text-gray-900">{formatEuro(dev.avgPrice)}</td>
-                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-600'}`}>
                     {dev.pcSumTotal < 0 ? formatEuro(dev.pcSumTotal) : '€0'}
                   </td>
                   <td className="py-3 px-4 text-right font-medium text-gray-900">{formatEuro(dev.adjustedRevenue)}</td>
@@ -382,7 +382,7 @@ function ComparisonTab({ data }: { data: any }) {
                 <td className="py-3 px-4 text-right text-green-600">{developments.reduce((s: number, d: any) => s + d.sold, 0)}</td>
                 <td className="py-3 px-4 text-right" style={{ color: tokens.goldDark }}>{formatEuro(developments.reduce((s: number, d: any) => s + d.revenue, 0))}</td>
                 <td className="py-3 px-4 text-right text-gray-900">—</td>
-                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-600'}`}>
                   {formatEuro(developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0))}
                 </td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatEuro(developments.reduce((s: number, d: any) => s + d.adjustedRevenue, 0))}</td>

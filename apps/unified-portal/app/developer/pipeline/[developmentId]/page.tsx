@@ -2485,7 +2485,7 @@ export default function PipelineDevelopmentPage() {
                       return (
                         <th
                           key={col.key}
-                          className={`${i <= 1 ? 'sticky z-20' : ''} px-3 py-3 ${i === 1 ? 'text-left' : 'text-center'} text-[11px] font-semibold text-gray-400 uppercase tracking-wider ${i > 1 ? 'border-l border-gray-100/50' : ''} ${isDateColumn ? 'cursor-pointer hover:bg-gray-100 hover:text-gray-600 transition-colors' : ''}`}
+                          className={`${i <= 1 ? 'sticky z-20' : ''} px-3 py-3 ${i === 1 ? 'text-left' : 'text-center'} text-[11px] font-semibold text-gray-600 uppercase tracking-wider ${i > 1 ? 'border-l border-gray-100/50' : ''} ${isDateColumn ? 'cursor-pointer hover:bg-gray-100 hover:text-gray-800 transition-colors' : ''}`}
                           style={{ left: i === 0 ? '0' : i === 1 ? '44px' : undefined, minWidth: col.width, backgroundColor: `${tokens.warmGray}80` }}
                           onClick={isDateColumn ? () => setEditingColumnHeader({ key: col.key, label: col.label }) : undefined}
                           title={isDateColumn ? `Click to edit column title` : undefined}
