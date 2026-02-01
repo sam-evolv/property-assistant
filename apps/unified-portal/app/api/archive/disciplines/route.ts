@@ -129,10 +129,10 @@ async function fetchDocuments(params: {
     let allowedProjectIds: string[] = [];
     
     if (developmentId) {
-      // Verify the development belongs to this tenant
+      // Verify the development belongs to this tenant AND get its name
       const { data: devCheck } = await supabase
         .from('developments')
-        .select('id')
+        .select('id, name')
         .eq('id', developmentId)
         .eq('tenant_id', tenantId)
         .single();
@@ -142,7 +142,22 @@ async function fetchDocuments(params: {
         return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
       }
       
-      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      // First try hardcoded mapping
+      let supabaseProjectId = getSupabaseProjectId(developmentId);
+      
+      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
+      if (supabaseProjectId === developmentId && devCheck.name) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('name', devCheck.name)
+          .maybeSingle();
+        
+        if (project?.id) {
+          supabaseProjectId = project.id;
+        }
+      }
+      
       allowedProjectIds = [supabaseProjectId];
     } else {
       // Get all developments for this tenant
@@ -246,10 +261,10 @@ async function fetchDisciplines(params: {
     let allowedProjectIds: string[] = [];
     
     if (developmentId) {
-      // Verify the development belongs to this tenant
+      // Verify the development belongs to this tenant AND get its name
       const { data: devCheck } = await supabase
         .from('developments')
-        .select('id')
+        .select('id, name')
         .eq('id', developmentId)
         .eq('tenant_id', tenantId)
         .single();
@@ -259,7 +274,23 @@ async function fetchDisciplines(params: {
         return [];
       }
       
-      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      // First try hardcoded mapping
+      let supabaseProjectId = getSupabaseProjectId(developmentId);
+      
+      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
+      if (supabaseProjectId === developmentId && devCheck.name) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('name', devCheck.name)
+          .maybeSingle();
+        
+        if (project?.id) {
+          console.log('[Disciplines API] Found project by name lookup:', devCheck.name, '->', project.id);
+          supabaseProjectId = project.id;
+        }
+      }
+      
       console.log('[Disciplines API] Fetching disciplines for SCHEME:', developmentId, '-> project_id:', supabaseProjectId);
       allowedProjectIds = [supabaseProjectId];
     } else {

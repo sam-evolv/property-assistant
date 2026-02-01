@@ -140,10 +140,10 @@ export async function fetchDocumentsByDiscipline({
     let allowedProjectIds: string[] = [];
     
     if (developmentId) {
-      // Verify the development belongs to this tenant before querying
+      // Verify the development belongs to this tenant AND get its name
       const { data: devCheck } = await supabase
         .from('developments')
-        .select('id')
+        .select('id, name')
         .eq('id', developmentId)
         .eq('tenant_id', tenantId)
         .single();
@@ -153,7 +153,23 @@ export async function fetchDocumentsByDiscipline({
         return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
       }
       
-      const supabaseProjectId = getSupabaseProjectId(developmentId);
+      // First try hardcoded mapping
+      let supabaseProjectId = getSupabaseProjectId(developmentId);
+      
+      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
+      if (supabaseProjectId === developmentId && devCheck.name) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('name', devCheck.name)
+          .maybeSingle();
+        
+        if (project?.id) {
+          console.log('[Archive Documents] Found project by name lookup:', devCheck.name, '->', project.id);
+          supabaseProjectId = project.id;
+        }
+      }
+      
       allowedProjectIds = [supabaseProjectId];
     } else {
       // No specific development - get ALL developments for this tenant
