@@ -1,0 +1,71 @@
+Add Filter to Hide Social Housing Units in Sales Pipeline
+Problem
+Social housing units (Clúid) are dominating the Sales Pipeline view, making it hard to see the private units that actually matter for sales tracking.
+Solution
+Add a filter/toggle to show/hide social housing units, with private units shown by default.
+1. Add Filter Dropdown at Top
+Add next to the "All Units" tab:
+All Units (52) | [Filter: Private Units ▼]
+
+Dropdown options:
+- Private Units Only (default)
+- Social Housing Only  
+- All Units
+Or simpler - a toggle:
+All Units (52)    ☐ Show Social Housing
+2. Filter Logic
+Social housing units can be identified by:
+
+purchaser_name contains "Clúid" or "Social Housing"
+OR add a is_social_housing boolean column to unit_sales_pipeline (already exists based on previous work)
+
+javascript// Filter logic
+const filteredUnits = units.filter(unit => {
+  if (filter === 'private') {
+    return !unit.is_social_housing;
+  }
+  if (filter === 'social') {
+    return unit.is_social_housing;
+  }
+  return true; // all
+});
+3. Update Summary Cards
+When filtered to "Private Units Only", the summary cards should also update:
+
+Total Units: Show private count only
+Total Revenue: Already excludes social (good)
+PC Sum Impact: Already excludes social (good)
+
+4. Remember Filter Preference
+Save the filter preference in localStorage so it persists:
+javascriptconst [filter, setFilter] = useState(() => {
+  return localStorage.getItem('pipelineFilter') || 'private'
+});
+
+useEffect(() => {
+  localStorage.setItem('pipelineFilter', filter);
+}, [filter]);
+```
+
+### 5. Visual Design
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ All Units  52 units     [Private ▼]  🔍 Search units...            │
+├─────────────────────────────────────────────────────────────────────┤
+│                        Showing 40 private units                     │
+│                        (12 social housing units hidden)             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Or as tabs:
+```
+┌──────────────┬─────────────────┬──────────────┐
+│ All (52)     │ Private (40) ✓  │ Social (12)  │
+└──────────────┴─────────────────┴──────────────┘
+6. For Rathard Park Specifically
+
+Total: 52 units
+Social (Clúid): 12 units (1-12)
+Private: 40 units (13-53)
+
+When "Private" filter is on, only show units 13-53.

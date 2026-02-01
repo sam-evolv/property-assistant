@@ -1783,6 +1783,22 @@ export default function PipelineDevelopmentPage() {
   const [queryUnit, setQueryUnit] = useState<PipelineUnit | null>(null);
   const [hasNewActivity] = useState(true); // Would come from API
   const [editingColumnHeader, setEditingColumnHeader] = useState<{ key: string; label: string } | null>(null);
+  
+  // Social housing filter - default to 'private' (hide social housing)
+  const [housingFilter, setHousingFilter] = useState<'all' | 'private' | 'social'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('pipelineHousingFilter') as 'all' | 'private' | 'social') || 'private';
+    }
+    return 'private';
+  });
+
+  // Persist filter preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pipelineHousingFilter', housingFilter);
+    }
+  }, [housingFilter]);
+  
   const [columnLabels, setColumnLabels] = useState<Record<string, string>>({
     releaseDate: 'Release',
     saleAgreedDate: 'Agreed',
@@ -1966,7 +1982,22 @@ export default function PipelineDevelopmentPage() {
     totalPcSumImpact,
   };
 
-  const sortedUnits = [...units].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
+  // Filter units based on housing filter
+  const filteredUnits = units.filter(unit => {
+    if (housingFilter === 'private') {
+      return unit.saleType !== 'social';
+    }
+    if (housingFilter === 'social') {
+      return unit.saleType === 'social';
+    }
+    return true; // 'all'
+  });
+  
+  const sortedUnits = [...filteredUnits].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
+  
+  // Count for filter tabs
+  const privateCount = units.filter(u => u.saleType !== 'social').length;
+  const socialCount = units.filter(u => u.saleType === 'social').length;
 
   if (isLoading) {
     return (
@@ -2152,9 +2183,51 @@ export default function PipelineDevelopmentPage() {
           {/* Table Card */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold text-gray-900">All Units</h2>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{sortedUnits.length} units</span>
+              <div className="flex items-center gap-4">
+                {/* Filter Tabs */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setHousingFilter('all')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'all'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    All ({units.length})
+                  </button>
+                  <button
+                    onClick={() => setHousingFilter('private')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'private'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Private ({privateCount})
+                  </button>
+                  <button
+                    onClick={() => setHousingFilter('social')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'social'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Social ({socialCount})
+                  </button>
+                </div>
+                
+                {/* Units count badge */}
+                <span className="text-xs text-gray-500">
+                  {housingFilter !== 'all' && (
+                    <span>
+                      Showing {sortedUnits.length} {housingFilter} units
+                      {housingFilter === 'private' && socialCount > 0 && ` (${socialCount} social hidden)`}
+                      {housingFilter === 'social' && privateCount > 0 && ` (${privateCount} private hidden)`}
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
 
