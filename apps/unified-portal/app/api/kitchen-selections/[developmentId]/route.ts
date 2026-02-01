@@ -189,8 +189,9 @@ export async function GET(
     const totalPcSumImpact = kitchenUnits.reduce((sum, u) => sum + u.pcSumTotal, 0);
     const takingKitchen = kitchenUnits.filter(u => u.hasKitchen === true).length;
     const takingOwnKitchen = kitchenUnits.filter(u => u.hasKitchen === false).length;
-    const decidedCount = takingKitchen + takingOwnKitchen;
+    const decidedCount = kitchenUnits.filter(u => u.hasKitchen !== null || u.hasWardrobe !== null).length;
     const pendingCount = kitchenUnits.filter(u => u.status === 'pending').length;
+    const unitsWithDeductions = kitchenUnits.filter(u => u.pcSumTotal < 0).length;
 
     return NextResponse.json({
       development: {
@@ -200,9 +201,14 @@ export async function GET(
       },
       units: kitchenUnits,
       options: {
-        counterTypes: COUNTER_TYPES,
-        cabinetColors: CABINET_COLORS,
-        handleStyles: HANDLE_STYLES,
+        counterTypes: pcSumConfig?.counter_types ?? COUNTER_TYPES.map(c => c.value),
+        unitFinishes: pcSumConfig?.cabinet_colors ?? CABINET_COLORS,
+        handleStyles: pcSumConfig?.handle_styles ?? HANDLE_STYLES,
+        wardrobeStyles: pcSumConfig?.wardrobe_styles ?? [],
+        pcSumKitchen4Bed: pcSumConfig?.pc_sum_kitchen_4bed != null ? Number(pcSumConfig.pc_sum_kitchen_4bed) : 7000,
+        pcSumKitchen3Bed: pcSumConfig?.pc_sum_kitchen_3bed != null ? Number(pcSumConfig.pc_sum_kitchen_3bed) : 6000,
+        pcSumKitchen2Bed: pcSumConfig?.pc_sum_kitchen_2bed != null ? Number(pcSumConfig.pc_sum_kitchen_2bed) : 5000,
+        pcSumWardrobes: pcSumConfig?.pc_sum_wardrobes != null ? Number(pcSumConfig.pc_sum_wardrobes) : 1000,
       },
       summary: {
         total: allUnits.length,
@@ -211,6 +217,7 @@ export async function GET(
         takingOwnKitchen,
         pending: pendingCount,
         totalPcSumImpact,
+        unitsWithDeductions,
       },
     });
   } catch (error: any) {
@@ -344,6 +351,126 @@ export async function PUT(
     return NextResponse.json({ success: true, selection: result });
   } catch (error: any) {
     console.error('[Kitchen Selections API] Update Error:', error);
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ developmentId: string }> }
+) {
+  try {
+    const { developmentId } = await params;
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { options } = body;
+
+    if (!options) {
+      return NextResponse.json({ error: 'Options required' }, { status: 400 });
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const url = new URL(request.url);
+    const devName = url.searchParams.get('name');
+
+    const { data: allDevs } = await supabaseAdmin
+      .from('developments')
+      .select('id, name')
+      .eq('tenant_id', tenantId);
+
+    let actualDevelopmentId = developmentId;
+    let development = allDevs?.find(d => d.id === developmentId);
+    
+    if (!development && devName && allDevs) {
+      development = allDevs.find(d => d.name.toLowerCase() === devName.toLowerCase());
+      if (development) actualDevelopmentId = development.id;
+    }
+    
+    if (!development && allDevs && allDevs.length > 0) {
+      development = allDevs[0];
+      actualDevelopmentId = allDevs[0].id;
+    }
+
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    const optionsData = {
+      tenant_id: tenantId,
+      development_id: actualDevelopmentId,
+      pc_sum_kitchen_4bed: options.pcSumKitchen4Bed ?? 7000,
+      pc_sum_kitchen_3bed: options.pcSumKitchen3Bed ?? 6000,
+      pc_sum_kitchen_2bed: options.pcSumKitchen2Bed ?? 5000,
+      pc_sum_wardrobes: options.pcSumWardrobes ?? 1000,
+      counter_types: options.counterTypes ?? COUNTER_TYPES.map(c => c.value),
+      cabinet_colors: options.unitFinishes ?? CABINET_COLORS,
+      handle_styles: options.handleStyles ?? HANDLE_STYLES,
+      wardrobe_styles: options.wardrobeStyles ?? [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing } = await supabaseAdmin
+      .from('kitchen_selection_options')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('development_id', actualDevelopmentId)
+      .single();
+
+    let result;
+    if (existing) {
+      const { data, error } = await supabaseAdmin
+        .from('kitchen_selection_options')
+        .update(optionsData)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[Kitchen Selections API] Options update error:', error);
+        return NextResponse.json({ error: 'Failed to update options' }, { status: 500 });
+      }
+      result = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('kitchen_selection_options')
+        .insert(optionsData)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[Kitchen Selections API] Options insert error:', error);
+        return NextResponse.json({ error: 'Failed to save options' }, { status: 500 });
+      }
+      result = data;
+    }
+
+    const transformedOptions = {
+      counterTypes: result.counter_types || [],
+      unitFinishes: result.cabinet_colors || [],
+      handleStyles: result.handle_styles || [],
+      wardrobeStyles: result.wardrobe_styles || [],
+      pcSumKitchen4Bed: result.pc_sum_kitchen_4bed,
+      pcSumKitchen3Bed: result.pc_sum_kitchen_3bed,
+      pcSumKitchen2Bed: result.pc_sum_kitchen_2bed,
+      pcSumWardrobes: result.pc_sum_wardrobes,
+    };
+
+    return NextResponse.json({ success: true, options: transformedOptions });
+  } catch (error: any) {
+    console.error('[Kitchen Selections API] Options Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

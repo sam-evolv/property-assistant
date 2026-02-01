@@ -1,0 +1,47 @@
+Fix Kitchen Selections issues:
+1. Settings Button Crashes
+The Settings button in Kitchen Selections is causing an error. Please fix:
+
+Add try/catch error handling
+Make sure the settings modal/page loads correctly
+The settings should allow editing PC sum amounts and dropdown options
+
+2. Add PC Sum Column to Kitchen Selections Table
+The table is missing the PC Sum Impact column. Add it after the Wardrobes column:
+| Unit | Address | Purchaser | Type | Kitchen | Counter | Cabinet | Handle | Wardrobes | PC Sum | Notes |
+PC Sum column should show:
+
+"€0" (grey text) if taking developer kitchen & wardrobes
+"-€6,000" (red text) if taking own kitchen (3 bed)
+"-€7,000" (red text) if taking own kitchen (4 bed)
+"-€8,000" (red text) if taking own kitchen AND wardrobes (4 bed)
+etc.
+
+The data is already in the database in pc_sum_total column - just needs to be displayed.
+Format:
+
+Negative amounts in red: -€7,000
+Zero in grey: €0
+Show "—" if kitchen_selected is NULL (not decided yet)
+
+3. Add Total PC Sum Deductions Summary Card
+Add a summary card at the top showing the total PC sum impact for the development:
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Selection Progress│  │ Taking Kitchen   │  │ Taking Own       │  │ PC Sum Deductions│
+│   39 of 68       │  │   26 (67%)       │  │   13 (33%)       │  │  -€80,000        │
+│   (57% complete) │  │                  │  │                  │  │  (13 units)      │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+PC Sum Deductions card should show:
+
+Total sum of all pc_sum_total values for the development (will be negative)
+Count of units with deductions (where pc_sum_total < 0)
+Red text for the amount since it's a deduction
+
+Query to get this:
+sqlSELECT 
+    SUM(pc_sum_total) as total_deductions,
+    COUNT(*) FILTER (WHERE pc_sum_total < 0) as units_with_deductions
+FROM unit_sales_pipeline 
+WHERE development_id = '{developmentId}'
+AND pc_sum_total < 0;
+For Árdan View this should show: -€39,000 (6 units)

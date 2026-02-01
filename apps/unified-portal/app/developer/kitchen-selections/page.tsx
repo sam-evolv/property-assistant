@@ -56,6 +56,10 @@ interface SelectionOptions {
   unitFinishes: string[];
   handleStyles: string[];
   wardrobeStyles: string[];
+  pcSumKitchen4Bed?: number;
+  pcSumKitchen3Bed?: number;
+  pcSumKitchen2Bed?: number;
+  pcSumWardrobes?: number;
 }
 
 interface DevelopmentInfo {
@@ -69,6 +73,10 @@ const defaultOptions: SelectionOptions = {
   unitFinishes: ['Matt White', 'Gloss White', 'Oak', 'Walnut'],
   handleStyles: ['Bar', 'Knob', 'Integrated', 'Cup'],
   wardrobeStyles: ['Sliding', 'Hinged', 'Walk-in'],
+  pcSumKitchen4Bed: 7000,
+  pcSumKitchen3Bed: 6000,
+  pcSumKitchen2Bed: 5000,
+  pcSumWardrobes: 1000,
 };
 
 function naturalSort(a: string, b: string): number {
@@ -249,35 +257,63 @@ function SettingsModal({
   options: SelectionOptions;
   onSave: (options: SelectionOptions) => void;
 }) {
-  const [localOptions, setLocalOptions] = useState(options);
+  const safeOptions = options || defaultOptions;
+  const [localOptions, setLocalOptions] = useState<SelectionOptions>(safeOptions);
   const [newItem, setNewItem] = useState({ category: '', value: '' });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLocalOptions(options);
+    try {
+      setLocalOptions(options || defaultOptions);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading settings:', err);
+      setError('Failed to load settings');
+    }
   }, [options, open]);
 
   if (!open) return null;
+  
+  if (error) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl z-50 p-6">
+          <h3 className="text-lg font-bold text-gray-900">Settings Error</h3>
+          <p className="text-sm text-red-600 mt-2">{error}</p>
+          <button
+            onClick={onClose}
+            className="mt-4 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </>
+    );
+  }
 
-  const categories = [
+  type ArrayCategory = 'counterTypes' | 'unitFinishes' | 'handleStyles' | 'wardrobeStyles';
+  
+  const categories: { key: ArrayCategory; label: string }[] = [
     { key: 'counterTypes', label: 'Counter Types' },
     { key: 'unitFinishes', label: 'Unit Finishes' },
     { key: 'handleStyles', label: 'Handle Styles' },
     { key: 'wardrobeStyles', label: 'Wardrobe Styles' },
-  ] as const;
+  ];
 
-  const addItem = (category: keyof SelectionOptions) => {
+  const addItem = (category: ArrayCategory) => {
     if (!newItem.value.trim()) return;
     setLocalOptions((prev) => ({
       ...prev,
-      [category]: [...prev[category], newItem.value.trim()],
+      [category]: [...(prev[category] || []), newItem.value.trim()],
     }));
     setNewItem({ category: '', value: '' });
   };
 
-  const removeItem = (category: keyof SelectionOptions, index: number) => {
+  const removeItem = (category: ArrayCategory, index: number) => {
     setLocalOptions((prev) => ({
       ...prev,
-      [category]: prev[category].filter((_, i) => i !== index),
+      [category]: (prev[category] || []).filter((_: string, i: number) => i !== index),
     }));
   };
 
@@ -293,12 +329,68 @@ function SettingsModal({
             Configure the available options for kitchen and wardrobe selections
           </p>
 
-          <div className="mt-6 space-y-6">
+          {/* PC Sum Amounts Section */}
+          <div className="mt-6 mb-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">PC Sum Allowances</h4>
+            <p className="text-xs text-gray-500 mb-4">Set the PC sum deduction amounts when purchasers opt for their own kitchen/wardrobes</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">4 Bed Kitchen</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    value={localOptions.pcSumKitchen4Bed ?? 7000}
+                    onChange={(e) => setLocalOptions(prev => ({ ...prev, pcSumKitchen4Bed: parseInt(e.target.value) || 0 }))}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">3 Bed Kitchen</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    value={localOptions.pcSumKitchen3Bed ?? 6000}
+                    onChange={(e) => setLocalOptions(prev => ({ ...prev, pcSumKitchen3Bed: parseInt(e.target.value) || 0 }))}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">2 Bed Kitchen</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    value={localOptions.pcSumKitchen2Bed ?? 5000}
+                    onChange={(e) => setLocalOptions(prev => ({ ...prev, pcSumKitchen2Bed: parseInt(e.target.value) || 0 }))}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Wardrobes</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    value={localOptions.pcSumWardrobes ?? 1000}
+                    onChange={(e) => setLocalOptions(prev => ({ ...prev, pcSumWardrobes: parseInt(e.target.value) || 0 }))}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
             {categories.map(({ key, label }) => (
               <div key={key}>
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">{label}</h4>
                 <div className="flex flex-wrap gap-2">
-                  {localOptions[key].map((item, idx) => (
+                  {(localOptions[key] || []).map((item, idx) => (
                     <span
                       key={idx}
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-sm text-gray-700 rounded-lg"
@@ -413,8 +505,8 @@ export default function KitchenSelectionsPage() {
       
       const data = await res.json();
       setDevelopment(data.development);
-      setUnits(data.units);
-      setOptions(data.options);
+      setUnits(data.units || []);
+      setOptions(data.options || defaultOptions);
       setError(null);
     } catch (err: any) {
       console.error('Error fetching kitchen selections:', err);
@@ -806,7 +898,28 @@ export default function KitchenSelectionsPage() {
         </div>
       </div>
 
-      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} options={options} onSave={setOptions} />
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} options={options} onSave={async (newOptions) => {
+        try {
+          const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
+          const res = await fetch(`/api/kitchen-selections/${developmentId}${nameParam}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ options: newOptions }),
+          });
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            console.error('Failed to save options:', errorData.error || 'Unknown error');
+            alert('Failed to save settings. Please try again.');
+            return;
+          }
+          const data = await res.json();
+          setOptions(data.options || newOptions);
+        } catch (err) {
+          console.error('Error saving options:', err);
+          alert('Failed to save settings. Please try again.');
+        }
+      }} />
       <NotesModal
         open={notesModal.open}
         onClose={() => setNotesModal({ open: false, unit: null })}

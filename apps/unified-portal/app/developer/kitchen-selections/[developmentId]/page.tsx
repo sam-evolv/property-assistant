@@ -69,6 +69,7 @@ interface Summary {
   takingOwnKitchen: number;
   pending: number;
   totalPcSumImpact: number;
+  unitsWithDeductions: number;
 }
 
 function formatCurrency(value: number): string {
@@ -91,7 +92,7 @@ export default function KitchenSelectionsPage() {
 
   const [development, setDevelopment] = useState<Development | null>(null);
   const [units, setUnits] = useState<KitchenUnit[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0, unitsWithDeductions: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export default function KitchenSelectionsPage() {
       const data = await response.json();
       setDevelopment(data.development);
       setUnits(data.units || []);
-      setSummary(data.summary || { total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0 });
+      setSummary(data.summary || { total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0, unitsWithDeductions: 0 });
     } catch (err) {
       console.error('Error fetching kitchen selections:', err);
     } finally {
@@ -191,6 +192,8 @@ export default function KitchenSelectionsPage() {
     withKitchen: units.filter(u => u.hasKitchen === true).length,
     takingOwn: units.filter(u => u.hasKitchen === false).length,
     withWardrobes: units.filter(u => u.hasWardrobe === true).length,
+    unitsWithDeductions: units.filter(u => u.pcSumTotal < 0).length,
+    totalPcSumImpact: units.reduce((acc, u) => acc + (u.pcSumTotal || 0), 0),
   };
 
   if (isLoading) {
@@ -263,13 +266,13 @@ export default function KitchenSelectionsPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Impact</p>
-                <p className={`text-2xl font-bold mt-1 ${summary.totalPcSumImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {formatCurrency(summary.totalPcSumImpact)}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Deductions</p>
+                <p className={`text-2xl font-bold mt-1 ${stats.totalPcSumImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {formatCurrency(stats.totalPcSumImpact)}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">({summary.takingOwnKitchen} taking own)</p>
+                <p className="text-xs text-gray-500 mt-0.5">({stats.unitsWithDeductions} units)</p>
               </div>
-              {summary.totalPcSumImpact < 0 && (
+              {stats.totalPcSumImpact < 0 && (
                 <TrendingDown className="w-5 h-5 text-red-500" />
               )}
             </div>
@@ -406,8 +409,18 @@ export default function KitchenSelectionsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`text-sm font-medium ${unit.pcSumTotal < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                        {unit.pcSumTotal !== 0 ? formatCurrency(unit.pcSumTotal) : '€0'}
+                      <span className={`text-sm font-medium ${
+                        unit.hasKitchen === null
+                          ? 'text-gray-400'
+                          : unit.pcSumTotal < 0 
+                            ? 'text-red-600' 
+                            : 'text-gray-500'
+                      }`}>
+                        {unit.hasKitchen === null 
+                          ? '—' 
+                          : unit.pcSumTotal !== 0 
+                            ? formatCurrency(unit.pcSumTotal) 
+                            : '€0'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
