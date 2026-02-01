@@ -978,7 +978,7 @@ export default function PurchaserChatTab({
           return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
         });
 
-        // Buffer the streamed content - don't display immediately
+        // STREAMING: Display text immediately as it arrives for perceived speed
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -1000,18 +1000,28 @@ export default function PurchaserChatTab({
                     sources = data.sources;
                   }
                 } else if (data.type === 'text') {
-                  // Buffer the text content (don't display yet)
+                  // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
                   streamedContent += data.content;
+                  const displayContent = cleanForDisplay(streamedContent);
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                      updated[assistantMessageIndex] = {
+                        ...updated[assistantMessageIndex],
+                        content: displayContent,
+                        drawing: drawing,
+                        sources: sources,
+                      };
+                    }
+                    return updated;
+                  });
                 } else if (data.type === 'done') {
-                  // Streaming complete - now display with controlled typing effect
+                  // Streaming complete - finalize message
                   const isNoInfoResponse = streamedContent.toLowerCase().includes("i don't have that information") ||
                     streamedContent.toLowerCase().includes("i don't have that specific detail") ||
                     streamedContent.toLowerCase().includes("i'd recommend contacting your developer");
 
-                  // Display text with natural typing cadence
-                  await displayTextWithDelay(streamedContent, assistantMessageIndex, drawing, sources);
-
-                  // Update final message state with isNoInfo flag
+                  // Final update with isNoInfo flag
                   setMessages((prev) => {
                     const updated = [...prev];
                     if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
