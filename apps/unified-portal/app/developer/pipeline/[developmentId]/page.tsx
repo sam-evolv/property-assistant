@@ -1927,6 +1927,272 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
 }
 
 // =============================================================================
+// Release Units Modal
+// =============================================================================
+
+interface ReleaseUnitRow {
+  unitNumber: string;
+  address: string;
+  houseType: string;
+  beds: number;
+  price: number;
+}
+
+interface ReleaseUnitsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  developmentId: string;
+  developmentName: string;
+  existingTypes: string[];
+  highestUnitNumber: number;
+  onSuccess: () => void;
+  onShowToast: (message: string) => void;
+}
+
+function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, existingTypes, highestUnitNumber, onSuccess, onShowToast }: ReleaseUnitsModalProps) {
+  const [count, setCount] = useState<number>(1);
+  const [rows, setRows] = useState<ReleaseUnitRow[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<'count' | 'table'>('count');
+
+  const typeOptions = existingTypes.length > 0 ? existingTypes : ['SD', 'D', 'T', 'A'];
+  const bedsOptions = [1, 2, 3, 4, 5];
+
+  const generateTable = () => {
+    const newRows: ReleaseUnitRow[] = [];
+    for (let i = 0; i < count; i++) {
+      const unitNum = highestUnitNumber + i + 1;
+      newRows.push({
+        unitNumber: String(unitNum),
+        address: `${unitNum} ${developmentName}`,
+        houseType: typeOptions[0] || 'SD',
+        beds: 3,
+        price: 0,
+      });
+    }
+    setRows(newRows);
+    setStep('table');
+  };
+
+  const updateRow = (index: number, field: keyof ReleaseUnitRow, value: string | number) => {
+    setRows(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const copyFirstToAll = () => {
+    if (rows.length === 0) return;
+    const first = rows[0];
+    setRows(prev => prev.map((row, i) => ({
+      ...row,
+      houseType: first.houseType,
+      beds: first.beds,
+      price: first.price,
+    })));
+    onShowToast('Copied to all rows');
+  };
+
+  const handleSubmit = async () => {
+    const validRows = rows.filter(r => r.unitNumber && r.price > 0);
+    if (validRows.length === 0) {
+      onShowToast('Please fill in at least one unit with a price');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ units: validRows }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        onShowToast(`Released ${data.count} units successfully`);
+        onSuccess();
+        onClose();
+        setStep('count');
+        setRows([]);
+        setCount(1);
+      } else {
+        const err = await response.json();
+        onShowToast(err.error || 'Failed to release units');
+      }
+    } catch (error) {
+      onShowToast('Failed to release units');
+    }
+    setIsSubmitting(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Release New Units</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{developmentName}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {step === 'count' ? (
+            <div className="text-center py-8">
+              <p className="text-lg font-medium text-gray-900 mb-6">How many units would you like to release?</p>
+              <div className="flex items-center justify-center gap-4 mb-8">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={count}
+                  onChange={(e) => setCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                  className="w-24 px-4 py-3 text-2xl font-bold text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                />
+                <button
+                  onClick={generateTable}
+                  className="px-6 py-3 text-sm font-semibold rounded-xl transition-all hover:shadow-md"
+                  style={{ backgroundColor: tokens.gold, color: tokens.dark }}
+                >
+                  Generate Table
+                </button>
+              </div>
+              <p className="text-sm text-gray-500">
+                Starting from unit #{highestUnitNumber + 1}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-600">Fill in details for each unit:</p>
+                <button
+                  onClick={copyFirstToAll}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy First to All
+                </button>
+              </div>
+
+              <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-3 py-3 text-left font-semibold text-gray-700">Unit</th>
+                      <th className="px-3 py-3 text-left font-semibold text-gray-700">Address</th>
+                      <th className="px-3 py-3 text-left font-semibold text-gray-700">Type</th>
+                      <th className="px-3 py-3 text-center font-semibold text-gray-700">Beds</th>
+                      <th className="px-3 py-3 text-right font-semibold text-gray-700">Price (€)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rows.map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-3 py-2">
+                          <input
+                            type="text"
+                            value={row.unitNumber}
+                            onChange={(e) => updateRow(i, 'unitNumber', e.target.value)}
+                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="text"
+                            value={row.address}
+                            onChange={(e) => updateRow(i, 'address', e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={row.houseType}
+                            onChange={(e) => updateRow(i, 'houseType', e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white"
+                          >
+                            {typeOptions.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <select
+                            value={row.beds}
+                            onChange={(e) => updateRow(i, 'beds', parseInt(e.target.value))}
+                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white text-center"
+                          >
+                            {bedsOptions.map(b => (
+                              <option key={b} value={b}>{b}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={row.price || ''}
+                            onChange={(e) => updateRow(i, 'price', parseInt(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-28 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-gold-500"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-xs text-gray-500 mt-4 flex items-center gap-1.5">
+                <span className="text-amber-500">💡</span>
+                Tip: Fill the first row, then click "Copy First to All" to set defaults
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+          <button
+            onClick={() => step === 'table' ? setStep('count') : onClose()}
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            {step === 'table' ? 'Back' : 'Cancel'}
+          </button>
+          {step === 'table' && (
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-all hover:shadow-md disabled:opacity-50 flex items-center gap-2"
+              style={{ backgroundColor: tokens.gold, color: tokens.dark }}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-gray-800/30 border-t-gray-800 rounded-full animate-spin" />
+                  Releasing...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Release {rows.length} Units
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Main Page Component
 // =============================================================================
 
@@ -1964,6 +2230,9 @@ export default function PipelineDevelopmentPage() {
   
   // Status filter (for-sale, sale-agreed, contracts, complete)
   const [statusFilter, setStatusFilter] = useState<'all' | 'for-sale' | 'sale-agreed' | 'contracts' | 'complete'>('all');
+  
+  // Release Units modal
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
   
   const [columnLabels, setColumnLabels] = useState<Record<string, string>>({
     releaseDate: 'Release',
@@ -2152,6 +2421,13 @@ export default function PipelineDevelopmentPage() {
     totalPcSumImpact,
   };
 
+  // Calculate highest unit number and existing types for Release Units modal
+  const highestUnitNumber = units.reduce((max, u) => {
+    const num = parseInt(u.unitNumber.replace(/\D/g, '')) || 0;
+    return num > max ? num : max;
+  }, 0);
+  const existingTypes = [...new Set(units.map(u => u.houseTypeCode).filter(Boolean))] as string[];
+
   // Filter units based on housing filter
   let filteredUnits = units.filter(unit => {
     if (housingFilter === 'private') {
@@ -2323,6 +2599,7 @@ export default function PipelineDevelopmentPage() {
                 Export
               </button>
               <button
+                onClick={() => setShowReleaseModal(true)}
                 className="px-5 py-2.5 text-sm font-semibold rounded-xl hover:shadow-md transition-all flex items-center gap-2"
                 style={{ backgroundColor: tokens.gold, color: tokens.dark }}
               >
@@ -2787,6 +3064,18 @@ export default function PipelineDevelopmentPage() {
 
       {/* Toast */}
       <Toast message={toast.message} visible={toast.visible} />
+
+      {/* Release Units Modal */}
+      <ReleaseUnitsModal
+        isOpen={showReleaseModal}
+        onClose={() => setShowReleaseModal(false)}
+        developmentId={developmentId}
+        developmentName={development?.name || ''}
+        existingTypes={existingTypes}
+        highestUnitNumber={highestUnitNumber}
+        onSuccess={fetchData}
+        onShowToast={showToast}
+      />
     </>
   );
 }
