@@ -73,6 +73,22 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Secure Unit Access Codes (February 2026)
+
+**New Secure Code Format:** `XX-NNN-XXXX` (e.g., `AV-001-ACF7`)
+- **XX**: 2-letter development prefix (auto-derived from development code)
+- **NNN**: 3-digit unit number (zero-padded)
+- **XXXX**: 4-character random alphanumeric suffix (prevents neighbor guessing)
+
+**Files Updated:**
+- `app/api/purchaser/auth/validate/route.ts` - Accepts both new and legacy code formats, includes rate limiting (5 attempts/60s per IP)
+- `app/api/developments/[id]/import-units/route.ts` - Auto-generates secure codes on unit import
+- `app/api/units/by-code/[code]/route.ts` - New API endpoint for unit lookup by code (authenticated, tenant-isolated)
+- `app/developer/pipeline/[developmentId]/page.tsx` - Shows access code in unit panel with copy button
+- `app/api/pipeline/[developmentId]/route.ts` - Returns accessCode field in pipeline data
+
+**Backward Compatibility:** Legacy codes like `LV-PARK-001` continue to work via prefix-to-project mapping.
+
 ### Intelligence Features (January 2026)
 
 **Assistant Training Portal** (`/super/assistant-training`)
