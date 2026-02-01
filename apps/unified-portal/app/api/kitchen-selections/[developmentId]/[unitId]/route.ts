@@ -12,6 +12,26 @@ function getSupabaseAdmin() {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function calculatePCSum(bedrooms: number, hasKitchen: boolean, hasWardrobe: boolean, config: any) {
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
+  
+  let kitchenAllowance = kitchen2Bed;
+  if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
+  else if (bedrooms === 3) kitchenAllowance = kitchen3Bed;
+  
+  const kitchenImpact = hasKitchen ? 0 : -kitchenAllowance;
+  const wardrobeImpact = hasWardrobe ? 0 : -wardrobeAllowance;
+  
+  return {
+    pcSumKitchen: kitchenImpact,
+    pcSumWardrobes: wardrobeImpact,
+    pcSumTotal: kitchenImpact + wardrobeImpact,
+  };
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ developmentId: string; unitId: string }> }
@@ -54,7 +74,7 @@ export async function PATCH(
 
     const { data: existing } = await supabase
       .from('kitchen_selections')
-      .select('id')
+      .select('*')
       .eq('unit_id', unitId)
       .eq('tenant_id', tenantId)
       .eq('development_id', developmentId)
@@ -94,6 +114,41 @@ export async function PATCH(
       result = data;
     }
 
+    const { data: unit } = await supabase
+      .from('units')
+      .select('bedrooms')
+      .eq('id', unitId)
+      .single();
+
+    const { data: config } = await supabase
+      .from('kitchen_selection_options')
+      .select('*')
+      .eq('development_id', developmentId)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    const bedrooms = unit?.bedrooms || 3;
+    const pcSum = calculatePCSum(
+      bedrooms,
+      result.has_kitchen === true,
+      result.has_wardrobe === true,
+      config
+    );
+
+    try {
+      await supabase
+        .from('kitchen_selections')
+        .update({
+          pc_sum_kitchen: pcSum.pcSumKitchen,
+          pc_sum_wardrobes: pcSum.pcSumWardrobes,
+          pc_sum_total: pcSum.pcSumTotal,
+        })
+        .eq('id', result.id)
+        .eq('tenant_id', tenantId);
+    } catch (e) {
+      console.log('PC sum columns not yet available:', e);
+    }
+
     const hasAllKitchenFields = result.has_kitchen && 
       result.counter_type && 
       result.unit_finish && 
@@ -108,7 +163,15 @@ export async function PATCH(
         .eq('development_id', developmentId);
     }
 
-    return NextResponse.json({ success: true, selection: result });
+    return NextResponse.json({ 
+      success: true, 
+      selection: {
+        ...result,
+        pcSumKitchen: pcSum.pcSumKitchen,
+        pcSumWardrobes: pcSum.pcSumWardrobes,
+        pcSumTotal: pcSum.pcSumTotal,
+      }
+    });
   } catch (error: any) {
     console.error('Kitchen selection PATCH error:', error);
     if (error.message === 'UNAUTHORIZED') {

@@ -11,6 +11,7 @@ import {
   Check,
   X,
   RefreshCw,
+  TrendingDown,
 } from 'lucide-react';
 
 const tokens = {
@@ -41,6 +42,7 @@ interface KitchenUnit {
   address: string | null;
   purchaserName: string | null;
   houseType: string;
+  bedrooms: number;
   hasKitchen: boolean | null;
   counterType: string | null;
   unitFinish: string | null;
@@ -49,12 +51,32 @@ interface KitchenUnit {
   wardrobeStyle: string | null;
   notes: string | null;
   status: 'complete' | 'pending';
+  pcSumKitchen: number;
+  pcSumWardrobes: number;
+  pcSumTotal: number;
 }
 
 interface Development {
   id: string;
   name: string;
   code: string;
+}
+
+interface Summary {
+  totalPcSumImpact: number;
+  takingOwnKitchen: number;
+  takingOwnWardrobes: number;
+}
+
+function formatCurrency(value: number): string {
+  const absValue = Math.abs(value);
+  const formatted = new Intl.NumberFormat('en-IE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(absValue);
+  return value < 0 ? `-${formatted}` : formatted;
 }
 
 export default function KitchenSelectionsPage() {
@@ -66,6 +88,7 @@ export default function KitchenSelectionsPage() {
 
   const [development, setDevelopment] = useState<Development | null>(null);
   const [units, setUnits] = useState<KitchenUnit[]>([]);
+  const [summary, setSummary] = useState<Summary>({ totalPcSumImpact: 0, takingOwnKitchen: 0, takingOwnWardrobes: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
@@ -83,6 +106,7 @@ export default function KitchenSelectionsPage() {
       const data = await response.json();
       setDevelopment(data.development);
       setUnits(data.units || []);
+      setSummary(data.summary || { totalPcSumImpact: 0, takingOwnKitchen: 0, takingOwnWardrobes: 0 });
     } catch (err) {
       console.error('Error fetching kitchen selections:', err);
     } finally {
@@ -123,6 +147,27 @@ export default function KitchenSelectionsPage() {
         body: JSON.stringify({ [field]: value }),
       });
       if (!response.ok) throw new Error('Failed to save');
+      const data = await response.json();
+      
+      if (data.selection) {
+        setUnits(prev =>
+          prev.map(u => u.unitId === unitId ? {
+            ...u,
+            pcSumKitchen: data.selection.pcSumKitchen || 0,
+            pcSumWardrobes: data.selection.pcSumWardrobes || 0,
+            pcSumTotal: data.selection.pcSumTotal || 0,
+          } : u)
+        );
+        
+        const newTotal = units.reduce((sum, u) => {
+          if (u.unitId === unitId) {
+            return sum + (data.selection.pcSumTotal || 0);
+          }
+          return sum + u.pcSumTotal;
+        }, 0);
+        setSummary(prev => ({ ...prev, totalPcSumImpact: newTotal }));
+      }
+      
       showToast('Saved');
     } catch (err) {
       console.error('Error saving:', err);
@@ -143,6 +188,7 @@ export default function KitchenSelectionsPage() {
 
   const stats = {
     total: units.length,
+    decided: units.filter(u => u.hasKitchen !== null || u.hasWardrobe !== null).length,
     complete: units.filter(u => u.status === 'complete').length,
     withKitchen: units.filter(u => u.hasKitchen === true).length,
     withWardrobes: units.filter(u => u.hasWardrobe === true).length,
@@ -195,20 +241,33 @@ export default function KitchenSelectionsPage() {
 
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Units</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Selection Progress</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.decided} of {stats.total}</p>
+            <p className="text-xs text-gray-500 mt-0.5">({stats.total > 0 ? Math.round((stats.decided / stats.total) * 100) : 0}% complete)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Complete</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.complete}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Kitchen</p>
+            <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.withKitchen} of {stats.decided}</p>
+            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.withKitchen / stats.decided) * 100) : 0}%)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">With Kitchen</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.withKitchen}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Wardrobes</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.withWardrobes} of {stats.decided}</p>
+            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.withWardrobes / stats.decided) * 100) : 0}%)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">With Wardrobes</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.withWardrobes}</p>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Impact</p>
+                <p className={`text-2xl font-bold mt-1 ${summary.totalPcSumImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {formatCurrency(summary.totalPcSumImpact)}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">({summary.takingOwnKitchen} taking own)</p>
+              </div>
+              {summary.totalPcSumImpact < 0 && (
+                <TrendingDown className="w-5 h-5 text-red-500" />
+              )}
+            </div>
           </div>
         </div>
 
@@ -237,7 +296,8 @@ export default function KitchenSelectionsPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cabinet Color</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Handle</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Wardrobes</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Notes</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[180px]">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -255,6 +315,7 @@ export default function KitchenSelectionsPage() {
                             {unit.houseType}
                           </span>
                         )}
+                        <span className="ml-1 text-[10px] text-gray-400">{unit.bedrooms} bed</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -282,7 +343,8 @@ export default function KitchenSelectionsPage() {
                       <select
                         value={unit.counterType || ''}
                         onChange={(e) => handleUpdate(unit.unitId, 'counterType', e.target.value || null)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+                        disabled={unit.hasKitchen === false}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 disabled:bg-gray-50 disabled:text-gray-400"
                       >
                         <option value="">Select...</option>
                         {COUNTER_OPTIONS.map((opt) => (
@@ -296,7 +358,8 @@ export default function KitchenSelectionsPage() {
                       <select
                         value={unit.unitFinish || ''}
                         onChange={(e) => handleUpdate(unit.unitId, 'cabinetColor', e.target.value || null)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+                        disabled={unit.hasKitchen === false}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 disabled:bg-gray-50 disabled:text-gray-400"
                       >
                         <option value="">Select...</option>
                         {CABINET_OPTIONS.map((opt) => (
@@ -310,7 +373,8 @@ export default function KitchenSelectionsPage() {
                       <select
                         value={unit.handleStyle || ''}
                         onChange={(e) => handleUpdate(unit.unitId, 'handleStyle', e.target.value || null)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+                        disabled={unit.hasKitchen === false}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 disabled:bg-gray-50 disabled:text-gray-400"
                       >
                         <option value="">Select...</option>
                         {HANDLE_OPTIONS.map((opt) => (
@@ -335,6 +399,11 @@ export default function KitchenSelectionsPage() {
                           {unit.hasWardrobe === true ? <Check className="w-4 h-4" /> : unit.hasWardrobe === false ? <X className="w-4 h-4" /> : '?'}
                         </button>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`text-sm font-medium ${unit.pcSumTotal < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                        {unit.pcSumTotal !== 0 ? formatCurrency(unit.pcSumTotal) : '€0'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <input

@@ -1695,6 +1695,11 @@ export const kitchenSelections = pgTable('kitchen_selections', {
   has_wardrobe: boolean('has_wardrobe').default(false).notNull(),
   wardrobe_style: text('wardrobe_style'),
   
+  // PC Sum tracking (calculated based on selections)
+  pc_sum_kitchen: decimal('pc_sum_kitchen', { precision: 10, scale: 2 }).default('0'),
+  pc_sum_wardrobes: decimal('pc_sum_wardrobes', { precision: 10, scale: 2 }).default('0'),
+  pc_sum_total: decimal('pc_sum_total', { precision: 10, scale: 2 }).default('0'),
+  
   // Notes
   notes: text('notes'),
   
@@ -1719,6 +1724,12 @@ export const kitchenSelectionOptions = pgTable('kitchen_selection_options', {
   unit_finishes: jsonb('unit_finishes').default(sql`'["Matt White", "Gloss White", "Oak", "Walnut"]'::jsonb`).notNull(),
   handle_styles: jsonb('handle_styles').default(sql`'["Bar", "Knob", "Integrated", "Cup"]'::jsonb`).notNull(),
   wardrobe_styles: jsonb('wardrobe_styles').default(sql`'["Sliding", "Hinged", "Walk-in"]'::jsonb`).notNull(),
+  
+  // PC Sum allowances (developer configurable)
+  pc_sum_kitchen_4bed: decimal('pc_sum_kitchen_4bed', { precision: 10, scale: 2 }).default('7000'),
+  pc_sum_kitchen_3bed: decimal('pc_sum_kitchen_3bed', { precision: 10, scale: 2 }).default('6000'),
+  pc_sum_kitchen_2bed: decimal('pc_sum_kitchen_2bed', { precision: 10, scale: 2 }).default('5000'),
+  pc_sum_wardrobes: decimal('pc_sum_wardrobes', { precision: 10, scale: 2 }).default('1000'),
   
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

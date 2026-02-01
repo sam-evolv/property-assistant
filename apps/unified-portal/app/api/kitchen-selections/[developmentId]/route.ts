@@ -22,6 +22,7 @@ interface KitchenUnit {
   address: string | null;
   purchaserName: string | null;
   houseType: string;
+  bedrooms: number;
   hasKitchen: boolean | null;
   counterType: string | null;
   unitFinish: string | null;
@@ -30,6 +31,33 @@ interface KitchenUnit {
   wardrobeStyle: string | null;
   notes: string | null;
   status: 'complete' | 'pending';
+  pcSumKitchen: number;
+  pcSumWardrobes: number;
+  pcSumTotal: number;
+}
+
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
+  if (hasKitchen === null && hasWardrobe === null) {
+    return { pcSumKitchen: 0, pcSumWardrobes: 0, pcSumTotal: 0 };
+  }
+  
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
+  
+  let kitchenAllowance = kitchen2Bed;
+  if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
+  else if (bedrooms === 3) kitchenAllowance = kitchen3Bed;
+  
+  const kitchenImpact = hasKitchen === true ? 0 : (hasKitchen === false ? -kitchenAllowance : 0);
+  const wardrobeImpact = hasWardrobe === true ? 0 : (hasWardrobe === false ? -wardrobeAllowance : 0);
+  
+  return {
+    pcSumKitchen: kitchenImpact,
+    pcSumWardrobes: wardrobeImpact,
+    pcSumTotal: kitchenImpact + wardrobeImpact,
+  };
 }
 
 export async function GET(
@@ -187,6 +215,7 @@ export async function GET(
       
       const hasKitchen = selection ? selection.has_kitchen : null;
       const hasWardrobe = selection ? selection.has_wardrobe : null;
+      const bedrooms = unit.bedrooms || 3;
       
       const hasAllKitchenFields = hasKitchen === true && 
         selection?.counter_type && 
@@ -203,6 +232,8 @@ export async function GET(
                          (hasWardrobe !== null ? wardrobeComplete : true) &&
                          (hasKitchen === true || hasWardrobe === true);
 
+      const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe, options);
+
       return {
         id: selection?.id || '',
         unitId: unit.id,
@@ -210,6 +241,7 @@ export async function GET(
         address: `${unit.unit_number} ${development.name}`,
         purchaserName: unit.purchaser_name,
         houseType: unit.house_type_code,
+        bedrooms: bedrooms,
         hasKitchen: hasKitchen,
         counterType: selection?.counter_type || null,
         unitFinish: selection?.unit_finish || null,
@@ -218,8 +250,15 @@ export async function GET(
         wardrobeStyle: selection?.wardrobe_style || null,
         notes: selection?.notes || null,
         status: isComplete ? 'complete' : 'pending',
+        pcSumKitchen: pcSum.pcSumKitchen,
+        pcSumWardrobes: pcSum.pcSumWardrobes,
+        pcSumTotal: pcSum.pcSumTotal,
       };
     });
+
+    const totalPcSumImpact = kitchenUnits.reduce((sum, u) => sum + u.pcSumTotal, 0);
+    const takingOwnKitchen = kitchenUnits.filter(u => u.hasKitchen === false).length;
+    const takingOwnWardrobes = kitchenUnits.filter(u => u.hasWardrobe === false).length;
 
     return NextResponse.json({
       development: {
@@ -233,6 +272,17 @@ export async function GET(
         unitFinishes: options.unit_finishes as string[],
         handleStyles: options.handle_styles as string[],
         wardrobeStyles: options.wardrobe_styles as string[],
+      },
+      pcSumConfig: {
+        kitchen4Bed: Number(options.pc_sum_kitchen_4bed) || 7000,
+        kitchen3Bed: Number(options.pc_sum_kitchen_3bed) || 6000,
+        kitchen2Bed: Number(options.pc_sum_kitchen_2bed) || 5000,
+        wardrobes: Number(options.pc_sum_wardrobes) || 1000,
+      },
+      summary: {
+        totalPcSumImpact,
+        takingOwnKitchen,
+        takingOwnWardrobes,
       },
     });
   } catch (error: any) {
