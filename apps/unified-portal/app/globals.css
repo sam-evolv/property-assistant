@@ -517,23 +517,34 @@ nav,
 
 /* =============================================================================
    GLOBAL TEXT CONTRAST FIX - Force all light grey text to black/dark
+   Only applies to light backgrounds (not dark sidebars/modals)
    ============================================================================= */
 
-/* Override all light grey Tailwind text classes to dark colors */
-.text-gray-200,
-.text-gray-300,
-.text-gray-400 {
+/* Override light grey text ONLY on light backgrounds (white/cream containers) */
+.bg-white .text-gray-200,
+.bg-white .text-gray-300,
+.bg-white .text-gray-400,
+.bg-gray-50 .text-gray-200,
+.bg-gray-50 .text-gray-300,
+.bg-gray-50 .text-gray-400,
+.bg-cream .text-gray-200,
+.bg-cream .text-gray-300,
+.bg-cream .text-gray-400 {
   color: #374151 !important; /* gray-700 */
 }
 
-.text-grey-200,
-.text-grey-300,
-.text-grey-400 {
+.bg-white .text-grey-200,
+.bg-white .text-grey-300,
+.bg-white .text-grey-400,
+.bg-gray-50 .text-grey-200,
+.bg-gray-50 .text-grey-300,
+.bg-gray-50 .text-grey-400 {
   color: #374151 !important; /* gray-700 */
 }
 
-/* Ensure table cells have dark text */
-td, th {
+/* Ensure table cells have dark text (tables are on light backgrounds) */
+.bg-white td, .bg-white th,
+.bg-gray-50 td, .bg-gray-50 th {
   color: #1f2937; /* gray-800 */
 }
 
