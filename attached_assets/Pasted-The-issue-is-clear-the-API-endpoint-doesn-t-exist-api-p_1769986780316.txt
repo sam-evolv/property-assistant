@@ -1,0 +1,128 @@
+The issue is clear - the API endpoint doesn't exist:
+
+```
+api/purchaser/auth/validate - 404 (Not Found)
+```
+
+Give Replit this:
+
+---
+
+**Fix Access Code Login - API Endpoint Missing**
+
+## Problem
+
+Access codes don't work because the API endpoint doesn't exist:
+
+```
+api/purchaser/auth/validate - 404 (Not Found)
+```
+
+## Solution
+
+Create the missing API endpoint at `/api/purchaser/auth/validate` (or wherever the login form is POSTing to).
+
+### API Route: `/api/purchaser/auth/validate`
+
+```javascript
+// app/api/purchaser/auth/validate/route.ts (or .js)
+
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export async function POST(request) {
+  try {
+    const { accessCode } = await request.json();
+    
+    if (!accessCode) {
+      return NextResponse.json({ error: 'Access code required' }, { status: 400 });
+    }
+    
+    // Normalize input
+    const normalizedCode = accessCode.trim().toUpperCase();
+    
+    console.log('Validating access code:', normalizedCode);
+    
+    // Query database for unit with this code
+    const { data: unit, error } = await supabase
+      .from('units')
+      .select(`
+        id,
+        address,
+        unit_uid,
+        handover_date,
+        development_id,
+        developments (
+          id,
+          name,
+          tenant_id
+        )
+      `)
+      .eq('unit_uid', normalizedCode)
+      .single();
+    
+    if (error || !unit) {
+      console.log('Code not found:', normalizedCode, error);
+      return NextResponse.json({ error: 'Invalid access code' }, { status: 401 });
+    }
+    
+    console.log('Found unit:', unit.address);
+    
+    // Determine portal type based on handover date
+    const now = new Date();
+    const handoverDate = unit.handover_date ? new Date(unit.handover_date) : null;
+    const isHandedOver = handoverDate && handoverDate <= now;
+    
+    return NextResponse.json({
+      success: true,
+      unit: {
+        id: unit.id,
+        address: unit.address,
+        accessCode: unit.unit_uid,
+        handoverDate: unit.handover_date,
+        isHandedOver,
+        portalType: isHandedOver ? 'property-assistant' : 'pre-handover'
+      },
+      development: unit.developments
+    });
+    
+  } catch (err) {
+    console.error('Validation error:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+```
+
+### Check File Location
+
+The endpoint path in the error is `api/purchaser/auth/validate`, so the file should be at:
+
+```
+app/api/purchaser/auth/validate/route.ts
+```
+
+or
+
+```
+pages/api/purchaser/auth/validate.ts
+```
+
+depending on whether you're using App Router or Pages Router.
+
+### Test Codes
+
+Once the endpoint is created, these should all work:
+
+| Code | Address |
+|------|---------|
+| AV-001-ACF7 | 1 Árdan View |
+| LP-001-9B29 | 1 Longview Park |
+| RP-013-85AB | 13 Rathard Park |
+| RL-021-4570 | 21 Rathard Lawn |
+
+---
