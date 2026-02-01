@@ -106,8 +106,13 @@ export default function KitchenSelectionsPage() {
   }, [highlightUnitId, units]);
 
   const handleUpdate = async (unitId: string, field: string, value: any) => {
+    const stateFieldMap: Record<string, string> = {
+      cabinetColor: 'unitFinish',
+    };
+    const stateField = stateFieldMap[field] || field;
+    
     setUnits(prev =>
-      prev.map(u => (u.unitId === unitId ? { ...u, [field]: value } : u))
+      prev.map(u => (u.unitId === unitId ? { ...u, [stateField]: value } : u))
     );
 
     setSaving(unitId);

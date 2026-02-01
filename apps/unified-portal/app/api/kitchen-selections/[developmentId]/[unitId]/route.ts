@@ -56,6 +56,8 @@ export async function PATCH(
       .from('kitchen_selections')
       .select('id')
       .eq('unit_id', unitId)
+      .eq('tenant_id', tenantId)
+      .eq('development_id', developmentId)
       .single();
 
     let result;
@@ -64,6 +66,7 @@ export async function PATCH(
         .from('kitchen_selections')
         .update(updates)
         .eq('id', existing.id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
       
@@ -100,7 +103,9 @@ export async function PATCH(
       await supabase
         .from('unit_sales_pipeline')
         .update({ kitchen_date: new Date().toISOString() })
-        .eq('unit_id', unitId);
+        .eq('unit_id', unitId)
+        .eq('tenant_id', tenantId)
+        .eq('development_id', developmentId);
     }
 
     return NextResponse.json({ success: true, selection: result });

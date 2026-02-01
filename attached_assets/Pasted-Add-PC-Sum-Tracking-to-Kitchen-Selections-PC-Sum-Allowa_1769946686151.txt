@@ -1,0 +1,110 @@
+Add PC Sum Tracking to Kitchen Selections
+PC Sum Allowances by Bedroom Count
+BedroomsKitchen AllowanceWardrobe AllowanceTotal PC Sum4 Bed€7,000€1,000€8,0003 Bed€6,000€1,000€7,0002 Bed€5,000€1,000€6,000
+Logic
+For each unit, calculate PC Sum impact:
+
+Taking Developer Kitchen (Kitchen = Yes)
+
+PC Sum Impact = €0 (no deduction)
+
+
+Taking Own Kitchen (Kitchen = No)
+
+PC Sum Impact = -€6,000 (for 3 bed) / -€7,000 (for 4 bed) / -€5,000 (for 2 bed)
+This amount is deducted from sale price
+
+
+Taking Developer Wardrobes (Wardrobes = Yes)
+
+Wardrobe Impact = €0
+
+
+Taking Own Wardrobes (Wardrobes = No)
+
+Wardrobe Impact = -€1,000
+
+
+
+Database Changes
+sql-- Add PC sum tracking columns
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS pc_sum_kitchen DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS pc_sum_wardrobes DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS pc_sum_total DECIMAL(10,2) DEFAULT 0;
+```
+
+## Kitchen Selections Page - Add Summary Cards
+```
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Selection Progress│  │ Taking Kitchen   │  │ Taking Wardrobes │  │ PC Sum Impact    │
+│   15 of 68       │  │   12 of 15       │  │   10 of 15       │  │  -€18,000        │
+│   (22% complete) │  │   (80%)          │  │   (67%)          │  │  (3 taking own)  │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+In the Kitchen Selections Table - Add PC Sum Column
+UnitPurchaserKitchenWardrobesPC Sum Impact10Carmen B.✓ Yes✓ Yes€08Jan S.✗ No✗ No-€7,00015Diarmuid K.✓ Yes✗ No-€1,000
+Color coding:
+
+€0 = Neutral/grey
+Negative amount = Red text (e.g., "-€7,000" in red)
+
+Auto-Calculate on Selection Change
+When Kitchen or Wardrobes selection changes:
+javascriptfunction calculatePCSum(unit) {
+  const bedrooms = unit.bedrooms;
+  let kitchenAllowance = 0;
+  let wardrobeAllowance = 1000;
+  
+  // Set kitchen allowance based on bedrooms
+  if (bedrooms >= 4) kitchenAllowance = 7000;
+  else if (bedrooms === 3) kitchenAllowance = 6000;
+  else kitchenAllowance = 5000;
+  
+  // Calculate impact
+  const kitchenImpact = unit.kitchenSelected ? 0 : -kitchenAllowance;
+  const wardrobeImpact = unit.wardrobesSelected ? 0 : -wardrobeAllowance;
+  
+  return {
+    pcSumKitchen: kitchenImpact,
+    pcSumWardrobes: wardrobeImpact,
+    pcSumTotal: kitchenImpact + wardrobeImpact
+  };
+}
+```
+
+## Analytics Integration
+
+Add to Portfolio Analytics / Development Analytics:
+
+**Revenue Impact from PC Sums**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PC Sum Revenue Impact                                       │
+├─────────────────────────────────────────────────────────────┤
+│ Development      │ Units │ Taking Kitchen │ PC Sum Impact  │
+├──────────────────┼───────┼────────────────┼────────────────┤
+│ Árdan View       │  68   │  52 (76%)      │   -€96,000    │
+│ Rathard Park     │  40   │  35 (88%)      │   -€35,000    │
+│ Longview Park    │  62   │  58 (94%)      │   -€28,000    │
+├──────────────────┼───────┼────────────────┼────────────────┤
+│ TOTAL            │ 170   │ 145 (85%)      │  -€159,000    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+This shows:
+- How many purchasers are taking the developer's kitchen vs their own
+- Total revenue impact from PC sums across all developments
+- Helps forecast actual revenue vs contracted sale prices
+
+## Adjusted Revenue Calculation
+
+In analytics, show:
+- **Contracted Revenue**: Sum of all sale prices
+- **PC Sum Adjustments**: Total PC sum deductions
+- **Adjusted Revenue**: Contracted Revenue + PC Sum Adjustments (will be lower)
+
+Example:
+```
+Contracted Revenue:    €30,500,000
+PC Sum Adjustments:      -€159,000
+─────────────────────────────────
+Adjusted Revenue:      €30,341,000
