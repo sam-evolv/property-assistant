@@ -1,0 +1,96 @@
+The data structure is identical. The issue must be in the UI query. 
+
+Give Replit this specific fix:
+
+---
+
+**Fix Árdan View Smart Archive - Not Loading Documents**
+
+## Problem
+
+Árdan View shows 0 documents in Smart Archive, but the database has 946 document chunks.
+
+## Key Difference
+
+For Árdan View, the `development_id` and `project_id` are the **same**:
+- development_id: `84a559d1-89f1-4eb6-a48b-7ca068bcc164`
+- project_id: `84a559d1-89f1-4eb6-a48b-7ca068bcc164`
+
+For other developments they're different, so the join by name works. But for Árdan View, if the code is doing something like:
+
+```javascript
+// This might fail for Árdan View
+const project = await getProjectByName(development.name);
+```
+
+It should work, but there might be a caching issue or the query is returning early.
+
+## Debug Steps
+
+1. Add console logging to see what project_id is being used for Árdan View
+2. Check if there's any filtering happening (e.g., by `is_homeowner_facing` or other metadata flags)
+
+## Verified Data
+
+```sql
+-- This returns 946 rows
+SELECT COUNT(*) FROM document_sections 
+WHERE project_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164';
+
+-- Breakdown by discipline
+-- electrical: 94
+-- handover: 134
+-- mechanical: 62
+-- other: 650
+-- null: 6
+```
+
+## Possible Fix
+
+Ensure the query handles the case where development_id = project_id:
+
+```javascript
+async function getProjectIdForDevelopment(developmentId, developmentName) {
+  // First try: check if development_id IS the project_id
+  const { data: directProject } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', developmentId)
+    .single();
+  
+  if (directProject) {
+    return directProject.id;
+  }
+  
+  // Fallback: lookup by name
+  const { data: namedProject } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('name', developmentName)
+    .single();
+  
+  return namedProject?.id;
+}
+```
+
+Or simpler - just always look up by name since all projects have matching names:
+
+```javascript
+const { data: project } = await supabase
+  .from('projects')
+  .select('id')
+  .eq('name', developmentName)
+  .maybeSingle();
+
+if (!project) {
+  console.error('No project found for development:', developmentName);
+  return;
+}
+
+const documents = await supabase
+  .from('document_sections')
+  .select('metadata')
+  .eq('project_id', project.id);
+```
+
+---

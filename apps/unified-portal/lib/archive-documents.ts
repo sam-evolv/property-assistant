@@ -173,12 +173,11 @@ export async function fetchDocumentsByDiscipline({
     
     console.log('[Archive Documents] Allowed project IDs:', allowedProjectIds);
     
-    // Query documents with server-side filtering
-    const projectIdFilter = allowedProjectIds.join(',');
+    // Query documents with server-side filtering using .in() for proper UUID handling
     let query = supabase
       .from('document_sections')
       .select('id, metadata, content, project_id')
-      .or(`project_id.in.(${projectIdFilter})`);
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
     

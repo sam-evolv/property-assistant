@@ -159,14 +159,11 @@ async function fetchDocuments(params: {
       allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
     
-    // Query documents with server-side filtering
-    // Use OR filter to check both project_id column AND metadata.project_id
-    // This handles documents stored in either format
-    const projectIdFilter = allowedProjectIds.join(',');
+    // Query documents with server-side filtering using .in() for proper UUID handling
     let query = supabase
       .from('document_sections')
       .select('id, metadata, content, project_id')
-      .or(`project_id.in.(${projectIdFilter})`);
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
     
@@ -281,10 +278,9 @@ async function fetchDisciplines(params: {
       console.log('[Disciplines API] Fetching disciplines for ALL_SCHEMES (filtered by tenant):', allowedProjectIds.length, 'projects');
     }
     
-    // Query documents with server-side filtering
-    const projectIdFilter = allowedProjectIds.join(',');
+    // Query documents with server-side filtering using .in() for proper UUID handling
     let query = supabase.from('document_sections').select('id, metadata, project_id')
-      .or(`project_id.in.(${projectIdFilter})`);
+      .in('project_id', allowedProjectIds);
     
     const { data: sections, error } = await query;
 
