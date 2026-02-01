@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
@@ -18,6 +18,8 @@ interface Unit {
   important_docs_agreed_version: number;
   important_docs_agreed_at: string | null;
   house_type_code: string | null;
+  is_social_housing?: boolean;
+  housing_agency?: string | null;
   development?: {
     id: string;
     name: string;
@@ -63,6 +65,25 @@ export function HomeownersList({
   const [showFilters, setShowFilters] = useState(false);
   const [downloadingQR, setDownloadingQR] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Social housing filter - default to 'private' (hide social housing)
+  const [housingFilter, setHousingFilter] = useState<'all' | 'private' | 'social'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('homeownersHousingFilter') as 'all' | 'private' | 'social') || 'private';
+    }
+    return 'private';
+  });
+
+  // Persist filter preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('homeownersHousingFilter', housingFilter);
+    }
+  }, [housingFilter]);
+  
+  // Count for filter tabs
+  const privateCount = homeowners.filter(u => !u.is_social_housing).length;
+  const socialCount = homeowners.filter(u => u.is_social_housing).length;
 
   // Selection handlers
   const toggleSelection = useCallback((id: string, e: React.MouseEvent) => {
@@ -168,6 +189,13 @@ export function HomeownersList({
   const filteredAndSorted = useMemo(() => {
     let result = [...homeowners];
 
+    // Apply housing filter first
+    if (housingFilter === 'private') {
+      result = result.filter(unit => !unit.is_social_housing);
+    } else if (housingFilter === 'social') {
+      result = result.filter(unit => unit.is_social_housing);
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(unit => {
@@ -205,7 +233,7 @@ export function HomeownersList({
     });
 
     return result;
-  }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion]);
+  }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion, housingFilter]);
 
   const stats = useMemo(() => {
     const acknowledged = homeowners.filter(u => hasUnitAcknowledged(u)).length;
@@ -245,7 +273,41 @@ export function HomeownersList({
                   </select>
                 </div>
                 <span className="text-grey-400">|</span>
-                <span className="text-grey-600 text-sm">{homeowners.length} residents</span>
+                {/* Housing Type Filter Tabs */}
+                <div className="flex items-center bg-grey-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setHousingFilter('all')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'all'
+                        ? 'bg-white text-grey-900 shadow-sm'
+                        : 'text-grey-500 hover:text-grey-700'
+                    }`}
+                  >
+                    All ({homeowners.length})
+                  </button>
+                  <button
+                    onClick={() => setHousingFilter('private')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'private'
+                        ? 'bg-white text-grey-900 shadow-sm'
+                        : 'text-grey-500 hover:text-grey-700'
+                    }`}
+                  >
+                    Private ({privateCount})
+                  </button>
+                  <button
+                    onClick={() => setHousingFilter('social')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      housingFilter === 'social'
+                        ? 'bg-white text-grey-900 shadow-sm'
+                        : 'text-grey-500 hover:text-grey-700'
+                    }`}
+                  >
+                    Social ({socialCount})
+                  </button>
+                </div>
+                <span className="text-grey-400">|</span>
+                <span className="text-grey-600 text-sm">{filteredAndSorted.length} residents</span>
               </div>
             </div>
             <div className="flex items-center gap-3">

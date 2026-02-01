@@ -91,10 +91,19 @@ export default async function HomeownersPage({
     allProjects = Array.from(devMap.values());
     const projectsMap = new Map(allProjects.map((p: any) => [p.id, p]));
     
-    // Fetch units from Supabase - SECURITY: Filter by tenant_id unconditionally
+    // Fetch units from Supabase WITH unit_sales_pipeline join for purchaser names
+    // SECURITY: Filter by tenant_id unconditionally
     let unitsQuery = supabaseAdmin
       .from('units')
-      .select('*')
+      .select(`
+        *,
+        unit_sales_pipeline (
+          purchaser_name,
+          sale_type,
+          housing_agency,
+          handover_date
+        )
+      `)
       .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
       .order('created_at', { ascending: false });
     
@@ -114,14 +123,32 @@ export default async function HomeownersPage({
     const acknowledgedUnits = await getAcknowledgedUnits();
     console.log(`[HomeownersPage] Found ${acknowledgedUnits.size} acknowledged units in purchaser_agreements`);
     
-    // Enrich units with development info and acknowledgement status
-    unitsData = unitsData.map((u: any) => ({
-      ...u,
-      development: projectsMap.get(u.project_id) || null,
-      development_id: u.project_id,
-      // Set acknowledged status from purchaser_agreements table with actual docs_version
-      important_docs_agreed_version: acknowledgedUnits.get(u.id) || u.important_docs_agreed_version || 0,
-    }));
+    // Enrich units with development info, acknowledgement status, and purchaser name from pipeline
+    unitsData = unitsData.map((u: any) => {
+      // Get purchaser name from unit_sales_pipeline if available
+      const pipelineData = Array.isArray(u.unit_sales_pipeline) 
+        ? u.unit_sales_pipeline[0] 
+        : u.unit_sales_pipeline;
+      
+      const pipelinePurchaserName = pipelineData?.purchaser_name || null;
+      const isSocialHousing = pipelineData?.sale_type === 'social' || 
+        (pipelinePurchaserName?.toLowerCase().includes('clúid') || 
+         pipelinePurchaserName?.toLowerCase().includes('cluid'));
+      
+      return {
+        ...u,
+        development: projectsMap.get(u.project_id) || null,
+        development_id: u.project_id,
+        // Use purchaser name from pipeline if units table doesn't have it
+        purchaser_name: u.purchaser_name || pipelinePurchaserName,
+        // Add social housing flag
+        is_social_housing: isSocialHousing,
+        housing_agency: pipelineData?.housing_agency || null,
+        handover_date: pipelineData?.handover_date || u.handover_date,
+        // Set acknowledged status from purchaser_agreements table with actual docs_version
+        important_docs_agreed_version: acknowledgedUnits.get(u.id) || u.important_docs_agreed_version || 0,
+      };
+    });
     
     if (searchParams.developmentId) {
       developmentData = projectsMap.get(searchParams.developmentId) || null;
