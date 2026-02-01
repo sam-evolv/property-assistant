@@ -174,11 +174,14 @@ async function fetchDocuments(params: {
       allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
     
-    // Query documents with server-side filtering using .in() for proper UUID handling
-    let query = supabase
-      .from('document_sections')
-      .select('id, metadata, content, project_id')
-      .in('project_id', allowedProjectIds);
+    // Query documents with server-side filtering
+    // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
+    let query = supabase.from('document_sections').select('id, metadata, content, project_id');
+    if (allowedProjectIds.length === 1) {
+      query = query.eq('project_id', allowedProjectIds[0]);
+    } else {
+      query = query.in('project_id', allowedProjectIds);
+    }
     
     const { data: sections, error } = await query;
     
@@ -309,14 +312,21 @@ async function fetchDisciplines(params: {
       console.log('[Disciplines API] Fetching disciplines for ALL_SCHEMES (filtered by tenant):', allowedProjectIds.length, 'projects');
     }
     
-    // Query documents with server-side filtering using .in() for proper UUID handling
-    let query = supabase.from('document_sections').select('id, metadata, project_id')
-      .in('project_id', allowedProjectIds);
+    // Query documents with server-side filtering
+    // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
+    console.log('[Disciplines API] Querying document_sections with project_ids:', JSON.stringify(allowedProjectIds));
+    
+    let query = supabase.from('document_sections').select('id, metadata, project_id');
+    if (allowedProjectIds.length === 1) {
+      query = query.eq('project_id', allowedProjectIds[0]);
+    } else {
+      query = query.in('project_id', allowedProjectIds);
+    }
     
     const { data: sections, error } = await query;
 
     if (error) {
-      console.error('[Disciplines API] Supabase error:', error.message);
+      console.error('[Disciplines API] Supabase error:', error.message, error);
       return [];
     }
 

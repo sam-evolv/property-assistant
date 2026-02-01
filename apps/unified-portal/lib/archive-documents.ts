@@ -189,11 +189,14 @@ export async function fetchDocumentsByDiscipline({
     
     console.log('[Archive Documents] Allowed project IDs:', allowedProjectIds);
     
-    // Query documents with server-side filtering using .in() for proper UUID handling
-    let query = supabase
-      .from('document_sections')
-      .select('id, metadata, content, project_id')
-      .in('project_id', allowedProjectIds);
+    // Query documents with server-side filtering
+    // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
+    let query = supabase.from('document_sections').select('id, metadata, content, project_id');
+    if (allowedProjectIds.length === 1) {
+      query = query.eq('project_id', allowedProjectIds[0]);
+    } else {
+      query = query.in('project_id', allowedProjectIds);
+    }
     
     const { data: sections, error } = await query;
     

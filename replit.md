@@ -87,7 +87,12 @@ OpenHouse AI/
 
 ### Smart Archive Fixes (February 2026)
 
-**Development-to-Project ID Mapping (Fixed):**
+**Supabase .in() Bug Fix:**
+- Supabase `.in()` filter with single-element arrays returns 0 results for some UUIDs
+- Fixed by using `.eq()` for single project_id queries instead of `.in()`
+- This resolved Árdan View showing 0 documents despite having 946 chunks in database
+
+**Development-to-Project ID Mapping:**
 - Smart Archive queries by development_id but documents use project_id
 - Mapping table:
   | Development | development_id | project_id |
