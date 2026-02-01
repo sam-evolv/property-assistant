@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,13 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
+
+    if (!tenantId && session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
+
     const { code } = await params;
     
     if (!code || typeof code !== 'string') {
@@ -36,7 +44,7 @@ export async function GET(
 
     const supabase = getSupabaseAdmin();
 
-    const { data: unit, error } = await supabase
+    let query = supabase
       .from('units')
       .select(`
         id,
@@ -46,6 +54,7 @@ export async function GET(
         house_type_code,
         bedrooms,
         bathrooms,
+        tenant_id,
         development_id,
         developments!units_development_id_fkey (
           id,
@@ -53,8 +62,13 @@ export async function GET(
           code
         )
       `)
-      .eq('unit_uid', normalizedCode)
-      .single();
+      .eq('unit_uid', normalizedCode);
+
+    if (session.role !== 'super_admin') {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data: unit, error } = await query.single();
 
     if (error || !unit) {
       return NextResponse.json(
@@ -82,6 +96,11 @@ export async function GET(
     });
   } catch (error: any) {
     console.error('[Unit Lookup] Error:', error);
+    
+    if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     return NextResponse.json(
       { error: 'Lookup failed' },
       { status: 500 }
