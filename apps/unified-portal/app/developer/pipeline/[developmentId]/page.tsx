@@ -1810,6 +1810,7 @@ function BulkActionsBar({ selectedCount, onClear, onEmailSolicitors, onEmailPurc
   if (selectedCount === 0) return null;
 
   const stageOptions = [
+    { key: 'for-sale', label: 'Mark as For Sale' },
     { key: 'depositDate', label: 'Deposit Received' },
     { key: 'contractsIssuedDate', label: 'Contracts Issued' },
     { key: 'signedContractsDate', label: 'Contracts Signed' },
@@ -2357,6 +2358,28 @@ export default function PipelineDevelopmentPage() {
   };
 
   const handleBulkUpdateStage = async (stage: string) => {
+    const selectedIds = Array.from(selectedRows);
+    
+    // Handle "Mark as For Sale" - clear purchaser name
+    if (stage === 'for-sale') {
+      // Update each selected unit to clear purchaser_name
+      for (const unitId of selectedIds) {
+        try {
+          await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field: 'purchaserName', value: null }),
+          });
+        } catch (error) {
+          console.error('Failed to mark unit as for sale:', error);
+        }
+      }
+      setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, purchaserName: null } : u));
+      showToast(`Marked ${selectedRows.size} unit(s) as For Sale`);
+      setSelectedRows(new Set());
+      return;
+    }
+    
     const today = getTodayISO();
     setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, [stage]: today } : u));
     showToast(`Updated ${selectedRows.size} unit(s)`);
