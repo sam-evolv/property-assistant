@@ -189,6 +189,7 @@ export default function KitchenSelectionsPage() {
     decided: units.filter(u => u.hasKitchen !== null || u.hasWardrobe !== null).length,
     complete: units.filter(u => u.status === 'complete').length,
     withKitchen: units.filter(u => u.hasKitchen === true).length,
+    takingOwn: units.filter(u => u.hasKitchen === false).length,
     withWardrobes: units.filter(u => u.hasWardrobe === true).length,
   };
 
@@ -244,14 +245,20 @@ export default function KitchenSelectionsPage() {
             <p className="text-xs text-gray-500 mt-0.5">({stats.total > 0 ? Math.round((stats.decided / stats.total) * 100) : 0}% complete)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Kitchen</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.withKitchen} of {stats.decided}</p>
-            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.withKitchen / stats.decided) * 100) : 0}%)</p>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-500" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Kitchen</p>
+            </div>
+            <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.withKitchen}</p>
+            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.withKitchen / stats.decided) * 100) : 0}% of decided)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Wardrobes</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{stats.withWardrobes} of {stats.decided}</p>
-            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.withWardrobes / stats.decided) * 100) : 0}%)</p>
+            <div className="flex items-center gap-2">
+              <X className="w-4 h-4 text-red-500" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Taking Own</p>
+            </div>
+            <p className="text-2xl font-bold text-red-600 mt-1">{stats.takingOwn}</p>
+            <p className="text-xs text-gray-500 mt-0.5">({stats.decided > 0 ? Math.round((stats.takingOwn / stats.decided) * 100) : 0}% of decided)</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-start justify-between">

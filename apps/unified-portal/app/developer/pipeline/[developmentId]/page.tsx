@@ -1916,6 +1916,15 @@ export default function PipelineDevelopmentPage() {
   const avgPrice = unitsWithPrice.length > 0 ? totalRevenue / unitsWithPrice.length : 0;
   const socialUnitsCount = units.filter(u => u.saleType === 'social').length;
   
+  // PC Sum calculations (exclude social housing to be consistent with revenue calculations)
+  const privateUnitsForPcSum = units.filter(u => u.saleType !== 'social');
+  const kitchenDecided = privateUnitsForPcSum.filter(u => 
+    (u.kitchenSelection?.hasKitchen !== null && u.kitchenSelection?.hasKitchen !== undefined) ||
+    (u.kitchenSelection?.hasWardrobe !== null && u.kitchenSelection?.hasWardrobe !== undefined)
+  ).length;
+  const unitsWithDeductions = privateUnitsForPcSum.filter(u => (u.kitchenSelection?.pcSumTotal || 0) < 0).length;
+  const totalPcSumImpact = privateUnitsForPcSum.reduce((acc, u) => acc + (u.kitchenSelection?.pcSumTotal || 0), 0);
+  
   const stats = {
     total: units.length,
     available: units.filter(u => !u.purchaserName && u.saleType !== 'social').length,
@@ -1925,6 +1934,9 @@ export default function PipelineDevelopmentPage() {
     totalRevenue,
     avgPrice,
     socialUnits: socialUnitsCount,
+    kitchenDecided,
+    unitsWithDeductions,
+    totalPcSumImpact,
   };
 
   const sortedUnits = [...units].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
@@ -2066,7 +2078,7 @@ export default function PipelineDevelopmentPage() {
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
             <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Units</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
@@ -2100,6 +2112,13 @@ export default function PipelineDevelopmentPage() {
               {stats.socialUnits > 0 && (
                 <p className="text-xs text-gray-500 mt-2">{stats.socialUnits} social units</p>
               )}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Impact</p>
+              <p className={`text-2xl font-bold mt-1 font-mono ${stats.totalPcSumImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {stats.totalPcSumImpact === 0 ? '€0' : `${stats.totalPcSumImpact < 0 ? '-' : ''}€${Math.abs(stats.totalPcSumImpact).toLocaleString()}`}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">{stats.unitsWithDeductions} units with deductions ({stats.kitchenDecided} decided)</p>
             </div>
           </div>
 

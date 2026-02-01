@@ -1,0 +1,246 @@
+---
+
+**Wire up Kitchen Selections UI - All data is now in database**
+
+## Data Summary
+
+Kitchen selection data is now populated in `unit_sales_pipeline` for all developments:
+
+| Development | Taking Kitchen | Taking Own | Pending | PC Sum Impact |
+|-------------|----------------|------------|---------|---------------|
+| Árdan View | 13 | 6 | 7 | -€39,000 |
+| Rathard Lawn | 1 | 2 | 0 | -€12,000 |
+| Rathard Park | 26 | 12 | 1 | -€80,000 |
+| **TOTAL** | **40** | **20** | **8** | **-€131,000** |
+
+## Database Columns Available
+
+```sql
+kitchen_selected    -- BOOLEAN: true=taking developer, false=taking own, null=pending
+kitchen_counter     -- TEXT: e.g., "CT1", "CT3", "CT6"
+kitchen_cabinet     -- TEXT: e.g., "Green", "White", "Navy", "Charcoal"
+kitchen_handle      -- TEXT: e.g., "H3", "H9", "H12"
+kitchen_wardrobes   -- BOOLEAN: true=taking developer, false=taking own
+kitchen_notes       -- TEXT: notes/comments
+kitchen_date        -- TIMESTAMP: when selection was made
+pc_sum_kitchen      -- DECIMAL: kitchen PC sum impact (negative if taking own)
+pc_sum_wardrobes    -- DECIMAL: wardrobe PC sum impact
+pc_sum_total        -- DECIMAL: total PC sum impact
+```
+
+---
+
+## 1. Kitchen Selections Page Updates
+
+### Summary Cards (Top of Page)
+```
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Selection Progress│  │ Taking Kitchen   │  │ Taking Own       │  │ PC Sum Impact    │
+│   39 of 68       │  │   26 (67%)       │  │   13 (33%)       │  │  -€80,000        │
+│   (57% complete) │  │   ✓ Green        │  │   ✗ Red          │  │                  │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+### Table Columns
+| Unit | Address | Purchaser | Type | Kitchen | Counter | Cabinet | Handle | Wardrobes | PC Sum | Notes |
+
+### Color Coding
+- `kitchen_selected = TRUE` → Green background on Kitchen cell
+- `kitchen_selected = FALSE` → Red background on Kitchen cell
+- `kitchen_selected = NULL` → Grey/empty
+- `kitchen_wardrobes = TRUE` → Green background
+- `kitchen_wardrobes = FALSE` → Red background
+- `pc_sum_total < 0` → Red text (e.g., "-€7,000")
+
+### Dropdown Options for Editing
+
+**Counter Tops:**
+- CT1 - Show House Counter
+- CT2 - White with Gold/Black Vein
+- CT3 - Wood
+- CT4 - Black/Yellow
+- CT5 - Grey Counter
+- CT6 - White with Brown Vein
+
+**Cabinets:**
+- Green
+- Charcoal
+- Navy
+- White
+- Dust Grey
+- Light Grey
+
+**Handles:**
+- H1, H2, H3, H4, H5, H6, H7, H8, H9, H10, H11, H12, H13, H14, H15, H16
+
+---
+
+## 2. Sales Pipeline KITCHEN Column
+
+### Status Indicator
+- ⚪ Grey/Empty dash "—" = `kitchen_selected IS NULL` (not decided)
+- 🟢 Green circle/checkmark = `kitchen_selected = TRUE` (taking developer)
+- 🔴 Red circle/X = `kitchen_selected = FALSE` (taking own - PC sum deduction)
+
+### Clickable Popover
+When clicking the KITCHEN cell, show popover with full details:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Kitchen Selection                                      │
+│  28 Árdan View - 3 Bed Semi                            │
+│  Batuhan Mundun & Duygu E D Mundun                     │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Kitchen:     ✓ Taking Developer Kitchen                │
+│  Counter:     CT5 - Grey Counter                        │
+│  Cabinet:     Charcoal                                  │
+│  Handle:      H12                                       │
+│                                                         │
+│  Wardrobes:   ✓ Taking Developer Wardrobes              │
+│                                                         │
+│  ─────────────────────────────────────────────────────  │
+│  PC Sum Impact                                          │
+│  Kitchen:     €0                                        │
+│  Wardrobes:   €0                                        │
+│  Total:       €0                                        │
+│  ─────────────────────────────────────────────────────  │
+│                                                         │
+│  Notes:                                                 │
+│  CT5/Charcoal/H12                                       │
+│                                                         │
+│                        [Edit Selection] [Close]         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Example with PC sum deduction:**
+```
+┌─────────────────────────────────────────────────────────┐
+│  Kitchen Selection                                      │
+│  8 Árdan View - 4 Bed Detached                         │
+│  Jan S. Silvestre & Pauline E. Imperial                │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Kitchen:     ✗ Taking Own Kitchen                      │
+│  Counter:     N/A                                       │
+│  Cabinet:     N/A                                       │
+│  Handle:      N/A                                       │
+│                                                         │
+│  Wardrobes:   ✗ Taking Own Wardrobes                    │
+│                                                         │
+│  ─────────────────────────────────────────────────────  │
+│  PC Sum Impact                              ⚠️           │
+│  Kitchen:     -€7,000 (4 bed allowance)     RED TEXT   │
+│  Wardrobes:   -€1,000                       RED TEXT   │
+│  Total:       -€8,000                       RED TEXT   │
+│  ─────────────────────────────────────────────────────  │
+│                                                         │
+│  Notes:                                                 │
+│  Confirmed taking PC sum - ordering from own supplier   │
+│                                                         │
+│                        [Edit Selection] [Close]         │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Analytics Integration
+
+### Individual Development Analysis
+Add section "PC Sum Revenue Impact":
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PC Sum Revenue Impact                                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Selections Complete:  39 of 68 (57%)                        │
+│                                                             │
+│ Kitchen Decisions:                                          │
+│ ████████████████░░░░  26 taking developer (67%)             │
+│ ████████░░░░░░░░░░░░  13 taking own (33%)                   │
+│                                                             │
+│ Wardrobe Decisions:                                         │
+│ ██████████████████░░  35 taking developer (90%)             │
+│ ████░░░░░░░░░░░░░░░░   4 taking own (10%)                   │
+│                                                             │
+│ ───────────────────────────────────────────────────────     │
+│ Revenue Impact                                              │
+│                                                             │
+│ Contracted Sale Revenue:        €30,260,000                 │
+│ Kitchen PC Sum Deductions:        -€76,000  (13 units)      │
+│ Wardrobe PC Sum Deductions:        -€4,000  (4 units)       │
+│                                  ───────────                │
+│ Adjusted Revenue:               €30,180,000                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Portfolio Analysis (All Developments)
+Add combined PC sum table:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PC Sum Revenue Impact - All Developments                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Development    │ Decided │ Taking Own │ PC Sum Impact                   │
+│ ───────────────┼─────────┼────────────┼──────────────────────────────── │
+│ Árdan View     │  19     │  6 (32%)   │  -€39,000                       │
+│ Rathard Park   │  38     │  12 (32%)  │  -€80,000                       │
+│ Rathard Lawn   │   3     │  2 (67%)   │  -€12,000                       │
+│ ───────────────┼─────────┼────────────┼──────────────────────────────── │
+│ TOTAL          │  60     │  20 (33%)  │  -€131,000                      │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Revenue Summary:
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Contracted Rev   │  │ PC Sum Deductions│  │ Adjusted Revenue │
+│  €XX,XXX,XXX     │  │    -€131,000     │  │  €XX,XXX,XXX     │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+---
+
+## 4. API Endpoints
+
+Ensure these return kitchen data:
+
+### GET /api/pipeline/[developmentId]
+Include in response:
+```json
+{
+  "units": [{
+    "id": "...",
+    "address": "28 Árdan View",
+    "kitchenSelected": true,
+    "kitchenCounter": "CT5",
+    "kitchenCabinet": "Charcoal",
+    "kitchenHandle": "H12",
+    "kitchenWardrobes": true,
+    "kitchenNotes": "CT5/Charcoal/H12",
+    "pcSumKitchen": 0,
+    "pcSumWardrobes": 0,
+    "pcSumTotal": 0
+  }]
+}
+```
+
+### GET /api/kitchen-selections/[developmentId]
+Dedicated endpoint for Kitchen Selections page with summary stats.
+
+### PUT /api/kitchen-selections/[unitId]
+Update kitchen selection - auto-calculate PC sums based on bedrooms:
+- 4 bed: €7,000 kitchen / €1,000 wardrobes
+- 3 bed: €6,000 kitchen / €1,000 wardrobes
+- 2 bed: €5,000 kitchen / €1,000 wardrobes
+
+---
+
+## 5. Settings (Future Enhancement)
+
+Add ability to configure per-tenant:
+- PC sum amounts by bedroom count
+- Counter/Cabinet/Handle options
+
+For now, hardcode the options listed above.
+
+---

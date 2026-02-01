@@ -160,6 +160,36 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     escalatedQueries: 0
   });
   const [trends, setTrends] = useState<TrendData[]>([]);
+  
+  // PC Sum Revenue Impact data
+  interface PcSumData {
+    totalUnits: number;
+    decided: number;
+    kitchenDecided: number;
+    wardrobeDecided: number;
+    takingKitchen: number;
+    takingOwnKitchen: number;
+    takingWardrobes: number;
+    takingOwnWardrobes: number;
+    pcSumKitchen: number;
+    pcSumWardrobes: number;
+    pcSumTotal: number;
+    totalRevenue: number;
+  }
+  const [pcSumData, setPcSumData] = useState<PcSumData>({
+    totalUnits: 0,
+    decided: 0,
+    kitchenDecided: 0,
+    wardrobeDecided: 0,
+    takingKitchen: 0,
+    takingOwnKitchen: 0,
+    takingWardrobes: 0,
+    takingOwnWardrobes: 0,
+    pcSumKitchen: 0,
+    pcSumWardrobes: 0,
+    pcSumTotal: 0,
+    totalRevenue: 0,
+  });
 
   // Export functions
   const generateCSVContent = useCallback(() => {
@@ -628,6 +658,58 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     }
   }, [metrics, homeowners]);
 
+  // Fetch PC Sum Revenue Impact data
+  useEffect(() => {
+    async function loadPcSumData() {
+      try {
+        const devParam = effectiveDevelopmentId ? `/${effectiveDevelopmentId}` : '';
+        const res = await fetch(`/api/pipeline${devParam || '/all'}?includePcSum=true`);
+        if (res.ok) {
+          const data = await res.json();
+          const units = data.units || [];
+          const privateUnits = units.filter((u: any) => u.saleType !== 'social');
+          
+          const decided = privateUnits.filter((u: any) => 
+            (u.kitchenSelection?.hasKitchen !== null && u.kitchenSelection?.hasKitchen !== undefined) ||
+            (u.kitchenSelection?.hasWardrobe !== null && u.kitchenSelection?.hasWardrobe !== undefined)
+          ).length;
+          const kitchenDecided = privateUnits.filter((u: any) => 
+            u.kitchenSelection?.hasKitchen !== null && u.kitchenSelection?.hasKitchen !== undefined
+          ).length;
+          const wardrobeDecided = privateUnits.filter((u: any) => 
+            u.kitchenSelection?.hasWardrobe !== null && u.kitchenSelection?.hasWardrobe !== undefined
+          ).length;
+          const takingKitchen = privateUnits.filter((u: any) => u.kitchenSelection?.hasKitchen === true).length;
+          const takingOwnKitchen = privateUnits.filter((u: any) => u.kitchenSelection?.hasKitchen === false).length;
+          const takingWardrobes = privateUnits.filter((u: any) => u.kitchenSelection?.hasWardrobe === true).length;
+          const takingOwnWardrobes = privateUnits.filter((u: any) => u.kitchenSelection?.hasWardrobe === false).length;
+          const pcSumKitchen = privateUnits.reduce((acc: number, u: any) => acc + (u.kitchenSelection?.pcSumKitchen || 0), 0);
+          const pcSumWardrobes = privateUnits.reduce((acc: number, u: any) => acc + (u.kitchenSelection?.pcSumWardrobes || 0), 0);
+          const pcSumTotal = privateUnits.reduce((acc: number, u: any) => acc + (u.kitchenSelection?.pcSumTotal || 0), 0);
+          const totalRevenue = privateUnits.filter((u: any) => u.salePrice).reduce((acc: number, u: any) => acc + (u.salePrice || 0), 0);
+          
+          setPcSumData({
+            totalUnits: privateUnits.length,
+            decided,
+            kitchenDecided,
+            wardrobeDecided,
+            takingKitchen,
+            takingOwnKitchen,
+            takingWardrobes,
+            takingOwnWardrobes,
+            pcSumKitchen,
+            pcSumWardrobes,
+            pcSumTotal,
+            totalRevenue,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load PC sum data:', error);
+      }
+    }
+    loadPcSumData();
+  }, [tenantId, effectiveDevelopmentId]);
+
   const isLoading = metricsLoading || homeownersLoading || questionsLoading;
 
   if (isLoading) {
@@ -942,6 +1024,121 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
               </div>
             </div>
           </div>
+
+          {/* PC SUM REVENUE IMPACT */}
+          {(pcSumData.decided > 0 || pcSumData.totalUnits > 0) && (
+            <div className={`rounded-lg border p-6 backdrop-blur-sm ${cardBg}`}>
+              <h2 className={`text-lg font-semibold ${textColor} mb-4 flex items-center gap-2`}>
+                <TrendingUp className="w-5 h-5 text-gold-500" />
+                PC Sum Revenue Impact
+              </h2>
+              
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-gradient-to-br from-grey-50 to-grey-100 rounded-lg">
+                  <p className="text-2xl font-bold text-grey-700">{pcSumData.decided} of {pcSumData.totalUnits}</p>
+                  <p className="text-xs text-grey-600 font-medium mt-1">Selections Complete</p>
+                  <p className="text-xs text-grey-500 mt-0.5">
+                    {pcSumData.totalUnits > 0 ? Math.round((pcSumData.decided / pcSumData.totalUnits) * 100) : 0}%
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg">
+                  <p className="text-2xl font-bold text-emerald-600">{pcSumData.takingKitchen}</p>
+                  <p className="text-xs text-emerald-700 font-medium mt-1">Taking Developer Kitchen</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    {pcSumData.decided > 0 ? Math.round((pcSumData.takingKitchen / pcSumData.decided) * 100) : 0}%
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg">
+                  <p className="text-2xl font-bold text-red-600">{pcSumData.takingOwnKitchen}</p>
+                  <p className="text-xs text-red-700 font-medium mt-1">Taking Own Kitchen</p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    {pcSumData.decided > 0 ? Math.round((pcSumData.takingOwnKitchen / pcSumData.decided) * 100) : 0}%
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg">
+                  <p className={`text-2xl font-bold ${pcSumData.pcSumTotal < 0 ? 'text-red-600' : 'text-grey-700'}`}>
+                    {pcSumData.pcSumTotal === 0 ? '€0' : `${pcSumData.pcSumTotal < 0 ? '-' : ''}€${Math.abs(pcSumData.pcSumTotal).toLocaleString()}`}
+                  </p>
+                  <p className="text-xs text-amber-700 font-medium mt-1">Total PC Sum Deductions</p>
+                </div>
+              </div>
+
+              {/* Kitchen vs Wardrobes breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                <div className="p-4 bg-grey-50 rounded-lg">
+                  <p className="text-sm font-semibold text-grey-700 mb-3">Kitchen Decisions ({pcSumData.kitchenDecided} decided)</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-28 text-xs text-grey-600">Taking Developer</div>
+                      <div className="flex-1 h-4 bg-grey-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full" 
+                          style={{ width: `${pcSumData.kitchenDecided > 0 ? (pcSumData.takingKitchen / pcSumData.kitchenDecided) * 100 : 0}%` }} 
+                        />
+                      </div>
+                      <div className="w-12 text-xs font-medium text-grey-900 text-right">{pcSumData.takingKitchen}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-28 text-xs text-grey-600">Taking Own</div>
+                      <div className="flex-1 h-4 bg-grey-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-red-500 rounded-full" 
+                          style={{ width: `${pcSumData.kitchenDecided > 0 ? (pcSumData.takingOwnKitchen / pcSumData.kitchenDecided) * 100 : 0}%` }} 
+                        />
+                      </div>
+                      <div className="w-12 text-xs font-medium text-grey-900 text-right">{pcSumData.takingOwnKitchen}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-grey-50 rounded-lg">
+                  <p className="text-sm font-semibold text-grey-700 mb-3">Wardrobe Decisions ({pcSumData.wardrobeDecided} decided)</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-28 text-xs text-grey-600">Taking Developer</div>
+                      <div className="flex-1 h-4 bg-grey-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full" 
+                          style={{ width: `${pcSumData.wardrobeDecided > 0 ? (pcSumData.takingWardrobes / pcSumData.wardrobeDecided) * 100 : 0}%` }} 
+                        />
+                      </div>
+                      <div className="w-12 text-xs font-medium text-grey-900 text-right">{pcSumData.takingWardrobes}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-28 text-xs text-grey-600">Taking Own</div>
+                      <div className="flex-1 h-4 bg-grey-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-red-500 rounded-full" 
+                          style={{ width: `${pcSumData.wardrobeDecided > 0 ? (pcSumData.takingOwnWardrobes / pcSumData.wardrobeDecided) * 100 : 0}%` }} 
+                        />
+                      </div>
+                      <div className="w-12 text-xs font-medium text-grey-900 text-right">{pcSumData.takingOwnWardrobes}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Revenue Summary */}
+              <div className="border-t border-grey-200 pt-4">
+                <p className="text-sm font-semibold text-grey-700 mb-3">Revenue Summary</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 bg-gold-50 rounded-lg border border-gold-200">
+                    <p className="text-xs text-gold-600 font-medium">Contracted Revenue</p>
+                    <p className="text-lg font-bold text-gold-700">€{pcSumData.totalRevenue.toLocaleString()}</p>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
+                    <p className="text-xs text-red-600 font-medium">PC Sum Deductions</p>
+                    <p className={`text-lg font-bold ${pcSumData.pcSumTotal < 0 ? 'text-red-600' : 'text-grey-700'}`}>
+                      {pcSumData.pcSumTotal === 0 ? '€0' : `${pcSumData.pcSumTotal < 0 ? '-' : ''}€${Math.abs(pcSumData.pcSumTotal).toLocaleString()}`}
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p className="text-xs text-emerald-600 font-medium">Adjusted Revenue</p>
+                    <p className="text-lg font-bold text-emerald-700">€{(pcSumData.totalRevenue + pcSumData.pcSumTotal).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* CONTENT & AI PERFORMANCE */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
