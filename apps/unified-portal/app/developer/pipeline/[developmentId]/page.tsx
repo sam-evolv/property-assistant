@@ -928,6 +928,112 @@ function PriceCell({ value, unitId, onUpdate, isSocialHousing = false }: PriceCe
 }
 
 // =============================================================================
+// Editable Purchaser Name Component
+// =============================================================================
+
+interface EditablePurchaserNameProps {
+  unitId: string;
+  currentName: string | null;
+  developmentId: string;
+  onUpdate: (unitId: string, newName: string) => void;
+  onShowToast: (message: string) => void;
+}
+
+function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, onShowToast }: EditablePurchaserNameProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(currentName || '');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setName(currentName || '');
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (name.trim() === (currentName || '').trim()) {
+      setIsEditing(false);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'purchaserName', value: name.trim() }),
+      });
+      
+      if (response.ok) {
+        onUpdate(unitId, name.trim());
+        setShowSuccess(true);
+        onShowToast('Purchaser name updated');
+        setTimeout(() => setShowSuccess(false), 1500);
+      }
+    } catch (error) {
+      console.error('Failed to update purchaser name:', error);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleSave}
+          className="w-44 px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+          placeholder="Enter purchaser name..."
+        />
+        <button 
+          onClick={handleSave} 
+          className="w-5 h-5 flex items-center justify-center rounded bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+        >
+          <Check className="w-3 h-3" />
+        </button>
+        <button 
+          onClick={() => setIsEditing(false)} 
+          className="w-5 h-5 flex items-center justify-center rounded bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <p 
+      onClick={handleClick}
+      className={`text-xs truncate cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 -ml-1.5 rounded transition-all ${
+        showSuccess ? 'bg-green-100' : ''
+      } ${currentName ? 'text-gray-700' : 'text-gray-400 italic'}`}
+      title="Click to edit purchaser name"
+    >
+      {currentName || '+ Add purchaser'}
+    </p>
+  );
+}
+
+// =============================================================================
 // Progress Cell Component
 // =============================================================================
 
@@ -1876,6 +1982,10 @@ export default function PipelineDevelopmentPage() {
     }
   };
 
+  const handlePurchaserNameUpdate = (unitId: string, newName: string) => {
+    setUnits(prev => prev.map(u => u.id === unitId ? { ...u, purchaserName: newName } : u));
+  };
+
   const handleCopy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -2333,9 +2443,13 @@ export default function PipelineDevelopmentPage() {
                                     )}
                                   </>
                                 ) : (
-                                  <p className={`text-xs truncate ${unit.purchaserName ? 'text-gray-700' : 'text-gray-400'}`}>
-                                    {unit.purchaserName || 'Available'}
-                                  </p>
+                                  <EditablePurchaserName
+                                    unitId={unit.id}
+                                    currentName={unit.purchaserName}
+                                    developmentId={developmentId}
+                                    onUpdate={handlePurchaserNameUpdate}
+                                    onShowToast={showToast}
+                                  />
                                 )}
                               </div>
                             </div>

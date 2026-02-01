@@ -1,0 +1,115 @@
+---
+
+**Add Inline Editing for Purchaser Names in Sales Pipeline**
+
+## Feature Request
+
+Allow developers to click on a purchaser name in the Sales Pipeline and edit it directly. When changed, update all instances of that name across the system.
+
+## Implementation
+
+### 1. Inline Edit on Click
+
+When user clicks on the purchaser name in the Sales Pipeline table:
+
+```
+Before click:
+│ 13 │ RP-013 │ Ms Primitha Mohan & Mr Gireesh Nadesan │ €350,000 │ ...
+
+After click:
+│ 13 │ RP-013 │ [Ms Primitha Mohan & Mr Gireesh Nadesan____] │ €350,000 │ ...
+                ↑ Editable text input with save/cancel
+```
+
+### 2. UI Component
+
+```jsx
+function EditablePurchaserName({ unitId, currentName, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(currentName || '');
+  
+  const handleSave = async () => {
+    await supabase
+      .from('unit_sales_pipeline')
+      .update({ purchaser_name: name })
+      .eq('unit_id', unitId);
+    
+    onUpdate(name);
+    setIsEditing(false);
+  };
+  
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="border rounded px-2 py-1 text-sm w-64"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') setIsEditing(false);
+          }}
+        />
+        <button onClick={handleSave} className="text-green-600 hover:text-green-800">
+          ✓
+        </button>
+        <button onClick={() => setIsEditing(false)} className="text-red-600 hover:text-red-800">
+          ✕
+        </button>
+      </div>
+    );
+  }
+  
+  return (
+    <span 
+      onClick={() => setIsEditing(true)}
+      className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+      title="Click to edit"
+    >
+      {currentName || <span className="text-gray-400 italic">Add purchaser...</span>}
+    </span>
+  );
+}
+```
+
+### 3. Empty State
+
+If no purchaser name, show clickable placeholder:
+
+```
+│ 48 │ RP-048 │ + Add purchaser │ €350,000 │ ...
+              ↑ Italic, gray, clickable
+```
+
+### 4. Update All Instances
+
+When a purchaser name is updated in `unit_sales_pipeline`, it automatically reflects in:
+- Sales Pipeline table ✓ (source of truth)
+- Homeowners page ✓ (reads from same table)
+- Unit detail view ✓ (reads from same table)
+- Kitchen Selections ✓ (reads from same table)
+
+All these views pull from `unit_sales_pipeline.purchaser_name`, so updating once updates everywhere.
+
+### 5. Visual Feedback
+
+After saving:
+- Brief green highlight on the cell
+- Toast notification: "Purchaser updated"
+
+```jsx
+toast.success('Purchaser name updated');
+```
+
+### 6. Audit Trail (Optional)
+
+Log changes for accountability:
+
+```sql
+INSERT INTO audit_events (user_id, action, resource_type, resource_id, old_value, new_value, created_at)
+VALUES (current_user_id, 'updated_purchaser', 'unit_sales_pipeline', unit_id, 'Old Name', 'New Name', NOW());
+```
+
+---
