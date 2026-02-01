@@ -44,7 +44,6 @@ export async function GET(request: NextRequest) {
         code: developments.code,
         slug: developments.slug,
         address: developments.address,
-        archive_mode: developments.archive_mode,
         is_active: developments.is_active,
         created_at: developments.created_at,
       })
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
         .orderBy(sql`name ASC`);
       console.log('[Developer Developments API] Drizzle:', drizzleDevs.length);
     } catch (drizzleErr) {
-      console.warn('[Developer Developments API] Drizzle fetch failed (falling back to Supabase):', 
+      console.warn('[Developer Developments API] Drizzle fetch failed:', 
         drizzleErr instanceof Error ? drizzleErr.message : 'Unknown error');
     }
 
@@ -67,7 +66,7 @@ export async function GET(request: NextRequest) {
       code: d.code || '',
       slug: d.slug || '',
       address: d.address || null,
-      archive_mode: d.archive_mode || 'shared',
+      archive_mode: 'shared' as const,
       is_active: d.is_active ?? true,
       source: 'drizzle' as const,
     }));

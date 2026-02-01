@@ -166,15 +166,18 @@ export async function fetchDocumentsByDiscipline({
       allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
     
-    console.log('[Archive Documents] Allowed project IDs:', allowedProjectIds.length);
+    console.log('[Archive Documents] Allowed project IDs:', allowedProjectIds);
     
-    // Query documents filtered by allowed project IDs
+    // Query documents with server-side filtering
+    const projectIdFilter = allowedProjectIds.join(',');
     let query = supabase
       .from('document_sections')
       .select('id, metadata, content, project_id')
-      .in('project_id', allowedProjectIds);
+      .or(`project_id.in.(${projectIdFilter})`);
     
     const { data: sections, error } = await query;
+    
+    console.log('[Archive Documents] Found', sections?.length || 0, 'sections for', allowedProjectIds.length, 'project_ids');
 
     if (error) {
       console.error('[Archive Documents] Supabase error:', error.message);

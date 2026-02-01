@@ -73,6 +73,17 @@ OpenHouse AI/
 
 ## 🚀 Recent Changes
 
+### Smart Archive Fixes (February 2026)
+
+**Development Selector Security Fix:**
+- Developer developments API now only returns tenant-filtered developments from Drizzle
+- Removed unsafe merge of unfiltered Supabase projects that caused cross-tenant visibility (e.g., OpenHouse Park appearing for Longview Estates)
+
+**Document Query Improvements:**
+- Archive disciplines API uses proper server-side filtering with `.in('project_id', allowedProjectIds)`
+- Added detailed logging to diagnose development-to-project ID mapping issues
+- Documents are filtered by project_id column matching tenant's development IDs
+
 ### GDPR Compliance Features (February 2026)
 
 **Audit Logging for Data Access:**
