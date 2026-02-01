@@ -59,7 +59,36 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
 
         const data = await response.json();
         console.log('[DevelopmentSwitcher] Loaded developments:', data.developments?.length || 0, data.meta);
-        setDevelopments(data.developments || []);
+        
+        // Clean and dedupe developments
+        let devs: Development[] = data.developments || [];
+        
+        // Filter out garbage/test entries (random codes, test names)
+        devs = devs.filter(d => {
+          const name = d.name?.toLowerCase() || '';
+          const code = d.code?.toLowerCase() || '';
+          // Skip entries with random suffixes like 8U9H or test prefixes
+          if (/[A-Z0-9]{4,}$/.test(d.name || '') && d.name?.includes('_')) return false;
+          if (name.startsWith('test') || code.includes('test')) return false;
+          if (/_[a-z0-9]{4,}$/i.test(d.name || '')) return false; // Entries like RATHARD_PARK_8U9H
+          return true;
+        });
+        
+        // Dedupe by name (keep first occurrence)
+        const seen = new Map<string, Development>();
+        devs.forEach(d => {
+          const normalizedName = d.name?.toLowerCase().trim();
+          if (normalizedName && !seen.has(normalizedName)) {
+            seen.set(normalizedName, d);
+          }
+        });
+        devs = Array.from(seen.values());
+        
+        // Sort alphabetically by name
+        devs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        
+        console.log('[DevelopmentSwitcher] After cleanup:', devs.length, devs.map(d => d.name));
+        setDevelopments(devs);
         setError(null);
 
         // If current development is not in the filtered list, reset to "All Schemes"
@@ -153,7 +182,7 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
       </button>
 
       {isOpen && (
-        <div className="absolute left-4 right-4 top-full mt-1 z-50 bg-grey-900 rounded-lg shadow-lg border border-gold-900/30 py-1 max-h-64 overflow-y-auto">
+        <div className="absolute left-4 right-4 top-full mt-1 z-50 bg-grey-900 rounded-lg shadow-lg border border-gold-900/30 py-1 max-h-64 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {/* All Schemes option */}
           <button
             onClick={() => handleSelect(null)}
