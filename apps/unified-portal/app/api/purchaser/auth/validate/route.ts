@@ -85,14 +85,15 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     let unit: any = null;
+    let handoverDate: string | null = null;
 
     // NEW SECURE FORMAT: XX-NNN-XXXX (e.g., AV-001-ACF7, RP-017-7363)
-    const secureCodePattern = /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/;
+    const secureCodePattern = /^[A-Z]{2,3}-\d{3}-[A-Z0-9]{4}$/;
     
     // LEGACY FORMAT: PREFIX-NNN (e.g., LV-PARK-001, RA-PARK-017)
     const legacyCodePattern = /^([A-Z]+-[A-Z]+)-(\d{1,3})$/;
 
-    // Try direct lookup by unit_uid first (works for both new and legacy codes)
+    // Try direct lookup by unit_uid first (this is the access code in XX-NNN-XXXX format)
     const { data: directUnit, error: directError } = await supabase
       .from('units')
       .select(`
@@ -106,23 +107,31 @@ export async function POST(req: NextRequest) {
         house_type_code, 
         bedrooms, 
         bathrooms,
-        developments!units_development_id_fkey (
-          id,
-          name
-        ),
-        projects!units_project_id_fkey (
-          id,
-          name
-        )
+        handover_date
       `)
       .eq('unit_uid', trimmedCode)
       .single();
     
+    if (directError && directError.code !== 'PGRST116') {
+      console.log('[Purchaser Auth] unit_uid lookup error:', directError.message);
+    }
+    
     if (directUnit && !directError) {
-      console.log('[Purchaser Auth] Found unit by unit_uid');
+      console.log('[Purchaser Auth] Found unit by unit_uid:', directUnit.unit_uid);
       
-      const devName = (directUnit.developments as any)?.name || (directUnit.projects as any)?.name || 'Unknown';
+      // Fetch project name separately if needed
+      let devName = 'Unknown';
       const devId = directUnit.development_id || directUnit.project_id;
+      if (directUnit.project_id) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('id', directUnit.project_id)
+          .single();
+        if (project) devName = project.name;
+      }
+      
+      handoverDate = directUnit.handover_date;
       
       unit = {
         id: directUnit.id,
@@ -136,7 +145,9 @@ export async function POST(req: NextRequest) {
         bathrooms: directUnit.bathrooms,
         unit_uid: directUnit.unit_uid,
       };
-    } else if (legacyCodePattern.test(trimmedCode)) {
+    }
+    
+    if (!unit && legacyCodePattern.test(trimmedCode)) {
       // Legacy format fallback
       const legacyMatch = trimmedCode.match(legacyCodePattern);
       if (legacyMatch) {
@@ -161,7 +172,7 @@ export async function POST(req: NextRequest) {
           if (projectData && !projectError) {
             const { data: projectUnits } = await supabase
               .from('units')
-              .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms, unit_uid')
+              .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms, unit_uid, handover_date')
               .eq('project_id', projectData.id);
             
             const matchedUnit = projectUnits?.find((u: any) => {
@@ -183,6 +194,7 @@ export async function POST(req: NextRequest) {
             
             if (matchedUnit) {
               console.log('[Purchaser Auth] Found unit by legacy code match');
+              handoverDate = matchedUnit.handover_date;
               
               unit = {
                 id: matchedUnit.id,
@@ -218,9 +230,19 @@ export async function POST(req: NextRequest) {
       projectId: unit.development_id,
     });
 
+    // Determine portal type based on handover status
+    // If handover_date exists and is in the past, grant Purchaser Assistant (Property Assistant)
+    // Otherwise grant Pre-Handover Portal
+    const now = new Date();
+    const isHandedOver = handoverDate ? new Date(handoverDate) <= now : false;
+    const portalType = isHandedOver ? 'property_assistant' : 'pre_handover';
+    
+    console.log('[Purchaser Auth] Handover date:', handoverDate, '| Is handed over:', isHandedOver, '| Portal type:', portalType);
+
     const sessionData = {
       unitId: unit.id,
-      unitUid: trimmedCode,
+      unitUid: unit.unit_uid || trimmedCode,
+      accessCode: unit.unit_uid || trimmedCode,
       developmentId: unit.development_id,
       developmentName: unit.development_name,
       developmentLogoUrl: null,
@@ -232,11 +254,15 @@ export async function POST(req: NextRequest) {
       latitude: null,
       longitude: null,
       token: tokenResult.token,
+      handoverDate: handoverDate,
+      isHandedOver: isHandedOver,
+      portalType: portalType,
     };
 
     return NextResponse.json({
       success: true,
       session: sessionData,
+      portalType: portalType,
     });
   } catch (error: any) {
     console.error('[Purchaser Auth] Error:', error);

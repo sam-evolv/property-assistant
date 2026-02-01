@@ -28,7 +28,9 @@ import {
   X,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  Key,
+  CalendarCheck
 } from 'lucide-react';
 
 interface HomeownerDetails {
@@ -38,6 +40,10 @@ interface HomeownerDetails {
     house_type: string | null;
     address: string | null;
     unique_qr_token: string;
+    access_code: string | null;
+    handover_date: string | null;
+    is_handed_over: boolean;
+    portal_type: 'pre_handover' | 'property_assistant';
     development_id: string;
     created_at: string;
     development: {
@@ -435,15 +441,64 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
               </div>
             </div>
 
-            {/* QR Code Card */}
+            {/* Access Code & Portal Card */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-gold-500" />
-                  QR Code & Portal Access
+                  <Key className="w-5 h-5 text-gold-500" />
+                  Access Code & Portal
                 </h2>
               </div>
               <div className="p-5 space-y-4">
+                {/* Access Code */}
+                {homeowner.access_code && (
+                  <div className="bg-gradient-to-r from-gold-50 to-amber-50 rounded-lg p-4 border border-gold-200">
+                    <p className="text-xs text-gold-700 font-medium mb-2">Access Code</p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-lg font-bold bg-white px-3 py-1.5 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800">
+                        {homeowner.access_code}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(homeowner.access_code || '')}
+                        className="p-2 hover:bg-gold-100 rounded-lg transition-colors"
+                        title="Copy Access Code"
+                      >
+                        {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gold-600" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Portal Type Status */}
+                <div className={`rounded-lg p-4 ${homeowner.is_handed_over ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {homeowner.is_handed_over ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">Property Handed Over</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-700">Pre-Handover</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {homeowner.is_handed_over 
+                      ? 'Access code grants Property Assistant portal access'
+                      : 'Access code grants Pre-Handover Portal access'
+                    }
+                  </p>
+                  {homeowner.handover_date && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      Handover: {new Date(homeowner.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Portal URL */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-xs text-gray-500 mb-2">Portal URL</p>
                   <div className="flex items-center gap-2">

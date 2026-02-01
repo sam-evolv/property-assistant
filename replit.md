@@ -92,6 +92,12 @@ OpenHouse AI/
 - Fixed by using `.eq()` for single project_id queries instead of `.in()`
 - This resolved Árdan View showing 0 documents despite having 946 chunks in database
 
+**Access Code Validation (February 2026):**
+- Fixed access code validation for new XX-NNN-XXXX format (e.g., AV-031-FAF6, RP-004-944D)
+- Access codes stored in Supabase units.unit_uid column (not a separate access_code column)
+- Portal type determined by handover_date: Pre-Handover Portal if not handed over, Property Assistant if handed over
+- Access codes now displayed in Homeowner profile on Developer Dashboard
+
 **Development-to-Project ID Mapping:**
 - Smart Archive queries by development_id but documents use project_id
 - Mapping table:

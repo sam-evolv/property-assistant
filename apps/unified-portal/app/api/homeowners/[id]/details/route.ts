@@ -340,6 +340,10 @@ export async function GET(
       }
     }
 
+    // Determine handover status
+    const handoverDate = unitRow.handover_date || null;
+    const isHandedOver = handoverDate ? new Date(handoverDate) <= new Date() : false;
+    
     return NextResponse.json({
       homeowner: {
         id: unitRow.id,
@@ -348,6 +352,10 @@ export async function GET(
         house_type: houseType,
         address: fullAddress || null,
         unique_qr_token: unitRow.id,
+        access_code: unitRow.unit_uid || null,
+        handover_date: handoverDate,
+        is_handed_over: isHandedOver,
+        portal_type: isHandedOver ? 'property_assistant' : 'pre_handover',
         development_id: unitRow.project_id,
         created_at: unitRow.created_at,
         important_docs_agreed_version: agreedVersion,
