@@ -32,6 +32,33 @@ interface KitchenSelection {
   handleStyle: string | null;
   hasWardrobe: boolean;
   notes: string | null;
+  pcSumKitchen: number;
+  pcSumWardrobes: number;
+  pcSumTotal: number;
+}
+
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
+  if (hasKitchen === null && hasWardrobe === null) {
+    return { pcSumKitchen: 0, pcSumWardrobes: 0, pcSumTotal: 0 };
+  }
+  
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
+  
+  let kitchenAllowance = kitchen2Bed;
+  if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
+  else if (bedrooms === 3) kitchenAllowance = kitchen3Bed;
+  
+  const kitchenImpact = hasKitchen === true ? 0 : (hasKitchen === false ? -kitchenAllowance : 0);
+  const wardrobeImpact = hasWardrobe === true ? 0 : (hasWardrobe === false ? -wardrobeAllowance : 0);
+  
+  return {
+    pcSumKitchen: kitchenImpact,
+    pcSumWardrobes: wardrobeImpact,
+    pcSumTotal: kitchenImpact + wardrobeImpact,
+  };
 }
 
 interface PipelineUnit {
@@ -178,8 +205,18 @@ export async function GET(
     let notesCounts: Map<string, { total: number; unresolved: number }> = new Map();
     let kitchenSelections: Map<string, any> = new Map();
 
+    let kitchenConfig: any = null;
     if (pipelineTablesExist) {
       try {
+        // Get kitchen config for PC sum calculations
+        const { data: configData } = await supabaseAdmin
+          .from('kitchen_selection_options')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('development_id', developmentId)
+          .single();
+        kitchenConfig = configData;
+
         // Get kitchen selections for these units
         const { data: kitchenRows, error: kitchenError } = await supabaseAdmin
           .from('kitchen_selections')
@@ -299,14 +336,22 @@ export async function GET(
           salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
-          kitchenSelection: kitchen ? {
-            hasKitchen: kitchen.has_kitchen || false,
-            counterType: kitchen.counter_type || null,
-            cabinetColor: kitchen.unit_finish || null,
-            handleStyle: kitchen.handle_style || null,
-            hasWardrobe: kitchen.has_wardrobe || false,
-            notes: kitchen.notes || null,
-          } : null,
+          kitchenSelection: kitchen ? (() => {
+            const hasKitchen = kitchen.has_kitchen;
+            const hasWardrobe = kitchen.has_wardrobe;
+            const pcSum = calculatePCSum(unit.bedrooms || 3, hasKitchen, hasWardrobe, kitchenConfig);
+            return {
+              hasKitchen: hasKitchen || false,
+              counterType: kitchen.counter_type || null,
+              cabinetColor: kitchen.unit_finish || null,
+              handleStyle: kitchen.handle_style || null,
+              hasWardrobe: hasWardrobe || false,
+              notes: kitchen.notes || null,
+              pcSumKitchen: pcSum.pcSumKitchen,
+              pcSumWardrobes: pcSum.pcSumWardrobes,
+              pcSumTotal: pcSum.pcSumTotal,
+            };
+          })() : null,
         };
       })
       .filter((unit) => {

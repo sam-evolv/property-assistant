@@ -54,6 +54,9 @@ function naturalSort(a: string, b: string): number {
 
 interface KitchenSelection {
   hasKitchen: boolean;
+  pcSumKitchen?: number;
+  pcSumWardrobes?: number;
+  pcSumTotal?: number;
   counterType: string | null;
   cabinetColor: string | null;
   handleStyle: string | null;
@@ -595,6 +598,38 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
                   {kitchenSelection?.hasWardrobe ? 'Yes' : 'No'}
                 </span>
               </div>
+
+              {/* PC Sum Impact Section */}
+              {(kitchenSelection?.pcSumTotal !== undefined && kitchenSelection?.pcSumTotal !== 0) && (
+                <div className="pt-3 mt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-xs font-semibold text-gray-700">PC Sum Impact</span>
+                    {(kitchenSelection?.pcSumTotal || 0) < 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full">Deduction</span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 bg-gray-50 p-2 rounded-lg">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Kitchen:</span>
+                      <span className={`font-medium ${(kitchenSelection?.pcSumKitchen || 0) < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        {(kitchenSelection?.pcSumKitchen || 0) === 0 ? '€0' : `${(kitchenSelection?.pcSumKitchen || 0) < 0 ? '-' : ''}€${Math.abs(kitchenSelection?.pcSumKitchen || 0).toLocaleString()}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Wardrobes:</span>
+                      <span className={`font-medium ${(kitchenSelection?.pcSumWardrobes || 0) < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        {(kitchenSelection?.pcSumWardrobes || 0) === 0 ? '€0' : `${(kitchenSelection?.pcSumWardrobes || 0) < 0 ? '-' : ''}€${Math.abs(kitchenSelection?.pcSumWardrobes || 0).toLocaleString()}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs border-t border-gray-200 pt-1.5">
+                      <span className="font-semibold text-gray-700">Total:</span>
+                      <span className={`font-bold ${(kitchenSelection?.pcSumTotal || 0) < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                        {(kitchenSelection?.pcSumTotal || 0) === 0 ? '€0' : `${(kitchenSelection?.pcSumTotal || 0) < 0 ? '-' : ''}€${Math.abs(kitchenSelection?.pcSumTotal || 0).toLocaleString()}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {kitchenSelection?.notes && (
                 <div className="pt-2 border-t border-gray-100">
