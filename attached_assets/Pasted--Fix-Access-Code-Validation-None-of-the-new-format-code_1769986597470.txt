@@ -1,0 +1,103 @@
+---
+
+**Fix Access Code Validation - None of the new format codes work**
+
+## Problem
+
+None of the new format access codes work for any development. The format is `XX-###-XXXX` (e.g., `AV-001-ACF7`, `LP-001-9B29`, `RP-013-85AB`, `RL-021-4570`).
+
+## Database Verification
+
+All codes exist in the `unit_uid` column:
+
+```sql
+SELECT unit_uid, address FROM units WHERE unit_uid IS NOT NULL LIMIT 10;
+-- Returns codes like AV-001-ACF7, LP-001-9B29, etc.
+```
+
+Total units with codes:
+- Longview Park: 75 units (LP-001-XXXX to LP-075-XXXX)
+- Árdan View: 68 units (AV-001-XXXX to AV-068-XXXX)
+- Rathard Park: 52 units (RP-001-XXXX to RP-053-XXXX)
+- Rathard Lawn: 45 units (RL-001-XXXX to RL-045-XXXX)
+
+## Debug Steps
+
+1. Log the incoming access code and query:
+
+```javascript
+console.log('Input code:', accessCode);
+console.log('Normalized:', accessCode.trim().toUpperCase());
+```
+
+2. Check what column/table is being queried - must be `units.unit_uid`
+
+3. Check if there's old validation logic rejecting the new format
+
+## Likely Issues
+
+1. **Old format validation regex** - Code might be checking for old format like `LV-PARK-001` and rejecting new format `LP-001-9B29`
+
+   Look for regex like:
+   ```javascript
+   // OLD - remove this
+   const isValid = /^[A-Z]+-[A-Z]+-\d{3}$/.test(code);
+   
+   // NEW - use this
+   const isValid = /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(code);
+   ```
+
+2. **Wrong column** - Querying `unit_code` instead of `unit_uid`
+
+3. **Case sensitivity** - Convert to uppercase before querying
+
+## Correct Implementation
+
+```javascript
+async function validateAccessCode(inputCode) {
+  // Normalize input
+  const accessCode = inputCode.trim().toUpperCase();
+  
+  // Validate format: XX-###-XXXX (e.g., AV-001-ACF7)
+  const formatRegex = /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/;
+  if (!formatRegex.test(accessCode)) {
+    console.log('Invalid format:', accessCode);
+    return { error: 'Invalid access code format' };
+  }
+  
+  // Query database
+  const { data: unit, error } = await supabase
+    .from('units')
+    .select(`
+      *,
+      development:developments(*)
+    `)
+    .eq('unit_uid', accessCode)
+    .single();
+  
+  if (error || !unit) {
+    console.log('Code not found in database:', accessCode, error);
+    return { error: 'Invalid access code' };
+  }
+  
+  console.log('Found unit:', unit.address, unit.development?.name);
+  return { unit };
+}
+```
+
+## Test These Codes
+
+| Code | Development | Address |
+|------|-------------|---------|
+| AV-001-ACF7 | Árdan View | 1 Árdan View |
+| AV-010-9733 | Árdan View | 10 Árdan View |
+| LP-001-9B29 | Longview Park | 1 Longview Park |
+| LP-050-3A48 | Longview Park | 50 Longview Park |
+| RP-013-85AB | Rathard Park | 13 Rathard Park |
+| RP-040-945A | Rathard Park | 40 Rathard Park |
+| RL-021-4570 | Rathard Lawn | 21 Rathard Lawn |
+| RL-041-8ABC | Rathard Lawn | 41 Rathard Lawn |
+
+All of these should grant access. If none work, the issue is in how the code queries the database or validates the format.
+
+---
