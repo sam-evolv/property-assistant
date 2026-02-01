@@ -28,9 +28,30 @@ function generateUnitCode(developmentCode: string, index: number): string {
   return `${developmentCode}-${String(index).padStart(3, '0')}`;
 }
 
-function generateUnitUid(developmentCode: string, unitNumber: string): string {
-  const cleanNumber = unitNumber.replace(/\s+/g, '-').toUpperCase();
-  return `${developmentCode}-${cleanNumber}`;
+function generateRandomSuffix(length: number = 4): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function getDevelopmentPrefix(developmentCode: string): string {
+  if (developmentCode.length <= 2) return developmentCode.toUpperCase();
+  
+  const words = developmentCode.split(/[-_\s]+/);
+  if (words.length >= 2) {
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  }
+  return developmentCode.substring(0, 2).toUpperCase();
+}
+
+function generateSecureUnitUid(developmentPrefix: string, unitNumber: string): string {
+  const numMatch = unitNumber.match(/\d+/);
+  const paddedNum = numMatch ? String(parseInt(numMatch[0], 10)).padStart(3, '0') : '001';
+  const randomSuffix = generateRandomSuffix(4);
+  return `${developmentPrefix}-${paddedNum}-${randomSuffix}`;
 }
 
 function parseBedroomsRaw(value: string | undefined): number | null {
@@ -154,12 +175,11 @@ export async function POST(
 
       const unitNumber = extractUnitNumber(row.address_line_1);
       const unitCode = generateUnitCode(development.code, unitIndex);
-      let unitUid = generateUnitUid(development.code, unitNumber);
+      const devPrefix = getDevelopmentPrefix(development.code);
+      let unitUid = generateSecureUnitUid(devPrefix, unitNumber);
 
-      let uidCounter = 1;
       while (existingUids.has(unitUid)) {
-        unitUid = `${generateUnitUid(development.code, unitNumber)}-${uidCounter}`;
-        uidCounter++;
+        unitUid = generateSecureUnitUid(devPrefix, unitNumber);
       }
 
       try {
