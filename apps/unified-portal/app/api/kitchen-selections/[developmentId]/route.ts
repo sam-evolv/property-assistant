@@ -49,11 +49,11 @@ interface KitchenUnit {
   pcSumTotal: number;
 }
 
-function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null) {
-  const kitchen4Bed = 7000;
-  const kitchen3Bed = 6000;
-  const kitchen2Bed = 5000;
-  const wardrobeAllowance = 1000;
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
   
   let kitchenAllowance = kitchen2Bed;
   if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
@@ -135,6 +135,15 @@ export async function GET(
     
     const pipelineMap = new Map((pipelineData || []).map(p => [p.unit_id, p]));
 
+    const { data: configData } = await supabaseAdmin
+      .from('kitchen_selection_options')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('development_id', actualDevelopmentId)
+      .single();
+    
+    const pcSumConfig = configData;
+
     const kitchenUnits: KitchenUnit[] = allUnits.map(unit => {
       const pipeline = pipelineMap.get(unit.id);
       
@@ -153,7 +162,7 @@ export async function GET(
         status = 'pending';
       }
 
-      const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe);
+      const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe, pcSumConfig);
 
       return {
         id: pipeline?.id || '',

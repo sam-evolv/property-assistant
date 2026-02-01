@@ -503,10 +503,13 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
   const router = useRouter();
   
   const kitchenSelection = unit.kitchenSelection;
-  const hasKitchen = kitchenSelection?.hasKitchen || false;
+  const hasKitchen = kitchenSelection?.hasKitchen;
   const kitchenDate = unit.kitchenDate;
   
-  const isComplete = hasKitchen && kitchenDate;
+  const hasDetails = kitchenSelection?.counterType && kitchenSelection?.cabinetColor && kitchenSelection?.handleStyle;
+  const isComplete = hasKitchen === true && hasDetails;
+  const isTakingOwn = hasKitchen === false;
+  const isPending = hasKitchen === true && !hasDetails;
   
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -536,16 +539,25 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
       <div
         onClick={handleCellClick}
         className="h-11 px-2 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group"
-        style={isComplete ? { background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' } : undefined}
+        style={isComplete || isTakingOwn ? { background: isComplete ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' } : undefined}
       >
         <div className="flex items-center gap-1.5">
           <div 
-            className={`w-2.5 h-2.5 rounded-full ${isComplete ? 'bg-emerald-500' : hasKitchen ? 'bg-amber-500' : 'bg-red-400'}`}
+            className={`w-2.5 h-2.5 rounded-full ${
+              isComplete ? 'bg-emerald-500' : 
+              isTakingOwn ? 'bg-red-500' : 
+              isPending ? 'bg-amber-500' : 
+              'bg-gray-300'
+            }`}
           />
-          {kitchenDate ? (
+          {isComplete && kitchenDate ? (
             <span className="text-xs font-medium text-emerald-700">{formatDate(kitchenDate)}</span>
+          ) : isTakingOwn ? (
+            <span className="text-xs font-medium text-red-600">Own</span>
+          ) : isPending ? (
+            <span className="text-xs font-medium text-amber-600">Pending</span>
           ) : (
-            <span className="text-xs text-gray-400">Select</span>
+            <span className="text-xs text-gray-400">—</span>
           )}
         </div>
       </div>
@@ -562,8 +574,13 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
             <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">Kitchen Selection</h3>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {isComplete ? 'Complete' : 'Pending'}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isComplete ? 'bg-emerald-100 text-emerald-700' : 
+                  isTakingOwn ? 'bg-red-100 text-red-700' : 
+                  isPending ? 'bg-amber-100 text-amber-700' : 
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {isComplete ? 'Complete' : isTakingOwn ? 'Taking Own' : isPending ? 'Pending' : 'Not Decided'}
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">{unit.unitNumber} • {unit.purchaserName || 'No purchaser'}</p>
@@ -572,8 +589,12 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Kitchen</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded ${hasKitchen ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                  {hasKitchen ? 'Yes' : 'No'}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                  hasKitchen === true ? 'bg-emerald-100 text-emerald-700' : 
+                  hasKitchen === false ? 'bg-red-100 text-red-600' : 
+                  'bg-gray-100 text-gray-500'
+                }`}>
+                  {hasKitchen === true ? 'Taking Developer' : hasKitchen === false ? 'Taking Own' : 'Not Decided'}
                 </span>
               </div>
 
@@ -594,8 +615,12 @@ function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellPr
 
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Wardrobes</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded ${kitchenSelection?.hasWardrobe ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                  {kitchenSelection?.hasWardrobe ? 'Yes' : 'No'}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                  kitchenSelection?.hasWardrobe === true ? 'bg-emerald-100 text-emerald-700' : 
+                  kitchenSelection?.hasWardrobe === false ? 'bg-red-100 text-red-600' : 
+                  'bg-gray-100 text-gray-500'
+                }`}>
+                  {kitchenSelection?.hasWardrobe === true ? 'Yes' : kitchenSelection?.hasWardrobe === false ? 'No' : '—'}
                 </span>
               </div>
 

@@ -12,11 +12,11 @@ function getSupabaseAdmin() {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null) {
-  const kitchen4Bed = 7000;
-  const kitchen3Bed = 6000;
-  const kitchen2Bed = 5000;
-  const wardrobeAllowance = 1000;
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
   
   let kitchenAllowance = kitchen2Bed;
   if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
@@ -119,10 +119,17 @@ export async function PATCH(
       .eq('id', unitId)
       .single();
 
+    const { data: config } = await supabase
+      .from('kitchen_selection_options')
+      .select('*')
+      .eq('development_id', developmentId)
+      .eq('tenant_id', tenantId)
+      .single();
+
     const bedrooms = unit?.bedrooms || 3;
     const hasKitchen = result.kitchen_selected;
     const hasWardrobe = result.kitchen_wardrobes;
-    const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe);
+    const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe, config);
 
     try {
       await supabase

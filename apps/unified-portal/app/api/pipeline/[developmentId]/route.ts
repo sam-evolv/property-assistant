@@ -37,11 +37,11 @@ interface KitchenSelection {
   pcSumTotal: number;
 }
 
-function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null) {
-  const kitchen4Bed = 7000;
-  const kitchen3Bed = 6000;
-  const kitchen2Bed = 5000;
-  const wardrobeAllowance = 1000;
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
+  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
+  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
+  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
+  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
   
   let kitchenAllowance = kitchen2Bed;
   if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
@@ -200,8 +200,18 @@ export async function GET(
     let pipelineData: Map<string, any> = new Map();
     let notesCounts: Map<string, { total: number; unresolved: number }> = new Map();
 
+    let pcSumConfig: any = null;
     if (pipelineTablesExist) {
       try {
+        // Get PC sum config for this development
+        const { data: configData } = await supabaseAdmin
+          .from('kitchen_selection_options')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('development_id', developmentId)
+          .single();
+        pcSumConfig = configData;
+
         // Get pipeline records for these units using Supabase
         // Kitchen data is now stored directly in unit_sales_pipeline
         const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
@@ -310,7 +320,7 @@ export async function GET(
           kitchenSelection: pipeline ? (() => {
             const hasKitchen = pipeline.kitchen_selected;
             const hasWardrobe = pipeline.kitchen_wardrobes;
-            const pcSum = calculatePCSum(unit.bedrooms || 3, hasKitchen, hasWardrobe);
+            const pcSum = calculatePCSum(unit.bedrooms || 3, hasKitchen, hasWardrobe, pcSumConfig);
             return {
               hasKitchen: hasKitchen ?? null,
               counterType: pipeline.kitchen_counter || null,
