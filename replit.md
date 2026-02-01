@@ -87,6 +87,15 @@ OpenHouse AI/
 
 ### Smart Archive Fixes (February 2026)
 
+**Complete Development-to-Project Mapping:**
+- Added all 4 developments with documents to the mapping:
+  - Longview Park: 1,132 chunks
+  - Rathard Park: 864 chunks  
+  - Rathard Lawn: 813 chunks
+  - Árdan View: 946 chunks
+- Updated both archive-documents.ts and disciplines/route.ts
+- Added identity mappings (project_id → project_id) for cases where development_id equals project_id
+
 **Development Selector Security Fix:**
 - Developer developments API now only returns tenant-filtered developments from Drizzle
 - Removed unsafe merge of unfiltered Supabase projects that caused cross-tenant visibility (e.g., OpenHouse Park appearing for Longview Estates)

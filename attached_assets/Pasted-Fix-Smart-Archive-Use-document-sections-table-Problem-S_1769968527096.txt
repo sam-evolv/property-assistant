@@ -1,0 +1,74 @@
+Fix Smart Archive - Use document_sections table
+Problem
+Smart Archive shows 0 documents for individual developments because it's querying the empty documents table instead of document_sections.
+Data Location
+Documents are stored in document_sections table with metadata:
+
+project_id - links to development
+metadata->>'discipline' - category (architectural, electrical, handover, mechanical, other)
+metadata->>'file_name' - document name
+metadata->>'file_url' - download URL
+
+Current Document Counts
+DevelopmentProject IDChunksLongview Park57dc3919-2725-4575-8046-9179075ac88e1,132Rathard Park6d3789de-2e46-430c-bf31-22224bd878da864Rathard Lawn9598cf36-3e3f-4b7d-be6d-d1e80f708f46813Árdan View84a559d1-89f1-4eb6-a48b-7ca068bcc164946
+Fix Required
+1. Update Smart Archive Query
+Change from querying documents table to document_sections:
+javascript// Get unique documents grouped by discipline/category
+const { data: documents } = await supabase
+  .from('document_sections')
+  .select('metadata')
+  .eq('project_id', projectId);
+
+// Group by file to get unique documents
+const uniqueDocs = {};
+documents.forEach(doc => {
+  const fileName = doc.metadata?.file_name;
+  if (fileName && !uniqueDocs[fileName]) {
+    uniqueDocs[fileName] = {
+      name: fileName,
+      discipline: doc.metadata?.discipline || 'other',
+      file_url: doc.metadata?.file_url,
+      category: doc.metadata?.category
+    };
+  }
+});
+
+// Group by discipline for category tiles
+const categories = {};
+Object.values(uniqueDocs).forEach(doc => {
+  const disc = doc.discipline || 'other';
+  if (!categories[disc]) categories[disc] = [];
+  categories[disc].push(doc);
+});
+2. Category Tiles
+Display tiles for these disciplines:
+
+Architectural (floor plans, elevations)
+Electrical (electrical drawings)
+Mechanical (M&E drawings)
+Handover (specs, guides, warranties)
+Other (miscellaneous)
+
+3. Map Project ID to Development
+The project_id in document_sections matches the development. Use this mapping:
+javascript// Get project_id for the selected development
+const { data: project } = await supabase
+  .from('projects')
+  .select('id')
+  .eq('name', developmentName)
+  .single();
+
+const projectId = project.id;
+Or query directly using development ID since they match:
+
+Longview Park development_id = project_id = 57dc3919-2725-4575-8046-9179075ac88e
+etc.
+
+4. Document Count Query
+sqlSELECT 
+  metadata->>'discipline' as discipline,
+  COUNT(DISTINCT metadata->>'file_name') as doc_count
+FROM document_sections
+WHERE project_id = :projectId
+GROUP BY metadata->>'discipline';
