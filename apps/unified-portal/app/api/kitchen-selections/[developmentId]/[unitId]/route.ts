@@ -12,18 +12,18 @@ function getSupabaseAdmin() {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function calculatePCSum(bedrooms: number, hasKitchen: boolean, hasWardrobe: boolean, config: any) {
-  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
-  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
-  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
-  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null) {
+  const kitchen4Bed = 7000;
+  const kitchen3Bed = 6000;
+  const kitchen2Bed = 5000;
+  const wardrobeAllowance = 1000;
   
   let kitchenAllowance = kitchen2Bed;
   if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
   else if (bedrooms === 3) kitchenAllowance = kitchen3Bed;
   
-  const kitchenImpact = hasKitchen ? 0 : -kitchenAllowance;
-  const wardrobeImpact = hasWardrobe ? 0 : -wardrobeAllowance;
+  const kitchenImpact = hasKitchen === false ? -kitchenAllowance : 0;
+  const wardrobeImpact = hasWardrobe === false ? -wardrobeAllowance : 0;
   
   return {
     pcSumKitchen: kitchenImpact,
@@ -49,13 +49,12 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
 
     const fieldMap: Record<string, string> = {
-      hasKitchen: 'has_kitchen',
-      counterType: 'counter_type',
-      cabinetColor: 'unit_finish',
-      handleStyle: 'handle_style',
-      hasWardrobe: 'has_wardrobe',
-      wardrobeStyle: 'wardrobe_style',
-      notes: 'notes',
+      hasKitchen: 'kitchen_selected',
+      counterType: 'kitchen_counter',
+      cabinetColor: 'kitchen_cabinet',
+      handleStyle: 'kitchen_handle',
+      hasWardrobe: 'kitchen_wardrobes',
+      notes: 'kitchen_notes',
     };
 
     const updates: Record<string, any> = {};
@@ -70,10 +69,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    updates.updated_at = new Date().toISOString();
+    updates.kitchen_updated_at = new Date().toISOString();
 
     const { data: existing } = await supabase
-      .from('kitchen_selections')
+      .from('unit_sales_pipeline')
       .select('*')
       .eq('unit_id', unitId)
       .eq('tenant_id', tenantId)
@@ -83,7 +82,7 @@ export async function PATCH(
     let result;
     if (existing) {
       const { data, error } = await supabase
-        .from('kitchen_selections')
+        .from('unit_sales_pipeline')
         .update(updates)
         .eq('id', existing.id)
         .eq('tenant_id', tenantId)
@@ -97,7 +96,7 @@ export async function PATCH(
       result = data;
     } else {
       const { data, error } = await supabase
-        .from('kitchen_selections')
+        .from('unit_sales_pipeline')
         .insert({
           tenant_id: tenantId,
           development_id: developmentId,
@@ -120,24 +119,14 @@ export async function PATCH(
       .eq('id', unitId)
       .single();
 
-    const { data: config } = await supabase
-      .from('kitchen_selection_options')
-      .select('*')
-      .eq('development_id', developmentId)
-      .eq('tenant_id', tenantId)
-      .single();
-
     const bedrooms = unit?.bedrooms || 3;
-    const pcSum = calculatePCSum(
-      bedrooms,
-      result.has_kitchen === true,
-      result.has_wardrobe === true,
-      config
-    );
+    const hasKitchen = result.kitchen_selected;
+    const hasWardrobe = result.kitchen_wardrobes;
+    const pcSum = calculatePCSum(bedrooms, hasKitchen, hasWardrobe);
 
     try {
       await supabase
-        .from('kitchen_selections')
+        .from('unit_sales_pipeline')
         .update({
           pc_sum_kitchen: pcSum.pcSumKitchen,
           pc_sum_wardrobes: pcSum.pcSumWardrobes,
@@ -149,18 +138,17 @@ export async function PATCH(
       console.log('PC sum columns not yet available:', e);
     }
 
-    const hasAllKitchenFields = result.has_kitchen && 
-      result.counter_type && 
-      result.unit_finish && 
-      result.handle_style;
+    const hasAllKitchenFields = result.kitchen_selected === true && 
+      result.kitchen_counter && 
+      result.kitchen_cabinet && 
+      result.kitchen_handle;
     
-    if (hasAllKitchenFields) {
+    if (hasAllKitchenFields && !result.kitchen_date) {
       await supabase
         .from('unit_sales_pipeline')
         .update({ kitchen_date: new Date().toISOString() })
-        .eq('unit_id', unitId)
-        .eq('tenant_id', tenantId)
-        .eq('development_id', developmentId);
+        .eq('id', result.id)
+        .eq('tenant_id', tenantId);
     }
 
     return NextResponse.json({ 

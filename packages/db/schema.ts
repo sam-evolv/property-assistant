@@ -1586,6 +1586,17 @@ export const unitSalesPipeline = pgTable('unit_sales_pipeline', {
   kitchen_updated_by: uuid('kitchen_updated_by').references(() => admins.id),
   kitchen_updated_at: timestamp('kitchen_updated_at', { withTimezone: true }),
 
+  // Kitchen Selection Fields
+  kitchen_selected: boolean('kitchen_selected'), // true = taking developer, false = taking own, null = not decided
+  kitchen_counter: text('kitchen_counter'), // e.g., "CT1", "CT3", "CT6"
+  kitchen_cabinet: text('kitchen_cabinet'), // e.g., "Green", "White", "Navy"
+  kitchen_handle: text('kitchen_handle'), // e.g., "H3", "H9", "H12"
+  kitchen_wardrobes: boolean('kitchen_wardrobes'), // true = taking developer, false = taking own
+  kitchen_notes: text('kitchen_notes'),
+  pc_sum_kitchen: decimal('pc_sum_kitchen', { precision: 10, scale: 2 }),
+  pc_sum_wardrobes: decimal('pc_sum_wardrobes', { precision: 10, scale: 2 }),
+  pc_sum_total: decimal('pc_sum_total', { precision: 10, scale: 2 }),
+
   // 8. Snagging Complete
   snag_date: timestamp('snag_date', { withTimezone: true }),
   snag_updated_by: uuid('snag_updated_by').references(() => admins.id),

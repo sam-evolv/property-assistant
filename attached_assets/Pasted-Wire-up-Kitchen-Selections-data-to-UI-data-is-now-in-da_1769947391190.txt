@@ -1,0 +1,77 @@
+Wire up Kitchen Selections data to UI - data is now in database
+The kitchen selection data is now in unit_sales_pipeline with these columns:
+
+kitchen_selected (BOOLEAN) - true = taking developer, false = taking own, null = not decided
+kitchen_counter (TEXT) - e.g., "CT1", "CT3", "CT6"
+kitchen_cabinet (TEXT) - e.g., "Green", "White", "Navy", "Charcoal", "Light Grey"
+kitchen_handle (TEXT) - e.g., "H3", "H9", "H12"
+kitchen_wardrobes (BOOLEAN) - true = taking developer, false = taking own
+kitchen_notes (TEXT) - notes/comments
+kitchen_date (TIMESTAMP) - when selection was made
+pc_sum_kitchen (DECIMAL) - kitchen PC sum impact (negative if taking own)
+pc_sum_wardrobes (DECIMAL) - wardrobe PC sum impact
+pc_sum_total (DECIMAL) - total PC sum impact
+
+Sample data for Árdan View:
+
+13 taking developer kitchen
+6 taking own kitchen (PC sum deductions)
+7 pending (meetings scheduled, have notes but no selection yet)
+Total PC Sum Impact: -€39,000
+
+Updates Needed:
+1. Kitchen Selections Page
+
+Fetch data from unit_sales_pipeline joined with units
+Display the existing data in the table
+Update summary cards:
+
+Selection Progress: 19 of 68 decided
+Taking Kitchen: 13 (68%)
+Taking Own: 6 (32%)
+PC Sum Impact: -€39,000
+
+
+
+2. Sales Pipeline KITCHEN Column
+
+Show green if kitchen_selected = TRUE
+Show red if kitchen_selected = FALSE
+Show grey/empty if kitchen_selected IS NULL
+On click, show popover with:
+
+Kitchen: Yes/No
+Counter: CT3 - Wood
+Cabinet: Green
+Handle: H9
+Wardrobes: Yes/No
+PC Sum Impact: €0 or -€6,000 etc.
+Notes: (full text)
+
+
+
+3. API Endpoints
+Make sure these endpoints return the kitchen data:
+
+GET /api/pipeline/[developmentId] - should include kitchen fields
+GET /api/kitchen-selections/[developmentId] - dedicated endpoint for kitchen page
+
+4. Dropdown Options
+Configure these options for the dropdowns:
+Counter Tops:
+
+CT1 - Show House Counter
+CT2 - White with Gold/Black Vein
+CT3 - Wood
+CT4 - Black/Yellow
+CT5 - Grey Counter
+CT6 - White with Brown Vein
+
+Cabinets:
+
+Green, Charcoal, Navy, White, Dust Grey, Light Grey
+
+Handles:
+
+H1 through H16
+

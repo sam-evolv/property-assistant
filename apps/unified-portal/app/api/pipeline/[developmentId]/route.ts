@@ -37,22 +37,18 @@ interface KitchenSelection {
   pcSumTotal: number;
 }
 
-function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null, config: any) {
-  if (hasKitchen === null && hasWardrobe === null) {
-    return { pcSumKitchen: 0, pcSumWardrobes: 0, pcSumTotal: 0 };
-  }
-  
-  const kitchen4Bed = Number(config?.pc_sum_kitchen_4bed) || 7000;
-  const kitchen3Bed = Number(config?.pc_sum_kitchen_3bed) || 6000;
-  const kitchen2Bed = Number(config?.pc_sum_kitchen_2bed) || 5000;
-  const wardrobeAllowance = Number(config?.pc_sum_wardrobes) || 1000;
+function calculatePCSum(bedrooms: number, hasKitchen: boolean | null, hasWardrobe: boolean | null) {
+  const kitchen4Bed = 7000;
+  const kitchen3Bed = 6000;
+  const kitchen2Bed = 5000;
+  const wardrobeAllowance = 1000;
   
   let kitchenAllowance = kitchen2Bed;
   if (bedrooms >= 4) kitchenAllowance = kitchen4Bed;
   else if (bedrooms === 3) kitchenAllowance = kitchen3Bed;
   
-  const kitchenImpact = hasKitchen === true ? 0 : (hasKitchen === false ? -kitchenAllowance : 0);
-  const wardrobeImpact = hasWardrobe === true ? 0 : (hasWardrobe === false ? -wardrobeAllowance : 0);
+  const kitchenImpact = hasKitchen === false ? -kitchenAllowance : 0;
+  const wardrobeImpact = hasWardrobe === false ? -wardrobeAllowance : 0;
   
   return {
     pcSumKitchen: kitchenImpact,
@@ -203,36 +199,11 @@ export async function GET(
     // If pipeline tables exist, get pipeline data
     let pipelineData: Map<string, any> = new Map();
     let notesCounts: Map<string, { total: number; unresolved: number }> = new Map();
-    let kitchenSelections: Map<string, any> = new Map();
 
-    let kitchenConfig: any = null;
     if (pipelineTablesExist) {
       try {
-        // Get kitchen config for PC sum calculations
-        const { data: configData } = await supabaseAdmin
-          .from('kitchen_selection_options')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('development_id', developmentId)
-          .single();
-        kitchenConfig = configData;
-
-        // Get kitchen selections for these units
-        const { data: kitchenRows, error: kitchenError } = await supabaseAdmin
-          .from('kitchen_selections')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('development_id', developmentId);
-
-        if (kitchenError) {
-          console.error('[Pipeline Development API] Error fetching kitchen selections:', kitchenError);
-        } else {
-          for (const row of kitchenRows || []) {
-            kitchenSelections.set(row.unit_id as string, row);
-          }
-        }
-
         // Get pipeline records for these units using Supabase
+        // Kitchen data is now stored directly in unit_sales_pipeline
         const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
           .from('unit_sales_pipeline')
           .select('*')
@@ -287,7 +258,7 @@ export async function GET(
       .map((unit) => {
         const pipeline = pipelineData.get(unit.id);
         const notes = notesCounts.get(pipeline?.id || '') || { total: 0, unresolved: 0 };
-        const kitchen = kitchenSelections.get(unit.id);
+        // Kitchen data is now directly in pipeline record
 
         // Debug: Log if pipeline has queries data
         if (pipeline?.queries_raised_date) {
@@ -336,17 +307,17 @@ export async function GET(
           salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
-          kitchenSelection: kitchen ? (() => {
-            const hasKitchen = kitchen.has_kitchen;
-            const hasWardrobe = kitchen.has_wardrobe;
-            const pcSum = calculatePCSum(unit.bedrooms || 3, hasKitchen, hasWardrobe, kitchenConfig);
+          kitchenSelection: pipeline ? (() => {
+            const hasKitchen = pipeline.kitchen_selected;
+            const hasWardrobe = pipeline.kitchen_wardrobes;
+            const pcSum = calculatePCSum(unit.bedrooms || 3, hasKitchen, hasWardrobe);
             return {
-              hasKitchen: hasKitchen || false,
-              counterType: kitchen.counter_type || null,
-              cabinetColor: kitchen.unit_finish || null,
-              handleStyle: kitchen.handle_style || null,
-              hasWardrobe: hasWardrobe || false,
-              notes: kitchen.notes || null,
+              hasKitchen: hasKitchen ?? null,
+              counterType: pipeline.kitchen_counter || null,
+              cabinetColor: pipeline.kitchen_cabinet || null,
+              handleStyle: pipeline.kitchen_handle || null,
+              hasWardrobe: hasWardrobe ?? null,
+              notes: pipeline.kitchen_notes || null,
               pcSumKitchen: pcSum.pcSumKitchen,
               pcSumWardrobes: pcSum.pcSumWardrobes,
               pcSumTotal: pcSum.pcSumTotal,

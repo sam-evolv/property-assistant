@@ -45,12 +45,12 @@ interface KitchenUnit {
   bedrooms: number;
   hasKitchen: boolean | null;
   counterType: string | null;
-  unitFinish: string | null;
+  cabinetColor: string | null;
   handleStyle: string | null;
   hasWardrobe: boolean | null;
-  wardrobeStyle: string | null;
   notes: string | null;
-  status: 'complete' | 'pending';
+  kitchenDate: string | null;
+  status: 'complete' | 'pending' | 'none';
   pcSumKitchen: number;
   pcSumWardrobes: number;
   pcSumTotal: number;
@@ -63,9 +63,12 @@ interface Development {
 }
 
 interface Summary {
-  totalPcSumImpact: number;
+  total: number;
+  decided: number;
+  takingKitchen: number;
   takingOwnKitchen: number;
-  takingOwnWardrobes: number;
+  pending: number;
+  totalPcSumImpact: number;
 }
 
 function formatCurrency(value: number): string {
@@ -88,7 +91,7 @@ export default function KitchenSelectionsPage() {
 
   const [development, setDevelopment] = useState<Development | null>(null);
   const [units, setUnits] = useState<KitchenUnit[]>([]);
-  const [summary, setSummary] = useState<Summary>({ totalPcSumImpact: 0, takingOwnKitchen: 0, takingOwnWardrobes: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
@@ -106,7 +109,7 @@ export default function KitchenSelectionsPage() {
       const data = await response.json();
       setDevelopment(data.development);
       setUnits(data.units || []);
-      setSummary(data.summary || { totalPcSumImpact: 0, takingOwnKitchen: 0, takingOwnWardrobes: 0 });
+      setSummary(data.summary || { total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0 });
     } catch (err) {
       console.error('Error fetching kitchen selections:', err);
     } finally {
@@ -130,13 +133,8 @@ export default function KitchenSelectionsPage() {
   }, [highlightUnitId, units]);
 
   const handleUpdate = async (unitId: string, field: string, value: any) => {
-    const stateFieldMap: Record<string, string> = {
-      cabinetColor: 'unitFinish',
-    };
-    const stateField = stateFieldMap[field] || field;
-    
     setUnits(prev =>
-      prev.map(u => (u.unitId === unitId ? { ...u, [stateField]: value } : u))
+      prev.map(u => (u.unitId === unitId ? { ...u, [field]: value } : u))
     );
 
     setSaving(unitId);
@@ -356,7 +354,7 @@ export default function KitchenSelectionsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        value={unit.unitFinish || ''}
+                        value={unit.cabinetColor || ''}
                         onChange={(e) => handleUpdate(unit.unitId, 'cabinetColor', e.target.value || null)}
                         disabled={unit.hasKitchen === false}
                         className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 disabled:bg-gray-50 disabled:text-gray-400"
