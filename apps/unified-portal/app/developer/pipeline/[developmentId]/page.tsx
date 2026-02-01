@@ -2056,7 +2056,7 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
                   max="100"
                   value={count}
                   onChange={(e) => setCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
-                  className="w-24 px-4 py-3 text-2xl font-bold text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+                  className="w-24 px-4 py-3 text-2xl font-bold text-center text-gray-900 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
                 />
                 <button
                   onClick={generateTable}
@@ -2102,7 +2102,7 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
                             type="text"
                             value={row.unitNumber}
                             onChange={(e) => updateRow(i, 'unitNumber', e.target.value)}
-                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gold-500"
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -2110,14 +2110,14 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
                             type="text"
                             value={row.address}
                             onChange={(e) => updateRow(i, 'address', e.target.value)}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gold-500"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <select
                             value={row.houseType}
                             onChange={(e) => updateRow(i, 'houseType', e.target.value)}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white"
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white"
                           >
                             {typeOptions.map(t => (
                               <option key={t} value={t}>{t}</option>
@@ -2128,7 +2128,7 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
                           <select
                             value={row.beds}
                             onChange={(e) => updateRow(i, 'beds', parseInt(e.target.value))}
-                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white text-center"
+                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gold-500 bg-white text-center"
                           >
                             {bedsOptions.map(b => (
                               <option key={b} value={b}>{b}</option>
@@ -2141,7 +2141,7 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
                             value={row.price || ''}
                             onChange={(e) => updateRow(i, 'price', parseInt(e.target.value) || 0)}
                             placeholder="0"
-                            className="w-28 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-gold-500"
+                            className="w-28 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 text-right focus:outline-none focus:ring-2 focus:ring-gold-500"
                           />
                         </td>
                       </tr>
