@@ -402,6 +402,25 @@ export const audit_log = pgTable('audit_log', {
   ipIdx: index('audit_log_ip_idx').on(table.ip_address),
 }));
 
+export const dataAccessLog = pgTable('data_access_log', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id),
+  accessor_id: uuid('accessor_id').notNull(),
+  accessor_email: text('accessor_email'),
+  accessor_role: varchar('accessor_role', { length: 50 }),
+  action: varchar('action', { length: 100 }).notNull(),
+  resource_type: varchar('resource_type', { length: 100 }).notNull(),
+  resource_id: uuid('resource_id'),
+  resource_description: text('resource_description'),
+  ip_address: varchar('ip_address', { length: 45 }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  createdAtIdx: index('data_access_log_created_idx').on(table.created_at),
+  accessorIdx: index('data_access_log_accessor_idx').on(table.accessor_id),
+  tenantIdx: index('data_access_log_tenant_idx').on(table.tenant_id),
+  actionIdx: index('data_access_log_action_idx').on(table.action),
+}));
+
 export const units = pgTable('units', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),

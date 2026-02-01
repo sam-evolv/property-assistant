@@ -1,0 +1,137 @@
+---
+
+**Add GDPR Compliance Features - Minimum Required for Launch**
+
+## 1. Audit Logging for Message/Chat Viewing
+
+When a developer views individual purchaser messages or clicks into a specific unit's chat history, log it.
+
+### Database
+
+```sql
+-- Create audit log table if not exists
+CREATE TABLE IF NOT EXISTS data_access_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  accessor_id UUID NOT NULL,
+  accessor_email TEXT,
+  accessor_role TEXT,
+  action TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id UUID,
+  resource_description TEXT,
+  ip_address TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for querying
+CREATE INDEX idx_data_access_log_created ON data_access_log(created_at);
+CREATE INDEX idx_data_access_log_accessor ON data_access_log(accessor_id);
+```
+
+### What to Log
+
+Log whenever a developer/admin:
+- Views the messages/chat analytics page for a development
+- Views individual message details
+- Views a specific unit's chat history
+- Exports any data containing personal information
+
+### Log Entry Example
+
+```javascript
+{
+  accessor_id: "developer-uuid",
+  accessor_email: "sam@evolvai.ie",
+  accessor_role: "developer",
+  action: "viewed_chat_history",
+  resource_type: "unit_messages",
+  resource_id: "unit-uuid",
+  resource_description: "Viewed chat history for 15 Árdan View",
+  ip_address: "192.168.1.1",
+  created_at: "2026-02-01T12:00:00Z"
+}
+```
+
+### Implementation
+
+Add logging call in these locations:
+- Chat Analytics page load
+- Individual message view
+- Unit detail page (if showing messages)
+- Any data export function
+
+```javascript
+async function logDataAccess(userId, userEmail, role, action, resourceType, resourceId, description) {
+  await supabase.from('data_access_log').insert({
+    accessor_id: userId,
+    accessor_email: userEmail,
+    accessor_role: role,
+    action: action,
+    resource_type: resourceType,
+    resource_id: resourceId,
+    resource_description: description
+  });
+}
+```
+
+---
+
+## 2. Privacy Contact in Footer/Settings
+
+Add to the app footer and/or settings page:
+
+```
+Privacy & Data Requests: privacy@longviewestates.ie
+```
+
+Or create a simple "Data & Privacy" section in settings:
+
+```
+🔒 Data & Privacy
+
+For data access requests, deletion requests, or privacy concerns:
+Email: privacy@longviewestates.ie
+
+We respond to all requests within 30 days as required by GDPR.
+
+[View Privacy Policy]
+```
+
+---
+
+## 3. Super Admin - Audit Log Viewer
+
+Add a page in super admin to view the audit log:
+
+**Location:** Super Admin → Audit Log
+
+```
+Data Access Audit Log
+━━━━━━━━━━━━━━━━━━━━━
+
+Filter: [All Actions ▼] [Last 30 days ▼] [Search...]
+
+┌─────────────────────┬─────────────────┬──────────────────────────────────┬─────────────┐
+│ Date                │ User            │ Action                           │ Resource    │
+├─────────────────────┼─────────────────┼──────────────────────────────────┼─────────────┤
+│ 1 Feb 2026, 12:34   │ sam@evolvai.ie  │ Viewed chat history              │ 15 Árdan View │
+│ 1 Feb 2026, 11:20   │ sam@evolvai.ie  │ Viewed chat analytics            │ Árdan View  │
+│ 31 Jan 2026, 16:45  │ admin@test.com  │ Exported sales pipeline          │ Rathard Park │
+└─────────────────────┴─────────────────┴──────────────────────────────────┴─────────────┘
+```
+
+This proves you have oversight and accountability for data access.
+
+---
+
+## Summary
+
+These three things make you GDPR compliant:
+
+1. ✅ **Audit logging** - Proves accountable data handling
+2. ✅ **Privacy contact** - Users can make requests
+3. ✅ **Audit log viewer** - You can demonstrate compliance if asked
+
+No changes to how the app works. No popups. No features removed. Just logging and a contact email.
+
+---

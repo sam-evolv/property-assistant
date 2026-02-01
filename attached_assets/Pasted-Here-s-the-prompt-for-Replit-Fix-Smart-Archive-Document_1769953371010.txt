@@ -1,0 +1,111 @@
+Here's the prompt for Replit:
+
+Fix Smart Archive - Documents Not Displaying Per Development
+Current Issues
+
+"All Schemes" shows 98 documents - This works
+Individual developments show 0 documents - Longview Park, Rathard Lawn, Rathard Park all show zero
+Category tiles not displaying - No Architectural, Civil, Electrical, etc. categories shown
+OpenHouse Park appearing - This is a test development and shouldn't show for Longview Estates tenant
+
+Debug Steps
+
+Check how documents are linked to developments:
+
+sqlSELECT d.name, COUNT(doc.id) as doc_count
+FROM developments d
+LEFT JOIN documents doc ON doc.development_id = d.id
+WHERE d.tenant_id = '4cee69c6-be4b-486e-9c33-2b5a7d30e287'
+GROUP BY d.name;
+
+Check if documents have development_id set or if they're tenant-wide:
+
+sqlSELECT development_id, COUNT(*) 
+FROM documents 
+WHERE tenant_id = '4cee69c6-be4b-486e-9c33-2b5a7d30e287'
+GROUP BY development_id;
+
+Check document categories:
+
+sqlSELECT DISTINCT category FROM documents 
+WHERE tenant_id = '4cee69c6-be4b-486e-9c33-2b5a7d30e287';
+Expected Behavior
+Development Selector
+
+Show only Longview Estates developments: Longview Park, Rathard Park, Rathard Lawn, Árdan View
+Do NOT show OpenHouse Park (different tenant)
+
+Category Tiles
+Should display tiles for:
+
+Architectural
+Civil
+Electrical
+Mechanical
+Fire Safety
+Specifications
+Legal
+Warranties
+(any other categories in use)
+
+Each tile should show document count for that category.
+Document Assignment Logic
+Shared Documents (apply to ALL developments in tenant):
+
+Civil documents
+Electrical documents
+Mechanical documents
+Fire Safety documents
+Specifications
+Legal documents
+Warranties
+
+Development-Specific Documents:
+
+Architectural documents (floor plans, elevations - unique per development)
+
+Fix Required
+Option A: Documents Have NULL development_id (Tenant-Wide)
+If shared documents have development_id = NULL, the query needs to include them:
+sqlSELECT * FROM documents 
+WHERE tenant_id = :tenantId
+AND (development_id = :developmentId OR development_id IS NULL)
+Option B: Documents Need to be Duplicated/Linked
+If the system requires development_id on every document, we need to either:
+
+Duplicate the shared docs for each development, OR
+Create a document_developments junction table for many-to-many
+
+Recommended Fix
+Use Option A - allow development_id = NULL to mean "applies to all developments in this tenant".
+Update the Smart Archive query:
+javascriptconst { data: documents } = await supabase
+  .from('documents')
+  .select('*')
+  .eq('tenant_id', tenantId)
+  .or(`development_id.eq.${developmentId},development_id.is.null`)
+  .order('category');
+```
+
+## Add Árdan View Documents
+
+Árdan View needs the same shared documents as the other developments. Since architectural docs are development-specific, we need to:
+
+1. **Copy shared documents** - Árdan View should automatically get them if using the NULL development_id approach
+
+2. **Add Árdan View architectural docs** - These need to be uploaded separately as they're unique to Árdan View
+
+For now, if no Árdan View architectural docs exist, show a placeholder:
+```
+Architectural Documents
+No documents uploaded yet for Árdan View
+[Upload Documents]
+Filter Out Test Developments
+Make sure the development selector only shows developments for the current tenant:
+javascriptconst { data: developments } = await supabase
+  .from('developments')
+  .select('id, name')
+  .eq('tenant_id', currentTenantId)
+  .eq('is_active', true)
+  .order('name');
+OpenHouse Park has a different tenant_id so it should not appear.
