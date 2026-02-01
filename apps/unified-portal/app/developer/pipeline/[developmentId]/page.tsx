@@ -20,6 +20,7 @@ import {
   BarChart3,
   MessageCircle,
   AlertCircle,
+  Key,
 } from 'lucide-react';
 
 // =============================================================================
@@ -68,6 +69,7 @@ interface PipelineUnit {
   id: string;
   unitNumber: string;
   address: string;
+  accessCode?: string | null;
   purchaserName: string | null;
   purchaserEmail?: string | null;
   purchaserPhone?: string | null;
@@ -1165,6 +1167,31 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                     )}
                   </div>
                 </div>
+
+                {/* Access Code Section */}
+                {unit.accessCode && (
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Portal Access</h3>
+                    <div className="flex items-center gap-3 p-3 rounded-xl" style={{ backgroundColor: `${tokens.warmGray}80` }}>
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${tokens.gold}20 0%, ${tokens.goldDark}20 100%)` }}>
+                        <Key className="w-4 h-4" style={{ color: tokens.gold }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-mono font-bold tracking-wider" style={{ color: tokens.dark }}>{unit.accessCode}</p>
+                        <p className="text-xs text-gray-400">Purchaser Portal Code</p>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onCopy(unit.accessCode!, 'Access Code'); }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Share this code with the purchaser to access their portal at app.openhouse.ai/purchaser
+                    </p>
+                  </div>
+                )}
 
                 {/* Solicitor Section */}
                 {unit.solicitorName && (

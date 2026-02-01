@@ -62,6 +62,7 @@ interface PipelineUnit {
   pipelineId: string | null;
   unitNumber: string;
   address: string;
+  accessCode: string | null;
   houseTypeCode: string;
   propertyDesignation: string | null;
   propertyType: string | null;
@@ -290,6 +291,7 @@ export async function GET(
           pipelineId: pipeline?.id || null,
           unitNumber: unit.unit_number || '',
           address: unit.address_line_1 || '',
+          accessCode: unit.unit_uid || null,
           houseTypeCode: unit.house_type_code || '',
           propertyDesignation: unit.property_designation || null,
           propertyType: unit.property_type || null,
