@@ -25,6 +25,15 @@ function getSupabaseAdmin() {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+interface KitchenSelection {
+  hasKitchen: boolean;
+  counterType: string | null;
+  cabinetColor: string | null;
+  handleStyle: string | null;
+  hasWardrobe: boolean;
+  notes: string | null;
+}
+
 interface PipelineUnit {
   id: string;
   pipelineId: string | null;
@@ -57,6 +66,7 @@ interface PipelineUnit {
   salePrice: number | null;
   notesCount: number;
   unresolvedNotesCount: number;
+  kitchenSelection: KitchenSelection | null;
 }
 
 // Helper to check if pipeline tables exist using Supabase
@@ -166,9 +176,25 @@ export async function GET(
     // If pipeline tables exist, get pipeline data
     let pipelineData: Map<string, any> = new Map();
     let notesCounts: Map<string, { total: number; unresolved: number }> = new Map();
+    let kitchenSelections: Map<string, any> = new Map();
 
     if (pipelineTablesExist) {
       try {
+        // Get kitchen selections for these units
+        const { data: kitchenRows, error: kitchenError } = await supabaseAdmin
+          .from('kitchen_selections')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('development_id', developmentId);
+
+        if (kitchenError) {
+          console.error('[Pipeline Development API] Error fetching kitchen selections:', kitchenError);
+        } else {
+          for (const row of kitchenRows || []) {
+            kitchenSelections.set(row.unit_id as string, row);
+          }
+        }
+
         // Get pipeline records for these units using Supabase
         const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
           .from('unit_sales_pipeline')
@@ -224,6 +250,7 @@ export async function GET(
       .map((unit) => {
         const pipeline = pipelineData.get(unit.id);
         const notes = notesCounts.get(pipeline?.id || '') || { total: 0, unresolved: 0 };
+        const kitchen = kitchenSelections.get(unit.id);
 
         // Debug: Log if pipeline has queries data
         if (pipeline?.queries_raised_date) {
@@ -272,6 +299,14 @@ export async function GET(
           salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,
           notesCount: notes.total,
           unresolvedNotesCount: notes.unresolved,
+          kitchenSelection: kitchen ? {
+            hasKitchen: kitchen.has_kitchen || false,
+            counterType: kitchen.counter_type || null,
+            cabinetColor: kitchen.unit_finish || null,
+            handleStyle: kitchen.handle_style || null,
+            hasWardrobe: kitchen.has_wardrobe || false,
+            notes: kitchen.notes || null,
+          } : null,
         };
       })
       .filter((unit) => {

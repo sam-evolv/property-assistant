@@ -52,6 +52,15 @@ function naturalSort(a: string, b: string): number {
 // Types
 // =============================================================================
 
+interface KitchenSelection {
+  hasKitchen: boolean;
+  counterType: string | null;
+  cabinetColor: string | null;
+  handleStyle: string | null;
+  hasWardrobe: boolean;
+  notes: string | null;
+}
+
 interface PipelineUnit {
   id: string;
   unitNumber: string;
@@ -89,6 +98,8 @@ interface PipelineUnit {
   bathrooms?: number | null;
   floorAreaM2?: number | null;
   squareFootage?: number | null;
+  // Kitchen selection data
+  kitchenSelection?: KitchenSelection | null;
 }
 
 interface Development {
@@ -451,6 +462,163 @@ function QueriesCell({ queriesRaisedDate, queriesRepliedDate, onClick }: Queries
           <span className="text-gray-300">—</span>
         )}
       </div>
+    </td>
+  );
+}
+
+// =============================================================================
+// Kitchen Options Constants
+// =============================================================================
+
+const COUNTER_OPTIONS = [
+  { code: 'CT1', label: 'Show House Counter' },
+  { code: 'CT2', label: 'White with Gold/Black Vein' },
+  { code: 'CT3', label: 'Wood' },
+  { code: 'CT4', label: 'Black/Yellow' },
+  { code: 'CT5', label: 'Grey Counter' },
+  { code: 'CT6', label: 'White with Brown Vein' },
+];
+
+const CABINET_OPTIONS = ['Green', 'Charcoal', 'Navy', 'White', 'Dust Grey', 'Light Grey'];
+
+const HANDLE_OPTIONS = Array.from({ length: 16 }, (_, i) => `H${i + 1}`);
+
+// =============================================================================
+// Kitchen Cell Component with Popover
+// =============================================================================
+
+interface KitchenCellProps {
+  unit: PipelineUnit;
+  developmentId: string;
+  onUpdateKitchenDate: (unitId: string, field: string, value: string) => void;
+}
+
+function KitchenCell({ unit, developmentId, onUpdateKitchenDate }: KitchenCellProps) {
+  const [showPopover, setShowPopover] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  
+  const kitchenSelection = unit.kitchenSelection;
+  const hasKitchen = kitchenSelection?.hasKitchen || false;
+  const kitchenDate = unit.kitchenDate;
+  
+  const isComplete = hasKitchen && kitchenDate;
+  
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowPopover(false);
+      }
+    };
+    if (showPopover) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPopover]);
+
+  const handleCellClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowPopover(true);
+  };
+
+  const getCounterLabel = (code: string | null) => {
+    if (!code) return '—';
+    const option = COUNTER_OPTIONS.find(o => o.code === code);
+    return option ? `${code} - ${option.label}` : code;
+  };
+
+  return (
+    <td className="border-l border-gray-50 relative">
+      <div
+        onClick={handleCellClick}
+        className="h-11 px-2 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group"
+        style={isComplete ? { background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' } : undefined}
+      >
+        <div className="flex items-center gap-1.5">
+          <div 
+            className={`w-2.5 h-2.5 rounded-full ${isComplete ? 'bg-emerald-500' : hasKitchen ? 'bg-amber-500' : 'bg-red-400'}`}
+          />
+          {kitchenDate ? (
+            <span className="text-xs font-medium text-emerald-700">{formatDate(kitchenDate)}</span>
+          ) : (
+            <span className="text-xs text-gray-400">Select</span>
+          )}
+        </div>
+      </div>
+
+      {/* Kitchen Popover */}
+      {showPopover && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowPopover(false)} />
+          <div
+            ref={popoverRef}
+            className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Kitchen Selection</h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {isComplete ? 'Complete' : 'Pending'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">{unit.unitNumber} • {unit.purchaserName || 'No purchaser'}</p>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Kitchen</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded ${hasKitchen ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                  {hasKitchen ? 'Yes' : 'No'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Counter</span>
+                <span className="text-xs font-medium text-gray-900">{getCounterLabel(kitchenSelection?.counterType || null)}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Cabinet</span>
+                <span className="text-xs font-medium text-gray-900">{kitchenSelection?.cabinetColor || '—'}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Handle</span>
+                <span className="text-xs font-medium text-gray-900">{kitchenSelection?.handleStyle || '—'}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Wardrobes</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded ${kitchenSelection?.hasWardrobe ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                  {kitchenSelection?.hasWardrobe ? 'Yes' : 'No'}
+                </span>
+              </div>
+
+              {kitchenSelection?.notes && (
+                <div className="pt-2 border-t border-gray-100">
+                  <span className="text-xs text-gray-500 block mb-1">Notes</span>
+                  <p className="text-xs text-gray-700 bg-gray-50 p-2 rounded-lg">{kitchenSelection.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowPopover(false);
+                  router.push(`/developer/kitchen-selections/${developmentId}?unit=${unit.id}`);
+                }}
+                className="w-full py-2 px-4 text-xs font-semibold text-white rounded-lg transition-colors"
+                style={{ backgroundColor: tokens.gold }}
+              >
+                Edit Selection
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </td>
   );
 }
@@ -2035,13 +2203,10 @@ export default function PipelineDevelopmentPage() {
                               onChase={() => handleChaseEmail(unit, 'contracts')}
                             />
                             <DateCell value={unit.counterSignedDate} unitId={unit.id} field="counterSignedDate" onUpdate={handleUpdate} />
-                            <DateCell 
-                              value={unit.kitchenDate} 
-                              unitId={unit.id} 
-                              field="kitchenDate" 
-                              onUpdate={handleUpdate}
-                              trafficLight={computeTrafficLight(unit.kitchenDate, unit.signedContractsDate, 14, 28)}
-                              onChase={() => handleChaseEmail(unit, 'kitchen')}
+                            <KitchenCell 
+                              unit={unit}
+                              developmentId={developmentId}
+                              onUpdateKitchenDate={handleUpdate}
                             />
                           </>
                         )}

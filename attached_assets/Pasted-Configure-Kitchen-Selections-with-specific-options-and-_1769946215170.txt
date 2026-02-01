@@ -1,0 +1,171 @@
+Configure Kitchen Selections with specific options and wire up to Sales Pipeline
+
+1. Add Kitchen Selection Options (Dropdowns)
+
+Update the Kitchen Selections page to use these specific options:
+
+Counter Top Options
+
+CodeDescriptionCT1Show House CounterCT2White with Gold/Black VeinCT3WoodCT4Black/YellowCT5Grey CounterCT6White with Brown Vein
+
+Cabinet Color Options
+
+
+
+
+
+Green
+
+
+
+Charcoal
+
+
+
+Navy
+
+
+
+White
+
+
+
+Dust Grey
+
+
+
+Light Grey
+
+Handle Options
+
+
+
+
+
+H1 through H16 (dropdown with H1, H2, H3... H16)
+
+Additional Fields Needed
+
+
+
+
+
+Wardrobes - Yes/No toggle
+
+
+
+Notes - Text field for notes (important - lots of notes around kitchen selections)
+
+2. Wire Up to Sales Pipeline
+
+In the Sales Pipeline table, the KITCHEN column should:
+
+
+
+
+
+Show status indicator:
+
+
+
+
+
+🔴 Red/empty = Kitchen not selected yet
+
+
+
+🟢 Green = Kitchen selection complete
+
+
+
+Be clickable - When clicked, show a popover/modal with:
+
+
+
+
+
+Kitchen: Yes/No
+
+
+
+Counter: CT3 - Wood (or whatever was selected)
+
+
+
+Cabinet: Green
+
+
+
+Handle: H9
+
+
+
+Wardrobes: Yes/No
+
+
+
+Notes: "Double Oven Option - wants wardrobes in master bedroom"
+
+
+
+Link to edit - "Edit Selection" button that takes you to the Kitchen Selections page for that unit
+
+3. Database Schema
+
+Make sure these columns exist in unit_sales_pipeline (or a linked kitchen_selections table):
+
+sql
+
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_selected BOOLEAN DEFAULT FALSE;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_counter TEXT;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_cabinet TEXT;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_handle TEXT;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_wardrobes BOOLEAN DEFAULT FALSE;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_notes TEXT;
+ALTER TABLE unit_sales_pipeline ADD COLUMN IF NOT EXISTS kitchen_date TIMESTAMP;
+
+4. Color Coding in Kitchen Selections Table
+
+Match the Excel styling:
+
+
+
+
+
+Kitchen = Yes → Green background (#10b981)
+
+
+
+Kitchen = No → Red background (#ef4444)
+
+
+
+Wardrobes = Yes → Green background
+
+
+
+Wardrobes = No → Red background
+
+5. Kitchen Selections Page Improvements
+
+
+
+
+
+Show purchaser name prominently (not just "—")
+
+
+
+Make cells editable inline (click to edit)
+
+
+
+Add "Notes" column that shows truncated notes with full text on hover
+
+
+
+Add Export to Excel button
+
+
+
+Add Import from Excel button
