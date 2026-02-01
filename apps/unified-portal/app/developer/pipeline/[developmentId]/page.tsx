@@ -1020,16 +1020,30 @@ function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, o
     );
   }
 
+  if (currentName) {
+    return (
+      <p 
+        onClick={handleClick}
+        className={`text-xs truncate cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 -ml-1.5 rounded transition-all text-gray-700 ${
+          showSuccess ? 'bg-green-100' : ''
+        }`}
+        title="Click to edit purchaser name"
+      >
+        {currentName}
+      </p>
+    );
+  }
+
   return (
-    <p 
+    <span 
       onClick={handleClick}
-      className={`text-xs truncate cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 -ml-1.5 rounded transition-all ${
-        showSuccess ? 'bg-green-100' : ''
-      } ${currentName ? 'text-gray-700' : 'text-gray-400 italic'}`}
-      title="Click to edit purchaser name"
+      className={`text-xs font-medium cursor-pointer px-2 py-0.5 rounded transition-all ${
+        showSuccess ? 'bg-green-200' : 'bg-green-100 hover:bg-green-200'
+      } text-green-700`}
+      title="Click to add purchaser"
     >
-      {currentName || '+ Add purchaser'}
-    </p>
+      For Sale
+    </span>
   );
 }
 
@@ -1905,6 +1919,9 @@ export default function PipelineDevelopmentPage() {
     }
   }, [housingFilter]);
   
+  // Status filter (for-sale, sale-agreed, contracts, complete)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'for-sale' | 'sale-agreed' | 'contracts' | 'complete'>('all');
+  
   const [columnLabels, setColumnLabels] = useState<Record<string, string>>({
     releaseDate: 'Release',
     saleAgreedDate: 'Agreed',
@@ -2093,7 +2110,7 @@ export default function PipelineDevelopmentPage() {
   };
 
   // Filter units based on housing filter
-  const filteredUnits = units.filter(unit => {
+  let filteredUnits = units.filter(unit => {
     if (housingFilter === 'private') {
       return unit.saleType !== 'social';
     }
@@ -2103,11 +2120,38 @@ export default function PipelineDevelopmentPage() {
     return true; // 'all'
   });
   
+  // Apply status filter
+  filteredUnits = filteredUnits.filter(unit => {
+    switch (statusFilter) {
+      case 'for-sale':
+        return !unit.purchaserName;
+      case 'sale-agreed':
+        return unit.purchaserName && !unit.signedContractsDate;
+      case 'contracts':
+        return unit.signedContractsDate && !unit.handoverDate;
+      case 'complete':
+        return !!unit.handoverDate;
+      default:
+        return true;
+    }
+  });
+  
   const sortedUnits = [...filteredUnits].sort((a, b) => naturalSort(a.unitNumber, b.unitNumber));
   
   // Count for filter tabs
   const privateCount = units.filter(u => u.saleType !== 'social').length;
   const socialCount = units.filter(u => u.saleType === 'social').length;
+  
+  // Status counts (based on currently filtered by housing type)
+  const housingFilteredUnits = units.filter(unit => {
+    if (housingFilter === 'private') return unit.saleType !== 'social';
+    if (housingFilter === 'social') return unit.saleType === 'social';
+    return true;
+  });
+  const forSaleCount = housingFilteredUnits.filter(u => !u.purchaserName).length;
+  const saleAgreedCount = housingFilteredUnits.filter(u => u.purchaserName && !u.signedContractsDate).length;
+  const contractsCount = housingFilteredUnits.filter(u => u.signedContractsDate && !u.handoverDate).length;
+  const completeCount = housingFilteredUnits.filter(u => u.handoverDate).length;
 
   if (isLoading) {
     return (
@@ -2294,7 +2338,7 @@ export default function PipelineDevelopmentPage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                {/* Filter Tabs */}
+                {/* Housing Type Filter */}
                 <div className="flex items-center bg-gray-100 rounded-lg p-1">
                   <button
                     onClick={() => setHousingFilter('all')}
@@ -2328,15 +2372,63 @@ export default function PipelineDevelopmentPage() {
                   </button>
                 </div>
                 
+                {/* Status Filter */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'all'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    All Status
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('for-sale')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'for-sale'
+                        ? 'bg-green-500 text-white shadow-sm'
+                        : 'text-green-600 hover:text-green-700'
+                    }`}
+                  >
+                    For Sale ({forSaleCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('sale-agreed')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'sale-agreed'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-amber-600 hover:text-amber-700'
+                    }`}
+                  >
+                    Sale Agreed ({saleAgreedCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('contracts')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'contracts'
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'text-blue-600 hover:text-blue-700'
+                    }`}
+                  >
+                    Contracts ({contractsCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('complete')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'complete'
+                        ? 'bg-gray-700 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-700'
+                    }`}
+                  >
+                    Complete ({completeCount})
+                  </button>
+                </div>
+                
                 {/* Units count badge */}
                 <span className="text-xs text-gray-500">
-                  {housingFilter !== 'all' && (
-                    <span>
-                      Showing {sortedUnits.length} {housingFilter} units
-                      {housingFilter === 'private' && socialCount > 0 && ` (${socialCount} social hidden)`}
-                      {housingFilter === 'social' && privateCount > 0 && ` (${privateCount} private hidden)`}
-                    </span>
-                  )}
+                  {sortedUnits.length} units
                 </span>
               </div>
             </div>
@@ -2372,24 +2464,45 @@ export default function PipelineDevelopmentPage() {
                   {sortedUnits.map((unit) => {
                     const isSelected = selectedRows.has(unit.id);
                     const isSocialHousing = unit.saleType === 'social';
+                    const isForSale = !unit.purchaserName && !isSocialHousing;
                     const progress = isSocialHousing ? getSocialHousingProgress(unit) : getProgress(unit);
                     const socialBgColor = '#F8F7F5';
                     const socialHoverBgColor = '#F3F2EE';
+                    const forSaleBgColor = '#f0fdf4';
+                    const forSaleHoverBgColor = '#dcfce7';
+                    
+                    // Determine row background
+                    const getRowBgColor = () => {
+                      if (isSocialHousing) return socialBgColor;
+                      if (isForSale) return forSaleBgColor;
+                      return undefined;
+                    };
+                    
+                    const getHoverBgColor = () => {
+                      if (isSocialHousing) return socialHoverBgColor;
+                      if (isForSale) return forSaleHoverBgColor;
+                      return undefined;
+                    };
                     
                     return (
                       <tr
                         key={unit.id}
-                        className={`table-row cursor-pointer ${isSelected ? 'selected' : ''} ${isSocialHousing ? 'social-housing-row' : ''}`}
-                        style={isSocialHousing ? { backgroundColor: socialBgColor } : undefined}
+                        className={`table-row cursor-pointer ${isSelected ? 'selected' : ''} ${isSocialHousing ? 'social-housing-row' : ''} ${isForSale ? 'for-sale-row' : ''}`}
+                        style={{ 
+                          backgroundColor: getRowBgColor(),
+                          borderLeft: isForSale ? '3px solid #22c55e' : undefined
+                        }}
                         onClick={() => setSelectedUnit(unit)}
                         onMouseEnter={(e) => {
-                          if (isSocialHousing) {
-                            e.currentTarget.style.backgroundColor = socialHoverBgColor;
+                          const hoverColor = getHoverBgColor();
+                          if (hoverColor) {
+                            e.currentTarget.style.backgroundColor = hoverColor;
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (isSocialHousing) {
-                            e.currentTarget.style.backgroundColor = socialBgColor;
+                          const bgColor = getRowBgColor();
+                          if (bgColor) {
+                            e.currentTarget.style.backgroundColor = bgColor;
                           }
                         }}
                       >

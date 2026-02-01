@@ -84,6 +84,18 @@ export function HomeownersList({
   // Count for filter tabs
   const privateCount = homeowners.filter(u => !u.is_social_housing).length;
   const socialCount = homeowners.filter(u => u.is_social_housing).length;
+  
+  // Status filter
+  const [statusFilter, setStatusFilter] = useState<'all' | 'for-sale' | 'sold'>('all');
+  
+  // Status counts (based on housing filter)
+  const housingFiltered = homeowners.filter(u => {
+    if (housingFilter === 'private') return !u.is_social_housing;
+    if (housingFilter === 'social') return u.is_social_housing;
+    return true;
+  });
+  const forSaleCount = housingFiltered.filter(u => !u.purchaser_name).length;
+  const soldCount = housingFiltered.filter(u => !!u.purchaser_name).length;
 
   // Selection handlers
   const toggleSelection = useCallback((id: string, e: React.MouseEvent) => {
@@ -195,6 +207,13 @@ export function HomeownersList({
     } else if (housingFilter === 'social') {
       result = result.filter(unit => unit.is_social_housing);
     }
+    
+    // Apply status filter
+    if (statusFilter === 'for-sale') {
+      result = result.filter(unit => !unit.purchaser_name);
+    } else if (statusFilter === 'sold') {
+      result = result.filter(unit => !!unit.purchaser_name);
+    }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -233,7 +252,7 @@ export function HomeownersList({
     });
 
     return result;
-  }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion, housingFilter]);
+  }, [homeowners, searchQuery, filterStatus, sortBy, currentVersion, housingFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const acknowledged = homeowners.filter(u => hasUnitAcknowledged(u)).length;
@@ -304,6 +323,40 @@ export function HomeownersList({
                     }`}
                   >
                     Social ({socialCount})
+                  </button>
+                </div>
+                
+                {/* Status Filter */}
+                <div className="flex items-center bg-grey-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'all'
+                        ? 'bg-white text-grey-900 shadow-sm'
+                        : 'text-grey-500 hover:text-grey-700'
+                    }`}
+                  >
+                    All Status
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('for-sale')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'for-sale'
+                        ? 'bg-green-500 text-white shadow-sm'
+                        : 'text-green-600 hover:text-green-700'
+                    }`}
+                  >
+                    For Sale ({forSaleCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('sold')}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === 'sold'
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'text-blue-600 hover:text-blue-700'
+                    }`}
+                  >
+                    Sold ({soldCount})
                   </button>
                 </div>
                 <span className="text-grey-400">|</span>
@@ -487,7 +540,8 @@ export function HomeownersList({
               {filteredAndSorted.map((unit) => {
                 const houseNum = extractHouseNumber(unit.address, unit.unit_number);
                 const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
-                const residentName = unit.purchaser_name || unit.resident_name || unit.name || 'Unassigned';
+                const residentName = unit.purchaser_name || unit.resident_name || unit.name;
+                const isForSale = !unit.purchaser_name && !unit.resident_name && !unit.name;
 
                 const hasAgreed = hasUnitAcknowledged(unit);
                 const houseType = unit.house_type_code || 'Not specified';
@@ -496,11 +550,14 @@ export function HomeownersList({
                 return (
                   <div
                     key={unit.id}
-                    className={`group rounded-xl border backdrop-blur-sm bg-white hover:shadow-lg transition-all overflow-hidden relative ${
+                    className={`group rounded-xl border backdrop-blur-sm hover:shadow-lg transition-all overflow-hidden relative ${
                       isSelected
                         ? 'border-gold-400 ring-2 ring-gold-200'
-                        : 'border-gold-200/30 hover:border-gold-300/50'
+                        : isForSale 
+                          ? 'border-green-300 bg-green-50 hover:border-green-400'
+                          : 'border-gold-200/30 hover:border-gold-300/50 bg-white'
                     }`}
+                    style={isForSale ? { borderLeft: '3px solid #22c55e' } : undefined}
                   >
                     {/* Checkbox */}
                     <button
@@ -524,9 +581,15 @@ export function HomeownersList({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-grey-900 truncate group-hover:text-gold-600 transition">
-                            {residentName}
-                          </h3>
+                          {isForSale ? (
+                            <span className="inline-block px-2.5 py-1 text-sm font-medium rounded-md bg-green-100 text-green-700">
+                              For Sale
+                            </span>
+                          ) : (
+                            <h3 className="text-base font-semibold text-grey-900 truncate group-hover:text-gold-600 transition">
+                              {residentName}
+                            </h3>
+                          )}
                           
                           <div className="mt-1 space-y-1">
                             <div className="flex items-center gap-1.5 text-xs text-grey-500">

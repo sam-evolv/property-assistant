@@ -1,0 +1,123 @@
+---
+
+**Change "Unassigned" to "For Sale" + Add Filter for Available Stock**
+
+## Changes Required
+
+### 1. Change "Unassigned" Label to "For Sale"
+
+Everywhere that currently shows "Unassigned", change to "For Sale":
+
+```javascript
+// Instead of:
+const displayName = purchaser_name || 'Unassigned';
+
+// Use:
+const displayName = purchaser_name || 'For Sale';
+```
+
+Style "For Sale" distinctly - green badge to indicate availability:
+
+```jsx
+{purchaser_name ? (
+  <span>{purchaser_name}</span>
+) : (
+  <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm font-medium">
+    For Sale
+  </span>
+)}
+```
+
+### 2. Sales Pipeline Filter
+
+Add filter tabs/dropdown:
+
+```
+┌────────────┬─────────────┬──────────────┬──────────────┐
+│ All (40)   │ For Sale (9)│ In Progress (22)│ Complete (9) │
+└────────────┴─────────────┴──────────────┴──────────────┘
+```
+
+Or as a dropdown alongside the Private/Social filter:
+
+```
+[Private ▼]  [All Statuses ▼]
+              ├── All Statuses
+              ├── For Sale (no purchaser)
+              ├── Sale Agreed (has purchaser, no contract)
+              ├── Contracts Signed
+              └── Complete
+```
+
+Filter logic:
+
+```javascript
+const filterByStatus = (units, status) => {
+  switch (status) {
+    case 'for-sale':
+      return units.filter(u => !u.purchaser_name);
+    case 'sale-agreed':
+      return units.filter(u => u.purchaser_name && !u.contracts_signed);
+    case 'contracts':
+      return units.filter(u => u.contracts_signed && !u.handover_date);
+    case 'complete':
+      return units.filter(u => u.handover_date);
+    default:
+      return units;
+  }
+};
+```
+
+### 3. Homeowners Page Filter
+
+Add same filter to Homeowners page:
+
+```
+Homeowners - Árdan View
+
+[All ▼] [For Sale ▼]  🔍 Search...
+         ├── All Units
+         ├── For Sale (9)
+         ├── Sold (with purchaser)
+         └── Handed Over
+```
+
+### 4. Summary Cards Update
+
+Add "For Sale" count to summary cards:
+
+```
+┌─────────────┬─────────────┬─────────────┬─────────────┐
+│ TOTAL UNITS │ FOR SALE    │ IN PROGRESS │ COMPLETE    │
+│     52      │     9       │     34      │      9      │
+│             │ Available   │             │             │
+└─────────────┴─────────────┴─────────────┴─────────────┘
+```
+
+### 5. Quick Access Button
+
+Add a prominent "View Available Stock" button on the Overview page:
+
+```
+┌─────────────────────────────────────┐
+│ 🏠 9 Units For Sale                 │
+│ View available stock →              │
+└─────────────────────────────────────┘
+```
+
+Clicking it goes to Sales Pipeline filtered to "For Sale" units.
+
+### 6. For Sale Styling
+
+Make "For Sale" units visually distinct:
+- Green left border or background tint
+- "For Sale" badge instead of empty name
+- Sort option to show For Sale units first
+
+```jsx
+<tr className={!purchaser_name ? 'bg-green-50 border-l-4 border-green-500' : ''}>
+  ...
+</tr>
+```
+
+---
