@@ -102,7 +102,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {navSections.map((section, idx) => (
             <div key={idx}>
-              <p className="px-4 py-2 text-xs font-semibold text-white/60 uppercase tracking-wider">
+              <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: '#9CA3AF' }}>
                 {section.title}
               </p>
               <div className="space-y-1">
@@ -117,8 +117,9 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
                       className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium ${
                         active
                           ? 'bg-gold-500 text-white shadow-lg'
-                          : 'text-white hover:bg-gold-500/10 hover:text-gold-300'
+                          : 'hover:bg-gold-500/10 hover:text-gold-300'
                       }`}
+                      style={active ? undefined : { color: '#F9FAFB' }}
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       <span>{item.label}</span>
