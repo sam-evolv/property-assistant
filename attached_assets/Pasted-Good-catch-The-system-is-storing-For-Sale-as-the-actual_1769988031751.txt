@@ -1,0 +1,116 @@
+Good catch! The system is storing "For Sale" as the actual purchaser name instead of clearing it. Here's the fix:
+
+---
+
+**Fix "For Sale" Status - Clear Name Instead of Storing String**
+
+## Problem
+
+When a sale falls through and the user wants to re-list a unit as "For Sale", typing "For Sale" in the name field stores it as a literal name instead of clearing the field.
+
+## Solution
+
+### 1. Add "Clear / Mark as For Sale" Button
+
+When editing a purchaser name, add a clear button:
+
+```jsx
+{isEditing && (
+  <div className="flex items-center gap-2">
+    <input
+      type="text"
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+      className="border rounded px-2 py-1"
+      placeholder="Enter purchaser name..."
+    />
+    <button onClick={handleSave} className="text-green-600">✓</button>
+    <button onClick={() => setIsEditing(false)} className="text-gray-600">✕</button>
+    
+    {/* Add clear button */}
+    <button 
+      onClick={handleClearAndMarkForSale}
+      className="text-red-600 text-sm ml-2 hover:underline"
+    >
+      Mark as For Sale
+    </button>
+  </div>
+)}
+```
+
+### 2. Clear Function
+
+```javascript
+const handleClearAndMarkForSale = async () => {
+  await supabase
+    .from('unit_sales_pipeline')
+    .update({ 
+      purchaser_name: null,
+      // Optionally clear other sale-related fields:
+      // status: 'available',
+      // deposit_date: null,
+      // contracts_signed: null,
+    })
+    .eq('unit_id', unitId);
+  
+  onUpdate(null);
+  setIsEditing(false);
+  toast.success('Unit marked as For Sale');
+};
+```
+
+### 3. Handle "For Sale" Text Input
+
+If user types "For Sale" or clears the field, treat it as null:
+
+```javascript
+const handleSave = async () => {
+  // Normalize the input
+  const trimmedName = name.trim();
+  
+  // If empty or "For Sale", set to null
+  const finalName = (!trimmedName || trimmedName.toLowerCase() === 'for sale') 
+    ? null 
+    : trimmedName;
+  
+  await supabase
+    .from('unit_sales_pipeline')
+    .update({ purchaser_name: finalName })
+    .eq('unit_id', unitId);
+  
+  onUpdate(finalName);
+  setIsEditing(false);
+};
+```
+
+### 4. Fix Current Data
+
+Run this SQL to fix any units that have "For Sale" as literal name:
+
+```sql
+UPDATE unit_sales_pipeline
+SET purchaser_name = NULL
+WHERE purchaser_name ILIKE '%for sale%'
+   OR purchaser_name = ''
+   OR purchaser_name = '-';
+```
+
+### 5. Display Logic (Unchanged)
+
+The display logic stays the same - show "For Sale" badge when `purchaser_name` is NULL:
+
+```javascript
+const displayName = purchaser_name || 'For Sale';
+```
+
+### 6. Visual Indicator in Edit Mode
+
+Show current status clearly:
+
+```jsx
+<div className="text-xs text-gray-500 mt-1">
+  {currentName ? 'Sale in progress' : '✓ Currently listed as For Sale'}
+</div>
+```
+
+---

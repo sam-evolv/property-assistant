@@ -935,7 +935,7 @@ interface EditablePurchaserNameProps {
   unitId: string;
   currentName: string | null;
   developmentId: string;
-  onUpdate: (unitId: string, newName: string) => void;
+  onUpdate: (unitId: string, newName: string | null) => void;
   onShowToast: (message: string) => void;
 }
 
@@ -959,7 +959,13 @@ function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, o
   };
 
   const handleSave = async () => {
-    if (name.trim() === (currentName || '').trim()) {
+    // Normalize the input - if empty or "For Sale", set to null
+    const trimmedName = name.trim();
+    const finalName = (!trimmedName || trimmedName.toLowerCase() === 'for sale') 
+      ? null 
+      : trimmedName;
+    
+    if (finalName === (currentName || null)) {
       setIsEditing(false);
       return;
     }
@@ -968,17 +974,37 @@ function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, o
       const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: 'purchaserName', value: name.trim() }),
+        body: JSON.stringify({ field: 'purchaserName', value: finalName }),
       });
       
       if (response.ok) {
-        onUpdate(unitId, name.trim());
+        onUpdate(unitId, finalName);
         setShowSuccess(true);
-        onShowToast('Purchaser name updated');
+        onShowToast(finalName ? 'Purchaser name updated' : 'Unit marked as For Sale');
         setTimeout(() => setShowSuccess(false), 1500);
       }
     } catch (error) {
       console.error('Failed to update purchaser name:', error);
+    }
+    setIsEditing(false);
+  };
+  
+  const handleMarkForSale = async () => {
+    try {
+      const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'purchaserName', value: null }),
+      });
+      
+      if (response.ok) {
+        onUpdate(unitId, null);
+        setShowSuccess(true);
+        onShowToast('Unit marked as For Sale');
+        setTimeout(() => setShowSuccess(false), 1500);
+      }
+    } catch (error) {
+      console.error('Failed to mark as for sale:', error);
     }
     setIsEditing(false);
   };
@@ -1000,22 +1026,39 @@ function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, o
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={handleKeyDown}
-          onBlur={handleSave}
-          className="w-44 px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+          onBlur={(e) => {
+            // Don't save on blur if clicking Mark as For Sale button
+            if (e.relatedTarget?.getAttribute('data-action') !== 'mark-for-sale') {
+              handleSave();
+            }
+          }}
+          className="w-36 px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
           placeholder="Enter purchaser name..."
         />
         <button 
           onClick={handleSave} 
           className="w-5 h-5 flex items-center justify-center rounded bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+          title="Save"
         >
           <Check className="w-3 h-3" />
         </button>
         <button 
           onClick={() => setIsEditing(false)} 
-          className="w-5 h-5 flex items-center justify-center rounded bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+          title="Cancel"
         >
           <X className="w-3 h-3" />
         </button>
+        {currentName && (
+          <button 
+            data-action="mark-for-sale"
+            onClick={handleMarkForSale}
+            className="text-xs text-red-600 hover:text-red-700 hover:underline whitespace-nowrap"
+            title="Clear purchaser and mark as For Sale"
+          >
+            Clear
+          </button>
+        )}
       </div>
     );
   }
