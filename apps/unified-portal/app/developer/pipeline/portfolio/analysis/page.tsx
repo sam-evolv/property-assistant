@@ -90,7 +90,7 @@ export default function PortfolioAnalysisPage() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: tokens.gold, borderTopColor: 'transparent' }} />
-          <p className="text-sm text-gray-900">Loading portfolio analytics...</p>
+          <p className="text-sm text-black">Loading portfolio analytics...</p>
         </div>
       </div>
     );
@@ -131,11 +131,11 @@ export default function PortfolioAnalysisPage() {
               onClick={() => router.push('/developer/pipeline')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-900" />
+              <ArrowLeft className="w-5 h-5 text-black" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Portfolio Analytics</h1>
-              <p className="text-sm text-gray-900 mt-0.5">
+              <h1 className="text-2xl font-bold text-black">Portfolio Analytics</h1>
+              <p className="text-sm text-black mt-0.5">
                 Combined analysis across {data?.portfolioOverview?.totalDevelopments || 0} developments
               </p>
             </div>
@@ -152,7 +152,7 @@ export default function PortfolioAnalysisPage() {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'text-white'
-                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                    : 'bg-gray-100 text-black hover:bg-gray-200'
                 }`}
                 style={activeTab === tab.key ? { backgroundColor: tokens.gold, color: tokens.dark } : {}}
               >
@@ -247,7 +247,7 @@ function OverviewTab({ data }: { data: any }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Development</h3>
+          <h3 className="text-lg font-semibold text-black mb-4">Revenue by Development</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -271,11 +271,11 @@ function OverviewTab({ data }: { data: any }) {
         </div>
 
         <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Combined Pipeline Funnel</h3>
+          <h3 className="text-lg font-semibold text-black mb-4">Combined Pipeline Funnel</h3>
           <div className="space-y-3">
             {(data?.funnel || []).map((stage: any, idx: number) => (
               <div key={stage.stage} className="flex items-center gap-3">
-                <div className="w-32 text-sm text-gray-900">{stage.label}</div>
+                <div className="w-32 text-sm text-black">{stage.label}</div>
                 <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
@@ -286,7 +286,7 @@ function OverviewTab({ data }: { data: any }) {
                     }}
                   />
                 </div>
-                <div className="w-16 text-right text-sm font-medium text-gray-900">
+                <div className="w-16 text-right text-sm font-medium text-black">
                   {stage.count}
                 </div>
               </div>
@@ -296,23 +296,23 @@ function OverviewTab({ data }: { data: any }) {
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Housing Summary</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Social Housing Summary</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Development</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Social Units</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Housing Agency</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Status</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Development</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Social Units</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Housing Agency</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Status</th>
               </tr>
             </thead>
             <tbody>
               {(data?.socialSummary || []).map((row: any) => (
                 <tr key={row.developmentId} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">{row.developmentName}</td>
-                  <td className="py-3 px-4 text-right text-gray-900">{row.socialUnits}</td>
-                  <td className="py-3 px-4 text-gray-900">{row.housingAgency}</td>
+                  <td className="py-3 px-4 font-medium text-black">{row.developmentName}</td>
+                  <td className="py-3 px-4 text-right text-black">{row.socialUnits}</td>
+                  <td className="py-3 px-4 text-black">{row.housingAgency}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       row.status === 'Complete' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
@@ -322,9 +322,9 @@ function OverviewTab({ data }: { data: any }) {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-gray-50 font-semibold text-gray-900">
+              <tr className="bg-gray-50 font-semibold text-black">
                 <td className="py-3 px-4">Total</td>
-                <td className="py-3 px-4 text-right text-gray-900">
+                <td className="py-3 px-4 text-right text-black">
                   {(data?.socialSummary || []).reduce((sum: number, r: any) => sum + r.socialUnits, 0)}
                 </td>
                 <td className="py-3 px-4" colSpan={2}></td>
@@ -343,18 +343,18 @@ function ComparisonTab({ data }: { data: any }) {
   return (
     <div className="space-y-8">
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Development Comparison</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Development Comparison</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Development</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Units</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Sold</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Revenue</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Avg Price</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">PC Sums</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900">Adjusted Rev</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Development</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Units</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Sold</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Revenue</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Avg Price</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">PC Sums</th>
+                <th className="text-right py-3 px-4 font-semibold text-black">Adjusted Rev</th>
               </tr>
             </thead>
             <tbody>
@@ -363,29 +363,29 @@ function ComparisonTab({ data }: { data: any }) {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dev.color }} />
-                      <span className="font-medium text-gray-900">{dev.name}</span>
+                      <span className="font-medium text-black">{dev.name}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-right text-gray-900">{dev.privateUnits}</td>
+                  <td className="py-3 px-4 text-right text-black">{dev.privateUnits}</td>
                   <td className="py-3 px-4 text-right text-green-600 font-medium">{dev.sold}</td>
                   <td className="py-3 px-4 text-right font-medium" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</td>
-                  <td className="py-3 px-4 text-right text-gray-900">{formatEuro(dev.avgPrice)}</td>
-                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                  <td className="py-3 px-4 text-right text-black">{formatEuro(dev.avgPrice)}</td>
+                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-black'}`}>
                     {dev.pcSumTotal < 0 ? formatEuro(dev.pcSumTotal) : '€0'}
                   </td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{formatEuro(dev.adjustedRevenue)}</td>
+                  <td className="py-3 px-4 text-right font-medium text-black">{formatEuro(dev.adjustedRevenue)}</td>
                 </tr>
               ))}
-              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300 text-gray-900">
+              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300 text-black">
                 <td className="py-3 px-4">TOTAL</td>
-                <td className="py-3 px-4 text-right text-gray-900">{developments.reduce((s: number, d: any) => s + d.privateUnits, 0)}</td>
+                <td className="py-3 px-4 text-right text-black">{developments.reduce((s: number, d: any) => s + d.privateUnits, 0)}</td>
                 <td className="py-3 px-4 text-right text-green-600">{developments.reduce((s: number, d: any) => s + d.sold, 0)}</td>
                 <td className="py-3 px-4 text-right" style={{ color: tokens.goldDark }}>{formatEuro(developments.reduce((s: number, d: any) => s + d.revenue, 0))}</td>
-                <td className="py-3 px-4 text-right text-gray-900">—</td>
-                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                <td className="py-3 px-4 text-right text-black">—</td>
+                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-black'}`}>
                   {formatEuro(developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0))}
                 </td>
-                <td className="py-3 px-4 text-right text-gray-900">{formatEuro(developments.reduce((s: number, d: any) => s + d.adjustedRevenue, 0))}</td>
+                <td className="py-3 px-4 text-right text-black">{formatEuro(developments.reduce((s: number, d: any) => s + d.adjustedRevenue, 0))}</td>
               </tr>
             </tbody>
           </table>
@@ -393,14 +393,14 @@ function ComparisonTab({ data }: { data: any }) {
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Benchmarks</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Performance Benchmarks</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Metric</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Metric</th>
                 {developments.map((dev: any) => (
-                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-900">
+                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-black">
                     <div className="flex items-center justify-end gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dev.color }} />
                       {dev.name}
@@ -413,9 +413,9 @@ function ComparisonTab({ data }: { data: any }) {
             <tbody>
               {(data?.benchmarks || []).map((row: any) => (
                 <tr key={row.metric} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">{row.metric}</td>
+                  <td className="py-3 px-4 font-medium text-black">{row.metric}</td>
                   {developments.map((dev: any) => (
-                    <td key={dev.id} className="py-3 px-4 text-right text-gray-900">
+                    <td key={dev.id} className="py-3 px-4 text-right text-black">
                       {row.metric.includes('Rate') 
                         ? `${row[dev.id]}%`
                         : row.metric.includes('Time')
@@ -432,14 +432,14 @@ function ComparisonTab({ data }: { data: any }) {
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Price Comparison by House Type</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Price Comparison by House Type</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Type</th>
+                <th className="text-left py-3 px-4 font-semibold text-black">Type</th>
                 {developments.map((dev: any) => (
-                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-gray-900">{dev.name}</th>
+                  <th key={dev.id} className="text-right py-3 px-4 font-semibold text-black">{dev.name}</th>
                 ))}
                 <th className="text-right py-3 px-4 font-semibold" style={{ color: tokens.gold }}>Overall Avg</th>
               </tr>
@@ -447,9 +447,9 @@ function ComparisonTab({ data }: { data: any }) {
             <tbody>
               {(data?.priceComparison || []).map((row: any) => (
                 <tr key={row.type} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">{row.type}</td>
+                  <td className="py-3 px-4 font-medium text-black">{row.type}</td>
                   {developments.map((dev: any) => (
-                    <td key={dev.id} className="py-3 px-4 text-right text-gray-900">
+                    <td key={dev.id} className="py-3 px-4 text-right text-black">
                       {row[dev.id] ? formatEuro(row[dev.id]) : '—'}
                     </td>
                   ))}
@@ -472,8 +472,8 @@ function VelocityTab({ data }: { data: any }) {
   return (
     <div className="space-y-8">
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales Velocity by Development</h3>
-        <p className="text-sm text-gray-900 mb-4">Units sold per month across all developments</p>
+        <h3 className="text-lg font-semibold text-black mb-4">Sales Velocity by Development</h3>
+        <p className="text-sm text-black mb-4">Units sold per month across all developments</p>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.velocityTrend || []}>
@@ -501,21 +501,21 @@ function VelocityTab({ data }: { data: any }) {
           <div key={dev.id} className="bg-white border-2 border-gray-200 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dev.color }} />
-              <h4 className="font-semibold text-gray-900">{dev.name}</h4>
+              <h4 className="font-semibold text-black">{dev.name}</h4>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-900">Avg Cycle Time</span>
-                <span className="font-medium text-gray-900">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</span>
+                <span className="text-sm text-black">Avg Cycle Time</span>
+                <span className="font-medium text-black">{dev.avgCycle > 0 ? `${dev.avgCycle} days` : '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-900">Completion Rate</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-sm text-black">Completion Rate</span>
+                <span className="font-medium text-black">
                   {dev.privateUnits > 0 ? `${Math.round((dev.sold / dev.privateUnits) * 100)}%` : '—'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-900">Total Sold</span>
+                <span className="text-sm text-black">Total Sold</span>
                 <span className="font-medium text-green-600">{dev.sold}</span>
               </div>
             </div>
@@ -532,7 +532,7 @@ function PipelineTab({ data }: { data: any }) {
   return (
     <div className="space-y-8">
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Combined Pipeline Funnel</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Combined Pipeline Funnel</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={funnel} layout="vertical">
@@ -548,20 +548,20 @@ function PipelineTab({ data }: { data: any }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Funnel Breakdown</h3>
+          <h3 className="text-lg font-semibold text-black mb-4">Funnel Breakdown</h3>
           <div className="space-y-3">
             {funnel.map((stage: any, idx: number) => {
               const dropOff = idx > 0 ? funnel[idx - 1].count - stage.count : 0;
               return (
                 <div key={stage.stage} className="flex items-center justify-between py-2 border-b border-gray-100">
                   <div>
-                    <span className="font-medium text-gray-900">{stage.label}</span>
+                    <span className="font-medium text-black">{stage.label}</span>
                     {dropOff > 0 && (
                       <span className="ml-2 text-xs text-red-500">-{dropOff}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-900">{stage.percentage}%</span>
+                    <span className="text-sm text-black">{stage.percentage}%</span>
                     <span className="font-semibold" style={{ color: tokens.goldDark }}>{stage.count}</span>
                   </div>
                 </div>
@@ -571,7 +571,7 @@ function PipelineTab({ data }: { data: any }) {
         </div>
 
         <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversion Rates</h3>
+          <h3 className="text-lg font-semibold text-black mb-4">Conversion Rates</h3>
           <div className="space-y-4">
             {funnel.slice(1).map((stage: any, idx: number) => {
               const prevCount = funnel[idx].count;
@@ -579,8 +579,8 @@ function PipelineTab({ data }: { data: any }) {
               return (
                 <div key={stage.stage}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-900">{funnel[idx].label} → {stage.label}</span>
-                    <span className="font-medium text-gray-900">{convRate}%</span>
+                    <span className="text-black">{funnel[idx].label} → {stage.label}</span>
+                    <span className="font-medium text-black">{convRate}%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
@@ -633,7 +633,7 @@ function RevenueTab({ data }: { data: any }) {
           <p className="text-2xl font-bold" style={{ color: tokens.goldDark }}>
             {formatEuro(overview.adjustedRevenue || overview.totalRevenue || 0)}
           </p>
-          <p className="text-xs text-gray-900 mt-1">Adjusted Revenue</p>
+          <p className="text-xs text-black mt-1">Adjusted Revenue</p>
           {hasPcSumDeductions && (
             <p className="text-xs text-red-500 mt-0.5">
               ({formatEuro(overview.totalPcSumDeductions)} PC sums)
@@ -643,7 +643,7 @@ function RevenueTab({ data }: { data: any }) {
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Cash Flow by Development</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Cash Flow by Development</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.cashFlowProjection || []}>
@@ -665,14 +665,14 @@ function RevenueTab({ data }: { data: any }) {
           </ResponsiveContainer>
         </div>
         {hasPcSumDeductions && (
-          <p className="text-xs text-gray-900 mt-3">
+          <p className="text-xs text-black mt-3">
             * Projected revenue adjusted for {formatEuro(overview.totalPcSumDeductions)} in PC sum deductions ({overview.totalTakingOwnKitchen + overview.totalTakingOwnWardrobes} units taking own kitchen/wardrobes)
           </p>
         )}
       </div>
 
       <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Distribution</h3>
+        <h3 className="text-lg font-semibold text-black mb-4">Revenue Distribution</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -700,11 +700,11 @@ function RevenueTab({ data }: { data: any }) {
               <div key={dev.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: dev.color }} />
-                  <span className="font-medium text-gray-900">{dev.name}</span>
+                  <span className="font-medium text-black">{dev.name}</span>
                 </div>
                 <div className="text-right">
                   <div className="font-semibold" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</div>
-                  <div className="text-xs text-gray-900">{dev.percentage}% of portfolio</div>
+                  <div className="text-xs text-black">{dev.percentage}% of portfolio</div>
                 </div>
               </div>
             ))}
@@ -757,20 +757,20 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Current Stage</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Days Stuck</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Purchaser</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Current Stage</th>
+                  <th className="text-right py-2 px-3 font-semibold text-black">Days Stuck</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.stuckUnits.map((unit: any) => (
                   <tr key={unit.id} className="border-b border-gray-100 hover:bg-red-50">
-                    <td className="py-2 px-3 font-medium text-gray-900">{unit.unitNumber}</td>
-                    <td className="py-2 px-3 text-gray-900">{unit.developmentName}</td>
-                    <td className="py-2 px-3 text-gray-900">{unit.purchaserName || '—'}</td>
-                    <td className="py-2 px-3 text-gray-900">{unit.currentStage}</td>
+                    <td className="py-2 px-3 font-medium text-black">{unit.unitNumber}</td>
+                    <td className="py-2 px-3 text-black">{unit.developmentName}</td>
+                    <td className="py-2 px-3 text-black">{unit.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 text-black">{unit.currentStage}</td>
                     <td className="py-2 px-3 text-right text-red-600 font-semibold">{unit.daysStuck} days</td>
                   </tr>
                 ))}
@@ -790,18 +790,18 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Days Open</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Purchaser</th>
+                  <th className="text-right py-2 px-3 font-semibold text-black">Days Open</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.openQueries.map((query: any) => (
                   <tr key={query.id} className="border-b border-gray-100 hover:bg-amber-50">
-                    <td className="py-2 px-3 font-medium text-gray-900">{query.unitNumber}</td>
-                    <td className="py-2 px-3 text-gray-900">{query.developmentName}</td>
-                    <td className="py-2 px-3 text-gray-900">{query.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 font-medium text-black">{query.unitNumber}</td>
+                    <td className="py-2 px-3 text-black">{query.developmentName}</td>
+                    <td className="py-2 px-3 text-black">{query.purchaserName || '—'}</td>
                     <td className="py-2 px-3 text-right text-amber-600 font-semibold">{query.daysOpen} days</td>
                   </tr>
                 ))}
@@ -821,20 +821,20 @@ function AlertsTab({ data }: { data: any }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Unit</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Development</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Purchaser</th>
-                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Expected Date</th>
-                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Price</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Unit</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Development</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Purchaser</th>
+                  <th className="text-left py-2 px-3 font-semibold text-black">Expected Date</th>
+                  <th className="text-right py-2 px-3 font-semibold text-black">Price</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.upcomingHandovers.map((handover: any) => (
                   <tr key={handover.id} className="border-b border-gray-100 hover:bg-green-50">
-                    <td className="py-2 px-3 font-medium text-gray-900">{handover.unitNumber}</td>
-                    <td className="py-2 px-3 text-gray-900">{handover.developmentName}</td>
-                    <td className="py-2 px-3 text-gray-900">{handover.purchaserName || '—'}</td>
-                    <td className="py-2 px-3 text-gray-900">{new Date(handover.expectedDate).toLocaleDateString('en-IE')}</td>
+                    <td className="py-2 px-3 font-medium text-black">{handover.unitNumber}</td>
+                    <td className="py-2 px-3 text-black">{handover.developmentName}</td>
+                    <td className="py-2 px-3 text-black">{handover.purchaserName || '—'}</td>
+                    <td className="py-2 px-3 text-black">{new Date(handover.expectedDate).toLocaleDateString('en-IE')}</td>
                     <td className="py-2 px-3 text-right font-semibold" style={{ color: tokens.goldDark }}>
                       {handover.price > 0 ? formatEuro(handover.price) : '—'}
                     </td>
@@ -854,7 +854,7 @@ function MetricCard({ icon, label, value, color }: { icon: React.ReactNode; labe
     <div className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow">
       <div className="flex items-center gap-2 mb-2" style={{ color }}>
         {icon}
-        <span className="text-xs font-semibold text-gray-900 uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-semibold text-black uppercase tracking-wider">{label}</span>
       </div>
       <p className="text-2xl font-bold" style={{ color }}>{value}</p>
     </div>

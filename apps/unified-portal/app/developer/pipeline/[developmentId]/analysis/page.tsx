@@ -120,25 +120,25 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 function CardTitle({ children, icon: Icon }: { children: React.ReactNode; icon?: any }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      {Icon && <Icon className="w-5 h-5 text-gray-900" />}
-      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">{children}</h3>
+      {Icon && <Icon className="w-5 h-5" style={{ color: '#111827' }} />}
+      <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: '#111827' }}>{children}</h3>
     </div>
   );
 }
 
 function MetricBox({ label, value, subtext, color = 'gray' }: { label: string; value: string | number; subtext?: string; color?: string }) {
-  const colorClasses: Record<string, string> = {
-    gray: 'text-gray-900',
-    gold: 'text-amber-600',
-    green: 'text-green-600',
-    red: 'text-red-600',
-    blue: 'text-blue-600',
+  const colorStyles: Record<string, string> = {
+    gray: '#111827',
+    gold: '#d97706',
+    green: '#16a34a',
+    red: '#dc2626',
+    blue: '#2563eb',
   };
   return (
     <div>
-      <p className="text-xs font-medium text-gray-900 uppercase tracking-wider">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${colorClasses[color] || colorClasses.gray}`}>{value}</p>
-      {subtext && <p className="text-xs text-gray-900 mt-1">{subtext}</p>}
+      <p className="text-xs font-medium uppercase tracking-wider" style={{ color: '#111827' }}>{label}</p>
+      <p className="text-2xl font-bold mt-1" style={{ color: colorStyles[color] || colorStyles.gray }}>{value}</p>
+      {subtext && <p className="text-xs mt-1" style={{ color: '#111827' }}>{subtext}</p>}
     </div>
   );
 }
@@ -149,7 +149,7 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
     <div className="space-y-3">
       {metrics.map((m) => (
         <div key={m.stage} className="flex items-center gap-4">
-          <div className="w-40 text-xs text-gray-900 text-right">{m.label}</div>
+          <div className="w-40 text-xs text-right" style={{ color: '#111827' }}>{m.label}</div>
           <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
             <div
               className="h-full rounded-full transition-all"
@@ -158,11 +158,11 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
                 background: `linear-gradient(90deg, ${tokens.gold}, ${tokens.goldLight})`,
               }}
             />
-            <span className="absolute inset-y-0 right-3 flex items-center text-xs font-medium text-gray-900">
+            <span className="absolute inset-y-0 right-3 flex items-center text-xs font-medium" style={{ color: '#111827' }}>
               {m.avgDays > 0 ? formatDays(m.avgDays) : 'N/A'}
             </span>
           </div>
-          <div className="w-16 text-xs text-gray-900 text-right">{m.count} units</div>
+          <div className="w-16 text-xs text-right" style={{ color: '#111827' }}>{m.count} units</div>
         </div>
       ))}
     </div>
@@ -172,9 +172,9 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
 function SalesFunnel({ funnel }: { funnel: { stage: string; label: string; count: number; percentage: number }[] }) {
   return (
     <div className="space-y-2">
-      {funnel.map((f, i) => (
+      {funnel.map((f) => (
         <div key={f.stage} className="flex items-center gap-3">
-          <div className="w-32 text-xs text-gray-900 text-right">{f.label}</div>
+          <div className="w-32 text-xs text-right" style={{ color: '#111827' }}>{f.label}</div>
           <div className="flex-1 h-7 bg-gray-100 rounded overflow-hidden relative">
             <div
               className="h-full transition-all"
@@ -186,7 +186,7 @@ function SalesFunnel({ funnel }: { funnel: { stage: string; label: string; count
               }}
             />
           </div>
-          <div className="w-12 text-sm font-semibold text-gray-900 text-right">{f.count}</div>
+          <div className="w-12 text-sm font-semibold text-right" style={{ color: '#111827' }}>{f.count}</div>
         </div>
       ))}
     </div>
@@ -240,7 +240,7 @@ export default function AnalysisPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 rounded-full border-3 border-amber-500 border-t-transparent animate-spin mx-auto" style={{ borderWidth: 3 }} />
-          <p className="text-sm text-gray-900 mt-4">Loading analytics...</p>
+          <p className="text-sm text-black mt-4">Loading analytics...</p>
         </div>
       </div>
     );
@@ -251,8 +251,8 @@ export default function AnalysisPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Failed to load analytics</h2>
-          <p className="text-sm text-gray-900 mb-6">{error}</p>
+          <h2 className="text-lg font-semibold text-black mb-2">Failed to load analytics</h2>
+          <p className="text-sm text-black mb-6">{error}</p>
           <button onClick={fetchAnalytics} className="px-4 py-2 bg-amber-500 text-black font-medium rounded-lg hover:bg-amber-600 transition-colors">
             Try Again
           </button>
@@ -273,11 +273,11 @@ export default function AnalysisPage() {
                 onClick={() => router.push(`/developer/pipeline/${developmentId}`)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-gray-900" />
+                <ArrowLeft className="w-5 h-5 text-black" />
               </button>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Sales Pipeline Analysis</h1>
-                <p className="text-sm text-gray-900">{developmentName}</p>
+                <h1 className="text-xl font-bold text-black">Sales Pipeline Analysis</h1>
+                <p className="text-sm text-black">{developmentName}</p>
               </div>
             </div>
           </div>
@@ -290,7 +290,7 @@ export default function AnalysisPage() {
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'border-amber-500 text-amber-600'
-                    : 'border-transparent text-gray-900 hover:text-gray-900 hover:border-gray-300'
+                    : 'border-transparent text-black hover:text-black hover:border-gray-300'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -348,7 +348,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-900">
+                <div className="h-64 flex items-center justify-center text-black">
                   <p>No velocity data available</p>
                 </div>
               )}
@@ -362,10 +362,10 @@ export default function AnalysisPage() {
               <CardTitle icon={Clock}>Average Sales Cycle</CardTitle>
               <StageFunnel metrics={velocity.stageMetrics} />
               <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900">Total Cycle (Release → Handover)</span>
+                <span className="text-sm font-medium text-black">Total Cycle (Release → Handover)</span>
                 <div className="text-right">
                   <span className="text-xl font-bold" style={{ color: tokens.gold }}>{velocity.totalCycleAvg} days</span>
-                  <span className="text-xs text-gray-900 ml-2">({velocity.totalCycleCount} units)</span>
+                  <span className="text-xs text-black ml-2">({velocity.totalCycleCount} units)</span>
                 </div>
               </div>
             </Card>
@@ -388,7 +388,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-72 flex items-center justify-center text-gray-900">
+                <div className="h-72 flex items-center justify-center text-black">
                   <p>No velocity data available</p>
                 </div>
               )}
@@ -400,10 +400,10 @@ export default function AnalysisPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Metric</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Unit</th>
-                      <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Days</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Purchaser</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Metric</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Unit</th>
+                      <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Days</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Purchaser</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -412,7 +412,7 @@ export default function AnalysisPage() {
                         <td className="py-3 px-3 text-green-600 font-medium">Fastest Sale</td>
                         <td className="py-3 px-3 font-medium">{velocity.fastestSale.unitNumber}</td>
                         <td className="py-3 px-3 text-right font-mono text-green-600">{velocity.fastestSale.days}</td>
-                        <td className="py-3 px-3 text-gray-900">{velocity.fastestSale.purchaserName || '—'}</td>
+                        <td className="py-3 px-3 text-black">{velocity.fastestSale.purchaserName || '—'}</td>
                       </tr>
                     )}
                     {velocity.slowestSale && (
@@ -420,7 +420,7 @@ export default function AnalysisPage() {
                         <td className="py-3 px-3 text-red-600 font-medium">Slowest Sale</td>
                         <td className="py-3 px-3 font-medium">{velocity.slowestSale.unitNumber}</td>
                         <td className="py-3 px-3 text-right font-mono text-red-600">{velocity.slowestSale.days}</td>
-                        <td className="py-3 px-3 text-gray-900">{velocity.slowestSale.purchaserName || '—'}</td>
+                        <td className="py-3 px-3 text-black">{velocity.slowestSale.purchaserName || '—'}</td>
                       </tr>
                     )}
                     {velocity.fastestCompletion && (
@@ -428,7 +428,7 @@ export default function AnalysisPage() {
                         <td className="py-3 px-3 text-green-600 font-medium">Fastest Completion</td>
                         <td className="py-3 px-3 font-medium">{velocity.fastestCompletion.unitNumber}</td>
                         <td className="py-3 px-3 text-right font-mono text-green-600">{velocity.fastestCompletion.days}</td>
-                        <td className="py-3 px-3 text-gray-900">{velocity.fastestCompletion.purchaserName || '—'}</td>
+                        <td className="py-3 px-3 text-black">{velocity.fastestCompletion.purchaserName || '—'}</td>
                       </tr>
                     )}
                     {velocity.slowestCompletion && (
@@ -436,12 +436,12 @@ export default function AnalysisPage() {
                         <td className="py-3 px-3 text-red-600 font-medium">Slowest Completion</td>
                         <td className="py-3 px-3 font-medium">{velocity.slowestCompletion.unitNumber}</td>
                         <td className="py-3 px-3 text-right font-mono text-red-600">{velocity.slowestCompletion.days}</td>
-                        <td className="py-3 px-3 text-gray-900">{velocity.slowestCompletion.purchaserName || '—'}</td>
+                        <td className="py-3 px-3 text-black">{velocity.slowestCompletion.purchaserName || '—'}</td>
                       </tr>
                     )}
                     {!velocity.fastestSale && !velocity.slowestSale && (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-gray-900">No completed sales data available</td>
+                        <td colSpan={4} className="py-8 text-center text-black">No completed sales data available</td>
                       </tr>
                     )}
                   </tbody>
@@ -466,10 +466,10 @@ export default function AnalysisPage() {
                     <AlertTriangle className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-gray-900">
+                    <p className="text-lg font-semibold text-black">
                       {pipelineHealth.bottleneck.stage} averages {pipelineHealth.bottleneck.avgDays} days
                     </p>
-                    <p className="text-sm text-gray-900">This is the longest stage in your pipeline</p>
+                    <p className="text-sm text-black">This is the longest stage in your pipeline</p>
                   </div>
                 </div>
               </Card>
@@ -482,19 +482,19 @@ export default function AnalysisPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Unit</th>
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Current Stage</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Days at Stage</th>
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Purchaser</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Unit</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Current Stage</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Days at Stage</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Purchaser</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {pipelineHealth.attentionUnits.map(u => (
                         <tr key={u.id} className="hover:bg-gray-50">
                           <td className="py-3 px-3 font-medium">{u.unitNumber}</td>
-                          <td className="py-3 px-3 text-gray-900">{u.currentStage}</td>
+                          <td className="py-3 px-3 text-black">{u.currentStage}</td>
                           <td className="py-3 px-3 text-right font-mono text-red-600">{u.daysAtStage} days</td>
-                          <td className="py-3 px-3 text-gray-900">{u.purchaserName || '—'}</td>
+                          <td className="py-3 px-3 text-black">{u.purchaserName || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -516,15 +516,15 @@ export default function AnalysisPage() {
               </div>
               <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-gray-100">
                 <div className="text-center">
-                  <p className="text-xs text-gray-900">Same Day</p>
+                  <p className="text-xs" style={{ color: '#111827' }}>Same Day</p>
                   <p className="text-lg font-semibold text-green-600">{pipelineHealth.queries.sameDayResponses}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-xs text-gray-900">Fastest</p>
-                  <p className="text-lg font-semibold">{pipelineHealth.queries.fastestResponse !== null ? `${pipelineHealth.queries.fastestResponse} days` : 'N/A'}</p>
+                  <p className="text-xs" style={{ color: '#111827' }}>Fastest</p>
+                  <p className="text-lg font-semibold" style={{ color: '#111827' }}>{pipelineHealth.queries.fastestResponse !== null ? `${pipelineHealth.queries.fastestResponse} days` : 'N/A'}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-xs text-gray-900">Slowest</p>
+                  <p className="text-xs" style={{ color: '#111827' }}>Slowest</p>
                   <p className="text-lg font-semibold text-red-600">{pipelineHealth.queries.slowestResponse !== null ? `${pipelineHealth.queries.slowestResponse} days` : 'N/A'}</p>
                 </div>
               </div>
@@ -548,16 +548,16 @@ export default function AnalysisPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Type</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Units</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Avg Price</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Min</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Max</th>
-                        <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Total Revenue</th>
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-black uppercase">Type</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Units</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Avg Price</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Min</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Max</th>
+                        <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Total Revenue</th>
                         {revenue.priceByType.some(p => p.avgSqFt) && (
                           <>
-                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">Avg Sq Ft</th>
-                            <th className="text-right py-3 px-3 text-xs font-semibold text-gray-900 uppercase">€/Sq Ft</th>
+                            <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">Avg Sq Ft</th>
+                            <th className="text-right py-3 px-3 text-xs font-semibold text-black uppercase">€/Sq Ft</th>
                           </>
                         )}
                       </tr>
@@ -565,16 +565,16 @@ export default function AnalysisPage() {
                     <tbody className="divide-y divide-gray-50">
                       {revenue.priceByType.map(p => (
                         <tr key={p.type} className="hover:bg-gray-50">
-                          <td className="py-3 px-3 font-medium text-gray-900">{p.typeName}</td>
+                          <td className="py-3 px-3 font-medium text-black">{p.typeName}</td>
                           <td className="py-3 px-3 text-right text-gray-800">{p.units}</td>
                           <td className="py-3 px-3 text-right font-mono" style={{ color: tokens.gold }}>{formatEuro(p.avgPrice)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-gray-900">{formatEuro(p.minPrice)}</td>
-                          <td className="py-3 px-3 text-right font-mono text-gray-900">{formatEuro(p.maxPrice)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-black">{formatEuro(p.minPrice)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-black">{formatEuro(p.maxPrice)}</td>
                           <td className="py-3 px-3 text-right font-mono font-semibold">{formatEuro(p.totalRevenue)}</td>
                           {revenue.priceByType.some(pt => pt.avgSqFt) && (
                             <>
-                              <td className="py-3 px-3 text-right text-gray-900">{p.avgSqFt || '—'}</td>
-                              <td className="py-3 px-3 text-right text-gray-900">{p.avgPricePerSqFt ? `€${p.avgPricePerSqFt}` : '—'}</td>
+                              <td className="py-3 px-3 text-right text-black">{p.avgSqFt || '—'}</td>
+                              <td className="py-3 px-3 text-right text-black">{p.avgPricePerSqFt ? `€${p.avgPricePerSqFt}` : '—'}</td>
                             </>
                           )}
                         </tr>
@@ -583,7 +583,7 @@ export default function AnalysisPage() {
                   </table>
                 </div>
               ) : (
-                <div className="py-8 text-center text-gray-900">No pricing data available</div>
+                <div className="py-8 text-center text-black">No pricing data available</div>
               )}
             </Card>
 
@@ -607,8 +607,8 @@ export default function AnalysisPage() {
               <div className="grid md:grid-cols-3 gap-4">
                 {forecasting.upcomingHandovers.map(h => (
                   <div key={h.period} className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm font-medium text-gray-900">{h.period}</p>
-                    <p className="text-2xl font-bold mt-1">{h.units}</p>
+                    <p className="text-sm font-medium" style={{ color: '#111827' }}>{h.period}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: '#111827' }}>{h.units}</p>
                     <p className="text-sm font-mono mt-1" style={{ color: tokens.gold }}>{formatEuro(h.projectedRevenue)}</p>
                   </div>
                 ))}
@@ -635,7 +635,7 @@ export default function AnalysisPage() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-72 flex items-center justify-center text-gray-900">
+                <div className="h-72 flex items-center justify-center text-black">
                   <p>No cash flow data available</p>
                 </div>
               )}
