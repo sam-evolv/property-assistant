@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
@@ -123,37 +123,9 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
 
     // SECURITY: Validate token matches claimed unit - cross-unit access forbidden
-    let isAuthenticated = false;
+    const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
     
-    if (token) {
-      // First try cryptographically signed QR token
-      const payload = await validateQRToken(token);
-      if (payload) {
-        // SECURITY: Token's embedded unit must match claimed unit
-        if (payload.supabaseUnitId === unitUid) {
-          isAuthenticated = true;
-          console.log(`[DocsListAPI] QR token validated for unit ${unitUid}`);
-        } else {
-          // SECURITY: Cross-unit access attempt - token valid but for different unit
-          logSecurityViolation({
-            request_id: requestId,
-            unit_uid: unitUid,
-            attempted_resource: `token_unit:${payload.supabaseUnitId}`,
-            reason: 'Token unit mismatch in docs-list - cross-unit access blocked',
-          });
-        }
-      }
-      
-      // Fallback: Allow demo/direct access if token matches unitUid (UUID format)
-      // This allows users who accessed via direct link to view their documents
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!isAuthenticated && uuidPattern.test(token) && token === unitUid) {
-        isAuthenticated = true;
-        console.log(`[DocsListAPI] Demo/direct access for unit ${unitUid}`);
-      }
-    }
-    
-    if (!isAuthenticated) {
+    if (!tokenResult.valid) {
       logSecurityViolation({
         request_id: requestId,
         unit_uid: unitUid,
@@ -164,6 +136,8 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    
+    console.log(`[DocsListAPI] Token validated for unit ${unitUid} (showhouse: ${tokenResult.isShowhouse})`);
     
     // STEP 1: Resolve unit's project_id and house_type_code from Supabase
     const { data: supabaseUnit, error: unitError } = await supabase

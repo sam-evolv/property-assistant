@@ -1,0 +1,92 @@
+The Docs tab is losing the session/authentication. Give Replit this:
+
+-----
+
+**Fix Docs Tab - Session Expired Error**
+
+## Problem
+
+The Docs tab shows “Session Expired” while the other tabs (Assistant, Maps, Noticeboard) work fine. This means the Docs tab is not receiving or using the session token correctly.
+
+## Likely Cause
+
+The Docs tab is making an API call that requires authentication but:
+
+1. Not passing the session token in the request, OR
+1. Using a different API endpoint that isn’t configured for the purchaser session, OR
+1. The session check is more strict on this endpoint
+
+## Fix
+
+### 1. Check How Other Tabs Pass Authentication
+
+Look at how Assistant, Maps, and Noticeboard tabs pass the session/token and make sure Docs does the same:
+
+```javascript
+// All tabs should pass auth the same way
+const { data } = await supabase
+  .from('documents')
+  .select('*')
+  .eq('unit_id', unitId)  // or however docs are fetched
+```
+
+### 2. Check the Docs API Endpoint
+
+If Docs uses a separate API endpoint, ensure it accepts the same session:
+
+```javascript
+// If using fetch
+const response = await fetch('/api/purchaser/documents', {
+  headers: {
+    'Authorization': `Bearer ${session.token}`,  // Make sure this is included
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+### 3. Check Supabase RLS Policies
+
+The `documents` or `document_sections` table might have stricter RLS policies:
+
+```sql
+-- Check existing policies
+SELECT * FROM pg_policies WHERE tablename = 'document_sections';
+```
+
+May need to add a policy allowing purchaser access:
+
+```sql
+CREATE POLICY "Purchasers can view documents for their development"
+ON document_sections FOR SELECT
+USING (
+  project_id IN (
+    SELECT project_id FROM units WHERE id = current_unit_id()
+  )
+);
+```
+
+### 4. Session Persistence
+
+Make sure the session is stored consistently across all tabs:
+
+```javascript
+// On login, store session
+sessionStorage.setItem('purchaserSession', JSON.stringify(session));
+
+// On each tab, retrieve it the same way
+const session = JSON.parse(sessionStorage.getItem('purchaserSession'));
+```
+
+### 5. Quick Debug
+
+Add console logging to the Docs tab to see what’s happening:
+
+```javascript
+console.log('Session on Docs tab:', session);
+console.log('Unit ID:', unitId);
+console.log('Fetching documents...');
+```
+
+Check browser console for errors when clicking the Docs tab.
+
+-----
