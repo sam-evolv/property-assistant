@@ -73,9 +73,10 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId: string = unit.tenant_id;
+    const developmentId = unit.development_id;
     const now = new Date();
     
-    console.log('[Noticeboard GET] Fetching posts for tenant:', tenantId, 'unit:', unitUid);
+    console.log('[Noticeboard GET] Fetching posts for tenant:', tenantId, 'development:', developmentId, 'unit:', unitUid);
 
     const posts = await db
       .select({
@@ -93,6 +94,8 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(noticeboard_posts.tenant_id, tenantId),
+          // Filter by development to only show posts from user's development
+          developmentId ? eq(noticeboard_posts.development_id, developmentId) : undefined,
           eq(noticeboard_posts.active, true),
           isNull(noticeboard_posts.hidden_at),
           or(
