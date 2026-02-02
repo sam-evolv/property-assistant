@@ -96,6 +96,51 @@ export default function PurchaserProfilePanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'home' | 'documents'>('home');
+  
+  const [debugInfo, setDebugInfo] = useState<{
+    propToken: string;
+    storageToken: string;
+    sessionToken: string;
+    cookieToken: string;
+    effectiveToken: string;
+    timestamp: string;
+  } | null>(null);
+  
+  useEffect(() => {
+    let storageToken = 'NULL';
+    let sessionToken = 'NULL';
+    let cookieToken = 'NULL';
+    
+    try {
+      storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
+    } catch (e: any) {
+      storageToken = 'ERROR: ' + e.message;
+    }
+    
+    try {
+      sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
+    } catch (e: any) {
+      sessionToken = 'ERROR: ' + e.message;
+    }
+    
+    try {
+      const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
+      cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
+    } catch (e: any) {
+      cookieToken = 'ERROR: ' + e.message;
+    }
+    
+    const effectiveToken = propToken || getEffectiveToken(unitUid);
+    
+    setDebugInfo({
+      propToken: propToken ? `${propToken.substring(0, 12)}...` : 'NULL',
+      storageToken: storageToken !== 'NULL' ? `${storageToken.substring(0, 12)}...` : 'NULL',
+      sessionToken: sessionToken !== 'NULL' ? `${sessionToken.substring(0, 12)}...` : 'NULL',
+      cookieToken: cookieToken !== 'NULL' ? `${cookieToken.substring(0, 12)}...` : 'NULL',
+      effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 12)}...` : 'NULL',
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [propToken, unitUid]);
 
   const fetchProfile = async () => {
     try {
@@ -241,9 +286,26 @@ export default function PurchaserProfilePanel({
                 </div>
               </>
             ) : (
-              <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                {error || 'Unable to load profile'}
-              </p>
+              <div>
+                <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
+                  {error || 'Unable to load profile'}
+                </p>
+                <div style={{ 
+                  padding: 16, 
+                  backgroundColor: '#1a1a2e', 
+                  color: 'white',
+                  borderRadius: 10,
+                  fontSize: 12
+                }}>
+                  <p style={{ color: '#D4AF37', fontWeight: 'bold', marginBottom: 8 }}>DEBUG: Profile Token Info</p>
+                  <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
+                  <p><strong>localStorage:</strong> {debugInfo?.storageToken || 'loading...'}</p>
+                  <p><strong>sessionStorage:</strong> {debugInfo?.sessionToken || 'loading...'}</p>
+                  <p><strong>cookie:</strong> {debugInfo?.cookieToken || 'loading...'}</p>
+                  <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
+                  <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
+                </div>
+              </div>
             )}
           </div>
 

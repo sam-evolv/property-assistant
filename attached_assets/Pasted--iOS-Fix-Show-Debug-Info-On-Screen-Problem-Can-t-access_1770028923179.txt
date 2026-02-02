@@ -1,0 +1,128 @@
+-----
+
+**iOS Fix - Show Debug Info On Screen**
+
+## Problem
+
+Can’t access Safari Web Inspector easily. Need to see debug info directly on the iOS screen.
+
+## Add Temporary On-Screen Debug
+
+### 1. In PurchaserDocumentsTab
+
+When it would show “Session Expired”, show debug info instead:
+
+```javascript
+const PurchaserDocumentsTab = ({ propToken }) => {
+  const [debugInfo, setDebugInfo] = useState({});
+  
+  useEffect(() => {
+    let storageToken = null;
+    let sessionToken = null;
+    
+    try {
+      storageToken = localStorage.getItem('purchaserToken');
+    } catch (e) {
+      storageToken = 'ERROR: ' + e.message;
+    }
+    
+    try {
+      sessionToken = sessionStorage.getItem('purchaserToken');
+    } catch (e) {
+      sessionToken = 'ERROR: ' + e.message;
+    }
+    
+    setDebugInfo({
+      propToken: propToken || 'NULL',
+      propTokenType: typeof propToken,
+      storageToken: storageToken || 'NULL',
+      sessionToken: sessionToken || 'NULL',
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [propToken]);
+
+  // TEMPORARY: Show debug info instead of Session Expired
+  const effectiveToken = propToken || debugInfo.storageToken;
+  
+  if (!effectiveToken || effectiveToken === 'NULL') {
+    return (
+      <div style={{ 
+        padding: 20, 
+        backgroundColor: '#1a1a2e', 
+        color: 'white',
+        margin: 10,
+        borderRadius: 10,
+        fontSize: 14
+      }}>
+        <h3 style={{ color: '#D4AF37' }}>🔧 Debug Info (TEMP)</h3>
+        <p><strong>propToken:</strong> {debugInfo.propToken}</p>
+        <p><strong>propToken type:</strong> {debugInfo.propTokenType}</p>
+        <p><strong>localStorage:</strong> {debugInfo.storageToken}</p>
+        <p><strong>sessionStorage:</strong> {debugInfo.sessionToken}</p>
+        <p><strong>Time:</strong> {debugInfo.timestamp}</p>
+        <p style={{ marginTop: 10, color: '#ff6b6b' }}>
+          ⚠️ No valid token found - this is why Session Expired shows
+        </p>
+      </div>
+    );
+  }
+  
+  // ... rest of normal component code
+};
+```
+
+### 2. In PurchaserProfilePanel
+
+Same approach:
+
+```javascript
+const PurchaserProfilePanel = ({ propToken }) => {
+  const [debugInfo, setDebugInfo] = useState({});
+  
+  useEffect(() => {
+    let storageToken = null;
+    try {
+      storageToken = localStorage.getItem('purchaserToken');
+    } catch (e) {
+      storageToken = 'ERROR: ' + e.message;
+    }
+    
+    setDebugInfo({
+      propToken: propToken || 'NULL',
+      storageToken: storageToken || 'NULL',
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [propToken]);
+
+  if (!propToken && !debugInfo.storageToken) {
+    return (
+      <div style={{ 
+        padding: 20, 
+        backgroundColor: '#1a1a2e', 
+        color: 'white',
+        margin: 10,
+        borderRadius: 10
+      }}>
+        <h3 style={{ color: '#D4AF37' }}>🔧 Profile Debug</h3>
+        <p><strong>propToken:</strong> {debugInfo.propToken}</p>
+        <p><strong>localStorage:</strong> {debugInfo.storageToken}</p>
+        <p><strong>Time:</strong> {debugInfo.timestamp}</p>
+      </div>
+    );
+  }
+  
+  // ... rest of normal component code
+};
+```
+
+## After Deploy
+
+1. Open iOS app
+1. Login with access code
+1. Go to Docs tab and Profile
+1. Screenshot the debug info shown on screen
+1. Share here
+
+This will tell us exactly what token values iOS is seeing.
+
+-----

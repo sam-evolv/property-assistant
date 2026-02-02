@@ -119,6 +119,55 @@ export default function PurchaserDocumentsTab({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sessionExpired, setSessionExpired] = useState(false);
   
+  const [debugInfo, setDebugInfo] = useState<{
+    propToken: string;
+    propTokenType: string;
+    storageToken: string;
+    sessionToken: string;
+    cookieToken: string;
+    inMemoryToken: string;
+    effectiveToken: string;
+    timestamp: string;
+  } | null>(null);
+  
+  useEffect(() => {
+    let storageToken = 'NULL';
+    let sessionToken = 'NULL';
+    let cookieToken = 'NULL';
+    
+    try {
+      storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
+    } catch (e: any) {
+      storageToken = 'ERROR: ' + e.message;
+    }
+    
+    try {
+      sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
+    } catch (e: any) {
+      sessionToken = 'ERROR: ' + e.message;
+    }
+    
+    try {
+      const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
+      cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
+    } catch (e: any) {
+      cookieToken = 'ERROR: ' + e.message;
+    }
+    
+    const effectiveToken = propToken || getEffectiveToken(unitUid);
+    
+    setDebugInfo({
+      propToken: propToken ? `${propToken.substring(0, 12)}...` : 'NULL',
+      propTokenType: typeof propToken,
+      storageToken: storageToken !== 'NULL' ? `${storageToken.substring(0, 12)}...` : 'NULL',
+      sessionToken: sessionToken !== 'NULL' ? `${sessionToken.substring(0, 12)}...` : 'NULL',
+      cookieToken: cookieToken !== 'NULL' ? `${cookieToken.substring(0, 12)}...` : 'NULL',
+      inMemoryToken: 'check getEffectiveToken',
+      effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 12)}...` : 'NULL',
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }, [propToken, unitUid]);
+  
   const [videos, setVideos] = useState<VideoResource[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
   const [videosFetched, setVideosFetched] = useState(false);
@@ -512,7 +561,27 @@ export default function PurchaserDocumentsTab({
 
   if (sessionExpired) {
     return (
-      <div className={`flex flex-col h-full ${bgColor}`}>
+      <div className={`flex flex-col h-full ${bgColor} p-4`}>
+        <div style={{ 
+          padding: 20, 
+          backgroundColor: '#1a1a2e', 
+          color: 'white',
+          margin: 10,
+          borderRadius: 10,
+          fontSize: 14
+        }}>
+          <h3 style={{ color: '#D4AF37', marginBottom: 12 }}>DEBUG: Session Expired - Token Info</h3>
+          <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
+          <p><strong>propToken type:</strong> {debugInfo?.propTokenType || 'loading...'}</p>
+          <p><strong>localStorage:</strong> {debugInfo?.storageToken || 'loading...'}</p>
+          <p><strong>sessionStorage:</strong> {debugInfo?.sessionToken || 'loading...'}</p>
+          <p><strong>cookie:</strong> {debugInfo?.cookieToken || 'loading...'}</p>
+          <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
+          <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
+          <p style={{ marginTop: 10, color: '#ff6b6b' }}>
+            API returned 401 - session expired
+          </p>
+        </div>
         <SessionExpiredModal
           isOpen={true}
           isDarkMode={isDarkMode}
