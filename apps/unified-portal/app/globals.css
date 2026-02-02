@@ -595,3 +595,16 @@ text, tspan, .recharts-cartesian-axis-tick-value, .recharts-legend-item-text,
   fill: #1f2937 !important;
   color: #1f2937 !important;
 }
+
+/* TEST - REMOVE AFTER CONFIRMING CSS LOADS */
+body::before {
+  content: "CSS LOADED";
+  position: fixed;
+  top: 0;
+  left: 50%;
+  background: red;
+  color: white;
+  padding: 5px 10px;
+  z-index: 99999;
+  font-size: 12px;
+}
