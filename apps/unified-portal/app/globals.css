@@ -577,3 +577,21 @@ nav,
 .text-secondary {
   color: #4b5563 !important; /* gray-600 */
 }
+
+/* FORCE ALL LIGHT TEXT TO BE READABLE - DO NOT REMOVE */
+.text-gray-200, .text-gray-300, .text-gray-400, .text-gray-500,
+.text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500,
+.text-neutral-200, .text-neutral-300, .text-neutral-400, .text-neutral-500,
+.text-zinc-200, .text-zinc-300, .text-zinc-400, .text-zinc-500 {
+  color: #1f2937 !important;
+}
+
+td, th, tr, table *, p, span, div, label, h1, h2, h3, h4, h5, h6 {
+  color: inherit;
+}
+
+text, tspan, .recharts-cartesian-axis-tick-value, .recharts-legend-item-text,
+.recharts-tooltip-item, .recharts-label {
+  fill: #1f2937 !important;
+  color: #1f2937 !important;
+}
