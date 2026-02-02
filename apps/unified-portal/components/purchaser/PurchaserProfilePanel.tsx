@@ -64,6 +64,7 @@ interface PurchaserProfilePanelProps {
   onClose: () => void;
   unitUid: string;
   isDarkMode: boolean;
+  token?: string;
 }
 
 const BER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -88,7 +89,8 @@ export default function PurchaserProfilePanel({
   isOpen, 
   onClose, 
   unitUid, 
-  isDarkMode 
+  isDarkMode,
+  token: propToken
 }: PurchaserProfilePanelProps) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,7 @@ export default function PurchaserProfilePanel({
     try {
       setLoading(true);
       setError(null);
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
       const res = await fetch(
         `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );

@@ -694,6 +694,7 @@ export default function HomeResidentPage() {
               houseType={house.house_type}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
+              token={validatedToken || undefined}
             />
           </Tabs.Content>
         </div>
@@ -715,6 +716,7 @@ export default function HomeResidentPage() {
         onClose={() => setShowProfilePanel(false)}
         unitUid={unitUid}
         isDarkMode={isDarkMode}
+        token={validatedToken || undefined}
       />
     </>
   );

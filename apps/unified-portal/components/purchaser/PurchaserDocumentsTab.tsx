@@ -50,6 +50,7 @@ interface PurchaserDocumentsTabProps {
   houseType: string;
   isDarkMode: boolean;
   selectedLanguage: string;
+  token?: string;
 }
 
 interface CategoryInfo {
@@ -104,6 +105,7 @@ export default function PurchaserDocumentsTab({
   houseType,
   isDarkMode,
   selectedLanguage,
+  token: propToken,
 }: PurchaserDocumentsTabProps) {
   // Get translations based on selected language
   const t = useMemo(() => getTranslations(selectedLanguage), [selectedLanguage]);
@@ -154,7 +156,7 @@ export default function PurchaserDocumentsTab({
   }, [unitUid]);
 
   const fetchDocuments = useCallback(async (forceRefresh = false) => {
-    const token = getEffectiveToken(unitUid);
+    const token = propToken || getEffectiveToken(unitUid);
     
     const { data: cached, isStale } = getCachedDocuments<Document[]>(unitUid, token);
     
@@ -241,7 +243,7 @@ export default function PurchaserDocumentsTab({
     if (!PURCHASER_VIDEOS_ENABLED) return;
     
     try {
-      const token = getEffectiveToken(currentUnitUid);
+      const token = propToken || getEffectiveToken(currentUnitUid);
 
       const res = await fetch(
         `/api/purchaser/videos/count?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
@@ -266,7 +268,7 @@ export default function PurchaserDocumentsTab({
     
     setVideosLoading(true);
     try {
-      const token = getEffectiveToken(currentUnitUid);
+      const token = propToken || getEffectiveToken(currentUnitUid);
 
       const res = await fetch(
         `/api/purchaser/videos?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
@@ -349,7 +351,7 @@ export default function PurchaserDocumentsTab({
         return;
       }
       
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       
