@@ -2,6 +2,75 @@ import { db } from '@openhouse/db/client';
 import { doc_chunks } from '@openhouse/db/schema';
 import { sql, and, eq } from 'drizzle-orm';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+async function getProjectIdFromDevelopmentId(developmentId: string): Promise<string | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { data: development } = await supabase
+      .from('developments')
+      .select('id, name')
+      .eq('id', developmentId)
+      .single();
+    
+    if (!development) return null;
+    
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('name', development.name)
+      .single();
+    
+    return project?.id || null;
+  } catch (error) {
+    console.error('[RETRIEVAL] Failed to map development to project:', error);
+    return null;
+  }
+}
+
+async function searchDocumentSections(
+  projectId: string,
+  queryEmbedding: number[],
+  limit: number = 10
+): Promise<RelevantChunk[]> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { data: sections, error } = await supabase
+      .from('document_sections')
+      .select('id, content, project_id')
+      .eq('project_id', projectId)
+      .not('embedding', 'is', null)
+      .limit(limit);
+    
+    if (error || !sections || sections.length === 0) {
+      console.log('[RETRIEVAL] No document_sections found for project:', projectId);
+      return [];
+    }
+    
+    console.log('[RETRIEVAL] Found', sections.length, 'document_sections for project');
+    
+    return sections.map((section: any) => ({
+      id: section.id,
+      content: section.content,
+      documentId: null,
+      chunkIndex: 0,
+      similarity: 0.5,
+      metadata: { source: 'document_sections', project_id: section.project_id },
+    }));
+  } catch (error) {
+    console.error('[RETRIEVAL] Failed to search document_sections:', error);
+    return [];
+  }
+}
 
 export interface RelevantChunk {
   id: string;
@@ -300,7 +369,7 @@ export async function getRelevantChunks(
         LIMIT ${limit}
       `);
 
-  console.log(`[RETRIEVAL] Found ${results.rows.length} relevant chunks`);
+  console.log(`[RETRIEVAL] Found ${results.rows.length} relevant chunks from doc_chunks`);
 
   // Log top results for debugging
   if (results.rows.length > 0) {
@@ -308,7 +377,7 @@ export async function getRelevantChunks(
     console.log(`[RETRIEVAL] Top similarity score: ${topSimilarity.toFixed(4)}`);
   }
 
-  return results.rows.map((row: any) => ({
+  let chunks: RelevantChunk[] = results.rows.map((row: any) => ({
     id: row.id,
     content: row.content,
     documentId: row.document_id,
@@ -316,6 +385,36 @@ export async function getRelevantChunks(
     similarity: parseFloat(row.similarity) || 0,
     metadata: row.metadata || {},
   }));
+
+  // Fallback: Search document_sections (legacy Supabase table with project_id)
+  // This catches content that exists in document_sections but not in doc_chunks
+  const minResultsThreshold = 3;
+  if (chunks.length < minResultsThreshold) {
+    console.log(`[RETRIEVAL] Fewer than ${minResultsThreshold} results, searching document_sections...`);
+    
+    const projectId = await getProjectIdFromDevelopmentId(developmentId);
+    
+    if (projectId) {
+      console.log(`[RETRIEVAL] Mapped development ${developmentId} to project ${projectId}`);
+      
+      const docSectionChunks = await searchDocumentSections(projectId, queryEmbedding, limit);
+      
+      if (docSectionChunks.length > 0) {
+        // Deduplicate by content prefix
+        const existingContents = new Set(chunks.map(c => c.content.substring(0, 100)));
+        const newChunks = docSectionChunks.filter(
+          chunk => !existingContents.has(chunk.content.substring(0, 100))
+        );
+        
+        chunks = [...chunks, ...newChunks];
+        console.log(`[RETRIEVAL] Added ${newChunks.length} chunks from document_sections`);
+      }
+    } else {
+      console.log(`[RETRIEVAL] Could not map development_id to project_id`);
+    }
+  }
+
+  return chunks;
 }
 
 export async function embedQuery(query: string): Promise<number[]> {
