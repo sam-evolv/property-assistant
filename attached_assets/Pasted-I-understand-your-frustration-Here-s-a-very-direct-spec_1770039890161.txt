@@ -1,0 +1,75 @@
+I understand your frustration. Here's a very direct, specific prompt:
+
+FINAL REQUEST: Change ALL Light Grey Text to Black - SPECIFIC FILES
+The Problem
+There is light grey text that is nearly invisible throughout the Sales Pipeline Analysis pages. This has been requested over 20 times and still isn't fixed.
+Exactly What to Do
+Step 1: Find all Tailwind grey text classes in these specific files/folders:
+bashgrep -rn "text-gray-[234]00\|text-slate-[234]00\|text-neutral-[234]00" --include="*.tsx" --include="*.jsx" apps/
+```
+
+**Step 2: Replace them ALL:**
+```
+text-gray-200 → text-gray-900
+text-gray-300 → text-gray-900  
+text-gray-400 → text-gray-800
+text-slate-200 → text-slate-900
+text-slate-300 → text-slate-900
+text-slate-400 → text-slate-800
+Step 3: Check these SPECIFIC components (from the screenshots):
+
+Sales Pipeline Analysis - Overview tab
+
+"SALES FUNNEL" labels (Released, Agreed, Deposit, etc.)
+"REVENUE SUMMARY" numbers
+"SALES VELOCITY TREND" axis labels
+
+
+Sales Pipeline Analysis - Velocity tab
+
+"AVERAGE SALES CYCLE" stage labels
+"SALES VELOCITY TREND" chart labels
+"FASTEST & SLOWEST SALES" table text
+
+
+Sales Pipeline Analysis - Pipeline tab
+
+"UNITS NEEDING ATTENTION" table text
+"QUERIES PERFORMANCE" labels
+
+
+Sales Pipeline Analysis - Forecasting tab
+
+"UPCOMING HANDOVERS" card numbers (40, 15, 68)
+"CASH FLOW PROJECTION" chart labels and axis
+
+
+
+Step 4: Also check for inline styles:
+bashgrep -rn "color.*#[cdef]" --include="*.tsx" --include="*.jsx" apps/
+grep -rn "opacity-[345]0" --include="*.tsx" --include="*.jsx" apps/
+Replace any #ccc, #ddd, #eee with #1f2937 (grey-800).
+Step 5: Check chart libraries:
+If using Recharts:
+jsx<XAxis tick={{ fill: '#1f2937' }} />
+<YAxis tick={{ fill: '#1f2937' }} />
+<Tooltip contentStyle={{ color: '#1f2937' }} />
+If using Chart.js:
+jsxoptions: {
+  scales: {
+    x: { ticks: { color: '#1f2937' } },
+    y: { ticks: { color: '#1f2937' } }
+  }
+}
+Expected Result
+ALL text in the Sales Pipeline Analysis pages should be clearly readable - dark grey or black on white/light backgrounds. No light grey text anywhere.
+Verify
+After making changes, visually check each tab:
+
+Overview ✓
+Velocity ✓
+Pipeline ✓
+Revenue ✓
+Forecasting ✓
+
+Every piece of text must be clearly visible.
