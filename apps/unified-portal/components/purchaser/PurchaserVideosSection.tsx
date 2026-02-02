@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Video, Play, X, Loader2, ExternalLink } from 'lucide-react';
+import { getEffectiveToken } from '../../lib/purchaserSession';
 
 interface VideoResource {
   id: string;
@@ -27,8 +28,7 @@ export default function PurchaserVideosSection({ unitUid, isDarkMode }: Purchase
   useEffect(() => {
     async function fetchVideos() {
       try {
-        const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-        const token = storedToken || unitUid;
+        const token = getEffectiveToken(unitUid);
 
         const res = await fetch(
           `/api/purchaser/videos?unitUid=${unitUid}&token=${encodeURIComponent(token)}`

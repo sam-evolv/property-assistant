@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { storeToken, clearToken } from '@/lib/purchaserSession';
 
 interface PurchaserSession {
   unitId: string;
@@ -37,6 +38,9 @@ export function PurchaserProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(stored);
         setSession(parsed);
+        if (parsed.unitUid && parsed.token) {
+          storeToken(parsed.unitUid, parsed.token);
+        }
       } catch (e) {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -47,9 +51,15 @@ export function PurchaserProvider({ children }: { children: ReactNode }) {
   const login = (newSession: PurchaserSession) => {
     setSession(newSession);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+    if (newSession.unitUid && newSession.token) {
+      storeToken(newSession.unitUid, newSession.token);
+    }
   };
 
   const logout = () => {
+    if (session?.unitUid) {
+      clearToken(session.unitUid);
+    }
     setSession(null);
     localStorage.removeItem(STORAGE_KEY);
   };
