@@ -97,12 +97,6 @@ export default function PurchaserProfilePanel({
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'home' | 'documents'>('home');
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchProfile();
-    }
-  }, [isOpen, unitUid]);
-
   const fetchProfile = async () => {
     try {
       setLoading(true);
@@ -125,6 +119,15 @@ export default function PurchaserProfilePanel({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      const effectiveToken = propToken || getEffectiveToken(unitUid);
+      if (effectiveToken) {
+        fetchProfile();
+      }
+    }
+  }, [isOpen, unitUid, propToken]);
 
   const handleDownload = async (doc: ProfileData['documents'][0]) => {
     if (doc.file_url) {

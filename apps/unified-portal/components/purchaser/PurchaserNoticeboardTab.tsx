@@ -541,9 +541,11 @@ export default function PurchaserNoticeboardTab({
   }, []);
 
   useEffect(() => {
-    fetchNotices();
-    checkTermsStatus();
-  }, [unitUid]);
+    if (propToken || getEffectiveToken(unitUid)) {
+      fetchNotices();
+      checkTermsStatus();
+    }
+  }, [unitUid, propToken]);
 
   useEffect(() => {
     if (selectedNotice) {

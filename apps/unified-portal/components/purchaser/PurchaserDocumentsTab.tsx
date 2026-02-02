@@ -237,7 +237,7 @@ export default function PurchaserDocumentsTab({
     } finally {
       setLoading(false);
     }
-  }, [unitUid, doFetch]);
+  }, [unitUid, doFetch, propToken]);
 
   const doVideosCountFetch = useCallback(async (currentUnitUid: string) => {
     if (!PURCHASER_VIDEOS_ENABLED) return;
@@ -261,7 +261,7 @@ export default function PurchaserDocumentsTab({
     } finally {
       setVideosCountFetched(true);
     }
-  }, []);
+  }, [propToken]);
 
   const doVideosFetch = useCallback(async (currentUnitUid: string) => {
     if (!PURCHASER_VIDEOS_ENABLED || videosFetched) return;
@@ -287,7 +287,7 @@ export default function PurchaserDocumentsTab({
       setVideosLoading(false);
       setVideosFetched(true);
     }
-  }, [videosFetched]);
+  }, [videosFetched, propToken]);
 
   useEffect(() => {
     setVideos([]);

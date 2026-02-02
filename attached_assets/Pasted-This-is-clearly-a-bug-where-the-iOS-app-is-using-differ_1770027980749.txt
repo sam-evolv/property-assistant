@@ -1,0 +1,131 @@
+This is clearly a bug where the iOS app is using different code paths for the Profile and Docs tab. The web works perfectly, so the issue is iOS-specific.
+
+-----
+
+**URGENT: Fix iOS App - Profile & Docs Tab Broken**
+
+## Problem
+
+**Web app works perfectly** (screenshots show Profile loads, Docs show 56 documents)
+
+**iOS app broken:**
+
+- Profile shows “Failed to load profile”
+- Docs tab shows “Session Expired”
+- But Assistant, Maps, Noticeboard tabs work fine
+
+## This is NOT a session issue
+
+The session is valid - other tabs work. The Profile and Docs components are checking session differently or using a different API endpoint.
+
+## Debug Steps
+
+1. Check what API endpoint the **web** Docs tab uses
+1. Check what API endpoint the **iOS** Docs tab uses
+1. They should be identical
+
+## Likely Cause
+
+The iOS app might be:
+
+1. Using an older cached version of the app
+1. Using a different route/component for Docs
+1. Checking for a different session property that doesn’t exist
+
+## Immediate Fix
+
+### For Docs Tab
+
+Find where the “Session Expired” check happens and make it match how Assistant tab checks:
+
+```javascript
+// WRONG - iOS Docs tab is probably doing this
+if (!someSpecificSessionProperty) {
+  return <SessionExpired />;
+}
+
+// RIGHT - Should check the same way Assistant tab does
+const session = getSession(); // Same function other tabs use
+if (!session?.unitId) {
+  return <SessionExpired />;
+}
+```
+
+### For Profile
+
+Find where “Failed to load profile” comes from and check:
+
+```javascript
+// Add logging
+console.log('Loading profile, session:', getSession());
+
+const loadProfile = async () => {
+  const session = getSession();
+  console.log('Session in profile:', session);
+  
+  if (!session?.unitId) {
+    console.log('No unitId in session');
+    return null;
+  }
+  
+  // Load profile...
+};
+```
+
+### Quick Fix - Use Same Session Check Everywhere
+
+Create one shared function and use it in ALL tabs:
+
+```javascript
+// shared/session.js
+export const getSession = () => {
+  const stored = localStorage.getItem('purchaserSession');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};
+
+export const isAuthenticated = () => {
+  const session = getSession();
+  return !!(session?.unitId);
+};
+```
+
+Then in EVERY tab component:
+
+```javascript
+import { isAuthenticated, getSession } from '@/shared/session';
+
+const DocsTab = () => {
+  if (!isAuthenticated()) {
+    return <SessionExpired />;
+  }
+  
+  const session = getSession();
+  return <DocumentsList unitId={session.unitId} />;
+};
+```
+
+### Check for iOS-Specific Code
+
+Search the codebase for any iOS-specific handling that might be different:
+
+```bash
+grep -r "iOS\|iPhone\|iPad\|safari" --include="*.tsx" --include="*.jsx" --include="*.ts"
+```
+
+## Test
+
+After fix:
+
+1. Open iOS app
+1. Login with access code
+1. Check Profile - should show “Welcome, Showhouse” like web
+1. Check Docs - should show 56 documents like web
+
+-----
