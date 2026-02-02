@@ -1,0 +1,150 @@
+I can see the debug info now! This is very helpful.
+
+**The token IS there** - `1144ead6-842...` is present in propToken, localStorage, sessionStorage, and cookie. So it’s NOT a token storage issue.
+
+**The problem is the API call is failing** even with a valid token.
+
+Give Replit this:
+
+-----
+
+**iOS Fix - Token Exists But API Calls Failing**
+
+## Debug Findings
+
+The token IS available on iOS:
+
+- propToken: `1144ead6-842...` ✅
+- localStorage: `1144ead6-842...` ✅
+- sessionStorage: `1144ead6-842...` ✅
+- cookie: `1144ead6-842...` ✅
+
+**The token is there but the Profile and Docs API calls are still failing.** This means the issue is in the API call itself, not the token storage.
+
+## Next Debug Step
+
+Add debug info showing the API response, not just the token:
+
+### In PurchaserProfilePanel
+
+```javascript
+const [debugInfo, setDebugInfo] = useState({});
+const [apiError, setApiError] = useState(null);
+
+useEffect(() => {
+  const fetchProfile = async () => {
+    const token = propToken || localStorage.getItem('purchaserToken');
+    
+    setDebugInfo({
+      token: token ? token.substring(0, 15) + '...' : 'NULL',
+      timestamp: new Date().toLocaleTimeString()
+    });
+    
+    try {
+      // Log the actual API call
+      console.log('Fetching profile with token:', token);
+      
+      const response = await fetch(`/api/purchaser/profile?token=${token}`);
+      
+      setDebugInfo(prev => ({
+        ...prev,
+        apiStatus: response.status,
+        apiOk: response.ok
+      }));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        setApiError(`Status ${response.status}: ${errorText}`);
+        return;
+      }
+      
+      const data = await response.json();
+      setDebugInfo(prev => ({
+        ...prev,
+        dataReceived: !!data,
+        dataKeys: Object.keys(data || {}).join(', ')
+      }));
+      
+      // ... set profile data
+      
+    } catch (error) {
+      setApiError(`Catch error: ${error.message}`);
+      setDebugInfo(prev => ({
+        ...prev,
+        error: error.message
+      }));
+    }
+  };
+  
+  fetchProfile();
+}, [propToken]);
+
+// Show debug + error info
+if (apiError) {
+  return (
+    <div style={{ padding: 20, backgroundColor: '#1a1a2e', color: 'white', margin: 10, borderRadius: 10 }}>
+      <h3 style={{ color: '#D4AF37' }}>🔧 Profile Debug</h3>
+      <p><strong>Token:</strong> {debugInfo.token}</p>
+      <p><strong>API Status:</strong> {debugInfo.apiStatus}</p>
+      <p><strong>API OK:</strong> {String(debugInfo.apiOk)}</p>
+      <p style={{ color: '#ff6b6b' }}><strong>Error:</strong> {apiError}</p>
+      <p><strong>Time:</strong> {debugInfo.timestamp}</p>
+    </div>
+  );
+}
+```
+
+### In PurchaserDocumentsTab - Same Pattern
+
+```javascript
+const [apiError, setApiError] = useState(null);
+const [debugInfo, setDebugInfo] = useState({});
+
+const fetchDocuments = async () => {
+  const token = propToken || localStorage.getItem('purchaserToken');
+  
+  try {
+    const response = await fetch(`/api/purchaser/documents?token=${token}`);
+    
+    setDebugInfo({
+      token: token?.substring(0, 15) + '...',
+      apiStatus: response.status,
+      apiOk: response.ok
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      setApiError(`Status ${response.status}: ${errorText}`);
+      return;
+    }
+    
+    const data = await response.json();
+    // ... handle data
+    
+  } catch (error) {
+    setApiError(`Catch: ${error.message}`);
+  }
+};
+
+// Show debug if error
+if (apiError) {
+  return (
+    <div style={{ padding: 20, backgroundColor: '#1a1a2e', color: 'white', margin: 10, borderRadius: 10 }}>
+      <h3 style={{ color: '#D4AF37' }}>🔧 Docs Debug</h3>
+      <p><strong>Token:</strong> {debugInfo.token}</p>
+      <p><strong>API Status:</strong> {debugInfo.apiStatus}</p>
+      <p style={{ color: '#ff6b6b' }}><strong>Error:</strong> {apiError}</p>
+    </div>
+  );
+}
+```
+
+## What This Will Show
+
+- The HTTP status code (200, 401, 404, 500?)
+- The actual error message from the API
+- Whether the request even reaches the server
+
+Screenshot the result and share - we need to see what the API is returning.
+
+-----

@@ -104,6 +104,10 @@ export default function PurchaserProfilePanel({
     cookieToken: string;
     effectiveToken: string;
     timestamp: string;
+    apiStatus?: number;
+    apiOk?: boolean;
+    apiError?: string;
+    apiUrl?: string;
   } | null>(null);
   
   useEffect(() => {
@@ -157,18 +161,27 @@ export default function PurchaserProfilePanel({
         isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
       });
       
-      const res = await fetch(
-        `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
-      );
+      const apiUrl = `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
+      const res = await fetch(apiUrl);
+      
+      setDebugInfo(prev => prev ? {
+        ...prev,
+        apiStatus: res.status,
+        apiOk: res.ok,
+        apiUrl: apiUrl.substring(0, 50) + '...'
+      } : null);
       
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
       } else {
+        const errorText = await res.text().catch(() => 'Could not read error');
+        setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorText.substring(0, 100)}` } : null);
         setError('Failed to load profile');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Profile fetch error:', err);
+      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${err.message}` } : null);
       setError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -297,12 +310,13 @@ export default function PurchaserProfilePanel({
                   borderRadius: 10,
                   fontSize: 12
                 }}>
-                  <p style={{ color: '#D4AF37', fontWeight: 'bold', marginBottom: 8 }}>DEBUG: Profile Token Info</p>
+                  <p style={{ color: '#D4AF37', fontWeight: 'bold', marginBottom: 8 }}>DEBUG: Profile API Response</p>
                   <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
-                  <p><strong>localStorage:</strong> {debugInfo?.storageToken || 'loading...'}</p>
-                  <p><strong>sessionStorage:</strong> {debugInfo?.sessionToken || 'loading...'}</p>
-                  <p><strong>cookie:</strong> {debugInfo?.cookieToken || 'loading...'}</p>
                   <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
+                  <p><strong>API Status:</strong> {debugInfo?.apiStatus ?? 'not called'}</p>
+                  <p><strong>API OK:</strong> {debugInfo?.apiOk !== undefined ? String(debugInfo.apiOk) : 'not called'}</p>
+                  <p style={{ color: '#ff6b6b' }}><strong>API Error:</strong> {debugInfo?.apiError || 'none'}</p>
+                  <p><strong>API URL:</strong> {debugInfo?.apiUrl || 'not called'}</p>
                   <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
                 </div>
               </div>

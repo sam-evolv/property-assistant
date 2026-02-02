@@ -128,6 +128,10 @@ export default function PurchaserDocumentsTab({
     inMemoryToken: string;
     effectiveToken: string;
     timestamp: string;
+    apiStatus?: number;
+    apiOk?: boolean;
+    apiError?: string;
+    apiUrl?: string;
   } | null>(null);
   
   useEffect(() => {
@@ -180,12 +184,19 @@ export default function PurchaserDocumentsTab({
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const doFetch = useCallback(async (token: string, signal: AbortSignal): Promise<{ docs: Document[]; requestId?: string; message?: string }> => {
-    const res = await fetch(
-      `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
-      { signal }
-    );
+    const apiUrl = `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
+    const res = await fetch(apiUrl, { signal });
+    
+    setDebugInfo(prev => prev ? {
+      ...prev,
+      apiStatus: res.status,
+      apiOk: res.ok,
+      apiUrl: apiUrl.substring(0, 50) + '...'
+    } : null);
 
     if (res.status === 401) {
+      const errorText = await res.text().catch(() => 'Could not read error');
+      setDebugInfo(prev => prev ? { ...prev, apiError: `401: ${errorText.substring(0, 100)}` } : null);
       invalidateDocumentCache(unitUid);
       throw new Error('SESSION_EXPIRED');
     }
@@ -194,6 +205,7 @@ export default function PurchaserDocumentsTab({
 
     if (!res.ok) {
       const errorMsg = data.error || `Failed to load documents (${res.status})`;
+      setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorMsg}` } : null);
       const err = new Error(errorMsg);
       (err as any).requestId = data.requestId;
       throw err;
@@ -570,17 +582,14 @@ export default function PurchaserDocumentsTab({
           borderRadius: 10,
           fontSize: 14
         }}>
-          <h3 style={{ color: '#D4AF37', marginBottom: 12 }}>DEBUG: Session Expired - Token Info</h3>
+          <h3 style={{ color: '#D4AF37', marginBottom: 12 }}>DEBUG: Session Expired - API Response</h3>
           <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
-          <p><strong>propToken type:</strong> {debugInfo?.propTokenType || 'loading...'}</p>
-          <p><strong>localStorage:</strong> {debugInfo?.storageToken || 'loading...'}</p>
-          <p><strong>sessionStorage:</strong> {debugInfo?.sessionToken || 'loading...'}</p>
-          <p><strong>cookie:</strong> {debugInfo?.cookieToken || 'loading...'}</p>
           <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
+          <p><strong>API Status:</strong> {debugInfo?.apiStatus ?? 'not called'}</p>
+          <p><strong>API OK:</strong> {debugInfo?.apiOk !== undefined ? String(debugInfo.apiOk) : 'not called'}</p>
+          <p style={{ color: '#ff6b6b' }}><strong>API Error:</strong> {debugInfo?.apiError || 'none'}</p>
+          <p><strong>API URL:</strong> {debugInfo?.apiUrl || 'not called'}</p>
           <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
-          <p style={{ marginTop: 10, color: '#ff6b6b' }}>
-            API returned 401 - session expired
-          </p>
         </div>
         <SessionExpiredModal
           isOpen={true}
