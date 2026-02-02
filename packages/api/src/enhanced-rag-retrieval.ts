@@ -3,6 +3,14 @@ import { sql } from 'drizzle-orm';
 import OpenAI from 'openai';
 import { logger } from './logger';
 import { normalizeToCanonicalRoomName } from './normalize-room-name';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 function getOpenAI() {
   return new OpenAI({
@@ -148,6 +156,90 @@ async function generateQueryEmbedding(query: string): Promise<number[]> {
     dimensions: 1536,
   });
   return response.data[0].embedding;
+}
+
+async function getProjectIdFromDevelopmentId(developmentId: string): Promise<string | null> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { data: development } = await supabase
+      .from('developments')
+      .select('id, name')
+      .eq('id', developmentId)
+      .single();
+    
+    if (!development) return null;
+    
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('name', development.name)
+      .single();
+    
+    return project?.id || null;
+  } catch (error) {
+    logger.warn('[EnhancedRAG] Failed to map development to project:', { error: (error as Error).message });
+    return null;
+  }
+}
+
+async function searchDocumentSections(
+  projectId: string,
+  queryEmbedding: number[],
+  limit: number = 10
+): Promise<RetrievedChunk[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const embeddingString = `[${queryEmbedding.join(',')}]`;
+    
+    const { data: sections, error } = await supabase.rpc('match_document_sections', {
+      query_embedding: embeddingString,
+      match_count: limit,
+      filter_project_id: projectId
+    });
+    
+    if (error) {
+      logger.warn('[EnhancedRAG] RPC match_document_sections failed, trying direct query:', { error: error.message });
+      
+      const { data: directSections } = await supabase
+        .from('document_sections')
+        .select('id, content, project_id, embedding')
+        .eq('project_id', projectId)
+        .not('embedding', 'is', null)
+        .limit(limit);
+      
+      if (!directSections || directSections.length === 0) return [];
+      
+      return directSections.map((section: any) => ({
+        id: section.id,
+        content: section.content,
+        documentId: null,
+        documentTitle: null,
+        docKind: 'document_section',
+        houseTypeCode: null,
+        similarity: 0.5,
+        boostedScore: 0.5,
+        scopeLevel: 'development' as const,
+        metadata: { source: 'document_sections', project_id: section.project_id },
+      }));
+    }
+    
+    return (sections || []).map((section: any) => ({
+      id: section.id,
+      content: section.content,
+      documentId: null,
+      documentTitle: section.title || null,
+      docKind: 'document_section',
+      houseTypeCode: null,
+      similarity: section.similarity || 0.5,
+      boostedScore: (section.similarity || 0.5) * 1.1,
+      scopeLevel: 'development' as const,
+      metadata: { source: 'document_sections', project_id: projectId },
+    }));
+  } catch (error) {
+    logger.warn('[EnhancedRAG] Failed to search document_sections:', { error: (error as Error).message });
+    return [];
+  }
 }
 
 async function fetchFloorplanVisionData(
@@ -383,6 +475,36 @@ export async function enhancedRagRetrieval(options: EnhancedRetrievalOptions): P
     
     if (chunks.length > 0 && scopeUsed === 'none') {
       scopeUsed = 'tenant';
+    }
+  }
+
+  // Stage 4: Search document_sections (legacy Supabase table with project_id)
+  // This catches content that exists in the Supabase document_sections table but not in doc_chunks
+  if (developmentId && chunks.length < minResultsThreshold) {
+    logger.info('[EnhancedRAG] Stage 4: Searching document_sections (project-based)');
+    
+    const projectId = await getProjectIdFromDevelopmentId(developmentId);
+    
+    if (projectId) {
+      logger.info('[EnhancedRAG] Mapped development to project', { developmentId, projectId });
+      
+      const docSectionChunks = await searchDocumentSections(projectId, queryEmbedding, limit);
+      
+      if (docSectionChunks.length > 0) {
+        const existingContents = new Set(chunks.map(c => c.content.substring(0, 100)));
+        const newSectionChunks = docSectionChunks.filter(
+          chunk => !existingContents.has(chunk.content.substring(0, 100))
+        );
+        
+        chunks = [...chunks, ...newSectionChunks];
+        logger.info('[EnhancedRAG] Added document_sections chunks', { count: newSectionChunks.length });
+        
+        if (chunks.length > 0 && scopeUsed === 'none') {
+          scopeUsed = 'development';
+        }
+      }
+    } else {
+      logger.warn('[EnhancedRAG] Could not map development_id to project_id', { developmentId });
     }
   }
 
