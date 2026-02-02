@@ -203,6 +203,9 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
     includeGlobalFallback = true,
   } = options;
 
+  console.log('\n🚨🚨🚨 UNIT-FIRST RETRIEVAL CALLED - ' + new Date().toISOString());
+  console.log('🚨 Development ID:', developmentId);
+  console.log('🚨 Query:', query);
   console.log('\n🔍 UNIT-FIRST RETRIEVAL');
   console.log('='.repeat(60));
   console.log(`  Tenant: ${tenantId}`);
@@ -412,7 +415,8 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
   // TIER 6: ALWAYS search document_sections with project_id mapping
   // (transport docs and other important info may only exist here)
-  console.log('\n  TIER 6: document_sections search (project_id mapping)...');
+  console.log('\n🚨🚨🚨 TIER 6: ALWAYS RUNNING document_sections search');
+  console.log('  TIER 6: document_sections search (project_id mapping)...');
   {
     const existingContents = new Set(allChunks.map(c => c.content?.substring(0, 100)));
     
