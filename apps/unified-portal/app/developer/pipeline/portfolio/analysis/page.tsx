@@ -90,7 +90,7 @@ export default function PortfolioAnalysisPage() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: tokens.gold, borderTopColor: 'transparent' }} />
-          <p className="text-sm text-gray-500">Loading portfolio analytics...</p>
+          <p className="text-sm text-gray-900">Loading portfolio analytics...</p>
         </div>
       </div>
     );
@@ -131,7 +131,7 @@ export default function PortfolioAnalysisPage() {
               onClick={() => router.push('/developer/pipeline')}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-5 h-5 text-gray-900" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Portfolio Analytics</h1>
@@ -152,7 +152,7 @@ export default function PortfolioAnalysisPage() {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                 }`}
                 style={activeTab === tab.key ? { backgroundColor: tokens.gold, color: tokens.dark } : {}}
               >
@@ -286,7 +286,7 @@ function OverviewTab({ data }: { data: any }) {
                     }}
                   />
                 </div>
-                <div className="w-16 text-right text-sm font-medium text-gray-700">
+                <div className="w-16 text-right text-sm font-medium text-gray-900">
                   {stage.count}
                 </div>
               </div>
@@ -370,7 +370,7 @@ function ComparisonTab({ data }: { data: any }) {
                   <td className="py-3 px-4 text-right text-green-600 font-medium">{dev.sold}</td>
                   <td className="py-3 px-4 text-right font-medium" style={{ color: tokens.goldDark }}>{formatEuro(dev.revenue)}</td>
                   <td className="py-3 px-4 text-right text-gray-900">{formatEuro(dev.avgPrice)}</td>
-                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-600'}`}>
+                  <td className={`py-3 px-4 text-right ${dev.pcSumTotal < 0 ? 'text-red-500' : 'text-gray-900'}`}>
                     {dev.pcSumTotal < 0 ? formatEuro(dev.pcSumTotal) : '€0'}
                   </td>
                   <td className="py-3 px-4 text-right font-medium text-gray-900">{formatEuro(dev.adjustedRevenue)}</td>
@@ -382,7 +382,7 @@ function ComparisonTab({ data }: { data: any }) {
                 <td className="py-3 px-4 text-right text-green-600">{developments.reduce((s: number, d: any) => s + d.sold, 0)}</td>
                 <td className="py-3 px-4 text-right" style={{ color: tokens.goldDark }}>{formatEuro(developments.reduce((s: number, d: any) => s + d.revenue, 0))}</td>
                 <td className="py-3 px-4 text-right text-gray-900">—</td>
-                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-600'}`}>
+                <td className={`py-3 px-4 text-right ${developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0) < 0 ? 'text-red-500' : 'text-gray-900'}`}>
                   {formatEuro(developments.reduce((s: number, d: any) => s + d.pcSumTotal, 0))}
                 </td>
                 <td className="py-3 px-4 text-right text-gray-900">{formatEuro(developments.reduce((s: number, d: any) => s + d.adjustedRevenue, 0))}</td>
@@ -478,8 +478,8 @@ function VelocityTab({ data }: { data: any }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.velocityTrend || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
+              <YAxis tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
               <Tooltip />
               <Legend />
               {developments.map((dev: any) => (
@@ -537,8 +537,8 @@ function PipelineTab({ data }: { data: any }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={funnel} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis dataKey="label" type="category" tick={{ fontSize: 12 }} width={120} />
+              <XAxis type="number" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
+              <YAxis dataKey="label" type="category" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" width={120} />
               <Tooltip formatter={(value: number) => [value, 'Units']} />
               <Bar dataKey="count" fill={tokens.gold} radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -633,7 +633,7 @@ function RevenueTab({ data }: { data: any }) {
           <p className="text-2xl font-bold" style={{ color: tokens.goldDark }}>
             {formatEuro(overview.adjustedRevenue || overview.totalRevenue || 0)}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Adjusted Revenue</p>
+          <p className="text-xs text-gray-900 mt-1">Adjusted Revenue</p>
           {hasPcSumDeductions && (
             <p className="text-xs text-red-500 mt-0.5">
               ({formatEuro(overview.totalPcSumDeductions)} PC sums)
@@ -648,8 +648,8 @@ function RevenueTab({ data }: { data: any }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data?.cashFlowProjection || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `€${(v / 1000000).toFixed(1)}M`} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
+              <YAxis tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" tickFormatter={(v) => `€${(v / 1000000).toFixed(1)}M`} />
               <Tooltip formatter={(value: number) => formatEuro(value)} />
               <Legend />
               {developments.map((dev: any) => (
@@ -665,7 +665,7 @@ function RevenueTab({ data }: { data: any }) {
           </ResponsiveContainer>
         </div>
         {hasPcSumDeductions && (
-          <p className="text-xs text-gray-500 mt-3">
+          <p className="text-xs text-gray-900 mt-3">
             * Projected revenue adjusted for {formatEuro(overview.totalPcSumDeductions)} in PC sum deductions ({overview.totalTakingOwnKitchen + overview.totalTakingOwnWardrobes} units taking own kitchen/wardrobes)
           </p>
         )}
