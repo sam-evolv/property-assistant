@@ -268,7 +268,11 @@ export function classifyIntent(message: string): IntentClassification {
     };
   }
   
-  if (matchesPatterns(message, LOCATION_PATTERNS)) {
+  // EXCEPTION: "public transport" questions should NOT go to Google Places - use document search instead
+  // Transport docs contain detailed bus route info that Google Places doesn't have
+  const isPublicTransportQuestion = /\b(public\s*transport|transport\s*options?|bus\s*routes?|bus\s*services?)\b/i.test(lower);
+  
+  if (matchesPatterns(message, LOCATION_PATTERNS) && !isPublicTransportQuestion) {
     return {
       intent: 'location_amenities',
       confidence: 0.85,
