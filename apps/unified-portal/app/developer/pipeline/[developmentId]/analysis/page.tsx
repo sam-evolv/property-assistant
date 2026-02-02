@@ -172,7 +172,7 @@ function StageFunnel({ metrics }: { metrics: { stage: string; label: string; avg
 function SalesFunnel({ funnel }: { funnel: { stage: string; label: string; count: number; percentage: number }[] }) {
   return (
     <div className="space-y-2">
-      {funnel.map((f) => (
+      {funnel.map((f, i) => (
         <div key={f.stage} className="flex items-center gap-3">
           <div className="w-32 text-xs text-right" style={{ color: '#111827' }}>{f.label}</div>
           <div className="flex-1 h-7 bg-gray-100 rounded overflow-hidden relative">
