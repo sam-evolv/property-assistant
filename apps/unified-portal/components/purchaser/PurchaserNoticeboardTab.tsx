@@ -30,6 +30,7 @@ interface PurchaserNoticeboardTabProps {
   unitUid: string;
   isDarkMode: boolean;
   selectedLanguage: string;
+  token?: string;
 }
 
 const TRANSLATIONS: Record<string, any> = {
@@ -493,6 +494,7 @@ export default function PurchaserNoticeboardTab({
   unitUid,
   isDarkMode,
   selectedLanguage,
+  token: propToken,
 }: PurchaserNoticeboardTabProps) {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -557,7 +559,7 @@ export default function PurchaserNoticeboardTab({
         return;
       }
 
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(
         `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -579,7 +581,7 @@ export default function PurchaserNoticeboardTab({
   const handleAcceptTerms = async () => {
     setAcceptingTerms(true);
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(
         `/api/purchaser/noticeboard/terms?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
@@ -618,7 +620,7 @@ export default function PurchaserNoticeboardTab({
 
   const fetchNotices = async () => {
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(
         `/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -641,7 +643,7 @@ export default function PurchaserNoticeboardTab({
   const fetchComments = async (noticeId: string) => {
     setLoadingComments(true);
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(
         `/api/purchaser/noticeboard/${noticeId}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
@@ -673,7 +675,7 @@ export default function PurchaserNoticeboardTab({
 
     setSubmittingComment(true);
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(
         `/api/purchaser/noticeboard/${selectedNotice.id}/comments?unitUid=${unitUid}&token=${encodeURIComponent(token)}`,
@@ -709,7 +711,7 @@ export default function PurchaserNoticeboardTab({
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
       if (!selectedNotice) return;
 
       const res = await fetch(
@@ -735,7 +737,7 @@ export default function PurchaserNoticeboardTab({
 
     setCreating(true);
     try {
-      const token = getEffectiveToken(unitUid);
+      const token = propToken || getEffectiveToken(unitUid);
 
       const res = await fetch(`/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`, {
         method: 'POST',

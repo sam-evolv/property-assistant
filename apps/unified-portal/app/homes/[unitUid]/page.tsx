@@ -685,6 +685,7 @@ export default function HomeResidentPage() {
               unitUid={unitUid}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
+              token={validatedToken || undefined}
             />
           </Tabs.Content>
 
