@@ -410,10 +410,11 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
     console.log(`    Found ${globalChunks.length} global fallback chunks`);
   }
 
-  // TIER 6: document_sections fallback with project_id mapping
-  if (allChunks.length < 5) {
-    console.log('\n  TIER 6: document_sections fallback (project_id mapping)...');
-    const existingIds = new Set(allChunks.map(c => c.id));
+  // TIER 6: ALWAYS search document_sections with project_id mapping
+  // (transport docs and other important info may only exist here)
+  console.log('\n  TIER 6: document_sections search (project_id mapping)...');
+  {
+    const existingContents = new Set(allChunks.map(c => c.content?.substring(0, 100)));
     
     const projectId = await getProjectIdFromDevelopmentId(developmentId);
     
@@ -433,7 +434,7 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
       `);
 
       const sectionsChunks = (sectionsResults.rows || [])
-        .filter((row: any) => !existingIds.has(row.id))
+        .filter((row: any) => !existingContents.has(row.content?.substring(0, 100)))
         .map((row: any) => ({
           id: row.id,
           content: row.content,
@@ -451,6 +452,7 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
       console.log(`    Found ${sectionsChunks.length} document_sections chunks`);
       if (sectionsChunks.length > 0) {
         console.log(`    First result preview: ${sectionsChunks[0]?.content?.substring(0, 100)}`);
+        console.log(`    Top similarity: ${sectionsChunks[0]?.similarity}`);
       }
     } else {
       console.log('    Could not map development to project - skipping document_sections');
