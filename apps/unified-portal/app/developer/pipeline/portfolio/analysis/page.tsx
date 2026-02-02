@@ -264,7 +264,7 @@ function OverviewTab({ data }: { data: any }) {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => formatEuro(value)} />
+                <Tooltip formatter={(value: number) => formatEuro(value)} contentStyle={{ color: '#111827' }} labelStyle={{ color: '#111827' }} itemStyle={{ color: '#111827' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -480,7 +480,7 @@ function VelocityTab({ data }: { data: any }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
               <YAxis tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
-              <Tooltip />
+              <Tooltip contentStyle={{ color: '#111827' }} labelStyle={{ color: '#111827' }} itemStyle={{ color: '#111827' }} />
               <Legend />
               {developments.map((dev: any) => (
                 <Bar
@@ -539,7 +539,7 @@ function PipelineTab({ data }: { data: any }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
               <YAxis dataKey="label" type="category" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" width={120} />
-              <Tooltip formatter={(value: number) => [value, 'Units']} />
+              <Tooltip formatter={(value: number) => [value, 'Units']} contentStyle={{ color: '#111827' }} labelStyle={{ color: '#111827' }} itemStyle={{ color: '#111827' }} />
               <Bar dataKey="count" fill={tokens.gold} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -650,7 +650,7 @@ function RevenueTab({ data }: { data: any }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
               <YAxis tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" tickFormatter={(v) => `€${(v / 1000000).toFixed(1)}M`} />
-              <Tooltip formatter={(value: number) => formatEuro(value)} />
+              <Tooltip formatter={(value: number) => formatEuro(value)} contentStyle={{ color: '#111827' }} labelStyle={{ color: '#111827' }} itemStyle={{ color: '#111827' }} />
               <Legend />
               {developments.map((dev: any) => (
                 <Bar
@@ -690,7 +690,7 @@ function RevenueTab({ data }: { data: any }) {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => formatEuro(value)} />
+                <Tooltip formatter={(value: number) => formatEuro(value)} contentStyle={{ color: '#111827' }} labelStyle={{ color: '#111827' }} itemStyle={{ color: '#111827' }} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>

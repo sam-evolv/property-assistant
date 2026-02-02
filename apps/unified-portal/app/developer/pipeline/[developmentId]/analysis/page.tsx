@@ -340,7 +340,9 @@ export default function AnalysisPage() {
                       <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
                       <YAxis tick={{ fontSize: 12, fill: '#111827' }} stroke="#374151" />
                       <Tooltip
-                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8, color: '#111827' }}
+                        labelStyle={{ color: '#111827' }}
+                        itemStyle={{ color: '#111827' }}
                         formatter={(value: number, name: string) => [name === 'count' ? `${value} units` : formatEuro(value), name === 'count' ? 'Sales Agreed' : 'Revenue']}
                       />
                       <Line type="monotone" dataKey="count" stroke={tokens.gold} strokeWidth={2} dot={{ fill: tokens.gold, r: 4 }} />
@@ -380,7 +382,9 @@ export default function AnalysisPage() {
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#111827' }} stroke="#374151" />
                       <YAxis tick={{ fontSize: 11, fill: '#111827' }} stroke="#374151" />
                       <Tooltip
-                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8, color: '#111827' }}
+                        labelStyle={{ color: '#111827' }}
+                        itemStyle={{ color: '#111827' }}
                         formatter={(value: number) => [`${value} units`, 'Sales Agreed']}
                       />
                       <Bar dataKey="count" fill={tokens.gold} radius={[4, 4, 0, 0]} />
@@ -625,7 +629,9 @@ export default function AnalysisPage() {
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#111827' }} stroke="#374151" />
                       <YAxis tick={{ fontSize: 11, fill: '#111827' }} stroke="#374151" tickFormatter={(v) => formatEuro(v)} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                        contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 8, color: '#111827' }}
+                        labelStyle={{ color: '#111827' }}
+                        itemStyle={{ color: '#111827' }}
                         formatter={(value: number, name: string) => [formatEuro(value), name === 'completed' ? 'Completed' : 'Projected']}
                       />
                       <Legend />
