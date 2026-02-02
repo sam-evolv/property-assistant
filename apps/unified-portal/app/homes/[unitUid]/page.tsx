@@ -669,7 +669,7 @@ export default function HomeResidentPage() {
               initialMessage={initialMessage}
               purchaserName={house.purchaser_name}
               developmentName={house.development_name}
-              unitUid={unitUid}
+              unitUid={house.unit_id}
               token={validatedToken || ''}
               selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
@@ -691,7 +691,7 @@ export default function HomeResidentPage() {
 
           <Tabs.Content value="noticeboard" className="h-full">
             <PurchaserNoticeboardTab 
-              unitUid={unitUid}
+              unitUid={house.unit_id}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
@@ -700,7 +700,7 @@ export default function HomeResidentPage() {
 
           <Tabs.Content value="documents" className="h-full">
             <PurchaserDocumentsTab 
-              unitUid={unitUid}
+              unitUid={house.unit_id}
               houseType={house.house_type}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
@@ -724,7 +724,7 @@ export default function HomeResidentPage() {
       <PurchaserProfilePanel
         isOpen={showProfilePanel}
         onClose={() => setShowProfilePanel(false)}
-        unitUid={unitUid}
+        unitUid={house.unit_id}
         isDarkMode={isDarkMode}
         token={validatedToken || undefined}
       />

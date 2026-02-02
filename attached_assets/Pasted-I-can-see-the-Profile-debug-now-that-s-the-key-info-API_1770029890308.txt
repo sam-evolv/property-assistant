@@ -1,0 +1,125 @@
+I can see the Profile debug now - that’s the key info:
+
+**API Status: 401**
+**API Error: `{"error":"Invalid or expired token"}`**
+**API URL: `/api/purchaser/profile?unitUid=LP-008-9F9A&token=1...`**
+
+The problem is clear now: The API is receiving **two different values**:
+
+- `unitUid=LP-008-9F9A` (the access code)
+- `token=1144ead6-842...` (a UUID)
+
+The API is checking the `token` parameter and saying it’s invalid. But the token `1144ead6-842...` is a UUID, not the access code.
+
+Give Replit this:
+
+-----
+
+**Fix iOS API 401 - Token Mismatch**
+
+## Problem Found
+
+The Profile API returns 401 “Invalid or expired token”.
+
+**Debug shows:**
+
+```
+API URL: /api/purchaser/profile?unitUid=LP-008-9F9A&token=1144ead6-842...
+```
+
+Two different identifiers are being sent:
+
+- `unitUid` = `LP-008-9F9A` (access code format) ✅
+- `token` = `1144ead6-842...` (UUID format) ❓
+
+## The Issue
+
+The API endpoint is validating the `token` parameter (UUID), but the token `1144ead6-842...` doesn’t match what the API expects.
+
+**Questions:**
+
+1. What is `1144ead6-842...`? Is it a unit ID? A session ID?
+1. Why is the web working but iOS isn’t with the same token?
+
+## Likely Fix
+
+The API should validate using `unitUid` (the access code), not a separate `token`:
+
+### Option 1: API Should Use unitUid
+
+```javascript
+// /api/purchaser/profile/route.ts
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const unitUid = searchParams.get('unitUid');
+  
+  // Validate using the access code directly
+  const { data: unit, error } = await supabase
+    .from('units')
+    .select('*, developments(*), unit_sales_pipeline(*)')
+    .eq('unit_uid', unitUid)
+    .single();
+  
+  if (error || !unit) {
+    return NextResponse.json({ error: 'Invalid access code' }, { status: 401 });
+  }
+  
+  return NextResponse.json(unit);
+}
+```
+
+### Option 2: Store Correct Token on Login
+
+When user logs in with access code, store the **unit ID** (UUID) as the token:
+
+```javascript
+// On successful login
+const session = {
+  unitId: unit.id,           // UUID like 1144ead6-842...
+  unitUid: unit.unit_uid,    // Access code like LP-008-9F9A
+  accessCode: accessCode     // What user entered
+};
+localStorage.setItem('purchaserToken', unit.id);  // Store the unit ID
+```
+
+Then the API validates:
+
+```javascript
+const token = searchParams.get('token');  // This is the unit ID
+
+const { data: unit } = await supabase
+  .from('units')
+  .select('*')
+  .eq('id', token)  // Match by unit ID
+  .single();
+```
+
+### Option 3: Check What Web Does Differently
+
+The web app works. Compare what token/params the web sends vs iOS:
+
+- Are they calling the same endpoint?
+- Are they sending the same parameters?
+
+## Quick Debug
+
+Add logging to the API endpoint to see exactly what it receives:
+
+```javascript
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  
+  console.log('Profile API called with:', {
+    unitUid: searchParams.get('unitUid'),
+    token: searchParams.get('token'),
+    allParams: Object.fromEntries(searchParams)
+  });
+  
+  // ... rest of validation
+}
+```
+
+Check server logs to see what web sends vs what iOS sends.
+
+-----
