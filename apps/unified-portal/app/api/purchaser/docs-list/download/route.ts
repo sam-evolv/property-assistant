@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { documents, units } from '@openhouse/db/schema';
 import { eq, or } from 'drizzle-orm';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,25 +36,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let isAuthenticated = false;
-    if (token) {
-      const payload = await validateQRToken(token);
-      if (payload && payload.supabaseUnitId === unitUid) {
-        isAuthenticated = true;
-      }
-    }
-    
-    if (!isAuthenticated && token && token === unitUid) {
-      console.log('[docs-list/download] Using demo/fallback authentication');
-      isAuthenticated = true;
-    }
-    
-    if (!isAuthenticated) {
+    const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
+    console.log('[docs-list/download] Token validated (showhouse:', tokenResult.isShowhouse, ')');
 
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isUuid = uuidPattern.test(unitUid);

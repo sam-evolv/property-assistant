@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { purchaserAgreements } from '@openhouse/db/schema';
 import { createClient } from '@supabase/supabase-js';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,22 +26,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unit UID required' }, { status: 400 });
     }
 
-    // Validate token - try QR token first, then fallback to unitUid match for demo
-    let isAuthenticated = false;
-    if (token) {
-      const payload = await validateQRToken(token);
-      if (payload && payload.supabaseUnitId === unitUid) {
-        isAuthenticated = true;
-      }
-    }
-    
-    // Fallback: Allow demo access if token matches unitUid (UUID format)
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!isAuthenticated && token && uuidPattern.test(token) && token === unitUid) {
-      isAuthenticated = true;
-    }
-    
-    if (!isAuthenticated) {
+    // Validate token using consistent purchaser authentication
+    const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logSecurityViolation } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
 import { video_resources } from '@openhouse/db/schema';
@@ -51,32 +51,8 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    let isAuthenticated = false;
-
-    if (token) {
-      const payload = await validateQRToken(token);
-      if (payload) {
-        if (payload.supabaseUnitId === unitUid) {
-          isAuthenticated = true;
-          console.log(`[PurchaserVideosAPI] QR token validated for unit ${unitUid}`);
-        } else {
-          logSecurityViolation({
-            request_id: requestId,
-            unit_uid: unitUid,
-            attempted_resource: `token_unit:${payload.supabaseUnitId}`,
-            reason: 'Token unit mismatch in purchaser-videos - cross-unit access blocked',
-          });
-        }
-      }
-
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!isAuthenticated && uuidPattern.test(token) && token === unitUid) {
-        isAuthenticated = true;
-        console.log(`[PurchaserVideosAPI] Demo/direct access for unit ${unitUid}`);
-      }
-    }
-
-    if (!isAuthenticated) {
+    const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
+    if (!tokenResult.valid) {
       logSecurityViolation({
         request_id: requestId,
         unit_uid: unitUid,

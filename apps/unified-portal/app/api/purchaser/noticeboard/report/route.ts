@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { notice_reports, noticeboard_posts, notice_comments, tenants } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = await validateQRToken(token);
-    if (!payload || payload.supabaseUnitId !== unitUid) {
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }

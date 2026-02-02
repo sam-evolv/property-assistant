@@ -3,7 +3,7 @@ import { db } from '@openhouse/db/client';
 import { purchaserAgreements } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,29 +27,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unit UID required' }, { status: 400 });
     }
 
-    // Validate token - try QR token first
-    let isAuthenticated = false;
-    let supabaseUnitId: string | null = null;
-    
-    if (token) {
-      const payload = await validateQRToken(token);
-      if (payload && payload.supabaseUnitId) {
-        isAuthenticated = true;
-        supabaseUnitId = payload.supabaseUnitId;
-      }
-    }
-    
-    // Fallback: Allow access if token matches unitUid AND unitUid is a valid UUID format
-    // This maintains security by requiring the token to match the requested unit
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!isAuthenticated && token && unitUid && uuidPattern.test(unitUid) && token === unitUid) {
-      isAuthenticated = true;
-      supabaseUnitId = unitUid;
-    }
-    
-    if (!isAuthenticated || !supabaseUnitId) {
+    // Validate token using consistent purchaser authentication
+    const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
+    if (!tokenResult.valid) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
+    const supabaseUnitId = tokenResult.unitId || unitUid;
     
     // Get the unit's project_id to scope documents correctly (using Supabase UUID, not the QR code)
     const { data: unitData, error: unitError } = await supabase

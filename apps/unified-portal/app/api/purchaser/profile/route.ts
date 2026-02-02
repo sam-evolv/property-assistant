@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateQRToken } from '@openhouse/api/qr-tokens';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
 
@@ -83,14 +83,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isDirectUnitId = uuidRegex.test(token) && token === unitUid;
-    
-    if (!isDirectUnitId) {
-      const payload = await validateQRToken(token);
-      if (!payload || payload.supabaseUnitId !== unitUid) {
-        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401, headers: { 'x-request-id': requestId } });
-      }
+    const tokenResult = await validatePurchaserToken(token, unitUid);
+    if (!tokenResult.valid) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401, headers: { 'x-request-id': requestId } });
     }
 
     console.log('[Profile] Fetching unit from Supabase:', unitUid, `requestId=${requestId}`);
