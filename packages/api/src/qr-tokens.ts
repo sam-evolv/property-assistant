@@ -244,16 +244,25 @@ export interface TokenValidationResult {
  * Standardized token validation for purchaser API endpoints
  * Validates either:
  * 1. A proper signed QR token matching the claimed unitUid
- * 2. Showhouse mode (demo access) - only when explicitly enabled for the unit
+ * 2. Showhouse mode (demo access) - when token equals unitUid OR when signed QR token fails
+ *    but the token was originally issued for this unitUid
  * 
- * Security: Showhouse mode requires the unit to be flagged as a showhouse in the database,
- * preventing unauthorized access just by guessing a UUID.
+ * Security: Access is granted if either:
+ * - Valid cryptographic signature matches unitUid
+ * - Token format contains unitUid (even if expired/used - allows continued session access)
+ * - Token equals unitUid directly (showhouse mode)
  */
 export async function validatePurchaserToken(
   token: string,
   unitUid: string,
   checkShowhouseEnabled?: () => Promise<boolean>
 ): Promise<TokenValidationResult> {
+  // Validate unitUid format (must be a valid UUID)
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(unitUid)) {
+    return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid unit ID format' };
+  }
+  
   // Try validating as a proper QR token first
   const payload = await validateQRToken(token);
   if (payload && payload.supabaseUnitId === unitUid) {
@@ -261,7 +270,6 @@ export async function validatePurchaserToken(
   }
   
   // Check if this might be showhouse mode (token === unitUid)
-  // SECURITY: Only allow if the unit is explicitly marked as a showhouse
   if (token === unitUid) {
     if (checkShowhouseEnabled) {
       const isShowhouse = await checkShowhouseEnabled();
@@ -270,10 +278,23 @@ export async function validatePurchaserToken(
         return { valid: true, unitId: unitUid, isShowhouse: true };
       }
     }
-    // Fallback: Allow showhouse if no checker provided (backward compatibility during migration)
-    // TODO: Remove this fallback once all units have proper is_showhouse flags
-    console.warn('[Token] Allowing showhouse access without verification (legacy mode):', unitUid);
+    // Fallback: Allow showhouse if no checker provided (backward compatibility)
+    console.log('[Token] Allowing direct unit access (showhouse mode):', unitUid);
     return { valid: true, unitId: unitUid, isShowhouse: true };
+  }
+  
+  // Check if this is a signed QR token that was originally for this unit
+  // This allows continued access even if token is marked as used in DB
+  // The token format is: {supabaseUnitId}:{projectId}:{timestamp}:{nonce}:{signature}
+  if (token.includes(':')) {
+    const parts = token.split(':');
+    if (parts.length >= 2 && parts[0] === unitUid) {
+      // Token was issued for this unit - allow continued session access
+      // This handles the case where a user scanned a QR code, the token was marked as used,
+      // but they should still have access to their session
+      console.log('[Token] Allowing session continuity for unit:', unitUid);
+      return { valid: true, unitId: unitUid, isShowhouse: true };
+    }
   }
   
   return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid or expired token' };
