@@ -1,0 +1,84 @@
+The chunks need embeddings for the AI to find them. Give Replit this prompt to generate the embeddings:
+
+---
+
+**Generate Embeddings for New Document Chunks**
+
+## Problem
+
+16 new document sections were added for transport information but they have no embeddings, so vector search can't find them.
+
+## Task
+
+Generate embeddings for all document_sections where `embedding IS NULL`.
+
+```javascript
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+async function generateMissingEmbeddings() {
+  // Get all sections without embeddings
+  const { data: sections, error } = await supabase
+    .from('document_sections')
+    .select('id, content')
+    .is('embedding', null);
+  
+  if (error) {
+    console.error('Error fetching sections:', error);
+    return;
+  }
+  
+  console.log(`Found ${sections.length} sections without embeddings`);
+  
+  for (const section of sections) {
+    try {
+      // Generate embedding using OpenAI
+      const response = await openai.embeddings.create({
+        model: 'text-embedding-ada-002',
+        input: section.content
+      });
+      
+      const embedding = response.data[0].embedding;
+      
+      // Update the section with the embedding
+      const { error: updateError } = await supabase
+        .from('document_sections')
+        .update({ embedding })
+        .eq('id', section.id);
+      
+      if (updateError) {
+        console.error(`Error updating section ${section.id}:`, updateError);
+      } else {
+        console.log(`Updated embedding for section ${section.id}`);
+      }
+    } catch (err) {
+      console.error(`Error generating embedding for ${section.id}:`, err);
+    }
+  }
+  
+  console.log('Done!');
+}
+
+generateMissingEmbeddings();
+```
+
+## Run This
+
+Either:
+1. Create a script and run it once
+2. Or add to an existing admin endpoint: `POST /api/admin/generate-embeddings`
+
+After running, verify:
+
+```sql
+SELECT COUNT(*) as missing_embeddings
+FROM document_sections
+WHERE embedding IS NULL;
+```
+
+Should return 0.
+
+---
