@@ -19,6 +19,7 @@ export type IntentType =
   | 'emergency'
   | 'affirmative'
   | 'humor'
+  | 'greeting'
   | 'unknown';
 
 export type AnswerMode = 'grounded' | 'guided' | 'neutral';
@@ -196,9 +197,46 @@ const HUMOR_PATTERNS = [
   /^funny$/i,
 ];
 
+// Greeting and casual conversation patterns - these don't require document grounding
+const GREETING_PATTERNS = [
+  /^hi\.?$/i,
+  /^hey\.?$/i,
+  /^hello\.?$/i,
+  /^hiya\.?$/i,
+  /^howdy\.?$/i,
+  /^yo\.?$/i,
+  /^sup\.?$/i,
+  /^(what'?s?\s*up)\.?$/i,
+  /^how('?s?\s*it\s*going|'?re\s*you|'?s?\s*things?)\.?$/i,
+  /^good\s*(morning|afternoon|evening|day)\.?$/i,
+  /^(morning|afternoon|evening)\.?$/i,
+  /^(hey|hi|hello)\s*(there|you)\.?$/i,
+  /^(how\s*are\s*you|how\s*do\s*you\s*do)\.?$/i,
+  /^nice\s*to\s*meet\s*you\.?$/i,
+  /^what\s*can\s*you\s*(do|help\s*(me\s*)?with)\.?$/i,
+  /^who\s*are\s*you\.?$/i,
+  /^what\s*are\s*you\.?$/i,
+  /^are\s*you\s*(a\s*)?(robot|ai|bot|real)\.?$/i,
+  /^thanks?\.?$/i,
+  /^thank\s*you\.?$/i,
+  /^cheers\.?$/i,
+  /^(that'?s?\s*)?(great|awesome|perfect|brilliant|amazing)\.?$/i,
+  /^cool\.?$/i,
+  /^nice\.?$/i,
+  /^(good)?bye\.?$/i,
+  /^see\s*ya\.?$/i,
+  /^later\.?$/i,
+  /^take\s*care\.?$/i,
+];
+
 export function isHumorRequest(message: string): boolean {
   const trimmed = message.trim();
   return HUMOR_PATTERNS.some(p => p.test(trimmed));
+}
+
+export function isGreeting(message: string): boolean {
+  const trimmed = message.trim();
+  return GREETING_PATTERNS.some(p => p.test(trimmed));
 }
 
 export function isAffirmativeResponse(message: string): boolean {
@@ -232,7 +270,18 @@ export function classifyIntent(message: string): IntentClassification {
       emergencyTier: null,
     };
   }
-  
+
+  // Check for greetings and casual conversation - these bypass document grounding
+  // and get a friendly conversational response
+  if (isGreeting(message)) {
+    return {
+      intent: 'greeting',
+      confidence: 0.95,
+      keywords: ['greeting', 'casual', 'conversation'],
+      emergencyTier: null,
+    };
+  }
+
   const emergencyTier = detectEmergencyTier(message);
   if (emergencyTier === 1) {
     return {

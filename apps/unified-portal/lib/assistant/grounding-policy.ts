@@ -64,6 +64,8 @@ const GENERIC_ADVICE_INTENTS = [
   'how_to',
   'ireland_info',
   'general',
+  'greeting',
+  'humor',
 ];
 
 export function getGroundingPolicy(intent: string): GroundingPolicy {
