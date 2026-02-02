@@ -10,6 +10,7 @@ import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
 import { PreHandoverPortal } from '@/components/pre-handover';
 import type { MilestoneDates, ContactInfo, FAQ, Document } from '@/components/pre-handover/types';
+import { storeToken, getToken, clearToken } from '@/lib/purchaserSession';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -124,9 +125,8 @@ export default function HomeResidentPage() {
   useEffect(() => {
     const fetchHouse = async (attempt: number = 0) => {
       try {
-        const tokenKey = `house_token_${unitUid}`;
-        // Get the QR token from query param or sessionStorage (for drawing access)
-        const qrToken = token || sessionStorage.getItem(tokenKey);
+        // Get the QR token from query param or stored session (for drawing access)
+        const qrToken = token || getToken(unitUid);
 
         // Call resolve endpoint with the unitUid from URL path
         // The resolve endpoint needs just the UUID, not the full token
@@ -148,7 +148,7 @@ export default function HomeResidentPage() {
             return fetchHouse(nextAttempt);
           }
           
-          sessionStorage.removeItem(tokenKey);
+          clearToken(unitUid);
           sessionStorage.removeItem(`intro_seen_${unitUid}`);
           
           // Show a friendlier error for temporary unavailability
@@ -169,10 +169,10 @@ export default function HomeResidentPage() {
         const unitId = data.unit_id || data.unitId || data.house_id;
         
         if (unitId) {
-          // Store the full QR token for drawing access
+          // Store the full QR token for drawing access using cross-platform utility
           // Use qrToken if available, otherwise use unitUid as fallback
           const effectiveToken = qrToken || unitUid;
-          sessionStorage.setItem(tokenKey, effectiveToken);
+          storeToken(unitUid, effectiveToken);
           setValidatedToken(effectiveToken);
           
           // Map response format to HouseContext

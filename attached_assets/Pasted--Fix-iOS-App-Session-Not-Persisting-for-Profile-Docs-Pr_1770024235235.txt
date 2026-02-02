@@ -1,0 +1,155 @@
+-----
+
+**Fix iOS App - Session Not Persisting for Profile & Docs**
+
+## Problem
+
+On iOS app only (web works fine):
+
+1. **Profile section** shows “Failed to load profile”
+1. **Docs tab** shows “Session Expired - scan QR code again”
+1. Other tabs (Assistant, Maps, Noticeboard) work fine
+
+## Root Cause
+
+iOS apps handle session storage differently than web browsers. The session token is likely being stored in a way that:
+
+- Works for some API calls but not others
+- Gets lost when navigating to certain tabs
+- Uses localStorage/sessionStorage which behaves differently in iOS WebView/Safari
+
+## Fixes Required
+
+### 1. Check How Session is Stored
+
+iOS Safari and WebViews have restrictions on localStorage/sessionStorage. Use a more reliable method:
+
+```javascript
+// Instead of sessionStorage (unreliable on iOS)
+sessionStorage.setItem('token', token);
+
+// Use a combination approach
+const storeSession = (session) => {
+  // Try multiple storage methods for iOS compatibility
+  try {
+    localStorage.setItem('purchaserSession', JSON.stringify(session));
+  } catch (e) {
+    console.log('localStorage failed');
+  }
+  
+  // Also store in memory as fallback
+  window.__purchaserSession = session;
+  
+  // Also set as cookie (most reliable on iOS)
+  document.cookie = `purchaserSession=${encodeURIComponent(JSON.stringify(session))}; path=/; max-age=86400; SameSite=Strict`;
+};
+
+const getSession = () => {
+  // Try localStorage first
+  try {
+    const stored = localStorage.getItem('purchaserSession');
+    if (stored) return JSON.parse(stored);
+  } catch (e) {}
+  
+  // Try memory
+  if (window.__purchaserSession) return window.__purchaserSession;
+  
+  // Try cookie
+  const cookie = document.cookie.split('; ').find(c => c.startsWith('purchaserSession='));
+  if (cookie) {
+    return JSON.parse(decodeURIComponent(cookie.split('=')[1]));
+  }
+  
+  return null;
+};
+```
+
+### 2. Check API Calls for Profile & Docs
+
+These endpoints might be checking session differently:
+
+```javascript
+// Profile API - make sure it uses same auth as other tabs
+const loadProfile = async () => {
+  const session = getSession();
+  if (!session?.unitId) {
+    console.error('No session found for profile');
+    return;
+  }
+  
+  const { data, error } = await supabase
+    .from('units')
+    .select('*, unit_sales_pipeline(*), developments(*)')
+    .eq('id', session.unitId)
+    .single();
+    
+  if (error) {
+    console.error('Profile load error:', error);
+  }
+  return data;
+};
+```
+
+### 3. Docs Tab - Don’t Require Re-authentication
+
+The Docs tab shouldn’t require QR scan if other tabs work:
+
+```javascript
+// In Docs component
+const DocsTab = () => {
+  const session = getSession();
+  
+  // Don't show "Session Expired" if we have a valid session
+  if (!session?.unitId) {
+    // Only then show re-auth prompt
+    return <SessionExpiredPrompt />;
+  }
+  
+  // Otherwise load docs normally
+  return <DocumentsList unitId={session.unitId} />;
+};
+```
+
+### 4. iOS-Specific Session Handling
+
+Add iOS detection and handle differently if needed:
+
+```javascript
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+if (isIOS) {
+  // Use cookies as primary storage on iOS
+  // localStorage can be cleared unexpectedly
+}
+```
+
+### 5. Check for Session on App Resume
+
+iOS apps may clear session when backgrounded:
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Re-validate session when app comes back to foreground
+    const session = getSession();
+    if (!session) {
+      // Redirect to login
+    }
+  }
+});
+```
+
+### 6. Debug on iOS
+
+Add logging to see what’s happening:
+
+```javascript
+console.log('Platform:', navigator.userAgent);
+console.log('Session from localStorage:', localStorage.getItem('purchaserSession'));
+console.log('Session from cookie:', document.cookie);
+console.log('Session from memory:', window.__purchaserSession);
+```
+
+Check Safari console on iOS to see which storage method is failing.
+
+-----

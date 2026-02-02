@@ -11,6 +11,7 @@ import {
   setInFlightRequest
 } from '../../lib/documentCache';
 import { getTranslations } from '../../lib/translations';
+import { getEffectiveToken } from '../../lib/purchaserSession';
 
 const PURCHASER_VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS_PURCHASER === 'true' || process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
 
@@ -153,8 +154,7 @@ export default function PurchaserDocumentsTab({
   }, [unitUid]);
 
   const fetchDocuments = useCallback(async (forceRefresh = false) => {
-    const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-    const token = storedToken || unitUid;
+    const token = getEffectiveToken(unitUid);
     
     const { data: cached, isStale } = getCachedDocuments<Document[]>(unitUid, token);
     
@@ -241,8 +241,7 @@ export default function PurchaserDocumentsTab({
     if (!PURCHASER_VIDEOS_ENABLED) return;
     
     try {
-      const storedToken = sessionStorage.getItem(`house_token_${currentUnitUid}`);
-      const token = storedToken || currentUnitUid;
+      const token = getEffectiveToken(currentUnitUid);
 
       const res = await fetch(
         `/api/purchaser/videos/count?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
@@ -267,8 +266,7 @@ export default function PurchaserDocumentsTab({
     
     setVideosLoading(true);
     try {
-      const storedToken = sessionStorage.getItem(`house_token_${currentUnitUid}`);
-      const token = storedToken || currentUnitUid;
+      const token = getEffectiveToken(currentUnitUid);
 
       const res = await fetch(
         `/api/purchaser/videos?unitUid=${currentUnitUid}&token=${encodeURIComponent(token)}`
@@ -351,8 +349,7 @@ export default function PurchaserDocumentsTab({
         return;
       }
       
-      const storedToken = sessionStorage.getItem(`house_token_${unitUid}`);
-      const token = storedToken || unitUid;
+      const token = getEffectiveToken(unitUid);
 
       const downloadUrl = `/api/purchaser/docs-list/download?unitUid=${unitUid}&token=${encodeURIComponent(token)}&docId=${doc.id}`;
       

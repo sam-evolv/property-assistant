@@ -18,6 +18,7 @@ import {
   Calendar,
   Flame
 } from 'lucide-react';
+import { getEffectiveToken } from '../../lib/purchaserSession';
 
 interface ProfileData {
   unit: {
@@ -104,9 +105,9 @@ export default function PurchaserProfilePanel({
     try {
       setLoading(true);
       setError(null);
-      const token = sessionStorage.getItem(`house_token_${unitUid}`);
+      const token = getEffectiveToken(unitUid);
       const res = await fetch(
-        `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token || unitUid)}`
+        `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
       
       if (res.ok) {
