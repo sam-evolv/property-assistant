@@ -175,6 +175,15 @@ export default function HomeResidentPage() {
           storeToken(unitUid, effectiveToken);
           setValidatedToken(effectiveToken);
           
+          console.log('[Parent] Token validated and set', {
+            qrToken: qrToken ? `${qrToken.substring(0, 8)}...` : 'undefined',
+            effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 8)}...` : 'undefined',
+            unitUid,
+            tokenSource: qrToken ? 'qrToken' : 'unitUid fallback',
+            isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(effectiveToken || ''),
+            isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveToken || ''),
+          });
+          
           // Map response format to HouseContext
           const houseData: HouseContext = {
             unit_id: unitId,

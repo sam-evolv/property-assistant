@@ -158,6 +158,16 @@ export default function PurchaserDocumentsTab({
   const fetchDocuments = useCallback(async (forceRefresh = false) => {
     const token = propToken || getEffectiveToken(unitUid);
     
+    console.log('[DocsTab] fetchDocuments called', {
+      propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
+      effectiveToken: token ? `${token.substring(0, 8)}...` : 'undefined',
+      unitUid,
+      forceRefresh,
+      tokenSource: propToken ? 'prop' : 'storage',
+      isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(token || ''),
+      isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
+    });
+    
     const { data: cached, isStale } = getCachedDocuments<Document[]>(unitUid, token);
     
     if (!forceRefresh && cached) {

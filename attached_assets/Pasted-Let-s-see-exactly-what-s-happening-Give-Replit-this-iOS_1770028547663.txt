@@ -1,0 +1,98 @@
+Let’s see exactly what’s happening. Give Replit this:
+
+-----
+
+**iOS App Still Broken - Need Debug Logging**
+
+## Problem
+
+Profile and Docs tab still not working on iOS after the propToken fix. Need to see exactly what’s happening.
+
+## Add Console Logging Everywhere
+
+### 1. In PurchaserDocumentsTab
+
+```javascript
+const PurchaserDocumentsTab = ({ propToken }) => {
+  console.log('[DocsTab] Component mounted, propToken:', propToken);
+  console.log('[DocsTab] propToken type:', typeof propToken);
+  console.log('[DocsTab] propToken length:', propToken?.length);
+  
+  useEffect(() => {
+    console.log('[DocsTab] useEffect triggered, propToken:', propToken);
+  }, [propToken]);
+  
+  const fetchDocuments = useCallback(async () => {
+    console.log('[DocsTab] fetchDocuments called, propToken:', propToken);
+    // ... rest of function
+  }, [propToken]);
+  
+  // ... rest of component
+};
+```
+
+### 2. In PurchaserProfilePanel
+
+```javascript
+const PurchaserProfilePanel = ({ propToken }) => {
+  console.log('[Profile] Component mounted, propToken:', propToken);
+  
+  useEffect(() => {
+    console.log('[Profile] useEffect triggered, propToken:', propToken);
+    
+    const loadProfile = async () => {
+      console.log('[Profile] loadProfile called');
+      // ... rest of function
+    };
+    
+    if (propToken) {
+      loadProfile();
+    } else {
+      console.log('[Profile] No propToken, skipping load');
+    }
+  }, [propToken]);
+};
+```
+
+### 3. In Parent Component (wherever propToken comes from)
+
+```javascript
+console.log('[Parent] Rendering, validatedToken:', validatedToken);
+console.log('[Parent] Passing to children:', validatedToken);
+
+return (
+  <>
+    <PurchaserDocumentsTab propToken={validatedToken} />
+    <PurchaserProfilePanel propToken={validatedToken} />
+  </>
+);
+```
+
+### 4. Check What Token Format Is Expected
+
+Is `propToken` supposed to be:
+
+- The access code (e.g., `LP-008-9F9A`)?
+- A JWT token?
+- A unit ID (UUID)?
+- The full session object?
+
+```javascript
+console.log('[DocsTab] Expected token format - is this right?', {
+  propToken,
+  isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(propToken),
+  isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propToken),
+  isJWT: propToken?.startsWith('eyJ')
+});
+```
+
+## After Adding Logs
+
+1. Deploy
+1. Open iOS app
+1. Login
+1. Go to Docs tab
+1. Check Safari console (connect iOS device to Mac, open Safari > Develop > [device])
+1. Share the console output
+
+-----
