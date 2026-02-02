@@ -66,6 +66,9 @@ const GENERIC_ADVICE_INTENTS = [
   'general',
   'greeting',
   'humor',
+  'conversation',
+  'thanks',
+  'unknown', // Allow general AI responses for unknown intents - don't block with unhelpful fallbacks
 ];
 
 export function getGroundingPolicy(intent: string): GroundingPolicy {
@@ -100,8 +103,8 @@ export function getGroundingPolicy(intent: string): GroundingPolicy {
   
   return {
     requiresGrounding: true,
-    allowedSources: ['smart_archive_docs', 'google_places', 'deterministic_playbook', 'scheme_profile_data', 'developer_entered_facts'],
-    fallbackMessage: "I don't have specific information about that in your home documentation. Would you like me to help with something else?",
+    allowedSources: ['smart_archive_docs', 'google_places', 'deterministic_playbook', 'scheme_profile_data', 'developer_entered_facts', 'general_knowledge'],
+    fallbackMessage: "I don't have that specific detail in your home documentation, but I can try to help with general guidance. What would you like to know?",
     violationType: 'general_ungrounded',
   };
 }
