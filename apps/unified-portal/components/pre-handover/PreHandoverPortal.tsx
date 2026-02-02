@@ -85,8 +85,22 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
   const openSheet = useCallback((sheet: SheetType) => setActiveSheet(sheet), []);
   const closeSheet = useCallback(() => setActiveSheet(null), []);
 
-  const handleSwitchToAssistant = useCallback(() => {
+  const handleSwitchToAssistant = useCallback(async () => {
     if (props.unitId) {
+      try {
+        const response = await fetch('/api/purchaser/mark-handover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ unitId: props.unitId }),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to mark handover:', await response.text());
+        }
+      } catch (error) {
+        console.error('Failed to mark handover:', error);
+      }
+      
       localStorage.setItem(`handover_override_${props.unitId}`, 'true');
       window.location.reload();
     }

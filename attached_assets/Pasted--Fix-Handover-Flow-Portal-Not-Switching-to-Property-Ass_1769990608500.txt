@@ -1,0 +1,186 @@
+-----
+
+**Fix Handover Flow - Portal Not Switching to Property Assistant**
+
+## Problems Identified
+
+1. **Marking unit as handed over in developer dashboard doesn’t switch the portal** - User marked showhouse as handed over but purchaser portal still showed Pre-Handover Portal
+1. **Logging out and back in doesn’t fix it** - Portal type isn’t being re-checked on login
+1. **“Switch to Property Assistant” button doesn’t work** - Just returns to Pre-Handover Portal
+
+## Root Cause
+
+The portal type is likely being cached or determined at login time and not re-checked against the database.
+
+## Fixes Required
+
+### 1. Check Handover Status on Every Portal Load
+
+Don’t cache the portal type - check it fresh each time:
+
+```javascript
+// On portal load / page refresh
+async function getPortalType(unitId) {
+  const { data: unit } = await supabase
+    .from('units')
+    .select('handover_date')
+    .eq('id', unitId)
+    .single();
+  
+  // If handover_date exists and is in the past, show Property Assistant
+  const now = new Date();
+  const handoverDate = unit?.handover_date ? new Date(unit.handover_date) : null;
+  
+  if (handoverDate && handoverDate <= now) {
+    return 'property-assistant';
+  }
+  return 'pre-handover';
+}
+```
+
+### 2. Fix the Access Code Validation Endpoint
+
+When user logs in with access code, return the current portal type from database:
+
+```javascript
+// /api/purchaser/auth/validate
+export async function POST(request) {
+  const { accessCode } = await request.json();
+  
+  const { data: unit } = await supabase
+    .from('units')
+    .select('*, developments(*)')
+    .eq('unit_uid', accessCode.trim().toUpperCase())
+    .single();
+  
+  if (!unit) {
+    return NextResponse.json({ error: 'Invalid access code' }, { status: 401 });
+  }
+  
+  // Determine portal type from CURRENT database state
+  const now = new Date();
+  const handoverDate = unit.handover_date ? new Date(unit.handover_date) : null;
+  const isHandedOver = handoverDate && handoverDate <= now;
+  
+  return NextResponse.json({
+    success: true,
+    unit: {
+      id: unit.id,
+      address: unit.address,
+      accessCode: unit.unit_uid,
+      handoverDate: unit.handover_date,
+      isHandedOver: isHandedOver,
+      portalType: isHandedOver ? 'property-assistant' : 'pre-handover'
+    },
+    development: unit.developments
+  });
+}
+```
+
+### 3. Fix “Switch to Property Assistant” Button
+
+This button should update the database AND redirect:
+
+```javascript
+async function switchToPropertyAssistant(unitId) {
+  // Update handover_date in database
+  const { error } = await supabase
+    .from('units')
+    .update({ handover_date: new Date().toISOString() })
+    .eq('id', unitId);
+  
+  if (error) {
+    console.error('Failed to update handover date:', error);
+    toast.error('Failed to switch. Please try again.');
+    return;
+  }
+  
+  // Also update the sales pipeline
+  await supabase
+    .from('unit_sales_pipeline')
+    .update({ handover_date: new Date().toISOString() })
+    .eq('unit_id', unitId);
+  
+  // Redirect to Property Assistant
+  window.location.href = '/portal/property-assistant';
+}
+```
+
+### 4. Don’t Store Portal Type in Session/LocalStorage
+
+Remove any caching of portal type:
+
+```javascript
+// DON'T DO THIS
+localStorage.setItem('portalType', 'pre-handover');
+
+// INSTEAD - always check database
+const portalType = await getPortalType(unitId);
+```
+
+### 5. Portal Router Component
+
+Create a component that always checks and routes correctly:
+
+```javascript
+function PortalRouter({ unitId }) {
+  const [portalType, setPortalType] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    async function checkPortalType() {
+      const { data: unit } = await supabase
+        .from('units')
+        .select('handover_date')
+        .eq('id', unitId)
+        .single();
+      
+      const now = new Date();
+      const handoverDate = unit?.handover_date ? new Date(unit.handover_date) : null;
+      
+      if (handoverDate && handoverDate <= now) {
+        setPortalType('property-assistant');
+      } else {
+        setPortalType('pre-handover');
+      }
+      setLoading(false);
+    }
+    
+    checkPortalType();
+  }, [unitId]);
+  
+  if (loading) return <LoadingSpinner />;
+  
+  if (portalType === 'property-assistant') {
+    return <PropertyAssistant unitId={unitId} />;
+  }
+  
+  return <PreHandoverPortal unitId={unitId} />;
+}
+```
+
+### 6. Check Database Column
+
+Make sure handover_date exists and is being set correctly:
+
+```sql
+-- Check if column exists
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'units' AND column_name = 'handover_date';
+
+-- Check showhouse handover date
+SELECT address, handover_date 
+FROM units 
+WHERE address LIKE '%8 Longview%';
+```
+
+### 7. Test Flow
+
+After fixes:
+
+1. Mark unit as handed over in developer dashboard → saves `handover_date` to database
+1. User opens portal → checks `handover_date` → shows Property Assistant
+1. User clicks “Switch to Property Assistant” → sets `handover_date` to now → redirects to Property Assistant
+1. Logging out and back in → still shows Property Assistant (because `handover_date` is set)
+
+-----
