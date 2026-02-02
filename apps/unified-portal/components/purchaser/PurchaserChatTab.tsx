@@ -1301,8 +1301,17 @@ export default function PurchaserChatTab({
               suggestedPillsV2.map((pill) => (
                 <button
                   key={pill.id}
-                  onClick={() => handlePillClick(pill)}
-                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer truncate ${
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePillClick(pill);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    handlePillClick(pill);
+                  }}
+                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer truncate touch-manipulation ${
                     isDarkMode 
                       ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
@@ -1316,8 +1325,17 @@ export default function PurchaserChatTab({
               t.prompts.map((prompt: string, i: number) => (
                 <button
                   key={i}
-                  onClick={() => handleQuickPrompt(prompt)}
-                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleQuickPrompt(prompt);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    handleQuickPrompt(prompt);
+                  }}
+                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer touch-manipulation ${
                     isDarkMode 
                       ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
