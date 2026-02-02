@@ -15,19 +15,37 @@ async function getProjectIdFromDevelopmentId(developmentId: string): Promise<str
   try {
     const supabase = getSupabaseClient();
     
-    const { data: development } = await supabase
+    console.log('[RETRIEVAL] === MAPPING development_id to project_id ===');
+    console.log('[RETRIEVAL] Input development_id:', developmentId);
+    
+    const { data: development, error: devError } = await supabase
       .from('developments')
       .select('id, name')
       .eq('id', developmentId)
       .single();
     
-    if (!development) return null;
+    if (devError) {
+      console.log('[RETRIEVAL] Development lookup error:', devError.message);
+    }
     
-    const { data: project } = await supabase
+    if (!development) {
+      console.log('[RETRIEVAL] Development not found for id:', developmentId);
+      return null;
+    }
+    
+    console.log('[RETRIEVAL] Found development name:', development.name);
+    
+    const { data: project, error: projError } = await supabase
       .from('projects')
       .select('id')
       .eq('name', development.name)
       .single();
+    
+    if (projError) {
+      console.log('[RETRIEVAL] Project lookup error:', projError.message);
+    }
+    
+    console.log('[RETRIEVAL] Mapped to project_id:', project?.id || 'NOT FOUND');
     
     return project?.id || null;
   } catch (error) {
@@ -44,6 +62,9 @@ async function searchDocumentSections(
   try {
     const supabase = getSupabaseClient();
     
+    console.log('[RETRIEVAL] === SEARCHING document_sections ===');
+    console.log('[RETRIEVAL] Searching with project_id:', projectId);
+    
     const { data: sections, error } = await supabase
       .from('document_sections')
       .select('id, content, project_id')
@@ -51,12 +72,18 @@ async function searchDocumentSections(
       .not('embedding', 'is', null)
       .limit(limit);
     
-    if (error || !sections || sections.length === 0) {
+    if (error) {
+      console.log('[RETRIEVAL] document_sections query error:', error.message);
+      return [];
+    }
+    
+    if (!sections || sections.length === 0) {
       console.log('[RETRIEVAL] No document_sections found for project:', projectId);
       return [];
     }
     
-    console.log('[RETRIEVAL] Found', sections.length, 'document_sections for project');
+    console.log('[RETRIEVAL] Found', sections.length, 'document_sections');
+    console.log('[RETRIEVAL] First result preview:', sections[0]?.content?.substring(0, 100));
     
     return sections.map((section: any) => ({
       id: section.id,

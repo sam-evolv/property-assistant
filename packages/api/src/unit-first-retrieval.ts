@@ -9,6 +9,42 @@ function getOpenAI() {
   });
 }
 
+async function getProjectIdFromDevelopmentId(developmentId: string): Promise<string | null> {
+  try {
+    console.log('[UNIT-FIRST] === MAPPING development_id to project_id ===');
+    console.log('[UNIT-FIRST] Input development_id:', developmentId);
+    
+    const devResult = await db.execute(sql`
+      SELECT id, name FROM developments WHERE id = ${developmentId}::uuid LIMIT 1
+    `);
+    
+    if (!devResult.rows || devResult.rows.length === 0) {
+      console.log('[UNIT-FIRST] Development not found for id:', developmentId);
+      return null;
+    }
+    
+    const developmentName = (devResult.rows[0] as any).name;
+    console.log('[UNIT-FIRST] Found development name:', developmentName);
+    
+    const projResult = await db.execute(sql`
+      SELECT id FROM projects WHERE name = ${developmentName} LIMIT 1
+    `);
+    
+    if (!projResult.rows || projResult.rows.length === 0) {
+      console.log('[UNIT-FIRST] No matching project found for name:', developmentName);
+      return null;
+    }
+    
+    const projectId = (projResult.rows[0] as any).id;
+    console.log('[UNIT-FIRST] Mapped to project_id:', projectId);
+    
+    return projectId;
+  } catch (error) {
+    console.error('[UNIT-FIRST] Failed to map development to project:', error);
+    return null;
+  }
+}
+
 export interface UnitFirstChunk {
   id: string;
   content: string;
@@ -372,6 +408,54 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
     allChunks.push(...globalChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.global = globalChunks.length;
     console.log(`    Found ${globalChunks.length} global fallback chunks`);
+  }
+
+  // TIER 6: document_sections fallback with project_id mapping
+  if (allChunks.length < 5) {
+    console.log('\n  TIER 6: document_sections fallback (project_id mapping)...');
+    const existingIds = new Set(allChunks.map(c => c.id));
+    
+    const projectId = await getProjectIdFromDevelopmentId(developmentId);
+    
+    if (projectId) {
+      const sectionsResults = await db.execute(sql`
+        SELECT
+          ds.id,
+          ds.content,
+          ds.project_id,
+          1 - (ds.embedding <=> ${embeddingVector}::vector) as similarity
+        FROM document_sections ds
+        WHERE ds.project_id = ${projectId}::uuid
+          AND ds.embedding IS NOT NULL
+          AND (ds.embedding <=> ${embeddingVector}::vector) < 0.7
+        ORDER BY ds.embedding <=> ${embeddingVector}::vector
+        LIMIT 20
+      `);
+
+      const sectionsChunks = (sectionsResults.rows || [])
+        .filter((row: any) => !existingIds.has(row.id))
+        .map((row: any) => ({
+          id: row.id,
+          content: row.content,
+          document_id: null,
+          document_title: 'Document Section',
+          house_type_code: null,
+          metadata: { source: 'document_sections', project_id: row.project_id },
+          similarity: row.similarity,
+          tier: 'development' as const,
+          tier_weight: TIER_WEIGHTS.development,
+        }));
+
+      allChunks.push(...sectionsChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
+      tierBreakdown.document_sections = sectionsChunks.length;
+      console.log(`    Found ${sectionsChunks.length} document_sections chunks`);
+      if (sectionsChunks.length > 0) {
+        console.log(`    First result preview: ${sectionsChunks[0]?.content?.substring(0, 100)}`);
+      }
+    } else {
+      console.log('    Could not map development to project - skipping document_sections');
+      tierBreakdown.document_sections = 0;
+    }
   }
 
   allChunks.sort((a, b) => b.final_score - a.final_score);

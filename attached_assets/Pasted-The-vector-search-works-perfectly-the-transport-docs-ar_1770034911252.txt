@@ -1,0 +1,83 @@
+The vector search works perfectly - the transport docs are ranking at the top (similarity 1.0, 0.89, 0.79, 0.77).
+
+So the issue is in the AI code - it's either:
+1. Not using the correct project_id when searching
+2. Not actually calling the updated code
+3. The deployment hasn't refreshed
+
+Ask Replit to check:
+
+---
+
+**Debug AI Search - Transport Docs Not Being Found**
+
+## Confirmed Working
+
+Vector search in database works perfectly:
+- "PUBLIC TRANSPORT - BUS SERVICES" = similarity 1.0
+- "FUTURE PUBLIC TRANSPORT" = similarity 0.89
+- Transport docs rank at top when searching with correct project_id
+
+## Problem
+
+The AI still says "I couldn't find any public transport options" - so the code isn't using the correct project_id.
+
+## Debug Steps
+
+1. **Add logging to see what's happening:**
+
+```javascript
+// In the search function
+console.log('=== AI SEARCH DEBUG ===');
+console.log('development_id:', developmentId);
+console.log('mapped project_id:', projectId);
+console.log('search query:', query);
+console.log('results count:', results?.length);
+console.log('first result:', results?.[0]?.content?.substring(0, 100));
+```
+
+2. **Check the mapping is working:**
+
+```javascript
+// Log the mapping
+const { data: development } = await supabase
+  .from('developments')
+  .select('name')
+  .eq('id', developmentId)
+  .single();
+
+console.log('Development name:', development?.name);
+
+const { data: project } = await supabase
+  .from('projects')
+  .select('id')
+  .eq('name', development?.name)
+  .single();
+
+console.log('Mapped project_id:', project?.id);
+```
+
+3. **Verify the search uses project_id:**
+
+Make sure the document search is filtering by `project_id`, not `development_id`:
+
+```javascript
+// CORRECT
+.eq('project_id', projectId)
+
+// WRONG
+.eq('project_id', developmentId)
+```
+
+4. **Check deployment** - ensure the latest code is deployed and running.
+
+## Expected Flow
+
+1. User asks "What public transport is nearby?"
+2. Get unit's development_id: `34316432-f1e8-4297-b993-d9b5c88ee2d8`
+3. Look up development name: "Longview Park"
+4. Find project with same name: `57dc3919-2725-4575-8046-9179075ac88e`
+5. Search document_sections with project_id `57dc3919...`
+6. Return transport docs
+
+---
