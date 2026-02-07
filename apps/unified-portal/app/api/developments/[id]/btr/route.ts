@@ -23,7 +23,20 @@ export async function GET(
     }
 
     const allUnits = await db
-      .select()
+      .select({
+        id: units.id,
+        unit_number: units.unit_number,
+        unit_code: units.unit_code,
+        unit_uid: units.unit_uid,
+        address_line_1: units.address_line_1,
+        bedrooms: units.bedrooms,
+        bathrooms: units.bathrooms,
+        unit_status: units.unit_status,
+        unit_mode: units.unit_mode,
+        monthly_rent: units.monthly_rent,
+        current_tenancy_id: units.current_tenancy_id,
+        development_id: units.development_id,
+      })
       .from(units)
       .where(eq(units.development_id, developmentId));
 
