@@ -1,0 +1,351 @@
+# BTR Tenant Portal — Implementation Plan for Replit
+
+## Context
+
+The developer dashboard BTR module is already built and working (sidebar nav, maintenance, compliance, amenities, welcome sequences, units). This plan covers the **tenant-facing portal** — the app that tenants open on their phone. The current purchaser portal serves homeowners (BTS). We need to adapt it for BTR tenants **without breaking the existing homeowner experience**.
+
+The design must look **exactly** like the current purchaser portal. Same header, same logo, same tab bar, same chat bubbles, same input bar, same dark/light mode toggle. The only differences are BTR-specific content and features layered on top.
+
+---
+
+## Important: What NOT to change
+
+The current BTS purchaser portal must continue working exactly as it does today. Every change below is **additive** and **conditional** on `project_type = 'btr'` or `'mixed'`. If `project_type = 'bts'` or null, the portal behaves identically to today.
+
+---
+
+## Phase 1: Conditional System Prompt (AI Assistant)
+
+### What to do
+
+The AI assistant currently uses a homeowner-focused system prompt. When a development has `project_type = 'btr'` or `'mixed'`, swap to a tenant-focused system prompt.
+
+### Find the file
+
+Look for wherever the system prompt / assistant instructions are built. This is likely in a file that constructs the OpenAI API call, possibly something like `lib/ai.ts`, `services/assistant.ts`, `api/chat.ts`, or similar. Search for text like "homeowner", "your home", "property handover" — that's the current BTS prompt.
+
+### Add a conditional check
+
+```
+// Pseudocode
+const development = await getDevelopment(developmentId);
+const projectType = development.project_type;
+
+if (projectType === 'btr' || projectType === 'mixed') {
+  systemPrompt = BTR_SYSTEM_PROMPT;
+} else {
+  systemPrompt = EXISTING_BTS_SYSTEM_PROMPT; // don't touch this
+}
+```
+
+### BTR System Prompt Template
+
+```
+You are the AI property assistant for {DEVELOPMENT_NAME}, a residential apartment building managed by {OPERATOR_NAME}. You help tenants with practical questions about their apartment and building.
+
+Your personality: Think of yourself as a knowledgeable, friendly concierge who genuinely cares about helping residents. Your tone is warm but professional — like a helpful neighbour who knows everything about the building.
+
+Key behaviours:
+- Answer practical how-to questions about appliances, heating, building systems
+- Know about shared amenities: {LIST_AMENITIES_FROM_DB} — hours, rules, how to book
+- Know about building rules, bin collection, parking, bike storage, access
+- When you detect a maintenance issue you cannot solve through troubleshooting, offer to help submit a maintenance request. Say something like: "I wasn't able to resolve this remotely. Would you like me to help you submit a maintenance request? I can pre-fill the details from our conversation."
+- For responsibility questions (e.g. "who fixes the dishwasher?"), explain what's typically tenant responsibility vs building management responsibility
+- Never share information about other tenants, rent amounts, or confidential building data
+- Never use markdown formatting — respond in clean plain text with natural paragraph breaks
+- Lead with acknowledgment before diving into solutions
+- Break complex information into digestible pieces
+- Keep responses concise — no filler phrases like "feel free to ask!"
+
+Communication style:
+- Opening: Brief acknowledgment (1 sentence)
+- Body: Core information conversationally (2-4 short paragraphs)
+- Close: Natural next step or gentle offer to help further
+
+Language rules:
+- Say "resident" or "tenant", never "homeowner" or "purchaser"
+- Say "apartment" or "unit", never "house" or "property"
+- Say "move-in", never "handover"
+- Say "building management", never "developer"
+```
+
+### Injecting amenity data into the prompt
+
+When building the BTR system prompt, query the `btr_amenities` table:
+
+```sql
+SELECT name, type, description, capacity, max_duration_hours
+FROM btr_amenities
+WHERE development_id = '{developmentId}' AND is_active = true;
+```
+
+Format these into the system prompt so the AI can answer: "What time does the gym open?", "How do I book the meeting room?", "Is there EV charging?"
+
+### Welcome sequence awareness
+
+For the first 7 days after a tenant's `move_in_date`, inject additional context:
+
+```sql
+SELECT day_number, title, message, category
+FROM welcome_sequences
+WHERE development_id = '{developmentId}' AND is_active = true
+ORDER BY day_number;
+```
+
+Add to the system prompt: "This tenant moved in {X} days ago. They are on day {X} of their welcome sequence. Proactively offer relevant information from their current sequence step when appropriate."
+
+---
+
+## Phase 2: Tenant Portal UI Adaptations
+
+### The design must match exactly
+
+Reference the existing purchaser portal design. The BTR tenant portal uses the **identical** layout, components, colours, and styling. Specifically:
+
+**Header:** OpenHouse AI logo (left), EN language dropdown, dark/light mode toggle icon, user profile circle (gold background). Exact same layout.
+
+**Tab bar (bottom):** 4 tabs with icons and labels. Gold (#D4AF37) for active, grey for inactive.
+
+**Chat screen:** Gold gradient user message bubbles (right-aligned), light grey AI response bubbles (left-aligned, with subtle border). Input bar at bottom with home icon button (left), rounded text input with mic icon (right), "Powered by AI • Information provided for reference only" disclaimer text below.
+
+**Dark mode:** Background #0d1117, cards #161b22, borders #1e2530, text #e6edf3. Gold accent stays #D4AF37.
+
+**Light mode:** Background #f5f5f0 (the warm off-white from the live app), cards #ffffff, borders #e8e8e3, text #1a1a1a.
+
+### What changes for BTR
+
+**Tab bar changes:** Replace "Map" tab with "Book" tab (Calendar icon). The 4 BTR tabs are: Chat, Book, News, Docs.
+
+**Chat placeholder text:** Change from "Ask about your home or community.." to "Ask about your apartment or building.."
+
+**Quick action suggestions on empty chat screen:** Change from homeowner topics ("Storage Ideas", "Long-Term Maintenance", "Planning Rules", "EV Charging") to tenant topics ("Heating Help", "Building Rules", "Wi-Fi & Internet", "Book Amenity").
+
+**Quick action buttons above tab bar (BTR only):** Add two buttons between the chat content and the tab bar:
+- "Report Issue" (Wrench icon) — opens maintenance request form
+- "Book Amenity" (Calendar icon) — opens amenity booking list
+
+These buttons only appear on the Chat tab and only for BTR developments.
+
+**Profile/My Home modal:** Change "MY HOME" label. Replace "Welcome, {name}" copy with apartment-appropriate text. Replace "HOUSE TYPE" section with "APARTMENT" section. Show apartment number, building, floor. Remove square metres if not relevant. Show "Building: {development_name}" instead of "DEVELOPMENT".
+
+### Conditional rendering approach
+
+```jsx
+// In the portal layout component
+const isBTR = development.project_type === 'btr' || development.project_type === 'mixed';
+
+// Tab bar
+const tabs = isBTR
+  ? [{ id: 'chat', icon: MessageSquare, label: 'Chat' }, { id: 'book', icon: Calendar, label: 'Book' }, { id: 'news', icon: Bell, label: 'News' }, { id: 'docs', icon: FileText, label: 'Docs' }]
+  : [{ id: 'chat', icon: MessageSquare, label: 'Chat' }, { id: 'map', icon: MapPin, label: 'Map' }, { id: 'news', icon: Bell, label: 'News' }, { id: 'docs', icon: FileText, label: 'Docs' }];
+
+// Quick actions on chat screen
+const quickActions = isBTR
+  ? ['Heating Help', 'Building Rules', 'Wi-Fi & Internet', 'Book Amenity']
+  : ['Storage Ideas', 'Long-Term Maintenance', 'Planning Rules', 'EV Charging'];
+
+// Input placeholder
+const placeholder = isBTR
+  ? 'Ask about your apartment or building..'
+  : 'Ask about your home or community..';
+
+// Welcome text on empty chat
+const welcomeTitle = isBTR
+  ? 'Ask anything about your apartment or building'
+  : 'Ask anything about your home or community';
+
+const welcomeSubtitle = isBTR
+  ? 'Quick answers for daily life: heating, amenities, building rules, and more.'
+  : 'Quick answers for daily life: floor plans, amenities, local services, and more.';
+```
+
+---
+
+## Phase 3: Maintenance Escalation Flow
+
+This is the highest-value BTR feature. When the AI assistant can't resolve an issue through troubleshooting, it offers to submit a maintenance request.
+
+### Option A: UI-based escalation (recommended — simpler)
+
+When the AI response contains a maintenance offer, render a "Submit Maintenance Request" button below the AI message. Clicking it opens a pre-filled maintenance form as a slide-up panel.
+
+The form should be pre-filled with context from the conversation:
+- **Title:** Auto-generated from the conversation (e.g. "Heating not working — no power to unit")
+- **Category:** Auto-detected (plumbing/electrical/heating/appliance/structural/general)
+- **Priority:** Auto-suggested based on severity
+- **Description:** Auto-generated summary of the troubleshooting conversation
+
+The form fields:
+- Title (editable, pre-filled)
+- Category (selectable grid: Plumbing, Electrical, Heating, Appliance, Structural, General — each with an icon)
+- Priority (auto-set but changeable: Low, Routine, Urgent, Emergency)
+- Description (editable textarea, pre-filled)
+- Photo upload (optional, camera icon)
+- Submit button
+
+On submit: POST to `/api/developments/{developmentId}/btr/maintenance` with:
+```json
+{
+  "unit_id": "{tenant's unit ID}",
+  "category": "heating",
+  "priority": "urgent",
+  "title": "Heating not working — no power to unit",
+  "description": "Tenant reported heating completely non-functional. Troubleshooting steps completed: checked consumer unit (all switches normal), verified thermostat settings. Issue appears to be with the heat pump unit itself.",
+  "status": "submitted",
+  "source": "ai_escalation"
+}
+```
+
+Show success confirmation inline in the chat: "Request submitted. Building management will be in touch shortly."
+
+### Option B: AI function call (more advanced, do later)
+
+Register a tool/function that the AI can call directly:
+```json
+{
+  "name": "submit_maintenance_request",
+  "parameters": {
+    "title": "string",
+    "category": "enum",
+    "priority": "enum",
+    "description": "string"
+  }
+}
+```
+
+The AI calls this when appropriate, the backend creates the record, and the AI confirms to the tenant.
+
+### Detection logic
+
+Add to the AI system prompt: "When you detect an issue you cannot resolve through troubleshooting (e.g. the tenant has tried your suggestions and the problem persists, or the issue requires physical inspection/repair), offer to submit a maintenance request. Never auto-submit — always ask first."
+
+The UI should watch for AI responses that contain phrases like "maintenance request", "submit a request", "Would you like me to" — and render the action button accordingly.
+
+---
+
+## Phase 4: Amenity Booking (Book Tab)
+
+When tapping the "Book" tab, show a list of bookable amenities from `btr_amenities`.
+
+### API call
+```
+GET /api/developments/{developmentId}/btr/amenities
+```
+
+### UI Layout
+
+List of amenity cards, each showing:
+- Icon (based on amenity type: Dumbbell for gym, Users for meeting room, Sun for rooftop, BatteryCharging for EV charger)
+- Name
+- Hours/availability text
+- Chevron right arrow
+
+Tapping an amenity opens a booking flow:
+1. Select date (calendar picker)
+2. Select time slot (based on available slots, accounting for capacity and max_duration_hours)
+3. Confirm booking
+
+Bookings are stored in the `amenity_bookings` table.
+
+### Design
+
+Use the exact same card styling as the Documents page — white cards with subtle border, rounded corners, icon on the left. Match the existing app aesthetic exactly.
+
+---
+
+## Phase 5: Welcome Sequence Integration
+
+For new tenants (within 7 days of move_in_date), show a progress indicator on the chat screen.
+
+### Check on load
+```sql
+SELECT move_in_date FROM btr_tenancies
+WHERE unit_id = '{unitId}' AND status = 'active'
+ORDER BY move_in_date DESC LIMIT 1;
+```
+
+If `CURRENT_DATE - move_in_date <= 7`, fetch the welcome sequence and show a small progress card at the top of the chat screen:
+
+"Day 3 of 7 — Today: Your local area"
+
+This is a subtle banner, not intrusive. Tapping it could show the full sequence.
+
+---
+
+## Phase 6: News/Noticeboard Adaptations
+
+The News tab works identically for BTS and BTR. No changes needed to the core functionality.
+
+For BTR, add the ability for building management to post alerts (e.g. "Water shutdown Thursday 10am-2pm"). These come from the developer dashboard and appear with an "Alert" tag and amber styling, matching the existing alert card design.
+
+No code changes needed if the noticeboard already supports different post categories (General, Event, Alert, Lost & Found). Just ensure BTR developments can use the same system.
+
+---
+
+## Phase 7: Documents Tab Adaptations
+
+The Documents tab works identically. For BTR, the document categories shift:
+- "Must Read" documents include: Fire Safety Guide, Resident Welcome Pack
+- "Important" documents include: Lease Agreement, Building Rules
+- Standard documents include: Appliance Manuals, Floor Plans
+
+No code changes needed — this is a content/upload difference managed by the developer/operator through the dashboard.
+
+---
+
+## File Changes Summary
+
+| Area | What to change | Likely file(s) |
+|------|----------------|----------------|
+| System prompt | Add BTR conditional prompt | `lib/ai.ts` or wherever OpenAI call is built |
+| System prompt | Inject amenities into prompt | Same file — query `btr_amenities` |
+| System prompt | Inject welcome sequence context | Same file — query `welcome_sequences` + `btr_tenancies` |
+| Tab bar | Conditional tabs (Map vs Book) | Purchaser portal layout component |
+| Chat screen | BTR placeholder text + quick actions | Chat component |
+| Chat screen | Quick action buttons (Report/Book) | Chat component |
+| Chat screen | Welcome sequence progress banner | Chat component (new sub-component) |
+| Maintenance form | New slide-up panel component | New component in purchaser portal |
+| Maintenance form | POST to maintenance API | Uses existing `/api/developments/[id]/btr/maintenance` |
+| Amenity booking | New Book tab content | New page/component in purchaser portal |
+| Amenity booking | GET amenities API | Uses existing `/api/developments/[id]/btr/amenities` |
+| Profile modal | BTR-appropriate labels | Profile/My Home component |
+
+---
+
+## Implementation Order
+
+1. **System prompt conditional** — This is the single highest-value change. Even without any UI changes, BTR tenants will get tenant-appropriate AI responses instead of homeowner ones.
+2. **Tab bar + placeholder text** — Quick win, makes the portal feel BTR-native.
+3. **Quick action buttons (Report Issue / Book Amenity)** — Visible BTR differentiation.
+4. **Maintenance form** — The core BTR value proposition for operators.
+5. **Amenity booking list** — Fills out the Book tab.
+6. **Welcome sequence banner** — Nice-to-have polish.
+
+---
+
+## Testing Checklist
+
+After implementation, verify:
+
+- [ ] BTS developments (Longview Park) still work exactly as before — no BTR elements visible
+- [ ] BTR development (Harbour View) shows Book tab instead of Map tab
+- [ ] Chat placeholder says "apartment" not "home"
+- [ ] Quick actions show BTR-appropriate topics
+- [ ] AI responses use tenant language (apartment, resident, building management)
+- [ ] AI never says "homeowner", "purchaser", "handover", "developer"
+- [ ] Maintenance escalation flow works: AI troubleshoots → offers request → form appears pre-filled → submit works → confirmation shown
+- [ ] Maintenance request appears in developer dashboard
+- [ ] Amenity list loads from database
+- [ ] Dark mode and light mode both work correctly
+- [ ] Welcome sequence banner shows for tenants within 7 days of move-in
+- [ ] Profile/My Home shows apartment info, not house info
+
+---
+
+## Critical Reminders
+
+- **Do NOT create new pages or routes for the BTR portal.** The BTR tenant portal IS the existing purchaser portal with conditional rendering based on `project_type`. Same URL structure, same components, just different content.
+- **Do NOT change any styling.** The design must remain pixel-identical to the current portal. Same gold (#D4AF37), same fonts, same spacing, same rounded corners, same everything.
+- **Do NOT break existing BTS functionality.** Every change must be wrapped in `if (isBTR)` checks. If in doubt, leave it unchanged.
+- The BTR database tables and API routes already exist (`btr_tenancies`, `maintenance_requests`, `compliance_schedule`, `btr_amenities`, `welcome_sequences`, `amenity_bookings`). Use them — don't create new ones.
+- The development ID for the BTR test development (Harbour View Apartments) is `b45347d3-934d-4ec1-9d25-c0a687b82263`. It already has seed data in all tables.
