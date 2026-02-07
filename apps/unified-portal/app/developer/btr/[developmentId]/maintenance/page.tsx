@@ -176,7 +176,7 @@ export default function BTRMaintenancePage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: selectedRequest.id,
+          requestId: selectedRequest.id,
           status: editStatus,
           assigned_vendor: editVendor || undefined,
           scheduled_date: editScheduledDate || undefined,
@@ -397,8 +397,8 @@ export default function BTRMaintenancePage() {
                 const { IconComp, color: catColor } = getCategoryIcon(req.category);
                 const priorityConf = PRIORITY_CONFIG[req.priority] || PRIORITY_CONFIG.routine;
                 const statusConf = STATUS_CONFIG[req.status] || STATUS_CONFIG.submitted;
-                const unitAddress = req.unit?.address || `Unit ${req.unit_id}`;
-                const tenantName = req.tenancy?.tenant_name || '—';
+                const unitAddress = req.unit?.address || req.unit_address || `Unit ${req.unit_id}`;
+                const tenantName = req.tenancy?.tenant_name || req.tenant_name_joined || '—';
 
                 return (
                   <div
@@ -487,7 +487,7 @@ export default function BTRMaintenancePage() {
                     {CATEGORY_CONFIG[selectedRequest.category]?.label}
                   </span>
                   <span className="text-xs" style={{ color: '#111827' }}>
-                    • {selectedRequest.unit?.address || `Unit ${selectedRequest.unit_id}`}
+                    • {selectedRequest.unit?.address || selectedRequest.unit_address || `Unit ${selectedRequest.unit_id}`}
                   </span>
                 </div>
                 <div className="text-xs mt-2" style={{ color: '#111827' }}>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { maintenanceRequests } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export async function PATCH(
@@ -48,11 +48,24 @@ export async function GET(
     await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;
 
-    const requests = await db
-      .select()
-      .from(maintenanceRequests)
-      .where(eq(maintenanceRequests.development_id, developmentId))
-      .orderBy(desc(maintenanceRequests.created_at));
+    const result = await db.execute(sql`
+      SELECT m.*,
+             u.address as unit_address,
+             u.unit_number as unit_number,
+             t.tenant_name as tenant_name_joined
+      FROM maintenance_requests m
+      LEFT JOIN units u ON m.unit_id = u.id
+      LEFT JOIN btr_tenancies t ON m.unit_id = t.unit_id AND t.status = 'active'
+      WHERE m.development_id = ${developmentId}
+      ORDER BY m.created_at DESC
+    `);
+
+    const rows = (result as any).rows || result;
+    const requests = rows.map((r: any) => ({
+      ...r,
+      unit: { address: r.unit_address, unit_number: r.unit_number },
+      tenancy: { tenant_name: r.tenant_name_joined },
+    }));
 
     return NextResponse.json({ requests });
   } catch (error: any) {

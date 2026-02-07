@@ -1,0 +1,27 @@
+Give Replit this:
+
+Fix: Display unit addresses instead of UUIDs across BTR pages
+Several BTR pages are showing raw unit UUIDs instead of human-readable unit addresses. This needs fixing across all BTR pages.
+1. Maintenance page — Each request shows "Unit a3dc6039-506d-4c11-8e8b-a799363a4d78" instead of "Apt 2, Block A". The maintenance API route needs to JOIN with the units table to include units.address (or units.unit_number) in the response. The frontend should display the unit address, not the unit_id.
+2. BTR Overview page — Recent Maintenance panel — Same issue, showing unit UUID instead of address.
+3. BTR Overview page — Unit Status grid — Currently shows just the unit number (1, 2, 3...). Should show the full address like "Apt 1, Block A" to match the Units table view.
+4. Maintenance page — tenant name missing — Each request should show which tenant submitted it. The API should JOIN with btr_tenancies table (via unit_id) to get the tenant name, or use the tenancy_id field if populated.
+5. BTR Overview — Occupancy rate shows 75% — This should be 83% (10 occupied out of 12 units). Check the calculation — it should count units where unit_status = 'occupied' divided by total units. The void unit (Apt 3) and vacant unit (Apt 8) are not occupied, and the maintenance unit (Apt 5) still has an active tenant so could be counted either way, but 9/12 = 75% suggests it's only counting 9 when there are actually 10 occupied tenancies.
+6. Monthly Rent Roll shows €2K per unit — The units table shows €2K for every tenant but the actual monthly rents vary (€1,750 to €2,200). The rent data is stored in btr_tenancies.monthly_rent and units.monthly_rent. The Units page should display the actual rent from btr_tenancies for occupied units, not a rounded figure. Same for the overview rent roll — it should sum actual tenancy rents (total should be approximately €19,600, not €20K).
+How to fix the API joins:
+For the maintenance requests API (/api/developments/[id]/btr/maintenance):
+
+LEFT JOIN units on maintenance_requests.unit_id = units.id to get units.address
+LEFT JOIN btr_tenancies on maintenance_requests.unit_id = btr_tenancies.unit_id AND btr_tenancies.status = 'active' to get btr_tenancies.tenant_name
+Return unit_address and tenant_name as part of each maintenance request object
+
+For the BTR overview API (/api/developments/[id]/btr):
+
+Same joins for the maintenance requests included in the overview
+Calculate occupancy as: units where unit_status = 'occupied' / total units
+Calculate rent roll by summing monthly_rent from btr_tenancies where status = 'active'
+
+For the units API:
+
+LEFT JOIN btr_tenancies on units.id = btr_tenancies.unit_id AND btr_tenancies.status = 'active'
+Display actual monthly_rent from the tenancy, not a rounded value

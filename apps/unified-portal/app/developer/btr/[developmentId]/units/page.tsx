@@ -28,6 +28,7 @@ interface BTRUnit {
   id: string;
   unit_number?: string;
   address?: string;
+  address_line_1?: string;
   unit_status?: UnitStatus;
   development_id?: string;
 }
@@ -42,8 +43,7 @@ interface BTRData {
 
 function formatEuro(value: number): string {
   if (value >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `€${Math.round(value / 1000)}K`;
-  return `€${value}`;
+  return `€${value.toLocaleString('en-IE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 type FilterType = 'all' | 'occupied' | 'vacant' | 'void' | 'maintenance';
@@ -302,7 +302,7 @@ export default function BTRUnitsPage() {
                 const config = UNIT_STATUS_CONFIG[status] || UNIT_STATUS_CONFIG.vacant;
                 const tenancy = tenancyByUnit[unit.id];
                 const maintCount = maintenanceCountByUnit[unit.id] || 0;
-                const unitLabel = unit.unit_number || unit.address || unit.id;
+                const unitLabel = unit.address || unit.address_line_1 || unit.unit_number || unit.id;
                 const isExpanded = expandedUnitId === unit.id;
 
                 return (
