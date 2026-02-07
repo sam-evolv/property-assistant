@@ -52,6 +52,7 @@ export async function GET(
           tenant_id: project.tenant_id,
           created_at: project.created_at,
           system_instructions: null,
+          project_type: project.project_type || 'bts',
         }
       });
     }
@@ -71,6 +72,7 @@ export async function GET(
           tenant_id: realProject.tenant_id,
           created_at: realProject.created_at,
           system_instructions: null,
+          project_type: realProject.project_type || 'bts',
         }
       });
     }
@@ -83,6 +85,7 @@ export async function GET(
         tenant_id: null,
         created_at: new Date().toISOString(),
         system_instructions: null,
+        project_type: 'bts',
       }
     });
 

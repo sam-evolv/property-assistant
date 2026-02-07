@@ -3,15 +3,16 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield,
   Layers, ShieldCheck, GitBranch, Mail, Command,
-  CalendarCheck
+  CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { useCurrentContext } from '@/contexts/CurrentContext';
 
 interface SidebarMenuProps {
   children: React.ReactNode;
@@ -26,7 +27,7 @@ interface NavSection {
   }>;
 }
 
-const navSections: NavSection[] = [
+const btsNavSections: NavSection[] = [
   {
     title: 'Main',
     items: [
@@ -68,9 +69,48 @@ const navSections: NavSection[] = [
   },
 ];
 
+function getBtrNavSections(developmentId: string): NavSection[] {
+  return [
+    {
+      title: 'BTR Management',
+      items: [
+        { label: 'BTR Overview', href: `/developer/btr/${developmentId}/overview`, icon: Building2 },
+        { label: 'Units', href: `/developer/btr/${developmentId}/units`, icon: Home },
+        { label: 'Maintenance', href: `/developer/btr/${developmentId}/maintenance`, icon: Wrench },
+        { label: 'Compliance', href: `/developer/btr/${developmentId}/compliance`, icon: ShieldCheck },
+        { label: 'Amenities', href: `/developer/btr/${developmentId}/amenities`, icon: Dumbbell },
+        { label: 'Welcome Sequence', href: `/developer/btr/${developmentId}/welcome`, icon: Welcome },
+      ],
+    },
+  ];
+}
+
 export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { developmentId } = useCurrentContext();
+  const [projectType, setProjectType] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!developmentId) {
+      setProjectType(null);
+      return;
+    }
+    fetch(`/api/developments/${developmentId}`)
+      .then(res => res.json())
+      .then(data => {
+        setProjectType(data?.development?.project_type || data?.project_type || 'bts');
+      })
+      .catch(() => setProjectType('bts'));
+  }, [developmentId]);
+
+  const navSections = useMemo(() => {
+    const sections = [...btsNavSections];
+    if (developmentId && (projectType === 'btr' || projectType === 'mixed')) {
+      sections.push(...getBtrNavSections(developmentId));
+    }
+    return sections;
+  }, [developmentId, projectType]);
 
   const isActive = (href: string) => {
     if (href === '/developer') {

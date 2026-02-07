@@ -38,6 +38,30 @@ There are TWO units tables with DIFFERENT IDs for the same properties:
 - Script: `scripts/migrate-from-legacy.ts`
 - Docs: `docs/database-migration.md`
 
+### BTR (Build-to-Rent) Module (February 2026)
+**New Feature:** Full Build-to-Rent support added alongside existing Build-to-Sell (BTS) functionality.
+
+**Database Changes:**
+- `developments.project_type` column: 'bts' (default), 'btr', or 'mixed'
+- `units.unit_status` column: 'available', 'occupied', 'vacant', 'void', 'maintenance'
+- `units.unit_mode` column: 'sale' or 'rent' (for mixed developments)
+- `units.current_tenancy_id` and `units.monthly_rent` columns
+- New tables: `btr_tenancies`, `maintenance_requests`, `compliance_schedule`, `btr_amenities`, `amenity_bookings`, `welcome_sequences`
+
+**BTR Pages (under /developer/btr/[developmentId]/):**
+- `/overview` - Dashboard with occupancy stats, unit grid, maintenance/compliance alerts
+- `/units` - Unit management table with tenancy CRUD
+- `/maintenance` - Maintenance request tracking with status workflow
+- `/compliance` - Compliance calendar with auto-recurrence
+- `/amenities` - Amenity management
+- `/welcome` - Welcome sequence editor for new tenants
+
+**API Routes:** `/api/developments/[id]/btr/` (GET/POST/PATCH for all BTR modules)
+
+**Conditional Navigation:** Sidebar shows BTR section when `development.project_type` is 'btr' or 'mixed'
+
+**Type Definitions:** `apps/unified-portal/types/btr.ts`
+
 ## 🏗️ Project Architecture
 
 ### Monorepo Structure (Updated Phase 18)
