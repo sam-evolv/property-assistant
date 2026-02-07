@@ -34,6 +34,7 @@ export async function GET(
       .limit(1);
 
     if (development) {
+      console.log('[Development] Found in local DB, project_type:', development.project_type);
       return NextResponse.json({ development });
     }
 

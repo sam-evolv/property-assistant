@@ -88,29 +88,37 @@ function getBtrNavSections(developmentId: string): NavSection[] {
 export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { developmentId } = useCurrentContext();
-  const [projectType, setProjectType] = useState<string | null>(null);
+  const { developmentId, projectType: contextProjectType } = useCurrentContext();
+  const [fetchedProjectType, setFetchedProjectType] = useState<string | null>(null);
 
   useEffect(() => {
     if (!developmentId) {
-      setProjectType(null);
+      setFetchedProjectType(null);
+      return;
+    }
+    if (contextProjectType) {
+      setFetchedProjectType(null);
       return;
     }
     fetch(`/api/developments/${developmentId}`)
       .then(res => res.json())
       .then(data => {
-        setProjectType(data?.development?.project_type || data?.project_type || 'bts');
+        const pt = data?.development?.project_type || data?.project_type || 'bts';
+        console.log('[Sidebar] Fallback fetch project_type:', pt);
+        setFetchedProjectType(pt);
       })
-      .catch(() => setProjectType('bts'));
-  }, [developmentId]);
+      .catch(() => setFetchedProjectType('bts'));
+  }, [developmentId, contextProjectType]);
+
+  const effectiveProjectType = contextProjectType || fetchedProjectType || 'bts';
 
   const navSections = useMemo(() => {
     const sections = [...btsNavSections];
-    if (developmentId && (projectType === 'btr' || projectType === 'mixed')) {
+    if (developmentId && (effectiveProjectType === 'btr' || effectiveProjectType === 'mixed')) {
       sections.push(...getBtrNavSections(developmentId));
     }
     return sections;
-  }, [developmentId, projectType]);
+  }, [developmentId, effectiveProjectType]);
 
   const isActive = (href: string) => {
     if (href === '/developer') {

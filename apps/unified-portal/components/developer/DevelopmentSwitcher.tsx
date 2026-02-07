@@ -23,6 +23,7 @@ interface Development {
   is_active: boolean;
   tenant_id?: string;
   tenant_name?: string;
+  project_type?: string;
 }
 
 interface DevelopmentSwitcherProps {
@@ -91,10 +92,15 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
         setDevelopments(devs);
         setError(null);
 
-        // If current development is not in the filtered list, reset to "All Schemes"
-        if (developmentId && data.developments && !data.developments.some((d: Development) => d.id === developmentId)) {
-          console.log('[DevelopmentSwitcher] Current development not in filtered list, resetting to All Schemes');
-          setDevelopmentId(null);
+        if (developmentId && data.developments) {
+          const currentDev = devs.find((d: Development) => d.id === developmentId);
+          if (!currentDev) {
+            console.log('[DevelopmentSwitcher] Current development not in filtered list, resetting to All Schemes');
+            setDevelopmentId(null);
+          } else if (currentDev.project_type) {
+            console.log('[DevelopmentSwitcher] Syncing project_type for hydrated dev:', currentDev.project_type);
+            setDevelopmentId(developmentId, currentDev.name, currentDev.project_type);
+          }
         }
       } catch (err) {
         console.error('[DevelopmentSwitcher] Error fetching developments:', err);
@@ -123,12 +129,10 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
   const currentDevelopment = developments.find(d => d.id === developmentId);
   const displayName = currentDevelopment?.name || 'All Schemes';
 
-  const handleSelect = (id: string | null, name?: string | null) => {
-    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes', 'name:', name);
-    console.log('[DevelopmentSwitcher] Available developments:', developments.map(d => ({ id: d.id, name: d.name })));
-    setDevelopmentId(id, name);
+  const handleSelect = (id: string | null, name?: string | null, projectType?: string | null) => {
+    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes', 'name:', name, 'project_type:', projectType);
+    setDevelopmentId(id, name, projectType);
     setIsOpen(false);
-    console.log('[DevelopmentSwitcher] Selection complete');
   };
 
   if (isLoading) {
@@ -209,7 +213,7 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
           {developments.map((dev) => (
             <button
               key={dev.id}
-              onClick={() => handleSelect(dev.id, dev.name)}
+              onClick={() => handleSelect(dev.id, dev.name, dev.project_type || 'bts')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gold-500/10 transition-colors ${
                 developmentId === dev.id ? 'bg-gold-500/20' : ''
               }`}
