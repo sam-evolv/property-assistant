@@ -165,11 +165,11 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
   if (!developmentId) {
     return (
       <div className="text-center py-20">
-        <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-          <Star className="w-10 h-10 text-gray-600" />
+        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+          <Star className="w-10 h-10 text-gray-400" />
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">Select a Scheme</h3>
-        <p className="text-gray-400 max-w-md mx-auto">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Select a Scheme</h3>
+        <p className="text-gray-500 max-w-md mx-auto">
           Must-read documents are scheme-specific. Select a scheme from the dropdown above to manage its must-read documents.
         </p>
       </div>
@@ -193,8 +193,8 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
               <AlertTriangle className="w-6 h-6 text-gold-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Must-Read Documents</h3>
-              <p className="text-gray-400 text-sm mt-1">
+              <h3 className="text-lg font-semibold text-gray-900">Must-Read Documents</h3>
+              <p className="text-gray-500 text-sm mt-1">
                 {importantDocs.length} of 10 slots used • Current version: {currentVersion}
               </p>
               <p className="text-gray-500 text-xs mt-1">
@@ -225,9 +225,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-800 bg-gray-900/80">
-            <h4 className="text-white font-semibold flex items-center gap-2">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+            <h4 className="text-gray-900 font-semibold flex items-center gap-2">
               <Star className="w-4 h-4 text-gold-500" />
               Must-Read List ({importantDocs.length})
             </h4>
@@ -236,18 +236,18 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
           
           {importantDocs.length === 0 ? (
             <div className="p-8 text-center">
-              <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No must-read documents yet</p>
-              <p className="text-gray-600 text-sm mt-1">Add documents from the available list</p>
+              <p className="text-gray-400 text-sm mt-1">Add documents from the available list</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y divide-gray-200">
               {importantDocs.map((doc, index) => (
                 <div
                   key={doc.id}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800/50 transition group"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-100 transition group"
                 >
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-gray-400">
                     <GripVertical className="w-4 h-4" />
                     <input
                       type="number"
@@ -256,12 +256,12 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
                       value={doc.important_rank || index + 1}
                       onChange={(e) => updateRank(doc.id, parseInt(e.target.value) || 1)}
                       disabled={updatingId === doc.id}
-                      className="w-10 px-1 py-0.5 text-xs text-center bg-gray-800 border border-gray-700 rounded text-white focus:border-gold-500 focus:outline-none disabled:opacity-50"
+                      className="w-10 px-1 py-0.5 text-xs text-center bg-gray-50 border border-gray-200 rounded text-gray-900 focus:border-gold-500 focus:outline-none disabled:opacity-50"
                     />
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{doc.title}</p>
+                    <p className="text-gray-900 font-medium truncate">{doc.title}</p>
                     <p className="text-gray-500 text-xs truncate">{doc.original_file_name}</p>
                   </div>
                   
@@ -270,7 +270,7 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
                       href={doc.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition"
+                      className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition"
                       title="View document"
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -278,7 +278,7 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
                     <button
                       onClick={() => toggleImportance(doc.id, true)}
                       disabled={updatingId === doc.id}
-                      className="p-1.5 rounded-lg hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg hover:bg-red-900/30 text-gray-500 hover:text-red-400 transition disabled:opacity-50"
                       title="Remove from must-read"
                     >
                       {updatingId === doc.id ? (
@@ -294,10 +294,10 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
           )}
         </div>
 
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-800 bg-gray-900/80">
-            <h4 className="text-white font-semibold flex items-center gap-2">
-              <FileText className="w-4 h-4 text-gray-400" />
+        <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+            <h4 className="text-gray-900 font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-gray-500" />
               Available Documents ({availableDocs.length})
             </h4>
             <p className="text-gray-500 text-xs mt-1">Click the star to add to must-read list</p>
@@ -305,21 +305,21 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
           
           {availableDocs.length === 0 ? (
             <div className="p-8 text-center">
-              <FileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No available documents</p>
-              <p className="text-gray-600 text-sm mt-1">Upload documents in the Archive tab</p>
+              <p className="text-gray-400 text-sm mt-1">Upload documents in the Archive tab</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-800 max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-gray-200 max-h-[400px] overflow-y-auto">
               {availableDocs.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800/50 transition group"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-100 transition group"
                 >
                   <button
                     onClick={() => toggleImportance(doc.id, false)}
                     disabled={updatingId === doc.id || importantDocs.length >= 10}
-                    className="p-1.5 rounded-lg hover:bg-gold-900/30 text-gray-600 hover:text-gold-400 transition disabled:opacity-50"
+                    className="p-1.5 rounded-lg hover:bg-gold-900/30 text-gray-400 hover:text-gold-400 transition disabled:opacity-50"
                     title={importantDocs.length >= 10 ? 'Maximum 10 documents' : 'Add to must-read'}
                   >
                     {updatingId === doc.id ? (
@@ -330,7 +330,7 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
                   </button>
                   
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{doc.title}</p>
+                    <p className="text-gray-900 font-medium truncate">{doc.title}</p>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <span>{doc.original_file_name}</span>
                       <span>•</span>
@@ -344,7 +344,7 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
                     href={doc.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition opacity-0 group-hover:opacity-100"
+                    className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition opacity-0 group-hover:opacity-100"
                     title="View document"
                   >
                     <ExternalLink className="w-4 h-4" />
@@ -356,9 +356,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
         </div>
       </div>
 
-      <div className="bg-gray-900/30 border border-gray-800 rounded-xl p-4">
-        <h5 className="text-white font-medium mb-2">How Must-Read Documents Work</h5>
-        <ul className="text-gray-400 text-sm space-y-1">
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+        <h5 className="text-gray-900 font-medium mb-2">How Must-Read Documents Work</h5>
+        <ul className="text-gray-500 text-sm space-y-1">
           <li>• Purchasers must acknowledge all must-read documents before using the app</li>
           <li>• Publishing a new version resets all acknowledgements</li>
           <li>• Documents are shown to purchasers in the order you specify</li>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Video, Plus, Play, Trash2, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Video, Plus, Play, Trash2, Loader2, ExternalLink, AlertCircle, Check } from 'lucide-react';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { getSchemeId, isAllSchemes } from '@/lib/archive-scope';
 import { getProviderDisplayName } from '@/lib/video-parser';
@@ -18,20 +18,27 @@ interface VideoResource {
   created_at: string;
 }
 
+interface Development {
+  id: string;
+  name: string;
+}
+
 interface AddVideoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVideoAdded: () => void;
   developmentId: string;
+  allDevelopments: Development[];
 }
 
-function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVideoModalProps) {
+function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId, allDevelopments }: AddVideoModalProps) {
   const [videoUrl, setVideoUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ thumbnailUrl: string | null; provider: string } | null>(null);
+  const [addToAll, setAddToAll] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -40,6 +47,7 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
       setDescription('');
       setError(null);
       setPreview(null);
+      setAddToAll(false);
     }
   }, [isOpen]);
 
@@ -79,15 +87,22 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
     setError(null);
     
     try {
+      const payload: Record<string, any> = {
+        videoUrl,
+        title,
+        description,
+      };
+
+      if (addToAll && allDevelopments.length > 0) {
+        payload.developmentIds = allDevelopments.map(d => d.id);
+      } else {
+        payload.developmentId = developmentId;
+      }
+
       const response = await fetch('/api/videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          developmentId,
-          videoUrl,
-          title,
-          description,
-        }),
+        body: JSON.stringify(payload),
       });
       
       if (response.ok) {
@@ -107,28 +122,28 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg mx-4 overflow-hidden">
-        <div className="p-6 border-b border-gray-800">
-          <h2 className="text-xl font-semibold text-white">Add Video</h2>
-          <p className="text-gray-400 text-sm mt-1">Paste a YouTube or Vimeo link</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Add Video</h2>
+          <p className="text-gray-500 text-sm mt-1">Paste a YouTube or Vimeo link</p>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Video URL</label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Video URL</label>
             <input
               type="url"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
               placeholder="https://youtube.com/watch?v=..."
-              className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
               required
             />
           </div>
           
           {preview && preview.thumbnailUrl && (
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-800">
+            <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-100">
               <img
                 src={preview.thumbnailUrl}
                 alt="Video preview"
@@ -141,30 +156,53 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
           )}
           
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Title</label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Home Walkthrough Video"
-              className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent"
               required
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Description (optional)</label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Description (optional)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of the video..."
               rows={2}
-              className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent resize-none"
             />
           </div>
+
+          {allDevelopments.length > 1 && (
+            <div
+              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                addToAll
+                  ? 'bg-gold-50 border-gold-300'
+                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setAddToAll(!addToAll)}
+            >
+              <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
+                addToAll ? 'bg-gold-500' : 'border-2 border-gray-300'
+              }`}>
+                {addToAll && <Check className="w-3.5 h-3.5 text-white" />}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Add to all developments</p>
+                <p className="text-xs text-gray-500">
+                  This video will be added to all {allDevelopments.length} developments
+                </p>
+              </div>
+            </div>
+          )}
           
           {error && (
-            <div className="flex items-center gap-2 text-red-400 text-sm">
+            <div className="flex items-center gap-2 text-red-600 text-sm">
               <AlertCircle className="w-4 h-4" />
               <span>{error}</span>
             </div>
@@ -174,7 +212,7 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 rounded-xl bg-gray-800 text-gray-300 font-medium hover:bg-gray-700 transition-colors"
+              className="flex-1 px-4 py-3 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
@@ -185,6 +223,8 @@ function AddVideoModal({ isOpen, onClose, onVideoAdded, developmentId }: AddVide
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : addToAll ? (
+                `Add to All (${allDevelopments.length})`
               ) : (
                 'Add Video'
               )}
@@ -226,7 +266,7 @@ function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
           <div>
             <h3 className="text-xl font-semibold text-white">{video.title}</h3>
             {video.description && (
-              <p className="text-gray-400 mt-1">{video.description}</p>
+              <p className="text-gray-300 mt-1">{video.description}</p>
             )}
           </div>
           <button
@@ -257,6 +297,7 @@ export function VideosTab() {
   const [selectedVideo, setSelectedVideo] = useState<VideoResource | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [hasTrackedView, setHasTrackedView] = useState(false);
+  const [allDevelopments, setAllDevelopments] = useState<Development[]>([]);
 
   useEffect(() => {
     if (developmentId && !hasTrackedView) {
@@ -264,6 +305,21 @@ export function VideosTab() {
       setHasTrackedView(true);
     }
   }, [developmentId, hasTrackedView]);
+
+  useEffect(() => {
+    async function loadDevelopments() {
+      try {
+        const response = await fetch('/api/developer/developments');
+        if (response.ok) {
+          const data = await response.json();
+          setAllDevelopments(data.developments || []);
+        }
+      } catch (error) {
+        console.error('[Videos] Failed to load developments:', error);
+      }
+    }
+    loadDevelopments();
+  }, []);
 
   const loadVideos = useCallback(async () => {
     if (!developmentId) {
@@ -319,8 +375,8 @@ export function VideosTab() {
   if (isViewingAllSchemes) {
     return (
       <div className="text-center py-16">
-        <Video className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-300 mb-2">Select a Scheme</h3>
+        <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Scheme</h3>
         <p className="text-gray-500">Videos are organised per scheme. Select a scheme to view its videos.</p>
       </div>
     );
@@ -338,8 +394,8 @@ export function VideosTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-semibold text-white">Videos</h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <h2 className="text-xl font-semibold text-gray-900">Videos</h2>
+          <p className="text-gray-500 text-sm mt-1">
             {videos.length} video{videos.length !== 1 ? 's' : ''} available
           </p>
         </div>
@@ -355,14 +411,14 @@ export function VideosTab() {
       </div>
 
       {videos.length === 0 ? (
-        <div className="text-center py-16 bg-gray-900/50 rounded-2xl border border-gray-800">
-          <Video className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-300 mb-2">No Videos Yet</h3>
+        <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200">
+          <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Videos Yet</h3>
           <p className="text-gray-500 mb-6">Add YouTube or Vimeo videos for homeowners to watch.</p>
           {developmentId && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
             >
               <Plus className="w-5 h-5" />
               <span>Add Your First Video</span>
@@ -374,10 +430,10 @@ export function VideosTab() {
           {videos.map((video) => (
             <div
               key={video.id}
-              className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden hover:border-gray-700 transition-colors group"
+              className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all group"
             >
               <div 
-                className="relative aspect-video bg-gray-800 cursor-pointer"
+                className="relative aspect-video bg-gray-100 cursor-pointer"
                 onClick={() => handleVideoClick(video)}
               >
                 {video.thumbnail_url ? (
@@ -388,7 +444,7 @@ export function VideosTab() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Video className="w-12 h-12 text-gray-600" />
+                    <Video className="w-12 h-12 text-gray-400" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -401,16 +457,16 @@ export function VideosTab() {
                 </div>
               </div>
               <div className="p-4">
-                <h3 className="font-medium text-white line-clamp-1">{video.title}</h3>
+                <h3 className="font-medium text-gray-900 line-clamp-1">{video.title}</h3>
                 {video.description && (
-                  <p className="text-gray-400 text-sm mt-1 line-clamp-2">{video.description}</p>
+                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">{video.description}</p>
                 )}
                 <div className="flex items-center justify-between mt-3">
                   <a
                     href={video.video_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-gray-500 hover:text-gray-300 transition-colors"
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink className="w-4 h-4" />
@@ -418,7 +474,7 @@ export function VideosTab() {
                   <button
                     onClick={() => handleDelete(video.id)}
                     disabled={deletingId === video.id}
-                    className="text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                    className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                   >
                     {deletingId === video.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -439,6 +495,7 @@ export function VideosTab() {
           onClose={() => setShowAddModal(false)}
           onVideoAdded={loadVideos}
           developmentId={developmentId}
+          allDevelopments={allDevelopments}
         />
       )}
 

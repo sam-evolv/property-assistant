@@ -64,13 +64,12 @@ export function DisciplineCard({ discipline }: DisciplineCardProps) {
       href={`/developer/archive/${discipline.discipline}`}
       className={`
         group relative block p-6 rounded-2xl border ${colors.border}
-        bg-gradient-to-br from-gray-900 via-gray-900/95 to-black
-        hover:shadow-xl hover:shadow-black/20
+        bg-white
+        hover:shadow-xl hover:shadow-gray-200/50
         transition-all duration-300 ease-out
         hover:-translate-y-1
       `}
     >
-      {/* Icon */}
       <div className={`
         w-14 h-14 rounded-xl ${colors.bg} 
         flex items-center justify-center mb-4
@@ -79,14 +78,13 @@ export function DisciplineCard({ discipline }: DisciplineCardProps) {
         <Icon className={`w-7 h-7 ${colors.icon}`} />
       </div>
 
-      {/* Content */}
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-white group-hover:text-gold-400 transition-colors">
+        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-gold-400 transition-colors">
           {discipline.displayName}
         </h3>
         
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">
+          <span className="text-gray-500">
             {discipline.fileCount} {discipline.fileCount === 1 ? 'file' : 'files'}
           </span>
           <span className="text-gray-500 text-xs">
@@ -95,7 +93,6 @@ export function DisciplineCard({ discipline }: DisciplineCardProps) {
         </div>
       </div>
 
-      {/* Hover Arrow */}
       <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
         <ChevronRight className="w-5 h-5 text-gold-400" />
       </div>

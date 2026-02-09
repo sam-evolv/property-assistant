@@ -102,30 +102,30 @@ export function FolderCard({ folder, documentCount = 0, onClick, onEdit, onDelet
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-500/10 transition-all duration-200 overflow-hidden cursor-pointer"
+      className="group relative rounded-xl border border-gray-200 bg-white hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-500/10 transition-all duration-200 overflow-hidden cursor-pointer"
     >
       <div className="absolute top-2 right-2 z-10">
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-            className="w-6 h-6 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+            className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
             title="More options"
           >
-            <MoreVertical className="w-3.5 h-3.5 text-gray-300" />
+            <MoreVertical className="w-3.5 h-3.5 text-gray-700" />
           </button>
           {showMenu && (
             <div
-              className="absolute right-0 top-8 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 z-30"
+              className="absolute right-0 top-8 w-44 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-30"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={handleEdit}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
               >
                 <Pencil className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-200">Rename Folder</span>
+                <span className="text-gray-700">Rename Folder</span>
               </button>
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-200 my-1" />
               <button
                 onClick={handleDelete}
                 className="w-full px-3 py-2 text-left text-sm hover:bg-red-500/20 flex items-center gap-2 text-red-400 transition-colors"
@@ -172,12 +172,12 @@ export function FolderCard({ folder, documentCount = 0, onClick, onEdit, onDelet
         </div>
       )}
 
-      <div className="w-full h-32 bg-gray-800/50 flex items-center justify-center relative">
+      <div className="w-full h-32 bg-gray-50 flex items-center justify-center relative">
         <FolderIcon className={`w-16 h-16 ${folderColor} transition-transform duration-200 ${isHovered ? 'scale-110' : ''}`} />
       </div>
 
       <div className="p-4">
-        <h3 className="font-medium text-white truncate group-hover:text-gold-400 transition-colors text-sm">
+        <h3 className="font-medium text-gray-900 truncate group-hover:text-gold-400 transition-colors text-sm">
           {folder.name}
         </h3>
         <p className="text-xs text-gray-500 mt-1">

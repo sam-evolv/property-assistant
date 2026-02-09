@@ -114,19 +114,16 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
   };
 
   const handleOpen = () => {
-    // Priority 1: Use the saved public URL
     if (document.file_url) {
       window.open(document.file_url, '_blank');
       return;
     }
 
-    // Priority 2: Use storage_url if available
     if (document.storage_url) {
       window.open(document.storage_url, '_blank');
       return;
     }
 
-    // Priority 3: Construct the Supabase Storage URL manually (Fallback)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const projectRef = supabaseUrl.replace('https://', '').replace('.supabase.co', '');
     if (projectRef && document.file_name) {
@@ -138,7 +135,7 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
   return (
     <div 
       onClick={handleOpen}
-      className="group relative rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-950 hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-500/10 transition-all duration-200 overflow-hidden cursor-pointer"
+      className="group relative rounded-xl border border-gray-200 bg-white hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-500/10 transition-all duration-200 overflow-hidden cursor-pointer"
     >
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
         {document.is_important && (
@@ -159,42 +156,42 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-            className="w-6 h-6 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+            className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
             title="More options"
           >
-            <MoreVertical className="w-3.5 h-3.5 text-gray-300" />
+            <MoreVertical className="w-3.5 h-3.5 text-gray-700" />
           </button>
           {showMenu && (
             <div 
-              className="absolute right-0 top-8 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 z-30"
+              className="absolute right-0 top-8 w-44 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-30"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={(e) => handleToggleFlag(e, 'isImportant')}
                 disabled={isUpdating}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
               >
                 <Star className={`w-4 h-4 ${document.is_important ? 'text-gold-400 fill-gold-400' : 'text-gray-400'}`} />
-                <span className="text-gray-200">{document.is_important ? 'Unmark Important' : 'Mark Important'}</span>
+                <span className="text-gray-700">{document.is_important ? 'Unmark Important' : 'Mark Important'}</span>
               </button>
               <button
                 onClick={(e) => handleToggleFlag(e, 'mustRead')}
                 disabled={isUpdating}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
               >
                 <AlertTriangle className={`w-4 h-4 ${extendedDoc.must_read ? 'text-red-400' : 'text-gray-400'}`} />
-                <span className="text-gray-200">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
+                <span className="text-gray-700">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
               </button>
               {onMoveToFolder && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowMenu(false); onMoveToFolder(document); }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
                 >
                   <FolderInput className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-200">Move to Folder</span>
+                  <span className="text-gray-700">Move to Folder</span>
                 </button>
               )}
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-200 my-1" />
               <button
                 onClick={handleDelete}
                 className="w-full px-3 py-2 text-left text-sm hover:bg-red-500/20 flex items-center gap-2 text-red-400 transition-colors"
@@ -241,7 +238,7 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
         </div>
       )}
 
-      <div className="w-full h-32 bg-gray-800/50 flex items-center justify-center relative group/preview">
+      <div className="w-full h-32 bg-gray-50 flex items-center justify-center relative group/preview">
         <FileIcon className={`w-16 h-16 ${fileColor} opacity-60`} />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm text-white">
@@ -252,7 +249,7 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
       </div>
 
       <div className="p-4">
-        <h3 className="font-medium text-white truncate group-hover:text-gold-400 transition-colors text-sm">
+        <h3 className="font-medium text-gray-900 truncate group-hover:text-gold-400 transition-colors text-sm">
           {document.title}
         </h3>
         <p className="text-xs text-gray-500 truncate mt-1">

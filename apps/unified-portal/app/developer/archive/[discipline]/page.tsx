@@ -311,15 +311,15 @@ export default function DisciplineDetailPage() {
   const showFolderView = shouldShowFolders() && groups.length > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
-      <div className="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-white">
+      <div className="border-b border-gray-200 bg-white backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                 <Link 
                   href="/developer/archive" 
-                  className="hover:text-white transition-colors flex items-center gap-1"
+                  className="hover:text-gray-900 transition-colors flex items-center gap-1"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Smart Archive
@@ -329,42 +329,42 @@ export default function DisciplineDetailPage() {
                   <>
                     <button
                       onClick={() => setSelectedHouseType(null)}
-                      className="hover:text-white transition-colors"
+                      className="hover:text-gray-900 transition-colors"
                     >
                       {displayName}
                     </button>
                     <ChevronRight className="w-3 h-3" />
-                    <span className="text-white">{selectedGroup?.houseTypeCode}</span>
+                    <span className="text-gray-900">{selectedGroup?.houseTypeCode}</span>
                   </>
                 ) : selectedFolder ? (
                   <>
                     <button
                       onClick={() => setSelectedFolder(null)}
-                      className="hover:text-white transition-colors"
+                      className="hover:text-gray-900 transition-colors"
                     >
                       {displayName}
                     </button>
                     <ChevronRight className="w-3 h-3" />
-                    <span className="text-white">{selectedFolder.name}</span>
+                    <span className="text-gray-900">{selectedFolder.name}</span>
                   </>
                 ) : (
-                  <span className="text-white">{displayName}</span>
+                  <span className="text-gray-900">{displayName}</span>
                 )}
               </div>
               
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
                   <FolderOpen className="w-6 h-6 text-gold-400" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">
+                  <h1 className="text-2xl font-bold text-gray-900">
                     {selectedHouseType 
                       ? `${selectedGroup?.houseTypeCode}${selectedGroup?.houseTypeName ? ` - ${selectedGroup.houseTypeName}` : ''}`
                       : selectedFolder
                         ? selectedFolder.name
                         : displayName}
                   </h1>
-                  <p className="text-gray-400 mt-0.5">
+                  <p className="text-gray-500 mt-0.5">
                     {selectedHouseType 
                       ? `${currentDocs.length} document${currentDocs.length !== 1 ? 's' : ''}`
                       : selectedFolder
@@ -379,13 +379,13 @@ export default function DisciplineDetailPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="flex bg-gray-800 rounded-lg p-1">
+              <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('folders')}
                   className={`p-2 rounded-md transition-colors ${
                     viewMode === 'folders' 
-                      ? 'bg-gray-700 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-gray-200 text-gray-900' 
+                      : 'text-gray-500 hover:text-gray-900'
                   }`}
                   title="Folder view"
                 >
@@ -395,8 +395,8 @@ export default function DisciplineDetailPage() {
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded-md transition-colors ${
                     viewMode === 'list' 
-                      ? 'bg-gray-700 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-gray-200 text-gray-900' 
+                      : 'text-gray-500 hover:text-gray-900'
                   }`}
                   title="List view"
                 >
@@ -406,7 +406,7 @@ export default function DisciplineDetailPage() {
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+                className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors disabled:opacity-50"
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -415,7 +415,7 @@ export default function DisciplineDetailPage() {
                 <>
                   <button
                     onClick={() => { setEditingFolder(null); setShowFolderModal(true); }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-gray-300 font-medium hover:bg-gray-700 hover:text-white transition-all"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 border border-gray-200 text-gray-700 font-medium hover:bg-gray-200 hover:text-gray-900 transition-all"
                   >
                     <FolderPlus className="w-5 h-5" />
                     <span>New Folder</span>
@@ -442,7 +442,7 @@ export default function DisciplineDetailPage() {
                     placeholder="Search documents..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
                   />
                 </div>
               )}
@@ -453,14 +453,14 @@ export default function DisciplineDetailPage() {
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                     filterImportant 
                       ? 'bg-gold-500/20 border-gold-500/50 text-gold-400' 
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                      : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
                   }`}
                 >
                   <Star className={`w-4 h-4 ${filterImportant ? 'fill-gold-400' : ''}`} />
                   <span className="text-sm font-medium">Important</span>
                   {importantCount > 0 && (
                     <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                      filterImportant ? 'bg-gold-500/30 text-gold-300' : 'bg-gray-700 text-gray-400'
+                      filterImportant ? 'bg-gold-500/30 text-gold-300' : 'bg-gray-200 text-gray-500'
                     }`}>
                       {importantCount}
                     </span>
@@ -472,14 +472,14 @@ export default function DisciplineDetailPage() {
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                     filterMustRead 
                       ? 'bg-red-500/20 border-red-500/50 text-red-400' 
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                      : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
                   }`}
                 >
                   <AlertTriangle className="w-4 h-4" />
                   <span className="text-sm font-medium">Must Read</span>
                   {mustReadCount > 0 && (
                     <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                      filterMustRead ? 'bg-red-500/30 text-red-300' : 'bg-gray-700 text-gray-400'
+                      filterMustRead ? 'bg-red-500/30 text-red-300' : 'bg-gray-200 text-gray-500'
                     }`}>
                       {mustReadCount}
                     </span>
@@ -494,25 +494,25 @@ export default function DisciplineDetailPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {!developmentId ? (
           <div className="text-center py-20">
-            <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <FolderOpen className="w-10 h-10 text-gray-600" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Select a Development</h3>
-            <p className="text-gray-400 max-w-md mx-auto">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Select a Development</h3>
+            <p className="text-gray-500 max-w-md mx-auto">
               Choose a development from the sidebar to view documents.
             </p>
           </div>
         ) : isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-800/50 rounded-xl animate-pulse" />
+              <div key={i} className="h-32 bg-gray-50 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : viewMode === 'folders' && !selectedHouseType && !selectedFolder ? (
           <div className="space-y-6">
             {customFolders.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Custom Folders</h3>
+                <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Custom Folders</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {customFolders.map((folder) => (
                     <FolderCard
@@ -530,7 +530,7 @@ export default function DisciplineDetailPage() {
             
             {showFolderView && groups.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
+                <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">
                   {customFolders.length > 0 ? 'Auto-Detected House Types' : 'House Types'}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -538,7 +538,7 @@ export default function DisciplineDetailPage() {
                     <button
                       key={group.houseTypeCode}
                       onClick={() => setSelectedHouseType(group.houseTypeCode)}
-                      className="group p-6 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gold-500/30 rounded-xl text-left transition-all"
+                      className="group p-6 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gold-500/30 rounded-xl text-left transition-all"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold-500/20 to-gold-600/10 flex items-center justify-center group-hover:from-gold-500/30 group-hover:to-gold-600/20 transition-colors">
@@ -546,9 +546,9 @@ export default function DisciplineDetailPage() {
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gold-400 transition-colors" />
                       </div>
-                      <h3 className="text-lg font-semibold text-white mb-1">{group.houseTypeCode}</h3>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{group.houseTypeCode}</h3>
                       {group.houseTypeName && (
-                        <p className="text-sm text-gray-400 mb-2 truncate">{group.houseTypeName}</p>
+                        <p className="text-sm text-gray-500 mb-2 truncate">{group.houseTypeName}</p>
                       )}
                       <p className="text-sm text-gray-500">
                         {group.documentCount} document{group.documentCount !== 1 ? 's' : ''}
@@ -577,11 +577,11 @@ export default function DisciplineDetailPage() {
             {/* Show empty state when no documents at all */}
             {!showFolderView && customFolders.length === 0 && allDocuments.length === 0 && (
               <div className="text-center py-16">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                   <FolderOpen className="w-8 h-8 text-gray-600" />
                 </div>
-                <h3 className="text-lg font-medium text-white mb-2">No Documents Yet</h3>
-                <p className="text-gray-400 mb-4">Upload your first document to get started</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Yet</h3>
+                <p className="text-gray-500 mb-4">Upload your first document to get started</p>
                 <button
                   onClick={() => setShowUploadModal(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-black font-medium hover:bg-gold-400 transition-colors"
@@ -603,7 +603,7 @@ export default function DisciplineDetailPage() {
                     setSelectedHouseType(null);
                   }
                 }}
-                className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-6 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 {selectedFolder ? 'Back' : 'Back to folders'}
@@ -611,11 +611,11 @@ export default function DisciplineDetailPage() {
             )}
             {allDocuments.length === 0 ? (
               <div className="text-center py-16">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                   <FolderOpen className="w-8 h-8 text-gray-600" />
                 </div>
-                <h3 className="text-lg font-medium text-white mb-2">No Documents Yet</h3>
-                <p className="text-gray-400 mb-4">Upload your first document to get started</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Yet</h3>
+                <p className="text-gray-500 mb-4">Upload your first document to get started</p>
                 <button
                   onClick={() => setShowUploadModal(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gold-500 text-black font-medium hover:bg-gold-400 transition-colors"

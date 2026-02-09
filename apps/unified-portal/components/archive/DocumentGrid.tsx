@@ -34,20 +34,20 @@ export function DocumentGrid({
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="p-5 rounded-xl border border-gray-800 bg-gray-900 animate-pulse"
+            className="p-5 rounded-xl border border-gray-200 bg-white animate-pulse"
           >
             <div className="flex items-start gap-4 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-gray-800" />
+              <div className="w-12 h-12 rounded-lg bg-gray-100" />
               <div className="flex-1">
-                <div className="h-5 w-full bg-gray-800 rounded mb-2" />
-                <div className="h-4 w-2/3 bg-gray-800 rounded" />
+                <div className="h-5 w-full bg-gray-100 rounded mb-2" />
+                <div className="h-4 w-2/3 bg-gray-100 rounded" />
               </div>
             </div>
             <div className="flex gap-2 mb-4">
-              <div className="h-5 w-16 bg-gray-800 rounded" />
-              <div className="h-5 w-12 bg-gray-800 rounded" />
+              <div className="h-5 w-16 bg-gray-100 rounded" />
+              <div className="h-5 w-12 bg-gray-100 rounded" />
             </div>
-            <div className="h-4 w-24 bg-gray-800 rounded" />
+            <div className="h-4 w-24 bg-gray-100 rounded" />
           </div>
         ))}
       </div>
@@ -57,11 +57,11 @@ export function DocumentGrid({
   if (documents.length === 0) {
     return (
       <div className="text-center py-16 px-6">
-        <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-          <FileX className="w-10 h-10 text-gray-600" />
+        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+          <FileX className="w-10 h-10 text-gray-400" />
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">No documents found</h3>
-        <p className="text-gray-400 max-w-md mx-auto">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents found</h3>
+        <p className="text-gray-500 max-w-md mx-auto">
           There are no documents in this category yet. Upload documents and assign them to this discipline.
         </p>
       </div>
@@ -71,7 +71,7 @@ export function DocumentGrid({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500">
           Showing {documents.length} of {totalCount} documents
         </p>
       </div>
@@ -95,7 +95,7 @@ export function DocumentGrid({
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="p-2 rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -121,7 +121,7 @@ export function DocumentGrid({
                     w-10 h-10 rounded-lg font-medium transition-colors
                     ${pageNum === page 
                       ? 'bg-gold-500 text-white' 
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900'
                     }
                   `}
                 >
@@ -134,7 +134,7 @@ export function DocumentGrid({
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="p-2 rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>

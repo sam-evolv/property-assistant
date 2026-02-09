@@ -168,7 +168,7 @@ export default function CustomFolderPage() {
 
   if (isFolderLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-gold-400 animate-spin" />
       </div>
     );
@@ -176,12 +176,12 @@ export default function CustomFolderPage() {
 
   if (!folder) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950 flex flex-col items-center justify-center">
-        <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mb-4">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
           <Folder className="w-10 h-10 text-gray-600" />
         </div>
-        <h2 className="text-xl font-semibold text-white mb-2">Category Not Found</h2>
-        <p className="text-gray-400 mb-6">This category may have been deleted or moved.</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Category Not Found</h2>
+        <p className="text-gray-500 mb-6">This category may have been deleted or moved.</p>
         <Link
           href="/developer/archive"
           className="flex items-center gap-2 text-gold-400 hover:text-gold-300"
@@ -194,14 +194,14 @@ export default function CustomFolderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
-      <div className="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-white">
+      <div className="border-b border-gray-200 bg-white backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href="/developer/archive"
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
@@ -212,8 +212,8 @@ export default function CustomFolderPage() {
                 <Folder className="w-7 h-7" style={{ color: folderColor }} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">{folder.name}</h1>
-                <p className="text-gray-400 mt-0.5">
+                <h1 className="text-2xl font-bold text-gray-900">{folder.name}</h1>
+                <p className="text-gray-500 mt-0.5">
                   {documents.length} document{documents.length !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -227,20 +227,20 @@ export default function CustomFolderPage() {
                   placeholder="Search documents..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-gold-500/50 w-64"
+                  className="pl-9 pr-4 py-2 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 placeholder-gray-500 focus:outline-none focus:border-gold-500/50 w-64"
                 />
               </div>
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+                className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors disabled:opacity-50"
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => setShowCreateFolderModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 border border-gray-200 text-gray-900 hover:bg-gray-200 transition-colors"
               >
                 <FolderPlus className="w-5 h-5" />
                 <span>New Folder</span>
@@ -260,13 +260,13 @@ export default function CustomFolderPage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {subFolders.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">Folders</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Folders</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {subFolders.map((subFolder) => (
                 <Link
                   key={subFolder.id}
                   href={`/developer/archive/custom/${subFolder.id}`}
-                  className="group p-4 rounded-xl bg-gray-800/50 border border-gray-700/50 hover:border-gold-500/30 hover:bg-gray-800 transition-all"
+                  className="group p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-gold-500/30 hover:bg-gray-100 transition-all"
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -276,10 +276,10 @@ export default function CustomFolderPage() {
                       <Folder className="w-6 h-6" style={{ color: subFolder.color || '#6b7280' }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white group-hover:text-gold-400 transition-colors truncate">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-gold-400 transition-colors truncate">
                         {subFolder.name}
                       </h3>
-                      <p className="text-sm text-gray-400">Sub-folder</p>
+                      <p className="text-sm text-gray-500">Sub-folder</p>
                     </div>
                   </div>
                 </Link>
@@ -295,21 +295,21 @@ export default function CustomFolderPage() {
         ) : filteredDocuments.length === 0 ? (
           searchQuery ? (
             <div className="text-center py-16">
-              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                 <Search className="w-10 h-10 text-gray-600" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">No matching documents</h3>
-              <p className="text-gray-400 max-w-md mx-auto">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No matching documents</h3>
+              <p className="text-gray-500 max-w-md mx-auto">
                 Try adjusting your search query.
               </p>
             </div>
           ) : subFolders.length === 0 ? (
             <div className="text-center py-16">
-              <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
                 <Folder className="w-10 h-10 text-gray-600" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">No documents yet</h3>
-              <p className="text-gray-400 max-w-md mx-auto">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents yet</h3>
+              <p className="text-gray-500 max-w-md mx-auto">
                 Upload documents to this category, create sub-folders, or move existing documents here.
               </p>
             </div>

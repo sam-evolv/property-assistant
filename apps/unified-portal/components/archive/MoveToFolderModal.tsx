@@ -75,24 +75,24 @@ export function MoveToFolderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       
-      <div className="relative bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+      <div className="relative bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center">
               <FolderOpen className="w-5 h-5 text-gold-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Move to Folder</h2>
-              <p className="text-sm text-gray-400 truncate max-w-[200px]">{documentName}</p>
+              <h2 className="text-lg font-semibold text-gray-900">Move to Folder</h2>
+              <p className="text-sm text-gray-500 truncate max-w-[200px]">{documentName}</p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
@@ -107,11 +107,11 @@ export function MoveToFolderModal({
                 onClick={() => setSelectedFolderId(null)}
                 className={`w-full p-3 rounded-lg border transition-all flex items-center gap-3 ${
                   selectedFolderId === null
-                    ? 'bg-gold-500/10 border-gold-500/50 text-white'
-                    : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
+                    ? 'bg-gold-500/10 border-gold-500/50 text-gray-900'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
                   <FolderOpen className="w-4 h-4 text-gray-400" />
                 </div>
                 <span className="flex-1 text-left">Root (No Folder)</span>
@@ -126,11 +126,11 @@ export function MoveToFolderModal({
                   onClick={() => setSelectedFolderId(folder.id)}
                   className={`w-full p-3 rounded-lg border transition-all flex items-center gap-3 ${
                     selectedFolderId === folder.id
-                      ? 'bg-gold-500/10 border-gold-500/50 text-white'
-                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
+                      ? 'bg-gold-500/10 border-gold-500/50 text-gray-900'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
                     <Folder className="w-4 h-4 text-gold-400" />
                   </div>
                   <span className="flex-1 text-left truncate">{folder.name}</span>
@@ -152,7 +152,7 @@ export function MoveToFolderModal({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 bg-gray-800 text-gray-300 font-medium rounded-xl hover:bg-gray-700 transition-colors"
+              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>

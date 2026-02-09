@@ -113,34 +113,34 @@ export function CreateFolderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       
-      <div className="relative bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+      <div className="relative bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center">
               <Folder className="w-5 h-5 text-gold-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-gray-900">
                 {isEditing ? 'Rename Folder' : 'Create New Folder'}
               </h2>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-500">
                 {isEditing ? 'Update the folder name and colour' : 'Organise your documents into folders'}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div>
-            <label htmlFor="folderName" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="folderName" className="block text-sm font-medium text-gray-700 mb-2">
               Folder Name
             </label>
             <input
@@ -149,13 +149,13 @@ export function CreateFolderModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Warranties, Manuals, Certificates"
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:border-gold-500 transition-colors"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
               Folder Colour
             </label>
             <div className="flex flex-wrap gap-3">
@@ -166,7 +166,7 @@ export function CreateFolderModal({
                   onClick={() => setSelectedColor(colorOption.id)}
                   className={`w-10 h-10 rounded-xl ${colorOption.color} transition-all ${
                     selectedColor === colorOption.id
-                      ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110'
+                      ? 'ring-2 ring-gray-900 ring-offset-2 ring-offset-white scale-110'
                       : 'hover:scale-105'
                   }`}
                   title={colorOption.name}
@@ -185,7 +185,7 @@ export function CreateFolderModal({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 bg-gray-800 text-gray-300 font-medium rounded-xl hover:bg-gray-700 transition-colors"
+              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>

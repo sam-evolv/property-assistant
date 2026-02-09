@@ -257,28 +257,28 @@ export function UploadModal({
 
   const getStatusColor = (status: FileUploadState['status']) => {
     switch (status) {
-      case 'pending': return 'text-gray-400';
+      case 'pending': return 'text-gray-500';
       case 'uploading': return 'text-gold-400';
       case 'indexed': return 'text-green-400';
       case 'failed': return 'text-red-400';
-      default: return 'text-gray-400';
+      default: return 'text-gray-500';
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={handleClose}
       />
       
-      <div className="relative w-full max-w-2xl bg-gray-900 rounded-2xl shadow-2xl border border-gray-800 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h2 className="text-xl font-semibold text-white">Upload Documents</h2>
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Upload Documents</h2>
           <button
             onClick={handleClose}
             disabled={isUploading}
-            className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -331,10 +331,10 @@ export function UploadModal({
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-gold-500/50 hover:bg-gray-800/30 transition-all"
+            className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-gold-500/50 hover:bg-gray-50 transition-all"
           >
             <Upload className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-            <p className="text-gray-300 font-medium">
+            <p className="text-gray-700 font-medium">
               Drag & drop files here or click to browse
             </p>
             <p className="text-gray-500 text-sm mt-1">
@@ -352,7 +352,7 @@ export function UploadModal({
 
           {files.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium text-gray-400">
+              <h3 className="text-sm font-medium text-gray-500">
                 Files ({files.length})
                 {indexedFiles.length > 0 && (
                   <span className="ml-2 text-green-400">
@@ -374,7 +374,7 @@ export function UploadModal({
                         ? 'bg-red-900/20 border border-red-800/50' 
                         : fileState.status === 'indexed'
                         ? 'bg-green-900/20 border border-green-800/50'
-                        : 'bg-gray-800/50'
+                        : 'bg-gray-50'
                     }`}
                   >
                     <FileText className={`w-5 h-5 flex-shrink-0 ${
@@ -383,7 +383,7 @@ export function UploadModal({
                       'text-gray-400'
                     }`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{fileState.file.name}</p>
+                      <p className="text-sm text-gray-900 truncate">{fileState.file.name}</p>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-gray-500">
                           {(fileState.file.size / 1024).toFixed(1)} KB
@@ -421,7 +421,7 @@ export function UploadModal({
                     {fileState.status === 'pending' && (
                       <button
                         onClick={() => removeFile(index)}
-                        className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+                        className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-900"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -443,14 +443,14 @@ export function UploadModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
+              <label className="block text-sm font-medium text-gray-500 mb-2">
                 Discipline (optional)
               </label>
               <select
                 value={discipline}
                 onChange={(e) => setDiscipline(e.target.value as DisciplineType | '')}
                 disabled={isUploading}
-                className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gold-500 disabled:opacity-50"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:border-gold-500 disabled:opacity-50"
               >
                 <option value="">Auto-detect</option>
                 {disciplineOptions.map(opt => (
@@ -463,14 +463,14 @@ export function UploadModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
+              <label className="block text-sm font-medium text-gray-500 mb-2">
                 House Type (optional)
               </label>
               <select
                 value={houseTypeId}
                 onChange={(e) => setHouseTypeId(e.target.value)}
                 disabled={isUploading}
-                className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-gold-500 disabled:opacity-50"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:border-gold-500 disabled:opacity-50"
               >
                 <option value="">Auto-detect from filename</option>
                 {houseTypes.map(ht => (
@@ -492,10 +492,10 @@ export function UploadModal({
                   disabled={isUploading}
                   className="sr-only peer"
                 />
-                <div className="w-5 h-5 border-2 border-gray-600 rounded peer-checked:bg-gold-500 peer-checked:border-gold-500 transition-colors" />
+                <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-gold-500 peer-checked:border-gold-500 transition-colors" />
                 <CheckCircle className="absolute inset-0 w-5 h-5 text-black opacity-0 peer-checked:opacity-100" />
               </div>
-              <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
+              <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
                 Mark as Important
               </span>
             </label>
@@ -509,17 +509,17 @@ export function UploadModal({
                   disabled={isUploading}
                   className="sr-only peer"
                 />
-                <div className="w-5 h-5 border-2 border-gray-600 rounded peer-checked:bg-red-500 peer-checked:border-red-500 transition-colors" />
+                <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-red-500 peer-checked:border-red-500 transition-colors" />
                 <CheckCircle className="absolute inset-0 w-5 h-5 text-white opacity-0 peer-checked:opacity-100" />
               </div>
-              <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
+              <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
                 Must-Read Document
               </span>
             </label>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-800 bg-gray-900/50">
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div className="text-sm text-gray-500">
             {isUploading && 'Processing documents...'}
             {uploadResult === 'partial' && !isUploading && 'Some files need attention'}
@@ -528,7 +528,7 @@ export function UploadModal({
             <button
               onClick={handleClose}
               disabled={isUploading}
-              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-50"
             >
               {allIndexed ? 'Close' : 'Cancel'}
             </button>

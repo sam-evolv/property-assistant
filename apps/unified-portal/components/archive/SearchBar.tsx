@@ -91,7 +91,7 @@ export function SearchBar({
         <button
           onClick={handleSearch}
           disabled={isLoading || !query.trim()}
-          className="px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+          className="px-6 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

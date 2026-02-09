@@ -44,11 +44,11 @@ export function DisciplineGrid({
         {Array.from({ length: 9 }).map((_, i) => (
           <div
             key={i}
-            className="p-6 rounded-2xl border border-gray-800 bg-gray-900 animate-pulse"
+            className="p-6 rounded-2xl border border-gray-200 bg-white animate-pulse"
           >
-            <div className="w-14 h-14 rounded-xl bg-gray-800 mb-4" />
-            <div className="h-5 w-32 bg-gray-800 rounded mb-2" />
-            <div className="h-4 w-20 bg-gray-800 rounded" />
+            <div className="w-14 h-14 rounded-xl bg-gray-100 mb-4" />
+            <div className="h-5 w-32 bg-gray-100 rounded mb-2" />
+            <div className="h-4 w-20 bg-gray-100 rounded" />
           </div>
         ))}
       </div>
@@ -58,13 +58,13 @@ export function DisciplineGrid({
   if (disciplines.length === 0 && customFolders.length === 0 && !showNewFolderButton && !alwaysShowCategories) {
     return (
       <div className="text-center py-16 px-6">
-        <div className="w-20 h-20 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
-          <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+          <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">No documents yet</h3>
-        <p className="text-gray-400 max-w-md mx-auto">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents yet</h3>
+        <p className="text-gray-500 max-w-md mx-auto">
           Upload documents to this development to organise them in the Smart Archive.
         </p>
       </div>
@@ -89,12 +89,12 @@ export function DisciplineGrid({
       {showNewFolderButton && (
         <button
           onClick={onCreateFolder}
-          className="group p-6 rounded-2xl border-2 border-dashed border-gray-700 hover:border-gold-500/50 bg-transparent hover:bg-gray-900/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 min-h-[160px]"
+          className="group p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gold-500/50 bg-transparent hover:bg-gray-50 transition-all duration-200 flex flex-col items-center justify-center gap-3 min-h-[160px]"
         >
-          <div className="w-14 h-14 rounded-xl bg-gray-800 group-hover:bg-gray-700 flex items-center justify-center transition-colors">
+          <div className="w-14 h-14 rounded-xl bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
             <Plus className="w-7 h-7 text-gray-500 group-hover:text-gold-400 transition-colors" />
           </div>
-          <span className="text-gray-500 group-hover:text-gray-300 font-medium transition-colors">
+          <span className="text-gray-500 group-hover:text-gray-700 font-medium transition-colors">
             New Category
           </span>
         </button>
@@ -147,13 +147,13 @@ function CustomDisciplineFolderCard({
   return (
     <Link
       href={`/developer/archive/custom/${folder.id}`}
-      className="group relative p-6 rounded-2xl border border-gray-800 hover:border-gray-700 bg-gray-900 hover:bg-gray-800/80 transition-all duration-200"
+      className="group relative p-6 rounded-2xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 transition-all duration-200"
     >
       {(onEdit || onDelete) && (
         <div className="absolute top-4 right-4 z-10">
           <button
             onClick={handleMenuClick}
-            className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+            className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 opacity-0 group-hover:opacity-100 transition-all"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
@@ -168,17 +168,17 @@ function CustomDisciplineFolderCard({
                   setShowMenu(false);
                 }}
               />
-              <div className="absolute right-0 top-full mt-1 z-30 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[140px]">
                 <button
                   onClick={handleEdit}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                 >
                   <Pencil className="w-4 h-4" />
                   Rename
                 </button>
                 <button
                   onClick={handleDeleteClick}
-                  className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-100 flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
@@ -191,10 +191,10 @@ function CustomDisciplineFolderCard({
 
       {showDeleteConfirm && (
         <div 
-          className="absolute inset-0 bg-gray-900/95 rounded-2xl flex flex-col items-center justify-center p-4 z-20"
+          className="absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center p-4 z-20"
           onClick={(e) => e.preventDefault()}
         >
-          <p className="text-white text-sm text-center mb-3">Delete "{folder.name}"?</p>
+          <p className="text-gray-900 text-sm text-center mb-3">Delete "{folder.name}"?</p>
           <div className="flex gap-2">
             <button
               onClick={(e) => {
@@ -202,7 +202,7 @@ function CustomDisciplineFolderCard({
                 e.stopPropagation();
                 setShowDeleteConfirm(false);
               }}
-              className="px-3 py-1.5 text-sm rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600"
+              className="px-3 py-1.5 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
             >
               Cancel
             </button>
@@ -223,10 +223,10 @@ function CustomDisciplineFolderCard({
         <Folder className="w-7 h-7" style={{ color: folderColor }} />
       </div>
       
-      <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-gold-300 transition-colors">
+      <h3 className="text-lg font-semibold text-gray-900 mb-1 group-hover:text-gold-300 transition-colors">
         {folder.name}
       </h3>
-      <p className="text-gray-400 text-sm">
+      <p className="text-gray-500 text-sm">
         {folder.document_count ?? 0} files
         {(folder.document_count ?? 0) === 0 && (
           <span className="text-gray-500 ml-2">No files yet</span>

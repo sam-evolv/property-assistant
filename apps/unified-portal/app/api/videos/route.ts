@@ -6,15 +6,19 @@ import { getAdminContextFromSession } from '@/lib/api-auth';
 import { isVideosFeatureEnabled } from '@/lib/feature-flags';
 import { parseVideoUrl } from '@/lib/video-parser';
 import { db } from '@openhouse/db/client';
-import { video_resources } from '@openhouse/db/schema';
+import { video_resources, developments } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { createClient } from '@supabase/supabase-js';
 
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+async function validateDevelopmentExists(developmentId: string, tenantId: string): Promise<boolean> {
+  const dev = await db.query.developments.findFirst({
+    where: and(
+      eq(developments.id, developmentId),
+      eq(developments.tenant_id, tenantId)
+    ),
+    columns: { id: true },
+  });
+
+  return !!dev;
 }
 
 export async function GET(request: NextRequest) {
@@ -68,11 +72,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { developmentId, videoUrl, title, description } = body;
+    const { developmentId, developmentIds, videoUrl, title, description } = body;
 
-    if (!developmentId || !videoUrl || !title) {
+    const targetIds: string[] = developmentIds && Array.isArray(developmentIds) && developmentIds.length > 0
+      ? developmentIds
+      : developmentId ? [developmentId] : [];
+
+    if (targetIds.length === 0 || !videoUrl || !title) {
       return NextResponse.json(
-        { error: 'developmentId, videoUrl, and title are required' },
+        { error: 'developmentId (or developmentIds), videoUrl, and title are required' },
         { status: 400 }
       );
     }
@@ -85,25 +93,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check development exists in Supabase projects table (primary source of truth)
-    const supabase = getSupabaseAdmin();
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', developmentId)
-      .single();
+    const validationResults = await Promise.all(
+      targetIds.map(id => validateDevelopmentExists(id, adminContext.tenantId))
+    );
 
-    if (projectError || !project) {
-      console.log('[VIDEOS API] Development not found in Supabase projects:', developmentId);
+    const invalidIds = targetIds.filter((_, i) => !validationResults[i]);
+    if (invalidIds.length > 0) {
+      console.log('[VIDEOS API] Developments not found:', invalidIds);
       return NextResponse.json(
-        { error: 'Development not found or access denied' },
+        { error: `Development(s) not found or access denied` },
         { status: 403 }
       );
     }
 
-    const [video] = await db.insert(video_resources).values({
+    const videoValues = targetIds.map(devId => ({
       tenant_id: adminContext.tenantId,
-      development_id: developmentId,
+      development_id: devId,
       provider: parsed.provider,
       video_url: videoUrl,
       embed_url: parsed.embedUrl,
@@ -112,11 +117,17 @@ export async function POST(request: NextRequest) {
       description: description || null,
       thumbnail_url: parsed.thumbnailUrl,
       created_by: adminContext.id,
-    }).returning();
+    }));
 
-    console.log(`[VIDEOS API] Created video: ${video.id} for development ${developmentId}`);
+    const createdVideos = await db.insert(video_resources).values(videoValues).returning();
 
-    return NextResponse.json({ video });
+    console.log(`[VIDEOS API] Created ${createdVideos.length} video(s) across ${targetIds.length} development(s)`);
+
+    return NextResponse.json({
+      video: createdVideos[0],
+      videos: createdVideos,
+      count: createdVideos.length,
+    });
   } catch (error: any) {
     const isDev = process.env.NODE_ENV !== 'production';
     console.error('[VIDEOS API] Error creating video:', error);

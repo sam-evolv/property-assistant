@@ -133,7 +133,7 @@ export function DocumentListItem({ document, onDelete, onUpdate, onMoveToFolder 
   return (
     <div 
       onClick={handleOpen}
-      className="group relative flex items-center gap-4 p-4 rounded-xl border border-gray-800 bg-gradient-to-r from-gray-900 to-gray-950 hover:border-gold-500/30 hover:bg-gray-800/50 transition-all cursor-pointer"
+      className="group relative flex items-center gap-4 p-4 rounded-xl border border-gray-200 bg-white hover:border-gold-500/30 hover:bg-gray-50 transition-all cursor-pointer"
     >
       {showDeleteConfirm && (
         <div 
@@ -167,12 +167,12 @@ export function DocumentListItem({ document, onDelete, onUpdate, onMoveToFolder 
         </div>
       )}
 
-      <div className={`w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0`}>
+      <div className={`w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0`}>
         <FileIcon className={`w-5 h-5 ${fileColor}`} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <h3 className="font-medium text-white truncate group-hover:text-gold-400 transition-colors text-sm">
+        <h3 className="font-medium text-gray-900 truncate group-hover:text-gold-400 transition-colors text-sm">
           {document.title}
         </h3>
         <p className="text-xs text-gray-500 truncate">
@@ -214,7 +214,7 @@ export function DocumentListItem({ document, onDelete, onUpdate, onMoveToFolder 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); handleOpen(); }}
-          className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+          className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 transition-colors"
           title="Open document"
         >
           <ExternalLink className="w-4 h-4" />
@@ -222,42 +222,42 @@ export function DocumentListItem({ document, onDelete, onUpdate, onMoveToFolder 
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors"
+            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 transition-colors"
             title="More options"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
           {showMenu && (
             <div 
-              className="absolute right-0 top-10 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 z-30"
+              className="absolute right-0 top-10 w-44 bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-30"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={(e) => handleToggleFlag(e, 'isImportant')}
                 disabled={isUpdating}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
               >
                 <Star className={`w-4 h-4 ${document.is_important ? 'text-gold-400 fill-gold-400' : 'text-gray-400'}`} />
-                <span className="text-gray-200">{document.is_important ? 'Unmark Important' : 'Mark Important'}</span>
+                <span className="text-gray-700">{document.is_important ? 'Unmark Important' : 'Mark Important'}</span>
               </button>
               <button
                 onClick={(e) => handleToggleFlag(e, 'mustRead')}
                 disabled={isUpdating}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
               >
                 <AlertTriangle className={`w-4 h-4 ${extendedDoc.must_read ? 'text-red-400' : 'text-gray-400'}`} />
-                <span className="text-gray-200">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
+                <span className="text-gray-700">{extendedDoc.must_read ? 'Unmark Must Read' : 'Mark Must Read'}</span>
               </button>
               {onMoveToFolder && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowMenu(false); onMoveToFolder(document); }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors"
                 >
                   <FolderInput className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-200">Move to Folder</span>
+                  <span className="text-gray-700">Move to Folder</span>
                 </button>
               )}
-              <div className="border-t border-gray-700 my-1" />
+              <div className="border-t border-gray-200 my-1" />
               <button
                 onClick={handleDelete}
                 className="w-full px-3 py-2 text-left text-sm hover:bg-red-500/20 flex items-center gap-2 text-red-400 transition-colors"

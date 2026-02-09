@@ -377,8 +377,8 @@ export default function SmartArchivePage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-950">
-      <div className="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-white">
+      <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
@@ -386,8 +386,8 @@ export default function SmartArchivePage() {
                 <FolderArchive className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Smart Archive</h1>
-                <p className="text-gray-400 mt-0.5">
+                <h1 className="text-2xl font-bold text-gray-900">Smart Archive</h1>
+                <p className="text-gray-500 mt-0.5">
                   {isViewingAllSchemes 
                     ? `${totalDocuments} documents across all schemes`
                     : `${totalDocuments} documents organised by discipline`
@@ -407,7 +407,7 @@ export default function SmartArchivePage() {
             <div className="flex items-center gap-3">
               <Link
                 href="/developer/archive/search"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors"
               >
                 <Search className="w-5 h-5" />
                 <span>Search</span>
@@ -415,7 +415,7 @@ export default function SmartArchivePage() {
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50"
+                className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors disabled:opacity-50"
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -435,8 +435,8 @@ export default function SmartArchivePage() {
               onClick={() => setActiveTab('archive')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'archive'
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               <FolderArchive className="w-4 h-4" />
@@ -446,8 +446,8 @@ export default function SmartArchivePage() {
               onClick={() => setActiveTab('important')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'important'
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               <Star className="w-4 h-4" />
@@ -457,8 +457,8 @@ export default function SmartArchivePage() {
               onClick={() => setActiveTab('insights')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 activeTab === 'insights'
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               <BarChart3 className="w-4 h-4" />
@@ -469,8 +469,8 @@ export default function SmartArchivePage() {
                 onClick={() => setActiveTab('videos')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   activeTab === 'videos'
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
                 <Video className="w-4 h-4" />
@@ -483,13 +483,13 @@ export default function SmartArchivePage() {
 
       {isViewingAllSchemes && (hasDocuments || isLoading) && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-800/20 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <FolderArchive className="w-5 h-5 text-emerald-400" />
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <FolderArchive className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-white font-medium">Viewing All Schemes</p>
-              <p className="text-gray-400 text-sm">
+              <p className="text-gray-900 font-medium">Viewing All Schemes</p>
+              <p className="text-gray-500 text-sm">
                 {totalDocuments} documents across all schemes are shown below
               </p>
             </div>
@@ -499,17 +499,17 @@ export default function SmartArchivePage() {
 
       {showClassifyBanner && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-500/30 rounded-xl p-4">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-purple-400" />
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-white font-medium">
+                  <p className="text-gray-900 font-medium">
                     {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
                   </p>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-gray-500 text-sm">
                     Use AI to automatically organise documents into disciplines
                   </p>
                 </div>
@@ -517,7 +517,7 @@ export default function SmartArchivePage() {
               <button
                 onClick={handleBulkClassify}
                 disabled={isClassifying}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-400 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-500 transition-colors disabled:opacity-50"
               >
                 {isClassifying ? (
                   <>
@@ -533,11 +533,11 @@ export default function SmartArchivePage() {
               </button>
             </div>
             <div className="mt-3">
-              <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                 <span>Classification progress</span>
                 <span>{totalDocuments - unclassifiedCount} / {totalDocuments} classified</span>
               </div>
-              <div className="h-2 bg-purple-900/50 rounded-full overflow-hidden">
+              <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-500"
                   style={{ width: totalDocuments > 0 ? `${((totalDocuments - unclassifiedCount) / totalDocuments) * 100}%` : '0%' }}
@@ -550,19 +550,19 @@ export default function SmartArchivePage() {
 
       {showEmbeddingBanner && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-gradient-to-r from-blue-900/30 to-cyan-800/20 border border-blue-500/30 rounded-xl p-4 flex items-center justify-between">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                <Database className="w-5 h-5 text-blue-400" />
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Database className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-white font-medium">
+                <p className="text-gray-900 font-medium">
                   {embeddingStats.withoutEmbeddings} document{embeddingStats.withoutEmbeddings !== 1 ? 's' : ''} not indexed for AI search
                 </p>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-500 text-sm">
                   Indexed: {embeddingStats.withEmbeddings} of {embeddingStats.totalDocuments} documents
                   {embeddingStats.errors > 0 && (
-                    <span className="text-red-400 ml-2">({embeddingStats.errors} errors)</span>
+                    <span className="text-red-500 ml-2">({embeddingStats.errors} errors)</span>
                   )}
                 </p>
               </div>
@@ -570,7 +570,7 @@ export default function SmartArchivePage() {
             <button
               onClick={handleReprocessAll}
               disabled={isReprocessing}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-400 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors disabled:opacity-50"
             >
               {isReprocessing ? (
                 <>
@@ -590,13 +590,13 @@ export default function SmartArchivePage() {
 
       {embeddingStats && !showEmbeddingBanner && embeddingStats.totalDocuments > 0 && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-gradient-to-r from-green-900/30 to-emerald-800/20 border border-green-500/30 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-              <Database className="w-5 h-5 text-green-400" />
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+              <Database className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-white font-medium">All documents indexed for AI search</p>
-              <p className="text-gray-400 text-sm">
+              <p className="text-gray-900 font-medium">All documents indexed for AI search</p>
+              <p className="text-gray-500 text-sm">
                 {embeddingStats.withEmbeddings} of {embeddingStats.totalDocuments} documents ready for the assistant
               </p>
             </div>
@@ -609,9 +609,9 @@ export default function SmartArchivePage() {
           <>
             {console.assert(disciplines !== undefined, 'Smart Archive rendered without documents')}
             {!hasDocuments && !isLoading && !isViewingAllSchemes && (
-              <div className="mb-6 p-4 rounded-xl bg-gray-800/50 border border-gray-700 flex items-center gap-3">
+              <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
                 <FolderArchive className="w-5 h-5 text-gray-400" />
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-500 text-sm">
                   No documents uploaded yet for this scheme. Upload documents to populate the categories below.
                 </p>
               </div>

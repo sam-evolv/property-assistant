@@ -48,15 +48,15 @@ export function SchemeSelectionModal({
         onClick={handleClose}
       />
       
-      <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-800">
+      <div className="relative bg-white border border-gray-200 rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-semibold text-white">{title}</h2>
-            <p className="text-gray-400 text-sm mt-1">{description}</p>
+            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+            <p className="text-gray-500 text-sm mt-1">{description}</p>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -70,12 +70,12 @@ export function SchemeSelectionModal({
                 onClick={() => setSelectedId(dev.id)}
                 className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
                   selectedId === dev.id
-                    ? 'bg-gold-500/10 border-gold-500/50 text-white'
-                    : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-800 hover:border-gray-600'
+                    ? 'bg-gold-500/10 border-gold-500/50 text-gray-900'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  selectedId === dev.id ? 'bg-gold-500/20' : 'bg-gray-700'
+                  selectedId === dev.id ? 'bg-gold-500/20' : 'bg-gray-100'
                 }`}>
                   <Building2 className={`w-5 h-5 ${
                     selectedId === dev.id ? 'text-gold-400' : 'text-gray-400'
@@ -93,16 +93,16 @@ export function SchemeSelectionModal({
           
           {developments.length === 0 && (
             <div className="text-center py-8">
-              <Building2 className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-400">No schemes available</p>
+              <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500">No schemes available</p>
             </div>
           )}
         </div>
         
-        <div className="flex justify-end gap-3 p-6 border-t border-gray-800 bg-gray-900/50">
+        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
           <button
             onClick={handleClose}
-            className="px-4 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="px-4 py-2.5 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
           >
             Cancel
           </button>
