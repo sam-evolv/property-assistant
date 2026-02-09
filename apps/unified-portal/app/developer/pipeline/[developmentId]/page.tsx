@@ -935,11 +935,12 @@ interface EditablePurchaserNameProps {
   unitId: string;
   currentName: string | null;
   developmentId: string;
+  handoverDate: string | null;
   onUpdate: (unitId: string, newName: string | null) => void;
   onShowToast: (message: string) => void;
 }
 
-function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, onShowToast }: EditablePurchaserNameProps) {
+function EditablePurchaserName({ unitId, currentName, developmentId, handoverDate, onUpdate, onShowToast }: EditablePurchaserNameProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(currentName || '');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -1074,6 +1075,17 @@ function EditablePurchaserName({ unitId, currentName, developmentId, onUpdate, o
       >
         {currentName}
       </p>
+    );
+  }
+
+  if (handoverDate) {
+    return (
+      <span 
+        className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-700"
+        title="Unit has been handed over"
+      >
+        Handed Over
+      </span>
     );
   }
 
@@ -2381,6 +2393,17 @@ export default function PipelineDevelopmentPage() {
     }
     
     const today = getTodayISO();
+    for (const unitId of selectedIds) {
+      try {
+        await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: stage, value: today }),
+        });
+      } catch (error) {
+        console.error(`Failed to update ${stage} for unit ${unitId}:`, error);
+      }
+    }
     setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, [stage]: today } : u));
     showToast(`Updated ${selectedRows.size} unit(s)`);
     setSelectedRows(new Set());
@@ -2432,9 +2455,9 @@ export default function PipelineDevelopmentPage() {
   
   const stats = {
     total: units.length,
-    available: units.filter(u => !u.purchaserName && u.saleType !== 'social').length,
-    inProgress: units.filter(u => u.purchaserName && !u.handoverDate).length,
-    complete: units.filter(u => u.handoverDate).length,
+    available: units.filter(u => !u.purchaserName && !u.handoverDate && u.saleType !== 'social').length,
+    inProgress: units.filter(u => (u.purchaserName || u.releaseDate) && !u.handoverDate && u.saleType !== 'social').length,
+    complete: units.filter(u => !!u.handoverDate).length,
     openQueries: units.filter(u => u.queriesRaisedDate && !u.queriesRepliedDate).length,
     totalRevenue,
     avgPrice,
@@ -2466,9 +2489,9 @@ export default function PipelineDevelopmentPage() {
   filteredUnits = filteredUnits.filter(unit => {
     switch (statusFilter) {
       case 'for-sale':
-        return !unit.purchaserName;
+        return !unit.purchaserName && !unit.handoverDate;
       case 'sale-agreed':
-        return unit.purchaserName && !unit.signedContractsDate;
+        return unit.purchaserName && !unit.signedContractsDate && !unit.handoverDate;
       case 'contracts':
         return unit.signedContractsDate && !unit.handoverDate;
       case 'complete':
@@ -2490,10 +2513,10 @@ export default function PipelineDevelopmentPage() {
     if (housingFilter === 'social') return unit.saleType === 'social';
     return true;
   });
-  const forSaleCount = housingFilteredUnits.filter(u => !u.purchaserName).length;
-  const saleAgreedCount = housingFilteredUnits.filter(u => u.purchaserName && !u.signedContractsDate).length;
+  const forSaleCount = housingFilteredUnits.filter(u => !u.purchaserName && !u.handoverDate).length;
+  const saleAgreedCount = housingFilteredUnits.filter(u => u.purchaserName && !u.signedContractsDate && !u.handoverDate).length;
   const contractsCount = housingFilteredUnits.filter(u => u.signedContractsDate && !u.handoverDate).length;
-  const completeCount = housingFilteredUnits.filter(u => u.handoverDate).length;
+  const completeCount = housingFilteredUnits.filter(u => !!u.handoverDate).length;
 
   if (isLoading) {
     return (
@@ -2807,7 +2830,7 @@ export default function PipelineDevelopmentPage() {
                   {sortedUnits.map((unit) => {
                     const isSelected = selectedRows.has(unit.id);
                     const isSocialHousing = unit.saleType === 'social';
-                    const isForSale = !unit.purchaserName && !isSocialHousing;
+                    const isForSale = !unit.purchaserName && !unit.handoverDate && !isSocialHousing;
                     const progress = isSocialHousing ? getSocialHousingProgress(unit) : getProgress(unit);
                     const socialBgColor = '#F8F7F5';
                     const socialHoverBgColor = '#F3F2EE';
@@ -2903,6 +2926,7 @@ export default function PipelineDevelopmentPage() {
                                     unitId={unit.id}
                                     currentName={unit.purchaserName}
                                     developmentId={developmentId}
+                                    handoverDate={unit.handoverDate}
                                     onUpdate={handlePurchaserNameUpdate}
                                     onShowToast={showToast}
                                   />

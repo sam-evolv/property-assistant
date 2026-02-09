@@ -94,8 +94,8 @@ export function HomeownersList({
     if (housingFilter === 'social') return u.is_social_housing;
     return true;
   });
-  const forSaleCount = housingFiltered.filter(u => !u.purchaser_name).length;
-  const soldCount = housingFiltered.filter(u => !!u.purchaser_name).length;
+  const forSaleCount = housingFiltered.filter(u => !u.purchaser_name && !u.resident_name && !u.name && !u.handover_date).length;
+  const soldCount = housingFiltered.filter(u => !!u.purchaser_name || !!u.resident_name || !!u.name || !!u.handover_date).length;
 
   // Selection handlers
   const toggleSelection = useCallback((id: string, e: React.MouseEvent) => {
@@ -210,9 +210,9 @@ export function HomeownersList({
     
     // Apply status filter
     if (statusFilter === 'for-sale') {
-      result = result.filter(unit => !unit.purchaser_name);
+      result = result.filter(unit => !unit.purchaser_name && !unit.resident_name && !unit.name && !unit.handover_date);
     } else if (statusFilter === 'sold') {
-      result = result.filter(unit => !!unit.purchaser_name);
+      result = result.filter(unit => !!unit.purchaser_name || !!unit.resident_name || !!unit.name || !!unit.handover_date);
     }
 
     if (searchQuery) {
@@ -541,7 +541,7 @@ export function HomeownersList({
                 const houseNum = extractHouseNumber(unit.address, unit.unit_number);
                 const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
                 const residentName = unit.purchaser_name || unit.resident_name || unit.name;
-                const isForSale = !unit.purchaser_name && !unit.resident_name && !unit.name;
+                const isForSale = !unit.purchaser_name && !unit.resident_name && !unit.name && !unit.handover_date;
 
                 const hasAgreed = hasUnitAcknowledged(unit);
                 const houseType = unit.house_type_code || 'Not specified';
@@ -585,9 +585,17 @@ export function HomeownersList({
                             <span className="inline-block px-2.5 py-1 text-sm font-medium rounded-md bg-green-100 text-green-700">
                               For Sale
                             </span>
-                          ) : (
+                          ) : residentName ? (
                             <h3 className="text-base font-semibold text-grey-900 truncate group-hover:text-gold-600 transition">
                               {residentName}
+                            </h3>
+                          ) : unit.handover_date ? (
+                            <span className="inline-block px-2.5 py-1 text-sm font-medium rounded-md bg-blue-100 text-blue-700">
+                              Handed Over
+                            </span>
+                          ) : (
+                            <h3 className="text-base font-semibold text-grey-900 truncate group-hover:text-gold-600 transition">
+                              Unassigned
                             </h3>
                           )}
                           

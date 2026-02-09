@@ -216,6 +216,30 @@ export async function PATCH(
       }
     }
 
+    // Sync purchaser data back to units table so homeowners page stays in sync
+    if (isTextField && (field === 'purchaserName' || field === 'purchaserEmail' || field === 'purchaserPhone')) {
+      try {
+        const unitUpdateData: Record<string, any> = {};
+        if (field === 'purchaserName') unitUpdateData.purchaser_name = value || null;
+        if (field === 'purchaserEmail') unitUpdateData.purchaser_email = value || null;
+        if (field === 'purchaserPhone') unitUpdateData.purchaser_phone = value || null;
+
+        const { error: unitSyncError } = await supabaseAdmin
+          .from('units')
+          .update(unitUpdateData)
+          .eq('id', unitId)
+          .eq('tenant_id', tenantId);
+
+        if (unitSyncError) {
+          console.error('[Pipeline Unit Update API] Failed to sync purchaser data to units table:', unitSyncError);
+        } else {
+          console.log(`[Pipeline Unit Update API] Synced ${field} to units table for unit ${unitId}`);
+        }
+      } catch (syncError) {
+        console.error('[Pipeline Unit Update API] Purchaser sync failed (non-critical):', syncError);
+      }
+    }
+
     // Sync current_milestone and milestone_dates to units table for pre-handover portal
     if (isDateField) {
       try {
