@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Video, Plus, Play, Trash2, Loader2, ExternalLink, AlertCircle, Check } from 'lucide-react';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { getSchemeId, isAllSchemes } from '@/lib/archive-scope';
+import { getSchemeId } from '@/lib/archive-scope';
 import { getProviderDisplayName } from '@/lib/video-parser';
 
 interface VideoResource {
@@ -289,7 +289,6 @@ function trackVideoEvent(eventType: string, data: Record<string, any>) {
 export function VideosTab() {
   const { tenantId, archiveScope } = useSafeCurrentContext();
   const developmentId = getSchemeId(archiveScope);
-  const isViewingAllSchemes = isAllSchemes(archiveScope);
   
   const [videos, setVideos] = useState<VideoResource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -322,15 +321,12 @@ export function VideosTab() {
   }, []);
 
   const loadVideos = useCallback(async () => {
-    if (!developmentId) {
-      setVideos([]);
-      setIsLoading(false);
-      return;
-    }
-    
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/videos?developmentId=${developmentId}`);
+      const url = developmentId
+        ? `/api/videos?developmentId=${developmentId}`
+        : `/api/videos?all=true`;
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setVideos(data.videos || []);
@@ -372,16 +368,6 @@ export function VideosTab() {
     setSelectedVideo(video);
   };
 
-  if (isViewingAllSchemes) {
-    return (
-      <div className="text-center py-16">
-        <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Scheme</h3>
-        <p className="text-gray-500">Videos are organised per scheme. Select a scheme to view its videos.</p>
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -399,15 +385,13 @@ export function VideosTab() {
             {videos.length} video{videos.length !== 1 ? 's' : ''} available
           </p>
         </div>
-        {developmentId && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Video</span>
-          </button>
-        )}
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Add Video</span>
+        </button>
       </div>
 
       {videos.length === 0 ? (
@@ -415,15 +399,13 @@ export function VideosTab() {
           <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Videos Yet</h3>
           <p className="text-gray-500 mb-6">Add YouTube or Vimeo videos for homeowners to watch.</p>
-          {developmentId && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Add Your First Video</span>
-            </button>
-          )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Your First Video</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -489,15 +471,13 @@ export function VideosTab() {
         </div>
       )}
 
-      {developmentId && (
-        <AddVideoModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          onVideoAdded={loadVideos}
-          developmentId={developmentId}
-          allDevelopments={allDevelopments}
-        />
-      )}
+      <AddVideoModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onVideoAdded={loadVideos}
+        developmentId={developmentId || (allDevelopments.length > 0 ? allDevelopments[0].id : '')}
+        allDevelopments={allDevelopments}
+      />
 
       <VideoPlayerModal
         video={selectedVideo}

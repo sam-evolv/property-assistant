@@ -135,7 +135,7 @@ export function DevelopmentSelector({
 
   if (isLoading) {
     return (
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 ${className}`}>
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 text-gray-900 ${className}`}>
         <Building2 className="w-4 h-4" />
         <span className="text-sm">Loading...</span>
       </div>
@@ -144,18 +144,16 @@ export function DevelopmentSelector({
 
   if (error) {
     return (
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-red-900/20 text-red-400 ${className}`}>
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 ${className}`}>
         <Building2 className="w-4 h-4" />
         <span className="text-sm">{error}</span>
       </div>
     );
   }
 
-  // PART 7: Zero-state - when developer has no schemes, show appropriate message
-  // Do NOT show "Viewing All Schemes" here - that's only for scope=ALL_SCHEMES
   if (developments.length === 0) {
     return (
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 ${className}`}>
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 text-gray-900 ${className}`}>
         <Building2 className="w-4 h-4" />
         <span className="text-sm">No schemes available</span>
       </div>
@@ -169,17 +167,17 @@ export function DevelopmentSelector({
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700 hover:border-gray-600 transition-colors min-w-[200px]"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 hover:bg-gray-50 hover:border-gray-400 transition-colors min-w-[200px]"
       >
         {isAllSchemesSelected ? (
-          <Layers className="w-4 h-4 text-emerald-400" />
+          <Layers className="w-4 h-4 text-emerald-600" />
         ) : (
-          <Building2 className="w-4 h-4 text-gray-400" />
+          <Building2 className="w-4 h-4 text-gray-900" />
         )}
-        <span className="flex-1 text-left text-sm truncate">
+        <span className="flex-1 text-left text-sm font-medium truncate">
           {isAllSchemesSelected ? 'All Schemes' : selectedDevelopment?.name || 'Select Scheme'}
         </span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-900 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -188,21 +186,21 @@ export function DevelopmentSelector({
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full left-0 mt-1 w-full min-w-[240px] bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-auto">
+          <div className="absolute top-full left-0 mt-1 w-full min-w-[240px] bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 max-h-64 overflow-auto">
             {developments.length > 1 && (
               <>
                 <button
                   onClick={() => handleSelect(null)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors ${
-                    isAllSchemesSelected ? 'text-white bg-gray-700/50' : 'text-gray-300'
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
+                    isAllSchemesSelected ? 'text-gray-900 bg-gold-50' : 'text-gray-900'
                   }`}
                 >
-                  <Layers className="w-4 h-4 text-emerald-400" />
-                  <span className="flex-1">All Schemes</span>
-                  {isAllSchemesSelected && <Check className="w-4 h-4 text-emerald-400" />}
+                  <Layers className="w-4 h-4 text-emerald-600" />
+                  <span className="flex-1 font-medium">All Schemes</span>
+                  {isAllSchemesSelected && <Check className="w-4 h-4 text-emerald-600" />}
                 </button>
                 
-                <div className="border-t border-gray-700 my-1" />
+                <div className="border-t border-gray-200 my-1" />
               </>
             )}
             
@@ -210,18 +208,18 @@ export function DevelopmentSelector({
               <button
                 key={dev.id}
                 onClick={() => handleSelect(dev.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors ${
-                  currentSchemeId === dev.id ? 'text-white bg-gray-700/50' : 'text-gray-300'
+                className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
+                  currentSchemeId === dev.id ? 'text-gray-900 bg-gold-50' : 'text-gray-900'
                 }`}
               >
-                <Building2 className="w-4 h-4 text-gray-400" />
-                <span className="flex-1 truncate">{dev.name}</span>
+                <Building2 className="w-4 h-4 text-gray-900" />
+                <span className="flex-1 truncate font-medium">{dev.name}</span>
                 {dev.archive_mode === 'isolated' && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                     Isolated
                   </span>
                 )}
-                {currentSchemeId === dev.id && <Check className="w-4 h-4 text-emerald-400" />}
+                {currentSchemeId === dev.id && <Check className="w-4 h-4 text-emerald-600" />}
               </button>
             ))}
           </div>

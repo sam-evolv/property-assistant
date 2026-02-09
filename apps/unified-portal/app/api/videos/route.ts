@@ -34,17 +34,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');
+    const fetchAll = searchParams.get('all') === 'true';
 
-    if (!developmentId) {
+    if (!developmentId && !fetchAll) {
       return NextResponse.json({ error: 'developmentId is required' }, { status: 400 });
     }
 
+    const conditions = [
+      eq(video_resources.tenant_id, adminContext.tenantId),
+      eq(video_resources.is_active, true),
+    ];
+
+    if (developmentId) {
+      conditions.push(eq(video_resources.development_id, developmentId));
+    }
+
     const videos = await db.query.video_resources.findMany({
-      where: and(
-        eq(video_resources.tenant_id, adminContext.tenantId),
-        eq(video_resources.development_id, developmentId),
-        eq(video_resources.is_active, true)
-      ),
+      where: and(...conditions),
       orderBy: [desc(video_resources.sort_order), desc(video_resources.created_at)],
     });
 
