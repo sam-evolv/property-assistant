@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Video, Plus, Play, Trash2, Loader2, ExternalLink, AlertCircle, Check } from 'lucide-react';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { getSchemeId } from '@/lib/archive-scope';
@@ -16,6 +16,14 @@ interface VideoResource {
   description: string | null;
   thumbnail_url: string | null;
   created_at: string;
+  development_id?: string;
+}
+
+interface GroupedVideo {
+  key: string;
+  video: VideoResource;
+  ids: string[];
+  developmentIds: string[];
 }
 
 interface Development {
@@ -368,6 +376,49 @@ export function VideosTab() {
     setSelectedVideo(video);
   };
 
+  const devNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    allDevelopments.forEach(d => { map[d.id] = d.name; });
+    return map;
+  }, [allDevelopments]);
+
+  const groupedVideos: GroupedVideo[] = useMemo(() => {
+    if (developmentId) {
+      return videos.map(v => ({ key: v.id, video: v, ids: [v.id], developmentIds: v.development_id ? [v.development_id] : [] }));
+    }
+    const groups: Record<string, GroupedVideo> = {};
+    for (const v of videos) {
+      const groupKey = v.video_url;
+      if (!groups[groupKey]) {
+        groups[groupKey] = { key: groupKey, video: v, ids: [v.id], developmentIds: v.development_id ? [v.development_id] : [] };
+      } else {
+        groups[groupKey].ids.push(v.id);
+        if (v.development_id && !groups[groupKey].developmentIds.includes(v.development_id)) {
+          groups[groupKey].developmentIds.push(v.development_id);
+        }
+      }
+    }
+    return Object.values(groups);
+  }, [videos, developmentId]);
+
+  const handleDeleteGrouped = async (group: GroupedVideo) => {
+    const count = group.ids.length;
+    const msg = count > 1
+      ? `This video is on ${count} schemes. Remove from all?`
+      : 'Are you sure you want to remove this video?';
+    if (!confirm(msg)) return;
+
+    setDeletingId(group.key);
+    try {
+      await Promise.all(group.ids.map(id => fetch(`/api/videos?id=${id}`, { method: 'DELETE' })));
+      setVideos(prev => prev.filter(v => !group.ids.includes(v.id)));
+    } catch (error) {
+      console.error('[Videos] Failed to delete video:', error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -381,8 +432,8 @@ export function VideosTab() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Videos</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            {videos.length} video{videos.length !== 1 ? 's' : ''} available
+          <p className="text-gray-900 text-sm mt-1">
+            {groupedVideos.length} video{groupedVideos.length !== 1 ? 's' : ''} available
           </p>
         </div>
         <button
@@ -394,14 +445,14 @@ export function VideosTab() {
         </button>
       </div>
 
-      {videos.length === 0 ? (
+      {groupedVideos.length === 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200">
           <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Videos Yet</h3>
-          <p className="text-gray-500 mb-6">Add YouTube or Vimeo videos for homeowners to watch.</p>
+          <p className="text-gray-900 mb-6">Add YouTube or Vimeo videos for homeowners to watch.</p>
           <button
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"
           >
             <Plus className="w-5 h-5" />
             <span>Add Your First Video</span>
@@ -409,19 +460,19 @@ export function VideosTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {videos.map((video) => (
+          {groupedVideos.map((group) => (
             <div
-              key={video.id}
+              key={group.key}
               className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all group"
             >
               <div 
                 className="relative aspect-video bg-gray-100 cursor-pointer"
-                onClick={() => handleVideoClick(video)}
+                onClick={() => handleVideoClick(group.video)}
               >
-                {video.thumbnail_url ? (
+                {group.video.thumbnail_url ? (
                   <img
-                    src={video.thumbnail_url}
-                    alt={video.title}
+                    src={group.video.thumbnail_url}
+                    alt={group.video.title}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -435,30 +486,42 @@ export function VideosTab() {
                   </div>
                 </div>
                 <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-xs text-white">
-                  {getProviderDisplayName(video.provider)}
+                  {getProviderDisplayName(group.video.provider)}
                 </div>
               </div>
               <div className="p-4">
-                <h3 className="font-medium text-gray-900 line-clamp-1">{video.title}</h3>
-                {video.description && (
-                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">{video.description}</p>
+                <h3 className="font-medium text-gray-900 line-clamp-1">{group.video.title}</h3>
+                {group.video.description && (
+                  <p className="text-gray-900 text-sm mt-1 line-clamp-2">{group.video.description}</p>
+                )}
+                {!developmentId && group.developmentIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {group.developmentIds.map(devId => (
+                      <span
+                        key={devId}
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-900 border border-gray-200"
+                      >
+                        {devNameMap[devId] || devId.slice(0, 8)}
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="flex items-center justify-between mt-3">
                   <a
-                    href={video.video_url}
+                    href={group.video.video_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-gray-900 hover:text-black transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
                   <button
-                    onClick={() => handleDelete(video.id)}
-                    disabled={deletingId === video.id}
-                    className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    onClick={() => handleDeleteGrouped(group)}
+                    disabled={deletingId === group.key}
+                    className="text-gray-900 hover:text-red-500 transition-colors disabled:opacity-50"
                   >
-                    {deletingId === video.id ? (
+                    {deletingId === group.key ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Trash2 className="w-4 h-4" />
