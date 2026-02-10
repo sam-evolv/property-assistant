@@ -552,13 +552,13 @@ export default function HomeResidentPage() {
         >
         {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex w-auto items-center justify-center h-[45px]">
+          <div className="flex w-auto items-center justify-center h-[68px]">
             {house?.development_logo_url ? (
               <img
                 src={house.development_logo_url}
                 alt={`${house.development_name || 'Development'} logo`}
-                width={150}
-                height={45}
+                width={225}
+                height={68}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
