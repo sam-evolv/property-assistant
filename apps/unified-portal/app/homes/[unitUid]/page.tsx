@@ -411,7 +411,7 @@ export default function HomeResidentPage() {
         houseType={house.house_type || 'House'}
         purchaserName={house.purchaser_name}
         developmentName={house.development_name}
-        developmentLogoUrl={house.development_logo_url || (house.development_name?.toLowerCase().includes('longview') ? '/longview-logo.png' : null)}
+        developmentLogoUrl={house.development_logo_url || null}
         handoverComplete={house.handover_complete || false}
         currentMilestone={house.current_milestone || 'sale_agreed'}
         milestoneDates={house.milestone_dates || {}}
@@ -552,39 +552,19 @@ export default function HomeResidentPage() {
         >
         {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
-          <div className={`flex w-auto items-center justify-center ${house?.development_name?.toLowerCase().includes('openhouse') ? 'h-[80px]' : 'h-[45px]'}`}>
-            {house?.development_name?.toLowerCase().includes('rathard lawn') ? (
+          <div className="flex w-auto items-center justify-center h-[45px]">
+            {house?.development_logo_url ? (
               <img
-                src="/rathard-lawn-logo.png"
-                alt="Rathard Lawn logo"
+                src={house.development_logo_url}
+                alt={`${house.development_name || 'Development'} logo`}
                 width={150}
                 height={45}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            ) : house?.development_name?.toLowerCase().includes('rathard park') ? (
-              <img
-                src="/rathard-park-logo.png"
-                alt="Rathard Park logo"
-                width={150}
-                height={45}
-                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            ) : house?.development_name?.toLowerCase().includes('openhouse') ? (
-              <img
-                src="/openhouse-logo.png"
-                alt="OpenHouse AI logo"
-                width={240}
-                height={80}
-                className="h-full w-auto object-contain transition-all"
               />
             ) : (
-              <img
-                src="/longview-logo.png"
-                alt="Longview Estates logo"
-                width={150}
-                height={45}
-                className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
+              <span className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
+                {house?.development_name || 'Home'}
+              </span>
             )}
           </div>
         </div>
