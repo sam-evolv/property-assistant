@@ -10,14 +10,27 @@ export interface ResolvedDevelopment {
   logoUrl: string | null;
 }
 
-const developmentCache = new Map<string, ResolvedDevelopment>();
+const DEVELOPMENT_CACHE_TTL_MS = 60_000;
+const developmentCache = new Map<string, { data: ResolvedDevelopment; expiresAt: number }>();
 
-// Known ID mappings between Supabase project IDs and Drizzle development IDs
-// This provides a reliable fallback when Supabase queries fail
-const KNOWN_ID_MAPPINGS: Record<string, { drizzleId: string; name: string }> = {
-  '57dc3919-2725-4575-8046-9179075ac88e': { drizzleId: '34316432-f1e8-4297-b993-d9b5c88ee2d8', name: 'Longview Park' },
-  '6d3789de-2e46-430c-bf31-22224bd878da': { drizzleId: 'e0833063-55ac-4201-a50e-f329c090fbd6', name: 'Rathard Park' },
-  '9598cf36-3e3f-4b7d-be6d-d1e80f708f46': { drizzleId: '9598cf36-3e3f-4b7d-be6d-d1e80f708f46', name: 'Rathard Lawn' },
+function getCachedDevelopment(key: string): ResolvedDevelopment | null {
+  const entry = developmentCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    developmentCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCachedDevelopment(key: string, data: ResolvedDevelopment): void {
+  developmentCache.set(key, { data, expiresAt: Date.now() + DEVELOPMENT_CACHE_TTL_MS });
+}
+
+const KNOWN_ID_MAPPINGS: Record<string, { drizzleId: string }> = {
+  '57dc3919-2725-4575-8046-9179075ac88e': { drizzleId: '34316432-f1e8-4297-b993-d9b5c88ee2d8' },
+  '6d3789de-2e46-430c-bf31-22224bd878da': { drizzleId: 'e0833063-55ac-4201-a50e-f329c090fbd6' },
+  '9598cf36-3e3f-4b7d-be6d-d1e80f708f46': { drizzleId: '9598cf36-3e3f-4b7d-be6d-d1e80f708f46' },
 };
 
 function getSupabaseClient() {
@@ -36,25 +49,36 @@ export async function resolveDevelopment(
   }
 
   const cacheKey = supabaseProjectId || address || '';
-  if (developmentCache.has(cacheKey)) {
-    return developmentCache.get(cacheKey)!;
+  const cached = getCachedDevelopment(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   console.log('[DevelopmentResolver] Resolving development for project_id:', supabaseProjectId, 'address:', address);
 
-  // Check hardcoded mapping first (reliable fallback)
   if (supabaseProjectId && KNOWN_ID_MAPPINGS[supabaseProjectId]) {
     const mapping = KNOWN_ID_MAPPINGS[supabaseProjectId];
-    console.log('[DevelopmentResolver] Using known mapping:', mapping.name, '->', mapping.drizzleId);
-    const resolved: ResolvedDevelopment = {
-      drizzleDevelopmentId: mapping.drizzleId,
-      supabaseProjectId: supabaseProjectId,
-      developmentName: mapping.name,
-      tenantId: null,
-      logoUrl: null,
-    };
-    developmentCache.set(cacheKey, resolved);
-    return resolved;
+    console.log('[DevelopmentResolver] Known mapping found, querying DB for drizzleId:', mapping.drizzleId);
+    try {
+      const { rows } = await db.execute(sql`
+        SELECT id, name, tenant_id, logo_url FROM developments WHERE id = ${mapping.drizzleId} LIMIT 1
+      `);
+      if (rows.length > 0) {
+        const dev = rows[0] as any;
+        const resolved: ResolvedDevelopment = {
+          drizzleDevelopmentId: dev.id,
+          supabaseProjectId: supabaseProjectId,
+          developmentName: dev.name,
+          tenantId: dev.tenant_id || null,
+          logoUrl: dev.logo_url || null,
+        };
+        setCachedDevelopment(cacheKey, resolved);
+        console.log('[DevelopmentResolver] Resolved from DB via known mapping:', resolved.developmentName, 'logo:', resolved.logoUrl);
+        return resolved;
+      }
+    } catch (err) {
+      console.error('[DevelopmentResolver] DB lookup for known mapping failed:', err);
+    }
   }
 
   try {
@@ -91,7 +115,7 @@ export async function resolveDevelopment(
           tenantId: dev.tenant_id,
           logoUrl: dev.logo_url || supabaseProject.logo_url || null,
         };
-        developmentCache.set(cacheKey, resolved);
+        setCachedDevelopment(cacheKey, resolved);
         console.log('[DevelopmentResolver] Matched by name:', resolved.developmentName, 'Drizzle ID:', resolved.drizzleDevelopmentId);
         return resolved;
       }
@@ -115,7 +139,7 @@ export async function resolveDevelopment(
               tenantId: dev.tenant_id,
               logoUrl: dev.logo_url,
             };
-            developmentCache.set(cacheKey, resolved);
+            setCachedDevelopment(cacheKey, resolved);
             console.log('[DevelopmentResolver] Matched by address pattern:', resolved.developmentName);
             return resolved;
           }
