@@ -1256,7 +1256,7 @@ export default function PurchaserChatTab({
               <img
                 src={developmentLogoUrl}
                 alt={`${developmentName || 'Development'} logo`}
-                className={`h-[98px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+                className={`h-[147px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
               <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
