@@ -649,6 +649,7 @@ export default function HomeResidentPage() {
               initialMessage={initialMessage}
               purchaserName={house.purchaser_name}
               developmentName={house.development_name}
+              developmentLogoUrl={house.development_logo_url || null}
               unitUid={house.unit_id}
               token={validatedToken || ''}
               selectedLanguage={selectedLanguage}

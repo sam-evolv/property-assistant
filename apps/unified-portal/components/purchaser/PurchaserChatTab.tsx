@@ -429,6 +429,7 @@ interface PurchaserChatTabProps {
   initialMessage: string;
   purchaserName?: string;
   developmentName?: string;
+  developmentLogoUrl?: string | null;
   unitUid: string;
   token: string;
   selectedLanguage: string;
@@ -599,6 +600,7 @@ export default function PurchaserChatTab({
   initialMessage,
   purchaserName,
   developmentName,
+  developmentLogoUrl,
   unitUid,
   token,
   selectedLanguage,
@@ -1250,30 +1252,16 @@ export default function PurchaserChatTab({
           
           {/* Logo */}
           <div className={`logo-container ${isDarkMode ? 'drop-shadow-[0_0_35px_rgba(245,158,11,0.25)]' : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]'}`}>
-            {developmentName?.toLowerCase().includes('rathard lawn') ? (
+            {developmentLogoUrl ? (
               <img
-                src="/rathard-lawn-logo.png"
-                alt="Rathard Lawn"
+                src={developmentLogoUrl}
+                alt={`${developmentName || 'Development'} logo`}
                 className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            ) : developmentName?.toLowerCase().includes('rathard park') ? (
-              <img
-                src="/rathard-park-logo.png"
-                alt="Rathard Park"
-                className={`h-[65px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
-            ) : developmentName?.toLowerCase().includes('openhouse') ? (
-              <img
-                src="/openhouse-logo.png"
-                alt="OpenHouse AI"
-                className={`h-[160px] w-auto object-contain`}
               />
             ) : (
-              <img
-                src="/longview-logo.png"
-                alt="Longview Estates"
-                className={`h-[50px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
-              />
+              <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
+                {developmentName || 'Home'}
+              </span>
             )}
           </div>
 
