@@ -14,6 +14,7 @@ interface Document {
   file_url: string;
   version: number;
   is_important: boolean;
+  must_read: boolean;
   important_rank: number | null;
   created_at: string;
 }
@@ -46,9 +47,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
         const docs = data.documents || [];
         setDocuments(docs);
         
-        const important = docs.filter((d: Document) => d.is_important)
+        const important = docs.filter((d: Document) => d.is_important || d.must_read)
           .sort((a: Document, b: Document) => (a.important_rank || 99) - (b.important_rank || 99));
-        const available = docs.filter((d: Document) => !d.is_important);
+        const available = docs.filter((d: Document) => !d.is_important && !d.must_read);
         
         setImportantDocs(important);
         setAvailableDocs(available);

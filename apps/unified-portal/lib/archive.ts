@@ -46,12 +46,14 @@ function getSupabaseClient() {
  * This is needed because the local database uses different UUIDs than Supabase
  */
 const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
-  // Longview Park: Drizzle development ID -> Supabase project ID
+  // Longview Park: development_id -> project_id (1,132 chunks)
   '34316432-f1e8-4297-b993-d9b5c88ee2d8': '57dc3919-2725-4575-8046-9179075ac88e',
-  // Rathard Park: Drizzle development ID -> Supabase project ID  
+  // Rathard Park: development_id -> project_id (864 chunks)
   'e0833063-55ac-4201-a50e-f329c090fbd6': '6d3789de-2e46-430c-bf31-22224bd878da',
-  // Rathard Lawn: Uses same ID for both (Supabase-only development)
-  '9598cf36-3e3f-4b7d-be6d-d1e80f708f46': '9598cf36-3e3f-4b7d-be6d-d1e80f708f46',
+  // Rathard Lawn: development_id -> project_id (814 chunks)
+  '39c49eeb-54a6-4b04-a16a-119012c531cb': '9598cf36-3e3f-4b7d-be6d-d1e80f708f46',
+  // Árdan View: development_id = project_id (946 chunks)
+  '84a559d1-89f1-4eb6-a48b-7ca068bcc164': '84a559d1-89f1-4eb6-a48b-7ca068bcc164',
 };
 
 /**
