@@ -1,0 +1,38 @@
+react-dom.development.js:38560 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+page.tsx:373 [Archive] Render state: Object
+DevelopmentSwitcher.tsx:52 [DevelopmentSwitcher] Fetching developments... Object
+CurrentContext.tsx:89 [CurrentContext] Initial hydration from storage: SCHEME:34316432-f1e8-4297-b993-d9b5c88ee2d8
+CurrentContext.tsx:144 [CurrentContext] Initial hydration: SCHEME:34316432-f1e8-4297-b993-d9b5c88ee2d8
+AuthContext.tsx:49 [AuthContext] Hydrating Object
+DevelopmentContext.tsx:44 [DevelopmentContext] Hydrating Object
+AuthContext.tsx:49 [AuthContext] Hydrating Object
+page.tsx:373 [Archive] Render state: Object
+page.tsx:87 [Archive] Outgoing archive query payload: Object
+AuthContext.tsx:49 [AuthContext] Hydrating Object
+page.tsx:373 [Archive] Render state: Object
+use-websocket.js:42 WebSocket connection to 'wss://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev/_next/webpack-hmr' failed: Error during WebSocket handshake: Unexpected response code: 502
+eval @ use-websocket.js:42
+warn-once.js:16 Image with src "/branding/openhouse-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+warnOnce @ warn-once.js:16
+page.tsx:97 [Archive] Backend response status: 200
+page.tsx:373 [Archive] Render state: Object
+api/archive/reprocess-all?tenantId=4cee69c6-be4b-486e-9c33-2b5a7d30e287&developmentId=34316432-f1e8-4297-b993-d9b5c88ee2d8:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+api/archive/bulk-classify?tenantId=4cee69c6-be4b-486e-9c33-2b5a7d30e287&developmentId=34316432-f1e8-4297-b993-d9b5c88ee2d8:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+page.tsx:373 [Archive] Render state: Object
+page.tsx:373 [Archive] Render state: Object
+page.tsx:373 [Archive] Render state: Object
+layout-sidebar.tsx:107 [Sidebar] Fallback fetch project_type: bts
+DevelopmentSwitcher.tsx:62 [DevelopmentSwitcher] Loaded developments: 9 Object
+DevelopmentSwitcher.tsx:91 [DevelopmentSwitcher] After cleanup: 8 Array(8)
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+page.tsx:373 [Archive] Render state: Object
+/api/documents/d526bb99-3869-475b-a8e2-1f71a8d6e07f/important:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+/api/documents/4c2e39ad-81b3-4aa2-92ba-02c20d4982cb/important:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
