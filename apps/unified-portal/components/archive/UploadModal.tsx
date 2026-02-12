@@ -135,7 +135,7 @@ export function UploadModal({
     });
 
     try {
-      const response = await fetch('/developer/api/archive/upload', {
+      const response = await fetch('/api/documents/upload', {
         method: 'POST',
         body: formData,
       });
