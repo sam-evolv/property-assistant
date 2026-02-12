@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
         const fileUrl = publicUrlData?.publicUrl || null;
         const discipline = metadata.discipline || inferDiscipline(file.name);
 
-        // Phase 2: Write to local PostgreSQL database
+        // Phase 2: Write to local PostgreSQL database (non-fatal — Supabase is source of truth)
         try {
           const [newDoc] = await db.insert(documents).values({
             tenant_id: tenantId,
@@ -200,11 +200,9 @@ export async function POST(request: NextRequest) {
           result.documentId = newDoc.id;
           result.phases.dbWrite = 'success';
         } catch (dbError: any) {
-          console.error('[Upload] DB write error:', dbError.message);
+          console.error('[Upload] DB write error (non-fatal, continuing to indexing):', dbError.message);
           result.phases.dbWrite = 'failed';
-          result.error = 'Failed to create document record';
-          results.push(result);
-          continue;
+          // Don't block upload — Supabase document_sections is the source of truth
         }
 
         // Phase 3: Create initial document_sections entry in Supabase for immediate visibility
@@ -243,7 +241,8 @@ export async function POST(request: NextRequest) {
 
         // Phase 4: Verification
         result.phases.verification = 'success';
-        result.success = result.phases.storage === 'success' && result.phases.dbWrite === 'success';
+        result.success = result.phases.storage === 'success' &&
+          (result.phases.indexing === 'success' || result.phases.indexing === 'partial');
 
         // Update upload_status based on indexing
         if (result.documentId) {

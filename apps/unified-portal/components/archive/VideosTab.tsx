@@ -249,24 +249,46 @@ interface VideoPlayerModalProps {
   onClose: () => void;
 }
 
+function getEmbedUrl(video: VideoResource): string {
+  // Regenerate embed URL from video_url to handle stale DB entries
+  if (video.video_url) {
+    const ytMatch = video.video_url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) {
+      return `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?playsinline=1&rel=0&enablejsapi=1&autoplay=1`;
+    }
+    const vimeoMatch = video.video_url.match(/(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d+)/);
+    if (vimeoMatch) {
+      return `https://player.vimeo.com/video/${vimeoMatch[1]}?playsinline=1&autoplay=1`;
+    }
+  }
+  // Fallback: fix old youtube.com embed URLs to use youtube-nocookie.com
+  if (video.embed_url?.includes('youtube.com/embed/')) {
+    return video.embed_url.replace('youtube.com/embed/', 'youtube-nocookie.com/embed/');
+  }
+  return video.embed_url;
+}
+
 function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
   if (!video) return null;
 
+  const embedUrl = getEmbedUrl(video);
+
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div 
+      <div
         className="w-full max-w-4xl mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="aspect-video rounded-xl overflow-hidden bg-black">
           <iframe
-            src={video.embed_url}
+            src={embedUrl}
             title={video.title}
             className="w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="no-referrer-when-downgrade"
             allowFullScreen
           />
         </div>

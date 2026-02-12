@@ -9,6 +9,7 @@ interface Document {
   id: string;
   title: string;
   original_file_name: string;
+  file_name?: string;
   mime_type: string;
   size_kb: number;
   file_url: string;
@@ -74,24 +75,28 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
 
   const toggleImportance = async (docId: string, isCurrentlyImportant: boolean) => {
     if (updatingId || !tenantId || !developmentId) return;
-    
+
     if (!isCurrentlyImportant && importantDocs.length >= 10) {
       toast.error('Maximum 10 important documents allowed');
       return;
     }
-    
+
+    // Find the document to get its file name for the Supabase-based API
+    const doc = documents.find(d => d.id === docId);
+    if (!doc) return;
+
+    const fileName = doc.file_name || doc.original_file_name;
+
     setUpdatingId(docId);
     try {
-      const newRank = isCurrentlyImportant ? null : importantDocs.length + 1;
-      
-      const response = await fetch(`/api/documents/${docId}/important`, {
+      const response = await fetch('/api/archive/documents', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenantId,
-          developmentId,
-          is_important: !isCurrentlyImportant,
-          important_rank: newRank,
+          fileName,
+          isImportant: !isCurrentlyImportant,
+          mustRead: !isCurrentlyImportant,
+          schemeId: developmentId,
         }),
       });
 
@@ -111,17 +116,22 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
 
   const updateRank = async (docId: string, newRank: number) => {
     if (!tenantId || !developmentId) return;
-    
+
+    const doc = documents.find(d => d.id === docId);
+    if (!doc) return;
+
+    const fileName = doc.file_name || doc.original_file_name;
+
     setUpdatingId(docId);
     try {
-      const response = await fetch(`/api/documents/${docId}/important`, {
+      const response = await fetch('/api/archive/documents', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenantId,
-          developmentId,
-          is_important: true,
-          important_rank: newRank,
+          fileName,
+          isImportant: true,
+          mustRead: true,
+          schemeId: developmentId,
         }),
       });
 
