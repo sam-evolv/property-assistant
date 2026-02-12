@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         file_url: documents.file_url,
         version: documents.version,
         is_important: documents.is_important,
+        must_read: documents.must_read,
         important_rank: documents.important_rank,
         created_at: documents.created_at,
       })
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
         )
       )
       .orderBy(desc(documents.created_at))
-      .limit(200);
+      .limit(500);
 
     return NextResponse.json({ documents: docs });
   } catch (error) {
