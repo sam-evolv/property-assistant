@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { unitSalesPipeline, units, pipelineSettings, developments } from '@openhouse/db/schema';
+import { unitSalesPipeline, units, developments } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
-
-const PIPELINE_STAGES = [
-  'release',
-  'sale_agreed',
-  'deposit',
-  'contracts_issued',
-  'signed_contracts',
-  'counter_signed',
-  'kitchen',
-  'snag',
-  'desnag',
-  'drawdown',
-  'handover'
-] as const;
 
 function computeTrafficLight(
   stageDate: Date | null,
@@ -69,21 +55,13 @@ export async function GET(
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
-    const [settings] = await db
-      .select()
-      .from(pipelineSettings)
-      .where(eq(pipelineSettings.development_id, developmentId))
-      .limit(1);
-
     const thresholds = {
-      contracts_amber: settings?.contracts_amber_days ?? 28,
-      contracts_red: settings?.contracts_red_days ?? 42,
-      kitchen_amber: settings?.kitchen_amber_days ?? 14,
-      kitchen_red: settings?.kitchen_red_days ?? 28,
-      snag_amber: settings?.snag_amber_days ?? 14,
-      snag_red: settings?.snag_red_days ?? 30,
-      desnag_amber: settings?.desnag_amber_days ?? 3,
-      desnag_red: settings?.desnag_red_days ?? 7,
+      contracts_amber: 28,
+      contracts_red: 42,
+      kitchen_amber: 14,
+      kitchen_red: 28,
+      snag_amber: 14,
+      snag_red: 30,
     };
 
     const pipelineData = await db
@@ -101,14 +79,11 @@ export async function GET(
         counter_signed_date: unitSalesPipeline.counter_signed_date,
         kitchen_date: unitSalesPipeline.kitchen_date,
         snag_date: unitSalesPipeline.snag_date,
-        desnag_date: unitSalesPipeline.desnag_date,
         drawdown_date: unitSalesPipeline.drawdown_date,
         handover_date: unitSalesPipeline.handover_date,
-        mortgage_expiry_date: unitSalesPipeline.mortgage_expiry_date,
-        solicitor_firm: unitSalesPipeline.solicitor_firm,
-        unit_name: units.name,
+        unit_name: sql<string>`COALESCE(${units.property_designation}, ${units.unit_number})`,
         unit_number: units.unit_number,
-        block: units.block,
+        unit_uid: units.unit_uid,
       })
       .from(unitSalesPipeline)
       .leftJoin(units, eq(unitSalesPipeline.unit_id, units.id))
@@ -142,14 +117,6 @@ export async function GET(
         'countdown'
       );
 
-      trafficLights.desnag = computeTrafficLight(
-        row.desnag_date,
-        row.drawdown_date,
-        thresholds.desnag_amber,
-        thresholds.desnag_red,
-        'countdown'
-      );
-
       return {
         ...row,
         trafficLights,
@@ -166,7 +133,6 @@ export async function GET(
       counterSigned: rows.filter(r => r.counter_signed_date).length,
       kitchenDone: rows.filter(r => r.kitchen_date).length,
       snagged: rows.filter(r => r.snag_date).length,
-      desnagged: rows.filter(r => r.desnag_date).length,
       drawndown: rows.filter(r => r.drawdown_date).length,
       handedOver: rows.filter(r => r.handover_date).length,
       redCount: rows.filter(r => Object.values(r.trafficLights).includes('red')).length,
@@ -240,11 +206,10 @@ export async function PATCH(
     const dateFields = [
       'release_date', 'sale_agreed_date', 'deposit_date',
       'contracts_issued_date', 'signed_contracts_date', 'counter_signed_date',
-      'kitchen_date', 'snag_date', 'desnag_date', 'drawdown_date', 'handover_date',
-      'mortgage_expiry_date'
+      'kitchen_date', 'snag_date', 'drawdown_date', 'handover_date',
     ];
 
-    const textFields = ['purchaser_name', 'purchaser_email', 'purchaser_phone', 'solicitor_firm'];
+    const textFields = ['purchaser_name', 'purchaser_email', 'purchaser_phone'];
     const allowedFields = [...dateFields, ...textFields];
 
     if (!allowedFields.includes(field)) {

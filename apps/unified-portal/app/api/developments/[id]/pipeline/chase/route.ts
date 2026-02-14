@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { unitSalesPipeline, units, developments, pipelineSettings } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { unitSalesPipeline, units, developments } from '@openhouse/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,15 +94,13 @@ export async function GET(
         unit_id: unitSalesPipeline.unit_id,
         purchaser_name: unitSalesPipeline.purchaser_name,
         purchaser_email: unitSalesPipeline.purchaser_email,
-        solicitor_firm: unitSalesPipeline.solicitor_firm,
         contracts_issued_date: unitSalesPipeline.contracts_issued_date,
         signed_contracts_date: unitSalesPipeline.signed_contracts_date,
         kitchen_date: unitSalesPipeline.kitchen_date,
         snag_date: unitSalesPipeline.snag_date,
-        desnag_date: unitSalesPipeline.desnag_date,
         handover_date: unitSalesPipeline.handover_date,
         drawdown_date: unitSalesPipeline.drawdown_date,
-        unit_name: units.name,
+        unit_name: sql<string>`COALESCE(${units.property_designation}, ${units.unit_number})`,
         unit_number: units.unit_number,
       })
       .from(unitSalesPipeline)
@@ -149,7 +147,7 @@ export async function GET(
       unitName: unitDisplayName,
       purchaserName: row.purchaser_name || '',
       purchaserEmail: row.purchaser_email || '',
-      solicitorFirm: row.solicitor_firm,
+      solicitorFirm: null,
       reason: stage,
       daysPending,
       stage,

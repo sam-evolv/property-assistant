@@ -41,7 +41,10 @@ function LoginForm() {
   
   const redirectTo = sanitizeRedirect(rawRedirectTo);
 
-  const supabase = createClientComponentClient();
+  const hasSupabaseClientEnv =
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +89,9 @@ function LoginForm() {
 
         window.location.href = finalRedirect;
       } else if (mode === 'signup') {
+        if (!supabase) {
+          throw new Error('Signup is temporarily unavailable: Supabase client config is missing.');
+        }
         setInvitationCodeError(null);
         
         if (!fullName.trim()) {
@@ -187,6 +193,9 @@ function LoginForm() {
         router.push('/onboarding');
         return;
       } else if (mode === 'forgot') {
+        if (!supabase) {
+          throw new Error('Password reset is temporarily unavailable: Supabase client config is missing.');
+        }
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });

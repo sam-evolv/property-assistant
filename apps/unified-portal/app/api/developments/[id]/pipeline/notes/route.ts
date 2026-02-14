@@ -2,28 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { unitPipelineNotes, unitSalesPipeline, admins, developments } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
-async function verifyPipelineAccess(pipelineId: string, developmentId: string, tenantId: string): Promise<boolean> {
+async function verifyPipelineAccess(
+  pipelineId: string,
+  developmentId: string,
+  tenantId: string
+): Promise<{ id: string; unit_id: string } | null> {
   const [dev] = await db
     .select({ id: developments.id })
     .from(developments)
     .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)))
     .limit(1);
   
-  if (!dev) return false;
+  if (!dev) return null;
 
   const [record] = await db
-    .select({ id: unitSalesPipeline.id })
+    .select({ id: unitSalesPipeline.id, unit_id: unitSalesPipeline.unit_id })
     .from(unitSalesPipeline)
     .where(and(
       eq(unitSalesPipeline.id, pipelineId),
       eq(unitSalesPipeline.development_id, developmentId)
     ))
     .limit(1);
-  return !!record;
+  return record ?? null;
 }
 
 export async function GET(
@@ -45,8 +49,8 @@ export async function GET(
       return NextResponse.json({ error: 'pipelineId is required' }, { status: 400 });
     }
 
-    const hasAccess = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
-    if (!hasAccess) {
+    const pipelineRecord = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
+    if (!pipelineRecord) {
       return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 });
     }
 
@@ -54,12 +58,12 @@ export async function GET(
       .select({
         id: unitPipelineNotes.id,
         pipeline_id: unitPipelineNotes.pipeline_id,
-        note: unitPipelineNotes.note,
-        is_query: unitPipelineNotes.is_query,
+        note: unitPipelineNotes.content,
+        is_query: sql<boolean>`${unitPipelineNotes.note_type} = 'query'`,
         is_resolved: unitPipelineNotes.is_resolved,
         created_at: unitPipelineNotes.created_at,
         resolved_at: unitPipelineNotes.resolved_at,
-        created_by_name: admins.name,
+        created_by_name: admins.email,
       })
       .from(unitPipelineNotes)
       .leftJoin(admins, eq(unitPipelineNotes.created_by, admins.id))
@@ -93,20 +97,24 @@ export async function POST(
       return NextResponse.json({ error: 'pipelineId and note are required' }, { status: 400 });
     }
 
-    const hasAccess = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
-    if (!hasAccess) {
+    const pipelineRecord = await verifyPipelineAccess(pipelineId, developmentId, tenantId);
+    if (!pipelineRecord) {
       return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 });
     }
 
     const adminId = (session as any).admin?.id;
+    if (!adminId) {
+      return NextResponse.json({ error: 'Admin context required' }, { status: 403 });
+    }
 
     const [newNote] = await db
       .insert(unitPipelineNotes)
       .values({
         tenant_id: tenantId,
         pipeline_id: pipelineId,
-        note: note.trim(),
-        is_query: isQuery || false,
+        unit_id: pipelineRecord.unit_id,
+        content: note.trim(),
+        note_type: isQuery ? 'query' : 'general',
         created_by: adminId,
       })
       .returning();
@@ -151,8 +159,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
-    const hasAccess = await verifyPipelineAccess(existingNote.pipeline_id, developmentId, tenantId);
-    if (!hasAccess) {
+    const pipelineRecord = await verifyPipelineAccess(existingNote.pipeline_id, developmentId, tenantId);
+    if (!pipelineRecord) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 

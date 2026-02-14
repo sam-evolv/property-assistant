@@ -8,18 +8,28 @@ import OpenAI from 'openai';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY environment variable');
+  }
+  return new OpenAI({ apiKey });
+}
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
+  return createClient(url, key);
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const openai = getOpenAIClient();
     await requireRole(['super_admin', 'admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const body = await request.json();
     const { development_id, message, include_custom_qa } = body;

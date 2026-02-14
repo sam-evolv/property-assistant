@@ -4,9 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY environment variable');
+  }
+  return new OpenAI({ apiKey });
+}
 
 interface KnowledgeChunk {
   title: string;
@@ -16,6 +20,7 @@ interface KnowledgeChunk {
 
 export async function POST(request: NextRequest) {
   try {
+    const openai = getOpenAIClient();
     await requireRole(['super_admin', 'admin']);
     
     const body = await request.json();

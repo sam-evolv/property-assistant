@@ -5,11 +5,12 @@ import * as schema from './schema';
 // Use global cache to survive Next.js HMR (Hot Module Reloading)
 const globalForDb = globalThis as unknown as {
   dbPool: Pool | undefined;
-  drizzleDb: ReturnType<typeof drizzle> | undefined;
+  drizzleDb: ReturnType<typeof drizzle<typeof schema>> | undefined;
 };
 
 // Lazy-initialize connection pool to prevent blocking Next.js startup
 let pool: Pool | null = globalForDb.dbPool ?? null;
+let drizzleDb: ReturnType<typeof drizzle<typeof schema>> | null = globalForDb.drizzleDb ?? null;
 
 function getConnectionString(): string {
   const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -109,9 +110,21 @@ function getPool(): Pool {
   return pool;
 }
 
-// Initialize pool and create Drizzle instance
-const poolInstance = getPool();
-export const db = drizzle(poolInstance, { schema });
+function getDb() {
+  if (!drizzleDb) {
+    const poolInstance = getPool();
+    drizzleDb = drizzle(poolInstance, { schema });
+    globalForDb.drizzleDb = drizzleDb;
+  }
+  return drizzleDb;
+}
+
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+  get(_target, prop, receiver) {
+    const liveDb = getDb() as Record<PropertyKey, unknown>;
+    return Reflect.get(liveDb, prop, receiver);
+  },
+});
 
 /**
  * Execute a database operation with a dedicated client from the pool.

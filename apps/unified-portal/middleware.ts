@@ -96,6 +96,9 @@ function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const pathname = req.nextUrl.pathname;
+  const hasSupabaseAuthEnv =
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   if (
     pathname.startsWith('/api/') ||
@@ -139,56 +142,75 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  const supabase = createMiddlewareClient({ req, res });
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  const isAuthenticated = Boolean(user) && !error;
-
-  if (!isAuthenticated) {
-    if (isLoginPage || isAccessPendingPage || isPublicPath(pathname)) {
-      return res;
+  if (!hasSupabaseAuthEnv) {
+    if (isProtectedPath(pathname)) {
+      const redirectUrl = new URL('/login', req.url);
+      redirectUrl.searchParams.set('env', 'missing-supabase-auth');
+      return NextResponse.redirect(redirectUrl);
     }
-    const redirectUrl = new URL('/login', req.url);
-    redirectUrl.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  if (isAuthenticated && isLoginPage) {
-    const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
-    
-    if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
-      return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
-    }
-    
     return res;
   }
 
-  if (isAuthenticated && isProtectedPath(pathname)) {
-    let role: AdminRole | null = null;
-    let preferredRole: AdminRole | null = null;
-    
-    try {
-      const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('role, preferred_role')
-        .eq('email', user!.email)
-        .single();
-      
-      if (!adminError && adminData?.role) {
-        role = adminData.role as AdminRole;
-        preferredRole = adminData.preferred_role as AdminRole | null;
+  let user: { email?: string | null } | null = null;
+  let error: unknown = null;
+
+  try {
+    const supabase = createMiddlewareClient({ req, res });
+    const authResult = await supabase.auth.getUser();
+    user = authResult.data.user;
+    error = authResult.error;
+
+    const isAuthenticated = Boolean(user) && !error;
+
+    if (!isAuthenticated) {
+      if (isLoginPage || isAccessPendingPage || isPublicPath(pathname)) {
+        return res;
       }
-    } catch (e) {
-      console.error('[Middleware] Error fetching admin role:', e);
+      const redirectUrl = new URL('/login', req.url);
+      redirectUrl.searchParams.set('redirectTo', pathname);
+      return NextResponse.redirect(redirectUrl);
     }
-    
-    if (!isRoleAllowedForPath(role, pathname)) {
-      const correctRoute = resolveDefaultRoute(role, preferredRole);
-      return NextResponse.redirect(new URL(correctRoute, req.url));
+
+    if (isAuthenticated && isLoginPage) {
+      const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
+      
+      if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
+        return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
+      }
+      
+      return res;
     }
+
+    if (isAuthenticated && isProtectedPath(pathname)) {
+      let role: AdminRole | null = null;
+      let preferredRole: AdminRole | null = null;
+      
+      try {
+        const { data: adminData, error: adminError } = await supabase
+          .from('admins')
+          .select('role, preferred_role')
+          .eq('email', user!.email)
+          .single();
+        
+        if (!adminError && adminData?.role) {
+          role = adminData.role as AdminRole;
+          preferredRole = adminData.preferred_role as AdminRole | null;
+        }
+      } catch (e) {
+        console.error('[Middleware] Error fetching admin role:', e);
+      }
+      
+      if (!isRoleAllowedForPath(role, pathname)) {
+        const correctRoute = resolveDefaultRoute(role, preferredRole);
+        return NextResponse.redirect(new URL(correctRoute, req.url));
+      }
+    }
+  } catch (middlewareError) {
+    console.error('[Middleware] auth middleware failed:', middlewareError);
+    if (isProtectedPath(pathname)) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+    return res;
   }
 
   return res;

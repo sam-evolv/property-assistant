@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
+  return createClient(url, key);
+}
 
 export async function GET(request: NextRequest) {
   try {
     await requireRole(['super_admin', 'admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('development_id');
@@ -39,6 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireRole(['super_admin', 'admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const body = await request.json();
     const { development_id, question, answer } = body;
@@ -75,6 +81,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     await requireRole(['super_admin', 'admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const body = await request.json();
     const { id, question, answer, active } = body;
@@ -110,6 +117,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await requireRole(['super_admin', 'admin']);
+    const supabaseAdmin = getSupabaseAdmin();
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
