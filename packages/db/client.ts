@@ -121,7 +121,7 @@ function getDb() {
 
 export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
   get(_target, prop, receiver) {
-    const liveDb = getDb() as Record<PropertyKey, unknown>;
+    const liveDb = getDb() as unknown as Record<PropertyKey, unknown>;
     return Reflect.get(liveDb, prop, receiver);
   },
 });

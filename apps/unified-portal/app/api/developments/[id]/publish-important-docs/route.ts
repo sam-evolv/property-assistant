@@ -4,11 +4,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { developments, documents, units } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+
+async function getCurrentImportantDocsVersion(
+  developmentId: string
+): Promise<number> {
+  try {
+    const result = await db.execute(sql<{ version: number }>`
+      SELECT COALESCE(MAX(important_docs_version), 0)::int AS version
+      FROM important_docs_agreements
+      WHERE development_id = ${developmentId}::uuid
+    `);
+    return Number(result.rows[0]?.version ?? 0);
+  } catch (error) {
+    // If agreements table is unavailable in this environment, default to 0.
+    return 0;
+  }
+}
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -22,21 +37,15 @@ export async function POST(
     const developmentId = params.id;
 
     const development = await db
-      .select({
-        id: developments.id,
-        important_docs_version: developments.important_docs_version,
-      })
+      .select({ id: developments.id })
       .from(developments)
       .where(
         and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId))
       )
       .limit(1);
 
-    if (!development || development.length === 0) {
-      return NextResponse.json(
-        { error: 'Development not found' },
-        { status: 404 }
-      );
+    if (!development.length) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
     const importantDocs = await db
@@ -49,19 +58,27 @@ export async function POST(
         )
       );
 
-    if (importantDocs.length === 0) {
+    if (!importantDocs.length) {
       return NextResponse.json(
         { error: 'No important documents found for this development' },
         { status: 400 }
       );
     }
 
-    const newVersion = development[0].important_docs_version + 1;
+    const currentVersion = await getCurrentImportantDocsVersion(developmentId);
+    const newVersion = currentVersion + 1;
 
-    await db
-      .update(developments)
-      .set({ important_docs_version: newVersion })
-      .where(eq(developments.id, developmentId));
+    // Update legacy column when present (some deployments still have it),
+    // otherwise continue without hard-failing the publish action.
+    try {
+      await db.execute(sql`
+        UPDATE developments
+        SET important_docs_version = ${newVersion}
+        WHERE id = ${developmentId}::uuid
+      `);
+    } catch {
+      // Column not present in current schema - version is derived from agreements fallback.
+    }
 
     const unitsCount = await db
       .select({ count: sql<number>`count(*)` })
@@ -72,7 +89,7 @@ export async function POST(
       success: true,
       newVersion,
       importantDocsCount: importantDocs.length,
-      affectedUnitsCount: unitsCount[0]?.count || 0,
+      affectedUnitsCount: Number(unitsCount[0]?.count || 0),
     });
   } catch (error) {
     console.error('[Publish Important Docs API Error]:', error);

@@ -7,7 +7,7 @@
     "build": "next build",
     "build:standalone": "NEXT_TELEMETRY_DISABLED=1 next build",
     "package:replit": "rm -rf .replit-deploy && mkdir -p .replit-deploy && cp -R .next/standalone/* .replit-deploy/ && mkdir -p .replit-deploy/.next && cp -R .next/static .replit-deploy/.next/static && cp -R public .replit-deploy/public || true",
-    "start": "next start -p $PORT",
+    "start": "next start -p ${PORT:-5000}",
     "typecheck": "tsc --noEmit",
     "lint": "next lint || true",
     "smoke": "bash scripts/smoke-test.sh http://localhost:5000",

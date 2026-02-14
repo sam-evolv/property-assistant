@@ -9,7 +9,11 @@ import OpenAI from 'openai';
 import type { DisciplineType } from './archive';
 
 function getOpenAIClient() {
-  return new OpenAI();
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is required for AI document classification');
+  }
+  return new OpenAI({ apiKey });
 }
 
 export interface ClassificationResult {

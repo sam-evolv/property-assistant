@@ -10,9 +10,14 @@ import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    url,
+    key
   );
 }
 
@@ -32,10 +37,7 @@ export async function POST(
   { params }: { params: { developmentId: string } }
 ) {
   try {
-    const auth = await requireRole('developer');
-    if (!auth.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireRole(['developer', 'admin', 'super_admin']);
 
     const { developmentId } = params;
     const body = await request.json();
@@ -114,9 +116,8 @@ export async function POST(
             unit_id: newUnit.id,
             development_id: developmentId,
             release_date: today,
-            release_updated_by: auth.user.email || 'system',
+            release_updated_by: auth.id,
             release_updated_at: new Date().toISOString(),
-            sale_price: unit.price,
           });
 
         if (pipelineError) {
