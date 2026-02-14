@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     // For Supabase projects, we need to match by organization_id if filtering
     let supabaseQuery = supabaseAdmin
       .from('projects')
-      .select('id, name, address, image_url, organization_id, created_at');
+      .select('id, name, address, image_url, organization_id, created_at, project_type');
 
     // Note: Supabase 'projects' table may use 'organization_id' which could map to tenant
     // For now, we'll include all and let the merge handle deduplication
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
         image_url: p.image_url || null,
         tenant_id: p.organization_id || null,
         tenant_name: p.organization_id ? (tenantLookup[p.organization_id] || 'Unknown') : 'Unassigned',
-        project_type: 'bts',
+        project_type: p.project_type || 'bts',
         source: 'supabase' as const,
       }))
       // If filtering by tenant, also filter Supabase projects

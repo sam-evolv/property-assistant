@@ -122,7 +122,6 @@ export async function GET(
     const supabaseAdmin = getSupabaseAdmin();
     let usedFallback = false;
 
-    // Get development details - try Drizzle first, fallback to Supabase
     let development: any = null;
 
     try {
@@ -138,8 +137,12 @@ export async function GET(
       development = drizzleDev;
       console.log('[Pipeline Development API] Drizzle development found:', !!development);
     } catch (drizzleError) {
-      console.error('[Pipeline Development API] Drizzle error (falling back to Supabase):', drizzleError);
+      console.error('[Pipeline Development API] Drizzle error:', drizzleError);
+    }
+
+    if (!development) {
       usedFallback = true;
+      console.log('[Pipeline Development API] Falling back to Supabase for development');
 
       const { data: supabaseDev, error: supabaseError } = await supabaseAdmin
         .from('developments')
@@ -149,9 +152,29 @@ export async function GET(
         .single();
 
       if (supabaseError && supabaseError.code !== 'PGRST116') {
-        console.error('[Pipeline Development API] Supabase error:', supabaseError);
+        console.error('[Pipeline Development API] Supabase developments error:', supabaseError);
       }
       development = supabaseDev;
+
+      if (!development) {
+        const { data: supabaseProject, error: projectError } = await supabaseAdmin
+          .from('projects')
+          .select('id, name, address, organization_id')
+          .eq('id', developmentId)
+          .single();
+
+        if (projectError && projectError.code !== 'PGRST116') {
+          console.error('[Pipeline Development API] Supabase projects error:', projectError);
+        }
+        if (supabaseProject && supabaseProject.organization_id === tenantId) {
+          development = {
+            id: supabaseProject.id,
+            name: supabaseProject.name,
+            code: supabaseProject.name?.toUpperCase().replace(/\s+/g, '_').substring(0, 10) || 'PROJ',
+            address: supabaseProject.address || null,
+          };
+        }
+      }
       console.log('[Pipeline Development API] Supabase development found:', !!development);
     }
 
@@ -412,7 +435,6 @@ export async function POST(
       return NextResponse.json({ error: 'unitIds array required' }, { status: 400 });
     }
 
-    // Verify units exist and belong to this tenant/development - try Drizzle first, fallback to Supabase
     let existingUnits: any[] = [];
 
     try {
@@ -427,7 +449,10 @@ export async function POST(
           )
         );
     } catch (drizzleError) {
-      console.error('[Pipeline Release API] Drizzle error (falling back to Supabase):', drizzleError);
+      console.error('[Pipeline Release API] Drizzle error:', drizzleError);
+    }
+
+    if (existingUnits.length === 0) {
       const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
         .from('units')
         .select('*')
