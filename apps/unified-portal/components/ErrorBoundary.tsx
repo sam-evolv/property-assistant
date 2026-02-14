@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { PremiumCard } from '@openhouse/ui/components/PremiumCard';
-import { PremiumButton } from '@openhouse/ui/components/PremiumButton';
+import { Card } from '@/components/ui/premium/Card';
+import { Button } from '@/components/ui/premium/Button';
 
 function generateErrorId(): string {
   return `err_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
@@ -65,7 +65,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
       return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
-          <PremiumCard className="max-w-2xl w-full">
+          <Card className="max-w-2xl w-full">
             <div className="p-8 text-center">
               <div className="mb-4 flex justify-center">
                 <svg className="w-16 h-16 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -93,18 +93,18 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               )}
 
               <div className="flex gap-4 justify-center">
-                <PremiumButton
+                <Button
                   variant="primary"
                   onClick={() => window.location.reload()}
                 >
                   Reload Page
-                </PremiumButton>
-                <PremiumButton
+                </Button>
+                <Button
                   variant="secondary"
                   onClick={() => window.location.href = '/'}
                 >
                   Go Home
-                </PremiumButton>
+                </Button>
               </div>
               
               {this.state.errorId && (
@@ -113,7 +113,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 </p>
               )}
             </div>
-          </PremiumCard>
+          </Card>
         </div>
       );
     }

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSession, canAccessDevelopment } from '@openhouse/api/session';
+import { getAdminSession } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
@@ -19,7 +19,7 @@ function getSupabaseAdmin() {
   );
 }
 
-async function safeQuery<T>(queryFn: () => Promise<T>, fallback: T): Promise<T> {
+async function safeQuery(queryFn: () => Promise<any>, fallback: any): Promise<any> {
   try {
     return await queryFn();
   } catch (error: any) {

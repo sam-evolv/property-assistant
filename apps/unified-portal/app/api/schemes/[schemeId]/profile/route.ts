@@ -112,6 +112,10 @@ export async function GET(
     if (auth.role !== 'developer' && auth.role !== 'admin' && auth.role !== 'super_admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    if (!auth.tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
     
     const { schemeId } = params;
     
@@ -193,16 +197,17 @@ export async function PUT(
         }
       }
       
-      if (!sanitizedData.scheme_name) {
-        sanitizedData.scheme_name = 'Untitled Scheme';
-      }
+      const createPayload = {
+        ...sanitizedData,
+        scheme_name: sanitizedData.scheme_name ?? 'Untitled Scheme',
+      };
       
       const created = await db
         .insert(scheme_profile)
         .values({
           id: schemeId,
           developer_org_id: auth.tenantId,
-          ...sanitizedData,
+          ...createPayload,
         })
         .returning();
       
@@ -230,6 +235,10 @@ export async function POST(
     if (auth.role !== 'developer' && auth.role !== 'admin' && auth.role !== 'super_admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    if (!auth.tenantId) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
     
     const { schemeId } = params;
     const body = await request.json();
@@ -254,16 +263,17 @@ export async function POST(
       }
     }
     
-    if (!sanitizedData.scheme_name) {
-      sanitizedData.scheme_name = 'Untitled Scheme';
-    }
+    const createPayload = {
+      ...sanitizedData,
+      scheme_name: sanitizedData.scheme_name ?? 'Untitled Scheme',
+    };
     
     const created = await db
       .insert(scheme_profile)
       .values({
         id: schemeId,
         developer_org_id: auth.tenantId,
-        ...sanitizedData,
+        ...createPayload,
       })
       .returning();
     

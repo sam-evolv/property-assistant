@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const file of files) {
-      const result = {
+      const result: (typeof results)[number] = {
         fileName: file.name,
         success: false,
         documentId: undefined as string | undefined,
@@ -105,10 +105,10 @@ export async function POST(request: NextRequest) {
         error: undefined as string | undefined,
         indexingErrors: [] as string[],
         phases: {
-          storage: 'pending' as const,
-          dbWrite: 'pending' as const,
-          indexing: 'pending' as const,
-          verification: 'pending' as const,
+          storage: 'pending',
+          dbWrite: 'pending',
+          indexing: 'pending',
+          verification: 'pending',
         },
       };
 

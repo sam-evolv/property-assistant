@@ -337,9 +337,13 @@ export async function GET(request: Request) {
 
     const avgResponseRow = results[15]?.rows[0] as { avg_ms?: number } | undefined;
     const avgResponseTimeMs = Number(avgResponseRow?.avg_ms) || 0;
+    const readCount = (idx: number): number => {
+      const row = results[idx]?.rows?.[0] as { count?: number } | undefined;
+      return Number(row?.count) || 0;
+    };
 
     // Get active users from Drizzle result
-    let activeUnitsInWindow = Number(results[3].rows[0]?.count) || 0;
+    let activeUnitsInWindow = readCount(3);
 
     // FALLBACK: If Drizzle returned 0, try a simpler Drizzle query for purchaser_agreements
     // This is more reliable than the complex UNION query above and matches what the Dashboard uses
@@ -425,20 +429,20 @@ export async function GET(request: Request) {
     }
 
     const summary: CanonicalAnalyticsSummary = {
-      total_events: Number(results[0].rows[0]?.count) || 0,
-      total_questions: Number(results[1].rows[0]?.count) || 0,
-      questions_in_window: Number(results[2].rows[0]?.count) || 0,
+      total_events: readCount(0),
+      total_questions: readCount(1),
+      questions_in_window: readCount(2),
       active_units_in_window: activeUnitsInWindow,
-      active_tenants_in_window: Number(results[4].rows[0]?.count) || 0,
-      recovered_events_count: Number(results[5].rows[0]?.count) || 0,
-      inferred_events_count: Number(results[6].rows[0]?.count) || 0,
-      live_events_count: Number(results[7].rows[0]?.count) || 0,
-      total_qr_scans: Number(results[8].rows[0]?.count) || 0,
-      total_signups: Number(results[9].rows[0]?.count) || 0,
-      total_document_opens: Number(results[10].rows[0]?.count) || 0,
-      qr_scans_in_window: Number(results[11].rows[0]?.count) || 0,
-      signups_in_window: Number(results[12].rows[0]?.count) || 0,
-      document_opens_in_window: Number(results[13].rows[0]?.count) || 0,
+      active_tenants_in_window: readCount(4),
+      recovered_events_count: readCount(5),
+      inferred_events_count: readCount(6),
+      live_events_count: readCount(7),
+      total_qr_scans: readCount(8),
+      total_signups: readCount(9),
+      total_document_opens: readCount(10),
+      qr_scans_in_window: readCount(11),
+      signups_in_window: readCount(12),
+      document_opens_in_window: readCount(13),
       avg_response_time_ms: avgResponseTimeMs,
       last_analytics_event_at: lastEventAt,
       computed_at: computedAt,

@@ -9,7 +9,7 @@ interface Developer {
   email: string;
   role: string;
   tenant_id: string;
-  created_at: string;
+  created_at: string | Date;
   tenant?: {
     id: string;
     name: string;
@@ -23,7 +23,7 @@ interface Development {
   address: string;
   tenant_id: string;
   developer_user_id: string | null;
-  created_at: string;
+  created_at: string | Date;
   tenant?: {
     id: string;
     name: string;

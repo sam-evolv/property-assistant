@@ -82,6 +82,7 @@ interface PreviewRow {
   release_date: string;
   sale_agreed_date: string;
   queries_raised_date: string;
+  queries_replied_date: string;
   deposit_date: string;
   contracts_issued_date: string;
   signed_contracts_date: string;

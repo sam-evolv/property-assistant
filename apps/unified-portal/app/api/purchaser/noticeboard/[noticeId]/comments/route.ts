@@ -10,6 +10,13 @@ export const dynamic = 'force-dynamic';
 const COMMENTS_PER_HOUR_LIMIT = 20;
 const EDIT_WINDOW_MINUTES = 10;
 
+function requireTenantId(unit: { tenant_id: string | null }): string {
+  if (!unit.tenant_id) {
+    throw new Error('Unit is missing tenant_id');
+  }
+  return unit.tenant_id;
+}
+
 async function checkCommentRateLimit(unitId: string, tenantId: string): Promise<{ allowed: boolean; remaining: number }> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   
@@ -67,7 +74,7 @@ export async function GET(
       );
     }
 
-    const tenantId = unit.tenant_id;
+    const tenantId = requireTenantId(unit);
 
     const notice = await db
       .select({ id: noticeboard_posts.id })
@@ -189,7 +196,7 @@ export async function POST(
       );
     }
 
-    const tenantId = unit.tenant_id;
+    const tenantId = requireTenantId(unit);
     console.log('[Comments POST] Using tenantId from unit:', tenantId);
 
     const rateLimit = await checkCommentRateLimit(unitUid, tenantId);
@@ -335,7 +342,7 @@ export async function PATCH(
       );
     }
 
-    const tenantId = unit.tenant_id;
+    const tenantId = requireTenantId(unit);
 
     const existingComment = await db
       .select()
@@ -465,7 +472,7 @@ export async function DELETE(
       );
     }
 
-    const tenantId = unit.tenant_id;
+    const tenantId = requireTenantId(unit);
 
     const comment = await db
       .select({

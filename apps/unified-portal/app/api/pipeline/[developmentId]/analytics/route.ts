@@ -384,7 +384,9 @@ export async function GET(
 
     // Overall price per sq ft
     const allPrices = privateUnits.filter(u => parsePrice(u.pipeline.sale_price) > 0).map(u => parsePrice(u.pipeline.sale_price));
-    const allSqFts = privateUnits.filter(u => u.floorArea).map(u => u.floorArea);
+    const allSqFts = privateUnits
+      .map((u) => u.floorArea)
+      .filter((sqft): sqft is number => typeof sqft === 'number' && Number.isFinite(sqft));
     const overallAvgPrice = allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : 0;
     const overallAvgSqFt = allSqFts.length > 0 ? Math.round(allSqFts.reduce((a, b) => a + b, 0) / allSqFts.length) : null;
     const overallPricePerSqFt = overallAvgSqFt && overallAvgPrice ? Math.round(overallAvgPrice / overallAvgSqFt) : null;

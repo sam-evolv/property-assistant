@@ -174,7 +174,7 @@ export function DataTable<T extends { id: string | number }>({
       return column.cell(value as T[keyof T], row);
     }
 
-    return value;
+    return value as React.ReactNode;
   };
 
   return (

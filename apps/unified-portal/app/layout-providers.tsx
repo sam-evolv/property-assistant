@@ -11,6 +11,7 @@ export function LayoutProviders({ children }: { children: ReactNode }) {
     tenantId: null as string | null,
     adminId: null as string | null,
     email: null as string | null,
+    displayName: null as string | null,
     isLoading: false,
   });
 
