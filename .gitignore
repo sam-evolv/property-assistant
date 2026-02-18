@@ -32,7 +32,9 @@ supabase/
 tmp/
 data/
 uploads/
-documents/
+# documents/ — legacy rule; kept specific to avoid catching app/api/documents
+public/documents/
+data/documents/
 public/documents/
 coverage/
 *.log
