@@ -1528,6 +1528,7 @@ export async function POST(request: NextRequest) {
     // This prevents cross-tenant data leakage in multi-tenant deployments
     const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id 
       || clientDevelopmentId  // Developer preview: explicit developmentId wins before default fallback
+      || userDevelopmentId    // Multi-tenant: use the unit's development_id (matches project_id in document_sections uploads)
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null)
       || null;
     
@@ -1535,6 +1536,10 @@ export async function POST(request: NextRequest) {
     let schemeResolutionPath = 'unknown';
     if (userUnitDetails.unitInfo?.supabase_project_id) {
       schemeResolutionPath = 'unit_info.supabase_project_id';
+    } else if (clientDevelopmentId) {
+      schemeResolutionPath = 'client_development_id';
+    } else if (userDevelopmentId && userDevelopmentId !== DEFAULT_DEVELOPMENT_ID) {
+      schemeResolutionPath = 'unit_development_id';
     } else if (userTenantId === DEFAULT_TENANT_ID) {
       schemeResolutionPath = 'default_project_id_fallback';
     } else {
@@ -2449,48 +2454,53 @@ export async function POST(request: NextRequest) {
       console.log('[Chat] Could not check superseded docs:', e);
     }
     
-    // Fetch ALL chunks with embeddings for proper semantic search
-    // Use Supabase project_id (not Drizzle development_id) for document_sections queries
-    console.log('[Chat] Loading document chunks for Supabase project:', userSupabaseProjectId);
+    // SERVER-SIDE pgvector SIMILARITY SEARCH via match_document_sections()
+    // Uses HNSW index — returns top-50 pre-ranked chunks, no in-memory cosine needed.
+    // Replaces the previous fetch-all-then-cosine-in-JS approach (was loading ~1000+ rows
+    // of 1536-dim embeddings into memory on every request).
+    console.log('[Chat] pgvector search for project:', userSupabaseProjectId);
     console.log('[Chat] Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
     console.log('[Chat] Supabase key configured:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
     
     let allChunks: any[] | null = null;
     let supabaseError: string | null = null;
 
-    // PERFORMANCE OPTIMIZATION: Cache document chunks for 60 seconds
-    // This dramatically speeds up repeated requests for the same project
-    const chunksCacheKey = `doc_chunks:${userSupabaseProjectId}`;
-    const cachedChunks = globalCache.get(chunksCacheKey);
+    const chunkLoadStart = Date.now();
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error: fetchError } = await supabase
+        .rpc('match_document_sections', {
+          query_embedding: queryEmbedding,
+          match_project_id: userSupabaseProjectId,
+          match_count: 50,
+        });
 
-    if (cachedChunks) {
-      allChunks = cachedChunks as any[];
-      console.log('[Chat] Using cached chunks:', allChunks.length, 'chunks (cache hit)');
-    } else {
-      const chunkLoadStart = Date.now();
-      try {
-        const supabase = getSupabaseClient();
-        const { data, error: fetchError } = await supabase
+      if (fetchError) {
+        console.error('[Chat] pgvector RPC error:', fetchError.message, fetchError.details, fetchError.hint);
+        // Fallback: fetch without vector ranking if RPC fails (e.g. function not yet deployed)
+        const { data: fallbackData, error: fallbackErr } = await supabase
           .from('document_sections')
           .select('id, content, metadata, embedding')
-          .eq('project_id', userSupabaseProjectId);
-
-        if (fetchError) {
-          console.error('[Chat] Supabase query error:', fetchError.message, fetchError.details, fetchError.hint);
-          supabaseError = fetchError.message;
+          .eq('project_id', userSupabaseProjectId)
+          .limit(200);
+        if (fallbackErr) {
+          supabaseError = fallbackErr.message;
         } else {
-          allChunks = data;
-          // Cache for 60 seconds (60000ms) - long enough to help with rapid requests
-          // but short enough to pick up new documents reasonably quickly
-          if (allChunks && allChunks.length > 0) {
-            globalCache.set(chunksCacheKey, allChunks, 60000);
-          }
+          allChunks = fallbackData;
+          console.log('[Chat] Using fallback fetch (no vector ranking):', allChunks?.length, 'chunks');
         }
-      } catch (supabaseErr) {
-        console.error('[Chat] Supabase connection failed:', supabaseErr);
-        supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
+      } else {
+        // RPC returns: { id, content, metadata, similarity }
+        // Map similarity onto _pgvector_similarity so the scoring section can use it
+        allChunks = (data || []).map((d: any) => ({
+          ...d,
+          _pgvector_similarity: typeof d.similarity === 'number' ? d.similarity : null,
+        }));
+        console.log('[Chat] pgvector returned', allChunks.length, 'pre-ranked chunks in', Date.now() - chunkLoadStart, 'ms');
       }
-      console.log('[Chat] Chunk load time:', Date.now() - chunkLoadStart, 'ms (cache miss)');
+    } catch (supabaseErr) {
+      console.error('[Chat] Supabase connection failed:', supabaseErr);
+      supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
     }
 
     if (supabaseError || !allChunks) {
@@ -2604,11 +2614,16 @@ export async function POST(request: NextRequest) {
       }
       
       const scoredChunks = activeChunks.map(chunk => {
-        // Parse and calculate semantic similarity using embeddings
+        // Use pre-computed pgvector similarity if available (server-side HNSW search),
+        // otherwise fall back to in-memory cosine (used when RPC fallback path triggered)
         let similarity = 0;
-        const parsedEmbedding = parseEmbedding(chunk.embedding);
-        if (parsedEmbedding) {
-          similarity = cosineSimilarity(queryEmbedding, parsedEmbedding);
+        if (typeof chunk._pgvector_similarity === 'number') {
+          similarity = chunk._pgvector_similarity;
+        } else {
+          const parsedEmbedding = parseEmbedding(chunk.embedding);
+          if (parsedEmbedding) {
+            similarity = cosineSimilarity(queryEmbedding, parsedEmbedding);
+          }
         }
         
         // Boost score for keyword matches (hybrid search)

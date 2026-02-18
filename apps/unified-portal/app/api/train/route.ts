@@ -113,8 +113,32 @@ export async function POST(request: NextRequest) {
       else console.log('[Upload] Created projects bridge for development:', developmentId);
     }
 
+    // Create a training_jobs record so developers can see upload/indexing status in the UI
+    let trainingJobId: string | null = null;
+    try {
+      const { data: jobData } = await supabaseAdmin
+        .from('training_jobs')
+        .insert({
+          tenant_id: tenantId,
+          development_id: developmentId,
+          file_name: files.map(f => f.name).join(', '),
+          file_type: files.length === 1 ? (files[0].name.split('.').pop() || 'unknown') : 'mixed',
+          status: 'processing',
+          total_chunks: 0,
+          processed_chunks: 0,
+          started_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+      trainingJobId = jobData?.id || null;
+      if (trainingJobId) console.log('[Upload] Training job created:', trainingJobId);
+    } catch (jobErr) {
+      console.warn('[Upload] Could not create training_jobs record:', jobErr instanceof Error ? jobErr.message : 'err');
+    }
+
     let succeeded = 0;
     let failed = 0;
+    let totalChunksIndexed = 0;
     const fileResults: Array<{ fileName: string; success: boolean; chunksIndexed?: number; error?: string }> = [];
 
     for (const file of files) {
@@ -262,6 +286,7 @@ export async function POST(request: NextRequest) {
 
         fileResults.push({ fileName: file.name, success: true, chunksIndexed });
         succeeded++;
+        totalChunksIndexed += chunksIndexed;
         console.log('[Upload] ✅ Completed:', file.name, `(${chunksIndexed} chunks indexed)`);
 
       } catch (err: any) {
@@ -272,6 +297,25 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Upload] Done — succeeded:', succeeded, 'failed:', failed);
+
+    // Update training_jobs record with final status
+    if (trainingJobId) {
+      try {
+        await supabaseAdmin
+          .from('training_jobs')
+          .update({
+            status: failed === 0 ? 'completed' : (succeeded === 0 ? 'failed' : 'partial'),
+            total_chunks: totalChunksIndexed,
+            processed_chunks: totalChunksIndexed,
+            completed_at: new Date().toISOString(),
+            error_message: failed > 0 ? `${failed} file(s) failed` : null,
+          })
+          .eq('id', trainingJobId);
+        console.log('[Upload] Training job updated:', trainingJobId, '— status:', failed === 0 ? 'completed' : 'partial');
+      } catch (jobUpdateErr) {
+        console.warn('[Upload] Could not update training_jobs record:', jobUpdateErr instanceof Error ? jobUpdateErr.message : 'err');
+      }
+    }
 
     return NextResponse.json({
       success: failed === 0,
@@ -288,7 +332,35 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET: stub for training jobs (called by the UI on page load)
-export async function GET() {
-  return NextResponse.json({ jobs: [] });
+// GET: return real training jobs for the authenticated tenant
+export async function GET(request: NextRequest) {
+  try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+    const tenantId = session.tenantId;
+    const { searchParams } = new URL(request.url);
+    const developmentId = searchParams.get('developmentId');
+
+    const supabaseAdmin = getSupabaseAdmin();
+    let query = supabaseAdmin
+      .from('training_jobs')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (developmentId) {
+      query = query.eq('development_id', developmentId);
+    }
+
+    const { data: jobs, error } = await query;
+    if (error) {
+      console.error('[Train GET] Error fetching jobs:', error.message);
+      return NextResponse.json({ jobs: [] });
+    }
+
+    return NextResponse.json({ jobs: jobs || [] });
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ jobs: [] });
+  }
 }
