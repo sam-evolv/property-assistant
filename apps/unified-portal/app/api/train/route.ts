@@ -101,6 +101,8 @@ export async function POST(request: NextRequest) {
             file_url: fileUrl,
             mime_type: file.type || 'application/octet-stream',
             size_kb: Math.ceil(file.size / 1024),
+            // uploaded_by intentionally omitted — references admins table,
+            // but developers are in auth.users, not admins
             version: 1,
             status: 'active',
             processing_status: 'complete',
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Fallback: insert into legacy Supabase documents table
+        // Only works for developments that have a corresponding row in the `projects` table
         if (!docWritten) {
           const { error: legacyErr } = await supabaseAdmin
             .from('documents')
@@ -126,7 +129,12 @@ export async function POST(request: NextRequest) {
             });
 
           if (legacyErr) {
-            console.error('[Upload] Legacy insert error for', file.name, ':', legacyErr.message);
+            if (legacyErr.code === '23503') {
+              // FK violation — this development has no legacy projects row, Drizzle table required
+              console.warn('[Upload] Legacy insert skipped for', file.name, '— no projects row for', developmentId);
+            } else {
+              console.error('[Upload] Legacy insert error for', file.name, ':', legacyErr.message);
+            }
           } else {
             docWritten = true;
             console.log('[Upload] Legacy Supabase insert success for', file.name);
