@@ -11,47 +11,68 @@ function getSupabaseAdmin() {
   );
 }
 
-const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-    console.log('[Houses] Fetching for project:', REAL_PROJECT_ID);
-    
-    const session = await requireRole(['developer', 'super_admin']);
+    const developmentId = params.id;
 
-    // Simple query without join first - limit to 500 houses max
-    const { data: units, error } = await supabaseAdmin
-      .from('units')
-      .select('id, address, purchaser_name, project_id, created_at, unit_type_id')
-      .eq('project_id', REAL_PROJECT_ID)
-      .order('address', { ascending: true })
-      .limit(500);
-
-    if (error) {
-      console.error('[Houses] Error:', error);
-      throw error;
+    if (!developmentId) {
+      return NextResponse.json({ error: 'Development ID required' }, { status: 400 });
     }
 
-    console.log('[Houses] Found:', units?.length || 0);
+    const supabaseAdmin = getSupabaseAdmin();
+    const session = await requireRole(['developer', 'super_admin']);
 
-    const houses = (units || []).map((unit: any, idx: number) => ({
+    console.log('[Houses] Fetching units for development:', developmentId, 'tenant:', session.tenantId);
+
+    const { data: units, error } = await supabaseAdmin
+      .from('units')
+      .select(
+        'id, development_id, tenant_id, unit_number, unit_uid, address_line_1, address_line_2, ' +
+        'city, country, eircode, house_type_code, bedrooms, bathrooms, ' +
+        'purchaser_name, unit_status, unit_mode, created_at'
+      )
+      .eq('development_id', developmentId)
+      .order('unit_number', { ascending: true })
+      .limit(1000);
+
+    if (error) {
+      console.error('[Houses] Error fetching units:', error);
+      return NextResponse.json({ error: 'Failed to fetch houses' }, { status: 500 });
+    }
+
+    console.log('[Houses] Found:', units?.length || 0, 'units for development:', developmentId);
+
+    const houses = (units || []).map((unit: any) => ({
       id: unit.id,
-      development_id: unit.project_id || REAL_PROJECT_ID,
-      unit_number: `Unit ${idx + 1}`,
-      unit_uid: unit.id,
-      address_line_1: unit.address || `Unit ${idx + 1}`,
-      house_type_code: unit.unit_type_id || null,
+      development_id: unit.development_id,
+      unit_number: unit.unit_number || '',
+      unit_uid: unit.unit_uid || unit.id,
+      address_line_1: unit.address_line_1 || null,
+      address_line_2: unit.address_line_2 || null,
+      city: unit.city || null,
+      state_province: null,
+      postal_code: unit.eircode || null,
+      country: unit.country || null,
+      house_type_code: unit.house_type_code || null,
+      bedrooms: unit.bedrooms || null,
+      bathrooms: unit.bathrooms || null,
+      square_footage: null,
       purchaser_name: unit.purchaser_name || null,
+      purchaser_email: null,
+      purchaser_phone: null,
+      purchase_date: null,
+      move_in_date: null,
+      unit_status: unit.unit_status || null,
       created_at: unit.created_at,
+      updated_at: null,
     }));
 
     return NextResponse.json({ houses });
   } catch (error) {
-    console.error('[Houses] Error:', error);
+    console.error('[Houses] Unexpected error:', error);
     return NextResponse.json({ error: 'Failed to fetch houses' }, { status: 500 });
   }
 }

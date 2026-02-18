@@ -24,20 +24,27 @@ export async function GET(request: NextRequest) {
       ) as any;
     }
 
-    const faqs = await db.select({
-      id: faqEntries.id,
-      question: faqEntries.question,
-      answer: faqEntries.answer,
-      topic: faqEntries.topic,
-      tags: faqEntries.tags,
-      priority: faqEntries.priority,
-      status: faqEntries.status,
-      created_at: faqEntries.created_at,
-      updated_at: faqEntries.updated_at,
-    })
-    .from(faqEntries)
-    .where(whereClause)
-    .orderBy(desc(faqEntries.priority), desc(faqEntries.created_at));
+    let faqs: any[] = [];
+    try {
+      faqs = await db.select({
+        id: faqEntries.id,
+        question: faqEntries.question,
+        answer: faqEntries.answer,
+        topic: faqEntries.topic,
+        tags: faqEntries.tags,
+        priority: faqEntries.priority,
+        status: faqEntries.status,
+        created_at: faqEntries.created_at,
+        updated_at: faqEntries.updated_at,
+      })
+      .from(faqEntries)
+      .where(whereClause)
+      .orderBy(desc(faqEntries.priority), desc(faqEntries.created_at));
+    } catch (dbErr) {
+      // faq_entries table may not exist in this environment yet (migration pending)
+      console.warn('[FAQ API] faq_entries table query failed — returning empty list. Run Drizzle migration to enable this feature.', dbErr instanceof Error ? dbErr.message : 'unknown error');
+      return NextResponse.json({ faqs: [] });
+    }
 
     return NextResponse.json({ faqs });
   } catch (error) {
