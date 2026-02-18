@@ -49,9 +49,35 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     console.log('[Upload] Processing', files.length, 'file(s) for development:', developmentId);
 
-    // Ensure a legacy `projects` row exists for this development.
-    // Both `documents` and `document_sections` have FK constraints on project_id → projects.id.
-    // New developments (created via Drizzle) don't have a projects row — we create it here.
+    // Bridge legacy schema for new tenants/developments.
+    // FK chain: organisations → projects → documents + document_sections
+    // New tenants exist in `tenants` but not `organisations`; new devs in `developments` but not `projects`.
+    // We auto-create both bridge rows so uploads work without running Drizzle migrations.
+
+    const { data: existingOrg } = await supabaseAdmin
+      .from('organisations')
+      .select('id')
+      .eq('id', tenantId)
+      .single();
+
+    if (!existingOrg) {
+      const { data: tenant } = await supabaseAdmin
+        .from('tenants')
+        .select('name')
+        .eq('id', tenantId)
+        .single();
+
+      const { error: orgErr } = await supabaseAdmin
+        .from('organisations')
+        .insert({ id: tenantId, name: tenant?.name || 'Organisation' });
+
+      if (orgErr) {
+        console.error('[Upload] Failed to create organisations bridge row:', orgErr.message);
+      } else {
+        console.log('[Upload] Created organisations bridge row for tenant:', tenantId);
+      }
+    }
+
     const { data: existingProject } = await supabaseAdmin
       .from('projects')
       .select('id')
@@ -61,17 +87,13 @@ export async function POST(request: NextRequest) {
     if (!existingProject) {
       const { data: dev } = await supabaseAdmin
         .from('developments')
-        .select('name, tenant_id')
+        .select('name')
         .eq('id', developmentId)
         .single();
 
       const { error: projectErr } = await supabaseAdmin
         .from('projects')
-        .insert({
-          id: developmentId,
-          organization_id: tenantId,
-          name: dev?.name || 'Development',
-        });
+        .insert({ id: developmentId, organization_id: tenantId, name: dev?.name || 'Development' });
 
       if (projectErr) {
         console.error('[Upload] Failed to create projects bridge row:', projectErr.message);
