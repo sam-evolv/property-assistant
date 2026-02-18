@@ -1527,8 +1527,8 @@ export async function POST(request: NextRequest) {
     // Currently: Falls back to PROJECT_ID only when tenant matches DEFAULT_TENANT_ID (Longview)
     // This prevents cross-tenant data leakage in multi-tenant deployments
     const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id 
+      || clientDevelopmentId  // Developer preview: explicit developmentId wins before default fallback
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null)
-      || clientDevelopmentId  // Developer preview: use developmentId directly when unit lookup fails
       || null;
     
     // Determine scheme resolution path for diagnostics
