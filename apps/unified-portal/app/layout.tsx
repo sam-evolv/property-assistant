@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { LayoutClient } from './layout-client';
 
@@ -44,8 +45,22 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="icon" type="image/png" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* Establish connections to Google Maps early — eliminates DNS + TLS latency when Maps tab opens */}
+        <link rel="preconnect" href="https://maps.googleapis.com" />
+        <link rel="preconnect" href="https://maps.gstatic.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://maps.googleapis.com" />
+        <link rel="dns-prefetch" href="https://maps.gstatic.com" />
       </head>
       <body className={inter.className}>
+        {/* Preload Google Maps JS as soon as the app hydrates — before the user even taps Maps tab.
+            strategy="afterInteractive" = loads after Next.js hydration, non-blocking.
+            OptimizedMapsTab checks window.google?.maps?.Map and skips its own script injection
+            when this is already loaded, saving the full sequential load chain. */}
+        <Script
+          id="google-maps-preload"
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
+          strategy="afterInteractive"
+        />
         <LayoutClient>
           {children}
         </LayoutClient>

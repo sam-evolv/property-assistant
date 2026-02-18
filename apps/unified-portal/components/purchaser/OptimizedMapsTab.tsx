@@ -43,13 +43,18 @@ const FILTER_CATEGORIES: FilterCategory[] = [
 ];
 
 
+// Module-level promise — ensures we only load the script once even if called multiple times
+let _mapsLoadPromise: Promise<void> | null = null;
+
 const loadGoogleMapsScript = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    // Already loaded?
-    if (window.google?.maps?.Map) {
-      resolve();
-      return;
-    }
+  // Already loaded by layout preload or prior call
+  if (window.google?.maps?.Map) {
+    return Promise.resolve();
+  }
+  // Re-use existing in-flight load if called multiple times
+  if (_mapsLoadPromise) return _mapsLoadPromise;
+
+  _mapsLoadPromise = new Promise((resolve, reject) => {
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
@@ -90,9 +95,10 @@ const loadGoogleMapsScript = (): Promise<void> => {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
     script.async = true;
     script.defer = true;
-    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    script.onerror = () => { _mapsLoadPromise = null; reject(new Error('Failed to load Google Maps script')); };
     document.head.appendChild(script);
   });
+  return _mapsLoadPromise;
 };
 
 const MapSkeleton = memo(function MapSkeleton({ isDarkMode }: { isDarkMode: boolean }) {
@@ -287,12 +293,49 @@ export default function OptimizedMapsTab({
     // Clear old markers immediately
     placeMarkersRef.current.forEach(marker => marker.setMap(null));
     placeMarkersRef.current = [];
-    setLocations([]); // Clear list while searching
 
     const mapLat = latitude || 53.2707;
     const mapLng = longitude || -6.2728;
 
-    console.log('[Maps] Searching for', category.placeType, 'near', mapLat, mapLng);
+    // Check sessionStorage cache first — 24hr TTL per category per location
+    // Eliminates repeat Google Places API calls within a session
+    const cacheKey = `oh_places_${category.placeType}_${mapLat.toFixed(3)}_${mapLng.toFixed(3)}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { results: cachedResults, timestamp } = JSON.parse(cached);
+        const AGE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours
+        if (Date.now() - timestamp < AGE_LIMIT && Array.isArray(cachedResults) && cachedResults.length > 0) {
+          console.log('[Maps] Cache hit for', category.placeType, '—', cachedResults.length, 'places');
+          setLocations(cachedResults);
+          // Re-render markers from cached data
+          cachedResults.forEach((place: any, index: number) => {
+            if (place.lat && place.lng) {
+              const marker = new window.google.maps.Marker({
+                position: { lat: place.lat, lng: place.lng },
+                map: mapInstanceRef.current,
+                title: place.name,
+                icon: {
+                  path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+                  fillColor: '#F59E0B', fillOpacity: 1,
+                  strokeColor: '#92400E', strokeWeight: 2,
+                  scale: 1.5, anchor: new window.google.maps.Point(12, 22),
+                },
+                animation: index < 5 ? window.google.maps.Animation.DROP : undefined,
+                zIndex: 1000 + index,
+              });
+              placeMarkersRef.current.push(marker);
+            }
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      // sessionStorage not available (private mode etc) — continue to live fetch
+    }
+
+    setLocations([]); // Clear list while fetching live results
+    console.log('[Maps] Fetching live Places data for', category.placeType, 'near', mapLat, mapLng);
 
     const request = {
       location: new window.google.maps.LatLng(mapLat, mapLng),
@@ -312,6 +355,14 @@ export default function OptimizedMapsTab({
           categoryId: filterId, // Track which category these results belong to
         }));
         
+        // Persist to sessionStorage for fast repeat access
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({
+            results: newLocations,
+            timestamp: Date.now(),
+          }));
+        } catch (e) { /* storage quota exceeded — skip caching */ }
+
         setLocations(newLocations);
         console.log('[Maps] Updated locations list with', newLocations.length, 'places for', filterId);
 
