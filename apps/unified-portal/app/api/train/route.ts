@@ -49,6 +49,37 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     console.log('[Upload] Processing', files.length, 'file(s) for development:', developmentId);
 
+    // Ensure a legacy `projects` row exists for this development.
+    // Both `documents` and `document_sections` have FK constraints on project_id → projects.id.
+    // New developments (created via Drizzle) don't have a projects row — we create it here.
+    const { data: existingProject } = await supabaseAdmin
+      .from('projects')
+      .select('id')
+      .eq('id', developmentId)
+      .single();
+
+    if (!existingProject) {
+      const { data: dev } = await supabaseAdmin
+        .from('developments')
+        .select('name, tenant_id')
+        .eq('id', developmentId)
+        .single();
+
+      const { error: projectErr } = await supabaseAdmin
+        .from('projects')
+        .insert({
+          id: developmentId,
+          organization_id: tenantId,
+          name: dev?.name || 'Development',
+        });
+
+      if (projectErr) {
+        console.error('[Upload] Failed to create projects bridge row:', projectErr.message);
+      } else {
+        console.log('[Upload] Created projects bridge row for development:', developmentId);
+      }
+    }
+
     let succeeded = 0;
     let failed = 0;
     const fileResults: Array<{ fileName: string; success: boolean; error?: string }> = [];
