@@ -2898,6 +2898,22 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - You ARE allowed to discuss: general development/estate information, community amenities, shared facilities, local area information
 - You are NOT allowed to discuss: any specific unit that is not the logged-in user's home, other residents' details, neighbour's properties`;
 
+      // WARRANTY AWARENESS: Inject specific warranty guidance based on message content
+      const warrantyType = detectWarrantyType(message);
+      if (warrantyType !== 'unknown') {
+        const warrantyGuidance = getWarrantyGuidance(warrantyType);
+        systemMessage = systemMessage + `\n\nWARRANTY GUIDANCE (use this when discussing relevant issues):\n${warrantyGuidance}`;
+        console.log('[Chat] Warranty context injected:', warrantyType);
+      }
+
+      // PROACTIVE DOCUMENT SURFACING: If appliance keywords present in question, instruct model to offer relevant docs
+      const applianceKeywords = ['dishwasher','washing machine','washer','dryer','tumble dryer','fridge','freezer','refrigerator','microwave','oven','hob','cooker','extractor','air conditioning','radiator','heat pump','boiler','shower','bath','ventilation','solar','ev charger','car charger','daikin','ohme','bosch','siemens','zanussi','neff','samsung','lg','whirlpool'];
+      const hasApplianceQuestion = applianceKeywords.some(kw => message.toLowerCase().includes(kw));
+      if (hasApplianceQuestion) {
+        systemMessage = systemMessage + `\n\nPROACTIVE DOCUMENT OFFER: If the reference documents above include a manual, warranty document, or spec sheet relevant to what the user is asking about, proactively mention it at the end of your answer with a natural offer like "I also have the [document name] available if you'd like to see it."`;
+        console.log('[Chat] Proactive document surfacing enabled for appliance question');
+      }
+
       // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present
       if (activeIntentKey) {
         const intentPlaybook = getIntentPlaybook(activeIntentKey);
@@ -3009,6 +3025,14 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 - If asked about another unit, neighbour's home, or any other resident's property, respond with:
   "I'm afraid I can only provide information about your own home, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes."`;
 
+      // WARRANTY AWARENESS: Inject warranty guidance even when no docs are available
+      const warrantyTypeNoDocs = detectWarrantyType(message);
+      if (warrantyTypeNoDocs !== 'unknown') {
+        const warrantyGuidanceNoDocs = getWarrantyGuidance(warrantyTypeNoDocs);
+        systemMessage = systemMessage + `\n\nWARRANTY GUIDANCE (use this when discussing relevant issues):\n${warrantyGuidanceNoDocs}`;
+        console.log('[Chat] Warranty context injected (no docs path):', warrantyTypeNoDocs);
+      }
+
       // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present (no documents case)
       if (activeIntentKey) {
         const intentPlaybook = getIntentPlaybook(activeIntentKey);
@@ -3036,7 +3060,8 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
             block: sessionMemory?.block ?? undefined,
             unitNumber: userUnitDetails?.address?.split(',')[0] || undefined,
             developmentName: developmentName ?? undefined,
-            issueType: sessionMemory?.issue ?? undefined,
+            // Use session-tracked appliance and issue for more specific escalation
+            issueType: sessionMemory?.issue ?? (sessionMemory?.appliance ? `${sessionMemory.appliance} issue` : undefined),
           },
         });
         console.log('[Chat] Escalation guidance prepared:', escalationGuidance.escalationTarget);
@@ -3528,7 +3553,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
     if (testMode) {
       console.log('[Chat] TEST MODE: Generating non-streaming response...');
       const completion = await getOpenAIClient().chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: chatMessages,
         temperature: 0.3,
         max_tokens: 800,
@@ -3681,7 +3706,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     // Create streaming response
     const stream = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: chatMessages,
       temperature: 0.3,
       max_tokens: 800,
