@@ -302,6 +302,110 @@ Common questions:
   },
 
   // -------------------------------------------------------------------------
+  // SEAI GRANTS
+  // -------------------------------------------------------------------------
+  {
+    topics: ['grant', 'grants', 'seai', 'seai grant', 'government grant', 'ev charger', 'electric car charger', 'solar', 'solar panel', 'solar pv', 'home energy', 'retrofit', 'insulation grant', 'heat pump grant', 'zevs', 'electric vehicle', 'ev', 'funding', 'subsidy'],
+    content: `SEAI HOME GRANTS — GENERAL GUIDANCE:
+SEAI (Sustainable Energy Authority of Ireland) administers several grants for homeowners. The following are most relevant to new homeowners in Ireland:
+
+EV Charger Grant (ZEVS — Zero Emission Vehicle Support scheme):
+- A grant of up to €300 is available for the installation of a home EV charger (also called an EVSE or charge point).
+- Available to all homeowners, including new builds.
+- The charger must be installed by a registered SEAI contractor.
+- Apply at seai.ie/grants/electric-vehicle-grants/home-charger-grant before installation — you cannot apply retrospectively.
+- New homes built with a dedicated EV charging socket (conduit/spur) may already have wiring in place; the grant covers the charger unit and installation.
+
+Solar PV Grant:
+- Grants are available for solar photovoltaic (PV) panels on homes.
+- For new builds completed after 2021 that already meet NZEB standard, solar PV is increasingly common as standard fitout. Check your handover documents to confirm if panels were included.
+- If not included, you can apply to SEAI for a grant toward supply and installation. Amounts depend on system size (kWp).
+- Apply at seai.ie/grants/domestic-grants/solar-electricity-grant.
+
+Better Energy Homes (retrofit grants — primarily for older homes):
+- These grants (insulation, heat pump, windows) are mainly designed for older, less-efficient homes.
+- New A-rated homes typically do not qualify as they already meet the required energy standards.
+- If you plan an extension or modification in the future, check eligibility at the time.
+
+Key point: Always apply for SEAI grants BEFORE work begins. Grants cannot be claimed retrospectively. All contractors must be SEAI-registered.
+
+For the full current list of grants and eligibility, visit seai.ie/grants.`,
+  },
+
+  // -------------------------------------------------------------------------
+  // UTILITY SETUP — MOVING IN
+  // -------------------------------------------------------------------------
+  {
+    topics: ['utility', 'utilities', 'set up', 'setup', 'register', 'electricity supplier', 'gas supplier', 'broadband', 'internet', 'esb', 'bord gáis', 'bord gais', 'irish water', 'water account', 'tv licence', 'suppliers', 'first things', 'what do i need to do', 'just moved in', 'just got keys', 'new home setup', 'providers'],
+    content: `UTILITY SETUP — WHAT TO DO WHEN YOU MOVE IN:
+Setting up utilities in a new home in Ireland involves several steps. Here is a checklist to work through in your first few days:
+
+1. ELECTRICITY
+- Take a meter reading on the day you move in (photograph it with a timestamp).
+- You need to choose an electricity supplier — ESB Networks owns the infrastructure, but you choose your energy supplier (Electric Ireland, Bord Gáis Energy, Flogas, Energia, SSE Airtricity, and others all compete on price).
+- Compare prices at bonkers.ie or switcher.ie before signing up.
+- Register with your chosen supplier using your MPRN (Meter Point Reference Number), which is on a sticker near the meter.
+
+2. GAS (if applicable)
+- Not all new homes have a gas connection — heat pump homes typically do not.
+- If your home has gas, take a meter reading on day one and register with a gas supplier using your GPRN (Gas Point Reference Number).
+
+3. IRISH WATER
+- Register your water account at water.ie/register or call Irish Water on 1800 278 278.
+- You will need your property address and the previous occupant details if available.
+- Water charges are billed to the occupant, not the property, so registration is important.
+
+4. BROADBAND
+- New builds often have ducting or fibre infrastructure in place — check with the developer what is available at your address.
+- Major providers: Eir, Virgin Media, Sky, Vodafone, Pure Telecom, and local fibre providers.
+- Use comreg.ie/compare to compare broadband plans by address.
+- Allow 1–2 weeks for installation if a technician visit is required.
+
+5. TV LICENCE
+- A TV licence is legally required if you have a TV or any device that can receive live TV broadcasts (including laptops, smartphones with TV apps).
+- Cost: €160/year. Purchase at an Post or online at tvlicence.ie.
+
+6. HOME INSURANCE
+- Buildings insurance may be required by your mortgage lender from the date of closing.
+- Contents insurance is separate and recommended.
+- New builds typically attract lower premiums due to high construction standards.
+
+Priority order: Electricity supplier → Irish Water registration → Broadband order → TV licence.`,
+  },
+
+  // -------------------------------------------------------------------------
+  // HOME MAINTENANCE SCHEDULE
+  // -------------------------------------------------------------------------
+  {
+    topics: ['maintenance', 'service', 'service schedule', 'annual service', 'mvhr filter', 'heat pump service', 'boiler service', 'gutter', 'gutters', 'what to check', 'home maintenance', 'upkeep', 'service my', 'clean filter', 'filters', 'when should i', 'yearly', 'annual check'],
+    content: `HOME MAINTENANCE SCHEDULE — GENERAL GUIDANCE FOR NEW IRISH HOMES:
+New A-rated homes require less maintenance than older properties, but regular upkeep protects your investment and keeps the home performing as designed.
+
+QUARTERLY (every 3 months):
+- MVHR filters: Check the supply and extract filters in your MVHR (Mechanical Ventilation with Heat Recovery) unit. Replace or clean every 3–6 months depending on the manufacturer. Dirty filters reduce air quality and unit efficiency. The unit location and filter type will be in your handover manual.
+- Heat pump air filter: Some heat pumps have an internal air filter — check the manual for your unit.
+
+EVERY 6 MONTHS:
+- Smoke and carbon monoxide alarms: Test all detectors. Replace batteries annually or as needed. CO alarms have a lifespan — check the expiry date on the unit.
+- Ventilation: Ensure all trickle vents (in windows) are open and not blocked by furniture or curtains.
+
+ANNUALLY (typically autumn before winter):
+- Heat pump service: Have the heat pump serviced by a qualified engineer annually. This typically involves refrigerant checks, cleaning, and efficiency testing. Keep records — this may be required for warranty claims.
+- Gutters and downpipes: Clear any leaves or debris before winter to prevent overflow and dampness.
+- External drainage: Check that all drainage gullies around the home are clear.
+- Driveway/paths: Inspect for any movement, cracking, or drainage issues before frost season.
+
+EVERY 3–5 YEARS:
+- Smoke alarm replacement: Full replacement recommended, not just batteries.
+- MVHR unit service: Full professional clean and inspection of the heat exchanger.
+
+GENERAL:
+- Keep all handover documentation, warranty certificates, and service records in a safe place.
+- Log all maintenance carried out with dates — this is useful for insurance claims and when selling the property.
+- Check your HomeBond or Premier Guarantee warranty terms for what requires professional servicing to maintain cover.`,
+  },
+
+  // -------------------------------------------------------------------------
   // PROPERTY TAX (LPT)
   // -------------------------------------------------------------------------
   {
