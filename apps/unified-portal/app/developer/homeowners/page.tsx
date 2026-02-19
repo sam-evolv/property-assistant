@@ -108,7 +108,7 @@ export default async function HomeownersPage({
       .order('created_at', { ascending: false });
     
     if (searchParams.developmentId) {
-      unitsQuery = unitsQuery.eq('project_id', searchParams.developmentId);
+      unitsQuery = unitsQuery.eq('development_id', searchParams.developmentId);
     }
     
     const { data: units, error: unitsError } = await unitsQuery;
@@ -137,8 +137,8 @@ export default async function HomeownersPage({
       
       return {
         ...u,
-        development: projectsMap.get(u.project_id) || null,
-        development_id: u.project_id,
+        development: projectsMap.get(u.development_id) || projectsMap.get(u.project_id) || null,
+        development_id: u.development_id || u.project_id,
         // Use purchaser name from pipeline if units table doesn't have it
         purchaser_name: u.purchaser_name || pipelinePurchaserName,
         // Add social housing flag
