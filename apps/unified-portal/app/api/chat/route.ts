@@ -122,6 +122,7 @@ import {
 } from '@/lib/assistant/suggested-pills';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
+import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -2005,6 +2006,26 @@ export async function POST(request: NextRequest) {
           answer: clarificationResponse,
           source: 'affirmative_clarification',
         });
+      }
+    }
+
+    // WEATHER GATE: Met Éireann, free, no key required
+    if (isAssistantOSEnabled()) {
+      const weatherKeywords = /\b(weather|forecast|rain|raining|sunny|temperature|how cold|how warm|wind|windy|storm|snow|will it rain|what('s| is) the weather|met (é|e)ireann|climate today|outside today)\b/i;
+      if (weatherKeywords.test(message)) {
+        console.log('[Chat] WEATHER: detected weather query');
+        try {
+          const address = userUnitDetails?.address || null;
+          const weatherResult = await getWeather(address);
+          const weatherResponse = formatWeatherResponse(weatherResult);
+          return new Response(
+            JSON.stringify({ message: weatherResponse, source: 'met_eireann', diagnostics: process.env.NODE_ENV === 'development' ? chatDiagnostics : undefined }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        } catch (weatherErr) {
+          console.error('[Chat] Weather fetch failed:', weatherErr);
+          // Fall through to normal handling
+        }
       }
     }
 
