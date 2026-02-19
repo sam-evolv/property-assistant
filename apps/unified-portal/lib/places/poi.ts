@@ -1169,7 +1169,7 @@ export function formatPOIResponse(data: POICacheResult, options: FormatPOIOption
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any ${formatCategoryName(category)} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;
+    return `I wasn't able to pull up results for ${formatCategoryName(category)} right now. Google Maps will give you the most accurate local results.`;
   }
 
   const topResults = data.results.slice(0, resultLimit);
@@ -1285,7 +1285,7 @@ export function formatGroupedSchoolsResponse(data: GroupedSchoolsData, developme
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
+    return `I wasn't able to pull up school results right now. Google Maps will give you the most accurate local results.`;
   }
 
   const intro = getVariedIntro('primary_school', developmentName, sessionSeed);
@@ -1318,7 +1318,7 @@ export function formatSchoolsResponse(data: POICacheResult, developmentName?: st
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby schools at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any schools close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
+    return `I wasn't able to pull up school results right now. Google Maps will give you the most accurate local results.`;
   }
 
   const topResults = data.results.slice(0, 5);
@@ -1334,7 +1334,7 @@ export function formatShopsResponse(data: POICacheResult, developmentName?: stri
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby shops at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any shops close by – it's possible there aren't any within a reasonable distance, or the data just isn't available at the moment.`;
+    return `I wasn't able to pull up shop results right now. Google Maps will give you the most accurate local results.`;
   }
 
   const topResults = data.results.slice(0, 5);
@@ -1372,7 +1372,7 @@ export function formatLocalAmenitiesResponse(data: GroupedAmenitiesData, develop
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for nearby amenities at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find nearby amenities at the moment. You could try Google Maps for a wider search around the area.`;
+    return `I wasn't able to pull up amenity results right now. Google Maps will give you the most accurate local results.`;
   }
   
   const seed = sessionSeed ?? Math.floor(Math.random() * LOCAL_AMENITIES_INTROS.length);
@@ -1706,7 +1706,7 @@ export function formatDynamicPOIResponse(
     if (isLocationMissingReason(data.diagnostics?.failure_reason)) {
       return `The development location hasn't been set up yet, so I'm not able to search for ${keyword} at the moment. Your developer should be able to sort that out.`;
     }
-    return `I couldn't find any ${keyword} immediately nearby. There may be options a bit further afield, or I can help with other local amenities if you'd like.`;
+    return `I wasn't able to pull up results for ${keyword} right now. Google Maps will give you the most accurate local results.`;
   }
 
   const topResults = data.results.slice(0, 5);

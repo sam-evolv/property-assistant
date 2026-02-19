@@ -2286,7 +2286,7 @@ export async function POST(request: NextRequest) {
           if (isMissingLocation) {
             noResultsResponse = `The development location hasn't been set up yet, so I'm not able to search for nearby places at the moment. Your developer should be able to sort that out.`;
           } else {
-            noResultsResponse = `I couldn't find any ${categoryName} close by – it's possible there aren't any within a reasonable distance. You could try Google Maps for a wider search around ${schemeAddress || 'the area'}.`;
+            noResultsResponse = `I wasn't able to pull up ${categoryName} results right now. Google Maps will give you the most accurate and up-to-date results for what's nearby.`;
           }
           
           await logAnswerGap({

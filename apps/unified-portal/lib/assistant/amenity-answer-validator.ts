@@ -241,7 +241,7 @@ function generateGroundedAnswer(context: ValidationContext): string {
   
   if (poiResults.length === 0) {
     const categoryName = category.replace(/_/g, ' ');
-    return `I couldn't find any ${categoryName} close by. You could try Google Maps for a wider search around ${schemeAddress || 'the area'}.`;
+    return `I wasn't able to pull up ${categoryName} results right now. Google Maps will give you the most accurate and up-to-date results for what's nearby.`;
   }
   
   const categoryName = category.replace(/_/g, ' ');
