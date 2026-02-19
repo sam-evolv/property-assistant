@@ -281,6 +281,27 @@ Appliance faults are the responsibility of the manufacturer or retailer, not the
   },
 
   // -------------------------------------------------------------------------
+  // BER RATING
+  // -------------------------------------------------------------------------
+  {
+    topics: ['ber', 'ber rating', 'energy rating', 'building energy', 'a2', 'a3', 'energy cert', 'energy certificate', 'ber cert', 'how efficient', 'energy efficient'],
+    content: `BER RATING — GENERAL GUIDANCE:
+A Building Energy Rating (BER) certificate measures how energy-efficient a home is, on a scale from A1 (most efficient) to G (least efficient). It is similar to an energy label on a household appliance.
+
+For new builds in Ireland:
+- All new homes built since 2021 are required to meet Near Zero Energy Building (NZEB) standard, which in practice means an A2 or A3 BER rating.
+- A2/A3-rated homes have very low energy running costs compared to older homes. A typical new A-rated home uses around 25–50 kWh per square metre per year.
+- A higher BER rating also increases your home's market value and reduces your carbon footprint.
+
+Your BER certificate should have been provided at handover — it is a legal requirement for all new homes. If it was included in your handover documents, you can find it there. The certificate includes the unique BER number, which you can use to look up your rating on the SEAI National BER Register at ndber.seai.ie.
+
+Common questions:
+- Your heat pump and airtight construction are the main reasons for the high BER rating.
+- Running the home as designed (using the heat pump thermostat, not electric heaters) maintains the rating's real-world benefit.
+- Any significant extensions or alterations to the home may require a new BER assessment.`,
+  },
+
+  // -------------------------------------------------------------------------
   // PROPERTY TAX (LPT)
   // -------------------------------------------------------------------------
   {

@@ -121,7 +121,7 @@ import {
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
-import { getTransitRoutes, formatTransitRoutesResponse } from '@/lib/transport/routes';
+import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -2005,6 +2005,25 @@ export async function POST(request: NextRequest) {
           answer: clarificationResponse,
           source: 'affirmative_clarification',
         });
+      }
+    }
+
+    // ACTIVE TRAVEL GATE: walking/cycling time queries — use Directions API
+    if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
+      const activeTravelKeywords = /\b(walk|walking|walkable|on foot|cycle|cycling|cyclable|bike|biking|cycle to work|walk to (town|city|centre|center)|how far (is|to)|cycling distance|cycle time|walk time)\b/i;
+      if (activeTravelKeywords.test(message)) {
+        console.log('[Chat] ACTIVE TRAVEL: detected walking/cycling query');
+        try {
+          const activeTravelResult = await getActiveTravelTimes(userSupabaseProjectId);
+          const activeTravelResponse = formatActiveTravelResponse(activeTravelResult);
+          return new Response(
+            JSON.stringify({ message: activeTravelResponse, source: 'active_travel', diagnostics: process.env.NODE_ENV === 'development' ? chatDiagnostics : undefined }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        } catch (activeTravelErr) {
+          console.error('[Chat] Active travel failed:', activeTravelErr);
+          // Fall through to normal amenity handling
+        }
       }
     }
 

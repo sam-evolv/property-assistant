@@ -288,6 +288,133 @@ function formatVehicleLabel(type: TransitRoute['vehicle_type']): string {
   }
 }
 
+// ─── Walking & Cycling ───────────────────────────────────────────────────────
+
+export interface ActiveTravelResult {
+  walk_min: number | null;
+  cycle_min: number | null;
+  destination: string;
+  fetched_at: Date;
+  from_cache: boolean;
+}
+
+const ACTIVE_TRAVEL_TTL_DAYS = 30; // Walking/cycling times are stable
+
+async function getCachedActiveTravel(schemeId: string, cacheKey: string): Promise<ActiveTravelResult | null> {
+  try {
+    const cached = await db
+      .select()
+      .from(poi_cache)
+      .where(and(eq(poi_cache.scheme_id, schemeId), eq(poi_cache.category, cacheKey)))
+      .limit(1);
+
+    if (cached.length === 0) return null;
+    const record = cached[0];
+    const fetchedAt = new Date(record.fetched_at);
+    const ttlMs = record.ttl_days * 24 * 60 * 60 * 1000;
+    if (new Date().getTime() - fetchedAt.getTime() > ttlMs) return null;
+
+    const data = record.results_json as any;
+    if (data?.walk_min === undefined && data?.cycle_min === undefined) return null;
+
+    return { walk_min: data.walk_min, cycle_min: data.cycle_min, destination: data.destination, fetched_at: fetchedAt, from_cache: true };
+  } catch { return null; }
+}
+
+async function storeActiveTravelCache(schemeId: string, cacheKey: string, result: Omit<ActiveTravelResult, 'from_cache'>): Promise<void> {
+  try {
+    const existing = await db.select({ id: poi_cache.id }).from(poi_cache)
+      .where(and(eq(poi_cache.scheme_id, schemeId), eq(poi_cache.category, cacheKey))).limit(1);
+    const payload = { walk_min: result.walk_min, cycle_min: result.cycle_min, destination: result.destination };
+    const now = new Date();
+    if (existing.length > 0) {
+      await db.update(poi_cache).set({ results_json: payload, fetched_at: now, ttl_days: ACTIVE_TRAVEL_TTL_DAYS }).where(eq(poi_cache.id, existing[0].id));
+    } else {
+      await db.insert(poi_cache).values({ scheme_id: schemeId, category: cacheKey, provider: 'google_directions_active', results_json: payload, fetched_at: now, ttl_days: ACTIVE_TRAVEL_TTL_DAYS });
+    }
+  } catch (err) { console.error('[ActiveTravel] Cache store failed:', err); }
+}
+
+async function fetchDirectionsTime(origin: string, destination: string, mode: 'walking' | 'bicycling', apiKey: string): Promise<number | null> {
+  const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
+  url.searchParams.set('origin', origin);
+  url.searchParams.set('destination', destination);
+  url.searchParams.set('mode', mode);
+  url.searchParams.set('key', apiKey);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DIRECTIONS_TIMEOUT_MS);
+    const response = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    if (data.status === 'OK' && data.routes?.[0]?.legs?.[0]?.duration) {
+      return Math.round(data.routes[0].legs[0].duration.value / 60);
+    }
+  } catch (err) { console.error(`[ActiveTravel] ${mode} directions failed:`, err); }
+  return null;
+}
+
+/**
+ * Get walking and cycling travel times from a development to its nearest city centre.
+ */
+export async function getActiveTravelTimes(schemeId: string): Promise<ActiveTravelResult> {
+  const empty: ActiveTravelResult = { walk_min: null, cycle_min: null, destination: '', fetched_at: new Date(), from_cache: false };
+
+  const location = await getSchemeLocation(schemeId);
+  if (!location) return empty;
+
+  const destination = inferDestination(location.address);
+  const cacheKey = `active_travel:v1:${destination.substring(0, 40)}`;
+
+  const cached = await getCachedActiveTravel(schemeId, cacheKey);
+  if (cached) { console.log('[ActiveTravel] Cache hit:', schemeId); return cached; }
+
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) return empty;
+
+  const origin = `${location.lat},${location.lng}`;
+  console.log('[ActiveTravel] Fetching walk + cycle times to', destination);
+
+  const [walk_min, cycle_min] = await Promise.all([
+    fetchDirectionsTime(origin, destination, 'walking', apiKey),
+    fetchDirectionsTime(origin, destination, 'bicycling', apiKey),
+  ]);
+
+  const result: ActiveTravelResult = { walk_min, cycle_min, destination, fetched_at: new Date(), from_cache: false };
+  await storeActiveTravelCache(schemeId, cacheKey, result);
+  return result;
+}
+
+export function formatActiveTravelResponse(result: ActiveTravelResult): string {
+  const shortCity = result.destination.split(',')[0] || 'the city centre';
+
+  if (result.walk_min === null && result.cycle_min === null) {
+    return `I wasn't able to get walking and cycling times right now. Google Maps will give you accurate directions from your home.`;
+  }
+
+  const lines: string[] = [];
+
+  if (result.walk_min !== null) {
+    const walkDesc = result.walk_min <= 20 ? 'a comfortable walk' : result.walk_min <= 40 ? 'a long but doable walk' : 'quite a long walk';
+    lines.push(`🚶 **Walking to ${shortCity}:** approx. ${result.walk_min} minutes (${walkDesc})`);
+  }
+
+  if (result.cycle_min !== null) {
+    const cycleDesc = result.cycle_min <= 10 ? 'a quick cycle' : result.cycle_min <= 20 ? 'a comfortable cycle' : 'a moderate cycle';
+    lines.push(`🚲 **Cycling to ${shortCity}:** approx. ${result.cycle_min} minutes (${cycleDesc})`);
+  }
+
+  if (result.walk_min !== null && result.cycle_min !== null) {
+    const saving = result.walk_min - result.cycle_min;
+    if (saving > 5) lines.push(`\nCycling saves you about ${saving} minutes each way.`);
+  }
+
+  lines.push(`\nFor cycling routes and infrastructure, Google Maps cycling mode or Strava Routes will show you the best paths.`);
+
+  return lines.join('\n');
+}
+
 /**
  * Format a transport response combining route data (from Directions API)
  * with nearby stop data (from Google Places).
