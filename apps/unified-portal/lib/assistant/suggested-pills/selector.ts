@@ -1,14 +1,15 @@
 import { PillDefinition, PillSector, PILL_DEFINITIONS, getPillsBySector } from './registry';
 
 const PRIORITY_SECTORS = [
+  PillSector.LOCAL_LIFE,
   PillSector.HOME_LAYOUT,
-  PillSector.MAINTENANCE_OWNERSHIP
+  PillSector.MAINTENANCE_OWNERSHIP,
 ];
 
 const SECONDARY_SECTORS = [
   PillSector.ENERGY_TECHNOLOGY,
   PillSector.SERVICES_SETUP,
-  PillSector.AREA_PLANNING
+  PillSector.AREA_PLANNING,
 ];
 
 function seededRandom(seed: number): () => number {

@@ -8,7 +8,7 @@ import {
   PILL_DEFINITIONS
 } from '@/lib/assistant/suggested-pills';
 
-const PILLS_KEY_PREFIX = 'suggested_pills_v2';
+const PILLS_KEY_PREFIX = 'suggested_pills_v3';
 
 interface SessionData {
   sessionId: string;
@@ -17,7 +17,16 @@ interface SessionData {
   schemeId: string;
 }
 
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+// sessionStorage clears on tab/app close — pills rotate on every new app open
+// Falls back to localStorage if sessionStorage unavailable
+function getPillStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined') return window.sessionStorage;
+  } catch { /* ignore */ }
+  return null;
+}
+
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // safety cap (session storage usually clears before this)
 
 function getStorageKey(schemeId: string): string {
   return `${PILLS_KEY_PREFIX}:${schemeId}`;
@@ -57,19 +66,20 @@ export function useSuggestedPills(
     }
 
     try {
-      const stored = localStorage.getItem(storageKey);
+      const storage = getPillStorage();
+      const stored = storage?.getItem(storageKey);
       if (stored) {
         const parsed: SessionData = JSON.parse(stored);
         const generatedAt = new Date(parsed.generatedAt).getTime();
         const now = Date.now();
-        
+
         if (
-          now - generatedAt < SESSION_DURATION_MS && 
+          now - generatedAt < SESSION_DURATION_MS &&
           parsed.pillIds.length === 4 &&
           parsed.schemeId === effectiveSchemeId
         ) {
           if (isDev()) {
-            console.log('[SuggestedPills] Reusing cached pills:', parsed.pillIds, 'seed:', parsed.sessionId);
+            console.log('[SuggestedPills] Reusing session pills:', parsed.pillIds, 'seed:', parsed.sessionId);
           }
           setSessionData(parsed);
           setIsLoading(false);
@@ -77,9 +87,10 @@ export function useSuggestedPills(
         }
       }
 
-      const dateStr = new Date().toISOString().split('T')[0];
-      const newSessionId = `${effectiveSchemeId}-${dateStr}`;
-      
+      // Generate a truly random session ID so pills are different every app open
+      const randomPart = Math.random().toString(36).substring(2, 10);
+      const newSessionId = `${effectiveSchemeId}-${randomPart}`;
+
       const selectedPills = selectPillsForSession({ sessionId: newSessionId, count: 4 });
       const newSessionData: SessionData = {
         sessionId: newSessionId,
@@ -96,7 +107,7 @@ export function useSuggestedPills(
         });
       }
 
-      localStorage.setItem(storageKey, JSON.stringify(newSessionData));
+      storage?.setItem(storageKey, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
     } catch (error) {
       console.error('Failed to load/generate suggested pills:', error);
@@ -129,17 +140,17 @@ export function useSuggestedPills(
 
 export function clearPillSession(schemeId?: string): void {
   try {
+    const storage = getPillStorage();
+    if (!storage) return;
     if (schemeId) {
-      localStorage.removeItem(getStorageKey(schemeId));
+      storage.removeItem(getStorageKey(schemeId));
     } else {
       const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(PILLS_KEY_PREFIX)) {
-          keysToRemove.push(key);
-        }
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && key.startsWith(PILLS_KEY_PREFIX)) keysToRemove.push(key);
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
+      keysToRemove.forEach(key => storage.removeItem(key));
     }
   } catch (error) {
     console.error('Failed to clear pill session:', error);

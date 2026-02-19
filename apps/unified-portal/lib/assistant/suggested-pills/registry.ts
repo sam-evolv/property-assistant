@@ -5,7 +5,8 @@ export enum PillSector {
   MAINTENANCE_OWNERSHIP = 'maintenance_ownership',
   SERVICES_SETUP = 'services_setup',
   AREA_PLANNING = 'area_planning',
-  INSURANCE = 'insurance'
+  INSURANCE = 'insurance',
+  LOCAL_LIFE = 'local_life',
 }
 
 export interface PillDefinition {
@@ -200,6 +201,98 @@ export const PILL_DEFINITIONS: PillDefinition[] = [
     userVisibleQuestion: 'What do I need to know about planning permission?',
     templateId: 'intent_home_planning_permission',
     suggestedFollowups: ['Do I need permission for a shed?', 'What about extensions?']
+  },
+
+  // Local Life — new features (weather, transport, amenities)
+  {
+    id: 'weather_today',
+    label: 'Weather Today',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.weather.today',
+    userVisibleQuestion: "What's the weather like today?",
+    templateId: 'intent_local_weather_today',
+    suggestedFollowups: ['What about tomorrow?', 'Will it rain this week?']
+  },
+  {
+    id: 'buses_near_me',
+    label: 'Buses Near Me',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.transport.buses',
+    userVisibleQuestion: 'What buses are near me?',
+    templateId: 'intent_local_transport_buses',
+    suggestedFollowups: ['How do I get to the city centre?', 'Is there a bus to the hospital?']
+  },
+  {
+    id: 'walk_to_town',
+    label: 'Walk to Town',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.transport.walking',
+    userVisibleQuestion: 'How long does it take to walk to town from here?',
+    templateId: 'intent_local_transport_walking',
+    suggestedFollowups: ['What about cycling?', 'Is it a safe walk?']
+  },
+  {
+    id: 'nearest_pharmacy',
+    label: 'Nearest Pharmacy',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.amenities.pharmacy',
+    userVisibleQuestion: 'Where is the closest pharmacy?',
+    templateId: 'intent_local_amenities_pharmacy',
+    suggestedFollowups: ['What are the opening hours?', 'Is there a late-night pharmacy?']
+  },
+  {
+    id: 'nearest_supermarket',
+    label: 'Nearest Supermarket',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.amenities.supermarket',
+    userVisibleQuestion: 'What supermarkets are near me?',
+    templateId: 'intent_local_amenities_supermarket',
+    suggestedFollowups: ['How far is the nearest Lidl?', 'Is there a large grocery store nearby?']
+  },
+  {
+    id: 'local_schools',
+    label: 'Local Schools',
+    sector: PillSector.LOCAL_LIFE,
+    intentKey: 'local.amenities.schools',
+    userVisibleQuestion: 'What schools are near the development?',
+    templateId: 'intent_local_amenities_schools',
+    suggestedFollowups: ['Are there primary schools nearby?', 'What about secondary schools?']
+  },
+  {
+    id: 'seai_grants',
+    label: 'Home Grants',
+    sector: PillSector.ENERGY_TECHNOLOGY,
+    intentKey: 'home.energy.grants',
+    userVisibleQuestion: 'What home improvement grants am I eligible for?',
+    templateId: 'intent_home_energy_grants',
+    suggestedFollowups: ['How do I apply for the EV charger grant?', 'Are there solar panel grants?']
+  },
+  {
+    id: 'ber_explained',
+    label: 'My BER Rating',
+    sector: PillSector.ENERGY_TECHNOLOGY,
+    intentKey: 'home.energy.ber',
+    userVisibleQuestion: 'What does my BER rating mean?',
+    templateId: 'intent_home_energy_ber',
+    suggestedFollowups: ['How does my A-rating save me money?', 'Where do I find my BER cert?']
+  },
+  {
+    id: 'maintenance_this_season',
+    label: 'Seasonal Maintenance',
+    sector: PillSector.MAINTENANCE_OWNERSHIP,
+    intentKey: 'home.maintenance.seasonal',
+    userVisibleQuestion: 'What home maintenance should I be doing right now?',
+    templateId: 'intent_home_maintenance_seasonal',
+    suggestedFollowups: ['When should I service my heat pump?', 'How often do I clean MVHR filters?']
+  },
+  {
+    id: 'utility_setup',
+    label: 'Setting Up Utilities',
+    sector: PillSector.SERVICES_SETUP,
+    intentKey: 'home.services.new_setup',
+    userVisibleQuestion: "I just got my keys — what utilities do I need to set up?",
+    templateId: 'intent_home_services_new_setup',
+    suggestedFollowups: ['How do I register with Irish Water?', 'How do I choose an electricity supplier?']
   },
 
   // Insurance
