@@ -4034,6 +4034,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
             chunksUsed: chunks?.length || 0,
             sources: sourceDocuments,
+            suggested_questions: generateFollowUpQuestions(activeIntentKey || intentClassification?.intent || 'documents', message),
             drawing: drawing ? {
               fileName: drawing.fileName,
               drawingType: drawing.drawingType,

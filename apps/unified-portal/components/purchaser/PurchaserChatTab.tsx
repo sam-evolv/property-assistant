@@ -973,6 +973,7 @@ export default function PurchaserChatTab({
         let streamedContent = '';
         let drawing: DrawingData | null = null;
         let sources: SourceDocument[] | null = null;
+        let streamedSuggestedQuestions: string[] | null = null;
         let assistantMessageIndex = -1;
 
         // Add placeholder assistant message immediately (empty - typing indicator shown via sending state)
@@ -1002,6 +1003,9 @@ export default function PurchaserChatTab({
                   }
                   if (data.sources && data.sources.length > 0) {
                     sources = data.sources;
+                  }
+                  if (data.suggested_questions && data.suggested_questions.length > 0) {
+                    streamedSuggestedQuestions = data.suggested_questions;
                   }
                 } else if (data.type === 'text') {
                   // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
@@ -1035,6 +1039,7 @@ export default function PurchaserChatTab({
                         drawing: drawing,
                         sources: sources,
                         isNoInfo: isNoInfoResponse,
+                        suggested_questions: streamedSuggestedQuestions,
                       };
                     }
                     return updated;
