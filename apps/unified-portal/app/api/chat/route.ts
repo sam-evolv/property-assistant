@@ -1,4 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// ---------------------------------------------------------------------------
+// MODEL ROUTER — simple tasks → gpt-4.1-mini, complex tasks → gpt-4o
+// ---------------------------------------------------------------------------
+const SIMPLE_MODEL = 'gpt-4.1-mini';
+const COMPLEX_MODEL = 'gpt-4o';
+
+const COMPLEX_INTENT_KEYWORDS = [
+  'explain', 'why', 'how does', 'how do', 'what causes', 'what is',
+  'difference between', 'compare', 'diagnose', 'troubleshoot', 'problem with',
+  'not working', "doesn't work", 'broken', 'fault', 'issue with', 'leaking',
+  'damp', 'mould', 'crack', 'noise', 'smell', 'structural', 'warranty',
+  'coverage', 'who covers', 'who is responsible', 'should i', 'can i',
+];
+
+const SAFETY_INTENTS = [
+  'emergency', 'gas_leak', 'fire', 'flood', 'structural_movement',
+  'electrical_fault', 'carbon_monoxide',
+];
+
+function selectChatModel(
+  message: string,
+  chunks: { similarity?: number }[],
+  intentKey: string | null
+): string {
+  const lower = message.toLowerCase();
+
+  // Always use full model for safety/emergency intents
+  if (intentKey && SAFETY_INTENTS.some(s => intentKey.includes(s))) {
+    return COMPLEX_MODEL;
+  }
+
+  // Complex if warranty type is structural or appliance (nuanced guidance needed)
+  const warrantyType = detectWarrantyType(message);
+  if (warrantyType !== 'unknown') return COMPLEX_MODEL;
+
+  // Complex if question is long (detailed multi-part question)
+  if (message.length > 200) return COMPLEX_MODEL;
+
+  // Complex if multiple relevant chunks — requires synthesis across documents
+  const relevantChunks = chunks.filter(c => (c.similarity ?? 0) >= 0.35);
+  if (relevantChunks.length >= 3) return COMPLEX_MODEL;
+
+  // Complex if explanation/diagnosis keywords present
+  if (COMPLEX_INTENT_KEYWORDS.some(kw => lower.includes(kw))) return COMPLEX_MODEL;
+
+  // Simple: short factual question, 0-2 chunks, no complexity signals
+  return SIMPLE_MODEL;
+}
+// ---------------------------------------------------------------------------
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
@@ -3549,11 +3599,15 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       });
     }
 
+    // Select model based on question complexity
+    const selectedModel = selectChatModel(message, chunks ?? [], activeIntentKey);
+    console.log('[Chat] Model selected:', selectedModel, '| chunks:', chunks?.length ?? 0, '| msgLen:', message.length);
+
     // TEST MODE: Return JSON response instead of streaming for test harness
     if (testMode) {
       console.log('[Chat] TEST MODE: Generating non-streaming response...');
       const completion = await getOpenAIClient().chat.completions.create({
-        model: 'gpt-4o',
+        model: selectedModel,
         messages: chatMessages,
         temperature: 0.3,
         max_tokens: 800,
@@ -3706,7 +3760,7 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
 
     // Create streaming response
     const stream = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o',
+      model: selectedModel,
       messages: chatMessages,
       temperature: 0.3,
       max_tokens: 800,
