@@ -437,6 +437,11 @@ interface PurchaserChatTabProps {
   selectedLanguage: string;
   isDarkMode: boolean;
   userId?: string | null;
+  address?: string | null;
+  houseType?: string | null;
+  schemeLat?: number | null;
+  schemeLng?: number | null;
+  estHandoverDate?: string | null;
 }
 
 // Translations for UI and prompts
@@ -608,6 +613,11 @@ export default function PurchaserChatTab({
   selectedLanguage,
   isDarkMode,
   userId,
+  address,
+  houseType,
+  schemeLat,
+  schemeLng,
+  estHandoverDate,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -1290,6 +1300,52 @@ export default function PurchaserChatTab({
           <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
             {t.subtitle}
           </p>
+
+          {/* Home Info Card */}
+          {(address || houseType) && (
+            <div className={`mt-4 w-full max-w-[320px] rounded-2xl overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-slate-200'} shadow-sm`}>
+              {/* Satellite Map */}
+              {schemeLat && schemeLng && (
+                <div className="relative" id="home-card-map">
+                  <img
+                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${schemeLat},${schemeLng}&zoom=17&size=640x200&scale=2&maptype=satellite&markers=color:0xD4AF37|${schemeLat},${schemeLng}&key=AIzaSyCKpHDRYYv_Hii4mG3WFdx0YrQlT33hvvc`}
+                    alt="Satellite view of your home"
+                    className="w-full h-[100px] object-cover"
+                    onError={() => {
+                      const mapEl = document.getElementById('home-card-map');
+                      if (mapEl) mapEl.style.display = 'none';
+                    }}
+                  />
+                  {/* Pulsing "Your Home" label */}
+                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2 py-0.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+                    </span>
+                    <span className="text-[10px] font-medium text-white">Your Home</span>
+                  </div>
+                </div>
+              )}
+              {/* Address & Badges */}
+              <div className="px-3 py-2.5">
+                {address && (
+                  <p className={`text-[13px] font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{address}</p>
+                )}
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {houseType && (
+                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                      {houseType}
+                    </span>
+                  )}
+                  {estHandoverDate && (
+                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                      Keys: {new Date(estHandoverDate).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 2x2 Prompt Grid */}
           <div className="mt-4"></div>

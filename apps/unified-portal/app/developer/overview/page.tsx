@@ -427,6 +427,37 @@ export default function DeveloperOverviewPage() {
           {/* Quick Actions Bar */}
           <QuickActionsBar actions={quickActions} />
 
+          {/* Live Activity Pulse */}
+          {data.summary.totalMessages > 0 && (
+            <div className="flex items-center gap-2.5 w-fit bg-white border border-gray-200 rounded-full px-3.5 py-1.5 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-[12px] font-semibold text-green-600 uppercase tracking-wide">Live</span>
+              <span className="h-3 w-px bg-gray-200" />
+              <span className="text-[12px] text-gray-600">
+                {data.summary.totalMessages.toLocaleString()} messages
+              </span>
+              {data.summary.activeHomeowners > 0 && (
+                <>
+                  <span className="h-3 w-px bg-gray-200" />
+                  <span className="text-[12px] text-gray-600">
+                    {data.summary.activeHomeowners} active homeowner{data.summary.activeHomeowners !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+              {data.questionTopics.length > 0 && (
+                <>
+                  <span className="h-3 w-px bg-gray-200" />
+                  <span className="text-[12px] text-gray-500">
+                    Top: {data.questionTopics[0].label}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Proactive Alerts */}
           <ProactiveAlertsWidget alerts={alerts} />
 
