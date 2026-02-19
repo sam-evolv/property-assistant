@@ -2504,7 +2504,8 @@ export async function POST(request: NextRequest) {
         // Build static map URL if we have development location and POI coords
         let mapUrl: string | null = null;
         try {
-          const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
+          // Prefer server key, fallback to browser key (Static Maps API may only be on one)
+          const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
           const schemeLoc = chatDiagnostics.scheme_location;
           if (googleApiKey && schemeLoc?.lat && schemeLoc?.lng && poiData.results.some(p => p.lat && p.lng)) {
             mapUrl = buildStaticMapUrl(schemeLoc.lat, schemeLoc.lng, poiData.results, googleApiKey);

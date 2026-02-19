@@ -1558,12 +1558,16 @@ export default function PurchaserChatTab({
                     )}
                     {/* Static map for amenity responses */}
                     {msg.map_url && (
-                      <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                      <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700" id={`map-${msg.map_url.slice(-8)}`}>
                         <img
                           src={msg.map_url}
                           alt="Nearby places map"
                           className="w-full h-auto"
                           loading="lazy"
+                          onError={(e) => {
+                            const container = (e.target as HTMLImageElement).closest('[id^="map-"]') as HTMLElement;
+                            if (container) container.style.display = 'none';
+                          }}
                         />
                       </div>
                     )}
