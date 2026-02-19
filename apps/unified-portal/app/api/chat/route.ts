@@ -2015,8 +2015,7 @@ export async function POST(request: NextRequest) {
       if (weatherKeywords.test(message)) {
         console.log('[Chat] WEATHER: detected weather query');
         try {
-          const address = userUnitDetails?.address || null;
-          const weatherResult = await getWeather(address);
+          const weatherResult = await getWeather(userSupabaseProjectId);
           const weatherResponse = formatWeatherResponse(weatherResult);
           console.log('[Chat] Weather response generated, length:', weatherResponse.length);
 

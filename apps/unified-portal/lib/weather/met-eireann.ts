@@ -6,6 +6,9 @@
  * 2. met.ie/Open_Data/json/National.json — human-readable today/tonight/tomorrow forecast
  */
 
+import { db, scheme_profile } from '@openhouse/db';
+import { eq } from 'drizzle-orm';
+
 const WEATHER_TIMEOUT_MS = 8000;
 const OBSERVATIONS_URL = 'https://prodapi.metweb.ie/observations';
 const NATIONAL_FORECAST_URL = 'https://www.met.ie/Open_Data/json/National.json';
@@ -172,8 +175,21 @@ function cleanForecastText(text: string): string {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export async function getWeather(address: string | null | undefined): Promise<WeatherResult> {
-  const city = inferCity(address);
+async function getSchemeAddress(schemeId: string | null | undefined): Promise<string | null> {
+  if (!schemeId) return null;
+  try {
+    const rows = await db
+      .select({ address: scheme_profile.scheme_address })
+      .from(scheme_profile)
+      .where(eq(scheme_profile.id, schemeId))
+      .limit(1);
+    return rows[0]?.address || null;
+  } catch { return null; }
+}
+
+export async function getWeather(schemeId: string | null | undefined): Promise<WeatherResult> {
+  const schemeAddress = await getSchemeAddress(schemeId);
+  const city = inferCity(schemeAddress);
   console.log('[Weather] Fetching for city:', city);
 
   const [observations, forecast] = await Promise.all([
