@@ -622,8 +622,147 @@ export async function GET(request: NextRequest) {
       messageCount: row.message_count,
     }));
 
+    // --- Issue 1: Real unit data for alerts ---
+    // Pending acknowledgement units: registered but haven't acknowledged must-read docs
+    let pendingAcknowledgementUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }> = [];
+    try {
+      let pendingQuery = supabaseAdmin.from('units')
+        .select('address, purchaser_name, unit_uid, project_id')
+        .eq('tenant_id', tenantId)
+        .not('purchaser_name', 'is', null)
+        .or('important_docs_agreed_version.is.null,important_docs_agreed_version.eq.0')
+        .limit(10);
+      if (developmentId) {
+        pendingQuery = pendingQuery.eq('project_id', developmentId);
+      }
+      const { data: pendingData, error: pendingError } = await pendingQuery;
+      if (!pendingError && pendingData) {
+        pendingAcknowledgementUnits = pendingData.map((u: any) => ({
+          address: u.address || 'Unknown address',
+          purchaser_name: u.purchaser_name,
+          unit_uid: u.unit_uid || null,
+          development_id: u.project_id || null,
+        }));
+      } else if (pendingError) {
+        console.log(`[DeveloperDashboard] pendingAcknowledgementUnits query error:`, pendingError);
+      }
+    } catch (e) {
+      console.log(`[DeveloperDashboard] pendingAcknowledgementUnits query failed:`, e);
+    }
+
+    // Inactive units: registered but least recently updated (stale)
+    let inactiveUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }> = [];
+    try {
+      let inactiveQuery = supabaseAdmin.from('units')
+        .select('address, purchaser_name, unit_uid, project_id')
+        .eq('tenant_id', tenantId)
+        .not('purchaser_name', 'is', null)
+        .order('updated_at', { ascending: true })
+        .limit(10);
+      if (developmentId) {
+        inactiveQuery = inactiveQuery.eq('project_id', developmentId);
+      }
+      const { data: inactiveData, error: inactiveError } = await inactiveQuery;
+      if (!inactiveError && inactiveData) {
+        inactiveUnits = inactiveData.map((u: any) => ({
+          address: u.address || 'Unknown address',
+          purchaser_name: u.purchaser_name,
+          unit_uid: u.unit_uid || null,
+          development_id: u.project_id || null,
+        }));
+      } else if (inactiveError) {
+        console.log(`[DeveloperDashboard] inactiveUnits query error:`, inactiveError);
+      }
+    } catch (e) {
+      console.log(`[DeveloperDashboard] inactiveUnits query failed:`, e);
+    }
+
+    // --- Issue 2: Real activity feed events ---
+    const recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }> = [];
+
+    // 1. Recent unit registrations (last 30 days)
+    try {
+      let regQuery = supabaseAdmin.from('units')
+        .select('purchaser_name, address, created_at')
+        .eq('tenant_id', tenantId)
+        .not('purchaser_name', 'is', null)
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (developmentId) {
+        regQuery = regQuery.eq('project_id', developmentId);
+      }
+      const { data: regData, error: regError } = await regQuery;
+      if (!regError && regData) {
+        for (const u of regData) {
+          recentEvents.push({
+            type: 'registration',
+            label: `${u.purchaser_name} registered`,
+            sublabel: u.address || 'Unknown address',
+            date: u.created_at,
+            link: '/developer/homeowners',
+          });
+        }
+      }
+    } catch (e) {
+      console.log(`[DeveloperDashboard] recent registrations query failed:`, e);
+    }
+
+    // 2. Recent document acknowledgments (from purchaser_agreements - Drizzle)
+    try {
+      const ackResult = await db.execute(sql`
+        SELECT pa.agreed_at, u.address
+        FROM purchaser_agreements pa
+        INNER JOIN units u ON pa.unit_id::text = u.id::text
+        WHERE u.tenant_id = ${tenantId}::uuid
+          AND pa.agreed_at >= ${startDate}
+        ORDER BY pa.agreed_at DESC
+        LIMIT 10
+      `);
+      for (const row of ackResult.rows as any[]) {
+        recentEvents.push({
+          type: 'acknowledgment',
+          label: `${row.address || 'A unit'} acknowledged documents`,
+          sublabel: 'Must-read docs confirmed',
+          date: row.agreed_at,
+          link: '/developer/homeowners',
+        });
+      }
+    } catch (e: any) {
+      // PGRST205 or similar - table not accessible, skip gracefully
+      console.log(`[DeveloperDashboard] acknowledgments query failed (skipping):`, e?.message || e);
+    }
+
+    // 3. Knowledge gap questions (reuse unansweredQueries already computed above)
+    for (const q of unansweredQueries) {
+      recentEvents.push({
+        type: 'gap',
+        label: `Knowledge gap: ${q.question.slice(0, 40)}${q.question.length > 40 ? '...' : ''}`,
+        sublabel: `Topic: ${q.topic}`,
+        date: q.date,
+      });
+    }
+
+    // 4. Fallback: chat activity summary if total events < 3
+    if (recentEvents.length < 3) {
+      for (const day of chatActivity.slice().reverse()) {
+        if (day.count > 0) {
+          recentEvents.push({
+            type: 'chat',
+            label: `${day.count} homeowner conversation${day.count > 1 ? 's' : ''}`,
+            sublabel: 'Chat activity',
+            date: day.date,
+          });
+        }
+      }
+    }
+
+    // Sort all events by date descending and limit to 10
+    recentEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    recentEvents.splice(10);
+
     console.log(`[DeveloperDashboard] requestId=${requestId} OK: tenant=${tenantId} dev=${developmentId || 'all'} units=${totalUnits} homeowners=${registeredHomeowners}`);
-    
+
     return NextResponse.json({
       requestId,
       kpis: {
@@ -664,6 +803,9 @@ export async function GET(request: NextRequest) {
       onboardingFunnel,
       unansweredQueries,
       houseTypeEngagement,
+      pendingAcknowledgementUnits,
+      inactiveUnits,
+      recentEvents,
       summary: {
         totalUnits,
         registeredHomeowners,

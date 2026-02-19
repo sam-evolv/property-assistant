@@ -74,6 +74,9 @@ interface DashboardData {
   onboardingFunnel: Array<{ stage: string; count: number; colour: string }>;
   unansweredQueries: Array<{ question: string; topic: string; date: string }>;
   houseTypeEngagement: Array<{ houseType: string; activeUsers: number; messageCount: number }>;
+  pendingAcknowledgementUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }>;
+  inactiveUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }>;
+  recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>;
   summary: {
     totalUnits: number;
     registeredHomeowners: number;
@@ -122,12 +125,11 @@ function generateAlerts(data: DashboardData): Alert[] {
 
   // Check for inactive homeowners - with expandable items
   if (data.kpis.engagementRate.inactiveCount && data.kpis.engagementRate.inactiveCount > 3) {
-    // Generate sample items for demonstration (in real app, fetch from API)
-    const inactiveItems = Array.from({ length: Math.min(data.kpis.engagementRate.inactiveCount, 5) }, (_, i) => ({
+    const inactiveItems = (data.inactiveUnits || []).slice(0, 5).map((u, i) => ({
       id: `inactive-${i}`,
-      label: `Unit ${100 + i}`,
-      sublabel: 'Last active 8 days ago',
-      link: `/developer/homeowners?active=false`,
+      label: u.address,
+      sublabel: u.purchaser_name || 'Unregistered unit',
+      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
     }));
 
     alerts.push({
@@ -144,12 +146,11 @@ function generateAlerts(data: DashboardData): Alert[] {
 
   // Check for pending compliance - with expandable items
   if (data.kpis.mustReadCompliance.pendingCount && data.kpis.mustReadCompliance.pendingCount > 0) {
-    // Generate sample items for demonstration
-    const pendingItems = Array.from({ length: Math.min(data.kpis.mustReadCompliance.pendingCount, 5) }, (_, i) => ({
+    const pendingItems = (data.pendingAcknowledgementUnits || []).slice(0, 5).map((u, i) => ({
       id: `pending-${i}`,
-      label: `Unit ${200 + i}`,
-      sublabel: 'Awaiting document acknowledgement',
-      link: `/developer/homeowners?compliance=false`,
+      label: u.address,
+      sublabel: u.purchaser_name || 'Unregistered unit',
+      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
     }));
 
     alerts.push({
@@ -210,24 +211,26 @@ function generateAlerts(data: DashboardData): Alert[] {
   return alerts;
 }
 
-// Generate activity feed from chat activity - only real data, no mock entries
-function generateActivityFeed(chatActivity: Array<{ date: string; count: number }>): ActivityType[] {
-  const activities: ActivityType[] = [];
-  const recentDays = chatActivity.slice(-7).reverse();
+// Map recentEvents type to ActivityFeed type
+const eventTypeMap: Record<string, 'user' | 'completion' | 'alert' | 'message'> = {
+  registration: 'user',
+  acknowledgment: 'completion',
+  gap: 'alert',
+  chat: 'message',
+};
 
-  recentDays.forEach((day, index) => {
-    if (day.count > 0) {
-      activities.push({
-        id: `chat-${index}`,
-        type: 'message',
-        title: `${day.count} chat interaction${day.count > 1 ? 's' : ''}`,
-        description: 'Homeowner conversations',
-        timestamp: new Date(day.date),
-      });
-    }
-  });
+// Generate activity feed from real events returned by the API
+function generateActivityFeed(data: DashboardData): ActivityType[] {
+  const events = data.recentEvents || [];
 
-  return activities.slice(0, 8);
+  return events.slice(0, 8).map((event, index) => ({
+    id: `event-${index}`,
+    type: eventTypeMap[event.type] || 'message',
+    title: event.label,
+    description: event.sublabel,
+    timestamp: new Date(event.date),
+    link: event.link,
+  }));
 }
 
 // Page Header Component
@@ -408,7 +411,7 @@ export default function DeveloperOverviewPage() {
   }
 
   const alerts = generateAlerts(data);
-  const activities = generateActivityFeed(data.chatActivity);
+  const activities = generateActivityFeed(data);
   const sparklineData = generateSparklineData(data.chatActivity);
   const quickActions = getQuickActions(handleExport, handleSendEmail);
 
