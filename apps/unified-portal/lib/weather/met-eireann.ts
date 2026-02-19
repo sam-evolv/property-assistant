@@ -186,17 +186,36 @@ async function getSchemeAddress(schemeId: string | null | undefined): Promise<st
   if (!schemeId) return null;
   try {
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
+    // Try scheme_profile first (uses .maybeSingle to avoid error on no row)
+    const { data: spData, error: spError } = await supabase
       .from('scheme_profile')
-      .select('scheme_address')
+      .select('scheme_address, scheme_lat, scheme_lng')
       .eq('id', schemeId)
       .limit(1)
-      .single();
-    if (error) {
-      console.warn('[Weather] getSchemeAddress error:', error.message);
-      return null;
+      .maybeSingle();
+    if (!spError && spData) {
+      if (spData.scheme_address) return spData.scheme_address;
+      // Derive city from coordinates as fallback within this block
+      const lat = spData.scheme_lat as number | null;
+      const lng = spData.scheme_lng as number | null;
+      if (lat && lng) {
+        // Cork: ~51.7-52.1, -8.8 to -8.1 | Dublin: ~53.2-53.5 | Galway: ~53.1-53.4, -9.2 to -8.8
+        if (lat > 51.6 && lat < 52.2 && lng > -9.0 && lng < -7.9) return 'Cork, Ireland';
+        if (lat > 53.1 && lat < 53.6 && lng > -6.6 && lng < -6.0) return 'Dublin, Ireland';
+        if (lat > 53.1 && lat < 53.5 && lng > -9.3 && lng < -8.7) return 'Galway, Ireland';
+      }
     }
-    return (data as any)?.scheme_address || null;
+    if (spError) console.warn('[Weather] scheme_profile lookup error:', spError.message);
+    // Fallback: try projects table
+    const { data: projData, error: projError } = await supabase
+      .from('projects')
+      .select('address')
+      .eq('id', schemeId)
+      .limit(1)
+      .maybeSingle();
+    if (!projError && projData?.address) return projData.address;
+    if (projError) console.warn('[Weather] projects fallback error:', projError.message);
+    return null;
   } catch (e) {
     console.warn('[Weather] getSchemeAddress exception:', e);
     return null;
