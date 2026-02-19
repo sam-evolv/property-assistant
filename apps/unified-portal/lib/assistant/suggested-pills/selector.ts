@@ -1,15 +1,16 @@
-import { PillDefinition, PillSector, PILL_DEFINITIONS, getPillsBySector } from './registry';
+import { PillDefinition, PillSector, PILL_DEFINITIONS } from './registry';
 
-const PRIORITY_SECTORS = [
+// Sectors shown in preferred order — always pick one from each until count reached
+// LOCAL_LIFE first so weather/transport/amenity pills appear regularly
+const SECTOR_PRIORITY: PillSector[] = [
   PillSector.LOCAL_LIFE,
-  PillSector.HOME_LAYOUT,
   PillSector.MAINTENANCE_OWNERSHIP,
-];
-
-const SECONDARY_SECTORS = [
   PillSector.ENERGY_TECHNOLOGY,
+  PillSector.HOME_LAYOUT,
   PillSector.SERVICES_SETUP,
   PillSector.AREA_PLANNING,
+  PillSector.GARDEN_EXTERIOR,
+  PillSector.INSURANCE,
 ];
 
 function seededRandom(seed: number): () => number {
@@ -44,64 +45,52 @@ export interface SelectionOptions {
   excludePillIds?: string[];
 }
 
+/**
+ * Select pills for a session — GUARANTEED to be from different categories.
+ *
+ * Strategy:
+ * 1. Group all pills by sector
+ * 2. For each sector (in priority order), randomly pick one pill from it
+ * 3. Shuffle the sector order using the session seed so variety differs each session
+ * 4. Take the first `count` — one per sector, always unique categories
+ */
 export function selectPillsForSession(options: SelectionOptions = {}): PillDefinition[] {
   const { sessionId = Date.now().toString(), count = 4, excludePillIds = [] } = options;
-  
+
   const seed = hashString(sessionId);
   const random = seededRandom(seed);
-  
+
   const availablePills = PILL_DEFINITIONS.filter(p => !excludePillIds.includes(p.id));
-  
+
+  // Group pills by sector
   const pillsBySector = new Map<PillSector, PillDefinition[]>();
   for (const pill of availablePills) {
     const existing = pillsBySector.get(pill.sector) || [];
     existing.push(pill);
     pillsBySector.set(pill.sector, existing);
   }
-  
+
+  // Shuffle the priority order — keeps LOCAL_LIFE near top but varies the rest
+  // We split: first sector is always LOCAL_LIFE (guaranteed feature discovery),
+  // remaining sectors are shuffled so every session has a different mix
+  const [firstSector, ...restSectors] = SECTOR_PRIORITY;
+  const shuffledRest = shuffleWithSeed(restSectors, random);
+  const orderedSectors = [firstSector, ...shuffledRest];
+
+  // Pick exactly one pill from each sector — guaranteed unique categories
   const selected: PillDefinition[] = [];
-  const usedSectors = new Set<PillSector>();
-  
-  const shuffledPriority = shuffleWithSeed([...PRIORITY_SECTORS], random);
-  for (const sector of shuffledPriority) {
+
+  for (const sector of orderedSectors) {
     if (selected.length >= count) break;
-    if (usedSectors.has(sector)) continue;
-    
+
     const sectorPills = pillsBySector.get(sector) || [];
-    if (sectorPills.length > 0) {
-      const shuffledPills = shuffleWithSeed(sectorPills, random);
-      selected.push(shuffledPills[0]);
-      usedSectors.add(sector);
-    }
+    if (sectorPills.length === 0) continue;
+
+    // Pick a random pill from this sector
+    const shuffledPills = shuffleWithSeed(sectorPills, random);
+    selected.push(shuffledPills[0]);
   }
-  
-  const shuffledSecondary = shuffleWithSeed([...SECONDARY_SECTORS], random);
-  for (const sector of shuffledSecondary) {
-    if (selected.length >= count) break;
-    if (usedSectors.has(sector)) continue;
-    
-    const sectorPills = pillsBySector.get(sector) || [];
-    if (sectorPills.length > 0) {
-      const shuffledPills = shuffleWithSeed(sectorPills, random);
-      selected.push(shuffledPills[0]);
-      usedSectors.add(sector);
-    }
-  }
-  
-  const remainingSectors = Object.values(PillSector).filter(s => !usedSectors.has(s));
-  const shuffledRemaining = shuffleWithSeed(remainingSectors, random);
-  
-  for (const sector of shuffledRemaining) {
-    if (selected.length >= count) break;
-    
-    const sectorPills = pillsBySector.get(sector) || [];
-    if (sectorPills.length > 0) {
-      const shuffledPills = shuffleWithSeed(sectorPills, random);
-      selected.push(shuffledPills[0]);
-      usedSectors.add(sector);
-    }
-  }
-  
+
   return selected.slice(0, count);
 }
 
