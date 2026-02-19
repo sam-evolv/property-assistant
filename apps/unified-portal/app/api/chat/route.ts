@@ -138,7 +138,7 @@ function getClientIP(request: NextRequest): string {
   return xff?.split(',')[0]?.trim() || '127.0.0.1';
 }
 
-const CONVERSATION_HISTORY_LIMIT = 4; // Load last 4 exchanges for context
+const CONVERSATION_HISTORY_LIMIT = 8; // Load last 8 exchanges for context
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -1189,6 +1189,96 @@ async function loadConversationHistory(userId: string, tenantId: string, develop
   } catch (error) {
     console.error('[Chat] Error loading conversation history:', error);
     return [];
+  }
+}
+
+/**
+ * Chunk contextual compression — extracts the most relevant sentences from a chunk
+ * rather than passing the full text. Keeps more signal in the context window.
+ * Falls back to full chunk if extraction fails or chunk is short.
+ */
+function compressChunk(content: string, query: string): string {
+  if (content.length < 400) return content; // Short chunks don't need compression
+
+  const queryWords = new Set(
+    query.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3)
+  );
+
+  // Split into sentences (handle common abbreviations)
+  const sentences = content
+    .replace(/([.!?])\s+([A-Z])/g, '$1\n$2')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 20);
+
+  if (sentences.length <= 3) return content;
+
+  // Score each sentence by keyword overlap with query
+  const scored = sentences.map((sentence, idx) => {
+    const words = sentence.toLowerCase().split(/\s+/);
+    const overlap = words.filter(w => queryWords.has(w)).length;
+    return { sentence, score: overlap, idx };
+  });
+
+  // Always include top 3 by relevance; preserve their original order
+  const topIndices = new Set(
+    [...scored]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(s => s.idx)
+  );
+
+  // Include one sentence before/after each top sentence for readability
+  const includedIndices = new Set<number>();
+  topIndices.forEach(i => {
+    if (i > 0) includedIndices.add(i - 1);
+    includedIndices.add(i);
+    if (i < sentences.length - 1) includedIndices.add(i + 1);
+  });
+
+  const compressed = sentences
+    .filter((_, i) => includedIndices.has(i))
+    .join(' ');
+
+  // Only use compressed version if it's meaningfully shorter
+  return compressed.length < content.length * 0.75 ? compressed : content;
+}
+
+/**
+ * Query expansion for retrieval — generates alternative phrasings so the
+ * embedding search can match documents that use different terminology to the
+ * user's question. E.g. "heat my house" → "heat pump operation guide".
+ * Uses gpt-4.1-mini (cheap, fast). Falls back silently to original if it fails.
+ */
+async function expandQueryForRetrieval(message: string): Promise<string[]> {
+  try {
+    const completion = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You help improve document search for a property home assistant. 
+Given the homeowner's question, generate exactly 2 alternative phrasings that would match technical document language (e.g. manuals, guides, specifications). 
+Return only the 2 phrasings, one per line. No numbering, no explanation.`,
+        },
+        { role: 'user', content: message },
+      ],
+      max_tokens: 80,
+      temperature: 0.2,
+    });
+
+    const alternatives = (completion.choices[0]?.message?.content ?? '')
+      .split('\n')
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 5 && s.length < 300)
+      .slice(0, 2);
+
+    return alternatives.length > 0 ? [message, ...alternatives] : [message];
+  } catch {
+    return [message]; // silent fallback
   }
 }
 
@@ -2477,15 +2567,30 @@ export async function POST(request: NextRequest) {
       searchQuery = await translateQueryToEnglish(searchQuery, selectedLanguage);
     }
 
-    // STEP 1: Generate embedding for the search query (may be expanded with context, translated to English)
+    // STEP 1: Generate embeddings — original query + expanded alternatives for better retrieval
+    console.log('[Chat] Expanding query for retrieval...');
+    const queryVariants = await expandQueryForRetrieval(searchQuery);
+    console.log('[Chat] Query variants:', queryVariants.length, '(original + alternatives)');
+
     console.log('[Chat] Generating query embedding...');
-    const embeddingResponse = await getOpenAIClient().embeddings.create({
-      model: 'text-embedding-3-small',
-      input: searchQuery,
-      dimensions: 1536,
+    // Embed all variants and average the vectors — improves recall on technical documents
+    const embeddingResponses = await Promise.all(
+      queryVariants.map(q =>
+        getOpenAIClient().embeddings.create({
+          model: 'text-embedding-3-small',
+          input: q,
+          dimensions: 1536,
+        })
+      )
+    );
+
+    // Average the embeddings across all variants
+    const allEmbeddings = embeddingResponses.map(r => r.data[0].embedding);
+    const queryEmbedding = allEmbeddings[0].map((_: number, i: number) => {
+      const sum = allEmbeddings.reduce((acc: number, emb: number[]) => acc + emb[i], 0);
+      return sum / allEmbeddings.length;
     });
-    const queryEmbedding = embeddingResponse.data[0].embedding;
-    console.log('[Chat] Query embedding generated');
+    console.log('[Chat] Query embedding generated (averaged across', allEmbeddings.length, 'variants)');
 
     // STEP 2: Semantic search using cosine similarity on ALL chunks
     // First, get list of superseded document IDs to filter out from RAG
@@ -2706,7 +2811,7 @@ export async function POST(request: NextRequest) {
       
       // MINIMUM RELEVANCE THRESHOLD - if top chunks aren't relevant enough, treat as "no info"
       // This prevents forcing irrelevant context into the prompt
-      const MIN_RELEVANCE_SIMILARITY = 0.25; // Raw cosine similarity threshold
+      const MIN_RELEVANCE_SIMILARITY = 0.40; // Raw cosine similarity threshold — only serve chunks the model can trust
       const topChunkSimilarity = scoredChunks[0]?.similarity || 0;
       
       if (topChunkSimilarity < MIN_RELEVANCE_SIMILARITY) {
@@ -2796,7 +2901,13 @@ export async function POST(request: NextRequest) {
 
     if (chunks && chunks.length > 0) {
       const referenceData = chunks
-        .map((chunk: any) => chunk.content)
+        .map((chunk: any) => {
+          const fileName = chunk.metadata?.file_name || chunk.metadata?.source || 'Document';
+          const section = chunk.metadata?.section ? `, Section: ${chunk.metadata.section}` : '';
+          const page = chunk.metadata?.page_number ? `, p.${chunk.metadata.page_number}` : '';
+          const compressed = compressChunk(chunk.content, message);
+          return `[Source: ${fileName}${section}${page}]\n${compressed}`;
+        })
         .join('\n---\n');
 
       const sources = Array.from(new Set(chunks.map((c: any) => c.metadata?.file_name || c.metadata?.source || 'Document')));
@@ -3016,13 +3127,33 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         eventCategory: 'no_relevant_docs',
         eventData: { 
           reason: 'low_similarity_or_no_chunks',
-          question_preview: message.substring(0, 200), // Capture more context for training
+          question_preview: message.substring(0, 200),
           conversationDepth: conversationHistory.length + 1,
           escalationTarget: escalationGuidance?.escalationTarget,
         },
         sessionId: validatedUnitUid || conversationUserId,
         unitId: effectiveUnitUid,
-      }).catch(() => {}); // Don't fail chat if analytics fails
+      }).catch(() => {});
+
+      // Log to answer_gap_log so developer dashboard can surface missing documents
+      import('@/lib/assistant/gap-logger').then(({ logAnswerGap }) => {
+        if (userDevelopmentId) {
+          logAnswerGap({
+            scheme_id: userDevelopmentId,
+            unit_id: actualUnitId || null,
+            user_question: message.substring(0, 500),
+            intent_type: activeIntentKey || 'unknown',
+            attempted_sources: ['rag_search', 'pgvector'],
+            final_source: 'no_documents_found',
+            gap_reason: 'no_documents_found',
+            details: {
+              top_similarity: scoredChunks?.[0]?.similarity ?? 0,
+              query_variants: queryVariants.length,
+              threshold: 0.40,
+            },
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     // STEP 4: Extract question topic and find drawing BEFORE streaming (parallel with RAG)
