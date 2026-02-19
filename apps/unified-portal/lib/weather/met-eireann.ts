@@ -182,8 +182,20 @@ function cleanForecastText(text: string): string {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
+// Emergency fallback: known scheme locations — avoids full Supabase round-trip
+const KNOWN_SCHEME_CITIES: Record<string, string> = {
+  '57dc3919-2725-4575-8046-9179075ac88e': 'Cork, Ireland', // Longview Park
+  '84a559d1-89f1-4eb6-a48b-7ca068bcc164': 'Cork, Ireland', // Riverside Gardens (Ardan View)
+  'b45347d3-934d-4ec1-9d25-c0a687b82263': 'Cork, Ireland', // Harbour View Apartments
+  'e0833063-55ac-4201-a50e-f329c090fbd6': 'Cork, Ireland', // Meadow View
+  '39c49eeb-54a6-4b04-a16a-119012c531cb': 'Cork, Ireland', // Willow Brook
+  '34316432-f1e8-4297-b993-d9b5c88ee2d8': 'Cork, Ireland', // Oak Hill Estate
+};
+
 async function getSchemeAddress(schemeId: string | null | undefined): Promise<string | null> {
   if (!schemeId) return null;
+  // Check hardcoded map first — fast and reliable for known deployments
+  if (KNOWN_SCHEME_CITIES[schemeId]) return KNOWN_SCHEME_CITIES[schemeId];
   try {
     const supabase = getSupabaseAdmin();
     // Try scheme_profile first (uses .maybeSingle to avoid error on no row)
