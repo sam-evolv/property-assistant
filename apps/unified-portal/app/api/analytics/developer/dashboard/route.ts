@@ -622,30 +622,34 @@ export async function GET(request: NextRequest) {
       messageCount: row.message_count,
     }));
 
-    // Unregistered units: no purchaser assigned yet — developer needs to act on these
-    let unregisteredUnits: Array<{ address: string; unit_uid: string | null; development_id: string | null }> = [];
+    // Upcoming handovers: units handing over in the next 60 days
+    const now = new Date();
+    const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+    let upcomingHandovers: Array<{ address: string; unit_uid: string | null; handover_date: string }> = [];
     try {
-      let unregQuery = supabaseAdmin.from('units')
-        .select('address, unit_uid, development_id')
-        .eq('tenant_id', tenantId)
-        .is('purchaser_name', null)
-        .order('created_at', { ascending: false })
+      let handoverQuery = supabaseAdmin
+        .from('unit_sales_pipeline')
+        .select('unit_id, handover_date, units!inner(address, unit_uid, tenant_id, development_id)')
+        .eq('units.tenant_id', tenantId)
+        .gte('handover_date', now.toISOString().split('T')[0])
+        .lte('handover_date', in60Days.toISOString().split('T')[0])
+        .order('handover_date', { ascending: true })
         .limit(10);
       if (developmentId) {
-        unregQuery = unregQuery.eq('development_id', developmentId);
+        handoverQuery = handoverQuery.eq('units.development_id', developmentId);
       }
-      const { data: unregData, error: unregError } = await unregQuery;
-      if (!unregError && unregData) {
-        unregisteredUnits = unregData.map((u: any) => ({
-          address: u.address || 'Unknown address',
-          unit_uid: u.unit_uid || null,
-          development_id: u.development_id || null,
+      const { data: handoverData, error: handoverError } = await handoverQuery;
+      if (!handoverError && handoverData) {
+        upcomingHandovers = handoverData.map((row: any) => ({
+          address: row.units?.address || 'Unknown address',
+          unit_uid: row.units?.unit_uid || null,
+          handover_date: row.handover_date,
         }));
-      } else if (unregError) {
-        console.log(`[DeveloperDashboard] unregisteredUnits query error:`, unregError);
+      } else if (handoverError) {
+        console.log(`[DeveloperDashboard] upcomingHandovers query error:`, handoverError);
       }
     } catch (e) {
-      console.log(`[DeveloperDashboard] unregisteredUnits query failed:`, e);
+      console.log(`[DeveloperDashboard] upcomingHandovers query failed:`, e);
     }
 
     // --- Issue 2: Real activity feed events ---
@@ -774,7 +778,7 @@ export async function GET(request: NextRequest) {
       onboardingFunnel,
       unansweredQueries,
       houseTypeEngagement,
-      unregisteredUnits,
+      upcomingHandovers,
       recentEvents,
       summary: {
         totalUnits,

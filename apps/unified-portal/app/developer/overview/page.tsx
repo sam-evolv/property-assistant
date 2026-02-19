@@ -74,7 +74,7 @@ interface DashboardData {
   onboardingFunnel: Array<{ stage: string; count: number; colour: string }>;
   unansweredQueries: Array<{ question: string; topic: string; date: string }>;
   houseTypeEngagement: Array<{ houseType: string; activeUsers: number; messageCount: number }>;
-  unregisteredUnits: Array<{ address: string; unit_uid: string | null; development_id: string | null }>;
+  upcomingHandovers: Array<{ address: string; unit_uid: string | null; handover_date: string }>;
   recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>;
   summary: {
     totalUnits: number;
@@ -143,25 +143,30 @@ function generateAlerts(data: DashboardData): Alert[] {
     });
   }
 
-  // 2. Unregistered units — units with no purchaser assigned yet
-  // Action: open each unit and assign a homeowner / share the QR code
-  const unregCount = data.kpis.onboardingRate.inactiveCount ?? 0;
-  if (unregCount > 0) {
-    const unregItems = (data.unregisteredUnits || []).slice(0, 5).map((u, i) => ({
-      id: `unreg-${i}`,
-      label: u.address,
-      sublabel: 'No purchaser assigned',
-      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
-    }));
+  // 2. Upcoming handovers — units handing over in the next 60 days
+  // Action: ensure all documents are uploaded before handover day
+  const handovers = data.upcomingHandovers || [];
+  if (handovers.length > 0) {
+    const handoverItems = handovers.slice(0, 5).map((u, i) => {
+      const date = new Date(u.handover_date);
+      const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      return {
+        id: `handover-${i}`,
+        label: u.address,
+        sublabel: `Handover in ${daysUntil} day${daysUntil !== 1 ? 's' : ''} — ${date.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}`,
+        link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
+      };
+    });
+    const soonest = Math.ceil((new Date(handovers[0].handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     alerts.push({
-      id: 'unregistered-units',
-      title: `${unregCount} unit${unregCount > 1 ? 's' : ''} not yet set up`,
-      description: 'These units have no purchaser assigned — share QR codes to get homeowners onboarded',
-      priority: 'warning',
-      count: unregCount,
+      id: 'upcoming-handovers',
+      title: `${handovers.length} upcoming handover${handovers.length > 1 ? 's' : ''}`,
+      description: `Next handover in ${soonest} day${soonest !== 1 ? 's' : ''} — make sure all documents are uploaded`,
+      priority: soonest <= 14 ? 'critical' : 'warning',
+      count: handovers.length,
       link: '/developer/homeowners',
       linkLabel: 'View Units',
-      items: unregItems,
+      items: handoverItems,
     });
   }
 
