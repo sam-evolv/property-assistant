@@ -121,6 +121,7 @@ import {
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
 import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getTransitRoutes, formatTransitRoutesResponse } from '@/lib/transport/routes';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
@@ -2368,6 +2369,16 @@ export async function POST(request: NextRequest) {
           poiResponse = formatLocalAmenitiesResponse(groupedAmenitiesData, developmentName || undefined);
         } else if (expandedIntent === 'shops') {
           poiResponse = formatShopsResponse(poiData, developmentName || undefined);
+        } else if (poiCategory === 'bus_stop' || poiCategory === 'train_station') {
+          // Transport queries: enrich with TFI route data via Google Directions API (transit mode)
+          try {
+            const transitResult = await getTransitRoutes(userSupabaseProjectId);
+            poiResponse = formatTransitRoutesResponse(transitResult, poiData.results);
+            console.log('[Chat] Transit routes:', transitResult.routes.length, 'routes, enabled:', transitResult.enabled, 'from_cache:', transitResult.from_cache);
+          } catch (transitErr) {
+            console.error('[Chat] Transit routes failed, falling back to POI:', transitErr);
+            poiResponse = formatPOIResponse(poiData, formatOptions);
+          }
         } else {
           poiResponse = formatPOIResponse(poiData, formatOptions);
         }
