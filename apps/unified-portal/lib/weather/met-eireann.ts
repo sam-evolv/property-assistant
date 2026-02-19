@@ -234,35 +234,33 @@ export function formatWeatherResponse(result: WeatherResult): string {
 
   // Current conditions
   if (current) {
-    const emoji = weatherEmoji(current.weatherDescription);
-    const temp = current.temperature ? `${current.temperature}°C` : '';
+    const temp = current.temperature ? `${current.temperature} degrees` : '';
     const desc = current.weatherDescription || '';
     const wind = windDescription(current.windSpeed, current.windGust, current.cardinalWindDirection);
-    const humidity = current.humidity?.trim() ? `Humidity ${current.humidity.trim()}%` : '';
+    const humidity = current.humidity?.trim() ? `, humidity ${current.humidity.trim()}%` : '';
 
-    lines.push(`${emoji} **${cityDisplay} right now** — ${[temp, desc].filter(Boolean).join(', ')}`);
-    if (wind) lines.push(wind + (humidity ? `. ${humidity}.` : '.'));
+    lines.push(`${cityDisplay} right now: ${[temp, desc].filter(Boolean).join(', ')}${humidity}.`);
+    if (wind) lines.push(wind + '.');
     lines.push('');
   }
 
   // Today's forecast
   if (forecast?.today) {
-    lines.push(`**Today:** ${forecast.today}`);
+    lines.push(`Today: ${forecast.today}`);
     lines.push('');
   }
 
-  // Tonight
+  // Tonight — first sentence only
   if (forecast?.tonight) {
-    // Truncate to first sentence to keep it concise
     const tonight = forecast.tonight.split('.')[0] + '.';
-    lines.push(`**Tonight:** ${tonight}`);
+    lines.push(`Tonight: ${tonight}`);
     lines.push('');
   }
 
   // Tomorrow — first sentence only
   if (forecast?.tomorrow) {
     const tomorrow = forecast.tomorrow.split('.')[0] + '.';
-    lines.push(`**Tomorrow:** ${tomorrow}`);
+    lines.push(`Tomorrow: ${tomorrow}`);
     lines.push('');
   }
 
@@ -270,7 +268,7 @@ export function formatWeatherResponse(result: WeatherResult): string {
     return `I wasn't able to get the weather right now. Check met.ie for the latest forecast.`;
   }
 
-  lines.push(`_Source: Met Éireann — met.ie_`);
+  lines.push(`Source: Met Eireann (met.ie)`);
 
   return lines.join('\n').trim();
 }
