@@ -222,7 +222,9 @@ export async function POST(request: NextRequest) {
 
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             try {
-              const pdfParse = (await import('pdf-parse')).default;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const pdfMod = await import('pdf-parse') as any;
+              const pdfParse = pdfMod.default ?? pdfMod;
               const pdfData = await pdfParse(Buffer.from(fileBuffer));
               extractedText = pdfData.text?.trim() || '';
               console.log('[Upload] Extracted', extractedText.length, 'chars from', file.name);

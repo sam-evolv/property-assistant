@@ -6,8 +6,15 @@
  * 2. met.ie/Open_Data/json/National.json — human-readable today/tonight/tomorrow forecast
  */
 
-import { db, scheme_profile } from '@openhouse/db';
-import { eq } from 'drizzle-orm';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 const WEATHER_TIMEOUT_MS = 8000;
 const OBSERVATIONS_URL = 'https://prodapi.metweb.ie/observations';
@@ -178,13 +185,22 @@ function cleanForecastText(text: string): string {
 async function getSchemeAddress(schemeId: string | null | undefined): Promise<string | null> {
   if (!schemeId) return null;
   try {
-    const rows = await db
-      .select({ address: scheme_profile.scheme_address })
-      .from(scheme_profile)
-      .where(eq(scheme_profile.id, schemeId))
-      .limit(1);
-    return rows[0]?.address || null;
-  } catch { return null; }
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('scheme_profile')
+      .select('scheme_address')
+      .eq('id', schemeId)
+      .limit(1)
+      .single();
+    if (error) {
+      console.warn('[Weather] getSchemeAddress error:', error.message);
+      return null;
+    }
+    return (data as any)?.scheme_address || null;
+  } catch (e) {
+    console.warn('[Weather] getSchemeAddress exception:', e);
+    return null;
+  }
 }
 
 export async function getWeather(schemeId: string | null | undefined): Promise<WeatherResult> {

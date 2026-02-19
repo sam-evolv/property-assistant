@@ -120,7 +120,7 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
 import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
@@ -134,6 +134,42 @@ import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy
 import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
+
+function generateFollowUpQuestions(intent: string, message: string): string[] {
+  const msg = message.toLowerCase();
+  const followUps: Record<string, string[]> = {
+    location_amenities: ['What schools are nearby?', 'Are there parks close by?', 'What supermarkets are within walking distance?'],
+    weather: ['What\'s the forecast for the weekend?', 'Is there a weather warning for Cork?'],
+    transport: ['How long would it take to cycle to town?', 'Are there trains to Dublin from here?'],
+    snagging: ['How do I report a snag to my developer?', 'What\'s covered under my structural warranty?'],
+    warranty: ['How long does my structural warranty last?', 'Who do I contact to make a warranty claim?'],
+    heat_pump: ['What temperature should I set my heat pump to?', 'How often does a heat pump need servicing?'],
+    mvhr: ['How often should I clean the MVHR filters?', 'Can I turn off my MVHR unit?'],
+    ber: ['What does my BER rating mean for heating costs?', 'How do I look up my home\'s BER certificate?'],
+    documents: ['Can I download my warranty documents?', 'Where do I find my BER certificate?'],
+    local_history: ['What facilities are planned for the development?', 'Who manages the estate?'],
+    management_company: ['How do I pay my service charge?', 'Who is responsible for maintaining communal areas?'],
+    grants: ['Am I eligible for the SEAI home energy grant?', 'How do I apply for the EV charger grant?'],
+    maintenance: ['What home maintenance should I do in spring?', 'How often should I service my heat pump?'],
+    utilities: ['How do I switch electricity supplier?', 'How do I register my meter with Irish Water?'],
+  };
+
+  // Try exact intent match first
+  if (followUps[intent]) {
+    return followUps[intent].slice(0, 2);
+  }
+
+  // Try keyword matching on message
+  if (msg.includes('school') || msg.includes('creche') || msg.includes('childcare')) return ['What secondary schools are in the area?', 'Are there creches near the development?'];
+  if (msg.includes('supermarket') || msg.includes('shop') || msg.includes('grocery')) return ['What pharmacies are nearby?', 'Are there restaurants close by?'];
+  if (msg.includes('park') || msg.includes('walk') || msg.includes('outdoor')) return ['Are there schools nearby?', 'How far is the city centre?'];
+  if (msg.includes('bus') || msg.includes('train') || msg.includes('commute')) return ['How long does it take to walk to the bus stop?', 'Are there cycle lanes on the route to town?'];
+  if (msg.includes('heat') || msg.includes('heating') || msg.includes('boiler')) return ['How do I service my heat pump?', 'What\'s the best heating schedule for an A-rated home?'];
+  if (msg.includes('crack') || msg.includes('leak') || msg.includes('damp')) return ['How do I report this to my developer?', 'Is this covered under my structural warranty?'];
+
+  // Generic fallback
+  return ['What documents do I have in my portal?', 'What amenities are near my home?'];
+}
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -2025,6 +2061,7 @@ export async function POST(request: NextRequest) {
             source: 'met_eireann',
             isNoInfo: false,
             metadata: { intent: 'weather' },
+            suggested_questions: generateFollowUpQuestions('weather', message),
           });
         } catch (weatherErr) {
           console.error('[Chat] Weather fetch failed:', weatherErr);
@@ -2048,6 +2085,7 @@ export async function POST(request: NextRequest) {
             source: 'active_travel',
             isNoInfo: false,
             metadata: { intent: 'active_travel' },
+            suggested_questions: generateFollowUpQuestions('transport', message),
           });
         } catch (activeTravelErr) {
           console.error('[Chat] Active travel failed:', activeTravelErr);
@@ -2470,6 +2508,7 @@ export async function POST(request: NextRequest) {
           source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
           safetyIntercept: false,
           isNoInfo: false,
+          suggested_questions: generateFollowUpQuestions('location_amenities', message),
           metadata: {
             intent: intentClassification.intent,
             poiCategory,
@@ -2711,7 +2750,7 @@ export async function POST(request: NextRequest) {
           ...d,
           _pgvector_similarity: typeof d.similarity === 'number' ? d.similarity : null,
         }));
-        console.log('[Chat] pgvector returned', allChunks.length, 'pre-ranked chunks in', Date.now() - chunkLoadStart, 'ms');
+        console.log('[Chat] pgvector returned', allChunks?.length, 'pre-ranked chunks in', Date.now() - chunkLoadStart, 'ms');
       }
     } catch (supabaseErr) {
       console.error('[Chat] Supabase connection failed:', supabaseErr);
@@ -3125,7 +3164,17 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Never provide information about other residents, units, or neighbours
 - If asked about another unit: "I can only provide information about your own home or general development information. For privacy reasons under GDPR, I can't share details about other residents."
 - Allowed: development/estate info, community amenities, shared facilities, local area
-- Not allowed: any other specific unit, other residents' details, neighbours' properties`;
+- Not allowed: any other specific unit, other residents' details, neighbours' properties
+
+SMART FALLBACK GUIDANCE — When You Don't Have Documents:
+Be specific and helpful — don't just say "I don't have that." Based on what the homeowner is asking:
+- Snagging / defects / repairs: "You can report this to your developer via the Documents tab or by contacting them directly. If your home is within the first 12 months, most defects are covered."
+- Warranties (structural, latent defects): "Structural warranty runs 10 years from build completion (Homebond or Premier Guarantee). Check your warranty certificate in the Documents tab."
+- Appliances / heating / MVHR: "Your appliance manuals should be in the Documents tab. For servicing, contact the manufacturer or your property management company."
+- Management company / OMC / service charge: "Contact your Owners' Management Company (OMC). Details should be in your handover pack in the Documents tab."
+- Planning / building regulations: "Refer to your local council or contact your developer. Your architect's cert in the Documents tab may be relevant."
+- If you genuinely cannot help: Acknowledge the gap clearly, name the specific person/resource they should contact, and offer to help with what you do know about their home.
+Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not sure" as a complete answer — provide a specific redirect.`;
 
       // TIER 2 HOME KNOWLEDGE: Inject even when no scheme docs — this is general guidance
       const homeKnowledgeEntriesNoDocs = getRelevantHomeKnowledge(message);
@@ -3206,7 +3255,7 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
             final_source: 'no_documents_found',
             gap_reason: 'no_documents_found',
             details: {
-              top_similarity: scoredChunks?.[0]?.similarity ?? 0,
+              top_similarity: allChunks?.[0]?._pgvector_similarity ?? 0,
               query_variants: queryVariants.length,
               threshold: 0.40,
             },
@@ -3835,6 +3884,7 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         source: responseSource,
         chunksUsed: chunks?.length || 0,
         safetyIntercept: false,
+        suggested_questions: generateFollowUpQuestions(activeIntentKey || 'documents', message),
       });
     }
 
