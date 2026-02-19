@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getRelevantHomeKnowledge, formatHomeKnowledgeContext } from '@/lib/assistant/home-knowledge';
 
 // ---------------------------------------------------------------------------
 // MODEL ROUTER — simple tasks → gpt-4.1-mini, complex tasks → gpt-4o
@@ -2859,6 +2860,14 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties`;
 
+      // TIER 2 HOME KNOWLEDGE: Inject general factual guidance when relevant to the question
+      const homeKnowledgeEntries = getRelevantHomeKnowledge(message);
+      if (homeKnowledgeEntries.length > 0) {
+        const homeKnowledgeContext = formatHomeKnowledgeContext(homeKnowledgeEntries);
+        systemMessage = systemMessage + `\n\n${homeKnowledgeContext}`;
+        console.log('[Chat] Home knowledge injected:', homeKnowledgeEntries.length, 'entries');
+      }
+
       // WARRANTY AWARENESS: Inject specific warranty guidance based on message content
       const warrantyType = detectWarrantyType(message);
       if (warrantyType !== 'unknown') {
@@ -2947,6 +2956,14 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - If asked about another unit: "I can only provide information about your own home or general development information. For privacy reasons under GDPR, I can't share details about other residents."
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties`;
+
+      // TIER 2 HOME KNOWLEDGE: Inject even when no scheme docs — this is general guidance
+      const homeKnowledgeEntriesNoDocs = getRelevantHomeKnowledge(message);
+      if (homeKnowledgeEntriesNoDocs.length > 0) {
+        const homeKnowledgeContextNoDocs = formatHomeKnowledgeContext(homeKnowledgeEntriesNoDocs);
+        systemMessage = systemMessage + `\n\n${homeKnowledgeContextNoDocs}`;
+        console.log('[Chat] Home knowledge injected (no-docs path):', homeKnowledgeEntriesNoDocs.length, 'entries');
+      }
 
       // WARRANTY AWARENESS: Inject warranty guidance even when no docs are available
       const warrantyTypeNoDocs = detectWarrantyType(message);
