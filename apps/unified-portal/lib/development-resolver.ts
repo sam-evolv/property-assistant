@@ -56,6 +56,32 @@ export async function resolveDevelopment(
 
   console.log('[DevelopmentResolver] Resolving development for project_id:', supabaseProjectId, 'address:', address);
 
+  // Fast path: direct lookup of developments table by ID (most reliable, avoids name/word matching)
+  if (supabaseProjectId) {
+    try {
+      const supabase = getSupabaseClient();
+      const { data: directDev, error } = await supabase
+        .from('developments')
+        .select('id, name, tenant_id, logo_url')
+        .eq('id', supabaseProjectId)
+        .single();
+      if (directDev && !error) {
+        const resolved: ResolvedDevelopment = {
+          drizzleDevelopmentId: directDev.id,
+          supabaseProjectId: supabaseProjectId,
+          developmentName: directDev.name,
+          tenantId: (directDev as any).tenant_id || null,
+          logoUrl: (directDev as any).logo_url || null,
+        };
+        setCachedDevelopment(cacheKey, resolved);
+        console.log('[DevelopmentResolver] Direct development lookup succeeded:', resolved.developmentName);
+        return resolved;
+      }
+    } catch (directErr) {
+      console.warn('[DevelopmentResolver] Direct lookup failed, falling through:', directErr);
+    }
+  }
+
   if (supabaseProjectId && KNOWN_ID_MAPPINGS[supabaseProjectId]) {
     const mapping = KNOWN_ID_MAPPINGS[supabaseProjectId];
     console.log('[DevelopmentResolver] Known mapping found, querying DB for drizzleId:', mapping.drizzleId);
@@ -129,7 +155,9 @@ export async function resolveDevelopment(
 
       for (const dev of allDevs as any[]) {
         const devNameLower = dev.name.toLowerCase();
-        const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 3);
+        // Exclude common Irish address words that appear in many development names and addresses
+        const ADDRESS_STOP_WORDS = new Set(['view', 'park', 'hill', 'estate', 'court', 'grove', 'close', 'lawn', 'gate', 'walk', 'rise', 'road', 'lane', 'drive', 'place', 'gardens', 'house', 'green', 'brook', 'wood', 'vale', 'ridge', 'heights', 'acres', 'field', 'mews']);
+        const devWords = devNameLower.split(/\s+/).filter((w: string) => w.length > 4 && !ADDRESS_STOP_WORDS.has(w));
         for (const word of devWords) {
           if (addressLower.includes(word)) {
             const resolved: ResolvedDevelopment = {

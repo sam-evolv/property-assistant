@@ -284,11 +284,13 @@ export async function POST(req: Request) {
       }
 
       // Calculate handover status from pipeline data
-      let isHandoverComplete = !!unit.pipeline_handover_date;
+      // Handover is only complete if the handover_date is in the past (keys already handed over)
+      const now = new Date();
+      let isHandoverComplete = !!(unit.pipeline_handover_date && new Date(unit.pipeline_handover_date) <= now);
       let currentMilestone = 'sale_agreed';
       
       if (unit.pipeline_handover_date) {
-        currentMilestone = 'handover';
+        currentMilestone = isHandoverComplete ? 'handover' : 'pre_handover';
       } else if (unit.drawdown_date) {
         currentMilestone = 'closing';
       } else if (unit.snag_date) {
@@ -342,8 +344,8 @@ export async function POST(req: Request) {
         handover_complete: isHandoverComplete,
         current_milestone: currentMilestone,
         milestone_dates: milestoneDates,
-        est_snagging_date: null,
-        est_handover_date: null,
+        est_snagging_date: unit.snag_date || null,
+        est_handover_date: unit.pipeline_handover_date || null,
         prehandover_config: unit.dev_prehandover_config || null,
       };
 
@@ -458,7 +460,9 @@ export async function POST(req: Request) {
         // Fetch pipeline data to calculate current milestone
         let currentMilestone = 'sale_agreed';
         let milestoneDates: Record<string, string | null> = {};
-        let isHandoverComplete = !!supabaseUnit.handover_date;
+        // Handover is only complete if the handover_date is in the past (keys already handed over)
+        const now = new Date();
+        let isHandoverComplete = !!(supabaseUnit.handover_date && new Date(supabaseUnit.handover_date) <= now);
         
         try {
           const supabase = getSupabaseClient();
@@ -470,9 +474,10 @@ export async function POST(req: Request) {
           
           if (pipeline) {
             // Calculate current milestone from pipeline dates (most advanced first)
+            // Only mark complete if handover_date is in the past
             if (pipeline.handover_date) {
-              currentMilestone = 'handover';
-              isHandoverComplete = true;
+              isHandoverComplete = new Date(pipeline.handover_date) <= now;
+              currentMilestone = isHandoverComplete ? 'handover' : 'pre_handover';
             } else if (pipeline.drawdown_date) {
               currentMilestone = 'closing';
             } else if (pipeline.snag_date) {
