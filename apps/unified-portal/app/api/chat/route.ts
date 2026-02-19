@@ -2011,17 +2011,37 @@ export async function POST(request: NextRequest) {
 
     // WEATHER GATE: Met Éireann, free, no key required
     if (isAssistantOSEnabled()) {
-      const weatherKeywords = /\b(weather|forecast|rain|raining|sunny|temperature|how cold|how warm|wind|windy|storm|snow|will it rain|what('s| is) the weather|met (é|e)ireann|climate today|outside today)\b/i;
+      const weatherKeywords = /\b(weather|forecast|raining|sunny|temperature|how cold|how warm|wind|windy|storm|snow|will it rain|what('s| is) the weather|met (é|e)ireann|climate today|outside today)\b/i;
       if (weatherKeywords.test(message)) {
         console.log('[Chat] WEATHER: detected weather query');
         try {
           const address = userUnitDetails?.address || null;
           const weatherResult = await getWeather(address);
           const weatherResponse = formatWeatherResponse(weatherResult);
-          return new Response(
-            JSON.stringify({ message: weatherResponse, source: 'met_eireann', diagnostics: process.env.NODE_ENV === 'development' ? chatDiagnostics : undefined }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
+
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            unit_id: actualUnitId,
+            require_unit_id: true,
+            user_id: validatedUnitUid || userId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: weatherResponse,
+            question_topic: 'weather',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: { assistantOS: true, intent: 'weather', source: 'met_eireann', userId: userId || null },
+            request_id: requestId,
+          });
+
+          return NextResponse.json({
+            success: true,
+            answer: weatherResponse,
+            source: 'met_eireann',
+            isNoInfo: false,
+            metadata: { intent: 'weather' },
+          });
         } catch (weatherErr) {
           console.error('[Chat] Weather fetch failed:', weatherErr);
           // Fall through to normal handling
@@ -2037,10 +2057,30 @@ export async function POST(request: NextRequest) {
         try {
           const activeTravelResult = await getActiveTravelTimes(userSupabaseProjectId);
           const activeTravelResponse = formatActiveTravelResponse(activeTravelResult);
-          return new Response(
-            JSON.stringify({ message: activeTravelResponse, source: 'active_travel', diagnostics: process.env.NODE_ENV === 'development' ? chatDiagnostics : undefined }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
+
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            unit_id: actualUnitId,
+            require_unit_id: true,
+            user_id: validatedUnitUid || userId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: activeTravelResponse,
+            question_topic: 'active_travel',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: { assistantOS: true, intent: 'active_travel', userId: userId || null },
+            request_id: requestId,
+          });
+
+          return NextResponse.json({
+            success: true,
+            answer: activeTravelResponse,
+            source: 'active_travel',
+            isNoInfo: false,
+            metadata: { intent: 'active_travel' },
+          });
         } catch (activeTravelErr) {
           console.error('[Chat] Active travel failed:', activeTravelErr);
           // Fall through to normal amenity handling
