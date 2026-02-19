@@ -74,8 +74,7 @@ interface DashboardData {
   onboardingFunnel: Array<{ stage: string; count: number; colour: string }>;
   unansweredQueries: Array<{ question: string; topic: string; date: string }>;
   houseTypeEngagement: Array<{ houseType: string; activeUsers: number; messageCount: number }>;
-  pendingAcknowledgementUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }>;
-  inactiveUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }>;
+  unregisteredUnits: Array<{ address: string; unit_uid: string | null; development_id: string | null }>;
   recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>;
   summary: {
     totalUnits: number;
@@ -119,66 +118,24 @@ function generateSparklineData(chatActivity: Array<{ date: string; count: number
   return data.map(d => ({ value: d.count, date: d.date }));
 }
 
-// Generate proactive alerts from dashboard data with expandable items
+// Generate proactive alerts — only actionable items the developer can fix
 function generateAlerts(data: DashboardData): Alert[] {
   const alerts: Alert[] = [];
 
-  // Check for inactive homeowners - with expandable items
-  if (data.kpis.engagementRate.inactiveCount && data.kpis.engagementRate.inactiveCount > 3) {
-    const inactiveItems = (data.inactiveUnits || []).slice(0, 5).map((u, i) => ({
-      id: `inactive-${i}`,
-      label: u.address,
-      sublabel: u.purchaser_name || 'Unregistered unit',
-      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
-    }));
-
-    alerts.push({
-      id: 'inactive-homeowners',
-      title: `${data.kpis.engagementRate.inactiveCount} inactive homeowners`,
-      description: 'These homeowners haven\'t engaged in the past 7 days',
-      priority: 'warning',
-      count: data.kpis.engagementRate.inactiveCount,
-      link: '/developer/homeowners?active=false',
-      linkLabel: 'View All',
-      items: inactiveItems,
-    });
-  }
-
-  // Check for pending compliance - with expandable items
-  if (data.kpis.mustReadCompliance.pendingCount && data.kpis.mustReadCompliance.pendingCount > 0) {
-    const pendingItems = (data.pendingAcknowledgementUnits || []).slice(0, 5).map((u, i) => ({
-      id: `pending-${i}`,
-      label: u.address,
-      sublabel: u.purchaser_name || 'Unregistered unit',
-      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
-    }));
-
-    alerts.push({
-      id: 'pending-compliance',
-      title: 'Documents awaiting acknowledgement',
-      description: `${data.kpis.mustReadCompliance.pendingCount} homeowners haven't acknowledged must-read documents`,
-      priority: data.kpis.mustReadCompliance.pendingCount > 5 ? 'critical' : 'warning',
-      count: data.kpis.mustReadCompliance.pendingCount,
-      link: '/developer/homeowners?compliance=false',
-      linkLabel: 'Send Reminders',
-      items: pendingItems,
-    });
-  }
-
-  // Check for unanswered queries (knowledge gaps) - with expandable items
+  // 1. Knowledge gaps — homeowners asked questions the AI couldn't answer
+  // Action: upload the missing documents to Smart Archive
   if (data.unansweredQueries.length > 0) {
     const queryItems = data.unansweredQueries.slice(0, 5).map((q, i) => ({
       id: `query-${i}`,
-      label: q.question.slice(0, 50) + (q.question.length > 50 ? '...' : ''),
+      label: q.question.slice(0, 55) + (q.question.length > 55 ? '...' : ''),
       sublabel: `Topic: ${q.topic}`,
       link: '/developer/archive',
     }));
-
     alerts.push({
       id: 'knowledge-gaps',
-      title: 'Knowledge gaps detected',
-      description: 'Some homeowner questions couldn\'t be answered from documentation',
-      priority: 'info',
+      title: `${data.unansweredQueries.length} unanswered question${data.unansweredQueries.length > 1 ? 's' : ''}`,
+      description: 'Homeowners asked these questions — upload docs to let the AI answer them',
+      priority: data.unansweredQueries.length >= 5 ? 'critical' : 'warning',
       count: data.unansweredQueries.length,
       link: '/developer/archive',
       linkLabel: 'Upload Documents',
@@ -186,19 +143,41 @@ function generateAlerts(data: DashboardData): Alert[] {
     });
   }
 
-  // Check for low document coverage
-  if (data.kpis.documentCoverage.value < 80) {
+  // 2. Unregistered units — units with no purchaser assigned yet
+  // Action: open each unit and assign a homeowner / share the QR code
+  const unregCount = data.kpis.onboardingRate.inactiveCount ?? 0;
+  if (unregCount > 0) {
+    const unregItems = (data.unregisteredUnits || []).slice(0, 5).map((u, i) => ({
+      id: `unreg-${i}`,
+      label: u.address,
+      sublabel: 'No purchaser assigned',
+      link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
+    }));
     alerts.push({
-      id: 'low-coverage',
-      title: 'Document coverage below 80%',
-      description: 'Upload more documents to improve AI assistant accuracy',
-      priority: 'info',
-      link: '/developer/archive',
-      linkLabel: 'Manage Documents',
+      id: 'unregistered-units',
+      title: `${unregCount} unit${unregCount > 1 ? 's' : ''} not yet set up`,
+      description: 'These units have no purchaser assigned — share QR codes to get homeowners onboarded',
+      priority: 'warning',
+      count: unregCount,
+      link: '/developer/homeowners',
+      linkLabel: 'View Units',
+      items: unregItems,
     });
   }
 
-  // Add success alert if everything is good
+  // 3. Low document coverage — AI has nothing to pull from
+  if (data.kpis.documentCoverage.value < 60) {
+    alerts.push({
+      id: 'low-coverage',
+      title: 'Document coverage is low',
+      description: `Only ${data.kpis.documentCoverage.value}% of house types have uploaded documents`,
+      priority: 'info',
+      link: '/developer/archive',
+      linkLabel: 'Upload Documents',
+    });
+  }
+
+  // All clear
   if (alerts.length === 0) {
     alerts.push({
       id: 'all-clear',

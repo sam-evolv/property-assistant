@@ -622,59 +622,30 @@ export async function GET(request: NextRequest) {
       messageCount: row.message_count,
     }));
 
-    // --- Issue 1: Real unit data for alerts ---
-    // Pending acknowledgement units: registered but haven't acknowledged must-read docs
-    let pendingAcknowledgementUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }> = [];
+    // Unregistered units: no purchaser assigned yet — developer needs to act on these
+    let unregisteredUnits: Array<{ address: string; unit_uid: string | null; development_id: string | null }> = [];
     try {
-      let pendingQuery = supabaseAdmin.from('units')
-        .select('address, purchaser_name, unit_uid, project_id')
+      let unregQuery = supabaseAdmin.from('units')
+        .select('address, unit_uid, development_id')
         .eq('tenant_id', tenantId)
-        .not('purchaser_name', 'is', null)
-        .or('important_docs_agreed_version.is.null,important_docs_agreed_version.eq.0')
+        .is('purchaser_name', null)
+        .order('created_at', { ascending: false })
         .limit(10);
       if (developmentId) {
-        pendingQuery = pendingQuery.eq('project_id', developmentId);
+        unregQuery = unregQuery.eq('development_id', developmentId);
       }
-      const { data: pendingData, error: pendingError } = await pendingQuery;
-      if (!pendingError && pendingData) {
-        pendingAcknowledgementUnits = pendingData.map((u: any) => ({
+      const { data: unregData, error: unregError } = await unregQuery;
+      if (!unregError && unregData) {
+        unregisteredUnits = unregData.map((u: any) => ({
           address: u.address || 'Unknown address',
-          purchaser_name: u.purchaser_name,
           unit_uid: u.unit_uid || null,
-          development_id: u.project_id || null,
+          development_id: u.development_id || null,
         }));
-      } else if (pendingError) {
-        console.log(`[DeveloperDashboard] pendingAcknowledgementUnits query error:`, pendingError);
+      } else if (unregError) {
+        console.log(`[DeveloperDashboard] unregisteredUnits query error:`, unregError);
       }
     } catch (e) {
-      console.log(`[DeveloperDashboard] pendingAcknowledgementUnits query failed:`, e);
-    }
-
-    // Inactive units: registered but least recently updated (stale)
-    let inactiveUnits: Array<{ address: string; purchaser_name: string; unit_uid: string | null; development_id: string | null }> = [];
-    try {
-      let inactiveQuery = supabaseAdmin.from('units')
-        .select('address, purchaser_name, unit_uid, project_id')
-        .eq('tenant_id', tenantId)
-        .not('purchaser_name', 'is', null)
-        .order('updated_at', { ascending: true })
-        .limit(10);
-      if (developmentId) {
-        inactiveQuery = inactiveQuery.eq('project_id', developmentId);
-      }
-      const { data: inactiveData, error: inactiveError } = await inactiveQuery;
-      if (!inactiveError && inactiveData) {
-        inactiveUnits = inactiveData.map((u: any) => ({
-          address: u.address || 'Unknown address',
-          purchaser_name: u.purchaser_name,
-          unit_uid: u.unit_uid || null,
-          development_id: u.project_id || null,
-        }));
-      } else if (inactiveError) {
-        console.log(`[DeveloperDashboard] inactiveUnits query error:`, inactiveError);
-      }
-    } catch (e) {
-      console.log(`[DeveloperDashboard] inactiveUnits query failed:`, e);
+      console.log(`[DeveloperDashboard] unregisteredUnits query failed:`, e);
     }
 
     // --- Issue 2: Real activity feed events ---
@@ -803,8 +774,7 @@ export async function GET(request: NextRequest) {
       onboardingFunnel,
       unansweredQueries,
       houseTypeEngagement,
-      pendingAcknowledgementUnits,
-      inactiveUnits,
+      unregisteredUnits,
       recentEvents,
       summary: {
         totalUnits,
