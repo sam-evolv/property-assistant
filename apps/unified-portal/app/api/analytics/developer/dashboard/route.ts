@@ -623,7 +623,6 @@ export async function GET(request: NextRequest) {
     }));
 
     // Upcoming handovers: units handing over in the next 60 days
-    const now = new Date();
     const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
     let upcomingHandovers: Array<{ address: string; unit_uid: string | null; handover_date: string }> = [];
     try {
