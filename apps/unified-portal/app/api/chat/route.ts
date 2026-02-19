@@ -2062,6 +2062,15 @@ export async function POST(request: NextRequest) {
             isNoInfo: false,
             metadata: { intent: 'weather' },
             suggested_questions: generateFollowUpQuestions('weather', message),
+            weather_card: {
+              city: weatherResult.city.charAt(0).toUpperCase() + weatherResult.city.slice(1),
+              temp: weatherResult.current?.temperature || null,
+              conditions: weatherResult.current?.weatherDescription || null,
+              wind_speed: weatherResult.current?.windSpeed || null,
+              wind_dir: weatherResult.current?.cardinalWindDirection || null,
+              humidity: weatherResult.current?.humidity || null,
+              forecast_today: weatherResult.forecast?.today?.slice(0, 120) || null,
+            },
           });
         } catch (weatherErr) {
           console.error('[Chat] Weather fetch failed:', weatherErr);

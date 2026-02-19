@@ -655,11 +655,6 @@ export default function HomeResidentPage() {
               selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
               userId={house.user_id}
-              address={house.address || null}
-              houseType={house.house_type || null}
-              schemeLat={house.latitude}
-              schemeLng={house.longitude}
-              estHandoverDate={house.est_handover_date || null}
             />
           </Tabs.Content>
 

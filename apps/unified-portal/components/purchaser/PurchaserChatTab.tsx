@@ -253,11 +253,70 @@ const CopyButton = ({ content, isDarkMode }: { content: string; isDarkMode: bool
   );
 };
 
-const SourcesDropdown = ({ 
-  sources, 
-  isDarkMode 
-}: { 
-  sources: SourceDocument[]; 
+// Weather card component for rich weather display
+const WeatherCard = ({ card, isDarkMode }: { card: NonNullable<Message['weather_card']>; isDarkMode: boolean }) => {
+  const conditions = (card.conditions || '').toLowerCase();
+
+  // Weather emoji
+  let emoji = '\u{1F324}\uFE0F'; // default 🌤️
+  if (conditions.includes('thunder')) emoji = '\u26C8\uFE0F';
+  else if (conditions.includes('heavy rain') || conditions.includes('persistent rain')) emoji = '\u{1F327}\uFE0F';
+  else if (conditions.includes('rain') || conditions.includes('drizzle') || conditions.includes('shower')) emoji = '\u{1F326}\uFE0F';
+  else if (conditions.includes('snow') || conditions.includes('sleet') || conditions.includes('hail')) emoji = '\u{1F328}\uFE0F';
+  else if (conditions.includes('fog') || conditions.includes('mist')) emoji = '\u{1F32B}\uFE0F';
+  else if (conditions.includes('overcast') || conditions.includes('cloudy')) emoji = '\u2601\uFE0F';
+  else if (conditions.includes('partly') || conditions.includes('cloud') || conditions.includes('sun')) emoji = '\u26C5';
+  else if (conditions.includes('clear') || conditions.includes('sunny') || conditions.includes('bright') || conditions.includes('fair')) emoji = '\u2600\uFE0F';
+
+  // Gradient
+  let gradient = 'from-blue-600 to-slate-700';
+  if (conditions.includes('rain') || conditions.includes('drizzle') || conditions.includes('shower') || conditions.includes('thunder')) gradient = 'from-blue-700 to-slate-800';
+  else if (conditions.includes('snow') || conditions.includes('sleet')) gradient = 'from-blue-300 to-slate-500';
+  else if (conditions.includes('fog') || conditions.includes('mist')) gradient = 'from-gray-400 to-slate-600';
+  else if (conditions.includes('clear') || conditions.includes('sunny') || conditions.includes('fair') || conditions.includes('bright')) gradient = 'from-sky-500 to-blue-600';
+  else if (conditions.includes('cloudy') || conditions.includes('overcast')) gradient = 'from-slate-500 to-slate-700';
+
+  return (
+    <div className={`max-w-[280px] rounded-2xl bg-gradient-to-br ${gradient} p-4 shadow-lg`}>
+      {/* Top row: city + emoji */}
+      <div className="flex items-start justify-between">
+        <span className="text-sm text-white/80">{card.city}</span>
+        <span className="text-4xl leading-none">{emoji}</span>
+      </div>
+      {/* Temperature */}
+      {card.temp && (
+        <div className="mt-1">
+          <span className="text-5xl font-bold text-white">{card.temp}</span>
+          <span className="text-2xl font-light text-white/80">{'\u00B0C'}</span>
+        </div>
+      )}
+      {/* Conditions */}
+      {card.conditions && (
+        <p className="mt-0.5 text-sm capitalize text-white/80">{card.conditions}</p>
+      )}
+      {/* Wind + humidity */}
+      <div className="mt-3 flex items-center gap-3 text-xs text-white/70">
+        {card.wind_speed && (
+          <span>{card.wind_dir ? `${card.wind_dir} ` : ''}Wind {card.wind_speed} km/h</span>
+        )}
+        {card.humidity && <span>Humidity {card.humidity}%</span>}
+      </div>
+      {/* Forecast */}
+      {card.forecast_today && (
+        <>
+          <div className="mt-3 border-t border-white/20" />
+          <p className="mt-2 text-xs leading-relaxed text-white/60 line-clamp-2">{card.forecast_today}</p>
+        </>
+      )}
+    </div>
+  );
+};
+
+const SourcesDropdown = ({
+  sources,
+  isDarkMode
+}: {
+  sources: SourceDocument[];
   isDarkMode: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -421,8 +480,16 @@ interface Message {
   clarification?: ClarificationData | null;
   sources?: SourceDocument[] | null;
   isNoInfo?: boolean;
-  suggested_questions?: string[] | null;
   map_url?: string | null;
+  weather_card?: {
+    city: string;
+    temp: string | null;
+    conditions: string | null;
+    wind_speed: string | null;
+    wind_dir: string | null;
+    humidity: string | null;
+    forecast_today: string | null;
+  } | null;
 }
 
 interface PurchaserChatTabProps {
@@ -437,11 +504,6 @@ interface PurchaserChatTabProps {
   selectedLanguage: string;
   isDarkMode: boolean;
   userId?: string | null;
-  address?: string | null;
-  houseType?: string | null;
-  schemeLat?: number | null;
-  schemeLng?: number | null;
-  estHandoverDate?: string | null;
 }
 
 // Translations for UI and prompts
@@ -613,11 +675,6 @@ export default function PurchaserChatTab({
   selectedLanguage,
   isDarkMode,
   userId,
-  address,
-  houseType,
-  schemeLat,
-  schemeLng,
-  estHandoverDate,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -983,7 +1040,6 @@ export default function PurchaserChatTab({
         let streamedContent = '';
         let drawing: DrawingData | null = null;
         let sources: SourceDocument[] | null = null;
-        let streamedSuggestedQuestions: string[] | null = null;
         let assistantMessageIndex = -1;
 
         // Add placeholder assistant message immediately (empty - typing indicator shown via sending state)
@@ -1013,9 +1069,6 @@ export default function PurchaserChatTab({
                   }
                   if (data.sources && data.sources.length > 0) {
                     sources = data.sources;
-                  }
-                  if (data.suggested_questions && data.suggested_questions.length > 0) {
-                    streamedSuggestedQuestions = data.suggested_questions;
                   }
                 } else if (data.type === 'text') {
                   // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
@@ -1049,7 +1102,6 @@ export default function PurchaserChatTab({
                         drawing: drawing,
                         sources: sources,
                         isNoInfo: isNoInfoResponse,
-                        suggested_questions: streamedSuggestedQuestions,
                       };
                     }
                     return updated;
@@ -1094,8 +1146,8 @@ export default function PurchaserChatTab({
               drawing: data.drawing || null,
               attachments: data.attachments || null,
               clarification: data.clarification || null,
-              suggested_questions: data.suggested_questions || null,
               map_url: data.map_url || null,
+              weather_card: data.weather_card || null,
             },
           ]);
 
@@ -1301,52 +1353,6 @@ export default function PurchaserChatTab({
             {t.subtitle}
           </p>
 
-          {/* Home Info Card */}
-          {(address || houseType) && (
-            <div className={`mt-4 w-full max-w-[320px] rounded-2xl overflow-hidden border ${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-slate-200'} shadow-sm`}>
-              {/* Satellite Map */}
-              {schemeLat && schemeLng && (
-                <div className="relative" id="home-card-map">
-                  <img
-                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${schemeLat},${schemeLng}&zoom=17&size=640x200&scale=2&maptype=satellite&markers=color:0xD4AF37|${schemeLat},${schemeLng}&key=AIzaSyCKpHDRYYv_Hii4mG3WFdx0YrQlT33hvvc`}
-                    alt="Satellite view of your home"
-                    className="w-full h-[100px] object-cover"
-                    onError={() => {
-                      const mapEl = document.getElementById('home-card-map');
-                      if (mapEl) mapEl.style.display = 'none';
-                    }}
-                  />
-                  {/* Pulsing "Your Home" label */}
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2 py-0.5">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
-                    </span>
-                    <span className="text-[10px] font-medium text-white">Your Home</span>
-                  </div>
-                </div>
-              )}
-              {/* Address & Badges */}
-              <div className="px-3 py-2.5">
-                {address && (
-                  <p className={`text-[13px] font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{address}</p>
-                )}
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {houseType && (
-                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                      {houseType}
-                    </span>
-                  )}
-                  {estHandoverDate && (
-                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                      Keys: {new Date(estHandoverDate).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 2x2 Prompt Grid */}
           <div className="mt-4"></div>
           <div className="grid w-full max-w-[300px] grid-cols-2 gap-1.5">
@@ -1439,7 +1445,16 @@ export default function PurchaserChatTab({
                         ? 'bg-[#1C1C1E] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
-                      <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content" dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                      {msg.weather_card ? (
+                        <div>
+                          <WeatherCard card={msg.weather_card} isDarkMode={isDarkMode} />
+                          {msg.content && (
+                            <div className={`mt-2 text-xs leading-relaxed ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} style={{ opacity: 0.7 }} dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content" dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                      )}
                       {/* Copy button - appears on hover */}
                       <CopyButton content={msg.content} isDarkMode={isDarkMode} />
                       {msg.drawing && (
@@ -1628,22 +1643,6 @@ export default function PurchaserChatTab({
                       </div>
                     )}
                     </div>
-                    {/* Follow-up question suggestions */}
-                    {msg.suggested_questions && msg.suggested_questions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {msg.suggested_questions.map((q: string, qi: number) => (
-                          <button
-                            key={qi}
-                            onClick={() => {
-                              setInput(q);
-                            }}
-                            className="text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors cursor-pointer"
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
