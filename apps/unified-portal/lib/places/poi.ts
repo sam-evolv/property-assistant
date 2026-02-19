@@ -246,7 +246,9 @@ const MIN_RESULTS_THRESHOLD = 2;
 const POI_CACHE_VERSION = 2; // v2: Added type filtering to prevent mismatched results (hotels for golf, etc)
 
 function getGoogleMapsApiKey(): string | null {
-  return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || null;
+  // Prefer server-side key (no application restriction) for server-side API calls.
+  // NEXT_PUBLIC key has website referrer restrictions which block server-side requests.
+  return process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || null;
 }
 
 function isApiKeyConfigured(): boolean {
