@@ -421,6 +421,8 @@ interface Message {
   clarification?: ClarificationData | null;
   sources?: SourceDocument[] | null;
   isNoInfo?: boolean;
+  suggested_questions?: string[] | null;
+  map_url?: string | null;
 }
 
 interface PurchaserChatTabProps {
@@ -1077,6 +1079,8 @@ export default function PurchaserChatTab({
               drawing: data.drawing || null,
               attachments: data.attachments || null,
               clarification: data.clarification || null,
+              suggested_questions: data.suggested_questions || null,
+              map_url: data.map_url || null,
             },
           ]);
 
@@ -1540,14 +1544,41 @@ export default function PurchaserChatTab({
                     
                     {/* Request info button when AI doesn't have the answer */}
                     {msg.isNoInfo && messages.find(m => m.role === 'user') && (
-                      <RequestInfoButton 
+                      <RequestInfoButton
                         question={messages.filter(m => m.role === 'user').slice(-1)[0]?.content || ''}
                         unitId={unitUid}
                         isDarkMode={isDarkMode}
                         onSubmitted={() => {}}
                       />
                     )}
+                    {/* Static map for amenity responses */}
+                    {msg.map_url && (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                        <img
+                          src={msg.map_url}
+                          alt="Nearby places map"
+                          className="w-full h-auto"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                     </div>
+                    {/* Follow-up question suggestions */}
+                    {msg.suggested_questions && msg.suggested_questions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {msg.suggested_questions.map((q: string, qi: number) => (
+                          <button
+                            key={qi}
+                            onClick={() => {
+                              setInput(q);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors cursor-pointer"
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}

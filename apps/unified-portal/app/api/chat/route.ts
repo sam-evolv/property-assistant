@@ -2500,7 +2500,19 @@ export async function POST(request: NextRequest) {
         
         // Build multi-source hint
         const sourceHint = buildMultiSourceHint(true, poiData.fetched_at, docAugmentUsed);
-        
+
+        // Build static map URL if we have development location and POI coords
+        let mapUrl: string | null = null;
+        try {
+          const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
+          const schemeLoc = chatDiagnostics.scheme_location;
+          if (googleApiKey && schemeLoc?.lat && schemeLoc?.lng && poiData.results.some(p => p.lat && p.lng)) {
+            mapUrl = buildStaticMapUrl(schemeLoc.lat, schemeLoc.lng, poiData.results, googleApiKey);
+          }
+        } catch (mapErr) {
+          console.log('[Chat] Static map URL failed (non-critical):', mapErr);
+        }
+
         // Generate response first, then persist safely (never fail the response)
         const successResponseObj: any = {
           success: true,
@@ -2509,6 +2521,7 @@ export async function POST(request: NextRequest) {
           safetyIntercept: false,
           isNoInfo: false,
           suggested_questions: generateFollowUpQuestions('location_amenities', message),
+          map_url: mapUrl,
           metadata: {
             intent: intentClassification.intent,
             poiCategory,

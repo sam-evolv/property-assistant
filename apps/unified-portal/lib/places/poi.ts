@@ -14,6 +14,8 @@ export interface POIResult {
   address: string;
   place_id: string;
   distance_km: number;
+  lat?: number;
+  lng?: number;
   walk_time_min?: number;
   drive_time_min?: number;
   open_now?: boolean;
@@ -614,6 +616,8 @@ async function fetchFromGooglePlaces(
     address: place.vicinity || place.formatted_address || '',
     place_id: place.place_id,
     distance_km: calculateDistance(lat, lng, place.geometry.location.lat, place.geometry.location.lng),
+    lat: place.geometry.location.lat,
+    lng: place.geometry.location.lng,
     open_now: place.opening_hours?.open_now,
     rating: place.rating,
   }));
@@ -1854,4 +1858,38 @@ export async function canAnswerFollowUp(followUpPhrase: string, schemeId: string
 export function getFollowUpCategories(followUpPhrase: string): POICategory[] | null {
   const normalizedPhrase = followUpPhrase.toLowerCase().trim();
   return FOLLOW_UP_CAPABILITY_MAP[normalizedPhrase] || null;
+}
+
+/**
+ * Build a Google Static Maps URL showing development + nearby POIs
+ * Center: development location. Blue pin: development. Red pins: top 5 POIs.
+ */
+export function buildStaticMapUrl(
+  schemeLat: number,
+  schemeLng: number,
+  pois: POIResult[],
+  apiKey: string,
+  width = 400,
+  height = 200,
+): string {
+  const baseUrl = 'https://maps.googleapis.com/maps/api/staticmap';
+  const params = new URLSearchParams({
+    center: `${schemeLat},${schemeLng}`,
+    zoom: '14',
+    size: `${width}x${height}`,
+    scale: '2',
+    maptype: 'roadmap',
+    key: apiKey,
+  });
+
+  // Blue marker for development
+  params.append('markers', `color:blue|label:H|${schemeLat},${schemeLng}`);
+
+  // Red markers for top 5 POIs (only those with lat/lng)
+  const validPOIs = pois.filter(p => p.lat && p.lng).slice(0, 5);
+  validPOIs.forEach((poi, i) => {
+    params.append('markers', `color:red|label:${i + 1}|${poi.lat},${poi.lng}`);
+  });
+
+  return `${baseUrl}?${params.toString()}`;
 }
