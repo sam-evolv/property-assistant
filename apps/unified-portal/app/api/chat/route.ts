@@ -2018,22 +2018,7 @@ export async function POST(request: NextRequest) {
           const address = userUnitDetails?.address || null;
           const weatherResult = await getWeather(address);
           const weatherResponse = formatWeatherResponse(weatherResult);
-
-          await persistMessageSafely({
-            tenant_id: userTenantId,
-            development_id: userDevelopmentId,
-            unit_id: actualUnitId,
-            require_unit_id: true,
-            user_id: validatedUnitUid || userId || null,
-            unit_uid: validatedUnitUid || null,
-            user_message: message,
-            ai_message: weatherResponse,
-            question_topic: 'weather',
-            source: 'purchaser_portal',
-            latency_ms: Date.now() - startTime,
-            metadata: { assistantOS: true, intent: 'weather', source: 'met_eireann', userId: userId || null },
-            request_id: requestId,
-          });
+          console.log('[Chat] Weather response generated, length:', weatherResponse.length);
 
           return NextResponse.json({
             success: true,
@@ -2057,22 +2042,6 @@ export async function POST(request: NextRequest) {
         try {
           const activeTravelResult = await getActiveTravelTimes(userSupabaseProjectId);
           const activeTravelResponse = formatActiveTravelResponse(activeTravelResult);
-
-          await persistMessageSafely({
-            tenant_id: userTenantId,
-            development_id: userDevelopmentId,
-            unit_id: actualUnitId,
-            require_unit_id: true,
-            user_id: validatedUnitUid || userId || null,
-            unit_uid: validatedUnitUid || null,
-            user_message: message,
-            ai_message: activeTravelResponse,
-            question_topic: 'active_travel',
-            source: 'purchaser_portal',
-            latency_ms: Date.now() - startTime,
-            metadata: { assistantOS: true, intent: 'active_travel', userId: userId || null },
-            request_id: requestId,
-          });
 
           return NextResponse.json({
             success: true,
