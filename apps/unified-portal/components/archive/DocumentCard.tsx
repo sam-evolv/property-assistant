@@ -136,7 +136,7 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
   return (
     <div 
       onClick={handleOpen}
-      className="group relative rounded-xl border border-gray-200 bg-white hover:border-gold-500/30 hover:shadow-lg hover:shadow-gold-500/10 transition-all duration-200 overflow-hidden cursor-pointer"
+      className="group relative rounded-lg border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all duration-150 overflow-hidden cursor-pointer"
     >
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
         {document.is_important && (
@@ -239,50 +239,51 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
         </div>
       )}
 
-      <div className="w-full h-32 bg-gray-50 flex items-center justify-center relative group/preview overflow-hidden">
+      {/* Thumbnail — dominant, tall */}
+      <div className="w-full h-40 bg-gray-50 flex items-center justify-center relative group/preview overflow-hidden border-b border-gray-100">
         {(document.file_url || document.storage_url) && document.mime_type?.includes('pdf') ? (
           <PdfThumbnail
             fileUrl={(document.file_url || document.storage_url)!}
             className="absolute inset-0"
           />
         ) : (
-          <FileIcon className={`w-16 h-16 ${fileColor} opacity-60`} />
+          <FileIcon className={`w-12 h-12 ${fileColor} opacity-40`} />
         )}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 z-10">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm text-white">
-            <ExternalLink className="w-5 h-5" />
-            <span className="font-medium">Open PDF</span>
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 z-10">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white text-xs font-medium">
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open
           </div>
         </div>
+        {/* Version badge overlay */}
+        {((document as any).version > 1 || (document as any).version_label) && (
+          <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold leading-none">
+            {(document as any).version_label || `v${(document as any).version}`}
+          </div>
+        )}
       </div>
 
-      <div className="p-4">
-        <h3 className="font-medium text-gray-900 truncate group-hover:text-gold-400 transition-colors text-sm">
-          {document.title}
-        </h3>
-        <p className="text-xs text-gray-500 truncate mt-1">
-          {document.file_name}
+      {/* Compact Procore-style metadata */}
+      <div className="px-2.5 pt-2 pb-2.5">
+        {/* Doc number — bold, prominent */}
+        <p className="text-[11px] font-bold text-gray-900 leading-tight truncate">
+          {document.file_name?.replace(/\.[^.]+$/, '') || document.title}
         </p>
-
-        <div className="flex flex-wrap items-center gap-1.5 mt-3">
-          {document.discipline && document.discipline !== 'other' && (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-gold-500/10 text-gold-400 border border-gold-500/20">
-              {document.discipline}
-            </span>
-          )}
-          {document.house_type_code && (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-              {document.house_type_code}
-            </span>
-          )}
-          {/* Version badge — shown when version > 1 or version_label is set */}
-          {((document as any).version > 1 || (document as any).version_label) && (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              {(document as any).version_label || `v${(document as any).version}`}
-            </span>
-          )}
-        </div>
+        {/* Revision + house type on one line */}
+        {(document.revision_code || document.house_type_code) && (
+          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+            {[
+              document.revision_code ? `Rev. ${document.revision_code}` : null,
+              document.house_type_code ? `House Type ${document.house_type_code}` : null,
+            ].filter(Boolean).join(' · ')}
+          </p>
+        )}
+        {/* Description — if title differs from filename */}
+        {document.title && document.title !== document.file_name && (
+          <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2 leading-snug">
+            {document.title.replace(/^[A-Z0-9\-]+\s*[-–]?\s*/i, '')}
+          </p>
+        )}
       </div>
     </div>
   );
