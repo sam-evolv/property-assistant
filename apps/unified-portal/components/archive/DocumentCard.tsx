@@ -16,7 +16,6 @@ import {
   FolderInput
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
-import { PdfThumbnail } from './PdfThumbnail';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
@@ -241,14 +240,7 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
 
       {/* Thumbnail — dominant, tall */}
       <div className="w-full h-40 bg-gray-50 flex items-center justify-center relative group/preview overflow-hidden border-b border-gray-100">
-        {(document.file_url || document.storage_url) && document.mime_type?.includes('pdf') ? (
-          <PdfThumbnail
-            fileUrl={(document.file_url || document.storage_url)!}
-            className="absolute inset-0"
-          />
-        ) : (
-          <FileIcon className={`w-12 h-12 ${fileColor} opacity-40`} />
-        )}
+        <FileIcon className={`w-12 h-12 ${fileColor} opacity-40`} />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 z-10">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white text-xs font-medium">
             <ExternalLink className="w-3.5 h-3.5" />

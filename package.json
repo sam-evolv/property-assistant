@@ -104,5 +104,8 @@
     "unpdf": "^1.4.0",
     "xlsx": "^0.18.5",
     "zod": "^4.1.12"
+  },
+  "optionalDependencies": {
+    "react-is": "^19.2.4"
   }
 }
