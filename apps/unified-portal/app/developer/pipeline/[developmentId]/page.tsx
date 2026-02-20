@@ -278,9 +278,10 @@ function getPredictedClose(unit: PipelineUnit): Prediction {
 interface ToastProps {
   message: string;
   visible: boolean;
+  onUndo?: () => void;
 }
 
-function Toast({ message, visible }: ToastProps) {
+function Toast({ message, visible, onUndo }: ToastProps) {
   return (
     <div
       className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
@@ -294,6 +295,17 @@ function Toast({ message, visible }: ToastProps) {
         <Check className="w-3 h-3" />
       </div>
       <span className="text-sm font-medium text-white">{message}</span>
+      {onUndo && (
+        <button
+          onClick={onUndo}
+          className="ml-1 px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide transition-colors"
+          style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+        >
+          Undo
+        </button>
+      )}
     </div>
   );
 }
@@ -410,7 +422,7 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
       return { background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)', color: '#991b1b', borderLeft: '3px solid #ef4444' };
     }
     if (trafficLight === 'blocked') {
-      return { background: 'rgba(69, 10, 10, 0.06)', color: '#7f1d1d', borderLeft: '3px solid rgba(153, 27, 27, 0.4)' };
+      return { background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)', color: '#991b1b', borderLeft: '3px solid #dc2626' };
     }
     return { background: '#fafaf9' };
   };
@@ -2447,7 +2459,7 @@ export default function PipelineDevelopmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<PipelineUnit | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState({ message: '', visible: false });
+  const [toast, setToast] = useState<{ message: string; visible: boolean; onUndo?: () => void }>({ message: '', visible: false });
   const [showActivity, setShowActivity] = useState(false);
   const [queryUnit, setQueryUnit] = useState<PipelineUnit | null>(null);
   const [hasNewActivity] = useState(true); // Would come from API
@@ -2493,9 +2505,11 @@ export default function PipelineDevelopmentPage() {
     handoverDate: 'Handover',
   });
 
-  const showToast = useCallback((message: string) => {
-    setToast({ message, visible: true });
-    setTimeout(() => setToast(t => ({ ...t, visible: false })), 2000);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((message: string, onUndo?: () => void) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, visible: true, onUndo });
+    toastTimerRef.current = setTimeout(() => setToast(t => ({ ...t, visible: false, onUndo: undefined })), onUndo ? 5000 : 2000);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -2543,8 +2557,24 @@ export default function PipelineDevelopmentPage() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const handleUpdate = async (unitId: string, field: string, value: string) => {
+  const handleUpdate = useCallback(async (unitId: string, field: string, value: string) => {
+    // Capture previous value for undo
+    const prevValue = (units.find(u => u.id === unitId) as any)?.[field] ?? null;
+
     setUnits(prev => prev.map(u => u.id === unitId ? { ...u, [field]: value } : u));
+
+    const doUndo = () => {
+      setUnits(prev => prev.map(u => u.id === unitId ? { ...u, [field]: prevValue } : u));
+      fetch(`/api/pipeline/${developmentId}/${unitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: prevValue }),
+      }).catch(() => fetchData());
+      showToast('Undone ✓');
+    };
+
+    showToast('Saved', doUndo);
+
     try {
       const response = await fetch(`/api/pipeline/${developmentId}/${unitId}`, {
         method: 'PATCH',
@@ -2555,7 +2585,7 @@ export default function PipelineDevelopmentPage() {
     } catch {
       fetchData();
     }
-  };
+  }, [units, developmentId, fetchData, showToast]);
 
   const handlePurchaserNameUpdate = (unitId: string, newName: string) => {
     setUnits(prev => prev.map(u => u.id === unitId ? { ...u, purchaserName: newName } : u));
@@ -3378,7 +3408,7 @@ export default function PipelineDevelopmentPage() {
       )}
 
       {/* Toast */}
-      <Toast message={toast.message} visible={toast.visible} />
+      <Toast message={toast.message} visible={toast.visible} onUndo={toast.onUndo} />
 
       {/* PC Sum Drill-Down Modal */}
       {showPcSumModal && <PcSumDrillDownModal units={units} onClose={() => setShowPcSumModal(false)} />}
