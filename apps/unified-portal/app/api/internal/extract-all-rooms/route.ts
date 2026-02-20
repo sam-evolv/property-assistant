@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 min for 9 house types
+export const maxDuration = 60;
 
 /**
- * ONE-TIME INTERNAL ROUTE — bulk extract room dimensions for all Longview Park house types.
- * Auth: requires X-Service-Key header matching SUPABASE_SERVICE_ROLE_KEY.
+ * ONE-TIME INTERNAL ROUTE — accepts pre-extracted PDF text from VPS, calls GPT-4o-mini,
+ * inserts room dimensions. Auth: X-Service-Key = SUPABASE_SERVICE_ROLE_KEY.
  * DELETE THIS FILE after use.
+ *
+ * POST body: { houseType: string, pdfText: string }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,17 +29,7 @@ const HOUSE_TYPE_IDS: Record<string, string> = {
   'BS04': '48b2b751-371e-478f-b92c-c5b4a3e352a3',
 };
 
-const RS_STORAGE_PATHS: Record<string, string> = {
-  'BD01': `${DEV_ID}/1765222806182-24007HD-RS-BD01-01-B.pdf`,
-  'BD02': `${DEV_ID}/1765291241301-24007HD-RS-BD02-01-B.pdf`,
-  'BD03': `${DEV_ID}/1765291244525-24007HD-RS-BD03-01-B.pdf`,
-  'BD04': `${DEV_ID}/1765291249404-24007HD-RS-BD04-01-B.pdf`,
-  'BD05': `${DEV_ID}/1765291253655-24007HD-RS-BD05-01-B.pdf`,
-  'BD17': `${DEV_ID}/1765291256465-24007HD-RS-BD17-01-A.pdf`,
-  'BS02': `${DEV_ID}/1765291263879-24007HD-RS-BS02-01-D.pdf`,
-  'BS03': `${DEV_ID}/1765291268600-24007HD-RS-BS03-01-C.pdf`,
-  'BS04': `${DEV_ID}/1765291274284-24007HD-RS-BS04-01-C.pdf`,
-};
+// RS_STORAGE_PATHS not needed — VPS extracts text and sends it here
 
 const ROOM_KEY_MAP: Record<string, string> = {
   'living room': 'living_room', 'lounge': 'living_room', 'sitting room': 'living_room',
@@ -76,116 +68,84 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Body: { houseType: string, pdfText: string } — VPS does PDF download + text extraction
+  const body = await request.json();
+  const { houseType, pdfText } = body as { houseType: string; pdfText: string };
+
+  if (!houseType || !pdfText) {
+    return NextResponse.json({ error: 'houseType and pdfText required' }, { status: 400 });
+  }
+
+  const htId = HOUSE_TYPE_IDS[houseType];
+  if (!htId) {
+    return NextResponse.json({ error: `Unknown house type: ${houseType}` }, { status: 400 });
+  }
+
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-  const results: Record<string, any> = {};
+  // Skip if already has data
+  const { count } = await supabase
+    .from('unit_room_dimensions')
+    .select('*', { count: 'exact', head: true })
+    .eq('development_id', DEV_ID)
+    .eq('house_type_id', htId);
+  if ((count ?? 0) > 0) {
+    return NextResponse.json({ skipped: true, reason: `already has ${count} rows`, houseType });
+  }
 
-  for (const [houseType, htId] of Object.entries(HOUSE_TYPE_IDS)) {
-    const storagePath = RS_STORAGE_PATHS[houseType];
-    console.log(`[BulkExtract] Processing ${houseType}...`);
-
-    try {
-      // Skip if already has data
-      const { count } = await supabase
-        .from('unit_room_dimensions')
-        .select('*', { count: 'exact', head: true })
-        .eq('development_id', DEV_ID)
-        .eq('house_type_id', htId);
-      
-      if ((count ?? 0) > 0) {
-        results[houseType] = { skipped: true, reason: `already has ${count} rows` };
-        console.log(`[BulkExtract] ${houseType}: skipping (${count} rows exist)`);
-        continue;
-      }
-
-      // Download PDF
-      const { data: fileData, error: dlErr } = await supabase.storage
-        .from('development_docs').download(storagePath);
-      if (dlErr || !fileData) {
-        results[houseType] = { error: `download failed: ${dlErr?.message}` };
-        continue;
-      }
-
-      // Extract text — polyfill DOMMatrix for pdf-parse v2 in Node.js serverless
-      if (typeof (globalThis as any).DOMMatrix === 'undefined') {
-        (globalThis as any).DOMMatrix = class DOMMatrix {
-          constructor() {}
-          static fromMatrix() { return new (globalThis as any).DOMMatrix(); }
-          invertSelf() { return this; }
-          multiplySelf() { return this; }
-          transformPoint(p: any) { return p; }
-        };
-      }
-      const pdfMod = await import('pdf-parse') as any;
-      const pdfParse = pdfMod.default ?? pdfMod;
-      const buf = Buffer.from(await fileData.arrayBuffer());
-      const pdfData = await pdfParse(buf);
-      const text = pdfData.text?.trim() || '';
-      console.log(`[BulkExtract] ${houseType}: ${text.length} chars extracted`);
-
-      if (text.length < 50) {
-        results[houseType] = { error: 'insufficient text' };
-        continue;
-      }
-
-      // GPT-4o-mini extraction
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
-        messages: [{
-          role: 'user',
-          content: `Extract room dimensions from this Room Sizes drawing for House Type ${houseType}.
+  // GPT-4o-mini extraction
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+    messages: [{
+      role: 'user',
+      content: `Extract room dimensions from this Room Sizes drawing for House Type ${houseType}.
 
 Return JSON: {"rooms": [{"room_name": string, "floor": "Ground"|"First"|"Second"|null, "length_m": number|null, "width_m": number|null, "area_sqm": number|null}]}
 
 Rules:
-- Convert mm to metres (4000mm = 4.0m)
-- Include ALL rooms (bedrooms, WC, bathroom, kitchen, living, utility, hall, landing, en-suite, storage)
-- Infer floor: living/kitchen/hall/wc = Ground; bedrooms/landing/bathroom = First
+- Dimensions are in metres (m). Numbers like "3.6 m" or "3600" (mm) must be converted: 3600mm = 3.6m
+- Include ALL rooms: every bedroom, bathroom, WC, kitchen, living, dining, utility, hall, landing, en-suite, hot press, store
+- Infer floor from room type: living/kitchen/dining/wc/hall/utility = Ground; bedroom/landing/en-suite/bathroom = First
+- For multi-storey: use Second for top-floor rooms if clear
+- area_sqm = length_m * width_m (calculate it)
+- CRITICAL: assign dimensions to the correct room name. Each room has its own pair of dimensions.
 - Return ONLY valid JSON
 
-Text:
-${text.slice(0, 6000)}`
-        }],
-      });
+PDF text:
+${pdfText.slice(0, 7000)}`
+    }],
+  });
 
-      const parsed = JSON.parse(completion.choices[0].message.content || '{}');
-      const rooms: any[] = parsed.rooms || [];
-      console.log(`[BulkExtract] ${houseType}: ${rooms.length} rooms from GPT`);
+  const parsed = JSON.parse(completion.choices[0].message.content || '{}');
+  const rooms: any[] = parsed.rooms || [];
 
-      // Insert rooms
-      let inserted = 0;
-      const insertedRooms: any[] = [];
-      for (const room of rooms) {
-        if (!room.room_name) continue;
-        const roomKey = toRoomKey(room.room_name, room.floor);
-        const { error: insErr } = await supabase.from('unit_room_dimensions').insert({
-          tenant_id: TENANT_ID,
-          development_id: DEV_ID,
-          house_type_id: htId,
-          room_name: room.room_name,
-          room_key: roomKey,
-          floor: room.floor || null,
-          length_m: room.length_m || null,
-          width_m: room.width_m || null,
-          area_sqm: room.area_sqm || null,
-          source: 'room_sizes_doc',
-          verified: true,
-        });
-        if (!insErr) { inserted++; insertedRooms.push(`${roomKey}: ${room.length_m}x${room.width_m}m`); }
-        else console.warn(`[BulkExtract] ${houseType} ${roomKey} insert error:`, insErr.message);
-      }
-
-      results[houseType] = { inserted, total: rooms.length, rooms: insertedRooms };
-      console.log(`[BulkExtract] ${houseType}: inserted ${inserted}/${rooms.length}`);
-
-    } catch (e: any) {
-      results[houseType] = { error: e.message };
-      console.error(`[BulkExtract] ${houseType} error:`, e.message);
+  // Insert rooms
+  let inserted = 0;
+  const insertedRooms: string[] = [];
+  for (const room of rooms) {
+    if (!room.room_name) continue;
+    const roomKey = toRoomKey(room.room_name, room.floor);
+    const { error: insErr } = await supabase.from('unit_room_dimensions').insert({
+      tenant_id: TENANT_ID,
+      development_id: DEV_ID,
+      house_type_id: htId,
+      room_name: room.room_name,
+      room_key: roomKey,
+      floor: room.floor || null,
+      length_m: room.length_m || null,
+      width_m: room.width_m || null,
+      area_sqm: room.area_sqm || null,
+      source: 'room_sizes_doc',
+      verified: true,
+    });
+    if (!insErr) {
+      inserted++;
+      insertedRooms.push(`${roomKey}: ${room.length_m}×${room.width_m}m`);
     }
   }
 
-  return NextResponse.json({ success: true, results });
+  return NextResponse.json({ success: true, houseType, inserted, total: rooms.length, rooms: insertedRooms });
 }
