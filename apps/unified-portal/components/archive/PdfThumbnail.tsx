@@ -19,7 +19,7 @@ export function PdfThumbnail({ fileUrl, className = '' }: PdfThumbnailProps) {
         // Dynamic import to avoid SSR issues + reduce bundle
         const pdfjsLib = await import('pdfjs-dist');
         // Use CDN worker to avoid bundling the worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
         const loadingTask = pdfjsLib.getDocument({
           url: fileUrl,
