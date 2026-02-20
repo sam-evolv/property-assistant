@@ -56,6 +56,7 @@ export interface ArchiveDocument {
   category?: DocCategory | null;
   unit_code?: string | null;
   version_label?: string | null;
+  version?: number | null;
 }
 
 export interface FetchDocumentsResult {

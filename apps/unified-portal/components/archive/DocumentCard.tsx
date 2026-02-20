@@ -16,6 +16,7 @@ import {
   FolderInput
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
+import { PdfThumbnail } from './PdfThumbnail';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
@@ -238,9 +239,16 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
         </div>
       )}
 
-      <div className="w-full h-32 bg-gray-50 flex items-center justify-center relative group/preview">
-        <FileIcon className={`w-16 h-16 ${fileColor} opacity-60`} />
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+      <div className="w-full h-32 bg-gray-50 flex items-center justify-center relative group/preview overflow-hidden">
+        {(document.file_url || document.storage_url) && document.mime_type?.includes('pdf') ? (
+          <PdfThumbnail
+            fileUrl={(document.file_url || document.storage_url)!}
+            className="absolute inset-0"
+          />
+        ) : (
+          <FileIcon className={`w-16 h-16 ${fileColor} opacity-60`} />
+        )}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 z-10">
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm text-white">
             <ExternalLink className="w-5 h-5" />
             <span className="font-medium">Open PDF</span>
@@ -265,6 +273,13 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
           {document.house_type_code && (
             <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
               {document.house_type_code}
+            </span>
+          )}
+          {/* Version badge — shown when version > 1 or version_label is set */}
+          {((document as any).version > 1 || (document as any).version_label) && (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              {(document as any).version_label || `v${(document as any).version}`}
             </span>
           )}
         </div>
