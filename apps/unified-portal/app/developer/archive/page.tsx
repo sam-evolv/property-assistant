@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video, AlertTriangle, CheckCircle, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
@@ -35,7 +35,7 @@ interface EmbeddingStats {
   errors: number;
 }
 
-type TabType = 'archive' | 'important' | 'insights' | 'videos';
+type TabType = 'archive' | 'important' | 'insights' | 'gaps' | 'videos';
 
 export default function SmartArchivePage() {
   const { tenantId, archiveScope, setArchiveScope, isHydrated } = useSafeCurrentContext();
@@ -59,6 +59,8 @@ export default function SmartArchivePage() {
   const [isReprocessing, setIsReprocessing] = useState(false);
   const [reprocessProgress, setReprocessProgress] = useState<string | null>(null);
   const [selectedUploadSchemeId, setSelectedUploadSchemeId] = useState<string | null>(null);
+  const [knowledgeGaps, setKnowledgeGaps] = useState<any[]>([]);
+  const [gapsLoading, setGapsLoading] = useState(false);
 
   const loadDevelopments = useCallback(async () => {
     if (!tenantId) return;
@@ -184,6 +186,26 @@ export default function SmartArchivePage() {
     }
   }, [tenantId, developmentId]);
 
+  const loadKnowledgeGaps = useCallback(async () => {
+    if (!tenantId) return;
+    setGapsLoading(true);
+    try {
+      const schemeId = developmentId || '';
+      const url = schemeId
+        ? `/api/archive/knowledge-gaps?schemeId=${schemeId}&tenantId=${tenantId}`
+        : `/api/archive/knowledge-gaps?tenantId=${tenantId}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setKnowledgeGaps(data.gaps || []);
+      }
+    } catch (e) {
+      console.error('[Gaps] Failed:', e);
+    } finally {
+      setGapsLoading(false);
+    }
+  }, [tenantId, developmentId]);
+
   const handleReprocessAll = async () => {
     if (!tenantId || isReprocessing) return;
     
@@ -232,6 +254,23 @@ export default function SmartArchivePage() {
     loadEmbeddingStats();
     loadCustomFolders();
   }, [tenantId, developmentId, isHydrated, loadDevelopments, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats, loadCustomFolders]);
+
+  useEffect(() => {
+    if (activeTab === 'gaps') {
+      loadKnowledgeGaps();
+    }
+  }, [activeTab, loadKnowledgeGaps]);
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.discipline) {
+        // Pre-select discipline in upload modal (stored for future use)
+      }
+      setShowUploadModal(true);
+    };
+    window.addEventListener('archive:open-upload', handler as EventListener);
+    return () => window.removeEventListener('archive:open-upload', handler as EventListener);
+  }, []);
 
   const handleUploadClick = () => {
     if (isViewingAllSchemes) {
@@ -464,6 +503,22 @@ export default function SmartArchivePage() {
               <BarChart3 className="w-4 h-4" />
               <span>Insights</span>
             </button>
+            <button
+              onClick={() => setActiveTab('gaps')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                activeTab === 'gaps'
+                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Knowledge Gaps</span>
+              {knowledgeGaps.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
+                  {knowledgeGaps.length}
+                </span>
+              )}
+            </button>
             {VIDEOS_ENABLED && (
               <button
                 onClick={() => setActiveTab('videos')}
@@ -633,6 +688,68 @@ export default function SmartArchivePage() {
           <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 text-gold-500 animate-spin" /></div>}>
             <LazyVideosTab />
           </Suspense>
+        ) : activeTab === 'gaps' ? (
+          <div className="p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Knowledge Gaps</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Questions homeowners asked that the AI couldn't answer from your documents. Upload content to fill these gaps.
+              </p>
+            </div>
+
+            {gapsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : knowledgeGaps.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <p className="text-sm font-medium text-gray-900">No knowledge gaps detected</p>
+                <p className="text-xs text-gray-500 mt-1">Your AI assistant is answering all questions from documents</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {knowledgeGaps.map((gap, i) => (
+                  <div key={i} className="bg-white border border-red-100 rounded-2xl p-4 flex items-start justify-between gap-4 hover:border-red-200 transition-colors">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">"{gap.user_question}"</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-gray-500">
+                            Asked <span className="font-semibold text-red-600">{gap.count}×</span>
+                          </span>
+                          {gap.intent_type && (
+                            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">{gap.intent_type}</span>
+                          )}
+                          {gap.last_asked && (
+                            <span className="text-xs text-gray-400">
+                              Last: {new Date(gap.last_asked).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setActiveTab('archive');
+                        setShowUploadModal(true);
+                      }}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white rounded-xl transition-all hover:opacity-90 flex items-center gap-1.5"
+                      style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #b8962e 100%)' }}
+                    >
+                      <Upload className="w-3 h-3" />
+                      Upload Fix
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <InsightsTab />
         )}

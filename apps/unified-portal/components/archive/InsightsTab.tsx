@@ -244,6 +244,7 @@ export function InsightsTab() {
                   <th className="text-left py-2 px-3 font-medium text-gray-600">Development</th>
                   <th className="text-left py-2 px-3 font-medium text-gray-600">Missing Disciplines</th>
                   <th className="text-right py-2 px-3 font-medium text-gray-600">Coverage</th>
+                  <th className="text-right py-2 px-3 font-medium text-gray-600">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,6 +272,17 @@ export function InsightsTab() {
                       }`}>
                         {gap.has_count}/{gap.expected_count}
                       </span>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('archive:open-upload', { detail: { discipline: gap.missing[0] } }));
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium text-white rounded-lg flex items-center gap-1.5 hover:opacity-90 transition-opacity ml-auto"
+                        style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #b8962e 100%)' }}
+                      >
+                        Upload Missing Docs
+                      </button>
                     </td>
                   </tr>
                 ))}

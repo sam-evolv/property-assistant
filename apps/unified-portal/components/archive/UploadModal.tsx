@@ -65,9 +65,12 @@ export function UploadModal({
   const [mustRead, setMustRead] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<'success' | 'partial' | 'failed' | null>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [disciplineAutoSuggested, setDisciplineAutoSuggested] = useState(false);
+  const [expiryDate, setExpiryDate] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (!selectedFiles) return;
 
@@ -78,9 +81,29 @@ export function UploadModal({
 
     setFiles(prev => [...prev, ...newFiles]);
     setUploadResult(null);
-  }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+    // Auto-classify discipline from filename if not already set
+    if (!discipline && newFiles.length > 0) {
+      setIsClassifying(true);
+      try {
+        const formData = new FormData();
+        formData.append('fileName', newFiles[0].file.name);
+        formData.append('tenantId', tenantId);
+        const res = await fetch('/api/archive/classify-suggest', { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.discipline) {
+            setDiscipline(data.discipline as DisciplineType);
+            setDisciplineAutoSuggested(true);
+          }
+        }
+      } catch {} finally {
+        setIsClassifying(false);
+      }
+    }
+  }, [discipline, tenantId]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     const droppedFiles = e.dataTransfer.files;
     if (!droppedFiles) return;
@@ -92,7 +115,27 @@ export function UploadModal({
 
     setFiles(prev => [...prev, ...newFiles]);
     setUploadResult(null);
-  }, []);
+
+    // Auto-classify discipline from filename if not already set
+    if (!discipline && newFiles.length > 0) {
+      setIsClassifying(true);
+      try {
+        const formData = new FormData();
+        formData.append('fileName', newFiles[0].file.name);
+        formData.append('tenantId', tenantId);
+        const res = await fetch('/api/archive/classify-suggest', { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.discipline) {
+            setDiscipline(data.discipline as DisciplineType);
+            setDisciplineAutoSuggested(true);
+          }
+        }
+      } catch {} finally {
+        setIsClassifying(false);
+      }
+    }
+  }, [discipline, tenantId]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -128,6 +171,7 @@ export function UploadModal({
       houseTypeId: houseTypeId || null,
       isImportant,
       mustRead,
+      expiry_date: expiryDate || null,
     }));
 
     filesToUpload.forEach(({ file }) => {
@@ -228,6 +272,8 @@ export function UploadModal({
       setIsImportant(false);
       setMustRead(false);
       setUploadResult(null);
+      setDisciplineAutoSuggested(false);
+      setExpiryDate('');
       onClose();
     }
   };
@@ -443,12 +489,21 @@ export function UploadModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-2">
+              <label className="block text-sm font-medium text-gray-500 mb-2 flex items-center">
                 Discipline (optional)
+                {disciplineAutoSuggested && (
+                  <span className="ml-2 text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">AI suggested</span>
+                )}
+                {isClassifying && (
+                  <Loader2 className="ml-2 w-3 h-3 animate-spin text-amber-500" />
+                )}
               </label>
               <select
                 value={discipline}
-                onChange={(e) => setDiscipline(e.target.value as DisciplineType | '')}
+                onChange={(e) => {
+                  setDiscipline(e.target.value as DisciplineType | '');
+                  setDisciplineAutoSuggested(false);
+                }}
                 disabled={isUploading}
                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:border-gold-500 disabled:opacity-50"
               >
@@ -481,6 +536,21 @@ export function UploadModal({
               </select>
             </div>
           </div>
+
+          {(discipline === 'handover' || discipline === 'other') && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Expiry Date <span className="text-gray-400 font-normal">(optional — for certs, insurance, compliance docs)</span>
+              </label>
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                disabled={isUploading}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 disabled:opacity-50"
+              />
+            </div>
+          )}
 
           <div className="flex gap-6">
             <label className="flex items-center gap-3 cursor-pointer group">

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, FileText, Star, AlertCircle, Sparkles, Building2, Calendar,
-  Download, RefreshCw, Save, Loader2, ExternalLink, Eye, Tag, X
+  Download, RefreshCw, Save, Loader2, ExternalLink, Eye, Tag, X, ChevronDown, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -31,6 +31,8 @@ interface DocumentDetail {
   updated_at: string;
   processing_status: string;
   chunks_count: number;
+  version?: number;
+  is_superseded?: boolean;
 }
 
 interface ChunkPreview {
@@ -61,6 +63,13 @@ export default function DocumentDetailPage() {
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
 
+  const [aiUsage, setAiUsage] = useState<{ usage_count: number; last_used: string | null } | null>(null);
+  const [versions, setVersions] = useState<Array<{ id: string; version: number; file_url: string; change_notes: string | null; created_at: string; uploaded_by: string | null }>>([]);
+  const [askQuestion, setAskQuestion] = useState('');
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [isAsking, setIsAsking] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
   useEffect(() => {
     async function fetchDocument() {
       if (!tenantId || !documentId) return;
@@ -89,6 +98,20 @@ export default function DocumentDetailPage() {
             const htData = await htRes.json();
             setHouseTypes(htData.houseTypes || []);
           }
+        }
+
+        // Fetch AI usage count
+        const usageRes = await fetch(`/api/archive/documents/${documentId}/ai-usage`);
+        if (usageRes.ok) {
+          const usageData = await usageRes.json();
+          setAiUsage(usageData);
+        }
+
+        // Fetch version history
+        const versionsRes = await fetch(`/api/archive/documents/${documentId}/versions`);
+        if (versionsRes.ok) {
+          const versionsData = await versionsRes.json();
+          setVersions(versionsData.versions || []);
         }
       } catch (err) {
         console.error('Failed to fetch document:', err);
@@ -181,6 +204,25 @@ export default function DocumentDetailPage() {
 
   const removeTag = (tag: string) => {
     setEditedTags(editedTags.filter(t => t !== tag));
+  };
+
+  const handleAskDocument = async () => {
+    if (!askQuestion.trim()) return;
+    setIsAsking(true);
+    setAskAnswer(null);
+    try {
+      const res = await fetch(`/api/archive/documents/${documentId}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: askQuestion }),
+      });
+      const data = await res.json();
+      setAskAnswer(data.answer || data.error || 'No answer found.');
+    } catch {
+      setAskAnswer('Failed to process question. Please try again.');
+    } finally {
+      setIsAsking(false);
+    }
   };
 
   if (isLoading) {
@@ -325,6 +367,90 @@ export default function DocumentDetailPage() {
           </div>
 
           <div className="space-y-6">
+            {aiUsage !== null && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-100 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span className="text-xs font-semibold text-amber-800 uppercase tracking-wide">AI Impact</span>
+                </div>
+                <p className="text-2xl font-bold text-amber-700">{aiUsage.usage_count}</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  {aiUsage.usage_count === 0 ? 'Not yet used to answer questions' : 'homeowner questions answered'}
+                </p>
+                {aiUsage.last_used && (
+                  <p className="text-xs text-amber-500 mt-1">
+                    Last used {new Date(aiUsage.last_used).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {versions.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-4">
+                <button
+                  onClick={() => setShowVersionHistory(!showVersionHistory)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Version History</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{versions.length} version{versions.length !== 1 ? 's' : ''}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showVersionHistory ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+                {showVersionHistory && (
+                  <div className="mt-3 space-y-2">
+                    {versions.map((v) => (
+                      <div key={v.id} className="flex items-start gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-[9px] font-bold text-gray-600">v{v.version}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500">{new Date(v.created_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          {v.change_notes && <p className="text-xs text-gray-700 mt-0.5 truncate">{v.change_notes}</p>}
+                          {v.file_url && (
+                            <a href={v.file_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline">View file</a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+                <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Ask This Document</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={askQuestion}
+                  onChange={(e) => setAskQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAskDocument()}
+                  placeholder="Ask a question about this document..."
+                  className="flex-1 text-xs px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 bg-gray-50"
+                />
+                <button
+                  onClick={handleAskDocument}
+                  disabled={isAsking || !askQuestion.trim()}
+                  className="px-3 py-2 rounded-xl text-white text-xs font-medium transition-all hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
+                  style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)' }}
+                >
+                  {isAsking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Ask'}
+                </button>
+              </div>
+              {askAnswer && (
+                <div className="mt-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
+                  <p className="text-xs text-gray-800 leading-relaxed">{askAnswer}</p>
+                </div>
+              )}
+            </div>
+
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h3 className="font-medium text-gray-900 mb-4">Document Metadata</h3>
               
