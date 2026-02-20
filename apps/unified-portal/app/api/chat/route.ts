@@ -297,14 +297,15 @@ const ROOM_PHRASE_MAPPINGS: Array<{ patterns: RegExp[]; mapping: RoomMapping }> 
   // UPSTAIRS WC/TOILET - specific
   {
     patterns: [
-      /\bupstairs\s*(?:wc|toilet|loo)\b/i,
-      /\b(?:first|1st)\s*floor\s*(?:wc|toilet|loo)\b/i,
-      /\bwc\s*(?:upstairs|first\s*floor)\b/i
+      /\bupstairs\s*(?:wc|toilet|loo|bathroom)\b/i,
+      /\b(?:first|1st)\s*floor\s*(?:wc|toilet|loo|bathroom)\b/i,
+      /\bwc\s*(?:upstairs|first\s*floor)\b/i,
+      /\bbathroom\s*(?:upstairs|first\s*floor)\b/i,
     ],
     mapping: {
-      displayName: 'Upstairs WC',
-      searchKeys: ['wc_upstairs', 'WC Upstairs', 'wc upstairs', 'upstairs_wc', 'upstairs wc', 'Upstairs WC', 'wc', 'WC'],
-      searchNames: ['upstairs', 'wc', 'first floor']
+      displayName: 'Upstairs Bathroom',
+      searchKeys: ['wc_first', 'wc_upstairs', 'WC Upstairs', 'wc upstairs', 'upstairs_wc', 'upstairs wc', 'Upstairs WC', 'wc', 'WC'],
+      searchNames: ['wc', 'upstairs', 'first floor', 'bathroom']
     }
   },
 
