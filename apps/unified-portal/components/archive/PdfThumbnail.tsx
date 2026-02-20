@@ -16,13 +16,13 @@ function getPdfJs(): Promise<any> {
     }
 
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js';
+    script.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
     script.async = true;
     script.onload = () => {
       const lib = (window as any).pdfjsLib;
       if (!lib) { reject(new Error('pdfjsLib not found after load')); return; }
       lib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
+        'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
       resolve(lib);
     };
     script.onerror = () => reject(new Error('Failed to load PDF.js from CDN'));
