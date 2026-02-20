@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
-  FolderArchive, MessageSquare, Shield,
+  FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome
 } from 'lucide-react';
@@ -33,6 +33,7 @@ const btsNavSections: NavSection[] = [
     items: [
       { label: 'Overview', href: '/developer', icon: Home },
       { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
+      { label: 'Scheme Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
     ],
   },
   {
