@@ -312,6 +312,160 @@ const WeatherCard = ({ card, isDarkMode }: { card: NonNullable<Message['weather_
   );
 };
 
+// Transit route card for bus/train queries
+const TransitCard = ({ card, isDarkMode }: { card: NonNullable<Message['transit_card']>; isDarkMode: boolean }) => {
+  const vehicleColors: Record<string, string> = {
+    BUS: 'bg-green-600',
+    RAIL: 'bg-blue-600',
+    TRAM: 'bg-amber-500',
+  };
+
+  const routes = card.routes.slice(0, 5);
+
+  return (
+    <div className={`max-w-[300px] rounded-2xl border p-4 shadow-sm ${
+      isDarkMode ? 'bg-[#1C1C1E] border-gray-700' : 'bg-white border-gray-200'
+    }`}>
+      <p className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+        {'\uD83D\uDE8C'} Routes to {card.destination}
+      </p>
+      <div className="space-y-0">
+        {routes.map((route, i) => (
+          <div key={`${route.short_name}-${i}`}>
+            {i > 0 && <div className={`border-t my-2 ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`} />}
+            <div className="flex items-center gap-3">
+              <div className={`h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 ${
+                vehicleColors[route.vehicle_type || ''] || 'bg-gray-500'
+              }`}>
+                {route.short_name}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {route.headsign || route.long_name || route.short_name}
+                </p>
+              </div>
+              {route.journey_min != null && (
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {route.journey_min} min
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// BER energy rating card — EU energy label style
+const BerRatingCard = ({ card, isDarkMode }: { card: NonNullable<Message['ber_card']>; isDarkMode: boolean }) => {
+  const ratings = [
+    { label: 'A1', color: 'bg-green-800', width: '30%' },
+    { label: 'A2', color: 'bg-green-600', width: '35%' },
+    { label: 'A3', color: 'bg-green-500', width: '40%' },
+    { label: 'B1', color: 'bg-lime-500', width: '45%' },
+    { label: 'B2', color: 'bg-lime-400', width: '50%' },
+    { label: 'B3', color: 'bg-yellow-400', width: '55%' },
+    { label: 'C1', color: 'bg-yellow-500', width: '58%' },
+    { label: 'C2', color: 'bg-amber-400', width: '62%' },
+    { label: 'D1', color: 'bg-amber-500', width: '68%' },
+    { label: 'D2', color: 'bg-orange-500', width: '73%' },
+    { label: 'E1', color: 'bg-orange-600', width: '78%' },
+    { label: 'E2', color: 'bg-red-500', width: '83%' },
+    { label: 'F', color: 'bg-red-600', width: '90%' },
+    { label: 'G', color: 'bg-red-800', width: '100%' },
+  ];
+
+  return (
+    <div className={`max-w-[260px] rounded-2xl border p-4 shadow-sm ${
+      isDarkMode ? 'bg-[#1C1C1E] border-gray-700' : 'bg-white border-gray-200'
+    }`}>
+      <p className={`text-xs mb-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        Building Energy Rating
+      </p>
+      <div className="space-y-1">
+        {ratings.map((r) => {
+          const isActive = r.label.toUpperCase() === card.rating.toUpperCase();
+          return (
+            <div key={r.label} className="flex items-center gap-2">
+              <span className={`w-6 text-right text-xs font-mono ${
+                isActive
+                  ? (isDarkMode ? 'text-white font-bold' : 'text-gray-900 font-bold')
+                  : (isDarkMode ? 'text-gray-500' : 'text-gray-400')
+              }`}>
+                {r.label}
+              </span>
+              <div className="flex-1 relative">
+                <div
+                  className={`h-4 rounded-sm ${r.color} ${
+                    isActive ? 'ring-2 ring-amber-400 ring-offset-1' : 'opacity-60'
+                  } ${isDarkMode && isActive ? 'ring-offset-[#1C1C1E]' : ''}`}
+                  style={{ width: r.width }}
+                />
+              </div>
+              {isActive && (
+                <span className="text-xs">{'\u2705'}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {card.label && (
+        <p className={`mt-3 text-xs font-medium ${isDarkMode ? 'text-green-400' : 'text-green-700'}`}>
+          {card.label}
+        </p>
+      )}
+    </div>
+  );
+};
+
+// Warranty timeline card
+const WarrantyTimelineCard = ({ card, isDarkMode }: { card: NonNullable<Message['warranty_card']>; isDarkMode: boolean }) => {
+  const devPct = Math.round((card.developer_years / (card.developer_years + (card.structural_years - card.developer_years))) * 100);
+  const structPct = 100 - devPct;
+
+  return (
+    <div className={`max-w-[300px] rounded-2xl border p-4 shadow-sm ${
+      isDarkMode ? 'bg-[#1C1C1E] border-gray-700' : 'bg-white border-gray-200'
+    }`}>
+      <p className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+        {'\uD83D\uDEE1\uFE0F'} Warranty Coverage
+      </p>
+      {/* Timeline bar */}
+      <div className="flex gap-1 mb-2">
+        <div
+          className="rounded-l-lg bg-amber-500 h-8 flex items-center justify-center"
+          style={{ width: `${devPct}%` }}
+        >
+          <span className="text-xs font-bold text-white truncate px-1">Yr 1–{card.developer_years}</span>
+        </div>
+        <div
+          className="rounded-r-lg bg-blue-600 h-8 flex items-center justify-center"
+          style={{ width: `${structPct}%` }}
+        >
+          <span className="text-xs font-bold text-white truncate px-1">Yr {card.developer_years + 1}–{card.structural_years}</span>
+        </div>
+      </div>
+      {/* Labels */}
+      <div className="flex gap-1 mb-3">
+        <div style={{ width: `${devPct}%` }}>
+          <p className={`text-xs font-medium ${isDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>Developer Warranty</p>
+          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Snags & defects</p>
+        </div>
+        <div style={{ width: `${structPct}%` }}>
+          <p className={`text-xs font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>Structural Guarantee</p>
+          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{card.providers.join(' / ')}</p>
+        </div>
+      </div>
+      <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+        Appliance warranties are separate — register with manufacturer
+      </p>
+    </div>
+  );
+};
+
 const SourcesDropdown = ({
   sources,
   isDarkMode
@@ -489,6 +643,22 @@ interface Message {
     wind_dir: string | null;
     humidity: string | null;
     forecast_today: string | null;
+  } | null;
+  transit_card?: {
+    routes: Array<{
+      short_name: string;
+      long_name?: string;
+      vehicle_type?: string;
+      headsign?: string;
+      journey_min?: number;
+    }>;
+    destination: string;
+  } | null;
+  ber_card?: { rating: string; label: string } | null;
+  warranty_card?: {
+    developer_years: number;
+    structural_years: number;
+    providers: string[];
   } | null;
 }
 
@@ -1040,6 +1210,8 @@ export default function PurchaserChatTab({
         let streamedContent = '';
         let drawing: DrawingData | null = null;
         let sources: SourceDocument[] | null = null;
+        let berCard: Message['ber_card'] = null;
+        let warrantyCard: Message['warranty_card'] = null;
         let assistantMessageIndex = -1;
 
         // Add placeholder assistant message immediately (empty - typing indicator shown via sending state)
@@ -1070,6 +1242,12 @@ export default function PurchaserChatTab({
                   if (data.sources && data.sources.length > 0) {
                     sources = data.sources;
                   }
+                  if (data.ber_card) {
+                    berCard = data.ber_card;
+                  }
+                  if (data.warranty_card) {
+                    warrantyCard = data.warranty_card;
+                  }
                 } else if (data.type === 'text') {
                   // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
                   streamedContent += data.content;
@@ -1092,7 +1270,7 @@ export default function PurchaserChatTab({
                     streamedContent.toLowerCase().includes("i don't have that specific detail") ||
                     streamedContent.toLowerCase().includes("i'd recommend contacting your developer");
 
-                  // Final update with isNoInfo flag
+                  // Final update with isNoInfo flag and rich cards
                   setMessages((prev) => {
                     const updated = [...prev];
                     if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
@@ -1102,6 +1280,8 @@ export default function PurchaserChatTab({
                         drawing: drawing,
                         sources: sources,
                         isNoInfo: isNoInfoResponse,
+                        ber_card: berCard,
+                        warranty_card: warrantyCard,
                       };
                     }
                     return updated;
@@ -1148,6 +1328,9 @@ export default function PurchaserChatTab({
               clarification: data.clarification || null,
               map_url: data.map_url || null,
               weather_card: data.weather_card || null,
+              transit_card: data.transit_card || null,
+              ber_card: data.ber_card || null,
+              warranty_card: data.warranty_card || null,
             },
           ]);
 
@@ -1452,8 +1635,27 @@ export default function PurchaserChatTab({
                             <div className={`mt-2 text-xs leading-relaxed ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} style={{ opacity: 0.7 }} dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
                           )}
                         </div>
+                      ) : msg.transit_card ? (
+                        <div>
+                          <TransitCard card={msg.transit_card} isDarkMode={isDarkMode} />
+                          {msg.content && (
+                            <div className={`mt-2 text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content`} dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                          )}
+                        </div>
                       ) : (
                         <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words assistant-content" dangerouslySetInnerHTML={{ __html: formatAssistantContent(msg.content, isDarkMode) }} />
+                      )}
+                      {/* BER rating card — shown after text content */}
+                      {msg.ber_card && (
+                        <div className="mt-3">
+                          <BerRatingCard card={msg.ber_card} isDarkMode={isDarkMode} />
+                        </div>
+                      )}
+                      {/* Warranty timeline card — shown after text content */}
+                      {msg.warranty_card && (
+                        <div className="mt-3">
+                          <WarrantyTimelineCard card={msg.warranty_card} isDarkMode={isDarkMode} />
+                        </div>
                       )}
                       {/* Copy button - appears on hover */}
                       <CopyButton content={msg.content} isDarkMode={isDarkMode} />

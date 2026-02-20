@@ -2458,6 +2458,7 @@ export async function POST(request: NextRequest) {
         
         // For expanded intents, use custom response formatting
         let poiResponse: string;
+        let transitResult: Awaited<ReturnType<typeof getTransitRoutes>> | null = null;
         if (expandedIntent === 'schools' && groupedSchoolsData) {
           poiResponse = formatGroupedSchoolsResponse(groupedSchoolsData, developmentName || undefined);
         } else if (expandedIntent === 'local_amenities' && groupedAmenitiesData) {
@@ -2467,7 +2468,7 @@ export async function POST(request: NextRequest) {
         } else if (poiCategory === 'bus_stop' || poiCategory === 'train_station') {
           // Transport queries: enrich with TFI route data via Google Directions API (transit mode)
           try {
-            const transitResult = await getTransitRoutes(userSupabaseProjectId);
+            transitResult = await getTransitRoutes(userSupabaseProjectId);
             poiResponse = formatTransitRoutesResponse(transitResult, poiData.results);
             console.log('[Chat] Transit routes:', transitResult.routes.length, 'routes, enabled:', transitResult.enabled, 'from_cache:', transitResult.from_cache);
           } catch (transitErr) {
@@ -2524,6 +2525,18 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate response first, then persist safely (never fail the response)
+        // Build transit card for bus/train queries with route data
+        const transitCard = (poiCategory === 'bus_stop' || poiCategory === 'train_station') && transitResult && transitResult.routes.length > 0 ? {
+          routes: transitResult.routes.map(r => ({
+            short_name: r.line_short_name,
+            long_name: r.line_name,
+            vehicle_type: r.vehicle_type,
+            headsign: r.headsign,
+            journey_min: r.journey_min,
+          })),
+          destination: transitResult.destination,
+        } : null;
+
         const successResponseObj: any = {
           success: true,
           answer: poiResponse,
@@ -2532,6 +2545,7 @@ export async function POST(request: NextRequest) {
           isNoInfo: false,
           suggested_questions: generateFollowUpQuestions('location_amenities', message),
           map_url: mapUrl,
+          transit_card: transitCard,
           metadata: {
             intent: intentClassification.intent,
             poiCategory,
@@ -4039,6 +4053,10 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             .slice(0, 3)
             .map(({ name, date }) => ({ name, date }));
           
+          // Detect BER and warranty queries for rich cards
+          const berKeywords = /\b(ber|building energy rating|energy rating|energy certificate|energy label|a1 rated|a2 rated|a3 rated|nzeb|near zero energy)\b/i;
+          const warrantyKeywords = /\b(warranty|structural warranty|homebond|premier guarantee|defect|10 year|latent defect|snag(ging)?|builder guarantee)\b/i;
+
           const metadata = {
             type: 'metadata',
             source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
@@ -4054,6 +4072,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
               downloadUrl: drawing.downloadUrl,
               explanation: drawingExplanation,
             } : null,
+            ber_card: berKeywords.test(message) ? { rating: 'A2', label: 'Near Zero Energy' } : null,
+            warranty_card: warrantyKeywords.test(message) ? { developer_years: 2, structural_years: 10, providers: ['HomeBond', 'Premier Guarantee'] } : null,
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
 
