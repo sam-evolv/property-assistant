@@ -30,8 +30,8 @@ export function DocumentGrid({
 }: DocumentGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
-        {Array.from({ length: 14 }).map((_, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="rounded-xl border border-gray-200 bg-white animate-pulse overflow-hidden">
             <div className="w-full h-40 bg-gray-100" />
             <div className="px-2.5 pt-2 pb-2.5 space-y-1.5">
@@ -68,7 +68,7 @@ export function DocumentGrid({
       </div>
 
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {documents.map((doc) => (
             <DocumentCard key={doc.id} document={doc} onDelete={onDocumentDeleted} onUpdate={onDocumentDeleted} onMoveToFolder={onMoveToFolder} />
           ))}

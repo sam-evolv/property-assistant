@@ -238,22 +238,58 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
         </div>
       )}
 
-      {/* Thumbnail — dominant, tall */}
-      <div className="w-full h-40 bg-gray-50 flex items-center justify-center relative group/preview overflow-hidden border-b border-gray-100">
-        <FileIcon className={`w-12 h-12 ${fileColor} opacity-40`} />
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 z-10">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white text-xs font-medium">
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open
+      {/* Styled preview panel */}
+      {(() => {
+        const disc = document.discipline || 'other';
+        const gradients: Record<string, string> = {
+          architectural: 'from-blue-50 to-indigo-100',
+          structural:    'from-orange-50 to-amber-100',
+          mechanical:    'from-cyan-50 to-teal-100',
+          electrical:    'from-yellow-50 to-amber-100',
+          plumbing:      'from-sky-50 to-blue-100',
+          civil:         'from-stone-50 to-gray-100',
+          landscape:     'from-green-50 to-emerald-100',
+          handover:      'from-purple-50 to-violet-100',
+          other:         'from-gray-50 to-slate-100',
+        };
+        const iconColors: Record<string, string> = {
+          architectural: 'text-indigo-400',
+          structural:    'text-amber-500',
+          mechanical:    'text-teal-400',
+          electrical:    'text-yellow-500',
+          plumbing:      'text-blue-400',
+          civil:         'text-stone-400',
+          landscape:     'text-emerald-400',
+          handover:      'text-violet-400',
+          other:         'text-gray-400',
+        };
+        const abbr = (document.file_name || document.title || '')
+          .replace(/\.[^.]+$/, '')
+          .split(/[-_\s]/)
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((w: string) => w[0]?.toUpperCase() || '')
+          .join('');
+        const gradient = gradients[disc] || gradients.other;
+        const iconColor = iconColors[disc] || iconColors.other;
+        return (
+          <div className={`w-full h-40 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative group/preview overflow-hidden border-b border-gray-100`}>
+            <FileIcon className={`w-10 h-10 ${iconColor} mb-2`} />
+            <span className={`text-xs font-bold tracking-widest ${iconColor} opacity-70`}>{abbr}</span>
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 z-10">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/20 backdrop-blur-sm text-white text-xs font-medium">
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open
+              </div>
+            </div>
+            {((document as any).version > 1 || (document as any).version_label) && (
+              <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold leading-none">
+                {(document as any).version_label || `v${(document as any).version}`}
+              </div>
+            )}
           </div>
-        </div>
-        {/* Version badge overlay */}
-        {((document as any).version > 1 || (document as any).version_label) && (
-          <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-bold leading-none">
-            {(document as any).version_label || `v${(document as any).version}`}
-          </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Compact Procore-style metadata */}
       <div className="px-2.5 pt-2 pb-2.5">
