@@ -113,18 +113,15 @@ export async function POST(request: NextRequest) {
         });
         const queryEmbedding = embeddingResponse.data[0].embedding;
 
-        const filter: any = {};
-        if (route.layers.includes('layer4')) {
-          filter.project_id = 'regulatory_corpus';
-        } else if (developmentId) {
-          filter.project_id = developmentId;
-        }
+        // Determine which project to search: 'regulatory_corpus' for Layer 4, else scheme docs
+        const matchProjectId = route.layers.includes('layer4')
+          ? 'regulatory_corpus'
+          : (developmentId || tenantId);
 
-        const { data: chunks, error: ragError } = await supabase.rpc('match_documents', {
+        const { data: chunks, error: ragError } = await supabase.rpc('match_document_sections', {
           query_embedding: queryEmbedding,
-          match_threshold: 0.7,
-          match_count: 5,
-          filter,
+          match_project_id: matchProjectId,
+          match_count: 8,
         });
 
         if (!ragError && chunks?.length) {
