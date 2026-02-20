@@ -379,17 +379,10 @@ export async function findFloorPlanDocuments(
   }
   
   const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
-  console.log('[FloorPlanFallback] Project:', projectId, 'HouseType:', normalizedHouseType);
+  console.log('[FloorPlanFallback] Project:', projectId, 'HouseType:', normalizedHouseType || '(unknown — will show all architectural)');
   
-  // SECURITY: Require house type to prevent cross-unit document disclosure
-  if (!normalizedHouseType) {
-    console.log('[FloorPlanFallback] No house type - cannot safely filter floor plans');
-    return {
-      found: false,
-      attachments: [],
-      explanation: 'Unable to determine your house type for floor plans.',
-    };
-  }
+  // No house type known — do broad architectural search rather than blocking
+  // Homeowners always have the right to see their development's floor plans
   
   const { data: sections, error } = await supabase
     .from('document_sections')
@@ -424,8 +417,8 @@ export async function findFloorPlanDocuments(
     const tags = (metadata.tags || []).map((t: string) => t.toLowerCase());
     const fileName = (metadata.file_name || '').toLowerCase();
     
-    // SECURITY: Skip documents for other house types
-    if (normalizedDocHouseType && normalizedDocHouseType !== normalizedHouseType) {
+    // Filter by house type when known; when unknown, show all architectural docs
+    if (normalizedHouseType && normalizedDocHouseType && normalizedDocHouseType !== normalizedHouseType) {
       continue;
     }
     
@@ -462,10 +455,9 @@ export async function findFloorPlanDocuments(
     ];
     const isFloorPlanByFilename = FLOOR_PLAN_ONLY_PATTERNS.some(p => p.test(fileName));
     
-    // Also match architectural discipline with house-type match for floor plans
-    const isArchitecturalFloorPlan = isArchitecturalDrawing && 
-      (normalizedDocHouseType === normalizedHouseType) &&
-      !isExcludedType;
+    // Architectural floor plan: match if (a) house type matches OR (b) house type is unknown (show all architectural)
+    const isArchitecturalFloorPlan = isArchitecturalDrawing && !isExcludedType &&
+      (!normalizedHouseType || normalizedDocHouseType === normalizedHouseType || !normalizedDocHouseType);
     
     // Must match at least one floor plan indicator and not be excluded
     if (!isFloorPlanByMetadata && !isFloorPlanByFilename && !isArchitecturalFloorPlan) {
@@ -475,28 +467,30 @@ export async function findFloorPlanDocuments(
       continue;
     }
     
+    const isHouseTypeMatch = normalizedHouseType 
+      ? normalizedDocHouseType === normalizedHouseType 
+      : true; // When house type unknown, treat all as matching
+    
     const docEntry = {
       ...metadata,
       house_type_code: docHouseType,
       isUnitSpecific: !!docUnitId && docUnitId === unitUid,
-      isHouseTypeMatch: normalizedDocHouseType === normalizedHouseType,
+      isHouseTypeMatch,
     };
     
-    // Categorize by priority
+    // Categorize by priority: unit-specific > house-type match > general (when no house type known)
     if (docUnitId && docUnitId === unitUid) {
       if (!unitSpecificDocs.has(key)) {
         unitSpecificDocs.set(key, docEntry);
       }
-    } else if (normalizedDocHouseType === normalizedHouseType) {
+    } else if (isHouseTypeMatch) {
       if (!houseTypeSpecificDocs.has(key)) {
         houseTypeSpecificDocs.set(key, docEntry);
       }
     }
-    // Note: We do NOT include scheme-wide docs without house_type_code 
-    // to prevent cross-unit document disclosure
   }
   
-  // Priority: unit-specific first, then house-type-specific
+  // Priority: unit-specific first, then house-type-specific (includes all when no house type known)
   let selectedDocs: Map<string, any>;
   if (unitSpecificDocs.size > 0) {
     selectedDocs = unitSpecificDocs;
@@ -505,7 +499,7 @@ export async function findFloorPlanDocuments(
     selectedDocs = houseTypeSpecificDocs;
     console.log('[FloorPlanFallback] Using', houseTypeSpecificDocs.size, 'house-type-specific floor plans');
   } else {
-    console.log('[FloorPlanFallback] No floor plans found for house type:', normalizedHouseType);
+    console.log('[FloorPlanFallback] No floor plans found for house type:', normalizedHouseType || 'unknown');
     return {
       found: false,
       attachments: [],

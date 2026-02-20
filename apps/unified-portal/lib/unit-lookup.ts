@@ -28,20 +28,31 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
   try {
     const supabase = getSupabaseClient();
     
-    // FIXED: units table uses unit_uid column (not id) for the human-readable UID like "LP-010-EB09"
-    // Also fetch tenant_id, development_id, house_type_code directly from the unit row
-    const { data: supabaseUnit, error } = await supabase
-      .from('units')
-      .select('id, unit_uid, address, address_line_1, purchaser_name, project_id, tenant_id, development_id, house_type_code, unit_type_id, unit_types(name, floor_plan_pdf_url, specification_json)')
-      .eq('unit_uid', unitUid)
-      .single();
+    // Try unit_uid first (human-readable like "LP-010-EB09"), then fall back to id (UUID)
+    // Some QR codes encode the unit UUID, others encode the unit_uid string
+    const SELECT_FIELDS = 'id, unit_uid, address, address_line_1, purchaser_name, project_id, tenant_id, development_id, house_type_code, unit_type_id, unit_types(name, floor_plan_pdf_url, specification_json)';
+    
+    let supabaseUnit: any = null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(unitUid);
+    
+    if (!isUuid) {
+      // Human-readable UID (e.g. "LP-010-EB09") — query unit_uid column
+      const { data, error } = await supabase.from('units').select(SELECT_FIELDS).eq('unit_uid', unitUid).single();
+      if (!error && data) supabaseUnit = data;
+    }
+    
+    if (!supabaseUnit) {
+      // UUID format or unit_uid lookup failed — try by primary key id
+      const { data, error } = await supabase.from('units').select(SELECT_FIELDS).eq('id', unitUid).single();
+      if (!error && data) { supabaseUnit = data; }
+    }
 
-    if (error || !supabaseUnit) {
-      console.log('[UnitLookup] Not found in Supabase by unit_uid:', error?.message);
+    if (!supabaseUnit) {
+      console.log('[UnitLookup] Not found in Supabase by unit_uid or id for:', unitUid);
       return null;
     }
 
-    console.log('[UnitLookup] Found in Supabase:', supabaseUnit.id, 'unit_uid:', unitUid);
+    console.log('[UnitLookup] Found in Supabase:', supabaseUnit.id, 'unit_uid:', supabaseUnit.unit_uid);
 
     const unitType = supabaseUnit.unit_types as any;
     // Prefer house_type_code directly on the unit row (already populated), fall back to unit_types.name
