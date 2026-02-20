@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
-  Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronLeft,
-  Calendar, Loader2, MessageSquare, BarChart3, Brain, Trash2,
+  Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronDown, ChevronUp,
+  Calendar, Loader2, Home, BarChart2, Trash2, FileText, BookOpen,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -57,27 +57,30 @@ const tokens = {
 };
 
 // ============================================================================
-// Message Formatter
+// Message Formatter (Fix 3: tables, Fix 4: strip sources)
 // ============================================================================
 
-function formatMessage(content: string): string {
-  if (!content) return '';
-
-  // Escape HTML to prevent XSS
-  let html = content
+function escapeHtml(text: string): string {
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function formatTextBlock(content: string): string {
+  if (!content.trim()) return '';
+
+  let html = escapeHtml(content);
 
   // ## Headings
   html = html.replace(/^##\s+(.+)$/gm, (_match, heading) => {
     return `<strong class="block mt-3 mb-1 text-[15px] font-semibold">${heading}</strong>`;
   });
 
-  // **bold** → gold bold
+  // **bold**
   html = html.replace(/\*\*([^*]+)\*\*/g, '<span class="font-semibold text-gold-600">$1</span>');
 
-  // *italic* → plain text (strip asterisks)
+  // *italic*
   html = html.replace(/\*([^*]+)\*/g, '$1');
 
   // Style lines ending with colon as bold headings
@@ -92,7 +95,7 @@ function formatMessage(content: string): string {
 
   // Bullet list items
   html = html.replace(/^- (.+)$/gm, (_match, item) => {
-    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-[#D4AF37] select-none shrink-0 mt-[2px]">•</span><span class="flex-1">${item}</span></div>`;
+    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-[#D4AF37] select-none shrink-0 mt-[2px]">\u2022</span><span class="flex-1">${item}</span></div>`;
   });
 
   // Numbered list items
@@ -147,6 +150,72 @@ function formatMessage(content: string): string {
   return html;
 }
 
+function formatMessage(content: string): string {
+  if (!content) return '';
+
+  // Fix 4: Strip [Source: ...] citations
+  let text = content.replace(/\[Source:[^\]]+\]/g, '');
+
+  // Fix 3: Detect and extract markdown tables
+  const lines = text.split('\n');
+  const blocks: { type: 'text' | 'table'; content: string; rows?: string[][] }[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    if (lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      if (tableLines.length >= 2) {
+        const rows: string[][] = [];
+        for (let j = 0; j < tableLines.length; j++) {
+          const cells = tableLines[j].split('|').slice(1, -1).map(c => c.trim());
+          if (cells.every(c => /^[-:]+$/.test(c))) continue;
+          rows.push(cells);
+        }
+        blocks.push({ type: 'table', content: '', rows });
+      } else {
+        blocks.push({ type: 'text', content: tableLines.join('\n') });
+      }
+    } else {
+      const textLines: string[] = [];
+      while (i < lines.length && !(lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|'))) {
+        textLines.push(lines[i]);
+        i++;
+      }
+      blocks.push({ type: 'text', content: textLines.join('\n') });
+    }
+  }
+
+  const htmlParts: string[] = [];
+
+  for (const block of blocks) {
+    if (block.type === 'table' && block.rows && block.rows.length > 0) {
+      const [headers, ...bodyRows] = block.rows;
+      let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-sm border-collapse"><thead><tr class="border-b-2 border-[#D4AF37]/30">';
+      for (const h of headers) {
+        tableHtml += `<th class="text-left py-2 px-3 font-semibold text-slate-700 bg-slate-50">${escapeHtml(h)}</th>`;
+      }
+      tableHtml += '</tr></thead><tbody>';
+      for (const row of bodyRows) {
+        tableHtml += '<tr class="border-b border-slate-100 hover:bg-slate-50/50">';
+        for (const cell of row) {
+          tableHtml += `<td class="py-2 px-3 text-slate-600">${escapeHtml(cell)}</td>`;
+        }
+        tableHtml += '</tr>';
+      }
+      tableHtml += '</tbody></table></div>';
+      htmlParts.push(tableHtml);
+    } else {
+      htmlParts.push(formatTextBlock(block.content));
+    }
+  }
+
+  return htmlParts.join('');
+}
+
 // ============================================================================
 // Relative Time Helper
 // ============================================================================
@@ -171,7 +240,7 @@ function relativeTime(dateStr: string): string {
 
 const QUESTION_CATEGORIES = [
   {
-    icon: '💰',
+    icon: '\uD83D\uDCB0',
     label: 'Financial',
     questions: [
       'What is our projected revenue for Q1?',
@@ -181,7 +250,7 @@ const QUESTION_CATEGORIES = [
     ],
   },
   {
-    icon: '📋',
+    icon: '\uD83D\uDCCB',
     label: 'Compliance',
     questions: [
       'Do we have HomeBond for all completed units?',
@@ -191,7 +260,7 @@ const QUESTION_CATEGORIES = [
     ],
   },
   {
-    icon: '👥',
+    icon: '\uD83D\uDC65',
     label: 'Homeowners',
     questions: [
       'What are homeowners asking about most this week?',
@@ -201,7 +270,7 @@ const QUESTION_CATEGORIES = [
     ],
   },
   {
-    icon: '⚖️',
+    icon: '\u2696\uFE0F',
     label: 'Regulatory',
     questions: [
       'What fire safety documentation is required under BCAR?',
@@ -234,7 +303,6 @@ function saveSessions(sessions: Session[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
   } catch {
-    // Storage full - clear old sessions
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, 5)));
   }
 }
@@ -260,27 +328,62 @@ function InlineChart({ chartData }: { chartData: ChatMessage['chartData'] }) {
   return <InlineChartRenderer chartData={chartData} />;
 }
 
-function SourceChips({
+// Fix 5: Collapsible Sources (replaces SourceChips)
+function CollapsibleSources({
   sources,
   onSourceClick,
 }: {
   sources: ChatMessage['sources'];
   onSourceClick: (source: any) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!sources?.length) return null;
+
+  const getSourceIcon = (type: string) => {
+    switch (type) {
+      case 'function': return <BarChart2 className="w-3.5 h-3.5 text-[#D4AF37]" />;
+      case 'regulatory': return <BookOpen className="w-3.5 h-3.5 text-amber-600" />;
+      default: return <FileText className="w-3.5 h-3.5 text-slate-400" />;
+    }
+  };
+
+  const getSourceLabel = (type: string) => {
+    switch (type) {
+      case 'function': return 'Live data';
+      case 'regulatory': return 'Regulation';
+      default: return 'Document';
+    }
+  };
+
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {sources.map((s, i) => (
+    <div className="flex justify-end mt-2">
+      <div>
         <button
-          key={i}
-          onClick={() => onSourceClick(s)}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium
-            bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition-colors"
         >
-          {s.type === 'function' ? <BarChart3 className="w-2.5 h-2.5" /> : <MessageSquare className="w-2.5 h-2.5" />}
-          {s.title}
+          <span>{'\u2197'} {sources.length} source{sources.length !== 1 ? 's' : ''}</span>
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
-      ))}
+        {expanded && (
+          <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1 animate-fade-in">
+            {sources.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => onSourceClick(s)}
+                className="w-full flex items-start gap-2 p-1.5 rounded-md hover:bg-white transition-colors text-left"
+              >
+                {getSourceIcon(s.type)}
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-700 truncate">{s.title}</p>
+                  <p className="text-[10px] text-slate-400">{getSourceLabel(s.type)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -333,10 +436,10 @@ function SourceDrawer({
 
 function StreamingDots() {
   return (
-    <div className="flex items-center gap-1 py-1">
-      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
-      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
-      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
+    <div className="inline-flex items-center gap-1 py-1">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
     </div>
   );
 }
@@ -373,9 +476,9 @@ function BriefingModal({
   if (!open) return null;
 
   const priorityStyles = {
-    critical: { bg: 'bg-red-50', border: 'border-red-200', icon: '🔴', text: 'text-red-800' },
-    important: { bg: 'bg-amber-50', border: 'border-amber-200', icon: '🟡', text: 'text-amber-800' },
-    info: { bg: 'bg-blue-50', border: 'border-blue-200', icon: '🔵', text: 'text-blue-800' },
+    critical: { bg: 'bg-red-50', border: 'border-red-200', icon: '\uD83D\uDD34', text: 'text-red-800' },
+    important: { bg: 'bg-amber-50', border: 'border-amber-200', icon: '\uD83D\uDFE1', text: 'text-amber-800' },
+    info: { bg: 'bg-blue-50', border: 'border-blue-200', icon: '\uD83D\uDD35', text: 'text-blue-800' },
   };
 
   return (
@@ -463,7 +566,6 @@ export default function SchemeIntelligencePage() {
   // Sessions
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Chat
   const [input, setInput] = useState('');
@@ -473,6 +575,7 @@ export default function SchemeIntelligencePage() {
 
   // UI State
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [insightsDismissed, setInsightsDismissed] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [sourceDrawer, setSourceDrawer] = useState<any>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -571,13 +674,11 @@ export default function SchemeIntelligencePage() {
       const text = messageText.trim();
       setInput('');
 
-      // Create or get session
       let sessionId = activeSessionId;
       if (!sessionId) {
         sessionId = createSession(text);
       }
 
-      // Add user message
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -591,7 +692,6 @@ export default function SchemeIntelligencePage() {
         isStreaming: true,
       };
 
-      // Get current messages from the latest session state
       const currentSession = sessions.find((s) => s.id === sessionId);
       const prevMessages = currentSession?.messages || [];
       const newMessages = [...prevMessages, userMessage, assistantMessage];
@@ -672,7 +772,6 @@ export default function SchemeIntelligencePage() {
           }
         }
 
-        // Finalize message
         updateSessionMessages(sessionId!, [
           ...prevMessages,
           userMessage,
@@ -716,22 +815,15 @@ export default function SchemeIntelligencePage() {
     setInput('');
   };
 
+  const showSendButton = input.trim() || isStreaming;
+
   return (
     <div className="min-h-full bg-slate-50">
       <div className="max-w-[1400px] mx-auto px-4 py-4">
-        {/* Back link */}
-        <Link
-          href="/developer/overview"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3 transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Overview
-        </Link>
-
         {/* Main Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
           {/* Header */}
-          <div className="px-6 py-4 border-b-2 border-[#D4AF37]/30">
+          <div className="px-6 py-4 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div
@@ -741,9 +833,7 @@ export default function SchemeIntelligencePage() {
                   <Sparkles className="w-4.5 h-4.5 text-white" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold text-slate-900">Scheme Intelligence</h1>
-                  </div>
+                  <h1 className="text-lg font-bold text-slate-900">Scheme Intelligence</h1>
                   {developmentName && (
                     <p className="text-xs text-slate-500">{developmentName}</p>
                   )}
@@ -761,121 +851,140 @@ export default function SchemeIntelligencePage() {
             </div>
           </div>
 
+          {/* Fix 2: Proactive Insight Strip (below header, above chat) */}
+          {insights.length > 0 && !insightsDismissed && (
+            <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                {insights.map((insight, i) => (
+                  <a
+                    key={i}
+                    href={insight.href || '#'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200
+                      text-xs font-medium text-slate-700 hover:border-[#D4AF37]/50 hover:text-[#B8934C]
+                      transition-colors whitespace-nowrap flex-shrink-0"
+                  >
+                    <span>{insight.icon}</span>
+                    <span>{insight.text}</span>
+                  </a>
+                ))}
+                <button
+                  onClick={() => setInsightsDismissed(true)}
+                  className="p-1 hover:bg-slate-200 rounded-full transition flex-shrink-0 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Body: Sidebar + Chat */}
           <div className="flex flex-1 min-h-0">
             {/* Sessions Sidebar */}
-            {sidebarOpen && (
-              <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0">
-                <div className="p-3 border-b border-slate-200">
-                  <div className="flex items-center justify-between mb-2 px-1">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversations</span>
-                  </div>
-                  <button
-                    onClick={startNewSession}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-                      text-sm font-medium text-white transition-all"
-                    style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    New Chat
-                  </button>
+            <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0">
+              <div className="p-3 border-b border-slate-200">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversations</span>
                 </div>
-                <div className="flex-1 overflow-auto p-2">
-                  {sessions.map((s) => (
-                    <div
-                      key={s.id}
-                      className={`group relative rounded-lg transition-all mb-0.5 ${
-                        s.id === activeSessionId
-                          ? 'bg-white border-l-2 border-[#D4AF37] shadow-sm'
-                          : 'hover:bg-white/60 border-l-2 border-transparent'
-                      }`}
-                    >
-                      {deletingSessionId === s.id ? (
-                        /* Inline delete confirmation */
-                        <div className="flex items-center gap-2 px-3 py-2">
-                          <span className="text-xs text-slate-600 flex-1">Delete?</span>
-                          <button
-                            onClick={() => deleteSession(s.id)}
-                            className="text-[11px] font-medium text-red-600 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
-                          >
-                            Yes
-                          </button>
-                          <button
-                            onClick={() => setDeletingSessionId(null)}
-                            className="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
-                          >
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setActiveSessionId(s.id)}
-                          className="w-full text-left px-3 py-2 flex items-center gap-2"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs truncate ${
-                              s.id === activeSessionId ? 'text-slate-900 font-medium' : 'text-slate-600'
-                            }`}>
-                              {s.title || 'New conversation'}
-                            </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{relativeTime(s.createdAt)}</p>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeletingSessionId(s.id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 transition-all flex-shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {sessions.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-8 italic">No conversations yet</p>
-                  )}
-                </div>
+                <button
+                  onClick={startNewSession}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                    text-sm font-medium text-white transition-all"
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                >
+                  <Plus className="w-4 h-4" />
+                  New Chat
+                </button>
               </div>
-            )}
+              <div className="flex-1 overflow-auto p-2">
+                {sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className={`group relative rounded-lg transition-all mb-0.5 ${
+                      s.id === activeSessionId
+                        ? 'bg-white border-l-2 border-[#D4AF37] shadow-sm'
+                        : 'hover:bg-white/60 border-l-2 border-transparent'
+                    }`}
+                  >
+                    {deletingSessionId === s.id ? (
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <span className="text-xs text-slate-600 flex-1">Delete?</span>
+                        <button
+                          onClick={() => deleteSession(s.id)}
+                          className="text-[11px] font-medium text-red-600 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => setDeletingSessionId(null)}
+                          className="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setActiveSessionId(s.id)}
+                        className="w-full text-left px-3 py-2 flex items-center gap-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs truncate ${
+                            s.id === activeSessionId ? 'text-slate-900 font-medium' : 'text-slate-600'
+                          }`}>
+                            {s.title || 'New conversation'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{relativeTime(s.createdAt)}</p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingSessionId(s.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 transition-all flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {sessions.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-8 italic">No conversations yet</p>
+                )}
+              </div>
+            </div>
 
             {/* Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
               {!activeSession ? (
-                /* Welcome / Empty State */
+                /* Welcome / Empty State (Fix 7) */
                 <div className="flex-1 flex items-center justify-center p-8">
-                  <div className="text-center max-w-lg">
-                    <div
-                      className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center"
-                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-                    >
-                      <Sparkles className="w-8 h-8 text-white" />
+                  <div className="text-center max-w-xl">
+                    <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center bg-[#D4AF37]/10">
+                      <Sparkles className="w-7 h-7 text-[#D4AF37]" />
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                    <h2 className="text-2xl font-semibold text-slate-900">
                       Scheme Intelligence
                     </h2>
-                    <p className="text-sm text-slate-500 mb-8 leading-relaxed">
+                    <p className="text-slate-500 text-sm mt-1 mb-8">
                       Ask anything about your scheme — data, documents, regulations.
                     </p>
 
-                    {/* Rotating Question Pills */}
-                    <div className="grid grid-cols-2 gap-3 mb-8">
+                    {/* Suggested Questions (Fix 7) */}
+                    <div className="grid grid-cols-2 gap-2 mb-8">
                       {QUESTION_CATEGORIES.map((cat, catIdx) => (
                         <button
                           key={catIdx}
                           onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
-                          className="group text-left p-3 rounded-xl border border-slate-200 bg-white
-                            hover:border-[#D4AF37]/50 hover:shadow-md transition-all"
+                          className="border border-slate-200 rounded-xl p-3 text-sm text-slate-600
+                            hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 cursor-pointer transition-all text-left"
                         >
-                          <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm">{cat.icon}</span>
                             <span className="text-xs font-semibold text-slate-700">{cat.label}</span>
                           </div>
                           <p
                             key={pillIndices[catIdx]}
-                            className="text-xs text-slate-500 group-hover:text-[#B8934C] transition-all
-                              animate-fade-in leading-relaxed"
+                            className="text-xs text-slate-500 leading-relaxed animate-fade-in"
                           >
                             {cat.questions[pillIndices[catIdx]]}
                           </p>
@@ -895,103 +1004,89 @@ export default function SchemeIntelligencePage() {
                   </div>
                 </div>
               ) : (
-                /* Chat Messages */
-                <div className="flex-1 overflow-auto p-6 space-y-4">
-                  {activeSession.messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {msg.role === 'user' ? (
-                        /* User bubble: gold, right-aligned */
-                        <div
-                          className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-white text-sm"
-                          style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-                        >
-                          <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
-                        </div>
-                      ) : (
-                        /* Assistant: no bubble, left border accent */
-                        <div className="max-w-[75%] border-l-2 border-[#D4AF37]/40 pl-4 py-1">
-                          {msg.isStreaming && !msg.content ? (
-                            <StreamingDots />
-                          ) : (
-                            <div
-                              className="text-sm text-slate-800 leading-relaxed prose-sm"
-                              dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                            />
-                          )}
-                          {msg.isStreaming && msg.content && <StreamingDots />}
+                /* Chat Messages (Fix 7: Claude-like layout) */
+                <div className="flex-1 overflow-auto px-8 py-6">
+                  <div className="max-w-3xl mx-auto space-y-8">
+                    {activeSession.messages.map((msg) => (
+                      <div key={msg.id}>
+                        {msg.role === 'user' ? (
+                          /* User bubble: dark, right-aligned */
+                          <div className="flex justify-end">
+                            <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 bg-slate-900 text-white text-sm">
+                              <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Assistant: flat with AI avatar */
+                          <div className="flex items-start gap-3">
+                            <div className="w-7 h-7 bg-[#D4AF37]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {msg.isStreaming && !msg.content ? (
+                                /* Streaming indicator (Fix 7) */
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-400 text-sm italic">Scheme Intelligence is thinking</span>
+                                  <StreamingDots />
+                                </div>
+                              ) : (
+                                <div
+                                  className="text-slate-800 leading-relaxed text-[15px]"
+                                  dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                                />
+                              )}
+                              {msg.isStreaming && msg.content && <StreamingDots />}
 
-                          {msg.role === 'assistant' && !msg.isStreaming && (
-                            <>
-                              {msg.chartData && <InlineChart chartData={msg.chartData} />}
-                              <SourceChips sources={msg.sources} onSourceClick={setSourceDrawer} />
-                              <ActionCards actions={msg.actions} />
-                              {msg.isRegulatory && <RegulatoryDisclaimer />}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-
-              {/* Proactive Insight Strip (above input) */}
-              {insights.length > 0 && (
-                <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                    {insights.map((insight, i) => (
-                      <a
-                        key={i}
-                        href={insight.href || '#'}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200
-                          text-xs font-medium text-slate-700 hover:border-[#D4AF37]/50 hover:text-[#B8934C]
-                          transition-colors whitespace-nowrap flex-shrink-0"
-                      >
-                        <span>{insight.icon}</span>
-                        <span>{insight.text}</span>
-                      </a>
+                              {!msg.isStreaming && (
+                                <>
+                                  {msg.chartData && <InlineChart chartData={msg.chartData} />}
+                                  <CollapsibleSources sources={msg.sources} onSourceClick={setSourceDrawer} />
+                                  <ActionCards actions={msg.actions} />
+                                  {msg.isRegulatory && <RegulatoryDisclaimer />}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
                 </div>
               )}
 
-              {/* Input Area */}
-              <div className="border-t border-slate-200 bg-white p-4">
+              {/* Input Area (Fix 1: Home button, Fix 7: Claude-like input) */}
+              <div className="bg-white px-4 py-3">
                 <div className="flex items-end gap-3 max-w-3xl mx-auto">
-                  <button
-                    onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 flex-shrink-0 mb-0.5"
+                  {/* Fix 1: Home button */}
+                  <Link
+                    href="/developer/overview"
+                    className="p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0 mb-0.5 text-slate-500 hover:text-slate-700"
                   >
-                    <MessageSquare className="w-5 h-5" />
-                  </button>
-                  <div className="flex-1 relative">
+                    <Home className="w-5 h-5" />
+                  </Link>
+                  <div className="flex-1">
                     <textarea
                       ref={inputRef}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Ask about your scheme..."
+                      placeholder="Message Scheme Intelligence..."
                       rows={1}
-                      className="w-full resize-none rounded-full border border-slate-300 px-5 py-3 text-sm
+                      className="w-full resize-none rounded-2xl border border-slate-200 px-5 py-3.5 text-sm
                         text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#D4AF37]
-                        focus:ring-1 focus:ring-[#D4AF37]/30 transition-all"
-                      style={{ minHeight: 44, maxHeight: 120 }}
+                        focus:ring-1 focus:ring-[#D4AF37]/30 shadow-sm transition-all"
+                      style={{ minHeight: 48, maxHeight: 120 }}
                       disabled={isStreaming}
                     />
                   </div>
                   <button
                     onClick={() => sendMessage(input)}
                     disabled={!input.trim() || isStreaming}
-                    className="p-2.5 rounded-full text-white transition-all flex-shrink-0 mb-0.5
-                      disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md"
+                    className={`p-2.5 rounded-full text-white transition-all duration-200 flex-shrink-0 mb-0.5
+                      disabled:cursor-not-allowed hover:shadow-md ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                     style={{
-                      background: input.trim() && !isStreaming
-                        ? `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`
-                        : '#d1d5db',
+                      background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`,
                     }}
                   >
                     {isStreaming ? (
