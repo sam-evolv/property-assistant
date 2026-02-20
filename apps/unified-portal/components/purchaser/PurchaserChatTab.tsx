@@ -708,6 +708,11 @@ interface PurchaserChatTabProps {
   selectedLanguage: string;
   isDarkMode: boolean;
   userId?: string | null;
+  address?: string | null;
+  houseType?: string | null;
+  schemeLat?: number | null;
+  schemeLng?: number | null;
+  estHandoverDate?: string | null;
 }
 
 // Translations for UI and prompts
@@ -879,6 +884,11 @@ export default function PurchaserChatTab({
   selectedLanguage,
   isDarkMode,
   userId,
+  address,
+  houseType,
+  schemeLat,
+  schemeLng,
+  estHandoverDate,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -1563,6 +1573,39 @@ export default function PurchaserChatTab({
               </span>
             )}
           </div>
+
+          {/* Home Info Card */}
+          {(address || schemeLat) && (
+            <div className={`w-full max-w-[300px] mt-3 rounded-2xl overflow-hidden border ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-white'} shadow-sm`}>
+              {schemeLat && schemeLng && (
+                <div className="relative w-full h-[110px]">
+                  <img
+                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${schemeLat},${schemeLng}&zoom=16&size=600x220&scale=2&maptype=satellite&markers=color:0xC4A44A|size:small|${schemeLat},${schemeLng}&key=AIzaSyCKpHDRYYv_Hii4mG3WFdx0YrQlT33hvvc`}
+                    alt="Your development"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                </div>
+              )}
+              <div className="px-3 py-2.5">
+                {address && (
+                  <p className={`text-[12px] font-semibold leading-snug ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{address}</p>
+                )}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {houseType && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: 'rgba(196,164,74,0.15)', color: '#9A7A2E' }}>
+                      {houseType}
+                    </span>
+                  )}
+                  {estHandoverDate && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${isDarkMode ? 'bg-zinc-700 text-zinc-300' : 'bg-gray-100 text-gray-600'}`}>
+                      🗝 Keys: {new Date(estHandoverDate).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Welcome Headline */}
           <h1 className={`mt-3 text-center text-[17px] font-semibold leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
