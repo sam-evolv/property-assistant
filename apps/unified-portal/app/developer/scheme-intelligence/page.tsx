@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
-  Sparkles, Send, Plus, AlertTriangle, X, ChevronRight,
-  Calendar, Loader2, MessageSquare, BarChart3, Brain,
+  Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronLeft,
+  Calendar, Loader2, MessageSquare, BarChart3, Brain, Trash2,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -54,6 +55,115 @@ const tokens = {
   goldLight: '#F5D874',
   goldDark: '#B8934C',
 };
+
+// ============================================================================
+// Message Formatter
+// ============================================================================
+
+function formatMessage(content: string): string {
+  if (!content) return '';
+
+  // Escape HTML to prevent XSS
+  let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // ## Headings
+  html = html.replace(/^##\s+(.+)$/gm, (_match, heading) => {
+    return `<strong class="block mt-3 mb-1 text-[15px] font-semibold">${heading}</strong>`;
+  });
+
+  // **bold** → gold bold
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<span class="font-semibold text-gold-600">$1</span>');
+
+  // *italic* → plain text (strip asterisks)
+  html = html.replace(/\*([^*]+)\*/g, '$1');
+
+  // Style lines ending with colon as bold headings
+  html = html.replace(/^([A-Z][^:\n]{0,50}:)\s*$/gm, (_match, heading) => {
+    return `<strong class="block mt-3 mb-1 text-[15px] font-semibold">${heading}</strong>`;
+  });
+
+  // Inline headings starting a paragraph
+  html = html.replace(/^([A-Z][^:\n]{0,50}:)(\s+\S)/gm, (_match, heading, rest) => {
+    return `<strong class="font-semibold">${heading}</strong>${rest}`;
+  });
+
+  // Bullet list items
+  html = html.replace(/^- (.+)$/gm, (_match, item) => {
+    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-[#D4AF37] select-none shrink-0 mt-[2px]">•</span><span class="flex-1">${item}</span></div>`;
+  });
+
+  // Numbered list items
+  html = html.replace(/^(\d+)\.\s+(.+)$/gm, (_match, num, item) => {
+    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-[#D4AF37] font-medium select-none shrink-0 min-w-[1.25rem] mt-[1px]">${num}.</span><span class="flex-1">${item}</span></div>`;
+  });
+
+  // Clickable URLs
+  html = html.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
+  );
+
+  // Clickable phone numbers
+  html = html.replace(
+    /(\+\d{1,3}[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}|\b0\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}\b)/g,
+    (match) => {
+      const cleanNumber = match.replace(/[\s-]/g, '');
+      return `<a href="tel:${cleanNumber}" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">${match}</a>`;
+    }
+  );
+
+  // Clickable emails
+  html = html.replace(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+    '<a href="mailto:$1" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
+  );
+
+  // Highlight prices
+  html = html.replace(
+    /([€£$]\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:euro|EUR|pounds?|GBP))/gi,
+    '<span class="font-semibold text-gold-600">$1</span>'
+  );
+
+  // Highlight percentages
+  html = html.replace(
+    /(\d+(?:\.\d+)?%)/g,
+    '<span class="font-medium">$1</span>'
+  );
+
+  // Paragraph breaks
+  html = html.replace(/\n\n/g, '</p><p class="mt-3">');
+  html = html.replace(/\n/g, '<br/>');
+
+  // Wrap in paragraph
+  html = `<p>${html}</p>`;
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p class="mt-3"><\/p>/g, '');
+  html = html.replace(/<p><\/p>/g, '');
+
+  return html;
+}
+
+// ============================================================================
+// Relative Time Helper
+// ============================================================================
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+}
 
 // ============================================================================
 // Rotating Question Pills
@@ -135,11 +245,11 @@ function saveSessions(sessions: Session[]) {
 
 function RegulatoryDisclaimer() {
   return (
-    <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 flex gap-2">
+    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 flex gap-2">
       <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
       <p className="text-xs text-amber-800">
-        This information is based on current Irish Building Regulations and your uploaded documents.
-        Verify all compliance determinations with your assigned certifier or solicitor before acting.
+        This response references Irish Building Regulations. Always verify compliance requirements
+        with your assigned certifier or solicitor before acting on this information.
       </p>
     </div>
   );
@@ -165,7 +275,7 @@ function SourceChips({
           key={i}
           onClick={() => onSourceClick(s)}
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium
-            bg-grey-100 text-grey-600 hover:bg-gold-50 hover:text-gold-700 transition-colors"
+            bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors"
         >
           {s.type === 'function' ? <BarChart3 className="w-2.5 h-2.5" /> : <MessageSquare className="w-2.5 h-2.5" />}
           {s.title}
@@ -184,8 +294,8 @@ function ActionCards({ actions }: { actions?: ChatMessage['actions'] }) {
           key={i}
           href={a.href}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-            border border-grey-200 text-grey-700 hover:border-gold-300 hover:text-gold-700
-            hover:bg-gold-50 transition-all"
+            border border-slate-200 text-slate-700 hover:border-amber-300 hover:text-amber-700
+            hover:bg-amber-50 transition-all"
         >
           {a.label}
           <ChevronRight className="w-3 h-3" />
@@ -204,19 +314,29 @@ function SourceDrawer({
 }) {
   if (!source) return null;
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white border-l border-grey-200 shadow-2xl z-50 flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b border-grey-100">
+    <div className="fixed inset-y-0 right-0 w-96 bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-slate-100">
         <div>
-          <h3 className="text-sm font-semibold text-grey-900">{source.title}</h3>
-          <span className="text-xs text-grey-500 capitalize">{source.type}</span>
+          <h3 className="text-sm font-semibold text-slate-900">{source.title}</h3>
+          <span className="text-xs text-slate-500 capitalize">{source.type}</span>
         </div>
-        <button onClick={onClose} className="p-1 hover:bg-grey-100 rounded-lg transition">
-          <X className="w-4 h-4 text-grey-500" />
+        <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition">
+          <X className="w-4 h-4 text-slate-500" />
         </button>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <p className="text-sm text-grey-700 leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
+        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
       </div>
+    </div>
+  );
+}
+
+function StreamingDots() {
+  return (
+    <div className="flex items-center gap-1 py-1">
+      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
+      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
+      <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
     </div>
   );
 }
@@ -261,17 +381,17 @@ function BriefingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-grey-100">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }}
+              style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
             >
               <Calendar className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-grey-900">Today&apos;s Briefing</h2>
-              <p className="text-xs text-grey-500">
+              <h2 className="text-lg font-bold text-slate-900">Today&apos;s Briefing</h2>
+              <p className="text-xs text-slate-500">
                 {new Date().toLocaleDateString('en-IE', {
                   weekday: 'long',
                   year: 'numeric',
@@ -281,15 +401,15 @@ function BriefingModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-grey-100 rounded-lg transition">
-            <X className="w-5 h-5 text-grey-500" />
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition">
+            <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
         <div className="flex-1 overflow-auto p-6 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-gold-500" />
-              <span className="ml-3 text-sm text-grey-500">Generating briefing...</span>
+              <Loader2 className="w-6 h-6 animate-spin text-[#D4AF37]" />
+              <span className="ml-3 text-sm text-slate-500">Generating briefing...</span>
             </div>
           ) : (
             <>
@@ -304,7 +424,7 @@ function BriefingModal({
                         {item.action && (
                           <a
                             href={item.action.href}
-                            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-gold-700 hover:text-gold-800"
+                            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-700 hover:text-amber-800"
                           >
                             {item.action.label}
                             <ChevronRight className="w-3 h-3" />
@@ -316,13 +436,13 @@ function BriefingModal({
                 );
               })}
               {briefingText && (
-                <div className="mt-4 p-4 rounded-xl bg-grey-50 border border-grey-100">
-                  <p className="text-sm text-grey-700 leading-relaxed whitespace-pre-wrap">{briefingText}</p>
+                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{briefingText}</p>
                 </div>
               )}
               {!items.length && !briefingText && (
                 <div className="text-center py-12">
-                  <p className="text-sm text-grey-500">No actionable items for today. Everything looks good!</p>
+                  <p className="text-sm text-slate-500">No actionable items for today. Everything looks good!</p>
                 </div>
               )}
             </>
@@ -338,7 +458,7 @@ function BriefingModal({
 // ============================================================================
 
 export default function SchemeIntelligencePage() {
-  const { developmentId } = useCurrentContext();
+  const { developmentId, developmentName } = useCurrentContext();
 
   // Sessions
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -355,6 +475,7 @@ export default function SchemeIntelligencePage() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [sourceDrawer, setSourceDrawer] = useState<any>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   // Pill rotation
   const [pillIndices, setPillIndices] = useState([0, 0, 0, 0]);
@@ -391,6 +512,13 @@ export default function SchemeIntelligencePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages]);
 
+  // Auto-clear delete confirmation after 3s
+  useEffect(() => {
+    if (!deletingSessionId) return;
+    const timer = setTimeout(() => setDeletingSessionId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [deletingSessionId]);
+
   const createSession = useCallback(
     (firstMessage: string) => {
       const session: Session = {
@@ -419,6 +547,21 @@ export default function SchemeIntelligencePage() {
       });
     },
     []
+  );
+
+  const deleteSession = useCallback(
+    (sessionId: string) => {
+      setSessions((prev) => {
+        const updated = prev.filter((s) => s.id !== sessionId);
+        saveSessions(updated);
+        return updated;
+      });
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+      }
+      setDeletingSessionId(null);
+    },
+    [activeSessionId]
   );
 
   const sendMessage = useCallback(
@@ -573,252 +716,292 @@ export default function SchemeIntelligencePage() {
     setInput('');
   };
 
-  const groupSessionsByDate = (sessions: Session[]) => {
-    const today = new Date().toDateString();
-    const yesterday = new Date(Date.now() - 86400000).toDateString();
-    const groups: Record<string, Session[]> = {};
-
-    for (const s of sessions) {
-      const d = new Date(s.createdAt).toDateString();
-      const label = d === today ? 'Today' : d === yesterday ? 'Yesterday' : d;
-      if (!groups[label]) groups[label] = [];
-      groups[label].push(s);
-    }
-    return groups;
-  };
-
-  const sessionGroups = groupSessionsByDate(sessions);
-
   return (
-    <div className="min-h-full bg-gray-50">
-      {/* Header */}
-      <div className="border-b border-grey-100 bg-white px-6 py-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-premium"
-              style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }}
-            >
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-grey-900">Scheme Intelligence</h1>
-              <p className="text-xs text-grey-500">Your scheme. Ask it anything.</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setBriefingOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-              text-white shadow-lg hover:shadow-xl transition-all"
-            style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }}
-          >
-            <Calendar className="w-4 h-4" />
-            Today&apos;s Briefing
-          </button>
-        </div>
-      </div>
+    <div className="min-h-full bg-slate-50">
+      <div className="max-w-[1400px] mx-auto px-4 py-4">
+        {/* Back link */}
+        <Link
+          href="/developer/overview"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3 transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Overview
+        </Link>
 
-      {/* Insight Strip */}
-      {insights.length > 0 && (
-        <div className="border-b border-grey-100 bg-white px-6 py-3">
-          <div className="flex items-center gap-4">
-            {insights.map((insight, i) => (
-              <a
-                key={i}
-                href={insight.href || '#'}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gold-50 border border-gold-200
-                  text-xs font-medium text-gold-800 hover:bg-gold-100 transition-colors"
-              >
-                <span>{insight.icon}</span>
-                <span>{insight.text}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex" style={{ height: 'calc(100vh - 140px)' }}>
-        {/* Sessions Sidebar */}
-        {sidebarOpen && (
-          <div className="w-64 border-r border-grey-100 bg-white flex flex-col flex-shrink-0">
-            <div className="p-3 border-b border-grey-100">
+        {/* Main Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+          {/* Header */}
+          <div className="px-6 py-4 border-b-2 border-[#D4AF37]/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                >
+                  <Sparkles className="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-bold text-slate-900">Scheme Intelligence</h1>
+                  </div>
+                  {developmentName && (
+                    <p className="text-xs text-slate-500">{developmentName}</p>
+                  )}
+                </div>
+              </div>
               <button
-                onClick={startNewSession}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-                  border border-grey-200 text-sm font-medium text-grey-700
-                  hover:border-gold-300 hover:text-gold-700 hover:bg-gold-50 transition-all"
+                onClick={() => setBriefingOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                  text-white shadow-lg hover:shadow-xl transition-all"
+                style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
               >
-                <Plus className="w-4 h-4" />
-                New Chat
+                <Calendar className="w-4 h-4" />
+                Today&apos;s Briefing
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-3 space-y-4">
-              {Object.entries(sessionGroups).map(([label, group]) => (
-                <div key={label}>
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-grey-400">
-                    {label}
-                  </p>
-                  <div className="space-y-0.5 mt-1">
-                    {group.map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => setActiveSessionId(s.id)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all truncate ${
-                          s.id === activeSessionId
-                            ? 'bg-gold-50 text-gold-800 font-medium'
-                            : 'text-grey-600 hover:bg-grey-50'
-                        }`}
+          </div>
+
+          {/* Body: Sidebar + Chat */}
+          <div className="flex flex-1 min-h-0">
+            {/* Sessions Sidebar */}
+            {sidebarOpen && (
+              <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0">
+                <div className="p-3 border-b border-slate-200">
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversations</span>
+                  </div>
+                  <button
+                    onClick={startNewSession}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                      text-sm font-medium text-white transition-all"
+                    style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Chat
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto p-2">
+                  {sessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`group relative rounded-lg transition-all mb-0.5 ${
+                        s.id === activeSessionId
+                          ? 'bg-white border-l-2 border-[#D4AF37] shadow-sm'
+                          : 'hover:bg-white/60 border-l-2 border-transparent'
+                      }`}
+                    >
+                      {deletingSessionId === s.id ? (
+                        /* Inline delete confirmation */
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <span className="text-xs text-slate-600 flex-1">Delete?</span>
+                          <button
+                            onClick={() => deleteSession(s.id)}
+                            className="text-[11px] font-medium text-red-600 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setDeletingSessionId(null)}
+                            className="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setActiveSessionId(s.id)}
+                          className="w-full text-left px-3 py-2 flex items-center gap-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs truncate ${
+                              s.id === activeSessionId ? 'text-slate-900 font-medium' : 'text-slate-600'
+                            }`}>
+                              {s.title || 'New conversation'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{relativeTime(s.createdAt)}</p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingSessionId(s.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 transition-all flex-shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {sessions.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-8 italic">No conversations yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Chat Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {!activeSession ? (
+                /* Welcome / Empty State */
+                <div className="flex-1 flex items-center justify-center p-8">
+                  <div className="text-center max-w-lg">
+                    <div
+                      className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                    >
+                      <Sparkles className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                      Scheme Intelligence
+                    </h2>
+                    <p className="text-sm text-slate-500 mb-8 leading-relaxed">
+                      Ask anything about your scheme — data, documents, regulations.
+                    </p>
+
+                    {/* Rotating Question Pills */}
+                    <div className="grid grid-cols-2 gap-3 mb-8">
+                      {QUESTION_CATEGORIES.map((cat, catIdx) => (
+                        <button
+                          key={catIdx}
+                          onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
+                          className="group text-left p-3 rounded-xl border border-slate-200 bg-white
+                            hover:border-[#D4AF37]/50 hover:shadow-md transition-all"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm">{cat.icon}</span>
+                            <span className="text-xs font-semibold text-slate-700">{cat.label}</span>
+                          </div>
+                          <p
+                            key={pillIndices[catIdx]}
+                            className="text-xs text-slate-500 group-hover:text-[#B8934C] transition-all
+                              animate-fade-in leading-relaxed"
+                          >
+                            {cat.questions[pillIndices[catIdx]]}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setBriefingOpen(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
+                        text-white shadow-lg hover:shadow-xl transition-all"
+                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      View Today&apos;s Briefing
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Chat Messages */
+                <div className="flex-1 overflow-auto p-6 space-y-4">
+                  {activeSession.messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {msg.role === 'user' ? (
+                        /* User bubble: gold, right-aligned */
+                        <div
+                          className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 text-white text-sm"
+                          style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                        >
+                          <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                        </div>
+                      ) : (
+                        /* Assistant: no bubble, left border accent */
+                        <div className="max-w-[75%] border-l-2 border-[#D4AF37]/40 pl-4 py-1">
+                          {msg.isStreaming && !msg.content ? (
+                            <StreamingDots />
+                          ) : (
+                            <div
+                              className="text-sm text-slate-800 leading-relaxed prose-sm"
+                              dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                            />
+                          )}
+                          {msg.isStreaming && msg.content && <StreamingDots />}
+
+                          {msg.role === 'assistant' && !msg.isStreaming && (
+                            <>
+                              {msg.chartData && <InlineChart chartData={msg.chartData} />}
+                              <SourceChips sources={msg.sources} onSourceClick={setSourceDrawer} />
+                              <ActionCards actions={msg.actions} />
+                              {msg.isRegulatory && <RegulatoryDisclaimer />}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+
+              {/* Proactive Insight Strip (above input) */}
+              {insights.length > 0 && (
+                <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {insights.map((insight, i) => (
+                      <a
+                        key={i}
+                        href={insight.href || '#'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200
+                          text-xs font-medium text-slate-700 hover:border-[#D4AF37]/50 hover:text-[#B8934C]
+                          transition-colors whitespace-nowrap flex-shrink-0"
                       >
-                        {s.title || 'New conversation'}
-                      </button>
+                        <span>{insight.icon}</span>
+                        <span>{insight.text}</span>
+                      </a>
                     ))}
                   </div>
                 </div>
-              ))}
-              {sessions.length === 0 && (
-                <p className="text-xs text-grey-400 text-center py-4">No conversations yet</p>
               )}
-            </div>
-          </div>
-        )}
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {!activeSession ? (
-            /* Welcome / Empty State */
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="text-center max-w-lg">
-                <div
-                  className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-premium-lg"
-                  style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }}
-                >
-                  <Brain className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-grey-900 mb-2">
-                  Ask anything about your scheme
-                </h2>
-                <p className="text-sm text-grey-500 mb-8 leading-relaxed">
-                  Query live data, search your documents, check unit specs, and verify
-                  regulatory compliance — all in one place.
-                </p>
-
-                {/* Rotating Question Pills */}
-                <div className="grid grid-cols-2 gap-3 mb-8">
-                  {QUESTION_CATEGORIES.map((cat, catIdx) => (
-                    <button
-                      key={catIdx}
-                      onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
-                      className="group text-left p-3 rounded-xl border border-grey-200 bg-white
-                        hover:border-gold-300 hover:shadow-card-hover transition-all"
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-sm">{cat.icon}</span>
-                        <span className="text-xs font-semibold text-grey-700">{cat.label}</span>
-                      </div>
-                      <p
-                        key={pillIndices[catIdx]}
-                        className="text-xs text-grey-500 group-hover:text-gold-700 transition-all
-                          animate-fade-in leading-relaxed"
-                      >
-                        {cat.questions[pillIndices[catIdx]]}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setBriefingOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
-                    text-white shadow-lg hover:shadow-xl transition-all"
-                  style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }}
-                >
-                  <Calendar className="w-4 h-4" />
-                  View Today&apos;s Briefing
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Chat Messages */
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              {activeSession.messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                      msg.role === 'user'
-                        ? 'text-white text-sm'
-                        : 'bg-white border border-grey-100 shadow-card text-sm text-grey-800'
-                    }`}
-                    style={
-                      msg.role === 'user'
-                        ? { background: 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)' }
-                        : undefined
-                    }
+              {/* Input Area */}
+              <div className="border-t border-slate-200 bg-white p-4">
+                <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 flex-shrink-0 mb-0.5"
                   >
-                    <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
-                    {msg.isStreaming && (
-                      <span className="inline-block w-1.5 h-4 ml-0.5 bg-gold-500 animate-pulse rounded-sm" />
-                    )}
-
-                    {msg.role === 'assistant' && !msg.isStreaming && (
-                      <>
-                        {msg.chartData && <InlineChart chartData={msg.chartData} />}
-                        <SourceChips sources={msg.sources} onSourceClick={setSourceDrawer} />
-                        <ActionCards actions={msg.actions} />
-                        {msg.isRegulatory && <RegulatoryDisclaimer />}
-                      </>
-                    )}
+                    <MessageSquare className="w-5 h-5" />
+                  </button>
+                  <div className="flex-1 relative">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask about your scheme..."
+                      rows={1}
+                      className="w-full resize-none rounded-full border border-slate-300 px-5 py-3 text-sm
+                        text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#D4AF37]
+                        focus:ring-1 focus:ring-[#D4AF37]/30 transition-all"
+                      style={{ minHeight: 44, maxHeight: 120 }}
+                      disabled={isStreaming}
+                    />
                   </div>
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={!input.trim() || isStreaming}
+                    className="p-2.5 rounded-full text-white transition-all flex-shrink-0 mb-0.5
+                      disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md"
+                    style={{
+                      background: input.trim() && !isStreaming
+                        ? `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`
+                        : '#d1d5db',
+                    }}
+                  >
+                    {isStreaming ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div className="border-t border-grey-100 bg-white p-4">
-            <div className="flex items-end gap-3 max-w-3xl mx-auto">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 hover:bg-grey-100 rounded-lg transition text-grey-400 hover:text-grey-600 flex-shrink-0 mb-0.5"
-              >
-                <MessageSquare className="w-5 h-5" />
-              </button>
-              <div className="flex-1 relative">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about your scheme..."
-                  rows={1}
-                  className="w-full resize-none rounded-xl border border-grey-200 px-4 py-3 text-sm
-                    text-grey-900 placeholder-grey-400 focus:outline-none focus:border-gold-400
-                    focus:ring-2 focus:ring-gold-100 transition-all"
-                  style={{ minHeight: 44, maxHeight: 120 }}
-                  disabled={isStreaming}
-                />
               </div>
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={!input.trim() || isStreaming}
-                className="p-2.5 rounded-xl text-white transition-all flex-shrink-0 mb-0.5
-                  disabled:opacity-40 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-                style={{
-                  background: input.trim() && !isStreaming
-                    ? 'linear-gradient(135deg, #D4AF37 0%, #B8934C 100%)'
-                    : '#d1d5db',
-                }}
-              >
-                {isStreaming ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -834,7 +1017,7 @@ export default function SchemeIntelligencePage() {
         developmentId={developmentId}
       />
 
-      {/* CSS for fade animation */}
+      {/* CSS for animations */}
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(4px); }
@@ -843,6 +1026,12 @@ export default function SchemeIntelligencePage() {
         .animate-fade-in {
           animation: fadeIn 0.4s ease-out;
         }
+        @keyframes pulse-dot {
+          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
