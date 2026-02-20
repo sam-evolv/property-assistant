@@ -3663,7 +3663,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         extractedRoom ? lookupRoomDimensions(
           getSupabaseClient(),
           userTenantId,
-          userDevelopmentId,
+          userSupabaseProjectId,  // FIXED: unit_room_dimensions uses Supabase project ID, not Drizzle dev ID
           userHouseTypeCode || undefined,
           actualUnitId || undefined,
           extractedRoom  // Pass the full RoomMapping object for smart matching
