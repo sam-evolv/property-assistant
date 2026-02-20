@@ -69,7 +69,7 @@ export default function DisciplineDetailPage() {
       let response = await fetch(`/api/archive/documents?${urlParams}`);
       console.log('[Archive Page] Primary API response status:', response.status);
       
-      if (response.status === 404) {
+      if (!response.ok) {
         console.log('[Archive Page] Primary endpoint not available, using disciplines endpoint...');
         urlParams.set('action', 'documents');
         response = await fetch(`/api/archive/disciplines?${urlParams}`);
