@@ -439,11 +439,10 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
         {trafficLight === 'blocked' && onChase && (
           <button
             onClick={(e) => { e.stopPropagation(); onChase(); }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide transition-all hover:opacity-80"
-            style={{ background: 'rgba(127,29,29,0.12)', color: '#7f1d1d', border: '1px solid rgba(127,29,29,0.25)' }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-red-600 text-white shadow-sm hover:bg-red-700 active:scale-95 transition-all"
             title="Escalate this stalled unit"
           >
-            <ArrowUpRight className="w-2.5 h-2.5" />
+            <AlertOctagon className="w-3 h-3 flex-shrink-0" />
             Escalate
           </button>
         )}
