@@ -107,7 +107,16 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Extract text with pdf-parse
+      // Extract text — polyfill DOMMatrix for pdf-parse v2 in Node.js serverless
+      if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+        (globalThis as any).DOMMatrix = class DOMMatrix {
+          constructor() {}
+          static fromMatrix() { return new (globalThis as any).DOMMatrix(); }
+          invertSelf() { return this; }
+          multiplySelf() { return this; }
+          transformPoint(p: any) { return p; }
+        };
+      }
       const pdfMod = await import('pdf-parse') as any;
       const pdfParse = pdfMod.default ?? pdfMod;
       const buf = Buffer.from(await fileData.arrayBuffer());
