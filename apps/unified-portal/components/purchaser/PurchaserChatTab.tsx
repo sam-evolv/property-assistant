@@ -466,6 +466,35 @@ const WarrantyTimelineCard = ({ card, isDarkMode }: { card: NonNullable<Message[
   );
 };
 
+// Contact card — shown when LLM response contains contact details
+const ContactCard = ({ card, isDarkMode }: { card: NonNullable<Message['contact_card']>; isDarkMode: boolean }) => {
+  return (
+    <div className={`mt-3 rounded-2xl border p-4 ${isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200'} shadow-sm`}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-full bg-[#C4A44A] flex items-center justify-center text-white text-sm font-bold">
+          {card.name ? card.name[0] : '👤'}
+        </div>
+        <div>
+          {card.name && <div className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{card.name}</div>}
+          <div className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>Contact</div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {card.phone && (
+          <a href={`tel:${card.phone.replace(/\s/g, '')}`} className="flex items-center gap-2 text-[#C4A44A] text-sm font-medium">
+            <span>📞</span> {card.phone}
+          </a>
+        )}
+        {card.email && (
+          <a href={`mailto:${card.email}`} className="flex items-center gap-2 text-[#C4A44A] text-sm font-medium">
+            <span>✉️</span> {card.email}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SourcesDropdown = ({
   sources,
   isDarkMode
@@ -659,6 +688,11 @@ interface Message {
     developer_years: number;
     structural_years: number;
     providers: string[];
+  } | null;
+  contact_card?: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
   } | null;
 }
 
@@ -1212,6 +1246,7 @@ export default function PurchaserChatTab({
         let sources: SourceDocument[] | null = null;
         let berCard: Message['ber_card'] = null;
         let warrantyCard: Message['warranty_card'] = null;
+        let contactCard: Message['contact_card'] = null;
         let assistantMessageIndex = -1;
 
         // Add placeholder assistant message immediately (empty - typing indicator shown via sending state)
@@ -1248,6 +1283,9 @@ export default function PurchaserChatTab({
                   if (data.warranty_card) {
                     warrantyCard = data.warranty_card;
                   }
+                  if (data.contact_card) {
+                    contactCard = data.contact_card;
+                  }
                 } else if (data.type === 'text') {
                   // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
                   streamedContent += data.content;
@@ -1265,6 +1303,11 @@ export default function PurchaserChatTab({
                     return updated;
                   });
                 } else if (data.type === 'done') {
+                  // Capture contact_card from done event (detected after full response is built)
+                  if (data.contact_card) {
+                    contactCard = data.contact_card;
+                  }
+
                   // Streaming complete - finalize message
                   const isNoInfoResponse = streamedContent.toLowerCase().includes("i don't have that information") ||
                     streamedContent.toLowerCase().includes("i don't have that specific detail") ||
@@ -1282,6 +1325,7 @@ export default function PurchaserChatTab({
                         isNoInfo: isNoInfoResponse,
                         ber_card: berCard,
                         warranty_card: warrantyCard,
+                        contact_card: contactCard,
                       };
                     }
                     return updated;
@@ -1331,6 +1375,7 @@ export default function PurchaserChatTab({
               transit_card: data.transit_card || null,
               ber_card: data.ber_card || null,
               warranty_card: data.warranty_card || null,
+              contact_card: data.contact_card || null,
             },
           ]);
 
@@ -1656,6 +1701,10 @@ export default function PurchaserChatTab({
                         <div className="mt-3">
                           <WarrantyTimelineCard card={msg.warranty_card} isDarkMode={isDarkMode} />
                         </div>
+                      )}
+                      {/* Contact card — shown when response contains contact details */}
+                      {msg.contact_card && (
+                        <ContactCard card={msg.contact_card} isDarkMode={isDarkMode} />
                       )}
                       {/* Copy button - appears on hover */}
                       <CopyButton content={msg.content} isDarkMode={isDarkMode} />

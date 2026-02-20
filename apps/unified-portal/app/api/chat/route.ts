@@ -4165,8 +4165,18 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: sourceHintContent })}\n\n`));
           }
           
+          // Contact card detection: phone/email in response
+          const contactCardPhoneMatch = fullAnswer?.match(/\+?[\d\s\-]{10,15}/);
+          const contactCardEmailMatch = fullAnswer?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+          const contactNameMatch = fullAnswer?.match(/(?:contact|reach|speak to|ask for|speak with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+          const contactCard = (contactCardPhoneMatch || contactCardEmailMatch) ? {
+            name: contactNameMatch?.[1] || null,
+            phone: contactCardPhoneMatch?.[0]?.trim() || null,
+            email: contactCardEmailMatch?.[0]?.trim() || null,
+          } : null;
+
           // Send completion signal
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', contact_card: contactCard })}\n\n`));
           controller.close();
 
           // Save to database after streaming completes

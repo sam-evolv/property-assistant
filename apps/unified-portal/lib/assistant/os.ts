@@ -147,6 +147,10 @@ const LOCATION_PATTERNS = [
   new RegExp(`\\b(${AMENITY_TYPES})\\s+(nearby|near\\s*(me|here|us)|close\\s*by|closest|nearest)\\b`, 'i'),
   new RegExp(`\\bwhere\\s+(is|are|can\\s+i\\s+find)\\s+(the\\s+)?(nearest|closest)\\s+(${AMENITY_TYPES})\\b`, 'i'),
   new RegExp(`\\b(what|which)\\s+(${AMENITY_TYPES})s?\\s+(are|is)\\s+(nearby|near\\s*(me|here)|close)\\b`, 'i'),
+  // Direct transit queries (no proximity word needed)
+  new RegExp(`\\b(what|which|is\\s*there\\s*a)\\s+(bus|train|tram|dart|luas|rail)\\b`, 'i'),
+  new RegExp(`\\b(bus|train|tram)\\s+(goes?|runs?|gets?|connects?|takes?|to)\\b`, 'i'),
+  /\bhow\s+do\s+i\s+get\s+(to|into)\s+(town|city|centre|center|cork|dublin|galway)\b/i,
 ];
 
 const PLAYBOOK_PATTERNS = [
