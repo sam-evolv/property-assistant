@@ -24,6 +24,7 @@ import {
   AlertOctagon,
   List,
   LayoutGrid,
+  ArrowUpRight,
 } from 'lucide-react';
 
 // =============================================================================
@@ -423,9 +424,6 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
         } ${trafficLight === 'blocked' ? 'font-semibold text-red-900' : 'font-medium'}`}
         style={getTrafficLightStyle()}
       >
-        {trafficLight === 'blocked' && (
-          <AlertOctagon className="w-3 h-3 text-red-800 mr-1 flex-shrink-0" />
-        )}
         {formatted || '—'}
         {(trafficLight === 'red' || trafficLight === 'amber') && onChase && (
           <button
@@ -441,9 +439,11 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
         {trafficLight === 'blocked' && onChase && (
           <button
             onClick={(e) => { e.stopPropagation(); onChase(); }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-900 text-white hover:bg-red-800 transition-colors"
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide transition-all hover:opacity-80"
+            style={{ background: 'rgba(127,29,29,0.12)', color: '#7f1d1d', border: '1px solid rgba(127,29,29,0.25)' }}
             title="Escalate this stalled unit"
           >
+            <ArrowUpRight className="w-2.5 h-2.5" />
             Escalate
           </button>
         )}
