@@ -15,19 +15,30 @@ export async function getRegistrationRate(
   tenantId: string,
   developmentId?: string
 ): Promise<FunctionResult> {
-  let query = supabase
+  // Count units total (from units table)
+  let unitsQuery = supabase
     .from('units')
-    .select('id, unit_number, purchaser_name, purchaser_email')
+    .select('id, unit_number, unit_uid')
     .eq('tenant_id', tenantId);
-
-  if (developmentId) query = query.eq('development_id', developmentId);
-
-  const { data: units, error } = await query;
-  if (error) throw new Error(`getRegistrationRate: ${error.message}`);
+  if (developmentId) unitsQuery = unitsQuery.eq('development_id', developmentId);
+  const { data: units, error: unitsError } = await unitsQuery;
+  if (unitsError) throw new Error(`getRegistrationRate: ${unitsError.message}`);
 
   const total = units?.length || 0;
-  const registered = units?.filter((u: any) => u.purchaser_email).length || 0;
-  const unregistered = units?.filter((u: any) => !u.purchaser_email).map((u: any) => u.unit_number) || [];
+
+  // Count registered via purchaser_agreements (actual portal registrations)
+  let regQuery = supabase
+    .from('purchaser_agreements')
+    .select('unit_id')
+    .in('unit_id', (units || []).map((u: any) => u.id));
+  const { data: agreements, error: agError } = await regQuery;
+  if (agError) throw new Error(`getRegistrationRate agreements: ${agError.message}`);
+
+  const registeredUnitIds = new Set((agreements || []).map((a: any) => a.unit_id));
+  const registered = registeredUnitIds.size;
+  const unregistered = (units || [])
+    .filter((u: any) => !registeredUnitIds.has(u.id))
+    .map((u: any) => u.unit_uid || u.unit_number);
   const rate = total > 0 ? Math.round((registered / total) * 100) : 0;
 
   return {
@@ -375,39 +386,56 @@ export async function getSchemeSummary(
   tenantId: string,
   developmentId?: string
 ): Promise<FunctionResult> {
-  // Get development name if scoped
+  // Get scheme name — check both developments table (by id) and projects table (by id)
   let schemeName = 'All Schemes';
   if (developmentId) {
     const { data: dev } = await supabase
       .from('developments')
       .select('name')
       .eq('id', developmentId)
-      .single();
-    if (dev) schemeName = dev.name;
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    if (dev?.name) {
+      schemeName = dev.name;
+    } else {
+      // Fallback: check projects table (Supabase project UUID)
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', developmentId)
+        .maybeSingle();
+      if (proj?.name) schemeName = proj.name;
+    }
   }
 
-  // Run aggregation queries in parallel
-  const [regResult, handoverResult, activityResult, docResult] = await Promise.all([
+  // Run aggregation queries in parallel — fault-tolerant (one failure won't break summary)
+  const settled = await Promise.allSettled([
     getRegistrationRate(supabase, tenantId, developmentId),
     getHandoverPipeline(supabase, tenantId, developmentId),
     getHomeownerActivity(supabase, tenantId, developmentId, 7),
     getDocumentCoverage(supabase, tenantId, developmentId),
   ]);
 
+  const [regResult, handoverResult, activityResult, docResult] = settled.map((r, i) => {
+    if (r.status === 'fulfilled') return r.value;
+    console.error(`[getSchemeSummary] sub-query ${i} failed:`, r.reason?.message);
+    return { data: {}, summary: '' } as FunctionResult;
+  });
+
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 86400000);
-  const upcomingHandovers = (handoverResult.data.upcoming || []).filter(
+  const upcomingHandovers = (handoverResult.data?.upcoming || []).filter(
     (u: any) => new Date(u.handoverDate) <= thirtyDaysFromNow
   );
 
   const summary = {
     schemeName,
-    totalUnits: regResult.data.total,
-    registeredHomeowners: regResult.data.registered,
-    registrationRate: regResult.data.rate,
+    totalUnits: regResult.data?.total ?? 0,
+    registeredHomeowners: regResult.data?.registered ?? 0,
+    registrationRate: regResult.data?.rate ?? 0,
     upcomingHandovers30Days: upcomingHandovers.length,
-    activeMessages7Days: activityResult.data.messageCount,
-    documentCount: docResult.data.totalDocs,
-    documentCoverage: docResult.data.coveragePercent,
+    activeMessages7Days: activityResult.data?.messageCount ?? 0,
+    documentCount: docResult.data?.totalDocs ?? 0,
+    documentCoverage: docResult.data?.coveragePercent ?? 0,
   };
 
   return {
