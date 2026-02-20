@@ -21,6 +21,9 @@ import {
   MessageCircle,
   AlertCircle,
   Key,
+  AlertOctagon,
+  List,
+  LayoutGrid,
 } from 'lucide-react';
 
 // =============================================================================
@@ -303,13 +306,15 @@ function computeTrafficLight(
   stageDate: string | null,
   referenceDate: string | null,
   amberDays: number,
-  redDays: number
-): 'green' | 'amber' | 'red' | null {
+  redDays: number,
+  blockedDays: number = 56
+): 'green' | 'amber' | 'red' | 'blocked' | null {
   if (stageDate) return 'green';
   if (!referenceDate) return null;
   const now = new Date();
   const ref = new Date(referenceDate);
   const daysSince = Math.floor((now.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysSince >= blockedDays) return 'blocked';
   if (daysSince >= redDays) return 'red';
   if (daysSince >= amberDays) return 'amber';
   return null;
@@ -320,7 +325,7 @@ interface DateCellProps {
   unitId: string;
   field: string;
   onUpdate: (unitId: string, field: string, value: string) => void;
-  trafficLight?: 'green' | 'amber' | 'red' | null;
+  trafficLight?: 'green' | 'amber' | 'red' | 'blocked' | null;
   onChase?: () => void;
 }
 
@@ -403,6 +408,9 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
     if (trafficLight === 'red') {
       return { background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)', color: '#991b1b', borderLeft: '3px solid #ef4444' };
     }
+    if (trafficLight === 'blocked') {
+      return { background: 'rgba(69, 10, 10, 0.06)', color: '#7f1d1d', borderLeft: '3px solid rgba(153, 27, 27, 0.4)' };
+    }
     return { background: '#fafaf9' };
   };
 
@@ -410,11 +418,14 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
     <td className="border-l border-gray-50">
       <div
         onClick={handleClick}
-        className={`h-11 px-2 flex items-center justify-center text-xs font-medium cursor-pointer transition-all relative ${
+        className={`h-11 px-2 flex items-center justify-center text-xs cursor-pointer transition-all relative ${
           isEmpty ? 'text-gray-400 hover:bg-gray-100' : ''
-        }`}
+        } ${trafficLight === 'blocked' ? 'font-semibold text-red-900' : 'font-medium'}`}
         style={getTrafficLightStyle()}
       >
+        {trafficLight === 'blocked' && (
+          <AlertOctagon className="w-3 h-3 text-red-800 mr-1 flex-shrink-0" />
+        )}
         {formatted || '—'}
         {(trafficLight === 'red' || trafficLight === 'amber') && onChase && (
           <button
@@ -425,6 +436,15 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
             title="Send chase email"
           >
             <Mail className={`w-3 h-3 ${trafficLight === 'red' ? 'text-red-700' : 'text-amber-700'}`} />
+          </button>
+        )}
+        {trafficLight === 'blocked' && onChase && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onChase(); }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-900 text-white hover:bg-red-800 transition-colors"
+            title="Escalate this stalled unit"
+          >
+            Escalate
           </button>
         )}
       </div>
@@ -2206,6 +2226,214 @@ function ReleaseUnitsModal({ isOpen, onClose, developmentId, developmentName, ex
 }
 
 // =============================================================================
+// Kanban View Components
+// =============================================================================
+
+const KANBAN_STAGES = [
+  { key: 'for_sale', label: 'For Sale', color: 'bg-gray-100 border-gray-200' },
+  { key: 'sale_agreed', label: 'Sale Agreed', color: 'bg-blue-50 border-blue-200' },
+  { key: 'contracts', label: 'Contracts Issued', color: 'bg-amber-50 border-amber-200' },
+  { key: 'signed', label: 'Contracts Signed', color: 'bg-purple-50 border-purple-200' },
+  { key: 'drawdown', label: 'Drawdown', color: 'bg-orange-50 border-orange-200' },
+  { key: 'complete', label: 'Complete', color: 'bg-green-50 border-green-200' },
+] as const;
+
+function getKanbanStage(unit: PipelineUnit): typeof KANBAN_STAGES[number]['key'] {
+  if (unit.handoverDate) return 'complete';
+  if (unit.drawdownDate) return 'drawdown';
+  if (unit.signedContractsDate) return 'signed';
+  if (unit.contractsIssuedDate) return 'contracts';
+  if (unit.saleAgreedDate) return 'sale_agreed';
+  return 'for_sale';
+}
+
+function KanbanView({ units, onUnitClick }: { units: PipelineUnit[]; onUnitClick: (unit: PipelineUnit) => void }) {
+  const grouped = KANBAN_STAGES.reduce((acc, stage) => {
+    acc[stage.key] = units.filter(u => getKanbanStage(u) === stage.key);
+    return acc;
+  }, {} as Record<string, PipelineUnit[]>);
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex gap-4 p-4 min-w-max">
+        {KANBAN_STAGES.map(stage => (
+          <div key={stage.key} className="w-64 flex-shrink-0">
+            <div className={`rounded-xl border ${stage.color} p-3`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{stage.label}</h3>
+                <span className="text-xs font-bold text-gray-500 bg-white/70 rounded-full px-2 py-0.5">{grouped[stage.key].length}</span>
+              </div>
+              <div className="space-y-2">
+                {grouped[stage.key].length === 0 ? (
+                  <div className="text-xs text-gray-400 text-center py-4">No units</div>
+                ) : (
+                  grouped[stage.key].map(unit => {
+                    const stall = computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42, 56);
+                    const stallColor = stall === 'blocked' ? 'border-l-4 border-l-red-800' : stall === 'red' ? 'border-l-4 border-l-red-500' : stall === 'amber' ? 'border-l-4 border-l-amber-400' : '';
+                    return (
+                      <button
+                        key={unit.id}
+                        onClick={() => onUnitClick(unit)}
+                        className={`w-full text-left bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all border border-gray-100 ${stallColor}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-900">{unit.unitNumber}</span>
+                          {unit.salePrice && <span className="text-xs text-gray-500 font-mono">€{Math.round((unit.salePrice || 0) / 1000)}k</span>}
+                        </div>
+                        {unit.purchaserName && <p className="text-xs text-gray-500 mt-1 truncate">{unit.purchaserName}</p>}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// PC Sum Drill-Down Modal
+// =============================================================================
+
+function PcSumDrillDownModal({ units, onClose }: { units: PipelineUnit[]; onClose: () => void }) {
+  const deductionUnits = units
+    .filter(u => u.saleType !== 'social' && u.kitchenSelection?.pcSumTotal !== undefined && u.kitchenSelection?.pcSumTotal !== 0)
+    .sort((a, b) => (a.kitchenSelection?.pcSumTotal || 0) - (b.kitchenSelection?.pcSumTotal || 0));
+
+  const totalImpact = deductionUnits.reduce((acc, u) => acc + (u.kitchenSelection?.pcSumTotal || 0), 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">PC Sum Impact Breakdown</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{deductionUnits.length} units with adjustments</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto max-h-96">
+          {deductionUnits.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 text-sm">No adjustments recorded</div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Unit</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Purchaser</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">PC Sum</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {deductionUnits.map(u => (
+                  <tr key={u.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{u.unitNumber}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-[160px]">{u.purchaserName || '—'}</td>
+                    <td className={`px-4 py-3 text-sm font-mono text-right font-semibold ${(u.kitchenSelection?.pcSumTotal || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {(u.kitchenSelection?.pcSumTotal || 0) < 0 ? '-' : '+'}€{Math.abs(u.kitchenSelection?.pcSumTotal || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+          <span className="text-sm font-medium text-gray-700">Total Impact</span>
+          <span className={`text-base font-bold font-mono ${totalImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+            {totalImpact < 0 ? '-' : ''}€{Math.abs(totalImpact).toLocaleString()}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Bulk Notify Modal
+// =============================================================================
+
+function BulkNotifyModal({
+  modal,
+  developmentName,
+  onClose,
+}: {
+  modal: { type: 'purchasers' | 'solicitors'; recipients: Array<{ name: string; email: string; unit: string; stage: string }> };
+  developmentName: string;
+  onClose: () => void;
+}) {
+  const isPurchasers = modal.type === 'purchasers';
+  const defaultMessage = isPurchasers
+    ? `Dear Homeowner,\n\nWe're reaching out regarding the progress of your unit at ${developmentName}. Please don't hesitate to contact us if you have any questions.\n\nKind regards,\n${developmentName} Team`
+    : `Dear Solicitor,\n\nWe are following up on the status of contracts for the units listed below at ${developmentName}. Please advise on current status at your earliest convenience.\n\nKind regards,\n${developmentName} Team`;
+
+  const [message, setMessage] = useState(defaultMessage);
+
+  const handleSend = () => {
+    const emails = modal.recipients.map(r => r.email).join(',');
+    const subject = encodeURIComponent(isPurchasers ? `Update re: Your Home at ${developmentName}` : `Contract Update — ${developmentName}`);
+    const body = encodeURIComponent(message);
+    window.open(`mailto:${emails}?subject=${subject}&body=${body}`, '_blank');
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              {isPurchasers ? 'Message Purchasers' : 'Chase Solicitors'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-0.5">{modal.recipients.length} recipients</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">To</p>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+              {modal.recipients.map(r => (
+                <span key={r.email} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-700">
+                  <span className="font-medium">Unit {r.unit}</span>
+                  <span className="text-gray-400">·</span>
+                  {r.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Message</p>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              rows={7}
+              className="w-full text-sm text-gray-800 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Cancel</button>
+          <button
+            onClick={handleSend}
+            className="px-5 py-2 text-sm font-medium text-white rounded-xl transition-all hover:opacity-90"
+            style={{ background: 'linear-gradient(135deg, #C4A44A 0%, #9A7A2E 100%)' }}
+          >
+            Open in Mail App ({modal.recipients.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Main Page Component
 // =============================================================================
 
@@ -2225,6 +2453,12 @@ export default function PipelineDevelopmentPage() {
   const [queryUnit, setQueryUnit] = useState<PipelineUnit | null>(null);
   const [hasNewActivity] = useState(true); // Would come from API
   const [editingColumnHeader, setEditingColumnHeader] = useState<{ key: string; label: string } | null>(null);
+  const [showPcSumModal, setShowPcSumModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [bulkNotifyModal, setBulkNotifyModal] = useState<{
+    type: 'purchasers' | 'solicitors';
+    recipients: Array<{ name: string; email: string; unit: string; stage: string }>;
+  } | null>(null);
   
   // Social housing filter - default to 'private' (hide social housing)
   const [housingFilter, setHousingFilter] = useState<'all' | 'private' | 'social'>(() => {
@@ -2410,21 +2644,29 @@ export default function PipelineDevelopmentPage() {
   };
 
   const handleBulkEmailSolicitors = () => {
-    const selected = units.filter(u => selectedRows.has(u.id) && u.solicitorEmail);
-    const emails = [...new Set(selected.map(u => u.solicitorEmail))].filter(Boolean);
-    if (emails.length > 0) {
-      window.location.href = `mailto:${emails.join(',')}`;
-    }
-    showToast(`Opening email to ${emails.length} solicitor(s)`);
+    const selected = units.filter(u => selectedRows.has(u.id));
+    const recipients = selected
+      .filter(u => u.solicitorEmail)
+      .map(u => ({
+        name: u.solicitorName || 'Solicitor',
+        email: u.solicitorEmail!,
+        unit: u.unitNumber,
+        stage: getKanbanStage(u).replace(/_/g, ' '),
+      }));
+    setBulkNotifyModal({ type: 'solicitors', recipients });
   };
 
   const handleBulkEmailPurchasers = () => {
-    const selected = units.filter(u => selectedRows.has(u.id) && u.purchaserEmail);
-    const emails = selected.map(u => u.purchaserEmail).filter(Boolean);
-    if (emails.length > 0) {
-      window.location.href = `mailto:${emails.join(',')}`;
-    }
-    showToast(`Opening email to ${emails.length} purchaser(s)`);
+    const selected = units.filter(u => selectedRows.has(u.id));
+    const recipients = selected
+      .filter(u => u.purchaserEmail)
+      .map(u => ({
+        name: u.purchaserName || 'Purchaser',
+        email: u.purchaserEmail!,
+        unit: u.unitNumber,
+        stage: getKanbanStage(u).replace(/_/g, ' '),
+      }));
+    setBulkNotifyModal({ type: 'purchasers', recipients });
   };
 
   const handleBulkExport = () => {
@@ -2691,13 +2933,19 @@ export default function PipelineDevelopmentPage() {
                 <p className="text-xs text-gray-500 mt-2">{stats.socialUnits} social units</p>
               )}
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Impact</p>
+            <button
+              onClick={() => setShowPcSumModal(true)}
+              className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-gray-300 transition-all text-left w-full cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PC Sum Impact</p>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </div>
               <p className={`text-2xl font-bold mt-1 font-mono ${stats.totalPcSumImpact < 0 ? 'text-red-600' : 'text-gray-900'}`}>
                 {stats.totalPcSumImpact === 0 ? '€0' : `${stats.totalPcSumImpact < 0 ? '-' : ''}€${Math.abs(stats.totalPcSumImpact).toLocaleString()}`}
               </p>
               <p className="text-xs text-gray-500 mt-2">{stats.unitsWithDeductions} units with deductions ({stats.kitchenDecided} decided)</p>
-            </div>
+            </button>
           </div>
 
           {/* Table Card */}
@@ -2797,8 +3045,28 @@ export default function PipelineDevelopmentPage() {
                   {sortedUnits.length} units
                 </span>
               </div>
+              {/* View Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Table view"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Kanban view"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
+            {viewMode === 'kanban' ? (
+              <KanbanView units={housingFilteredUnits} onUnitClick={(unit) => setSelectedUnit(unit)} />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -2972,7 +3240,7 @@ export default function PipelineDevelopmentPage() {
                               unitId={unit.id} 
                               field="signedContractsDate" 
                               onUpdate={handleUpdate}
-                              trafficLight={computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42)}
+                              trafficLight={computeTrafficLight(unit.signedContractsDate, unit.contractsIssuedDate, 28, 42, 56)}
                               onChase={() => handleChaseEmail(unit, 'contracts')}
                             />
                             <DateCell value={unit.counterSignedDate} unitId={unit.id} field="counterSignedDate" onUpdate={handleUpdate} />
@@ -3019,6 +3287,7 @@ export default function PipelineDevelopmentPage() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -3111,6 +3380,12 @@ export default function PipelineDevelopmentPage() {
 
       {/* Toast */}
       <Toast message={toast.message} visible={toast.visible} />
+
+      {/* PC Sum Drill-Down Modal */}
+      {showPcSumModal && <PcSumDrillDownModal units={units} onClose={() => setShowPcSumModal(false)} />}
+
+      {/* Bulk Notify Modal */}
+      {bulkNotifyModal && <BulkNotifyModal modal={bulkNotifyModal} developmentName={development?.name || 'this development'} onClose={() => setBulkNotifyModal(null)} />}
 
       {/* Release Units Modal */}
       <ReleaseUnitsModal
