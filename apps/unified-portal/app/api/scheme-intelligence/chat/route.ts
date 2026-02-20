@@ -113,9 +113,9 @@ export async function POST(request: NextRequest) {
         });
         const queryEmbedding = embeddingResponse.data[0].embedding;
 
-        // Determine which project to search: 'regulatory_corpus' for Layer 4, else scheme docs
+        // Determine which project to search: '00000000-0000-0000-0000-000000000001' for Layer 4, else scheme docs
         const matchProjectId = route.layers.includes('layer4')
-          ? 'regulatory_corpus'
+          ? '00000000-0000-0000-0000-000000000001'
           : (developmentId || tenantId);
 
         const { data: chunks, error: ragError } = await supabase.rpc('match_document_sections', {
