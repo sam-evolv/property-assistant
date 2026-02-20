@@ -79,6 +79,7 @@ export async function GET(
         development_name: developmentName,
         file_url: doc.file_url,
         storage_url: doc.storage_url,
+        relative_path: doc.relative_path,
         mime_type: doc.mime_type,
         size_kb: doc.size_kb,
         created_at: doc.created_at,

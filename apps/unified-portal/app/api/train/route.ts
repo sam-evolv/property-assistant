@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
 import OpenAI from 'openai';
+import { isFloorPlan } from '@/lib/floorplan/extractor';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -290,6 +291,51 @@ export async function POST(request: NextRequest) {
         succeeded++;
         totalChunksIndexed += chunksIndexed;
         console.log('[Upload] ✅ Completed:', file.name, `(${chunksIndexed} chunks indexed)`);
+
+        // Phase 4: Floor plan vision extraction (if this looks like a floor plan)
+        if (isFloorPlan(file.name, discipline)) {
+          try {
+            console.log('[Upload] 🏠 Floor plan detected — running vision extraction for', file.name);
+            const { extractFloorPlanRooms } = await import('@/lib/floorplan/extractor');
+            const extractResult = await extractFloorPlanRooms(
+              Buffer.from(fileBuffer),
+              process.env.OPENAI_API_KEY!,
+            );
+
+            if (extractResult.rooms.length > 0) {
+              console.log('[Upload] Vision extracted', extractResult.rooms.length, 'rooms');
+
+              for (const room of extractResult.rooms) {
+                const { error: dimErr } = await supabaseAdmin
+                  .from('unit_room_dimensions')
+                  .insert({
+                    tenant_id: tenantId,
+                    development_id: developmentId,
+                    house_type_id: null,
+                    room_name: room.room_name,
+                    room_key: room.room_key,
+                    floor: room.floor,
+                    length_m: room.length_m,
+                    width_m: room.width_m,
+                    area_sqm: room.area_sqm,
+                    ceiling_height_m: room.ceiling_height_m,
+                    source: 'floorplan_vision',
+                    verified: false,
+                    extraction_confidence: room.confidence,
+                    extraction_notes: `Auto-extracted from ${file.name}`,
+                  });
+                if (dimErr) {
+                  console.warn('[Upload] Room insert error for', room.room_name, ':', dimErr.message);
+                }
+              }
+              console.log('[Upload] ✅ Floor plan extraction complete:', extractResult.rooms.length, 'rooms stored');
+            } else {
+              console.log('[Upload] No rooms extracted from', file.name, '— method:', extractResult.extraction_method);
+            }
+          } catch (fpErr) {
+            console.warn('[Upload] Floor plan extraction error for', file.name, ':', fpErr instanceof Error ? fpErr.message : 'err');
+          }
+        }
 
       } catch (err: any) {
         console.error('[Upload] Unexpected error for', file.name, ':', err.message);

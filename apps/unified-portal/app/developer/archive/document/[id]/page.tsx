@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
+import {
   ArrowLeft, FileText, Star, AlertCircle, Sparkles, Building2, Calendar,
-  Download, RefreshCw, Save, Loader2, ExternalLink, Eye, Tag, X, ChevronDown, Clock
+  Download, RefreshCw, Save, Loader2, ExternalLink, Eye, Tag, X, ChevronDown, Clock,
+  Ruler, CheckCircle, Pencil, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -25,6 +26,7 @@ interface DocumentDetail {
   development_name: string;
   file_url: string | null;
   storage_url: string | null;
+  relative_path: string | null;
   mime_type: string | null;
   size_kb: number | null;
   created_at: string;
@@ -39,6 +41,26 @@ interface ChunkPreview {
   id: string;
   content: string;
   chunk_index: number;
+}
+
+interface FloorPlanRoom {
+  id: string;
+  room_name: string;
+  room_key: string;
+  floor: string | null;
+  length_m: number | null;
+  width_m: number | null;
+  area_sqm: number | null;
+  ceiling_height_m: number | null;
+  source: string;
+  verified: boolean;
+  house_type_id: string | null;
+  extraction_confidence: number | null;
+}
+
+interface FPUnitType {
+  id: string;
+  name: string;
 }
 
 export default function DocumentDetailPage() {
@@ -69,6 +91,14 @@ export default function DocumentDetailPage() {
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [isAsking, setIsAsking] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+
+  // Floor plan rooms state
+  const [floorPlanRooms, setFloorPlanRooms] = useState<FloorPlanRoom[]>([]);
+  const [fpUnitTypes, setFpUnitTypes] = useState<FPUnitType[]>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomEdits, setRoomEdits] = useState<Partial<FloorPlanRoom>>({});
+  const [isExtractingFloorPlan, setIsExtractingFloorPlan] = useState(false);
 
   useEffect(() => {
     async function fetchDocument() {
@@ -225,6 +255,116 @@ export default function DocumentDetailPage() {
     }
   };
 
+  // Fetch floor plan rooms when document is architectural
+  useEffect(() => {
+    if (document?.discipline === 'architectural') {
+      fetchFloorPlanRooms();
+    }
+  }, [document?.discipline, document?.id]);
+
+  async function fetchFloorPlanRooms() {
+    setIsLoadingRooms(true);
+    try {
+      const res = await fetch(`/api/archive/documents/${documentId}/floorplan-rooms`);
+      if (res.ok) {
+        const data = await res.json();
+        setFloorPlanRooms(data.rooms || []);
+        setFpUnitTypes(data.unit_types || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch floor plan rooms:', e);
+    }
+    setIsLoadingRooms(false);
+  }
+
+  async function runFloorPlanExtraction() {
+    if (!document) return;
+    setIsExtractingFloorPlan(true);
+    setError(null);
+    try {
+      const storagePath = document.relative_path || document.storage_url;
+      if (!storagePath) {
+        setError('No storage path available for extraction');
+        setIsExtractingFloorPlan(false);
+        return;
+      }
+      const res = await fetch('/api/floorplan/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath,
+          developmentId: document.development_id,
+          documentId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage(`Extracted ${data.rooms_extracted} rooms from floor plan`);
+        setTimeout(() => setSuccessMessage(null), 5000);
+        fetchFloorPlanRooms();
+      } else {
+        setError(data.reason === 'no_rooms_found' ? 'No rooms found in this document' : (data.error || 'Extraction failed'));
+      }
+    } catch {
+      setError('Extraction failed');
+    }
+    setIsExtractingFloorPlan(false);
+  }
+
+  async function handleVerifyRoom(roomId: string, verified: boolean) {
+    try {
+      const res = await fetch(`/api/archive/documents/${documentId}/floorplan-rooms`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, verified }),
+      });
+      if (res.ok) {
+        setFloorPlanRooms(prev => prev.map(r => r.id === roomId ? { ...r, verified } : r));
+      }
+    } catch (e) {
+      console.error('Verify room error:', e);
+    }
+  }
+
+  async function handleVerifyAll() {
+    for (const room of floorPlanRooms.filter(r => !r.verified)) {
+      await handleVerifyRoom(room.id, true);
+    }
+  }
+
+  async function handleSaveRoomEdit(roomId: string) {
+    try {
+      const res = await fetch(`/api/archive/documents/${documentId}/floorplan-rooms`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, ...roomEdits }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFloorPlanRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...roomEdits } : r));
+        setEditingRoomId(null);
+        setRoomEdits({});
+      }
+    } catch (e) {
+      console.error('Save room edit error:', e);
+    }
+  }
+
+  async function handleDeleteRoom(roomId: string) {
+    try {
+      const res = await fetch(`/api/archive/documents/${documentId}/floorplan-rooms`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId }),
+      });
+      if (res.ok) {
+        setFloorPlanRooms(prev => prev.filter(r => r.id !== roomId));
+      }
+    } catch (e) {
+      console.error('Delete room error:', e);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -364,6 +504,193 @@ export default function DocumentDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Floor Plan Rooms Panel — only for architectural documents */}
+            {document.discipline === 'architectural' && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Ruler className="h-4 w-4 text-blue-500" />
+                    Floor Plan Rooms
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {floorPlanRooms.some(r => !r.verified) && floorPlanRooms.length > 0 && (
+                      <button
+                        onClick={handleVerifyAll}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Verify All
+                      </button>
+                    )}
+                    <button
+                      onClick={runFloorPlanExtraction}
+                      disabled={isExtractingFloorPlan}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      {isExtractingFloorPlan ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      {floorPlanRooms.length > 0 ? 'Re-extract' : 'Run Extraction'}
+                    </button>
+                  </div>
+                </div>
+
+                {isLoadingRooms ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  </div>
+                ) : floorPlanRooms.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Ruler className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500 mb-1">No rooms extracted yet</p>
+                    <p className="text-xs text-gray-400">Click &quot;Run Extraction&quot; to auto-detect room dimensions</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wide">
+                          <th className="pb-2 pr-3">Room</th>
+                          <th className="pb-2 pr-3">Dimensions</th>
+                          <th className="pb-2 pr-3">Floor</th>
+                          <th className="pb-2 pr-3">House Type</th>
+                          <th className="pb-2 pr-3">Status</th>
+                          <th className="pb-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {floorPlanRooms.map((room) => (
+                          <tr key={room.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-2.5 pr-3">
+                              <span className="font-medium text-gray-900">{room.room_name}</span>
+                              <span className="block text-xs text-gray-400">{room.room_key}</span>
+                            </td>
+                            <td className="py-2.5 pr-3">
+                              {editingRoomId === room.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={room.length_m ?? ''}
+                                    onChange={(e) => setRoomEdits(prev => ({ ...prev, length_m: parseFloat(e.target.value) || undefined }))}
+                                    className="w-16 px-1.5 py-1 border border-gray-200 rounded text-xs"
+                                    placeholder="L"
+                                  />
+                                  <span className="text-gray-400 text-xs">x</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={room.width_m ?? ''}
+                                    onChange={(e) => setRoomEdits(prev => ({ ...prev, width_m: parseFloat(e.target.value) || undefined }))}
+                                    className="w-16 px-1.5 py-1 border border-gray-200 rounded text-xs"
+                                    placeholder="W"
+                                  />
+                                  <span className="text-gray-400 text-xs">m</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-700">
+                                  {room.length_m && room.width_m
+                                    ? `${room.length_m} × ${room.width_m}m`
+                                    : room.area_sqm
+                                      ? `${room.area_sqm}m²`
+                                      : '—'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 pr-3 text-gray-600">{room.floor || '—'}</td>
+                            <td className="py-2.5 pr-3">
+                              {editingRoomId === room.id ? (
+                                <select
+                                  defaultValue={room.house_type_id || ''}
+                                  onChange={(e) => setRoomEdits(prev => ({ ...prev, house_type_id: e.target.value || null }))}
+                                  className="w-full px-1.5 py-1 border border-gray-200 rounded text-xs"
+                                >
+                                  <option value="">None</option>
+                                  {fpUnitTypes.map(ut => (
+                                    <option key={ut.id} value={ut.id}>{ut.name}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-gray-600 text-xs">
+                                  {room.house_type_id
+                                    ? fpUnitTypes.find(ut => ut.id === room.house_type_id)?.name || '—'
+                                    : '—'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 pr-3">
+                              {room.verified ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                  {room.extraction_confidence != null
+                                    ? `${Math.round(room.extraction_confidence * 100)}%`
+                                    : 'Pending'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {editingRoomId === room.id ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleSaveRoomEdit(room.id)}
+                                      className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                      title="Save"
+                                    >
+                                      <Save className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => { setEditingRoomId(null); setRoomEdits({}); }}
+                                      className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                                      title="Cancel"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => setEditingRoomId(room.id)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                      title="Edit"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    {!room.verified && (
+                                      <button
+                                        onClick={() => handleVerifyRoom(room.id, true)}
+                                        className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                                        title="Verify"
+                                      >
+                                        <CheckCircle className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeleteRoom(room.id)}
+                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">
