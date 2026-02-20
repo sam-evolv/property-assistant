@@ -289,8 +289,8 @@ const ROOM_PHRASE_MAPPINGS: Array<{ patterns: RegExp[]; mapping: RoomMapping }> 
     ],
     mapping: {
       displayName: 'Downstairs WC',
-      searchKeys: ['wc_downstairs', 'WC Downstairs', 'wc downstairs', 'downstairs_wc', 'downstairs wc', 'Downstairs WC', 'toilet', 'Toilet', 'wc', 'WC', 'cloakroom', 'Cloakroom', 'guest_wc', 'guest wc'],
-      searchNames: ['downstairs', 'wc', 'toilet', 'cloakroom', 'guest']
+      searchKeys: ['wc_ground', 'wc_downstairs', 'WC Downstairs', 'wc downstairs', 'downstairs_wc', 'downstairs wc', 'Downstairs WC', 'toilet', 'Toilet', 'wc', 'WC', 'cloakroom', 'Cloakroom', 'guest_wc', 'guest wc'],
+      searchNames: ['wc', 'downstairs', 'toilet', 'cloakroom', 'guest']
     }
   },
 
@@ -3597,9 +3597,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     const roomKeywords = 'living\\s*room|bedroom|kitchen|bathroom|utility|wc|toilet|loo|ensuite|en-?suite|master|lounge|sitting\\s*room|dining|hall|landing|garage|study|office|cloakroom|hot\\s*press|storage|cupboard|house|home|room';
     const isDimensionQuestion = questionTopic === 'room_sizes' ||
       /\b(dimension|measurement|square\s*(feet|metres?|meters?|m2|ft2?)|floor\s*area)\b/i.test(message) ||
-      new RegExp(`\\bwhat\\s+size\\s+(is|are)\\s+(my|the)\\s+(${roomKeywords})`, 'i').test(message) ||
-      new RegExp(`\\bhow\\s+(big|large)\\s+(is|are)\\s+(my|the)\\s+(${roomKeywords})`, 'i').test(message) ||
-      new RegExp(`\\b(${roomKeywords})\\s+(size|dimensions?|measurements?|area)\\b`, 'i').test(message);
+      // Allow modifier words between "my/the" and room name, e.g. "my downstairs bathroom", "my first floor bathroom"
+      new RegExp(`\\bwhat\\s+size\\s+(is|are)\\s+(my|the)\\s+(?:\\w+\\s+)?(${roomKeywords})`, 'i').test(message) ||
+      new RegExp(`\\bhow\\s+(big|large)\\s+(is|are)\\s+(my|the)\\s+(?:\\w+\\s+)?(${roomKeywords})`, 'i').test(message) ||
+      new RegExp(`\\b(${roomKeywords})\\s+(size|dimensions?|measurements?|area)\\b`, 'i').test(message) ||
+      // Direct floor/room modifier patterns
+      /\b(downstairs|upstairs|ground\s*floor|first\s*floor)\s+(bathroom|wc|toilet|bedroom|bathroom)\b/i.test(message);
 
     // Extract the specific room being asked about using smart matching
     const extractedRoom = isDimensionQuestion ? extractRoomFromQuestion(message) : null;
