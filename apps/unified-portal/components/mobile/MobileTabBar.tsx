@@ -72,8 +72,8 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLangu
     borderTopWidth: '1px',
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
-    backgroundColor: isDarkMode ? 'rgba(17, 24, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-    borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(229, 231, 235, 1)',
+    backgroundColor: isDarkMode ? 'rgba(15, 15, 15, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+    borderTopColor: isDarkMode ? 'rgba(42, 42, 42, 1)' : 'rgba(229, 231, 235, 1)',
   };
 
   const containerStyles: React.CSSProperties = {
@@ -126,17 +126,32 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLangu
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 style={buttonStyles}
-                className="no-select active:scale-95"
+                className="no-select active:scale-95 relative"
                 aria-label={tab.label}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <Icon 
+                {isActive && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '52px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                    pointerEvents: 'none',
+                  }} />
+                )}
+                <Icon
                   style={{
                     width: '24px',
                     height: '24px',
                     marginBottom: '4px',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     transition: 'transform 150ms ease-out',
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                   strokeWidth={isActive ? 2.5 : 2}
                 />
@@ -144,6 +159,8 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLangu
                   fontSize: '10px',
                   fontWeight: isActive ? 600 : 500,
                   letterSpacing: '0.025em',
+                  position: 'relative',
+                  zIndex: 1,
                 }}>
                   {tab.label}
                 </span>

@@ -508,16 +508,16 @@ export default function HomeResidentPage() {
     house.development_name
   }. How can I help with your home at ${house.address}?`;
 
-  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
+  const bgColor = isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
+  const borderColor = isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200';
 
   // Main app render - consent already handled above
   return (
     <>
       {/* Landscape Warning Overlay - shown on mobile landscape */}
       <div className={`landscape-warning fixed inset-0 z-[100] items-center justify-center ${
-        isDarkMode ? 'bg-gray-900' : 'bg-white'
+        isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'
       }`}>
         <div className="flex flex-col items-center gap-4 p-8 text-center">
           <svg 
@@ -531,7 +531,7 @@ export default function HomeResidentPage() {
           <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             Please Rotate Your Device
           </h2>
-          <p className={`text-sm max-w-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <p className={`text-sm max-w-xs ${isDarkMode ? 'text-[#A0A0A0]' : 'text-gray-600'}`}>
             This app works best in portrait mode. Please rotate your phone to continue.
           </p>
         </div>
@@ -542,7 +542,7 @@ export default function HomeResidentPage() {
         <header 
           className={`sticky top-0 z-20 border-b px-4 flex items-center justify-between ${
             isDarkMode 
-              ? 'border-white/5 bg-gray-900/80 backdrop-blur-xl' 
+              ? 'border-white/5 bg-[#0F0F0F]/80 backdrop-blur-xl'
               : 'border-black/5 bg-white/80 backdrop-blur-xl'
           }`}
           style={{
@@ -577,7 +577,7 @@ export default function HomeResidentPage() {
               onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm transition ${
                 isDarkMode
-                  ? 'border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700'
+                  ? 'border-[#2A2A2A] bg-[#1A1A1A]/80 text-[#C0C0C0] hover:bg-[#252525]'
                   : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -590,7 +590,7 @@ export default function HomeResidentPage() {
 
             {showLanguageDropdown && (
               <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border py-1 z-50 ${
-                isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'
               }`}>
                 {LANGUAGES.map(lang => (
                   <button
@@ -599,7 +599,7 @@ export default function HomeResidentPage() {
                     className={`w-full px-4 py-2 text-left flex items-center gap-3 transition-colors text-sm ${
                       selectedLanguage === lang.code 
                         ? (isDarkMode ? 'bg-gold-900/30 text-gold-400' : 'bg-gold-50 text-gold-700')
-                        : (isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
+                        : (isDarkMode ? 'text-[#C0C0C0] hover:bg-[#252525]' : 'text-gray-700 hover:bg-gray-100')
                     }`}
                   >
                     <span>{lang.flag}</span>
@@ -615,7 +615,7 @@ export default function HomeResidentPage() {
             onClick={toggleTheme}
             className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition ${
               isDarkMode
-                ? 'border-gray-700 bg-gray-800/80 text-gold-400 hover:bg-gray-700'
+                ? 'border-[#2A2A2A] bg-[#1A1A1A]/80 text-gold-400 hover:bg-[#252525]'
                 : 'border-slate-200 bg-white/80 text-slate-500 hover:bg-slate-50'
             }`}
             aria-label="Toggle theme"
@@ -643,6 +643,7 @@ export default function HomeResidentPage() {
       >
         <div className="flex-1 min-h-0 overflow-hidden">
           <Tabs.Content value="chat" className="h-full min-h-0 overflow-hidden">
+            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserChatTab
               houseId={house.unit_id}
               developmentId={house.development_id}
@@ -656,9 +657,11 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               userId={house.user_id}
             />
+            </div>
           </Tabs.Content>
 
           <Tabs.Content value="maps" className="h-full">
+            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserMapsTab
               address={house.address}
               eircode={house.eircode}
@@ -668,25 +671,30 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
             />
+            </div>
           </Tabs.Content>
 
           <Tabs.Content value="noticeboard" className="h-full">
-            <PurchaserNoticeboardTab 
+            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
+            <PurchaserNoticeboardTab
               unitUid={house.unit_id}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
             />
+            </div>
           </Tabs.Content>
 
           <Tabs.Content value="documents" className="h-full">
-            <PurchaserDocumentsTab 
+            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
+            <PurchaserDocumentsTab
               unitUid={house.unit_id}
               houseType={house.house_type}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
             />
+            </div>
           </Tabs.Content>
         </div>
 
