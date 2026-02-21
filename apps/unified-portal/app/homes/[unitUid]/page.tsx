@@ -643,7 +643,6 @@ export default function HomeResidentPage() {
       >
         <div className="flex-1 min-h-0 overflow-hidden">
           <Tabs.Content value="chat" className="h-full min-h-0 overflow-hidden">
-            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserChatTab
               houseId={house.unit_id}
               developmentId={house.development_id}
@@ -657,11 +656,9 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               userId={house.user_id}
             />
-            </div>
           </Tabs.Content>
 
           <Tabs.Content value="maps" className="h-full">
-            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserMapsTab
               address={house.address}
               eircode={house.eircode}
@@ -671,22 +668,18 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
             />
-            </div>
           </Tabs.Content>
 
           <Tabs.Content value="noticeboard" className="h-full">
-            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserNoticeboardTab
               unitUid={house.unit_id}
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
             />
-            </div>
           </Tabs.Content>
 
           <Tabs.Content value="documents" className="h-full">
-            <div style={{ animation: 'fadeIn 200ms ease-out' }}>
             <PurchaserDocumentsTab
               unitUid={house.unit_id}
               houseType={house.house_type}
@@ -694,7 +687,6 @@ export default function HomeResidentPage() {
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
             />
-            </div>
           </Tabs.Content>
         </div>
 
