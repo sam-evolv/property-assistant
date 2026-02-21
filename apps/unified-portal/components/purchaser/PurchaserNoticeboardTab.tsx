@@ -458,8 +458,8 @@ function CategoryBadge({ category, t, isDarkMode }: { category?: string; t: any;
       icon: ''
     },
     general: {
-      bg: isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100',
-      text: isDarkMode ? 'text-gray-300' : 'text-gray-600',
+      bg: isDarkMode ? 'bg-[#2A2A2E] border border-[#444444]' : 'bg-gray-100',
+      text: isDarkMode ? 'text-[#D0D0D0]' : 'text-gray-600',
       icon: ''
     },
   };
@@ -988,7 +988,7 @@ export default function PurchaserNoticeboardTab({
                   selectedCategory === cat
                     ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
                     : isDarkMode
-                      ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                      ? 'bg-[#1A1A1C] border border-[#333333] text-[#E0E0E0] hover:bg-[#252528] hover:border-[#444444]'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
