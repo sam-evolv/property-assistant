@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ie.openhouseai.app",
+      "sha256_cert_fingerprints": [
+        "93:EF:51:D4:F7:92:D3:4C:4A:55:BC:47:CD:32:C0:35:EB:9A:F9:5C:66:6D:30:E4:12:63:29:0E:F6:E5:2A:1B"
+      ]
+    }
+  }
+]
