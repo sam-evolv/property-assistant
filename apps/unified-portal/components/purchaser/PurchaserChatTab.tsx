@@ -1620,7 +1620,7 @@ export default function PurchaserChatTab({
           </h1>
 
           {/* Subtitle */}
-          <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+          <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>
             {t.subtitle}
           </p>
 
@@ -1643,7 +1643,7 @@ export default function PurchaserChatTab({
                   }}
                   className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer truncate touch-manipulation ${
                     isDarkMode 
-                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                      ? 'border border-[#444444] bg-[#1E1E24] text-[#E8E8E8] hover:border-gold-500 hover:bg-[#252529] hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
                   }`}
                   title={pill.label}
