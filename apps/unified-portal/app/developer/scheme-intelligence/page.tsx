@@ -6,7 +6,8 @@ import Image from 'next/image';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
   Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronDown, ChevronUp,
-  Calendar, Loader2, Home, BarChart2, Trash2, FileText, BookOpen, Copy, Check,
+  ChevronLeft, Calendar, Loader2, Home, BarChart2, Trash2, FileText, BookOpen,
+  Copy, Check, GitCompare,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -34,6 +35,12 @@ interface Session {
   title: string;
   messages: ChatMessage[];
   createdAt: string;
+  developmentId?: string;
+}
+
+interface Development {
+  id: string;
+  name: string;
 }
 
 interface Insight {
@@ -583,14 +590,58 @@ export default function SchemeIntelligencePage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
+  // Feature 1: Collapsible sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Feature 3: Session loading state
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  // Feature 5: Scheme comparison
+  const [compareWithId, setCompareWithId] = useState<string | null>(null);
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [compareDropdownOpen, setCompareDropdownOpen] = useState(false);
+
   // Pill rotation
   const [pillIndices, setPillIndices] = useState([0, 0, 0, 0]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
-  // Load sessions from localStorage
+  // Load sessions from API, fallback to localStorage
   useEffect(() => {
-    setSessions(loadSessions());
+    setSessionsLoading(true);
+    fetch('/api/scheme-intelligence/sessions')
+      .then((res) => {
+        if (!res.ok) throw new Error('API failed');
+        return res.json();
+      })
+      .then((data) => {
+        if (data.sessions?.length) {
+          setSessions(data.sessions.map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            messages: s.messages || [],
+            createdAt: s.createdAt || s.created_at,
+            developmentId: s.developmentId,
+          })));
+        } else {
+          setSessions(loadSessions());
+        }
+      })
+      .catch(() => {
+        setSessions(loadSessions());
+      })
+      .finally(() => setSessionsLoading(false));
+  }, []);
+
+  // Fetch developments for comparison feature
+  useEffect(() => {
+    fetch('/api/developer/developments')
+      .then((res) => res.ok ? res.json() : Promise.reject())
+      .then((data) => {
+        if (Array.isArray(data)) setDevelopments(data);
+        else if (data.developments) setDevelopments(data.developments);
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch insights on load
@@ -627,19 +678,42 @@ export default function SchemeIntelligencePage() {
 
   const createSession = useCallback(
     (firstMessage: string) => {
+      const tempId = crypto.randomUUID();
       const session: Session = {
-        id: crypto.randomUUID(),
+        id: tempId,
         title: firstMessage.slice(0, 50),
         messages: [],
         createdAt: new Date().toISOString(),
+        developmentId: developmentId || undefined,
       };
       const updated = [session, ...sessions];
       setSessions(updated);
       saveSessions(updated);
-      setActiveSessionId(session.id);
-      return session.id;
+      setActiveSessionId(tempId);
+
+      // Persist to API in background
+      fetch('/api/scheme-intelligence/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: session.title, developmentId, messages: [] }),
+      })
+        .then((res) => res.ok ? res.json() : Promise.reject())
+        .then((data) => {
+          if (data.session?.id) {
+            const apiId = data.session.id;
+            setSessions((prev) => {
+              const mapped = prev.map((s) => (s.id === tempId ? { ...s, id: apiId } : s));
+              saveSessions(mapped);
+              return mapped;
+            });
+            setActiveSessionId((prev) => (prev === tempId ? apiId : prev));
+          }
+        })
+        .catch(() => {});
+
+      return tempId;
     },
-    [sessions]
+    [sessions, developmentId]
   );
 
   const updateSessionMessages = useCallback(
@@ -666,6 +740,13 @@ export default function SchemeIntelligencePage() {
         setActiveSessionId(null);
       }
       setDeletingSessionId(null);
+
+      // Delete from API in background
+      fetch('/api/scheme-intelligence/sessions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      }).catch(() => {});
     },
     [activeSessionId]
   );
@@ -716,6 +797,7 @@ export default function SchemeIntelligencePage() {
             message: text,
             developmentId,
             history,
+            compareWithDevelopmentId: compareWithId || undefined,
           }),
         });
 
@@ -813,12 +895,39 @@ export default function SchemeIntelligencePage() {
                   saveSessions(updated);
                   return updated;
                 });
+                // Persist title to API
+                fetch(`/api/scheme-intelligence/sessions/${sessionId}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ title }),
+                }).catch(() => {});
               }
             }
           } catch {
             // Fall back to truncated first message (already set by createSession)
           }
         }
+
+        // Persist messages to API after stream completes
+        const finalMessages = [
+          ...prevMessages,
+          userMessage,
+          {
+            ...assistantMessage,
+            content: fullContent,
+            sources,
+            chartData,
+            actions,
+            isRegulatory,
+            isStreaming: false,
+            followUps,
+          },
+        ];
+        fetch(`/api/scheme-intelligence/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: finalMessages }),
+        }).catch(() => {});
       } catch (err) {
         console.error('[SchemeIntel] Chat error:', err);
         updateSessionMessages(sessionId!, [
@@ -834,7 +943,7 @@ export default function SchemeIntelligencePage() {
         setIsStreaming(false);
       }
     },
-    [activeSessionId, sessions, isStreaming, developmentId, createSession, updateSessionMessages]
+    [activeSessionId, sessions, isStreaming, developmentId, compareWithId, createSession, updateSessionMessages]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -882,15 +991,72 @@ export default function SchemeIntelligencePage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setBriefingOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                  text-white shadow-lg hover:shadow-xl transition-all"
-                style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-              >
-                <Calendar className="w-4 h-4" />
-                Today&apos;s Briefing
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Feature 5: Compare button */}
+                {developmentId && (
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        if (compareWithId) {
+                          setCompareWithId(null);
+                          setCompareDropdownOpen(false);
+                        } else {
+                          setCompareDropdownOpen(!compareDropdownOpen);
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                        compareWithId
+                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#B8934C]'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                      title={compareWithId ? 'Clear comparison' : 'Compare schemes'}
+                    >
+                      <GitCompare className="w-4 h-4" />
+                      {compareWithId && (
+                        <>
+                          <span className="text-xs">
+                            vs {developments.find((d) => d.id === compareWithId)?.name || 'Scheme'}
+                          </span>
+                          <X className="w-3 h-3" />
+                        </>
+                      )}
+                    </button>
+                    {compareDropdownOpen && !compareWithId && (
+                      <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-64 overflow-auto">
+                        <div className="p-2">
+                          <p className="text-xs font-semibold text-slate-500 px-2 py-1">Compare with...</p>
+                          {developments
+                            .filter((d) => d.id !== developmentId)
+                            .map((d) => (
+                              <button
+                                key={d.id}
+                                onClick={() => {
+                                  setCompareWithId(d.id);
+                                  setCompareDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                              >
+                                {d.name}
+                              </button>
+                            ))}
+                          {developments.filter((d) => d.id !== developmentId).length === 0 && (
+                            <p className="px-3 py-2 text-xs text-slate-400 italic">No other schemes available</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={() => setBriefingOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                    text-white shadow-lg hover:shadow-xl transition-all"
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Today&apos;s Briefing
+                </button>
+              </div>
             </div>
           </div>
 
@@ -921,9 +1087,23 @@ export default function SchemeIntelligencePage() {
           )}
 
           {/* Body: Sidebar + Chat */}
-          <div className="flex flex-1 min-h-0">
+          <div className="flex flex-1 min-h-0 relative">
+            {/* Sidebar toggle button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="absolute top-1/2 -translate-y-1/2 z-20 w-6 h-10 flex items-center justify-center
+                bg-white border border-slate-200 rounded-r-lg shadow-sm hover:bg-slate-50
+                transition-all duration-200 text-slate-400 hover:text-slate-600"
+              style={{ left: sidebarOpen ? '256px' : '0px', transition: 'left 200ms' }}
+            >
+              {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+
             {/* Sessions Sidebar */}
-            <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0">
+            <div
+              className="bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200"
+              style={{ width: sidebarOpen ? '256px' : '0px' }}
+            >
               <div className="p-3 border-b border-slate-200">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversations</span>
@@ -939,7 +1119,12 @@ export default function SchemeIntelligencePage() {
                 </button>
               </div>
               <div className="flex-1 overflow-auto p-2">
-                {sessions.map((s) => (
+                {sessionsLoading && (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                  </div>
+                )}
+                {!sessionsLoading && sessions.map((s) => (
                   <div
                     key={s.id}
                     className={`group relative rounded-lg transition-all mb-0.5 ${
@@ -990,7 +1175,7 @@ export default function SchemeIntelligencePage() {
                     )}
                   </div>
                 ))}
-                {sessions.length === 0 && (
+                {!sessionsLoading && sessions.length === 0 && (
                   <p className="text-xs text-slate-400 text-center py-8 italic">No conversations yet</p>
                 )}
               </div>

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     const tenantId = enforceTenantScope(adminContext);
     const body = await request.json();
-    const { message, developmentId, history } = body;
+    const { message, developmentId, history, compareWithDevelopmentId } = body;
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -62,8 +62,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Get scheme context
-    const schemeContext = await getSchemeSummary(supabase, tenantId, developmentId);
+    // 1. Get scheme context (+ comparison scheme in parallel if requested)
+    const contextPromises: Promise<any>[] = [
+      getSchemeSummary(supabase, tenantId, developmentId),
+    ];
+    if (compareWithDevelopmentId) {
+      contextPromises.push(getSchemeSummary(supabase, tenantId, compareWithDevelopmentId));
+    }
+    const [schemeContext, compareContext] = await Promise.all(contextPromises);
 
     // 2. Route query
     const route = await routeQuery(message, schemeContext.data);
@@ -77,32 +83,51 @@ export async function POST(request: NextRequest) {
 
     // Layer 1: Live data
     if (route.layers.includes('layer1') && route.functions?.length) {
-      const results = await Promise.all(
-        route.functions.map(async (fnName) => {
-          const fn = FUNCTION_REGISTRY[fnName];
-          if (!fn) return null;
-          try {
-            const result = await fn(supabase, tenantId, developmentId);
-            sources.push({
-              title: fnName,
-              type: 'function',
-              excerpt: result.summary,
-            });
-            if (result.chartData && !chartData) {
-              chartData = result.chartData;
+      const runFunctionsForScheme = async (devId: string | undefined, label: string) => {
+        const results = await Promise.all(
+          route.functions!.map(async (fnName) => {
+            const fn = FUNCTION_REGISTRY[fnName];
+            if (!fn) return null;
+            try {
+              const result = await fn(supabase, tenantId, devId);
+              return { name: fnName, ...result };
+            } catch (err) {
+              console.error(`[SchemeIntel] Function ${fnName} failed for ${label}:`, err);
+              return null;
             }
-            return { name: fnName, ...result };
-          } catch (err) {
-            console.error(`[SchemeIntel] Function ${fnName} failed:`, err);
-            return null;
-          }
-        })
-      );
+          })
+        );
+        return results.filter(Boolean);
+      };
 
-      const validResults = results.filter(Boolean);
-      dataResults = validResults
-        .map((r: any) => `[${r.name}]: ${r.summary}\nData: ${JSON.stringify(r.data)}`)
-        .join('\n\n');
+      // Run for primary scheme
+      const primaryResults = await runFunctionsForScheme(developmentId, 'primary');
+
+      for (const r of primaryResults) {
+        if (r) {
+          sources.push({ title: r.name, type: 'function', excerpt: r.summary });
+          if (r.chartData && !chartData) chartData = r.chartData;
+        }
+      }
+
+      if (compareWithDevelopmentId) {
+        // Run same functions for comparison scheme in parallel
+        const compareResults = await runFunctionsForScheme(compareWithDevelopmentId, 'comparison');
+
+        const primaryData = primaryResults
+          .map((r: any) => `[${r.name} — ${schemeContext.data?.schemeName || 'Primary'}]: ${r.summary}\nData: ${JSON.stringify(r.data)}`)
+          .join('\n\n');
+
+        const compareData = compareResults
+          .map((r: any) => `[${r.name} — ${compareContext?.data?.schemeName || 'Comparison'}]: ${r.summary}\nData: ${JSON.stringify(r.data)}`)
+          .join('\n\n');
+
+        dataResults = `== PRIMARY SCHEME: ${schemeContext.data?.schemeName || 'Primary'} ==\n${primaryData}\n\n== COMPARISON SCHEME: ${compareContext?.data?.schemeName || 'Comparison'} ==\n${compareData}`;
+      } else {
+        dataResults = primaryResults
+          .map((r: any) => `[${r.name}]: ${r.summary}\nData: ${JSON.stringify(r.data)}`)
+          .join('\n\n');
+      }
     }
 
     // Layer 2/3/4: RAG document search
@@ -171,8 +196,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Build system prompt
+    let fullSchemeContext = schemeContext.summary;
+    if (compareWithDevelopmentId && compareContext) {
+      fullSchemeContext += `\n\nCOMPARISON SCHEME CONTEXT:\n${compareContext.summary}\n\nIMPORTANT: The user is comparing two schemes. Present data side-by-side in markdown tables where applicable. Clearly label which data belongs to which scheme.`;
+    }
+
     const systemPrompt = SYSTEM_PROMPT
-      .replace('{{SCHEME_CONTEXT}}', schemeContext.summary)
+      .replace('{{SCHEME_CONTEXT}}', fullSchemeContext)
       .replace('{{DATA_RESULTS}}', dataResults || 'No specific data queried.')
       .replace('{{DOCUMENT_RESULTS}}', documentResults || 'No documents matched.');
 
@@ -198,7 +228,7 @@ export async function POST(request: NextRequest) {
       model: 'gpt-4.1-mini',
       messages,
       temperature: 0.3,
-      max_tokens: 2000,
+      max_tokens: 4000,
       stream: true,
     });
 

@@ -33,6 +33,8 @@ AVAILABLE LAYER 1 FUNCTIONS:
 - getOutstandingSnags: maintenance/snag requests
 - getKitchenSelections: kitchen selection progress
 - getSchemeSummary: overall scheme overview
+- getCommunicationsLog: noticeboard posts, announcements, communications
+- getUnitTypeBreakdown: unit types and bedroom count breakdown
 
 Return JSON only. Example:
 {"layers":["layer1"],"functions":["getRegistrationRate"],"ragQuery":null,"isRegulatory":false}
@@ -121,6 +123,14 @@ function fallbackRoute(question: string): RouterResult {
     'kitchen': 'getKitchenSelections',
     'summary': 'getSchemeSummary',
     'overview': 'getSchemeSummary',
+    'noticeboard': 'getCommunicationsLog',
+    'communication': 'getCommunicationsLog',
+    'notice': 'getCommunicationsLog',
+    'announcement': 'getCommunicationsLog',
+    'unit type': 'getUnitTypeBreakdown',
+    'bedroom': 'getUnitTypeBreakdown',
+    'layout': 'getUnitTypeBreakdown',
+    'mix': 'getUnitTypeBreakdown',
   };
 
   for (const [keyword, fn] of Object.entries(dataKeywords)) {

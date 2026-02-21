@@ -450,6 +450,100 @@ export async function getSchemeSummary(
   };
 }
 
+export async function getCommunicationsLog(
+  supabase: SupabaseClient,
+  tenantId: string,
+  developmentId?: string
+): Promise<FunctionResult> {
+  try {
+    let query = supabase
+      .from('noticeboard_posts')
+      .select('id, title, content, category, created_at')
+      .eq('tenant_id', tenantId);
+
+    if (developmentId) query = query.eq('development_id', developmentId);
+
+    const { data: posts, error } = await query;
+    if (error) throw error;
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const recentPosts = (posts || []).filter((p: any) => p.created_at >= thirtyDaysAgo);
+
+    const byCategory: Record<string, number> = {};
+    for (const p of recentPosts) {
+      const cat = p.category || 'general';
+      byCategory[cat] = (byCategory[cat] || 0) + 1;
+    }
+
+    const recentTitles = (posts || [])
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5)
+      .map((p: any) => p.title);
+
+    const categoryList = Object.entries(byCategory)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => ({ category, count }));
+
+    return {
+      data: { recentCount: recentPosts.length, byCategory: categoryList, recentTitles },
+      summary: `${recentPosts.length} noticeboard posts in last 30 days. Categories: ${categoryList.map((c) => `${c.category} (${c.count})`).join(', ') || 'none'}. Recent: ${recentTitles.join(', ') || 'none'}.`,
+      chartData: categoryList.length > 0 ? {
+        type: 'bar',
+        labels: categoryList.map((c) => c.category),
+        values: categoryList.map((c) => c.count),
+      } : undefined,
+    };
+  } catch {
+    return {
+      data: { recentCount: 0, byCategory: [], recentTitles: [] },
+      summary: 'Communications data is not available for this scheme.',
+    };
+  }
+}
+
+export async function getUnitTypeBreakdown(
+  supabase: SupabaseClient,
+  tenantId: string,
+  developmentId?: string
+): Promise<FunctionResult> {
+  let query = supabase
+    .from('units')
+    .select('id, unit_type, bedroom_count')
+    .eq('tenant_id', tenantId);
+
+  if (developmentId) query = query.eq('development_id', developmentId);
+
+  const { data: units, error } = await query;
+  if (error) throw new Error(`getUnitTypeBreakdown: ${error.message}`);
+
+  const byType: Record<string, number> = {};
+  const byBedroom: Record<string, number> = {};
+  for (const u of units || []) {
+    const type = u.unit_type || 'unknown';
+    const bedrooms = u.bedroom_count != null ? `${u.bedroom_count} bed` : 'unknown';
+    byType[type] = (byType[type] || 0) + 1;
+    byBedroom[bedrooms] = (byBedroom[bedrooms] || 0) + 1;
+  }
+
+  const typeList = Object.entries(byType)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({ type, count }));
+
+  const bedroomList = Object.entries(byBedroom)
+    .sort((a, b) => b[1] - a[1])
+    .map(([bedrooms, count]) => ({ bedrooms, count }));
+
+  return {
+    data: { total: units?.length || 0, byType: typeList, byBedroom: bedroomList },
+    summary: `${units?.length || 0} units. By type: ${typeList.map((t) => `${t.type} (${t.count})`).join(', ')}. By bedrooms: ${bedroomList.map((b) => `${b.bedrooms} (${b.count})`).join(', ')}.`,
+    chartData: {
+      type: 'donut',
+      labels: bedroomList.map((b) => b.bedrooms),
+      values: bedroomList.map((b) => b.count),
+    },
+  };
+}
+
 // Registry for the router to look up functions by name
 export const FUNCTION_REGISTRY: Record<string, (supabase: SupabaseClient, tenantId: string, developmentId?: string, ...args: any[]) => Promise<FunctionResult>> = {
   getRegistrationRate,
@@ -462,4 +556,6 @@ export const FUNCTION_REGISTRY: Record<string, (supabase: SupabaseClient, tenant
   getOutstandingSnags,
   getKitchenSelections,
   getSchemeSummary,
+  getCommunicationsLog,
+  getUnitTypeBreakdown,
 };
