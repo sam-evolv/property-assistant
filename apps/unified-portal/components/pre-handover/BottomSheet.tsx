@@ -66,8 +66,7 @@ export function SheetHeader({ title, subtitle }: SheetHeaderProps) {
   return (
     <div className="sticky top-0 bg-white/98 backdrop-blur-2xl px-5 pt-3 pb-2.5 border-b border-[#D4AF37]/10
       rounded-t-[20px]">
-      <div className="w-10 h-1 bg-gradient-to-r from-[#D4AF37] via-[#FACC15] to-[#D4AF37] rounded-full mx-auto mb-3 
-        shadow-[0_0_8px_rgba(212,175,55,0.3)]" />
+      <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
       <h2 className="font-semibold text-base text-gray-900 tracking-tight">{title}</h2>
       {subtitle && <p className="text-[11px] text-gray-500 mt-0.5">{subtitle}</p>}
     </div>
