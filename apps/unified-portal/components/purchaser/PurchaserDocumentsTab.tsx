@@ -849,7 +849,7 @@ export default function PurchaserDocumentsTab({
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                       {new Date(doc.created_at).toLocaleDateString()}
                     </span>
                     <button
@@ -912,7 +912,7 @@ export default function PurchaserDocumentsTab({
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
                 <Video className="w-16 h-16 text-gray-600 mb-4" />
                 <p className="text-white text-lg font-medium mb-2">{t.documents.unableToLoadVideo}</p>
-                <p className="text-gray-400 text-sm mb-4">{t.common.error}</p>
+                <p className="text-gray-300 text-sm mb-4">{t.common.error}</p>
                 <a
                   href={getOriginalUrl(playingVideo)}
                   target="_blank"
@@ -930,7 +930,7 @@ export default function PurchaserDocumentsTab({
                 {playingVideo.title}
               </h3>
               {playingVideo.description && (
-                <p className="text-gray-400 text-sm mt-2 line-clamp-3">
+                <p className="text-gray-300 text-sm mt-2 line-clamp-3">
                   {playingVideo.description}
                 </p>
               )}
@@ -942,7 +942,7 @@ export default function PurchaserDocumentsTab({
                   href={getOriginalUrl(playingVideo)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-gray-400 hover:text-gold-500 transition-colors flex items-center gap-1"
+                  className="text-xs text-gray-300 hover:text-gold-500 transition-colors flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Open in new tab
