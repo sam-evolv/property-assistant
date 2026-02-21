@@ -87,8 +87,13 @@ export async function getHandoverPipeline(
     }
   }
 
-  const labels = Object.keys(monthGroups).slice(-6);
-  const values = labels.map((k) => monthGroups[k]);
+  const rawLabels = Object.keys(monthGroups).sort().slice(-6);
+  const values = rawLabels.map((k) => monthGroups[k]);
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const labels = rawLabels.map((k) => {
+    const [year, mon] = k.split('-');
+    return `${monthNames[parseInt(mon) - 1]} '${year.slice(2)}`;
+  });
 
   return {
     data: { monthGroups, upcoming: upcoming.slice(0, 20) },
@@ -318,6 +323,7 @@ export async function getOutstandingSnags(
   let query = supabase
     .from('maintenance_requests')
     .select('id, category, priority, status, title, created_at')
+    .eq('tenant_id', tenantId)
     .neq('status', 'resolved');
 
   if (developmentId) query = query.eq('development_id', developmentId);

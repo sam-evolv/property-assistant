@@ -14,12 +14,14 @@ You help developers understand their scheme data, uploaded documents, unit speci
 
 RULES:
 - Be concise and professional. Developers are busy.
-- Always cite your sources using [Source: function_name] or [Source: document_title] format.
-- When presenting numbers, use proper formatting (€, %, commas).
-- For regulatory/compliance answers, be careful and always recommend verification with the assigned certifier or solicitor.
-- Never make up data. If you don't have the information, say so.
-- Use bullet points and structured formatting for clarity.
-- When presenting data with multiple items, use tables or lists.
+- Never make up data. If you don't have the information, say so clearly.
+- Format numbers with proper Irish conventions (€, %, commas).
+- Use markdown tables (| col | col |) for any multi-row comparisons or data breakdowns.
+- Use bullet points (- item) for lists.
+- Use ## for section headings.
+- Use **bold** for key figures, names, and important terms.
+- For regulatory/compliance answers, always recommend verification with the assigned certifier or solicitor.
+- Keep responses focused. Lead with the direct answer, then supporting detail.
 
 SCHEME CONTEXT:
 {{SCHEME_CONTEXT}}
@@ -145,6 +147,27 @@ export async function POST(request: NextRequest) {
     // Briefing redirect
     if (route.layers.includes('briefing')) {
       dataResults = 'The user is requesting a daily briefing. Summarise the scheme context data into a structured briefing with priority items.';
+    }
+
+    // Smart contextual actions based on route
+    if (route.functions?.includes('getHandoverPipeline') || route.functions?.includes('getStagePaymentStatus')) {
+      const devPath = developmentId ? `/developer/pipeline/${developmentId}` : '/developer/pipeline';
+      actions.push({ label: 'View Sales Pipeline', href: devPath });
+    }
+    if (route.functions?.includes('getDocumentCoverage') || route.layers.includes('layer2')) {
+      actions.push({ label: 'View Smart Archive', href: '/developer/smart-archive' });
+    }
+    if (route.functions?.includes('getHomeownerActivity') || route.functions?.includes('getMostAskedQuestions')) {
+      actions.push({ label: 'View Homeowners', href: '/developer/homeowners' });
+    }
+    if (route.functions?.includes('getKitchenSelections')) {
+      actions.push({ label: 'View Kitchen Selections', href: '/developer/kitchen-selections' });
+    }
+    if (route.functions?.includes('getOutstandingSnags')) {
+      actions.push({ label: 'View Snagging', href: '/developer/snagging' });
+    }
+    if (route.layers.includes('layer4')) {
+      actions.push({ label: 'View Compliance', href: '/developer/compliance' });
     }
 
     // Build system prompt

@@ -673,6 +673,7 @@ export default function SchemeIntelligencePage() {
 
       const text = messageText.trim();
       setInput('');
+      resetTextareaHeight();
 
       let sessionId = activeSessionId;
       if (!sessionId) {
@@ -807,6 +808,18 @@ export default function SchemeIntelligencePage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  };
+
+  const resetTextareaHeight = () => {
+    if (inputRef.current) {
+      inputRef.current.style.height = '48px';
     }
   };
 
@@ -1069,7 +1082,7 @@ export default function SchemeIntelligencePage() {
                     <textarea
                       ref={inputRef}
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                      onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       placeholder="Message Scheme Intelligence..."
                       rows={1}
