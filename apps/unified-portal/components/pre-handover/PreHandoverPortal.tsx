@@ -165,12 +165,24 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
       </header>
 
       <main className="px-5 py-6 space-y-5">
-        {/* Welcome Message */}
-        {props.purchaserName && (
-          <p className="text-sm text-gray-600 text-center">
-            {getGreeting()}, <span className="font-medium text-gray-900">{props.purchaserName}</span>
-          </p>
-        )}
+        {/* Welcome Hero Card */}
+        <div className="mx-4 mb-3 rounded-2xl overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0F0F0F 0%, #1A1A0A 100%)" }}>
+          <div className="p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+              style={{ color: "rgba(212,175,55,0.7)" }}>Your New Home</p>
+            <h2 className="text-xl font-bold tracking-tight leading-tight text-white">
+              Welcome, <span style={{ color: "#D4AF37" }}>{props.purchaserName?.split(" ")[0] || "there"}</span>
+            </h2>
+            <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Your home journey is underway
+            </p>
+            <div className="mt-3 h-px" style={{ background: "linear-gradient(to right, rgba(212,175,55,0.3), rgba(250,204,21,0.15), transparent)" }} />
+            <p className="mt-2 text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+              OpenHouse AI · Powered by your developer
+            </p>
+          </div>
+        </div>
 
         {/* Property Card - Cleaner Design */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
@@ -274,21 +286,34 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
           </div>
         </div>
 
-        {/* Quick Actions - Pill Chip Style (like assistant prompt chips) */}
-        <div className="flex flex-wrap justify-center gap-2">
+        {/* Quick Actions - 2x2 Card Grid */}
+        <div className="grid grid-cols-2 gap-2">
           {quickActions.map((action) => {
             const Icon = action.icon;
+            const descriptions: Record<string, string> = {
+              timeline: "Track progress",
+              docs: "Plans & documents",
+              faq: "Common questions",
+              contact: "Get in touch",
+            };
             return (
               <button
                 key={action.id}
                 onClick={() => openSheet(action.id as SheetType)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full 
-                  bg-white border border-[#D4AF37]/40 
-                  hover:border-[#D4AF37] hover:bg-amber-50/30
-                  active:scale-[0.97] transition-all duration-150"
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-white border border-[#D4AF37]/20
+                  hover:border-[#D4AF37]/50 hover:bg-amber-50/30
+                  active:scale-[0.97] transition-all duration-150 text-left"
               >
-                <Icon className="w-4 h-4 text-[#B8941F]" strokeWidth={1.5} />
-                <span className="text-sm font-medium text-gray-700">{action.label}</span>
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FEFCE8] to-[#FEF9C3]
+                  flex items-center justify-center border border-[#D4AF37]/15 flex-shrink-0">
+                  <Icon className="w-4 h-4 text-[#B8941F]" strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-gray-900 leading-tight">{action.label}</p>
+                  <p className="text-[10px] text-gray-400 leading-tight mt-0.5">
+                    {descriptions[action.id] || ""}
+                  </p>
+                </div>
               </button>
             );
           })}
@@ -320,26 +345,40 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
         {/* Ask Question Card */}
         <button
           onClick={() => openSheet('chat')}
-          className="w-full bg-white rounded-xl border border-[#D4AF37]/30 p-4 
+          className="w-full bg-white rounded-xl border border-[#D4AF37]/30 p-4 overflow-hidden relative
             hover:border-[#D4AF37]/60 hover:bg-amber-50/20
             active:scale-[0.99] transition-all duration-150 text-left"
         >
+          <span className="absolute top-0 right-0 w-24 h-24 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] 
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F]
                 flex items-center justify-center shadow-sm">
                 <MessageSquare className="w-5 h-5 text-white" strokeWidth={1.5} />
               </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400
                 flex items-center justify-center">
                 <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">Ask a Question</p>
+              <p className="text-sm font-semibold text-gray-900">Ask a Question</p>
               <p className="text-xs text-gray-500">Get answers about your home</p>
             </div>
             <ChevronRight className="w-5 h-5 text-[#D4AF37]" />
+          </div>
+          <div className="mt-3 flex gap-1.5 flex-wrap">
+            {["Key dates", "My documents", "Handover"].map((s) => (
+              <span key={s} className="text-[9px] px-2 py-0.5 rounded-full font-medium border"
+                style={{
+                  background: "rgba(212,175,55,0.08)",
+                  borderColor: "rgba(212,175,55,0.2)",
+                  color: "#A67C3A"
+                }}>
+                {s}
+              </span>
+            ))}
           </div>
         </button>
       </main>
@@ -361,13 +400,17 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
               <button
                 key={item.id}
                 onClick={() => item.id !== 'home' && openSheet(item.id as SheetType)}
-                className="flex flex-col items-center gap-1 py-1 px-3 transition-all duration-150"
+                className="relative flex flex-col items-center gap-1 py-1.5 px-4 rounded-xl transition-all duration-150 active:scale-95"
               >
-                <Icon 
-                  className={`w-5 h-5 ${item.active ? 'text-[#D4AF37]' : 'text-gray-400'}`} 
-                  strokeWidth={1.5} 
+                {item.active && (
+                  <span className="absolute inset-0 rounded-xl"
+                    style={{ background: "rgba(212,175,55,0.10)" }} />
+                )}
+                <Icon
+                  className={`w-5 h-5 relative z-10 ${item.active ? "text-[#D4AF37]" : "text-gray-400"}`}
+                  strokeWidth={item.active ? 2.5 : 1.5}
                 />
-                <span className={`text-[10px] ${item.active ? 'text-[#D4AF37] font-medium' : 'text-gray-500'}`}>
+                <span className={`text-[10px] relative z-10 ${item.active ? "text-[#D4AF37] font-semibold" : "text-gray-500"}`}>
                   {item.label}
                 </span>
               </button>
