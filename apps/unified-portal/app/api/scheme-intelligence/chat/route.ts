@@ -206,9 +206,11 @@ export async function POST(request: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          let fullResponse = '';
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content;
             if (content) {
+              fullResponse += content;
               controller.enqueue(
                 encoder.encode(JSON.stringify({ type: 'token', content }) + '\n')
               );
@@ -238,6 +240,36 @@ export async function POST(request: NextRequest) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'regulatory_disclaimer', show: true }) + '\n')
             );
+          }
+
+          // Generate follow-up question suggestions
+          try {
+            const followUpCompletion = await openai.chat.completions.create({
+              model: 'gpt-4.1-mini',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are helping a property developer. Based on this conversation, suggest 2-3 short follow-up questions they might ask next. Return ONLY a JSON array of strings, no explanation. Max 10 words per question.',
+                },
+                {
+                  role: 'user',
+                  content: `User asked: ${message}\n\nAssistant replied: ${fullResponse}`,
+                },
+              ],
+              temperature: 0.7,
+              max_tokens: 200,
+            });
+            const followUpText = followUpCompletion.choices[0]?.message?.content?.trim();
+            if (followUpText) {
+              const questions = JSON.parse(followUpText);
+              if (Array.isArray(questions) && questions.length > 0) {
+                controller.enqueue(
+                  encoder.encode(JSON.stringify({ type: 'followups', questions }) + '\n')
+                );
+              }
+            }
+          } catch {
+            // Skip follow-ups if generation fails
           }
 
           controller.enqueue(

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
   Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronDown, ChevronUp,
-  Calendar, Loader2, Home, BarChart2, Trash2, FileText, BookOpen,
+  Calendar, Loader2, Home, BarChart2, Trash2, FileText, BookOpen, Copy, Check,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -25,6 +25,7 @@ interface ChatMessage {
   isRegulatory?: boolean;
   actions?: Array<{ label: string; href: string }>;
   isStreaming?: boolean;
+  followUps?: string[];
 }
 
 interface Session {
@@ -579,6 +580,7 @@ export default function SchemeIntelligencePage() {
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [sourceDrawer, setSourceDrawer] = useState<any>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   // Pill rotation
   const [pillIndices, setPillIndices] = useState([0, 0, 0, 0]);
@@ -729,6 +731,7 @@ export default function SchemeIntelligencePage() {
         let chartData: any = null;
         let actions: any[] = [];
         let isRegulatory = false;
+        let followUps: string[] = [];
         let buffer = '';
 
         while (true) {
@@ -764,6 +767,9 @@ export default function SchemeIntelligencePage() {
                 case 'regulatory_disclaimer':
                   isRegulatory = true;
                   break;
+                case 'followups':
+                  followUps = event.questions || [];
+                  break;
                 case 'done':
                   break;
               }
@@ -784,8 +790,34 @@ export default function SchemeIntelligencePage() {
             actions,
             isRegulatory,
             isStreaming: false,
+            followUps,
           },
         ]);
+
+        // Auto-generate title for first message in session
+        if (prevMessages.length === 0 && fullContent) {
+          try {
+            const titleRes = await fetch('/api/scheme-intelligence/title', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: text, response: fullContent }),
+            });
+            if (titleRes.ok) {
+              const { title } = await titleRes.json();
+              if (title) {
+                setSessions((prev) => {
+                  const updated = prev.map((s) =>
+                    s.id === sessionId ? { ...s, title } : s
+                  );
+                  saveSessions(updated);
+                  return updated;
+                });
+              }
+            }
+          } catch {
+            // Fall back to truncated first message (already set by createSession)
+          }
+        }
       } catch (err) {
         console.error('[SchemeIntel] Chat error:', err);
         updateSessionMessages(sessionId!, [
@@ -1031,11 +1063,29 @@ export default function SchemeIntelligencePage() {
                           </div>
                         ) : (
                           /* Assistant: flat with AI avatar */
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-3 group">
                             <div className="w-7 h-7 bg-[#D4AF37]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                               <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
                             </div>
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 relative">
+                              {!msg.isStreaming && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                    setCopiedMessageId(msg.id);
+                                    setTimeout(() => setCopiedMessageId(null), 2000);
+                                  }}
+                                  className="absolute top-0 right-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
+                                    text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                                  title="Copy message"
+                                >
+                                  {copiedMessageId === msg.id ? (
+                                    <Check className="w-4 h-4 text-green-500" />
+                                  ) : (
+                                    <Copy className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
                               {msg.isStreaming && !msg.content ? (
                                 /* Streaming indicator (Fix 7) */
                                 <div className="flex items-center gap-2">
@@ -1056,6 +1106,21 @@ export default function SchemeIntelligencePage() {
                                   <CollapsibleSources sources={msg.sources} onSourceClick={setSourceDrawer} />
                                   <ActionCards actions={msg.actions} />
                                   {msg.isRegulatory && <RegulatoryDisclaimer />}
+                                  {msg.followUps && msg.followUps.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      {msg.followUps.map((question, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={() => sendMessage(question)}
+                                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600
+                                            hover:border-[#D4AF37]/50 hover:text-[#B8934C] hover:bg-[#D4AF37]/5
+                                            transition-colors"
+                                        >
+                                          {question}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
