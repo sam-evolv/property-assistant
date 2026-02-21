@@ -12,7 +12,7 @@ import {
   Cell,
 } from 'recharts';
 
-const CHART_COLORS = ['#D4AF37', '#B8934C', '#F5D874', '#E5BC4E', '#8B6428', '#A67C3A'];
+const CHART_COLORS = ['#D4AF37', '#C49B2F', '#B88A28', '#A87920', '#E8C94A', '#9A6818'];
 
 interface ChartData {
   type: 'bar' | 'donut' | 'line';

@@ -978,7 +978,7 @@ export default function SchemeIntelligencePage() {
         {/* Main Card */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
           {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-100">
+          <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0">
@@ -1059,6 +1059,7 @@ export default function SchemeIntelligencePage() {
               </div>
             </div>
           </div>
+          <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/25 to-transparent" />
 
           {/* Fix 2: Proactive Insight Strip (below header, above chat) */}
           {insights.length > 0 && !insightsDismissed && (
@@ -1068,12 +1069,11 @@ export default function SchemeIntelligencePage() {
                   <a
                     key={i}
                     href={insight.href || '#'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200
-                      text-xs font-medium text-slate-700 hover:border-[#D4AF37]/50 hover:text-[#B8934C]
-                      transition-colors whitespace-nowrap flex-shrink-0"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm
+                      text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:shadow transition-all flex-shrink-0"
                   >
                     <span>{insight.icon}</span>
-                    <span>{insight.text}</span>
+                    <span className="font-semibold text-slate-800">{insight.text}</span>
                   </a>
                 ))}
                 <button
@@ -1101,7 +1101,7 @@ export default function SchemeIntelligencePage() {
 
             {/* Sessions Sidebar */}
             <div
-              className="bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200"
+              className="bg-[#FAFAF8] border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200"
               style={{ width: sidebarOpen ? '256px' : '0px' }}
             >
               <div className="p-3 border-b border-slate-200">
@@ -1198,26 +1198,30 @@ export default function SchemeIntelligencePage() {
                     </p>
 
                     {/* Suggested Questions (Fix 7) */}
-                    <div className="grid grid-cols-2 gap-2 mb-8">
-                      {QUESTION_CATEGORIES.map((cat, catIdx) => (
-                        <button
-                          key={catIdx}
-                          onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
-                          className="border border-slate-200 rounded-xl p-3 text-sm text-slate-600
-                            hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 cursor-pointer transition-all text-left"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">{cat.icon}</span>
-                            <span className="text-xs font-semibold text-slate-700">{cat.label}</span>
-                          </div>
-                          <p
-                            key={pillIndices[catIdx]}
-                            className="text-xs text-slate-500 leading-relaxed animate-fade-in"
+                    <div className="grid grid-cols-2 gap-3 w-full max-w-lg mx-auto mb-8">
+                      {QUESTION_CATEGORIES.map((cat, catIdx) => {
+                        const cardEmojis = ['\uD83D\uDCCA', '\uD83D\uDCCB', '\uD83D\uDCAC', '\uD83D\uDCCB'];
+                        const cardLabels = ['Live data', 'Documents', 'Homeowners', 'Regulatory'];
+                        return (
+                          <button
+                            key={catIdx}
+                            onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
+                            className="rounded-2xl border border-slate-200 bg-white p-4 text-left hover:border-[#D4AF37]/50 hover:shadow-md transition-all cursor-pointer group"
+                            style={{ ['--tw-bg-opacity' as string]: 1 }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(212,175,55,0.03)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
                           >
-                            {cat.questions[pillIndices[catIdx]]}
-                          </p>
-                        </button>
-                      ))}
+                            <span className="text-xl">{cardEmojis[catIdx]}</span>
+                            <p
+                              key={pillIndices[catIdx]}
+                              className="text-sm font-medium text-slate-700 mt-2 group-hover:text-[#B8934C] transition-colors animate-fade-in"
+                            >
+                              {cat.questions[pillIndices[catIdx]]}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">{cardLabels[catIdx]}</p>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     <button
@@ -1240,7 +1244,7 @@ export default function SchemeIntelligencePage() {
                         {msg.role === 'user' ? (
                           /* User bubble: dark, right-aligned */
                           <div className="flex justify-end">
-                            <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 bg-slate-900 text-white text-sm">
+                            <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 border border-[#D4AF37]/20 text-sm text-slate-900" style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(184,147,76,0.08) 100%)' }}>
                               <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                             </div>
                           </div>
@@ -1326,7 +1330,7 @@ export default function SchemeIntelligencePage() {
                   >
                     <Home className="w-5 h-5" />
                   </Link>
-                  <div className="flex-1">
+                  <div className="flex-1 transition-shadow duration-200">
                     <textarea
                       ref={inputRef}
                       value={input}
@@ -1336,7 +1340,7 @@ export default function SchemeIntelligencePage() {
                       rows={1}
                       className="w-full resize-none rounded-2xl border border-slate-200 px-5 py-3.5 text-sm
                         text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#D4AF37]
-                        focus:ring-1 focus:ring-[#D4AF37]/30 shadow-sm transition-all scrollbar-hide"
+                        focus:ring-2 focus:ring-[#D4AF37]/20 focus:shadow-[0_0_0_4px_rgba(212,175,55,0.08)] shadow-sm transition-all scrollbar-hide"
                       style={{ minHeight: 48, maxHeight: 120, overflowY: 'hidden' }}
                       disabled={isStreaming}
                     />
