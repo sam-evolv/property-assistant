@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
   Sparkles, Send, Plus, AlertTriangle, X, ChevronRight, ChevronDown, ChevronUp,
@@ -871,11 +872,8 @@ export default function SchemeIntelligencePage() {
           <div className="px-6 py-4 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-                >
-                  <Sparkles className="w-4.5 h-4.5 text-white" />
+                <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <Image src="/icon-192.png" alt="OpenHouse AI" width={36} height={36} className="w-9 h-9 object-cover rounded-xl" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-slate-900">Scheme Intelligence</h1>
@@ -1004,8 +1002,8 @@ export default function SchemeIntelligencePage() {
                 /* Welcome / Empty State (Fix 7) */
                 <div className="flex-1 flex items-center justify-center p-8">
                   <div className="text-center max-w-xl">
-                    <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center bg-[#D4AF37]/10">
-                      <Sparkles className="w-7 h-7 text-[#D4AF37]" />
+                    <div className="w-14 h-14 rounded-2xl mx-auto mb-5 overflow-hidden flex items-center justify-center">
+                      <Image src="/icon-192.png" alt="OpenHouse AI" width={56} height={56} className="w-14 h-14 object-cover rounded-2xl" />
                     </div>
                     <h2 className="text-2xl font-semibold text-slate-900">
                       Scheme Intelligence
@@ -1064,8 +1062,8 @@ export default function SchemeIntelligencePage() {
                         ) : (
                           /* Assistant: flat with AI avatar */
                           <div className="flex items-start gap-3 group">
-                            <div className="w-7 h-7 bg-[#D4AF37]/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 mt-0.5">
+                              <Image src="/icon-192.png" alt="OpenHouse AI" width={28} height={28} className="w-7 h-7 object-cover rounded-full" />
                             </div>
                             <div className="flex-1 min-w-0 relative">
                               {!msg.isStreaming && (
@@ -1135,11 +1133,11 @@ export default function SchemeIntelligencePage() {
 
               {/* Input Area (Fix 1: Home button, Fix 7: Claude-like input) */}
               <div className="bg-white px-4 py-3">
-                <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                <div className="flex items-center gap-3 max-w-3xl mx-auto">
                   {/* Fix 1: Home button */}
                   <Link
                     href="/developer/overview"
-                    className="p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0 mb-0.5 text-slate-500 hover:text-slate-700"
+                    className="p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0 text-slate-500 hover:text-slate-700"
                   >
                     <Home className="w-5 h-5" />
                   </Link>
@@ -1153,15 +1151,15 @@ export default function SchemeIntelligencePage() {
                       rows={1}
                       className="w-full resize-none rounded-2xl border border-slate-200 px-5 py-3.5 text-sm
                         text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#D4AF37]
-                        focus:ring-1 focus:ring-[#D4AF37]/30 shadow-sm transition-all"
-                      style={{ minHeight: 48, maxHeight: 120 }}
+                        focus:ring-1 focus:ring-[#D4AF37]/30 shadow-sm transition-all scrollbar-hide"
+                      style={{ minHeight: 48, maxHeight: 120, overflowY: 'hidden' }}
                       disabled={isStreaming}
                     />
                   </div>
                   <button
                     onClick={() => sendMessage(input)}
                     disabled={!input.trim() || isStreaming}
-                    className={`p-2.5 rounded-full text-white transition-all duration-200 flex-shrink-0 mb-0.5
+                    className={`p-2.5 rounded-full text-white transition-all duration-200 flex-shrink-0
                       disabled:cursor-not-allowed hover:shadow-md ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                     style={{
                       background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`,
