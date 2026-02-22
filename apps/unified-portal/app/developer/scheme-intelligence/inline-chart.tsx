@@ -23,8 +23,8 @@ interface ChartData {
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-sm">
-      <p className="font-medium text-slate-700 capitalize">{label}</p>
+    <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg shadow-lg px-3 py-2 text-sm">
+      <p className="font-medium text-[#E0E0E0] capitalize">{label}</p>
       <p className="text-[#D4AF37] font-semibold">{payload[0].value?.toLocaleString()}</p>
     </div>
   );
@@ -53,6 +53,7 @@ export default function InlineChartRenderer({ chartData }: { chartData: ChartDat
                 dataKey="value"
                 label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                 labelLine={false}
+                stroke="#1A1A1A"
               >
                 {data.map((_, index) => (
                   <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -64,8 +65,8 @@ export default function InlineChartRenderer({ chartData }: { chartData: ChartDat
           {/* Center label with primary value */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
-              <p className="text-lg font-bold text-slate-800">{total.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400">Total</p>
+              <p className="text-lg font-bold text-white">{total.toLocaleString()}</p>
+              <p className="text-[10px] text-[#B0B0B0]">Total</p>
             </div>
           </div>
         </div>
@@ -79,12 +80,18 @@ export default function InlineChartRenderer({ chartData }: { chartData: ChartDat
         <BarChart data={data} margin={{ bottom: 10 }}>
           <XAxis
             dataKey="name"
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: '#B0B0B0' }}
             angle={-35}
             textAnchor="end"
             height={60}
+            axisLine={{ stroke: '#2A2A2A' }}
+            tickLine={{ stroke: '#2A2A2A' }}
           />
-          <YAxis tick={{ fontSize: 11 }} />
+          <YAxis
+            tick={{ fontSize: 11, fill: '#B0B0B0' }}
+            axisLine={{ stroke: '#2A2A2A' }}
+            tickLine={{ stroke: '#2A2A2A' }}
+          />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="value" fill="#D4AF37" radius={[4, 4, 0, 0]} />
         </BarChart>

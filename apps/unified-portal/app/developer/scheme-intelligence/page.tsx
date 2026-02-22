@@ -205,13 +205,13 @@ function formatMessage(content: string): string {
       const [headers, ...bodyRows] = block.rows;
       let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-sm border-collapse"><thead><tr class="border-b-2 border-[#D4AF37]/30">';
       for (const h of headers) {
-        tableHtml += `<th class="text-left py-2 px-3 font-semibold text-slate-700 bg-slate-50">${escapeHtml(h)}</th>`;
+        tableHtml += `<th class="text-left py-2 px-3 font-semibold text-[#E0E0E0] bg-[#141414]">${escapeHtml(h)}</th>`;
       }
       tableHtml += '</tr></thead><tbody>';
       for (const row of bodyRows) {
-        tableHtml += '<tr class="border-b border-slate-100 hover:bg-slate-50/50">';
+        tableHtml += '<tr class="border-b border-[#2A2A2A] hover:bg-white/5">';
         for (const cell of row) {
-          tableHtml += `<td class="py-2 px-3 text-slate-600">${escapeHtml(cell)}</td>`;
+          tableHtml += `<td class="py-2 px-3 text-[#B0B0B0]">${escapeHtml(cell)}</td>`;
         }
         tableHtml += '</tr>';
       }
@@ -322,9 +322,9 @@ function saveSessions(sessions: Session[]) {
 
 function RegulatoryDisclaimer() {
   return (
-    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 flex gap-2">
-      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-      <p className="text-xs text-amber-800">
+    <div className="mt-3 p-3 rounded-xl bg-amber-900/20 border border-amber-700/30 flex gap-2">
+      <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+      <p className="text-xs text-amber-200/90">
         This response references Irish Building Regulations. Always verify compliance requirements
         with your assigned certifier or solicitor before acting on this information.
       </p>
@@ -352,8 +352,8 @@ function CollapsibleSources({
   const getSourceIcon = (type: string) => {
     switch (type) {
       case 'function': return <BarChart2 className="w-3.5 h-3.5 text-[#D4AF37]" />;
-      case 'regulatory': return <BookOpen className="w-3.5 h-3.5 text-amber-600" />;
-      default: return <FileText className="w-3.5 h-3.5 text-slate-400" />;
+      case 'regulatory': return <BookOpen className="w-3.5 h-3.5 text-amber-400" />;
+      default: return <FileText className="w-3.5 h-3.5 text-[#B0B0B0]" />;
     }
   };
 
@@ -370,23 +370,23 @@ function CollapsibleSources({
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition-colors"
+          className="text-xs text-[#B0B0B0] hover:text-white flex items-center gap-1 transition-colors"
         >
           <span>{'\u2197'} {sources.length} source{sources.length !== 1 ? 's' : ''}</span>
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
         {expanded && (
-          <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1 animate-fade-in">
+          <div className="mt-1 rounded-lg border border-[#2A2A2A] bg-[#141414] p-2 space-y-1 animate-fade-in">
             {sources.map((s, i) => (
               <button
                 key={i}
                 onClick={() => onSourceClick(s)}
-                className="w-full flex items-start gap-2 p-1.5 rounded-md hover:bg-white transition-colors text-left"
+                className="w-full flex items-start gap-2 p-1.5 rounded-md hover:bg-[#1A1A1A] transition-colors text-left"
               >
                 {getSourceIcon(s.type)}
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-700 truncate">{s.title}</p>
-                  <p className="text-[10px] text-slate-400">{getSourceLabel(s.type)}</p>
+                  <p className="text-xs font-medium text-[#E0E0E0] truncate">{s.title}</p>
+                  <p className="text-[10px] text-[#B0B0B0]">{getSourceLabel(s.type)}</p>
                 </div>
               </button>
             ))}
@@ -406,8 +406,8 @@ function ActionCards({ actions }: { actions?: ChatMessage['actions'] }) {
           key={i}
           href={a.href}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-            border border-slate-200 text-slate-700 hover:border-amber-300 hover:text-amber-700
-            hover:bg-amber-50 transition-all"
+            border border-[#2A2A2A] text-[#E0E0E0] hover:border-[#D4AF37]/50 hover:text-[#D4AF37]
+            hover:bg-[#D4AF37]/10 transition-all"
         >
           {a.label}
           <ChevronRight className="w-3 h-3" />
@@ -426,18 +426,18 @@ function SourceDrawer({
 }) {
   if (!source) return null;
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b border-slate-100">
+    <div className="fixed inset-y-0 right-0 w-96 bg-[#1A1A1A] border-l border-[#2A2A2A] shadow-2xl z-50 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-[#2A2A2A]">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">{source.title}</h3>
-          <span className="text-xs text-slate-500 capitalize">{source.type}</span>
+          <h3 className="text-sm font-semibold text-white">{source.title}</h3>
+          <span className="text-xs text-[#B0B0B0] capitalize">{source.type}</span>
         </div>
-        <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition">
-          <X className="w-4 h-4 text-slate-500" />
+        <button onClick={onClose} className="p-1 hover:bg-[#2A2A2A] rounded-lg transition">
+          <X className="w-4 h-4 text-[#B0B0B0]" />
         </button>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
+        <p className="text-sm text-[#E0E0E0] leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
       </div>
     </div>
   );
@@ -485,15 +485,15 @@ function BriefingModal({
   if (!open) return null;
 
   const priorityStyles = {
-    critical: { bg: 'bg-red-50', border: 'border-red-200', icon: '\uD83D\uDD34', text: 'text-red-800' },
-    important: { bg: 'bg-amber-50', border: 'border-amber-200', icon: '\uD83D\uDFE1', text: 'text-amber-800' },
-    info: { bg: 'bg-blue-50', border: 'border-blue-200', icon: '\uD83D\uDD35', text: 'text-blue-800' },
+    critical: { bg: 'bg-red-900/20', border: 'border-red-700/30', icon: '\uD83D\uDD34', text: 'text-red-300' },
+    important: { bg: 'bg-amber-900/20', border: 'border-amber-700/30', icon: '\uD83D\uDFE1', text: 'text-amber-300' },
+    info: { bg: 'bg-blue-900/20', border: 'border-blue-700/30', icon: '\uD83D\uDD35', text: 'text-blue-300' },
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#1A1A1A] rounded-2xl shadow-2xl border border-[#2A2A2A] w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-[#2A2A2A]">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -502,8 +502,8 @@ function BriefingModal({
               <Calendar className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Today&apos;s Briefing</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-lg font-bold text-white">Today&apos;s Briefing</h2>
+              <p className="text-xs text-[#B0B0B0]">
                 {new Date().toLocaleDateString('en-IE', {
                   weekday: 'long',
                   year: 'numeric',
@@ -513,15 +513,15 @@ function BriefingModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition">
-            <X className="w-5 h-5 text-slate-500" />
+          <button onClick={onClose} className="p-2 hover:bg-[#2A2A2A] rounded-lg transition">
+            <X className="w-5 h-5 text-[#B0B0B0]" />
           </button>
         </div>
         <div className="flex-1 overflow-auto p-6 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-[#D4AF37]" />
-              <span className="ml-3 text-sm text-slate-500">Generating briefing...</span>
+              <span className="ml-3 text-sm text-[#B0B0B0]">Generating briefing...</span>
             </div>
           ) : (
             <>
@@ -536,7 +536,7 @@ function BriefingModal({
                         {item.action && (
                           <a
                             href={item.action.href}
-                            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-700 hover:text-amber-800"
+                            className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-[#D4AF37] hover:text-[#F5D874]"
                           >
                             {item.action.label}
                             <ChevronRight className="w-3 h-3" />
@@ -548,13 +548,13 @@ function BriefingModal({
                 );
               })}
               {briefingText && (
-                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{briefingText}</p>
+                <div className="mt-4 p-4 rounded-xl bg-[#141414] border border-[#2A2A2A]">
+                  <p className="text-sm text-[#E0E0E0] leading-relaxed whitespace-pre-wrap">{briefingText}</p>
                 </div>
               )}
               {!items.length && !briefingText && (
                 <div className="text-center py-12">
-                  <p className="text-sm text-slate-500">No actionable items for today. Everything looks good!</p>
+                  <p className="text-sm text-[#B0B0B0]">No actionable items for today. Everything looks good!</p>
                 </div>
               )}
             </>
@@ -973,10 +973,10 @@ export default function SchemeIntelligencePage() {
   const showSendButton = input.trim() || isStreaming;
 
   return (
-    <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-[#0F0F0F]">
       <div className="max-w-[1400px] mx-auto px-4 py-4">
         {/* Main Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
+        <div className="bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] shadow-2xl overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
           {/* Header */}
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
@@ -985,9 +985,9 @@ export default function SchemeIntelligencePage() {
                   <Image src="/icon-192.png" alt="OpenHouse AI" width={36} height={36} className="w-9 h-9 object-cover rounded-xl" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-slate-900">Scheme Intelligence</h1>
+                  <h1 className="text-[20px] font-semibold text-white tracking-[-0.01em]">Scheme Intelligence</h1>
                   {developmentName && (
-                    <p className="text-xs text-slate-500">{developmentName}</p>
+                    <p className="text-xs text-[#B0B0B0]">{developmentName}</p>
                   )}
                 </div>
               </div>
@@ -1006,8 +1006,8 @@ export default function SchemeIntelligencePage() {
                       }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
                         compareWithId
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#B8934C]'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]'
+                          : 'border-[#2A2A2A] text-[#B0B0B0] hover:border-[#3A3A3A]'
                       }`}
                       title={compareWithId ? 'Clear comparison' : 'Compare schemes'}
                     >
@@ -1022,9 +1022,9 @@ export default function SchemeIntelligencePage() {
                       )}
                     </button>
                     {compareDropdownOpen && !compareWithId && (
-                      <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-64 overflow-auto">
+                      <div className="absolute right-0 top-full mt-1 w-64 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-lg z-30 max-h-64 overflow-auto">
                         <div className="p-2">
-                          <p className="text-xs font-semibold text-slate-500 px-2 py-1">Compare with...</p>
+                          <p className="text-xs font-semibold text-[#B0B0B0] px-2 py-1">Compare with...</p>
                           {developments
                             .filter((d) => d.id !== developmentId)
                             .map((d) => (
@@ -1034,13 +1034,13 @@ export default function SchemeIntelligencePage() {
                                   setCompareWithId(d.id);
                                   setCompareDropdownOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                                className="w-full text-left px-3 py-2 text-sm text-[#E0E0E0] hover:bg-[#2A2A2A] rounded-lg transition-colors"
                               >
                                 {d.name}
                               </button>
                             ))}
                           {developments.filter((d) => d.id !== developmentId).length === 0 && (
-                            <p className="px-3 py-2 text-xs text-slate-400 italic">No other schemes available</p>
+                            <p className="px-3 py-2 text-xs text-[#B0B0B0] italic">No other schemes available</p>
                           )}
                         </div>
                       </div>
@@ -1049,9 +1049,10 @@ export default function SchemeIntelligencePage() {
                 )}
                 <button
                   onClick={() => setBriefingOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                    text-white shadow-lg hover:shadow-xl transition-all"
-                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-[14px] font-medium
+                    text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0
+                    transition-all duration-100"
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                 >
                   <Calendar className="w-4 h-4" />
                   Today&apos;s Briefing
@@ -1059,26 +1060,26 @@ export default function SchemeIntelligencePage() {
               </div>
             </div>
           </div>
-          <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/25 to-transparent" />
+          <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/30 to-transparent" />
 
           {/* Fix 2: Proactive Insight Strip (below header, above chat) */}
           {insights.length > 0 && !insightsDismissed && (
-            <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2">
+            <div className="border-b border-[#2A2A2A] bg-[#141414] px-4 py-2">
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 {insights.map((insight, i) => (
                   <a
                     key={i}
                     href={insight.href || '#'}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm
-                      text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:shadow transition-all flex-shrink-0"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1A1A1A] border border-[#2A2A2A]
+                      text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/5 transition-all flex-shrink-0"
                   >
                     <span>{insight.icon}</span>
-                    <span className="font-semibold text-slate-800">{insight.text}</span>
+                    <span className="font-semibold text-[#E0E0E0]">{insight.text}</span>
                   </a>
                 ))}
                 <button
                   onClick={() => setInsightsDismissed(true)}
-                  className="p-1 hover:bg-slate-200 rounded-full transition flex-shrink-0 text-slate-400 hover:text-slate-600"
+                  className="p-1 hover:bg-[#2A2A2A] rounded-full transition flex-shrink-0 text-[#B0B0B0] hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1092,8 +1093,8 @@ export default function SchemeIntelligencePage() {
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="absolute top-1/2 -translate-y-1/2 z-20 w-6 h-10 flex items-center justify-center
-                bg-white border border-slate-200 rounded-r-lg shadow-sm hover:bg-slate-50
-                transition-all duration-200 text-slate-400 hover:text-slate-600"
+                bg-[#1A1A1A] border border-[#2A2A2A] rounded-r-lg shadow-sm hover:bg-[#2A2A2A]
+                transition-all duration-200 text-[#B0B0B0] hover:text-white"
               style={{ left: sidebarOpen ? '256px' : '0px', transition: 'left 200ms' }}
             >
               {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -1101,18 +1102,20 @@ export default function SchemeIntelligencePage() {
 
             {/* Sessions Sidebar */}
             <div
-              className="bg-[#FAFAF8] border-r border-slate-200 flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200"
+              className="bg-[#141414] border-r border-[#2A2A2A] flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200"
               style={{ width: sidebarOpen ? '256px' : '0px' }}
             >
-              <div className="p-3 border-b border-slate-200">
+              <div className="p-3 border-b border-[#2A2A2A]">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversations</span>
+                  <span className="text-xs font-semibold text-[#B0B0B0] uppercase tracking-wider">Conversations</span>
                 </div>
                 <button
                   onClick={startNewSession}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-                    text-sm font-medium text-white transition-all"
-                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl
+                    text-sm font-medium text-white shadow-lg hover:shadow-xl
+                    hover:-translate-y-[1px] active:translate-y-0
+                    transition-all duration-100"
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                 >
                   <Plus className="w-4 h-4" />
                   New Chat
@@ -1121,30 +1124,30 @@ export default function SchemeIntelligencePage() {
               <div className="flex-1 overflow-auto p-2">
                 {sessionsLoading && (
                   <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
                   </div>
                 )}
                 {!sessionsLoading && sessions.map((s) => (
                   <div
                     key={s.id}
-                    className={`group relative rounded-lg transition-all mb-0.5 ${
+                    className={`sidebar-section group relative rounded-lg transition-all mb-0.5 border-l-3 ${
                       s.id === activeSessionId
-                        ? 'bg-white border-l-2 border-[#D4AF37] shadow-sm'
-                        : 'hover:bg-white/60 border-l-2 border-transparent'
+                        ? 'bg-[#1A1A1A] border-l-[3px] border-[#D4AF37]'
+                        : 'hover:bg-[#1A1A1A] border-l-[3px] border-transparent'
                     }`}
                   >
                     {deletingSessionId === s.id ? (
                       <div className="flex items-center gap-2 px-3 py-2">
-                        <span className="text-xs text-slate-600 flex-1">Delete?</span>
+                        <span className="text-xs text-[#E0E0E0] flex-1">Delete?</span>
                         <button
                           onClick={() => deleteSession(s.id)}
-                          className="text-[11px] font-medium text-red-600 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                          className="text-[11px] font-medium text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-900/30 transition-colors"
                         >
                           Yes
                         </button>
                         <button
                           onClick={() => setDeletingSessionId(null)}
-                          className="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                          className="text-[11px] font-medium text-[#B0B0B0] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#2A2A2A] transition-colors"
                         >
                           No
                         </button>
@@ -1156,18 +1159,18 @@ export default function SchemeIntelligencePage() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs truncate ${
-                            s.id === activeSessionId ? 'text-slate-900 font-medium' : 'text-slate-600'
+                            s.id === activeSessionId ? 'text-white font-medium' : 'text-[#E0E0E0]'
                           }`}>
                             {s.title || 'New conversation'}
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{relativeTime(s.createdAt)}</p>
+                          <p className="text-[10px] text-[#B0B0B0] mt-0.5">{relativeTime(s.createdAt)}</p>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeletingSessionId(s.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 hover:text-red-500 text-slate-400 transition-all flex-shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-900/30 hover:text-red-400 text-[#B0B0B0] transition-all flex-shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1176,7 +1179,7 @@ export default function SchemeIntelligencePage() {
                   </div>
                 ))}
                 {!sessionsLoading && sessions.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-8 italic">No conversations yet</p>
+                  <p className="text-xs text-[#B0B0B0] text-center py-8 italic">No conversations yet</p>
                 )}
               </div>
             </div>
@@ -1184,20 +1187,20 @@ export default function SchemeIntelligencePage() {
             {/* Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
               {!activeSession ? (
-                /* Welcome / Empty State (Fix 7) */
+                /* Welcome / Empty State */
                 <div className="flex-1 flex items-center justify-center p-8">
                   <div className="text-center max-w-xl">
                     <div className="w-14 h-14 rounded-2xl mx-auto mb-5 overflow-hidden flex items-center justify-center">
                       <Image src="/icon-192.png" alt="OpenHouse AI" width={56} height={56} className="w-14 h-14 object-cover rounded-2xl" />
                     </div>
-                    <h2 className="text-2xl font-semibold text-slate-900">
+                    <h2 className="text-2xl font-semibold text-white tracking-[-0.01em]">
                       Scheme Intelligence
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1 mb-8">
+                    <p className="text-[#B0B0B0] text-sm mt-1 mb-8">
                       Ask anything about your scheme — data, documents, regulations.
                     </p>
 
-                    {/* Suggested Questions (Fix 7) */}
+                    {/* Suggested Questions */}
                     <div className="grid grid-cols-2 gap-3 w-full max-w-lg mx-auto mb-8">
                       {QUESTION_CATEGORIES.map((cat, catIdx) => {
                         const cardEmojis = ['\uD83D\uDCCA', '\uD83D\uDCCB', '\uD83D\uDCAC', '\uD83D\uDCCB'];
@@ -1206,19 +1209,21 @@ export default function SchemeIntelligencePage() {
                           <button
                             key={catIdx}
                             onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
-                            className="rounded-2xl border border-slate-200 bg-white p-4 text-left hover:border-[#D4AF37]/50 hover:shadow-md transition-all cursor-pointer group"
-                            style={{ ['--tw-bg-opacity' as string]: 1 }}
-                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(212,175,55,0.03)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                            className="rounded-2xl border border-[#2A2A2A] bg-[#141414] p-4 text-left
+                              hover:border-[#D4AF37]/50 hover:shadow-[0_4px_12px_rgba(212,175,55,0.15)]
+                              hover:-translate-y-[1px] active:translate-y-0
+                              transition-all duration-150 cursor-pointer group"
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(212,175,55,0.05)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#141414'; }}
                           >
                             <span className="text-xl">{cardEmojis[catIdx]}</span>
                             <p
                               key={pillIndices[catIdx]}
-                              className="text-sm font-medium text-slate-700 mt-2 group-hover:text-[#B8934C] transition-colors animate-fade-in"
+                              className="text-[14px] font-medium text-[#E0E0E0] mt-2 group-hover:text-[#D4AF37] transition-colors animate-fade-in"
                             >
                               {cat.questions[pillIndices[catIdx]]}
                             </p>
-                            <p className="text-xs text-slate-400 mt-0.5">{cardLabels[catIdx]}</p>
+                            <p className="text-xs text-[#B0B0B0] mt-0.5">{cardLabels[catIdx]}</p>
                           </button>
                         );
                       })}
@@ -1226,9 +1231,10 @@ export default function SchemeIntelligencePage() {
 
                     <button
                       onClick={() => setBriefingOpen(true)}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
-                        text-white shadow-lg hover:shadow-xl transition-all"
-                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-medium
+                        text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0
+                        transition-all duration-100"
+                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                     >
                       <Calendar className="w-4 h-4" />
                       View Today&apos;s Briefing
@@ -1240,12 +1246,12 @@ export default function SchemeIntelligencePage() {
                 <div className="flex-1 overflow-auto px-8 py-6">
                   <div className="max-w-3xl mx-auto space-y-8">
                     {activeSession.messages.map((msg) => (
-                      <div key={msg.id}>
+                      <div key={msg.id} className="animate-slide-in">
                         {msg.role === 'user' ? (
-                          /* User bubble: dark, right-aligned */
+                          /* User bubble: gold-tinted, right-aligned */
                           <div className="flex justify-end">
-                            <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-4 py-3 border border-[#D4AF37]/20 text-sm text-slate-900" style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(184,147,76,0.08) 100%)' }}>
-                              <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                            <div className="max-w-[75%] rounded-2xl rounded-tr-sm px-5 py-3 border border-[#D4AF37]/20 text-[16px] text-white leading-[1.5]" style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(184,147,76,0.08) 100%)' }}>
+                              <div className="whitespace-pre-wrap">{msg.content}</div>
                             </div>
                           </div>
                         ) : (
@@ -1263,25 +1269,29 @@ export default function SchemeIntelligencePage() {
                                     setTimeout(() => setCopiedMessageId(null), 2000);
                                   }}
                                   className="absolute top-0 right-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
-                                    text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                                    text-[#B0B0B0] hover:text-white hover:bg-[#2A2A2A] transition-all"
                                   title="Copy message"
                                 >
                                   {copiedMessageId === msg.id ? (
-                                    <Check className="w-4 h-4 text-green-500" />
+                                    <Check className="w-4 h-4 text-green-400" />
                                   ) : (
                                     <Copy className="w-4 h-4" />
                                   )}
                                 </button>
                               )}
                               {msg.isStreaming && !msg.content ? (
-                                /* Streaming indicator (Fix 7) */
+                                /* Typing indicator with bouncing dots */
                                 <div className="flex items-center gap-2">
-                                  <span className="text-slate-400 text-sm italic">Scheme Intelligence is thinking</span>
-                                  <StreamingDots />
+                                  <span className="text-[#B0B0B0] text-sm italic">Scheme Intelligence is thinking</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot-delay-1" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot-delay-2" />
+                                  </div>
                                 </div>
                               ) : (
                                 <div
-                                  className="text-slate-800 leading-relaxed text-[15px]"
+                                  className="text-[#E0E0E0] leading-[1.5] text-[16px]"
                                   dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
                                 />
                               )}
@@ -1299,9 +1309,9 @@ export default function SchemeIntelligencePage() {
                                         <button
                                           key={i}
                                           onClick={() => sendMessage(question)}
-                                          className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600
-                                            hover:border-[#D4AF37]/50 hover:text-[#B8934C] hover:bg-[#D4AF37]/5
-                                            transition-colors"
+                                          className="rounded-full border border-[#2A2A2A] px-3 py-1.5 text-xs text-[#B0B0B0]
+                                            hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10
+                                            transition-all duration-150"
                                         >
                                           {question}
                                         </button>
@@ -1320,13 +1330,12 @@ export default function SchemeIntelligencePage() {
                 </div>
               )}
 
-              {/* Input Area (Fix 1: Home button, Fix 7: Claude-like input) */}
-              <div className="bg-white px-4 py-3">
+              {/* Input Area */}
+              <div className="bg-[#1A1A1A] border-t border-[#2A2A2A] px-4 py-3">
                 <div className="flex items-center gap-3 max-w-3xl mx-auto">
-                  {/* Fix 1: Home button */}
                   <Link
                     href="/developer/overview"
-                    className="p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0 text-slate-500 hover:text-slate-700"
+                    className="p-2.5 rounded-full bg-[#2A2A2A] hover:bg-[#3A3A3A] transition-all flex-shrink-0 text-[#B0B0B0] hover:text-white"
                   >
                     <Home className="w-5 h-5" />
                   </Link>
@@ -1338,9 +1347,9 @@ export default function SchemeIntelligencePage() {
                       onKeyDown={handleKeyDown}
                       placeholder="Message Scheme Intelligence..."
                       rows={1}
-                      className="w-full resize-none rounded-2xl border border-slate-200 px-5 py-3.5 text-sm
-                        text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#D4AF37]
-                        focus:ring-2 focus:ring-[#D4AF37]/20 focus:shadow-[0_0_0_4px_rgba(212,175,55,0.08)] shadow-sm transition-all scrollbar-hide"
+                      className="w-full resize-none rounded-[20px] border-2 border-[#2A2A2A] bg-[#141414] px-5 py-4 text-[16px]
+                        text-white placeholder-[#B0B0B0] focus:outline-none focus:border-[#D4AF37]
+                        focus:shadow-[0_0_0_3px_rgba(212,175,55,0.1)] transition-all duration-200 scrollbar-hide"
                       style={{ minHeight: 48, maxHeight: 120, overflowY: 'hidden' }}
                       disabled={isStreaming}
                     />
@@ -1348,8 +1357,9 @@ export default function SchemeIntelligencePage() {
                   <button
                     onClick={() => sendMessage(input)}
                     disabled={!input.trim() || isStreaming}
-                    className={`p-2.5 rounded-full text-white transition-all duration-200 flex-shrink-0
-                      disabled:cursor-not-allowed hover:shadow-md ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                    className={`p-2.5 rounded-full text-white transition-all duration-100 flex-shrink-0
+                      disabled:cursor-not-allowed hover:shadow-[0_4px_12px_rgba(212,175,55,0.4)] hover:-translate-y-[1px] active:translate-y-0
+                      ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                     style={{
                       background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`,
                     }}
@@ -1386,12 +1396,28 @@ export default function SchemeIntelligencePage() {
         .animate-fade-in {
           animation: fadeIn 0.4s ease-out;
         }
+        @keyframes slideInUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-in {
+          animation: slideInUp 0.3s ease-out;
+        }
         @keyframes pulse-dot {
           0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
           40% { opacity: 1; transform: scale(1); }
         }
+        @keyframes bounceDot {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-6px); opacity: 1; }
+        }
+        .animate-bounce-dot { animation: bounceDot 1.4s ease-in-out infinite; }
+        .animate-bounce-dot-delay-1 { animation: bounceDot 1.4s ease-in-out 0.16s infinite; }
+        .animate-bounce-dot-delay-2 { animation: bounceDot 1.4s ease-in-out 0.32s infinite; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .sidebar-section { transition: border-color 0.2s ease, background-color 0.2s ease; }
+        .sidebar-section:hover { border-left-color: #D4AF37; background: rgba(212,175,55,0.05); }
       `}</style>
     </div>
   );
