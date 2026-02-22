@@ -586,13 +586,44 @@ nav,
   color: #1f2937 !important;
 }
 
-td, th, tr, table *, p, span, div, label, h1, h2, h3, h4, h5, h6 {
-  color: inherit;
+/* ── OpenHouse Intelligence: Force light text on dark backgrounds ── */
+.scheme-intel-response,
+.scheme-intel-response * {
+  color: #eef2f8;
+}
+.scheme-intel-response th {
+  color: #9ca8bc !important;
+  background-color: #161a22;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.scheme-intel-response td {
+  color: #eef2f8 !important;
+}
+.scheme-intel-response table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.scheme-intel-response tr {
+  border-bottom: 1px solid #1e2531;
+}
+.scheme-intel-response tr:hover {
+  background-color: rgba(30, 37, 49, 0.5);
 }
 
-text, tspan, .recharts-cartesian-axis-tick-value, .recharts-legend-item-text,
-.recharts-tooltip-item, .recharts-label {
-  fill: #1f2937 !important;
-  color: #1f2937 !important;
+/* Recharts overrides for dark developer dashboard */
+.scheme-intel-response text,
+.scheme-intel-response tspan,
+.scheme-intel-response .recharts-cartesian-axis-tick-value,
+.scheme-intel-response .recharts-legend-item-text,
+.scheme-intel-response .recharts-tooltip-item,
+.scheme-intel-response .recharts-label {
+  fill: #9ca8bc !important;
+  color: #9ca8bc !important;
+}
+.scheme-intel-response .recharts-tooltip-wrapper * {
+  color: #eef2f8 !important;
 }
 

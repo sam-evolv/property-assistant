@@ -1291,7 +1291,7 @@ export default function SchemeIntelligencePage() {
                                 </div>
                               ) : (
                                 <div
-                                  className="text-[#eef2f8] leading-[1.5] text-[16px]"
+                                  className="text-[#eef2f8] leading-[1.5] text-[16px] scheme-intel-response"
                                   dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
                                 />
                               )}
@@ -1299,7 +1299,7 @@ export default function SchemeIntelligencePage() {
 
                               {!msg.isStreaming && (
                                 <>
-                                  {msg.chartData && <InlineChart chartData={msg.chartData} />}
+                                  {msg.chartData && <div className="scheme-intel-response"><InlineChart chartData={msg.chartData} /></div>}
                                   <CollapsibleSources sources={msg.sources} onSourceClick={setSourceDrawer} />
                                   <ActionCards actions={msg.actions} />
                                   {msg.isRegulatory && <RegulatoryDisclaimer />}
