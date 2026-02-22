@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
       .select({
         id: homeNotes.id,
         content: homeNotes.content,
+        source_query: homeNotes.source_query,
+        title: homeNotes.title,
         category: homeNotes.category,
         pinned: homeNotes.pinned,
         created_at: homeNotes.created_at,
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { token, unitUid, content, pinned } = body;
+    const { token, unitUid, content, pinned, source_query } = body;
 
     if (!token || !unitUid) {
       return NextResponse.json(
@@ -134,17 +136,26 @@ export async function POST(request: NextRequest) {
     // Auto-categorize the note
     const category = await categorizeNote(content.trim());
 
+    // Auto-generate title from source query or content
+    const title = source_query
+      ? (source_query.length > 60 ? source_query.substring(0, 57) + '...' : source_query)
+      : (content.trim().length > 60 ? content.trim().substring(0, 57) + '...' : content.trim());
+
     const [note] = await db
       .insert(homeNotes)
       .values({
         unit_id: unitUid,
         content: content.trim(),
+        source_query: source_query?.trim() || null,
+        title,
         category,
         pinned: pinned === true,
       })
       .returning({
         id: homeNotes.id,
         content: homeNotes.content,
+        source_query: homeNotes.source_query,
+        title: homeNotes.title,
         category: homeNotes.category,
         pinned: homeNotes.pinned,
         created_at: homeNotes.created_at,

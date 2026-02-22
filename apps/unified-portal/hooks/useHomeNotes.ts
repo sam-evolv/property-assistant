@@ -19,6 +19,8 @@ export interface HomeNote {
   content: string;
   category: NoteCategory;
   pinned: boolean;
+  source_query: string | null;
+  title: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,7 +34,7 @@ interface UseHomeNotesReturn {
   notes: HomeNote[];
   isLoading: boolean;
   error: string | null;
-  addNote: (content: string, pinned?: boolean) => Promise<HomeNote | null>;
+  addNote: (content: string, pinned?: boolean, sourceQuery?: string) => Promise<HomeNote | null>;
   deleteNote: (noteId: string) => Promise<boolean>;
   togglePin: (noteId: string) => Promise<boolean>;
   refresh: () => Promise<void>;
@@ -138,7 +140,7 @@ export function useHomeNotes({ unitUid, enabled = true }: UseHomeNotesOptions): 
 
   // ─── Add Note (Optimistic) ──────────────────────────────────────────
 
-  const addNote = useCallback(async (content: string, pinned = false): Promise<HomeNote | null> => {
+  const addNote = useCallback(async (content: string, pinned = false, sourceQuery?: string): Promise<HomeNote | null> => {
     if (!unitUid) return null;
 
     const token = getEffectiveToken(unitUid);
@@ -152,6 +154,8 @@ export function useHomeNotes({ unitUid, enabled = true }: UseHomeNotesOptions): 
       content,
       category: 'general',
       pinned,
+      source_query: sourceQuery || null,
+      title: sourceQuery || content.substring(0, 60),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -169,7 +173,7 @@ export function useHomeNotes({ unitUid, enabled = true }: UseHomeNotesOptions): 
       const res = await fetch('/api/purchaser/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, unitUid, content, pinned }),
+        body: JSON.stringify({ token, unitUid, content, pinned, source_query: sourceQuery }),
       });
 
       if (!res.ok) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   X, 
   Home, 
@@ -14,10 +14,14 @@ import {
   Building2,
   User,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   Calendar,
-  Flame
+  Flame,
+  Bookmark,
+  Trash2
 } from 'lucide-react';
+import { useHomeNotes, type HomeNote, type NoteCategory } from '@/hooks/useHomeNotes';
 import { getEffectiveToken } from '../../lib/purchaserSession';
 
 interface ProfileData {
@@ -95,8 +99,14 @@ export default function PurchaserProfilePanel({
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<'home' | 'documents'>('home');
+  const [activeSection, setActiveSection] = useState<'home' | 'documents' | 'saved'>('home');
   
+  // Home Notes — saved AI answers
+  const { notes: savedNotes, deleteNote: deleteSavedNote, isLoading: notesLoading } = useHomeNotes({
+    unitUid,
+    enabled: isOpen,
+  });
+
   const [debugInfo, setDebugInfo] = useState<{
     propToken: string;
     storageToken: string;
@@ -364,6 +374,30 @@ export default function PurchaserProfilePanel({
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveSection('saved')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+                ${activeSection === 'saved'
+                  ? (isDarkMode 
+                      ? 'bg-gray-900 text-gold-400 shadow-lg' 
+                      : 'bg-white text-gold-600 shadow-lg')
+                  : (isDarkMode 
+                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300' 
+                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              <span>Saved</span>
+              {savedNotes.length > 0 && (
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold
+                  ${activeSection === 'saved'
+                    ? (isDarkMode ? 'bg-gold-500/20 text-gold-400' : 'bg-gold-100 text-gold-700')
+                    : (isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
+                  }`}>
+                  {savedNotes.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -539,6 +573,14 @@ export default function PurchaserProfilePanel({
                   </div>
                 </div>
               </div>
+            ) : activeSection === 'saved' ? (
+              /* Saved Answers Section */
+              <SavedAnswersSection
+                notes={savedNotes}
+                onDelete={deleteSavedNote}
+                isDarkMode={isDarkMode}
+                isLoading={notesLoading}
+              />
             ) : (
               /* Documents Section */
               <div className="p-6">
@@ -595,6 +637,186 @@ export default function PurchaserProfilePanel({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Saved Answers Section ──────────────────────────────────────────────────
+
+const CATEGORY_LABELS: Record<string, string> = {
+  all: 'All',
+  maintenance: 'Maintenance',
+  warranty: 'Warranty',
+  utility: 'Utility',
+  appliance: 'Appliance',
+  garden: 'Garden',
+  security: 'Security',
+  general: 'General',
+};
+
+function SavedAnswersSection({
+  notes,
+  onDelete,
+  isDarkMode,
+  isLoading,
+}: {
+  notes: HomeNote[];
+  onDelete: (id: string) => Promise<boolean>;
+  isDarkMode: boolean;
+  isLoading: boolean;
+}) {
+  const [filter, setFilter] = useState<NoteCategory | 'all'>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filtered = filter === 'all' ? notes : notes.filter(n => n.category === filter);
+  const availableCategories = ['all', ...Array.from(new Set(notes.map(n => n.category)))];
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-3">
+        {[1, 2, 3].map(i => (
+          <div key={i} className={`h-20 rounded-xl animate-pulse ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`} />
+        ))}
+      </div>
+    );
+  }
+
+  if (notes.length === 0) {
+    return (
+      <div className="p-12 text-center">
+        <div className={`p-4 rounded-full mx-auto w-16 h-16 flex items-center justify-center mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+          <Bookmark className={`w-8 h-8 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+        </div>
+        <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          No Saved Answers Yet
+        </h3>
+        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          Save answers from the AI assistant using the bookmark icon on any response.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      {/* Category filter chips */}
+      <div className="flex gap-1.5 overflow-x-auto pb-3" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+        {availableCategories.map(cat => {
+          const active = filter === cat;
+          const count = cat === 'all' ? notes.length : notes.filter(n => n.category === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat as NoteCategory | 'all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
+                active
+                  ? 'bg-[#D4AF37]/15 text-[#D4AF37] border-[#D4AF37]/30'
+                  : isDarkMode
+                    ? 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {CATEGORY_LABELS[cat] || cat}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                active
+                  ? 'bg-[#D4AF37]/20 text-[#D4AF37]'
+                  : isDarkMode
+                    ? 'bg-gray-700 text-gray-500'
+                    : 'bg-gray-200 text-gray-400'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Saved answer cards */}
+      <div className="space-y-2">
+        {filtered.map(note => {
+          const expanded = expandedId === note.id;
+          return (
+            <div
+              key={note.id}
+              className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                expanded
+                  ? isDarkMode
+                    ? 'border-[#D4AF37]/30 bg-gray-800/50'
+                    : 'border-gold-200 bg-white shadow-sm'
+                  : isDarkMode
+                    ? 'border-gray-700 bg-gray-800/30'
+                    : 'border-gray-200 bg-white'
+              }`}
+            >
+              <button
+                onClick={() => setExpandedId(expanded ? null : note.id)}
+                className="w-full text-left p-3.5 flex items-start gap-3"
+              >
+                <div className="w-2 h-2 rounded-full bg-[#D4AF37] mt-1.5 flex-shrink-0 opacity-70" />
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm font-semibold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {note.title || note.content.substring(0, 50)}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${
+                      isDarkMode
+                        ? 'bg-[#D4AF37]/15 text-[#D4AF37]'
+                        : 'bg-gold-50 text-gold-700'
+                    }`}>
+                      {CATEGORY_LABELS[note.category] || note.category}
+                    </span>
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {new Date(note.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 flex-shrink-0 mt-1 transition-transform duration-200 ${
+                    expanded ? 'rotate-180' : ''
+                  } ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}
+                />
+              </button>
+
+              {expanded && (
+                <div className="px-3.5 pb-3.5 pl-9 animate-fade-in">
+                  {note.source_query && (
+                    <p className={`text-xs italic mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      &ldquo;{note.source_query}&rdquo;
+                    </p>
+                  )}
+                  <p className={`text-sm leading-relaxed whitespace-pre-line ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {note.content}
+                  </p>
+                  <div className="flex justify-end mt-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(note.id);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        isDarkMode
+                          ? 'bg-gray-700 text-gray-400 hover:text-red-400 border border-gray-600'
+                          : 'bg-gray-100 text-gray-500 hover:text-red-500 border border-gray-200'
+                      }`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {filtered.length === 0 && notes.length > 0 && (
+          <div className="text-center py-8">
+            <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              No saved answers in this category
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

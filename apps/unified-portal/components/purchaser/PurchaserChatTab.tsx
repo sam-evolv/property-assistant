@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Copy, Check } from 'lucide-react';
+import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Bookmark, Check } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
+import { useHomeNotes } from '@/hooks/useHomeNotes';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 
@@ -38,6 +39,10 @@ const ANIMATION_STYLES = `
       transform: translateY(0);
     }
   }
+  @keyframes toastSlideIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
   .typing-dot {
     animation: dot-bounce 1.4s infinite;
     display: inline-block;
@@ -58,13 +63,6 @@ const ANIMATION_STYLES = `
   }
   .message-bubble {
     animation: message-fade-in 0.3s ease-out forwards;
-  }
-  .copy-button {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  .message-container:hover .copy-button {
-    opacity: 1;
   }
 `;
 
@@ -216,40 +214,77 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
   </div>
 );
 
-// Copy button component for assistant messages
-const CopyButton = ({ content, isDarkMode }: { content: string; isDarkMode: boolean }) => {
-  const [copied, setCopied] = useState(false);
+// Save button component for assistant messages — replaces copy button
+const SaveButton = ({
+  content,
+  sourceQuery,
+  isDarkMode,
+  isSaved,
+  onSave,
+  onUnsave,
+}: {
+  content: string;
+  sourceQuery: string;
+  isDarkMode: boolean;
+  isSaved: boolean;
+  onSave: () => void;
+  onUnsave: () => void;
+}) => {
+  const [animating, setAnimating] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      // Haptic feedback on mobile if available
+  const handleClick = () => {
+    if (isSaved) {
+      onUnsave();
+    } else {
+      setAnimating(true);
+      onSave();
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(10);
       }
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+      setTimeout(() => setAnimating(false), 300);
     }
   };
 
   return (
     <button
-      onClick={handleCopy}
-      className={`copy-button absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all ${
-        isDarkMode
-          ? 'bg-[#252525] hover:bg-[#2A2A2A] text-[#808080] hover:text-white'
-          : 'bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700'
-      } ${copied ? 'opacity-100' : ''}`}
-      title={copied ? 'Copied!' : 'Copy message'}
+      onClick={handleClick}
+      className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-200 ${
+        isSaved
+          ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/30 opacity-100'
+          : isDarkMode
+            ? 'bg-white/5 border border-transparent hover:bg-white/10 opacity-0 group-hover:opacity-100'
+            : 'bg-black/5 border border-transparent hover:bg-black/10 opacity-0 group-hover:opacity-100'
+      }`}
+      title={isSaved ? 'Remove from Home Notes' : 'Save to Home Notes'}
+      style={{
+        transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+        transform: animating ? 'scale(1.25)' : 'scale(1)',
+      }}
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-500" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
+      <Bookmark
+        className="h-3.5 w-3.5"
+        fill={isSaved ? '#D4AF37' : 'none'}
+        stroke={isSaved ? '#D4AF37' : isDarkMode ? '#808080' : '#9ca3af'}
+      />
     </button>
+  );
+};
+
+// Toast notification for saved answers
+const SaveToast = ({ show }: { show: boolean }) => {
+  if (!show) return null;
+  return (
+    <div
+      className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-xl backdrop-blur-xl border"
+      style={{
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+        animation: 'toastSlideIn 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
+    >
+      <Check className="h-3.5 w-3.5 text-emerald-500" />
+      <span className="text-xs font-semibold text-emerald-500">Saved to Home Notes</span>
+    </div>
   );
 };
 
@@ -916,6 +951,37 @@ export default function PurchaserChatTab({
   const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED, developmentId);
   const [lastIntentKey, setLastIntentKey] = useState<string | null>(null);
 
+  // Home Notes integration — save AI answers
+  const { notes: savedNotes, addNote: addHomeNote, deleteNote: deleteHomeNote } = useHomeNotes({
+    unitUid,
+    enabled: true,
+  });
+  const [showSaveToast, setShowSaveToast] = useState(false);
+
+  const handleSaveNote = useCallback(async (content: string, sourceQuery: string) => {
+    const result = await addHomeNote(content, false, sourceQuery);
+    if (result) {
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2000);
+    }
+  }, [addHomeNote]);
+
+  const handleUnsaveNote = useCallback(async (content: string) => {
+    const note = savedNotes.find(n => n.content === content);
+    if (note) {
+      await deleteHomeNote(note.id);
+    }
+  }, [savedNotes, deleteHomeNote]);
+
+  const getSourceQuery = useCallback((msgIndex: number): string => {
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (messages[i]?.role === 'user') {
+        return messages[i].content;
+      }
+    }
+    return '';
+  }, [messages]);
+
   // iOS Capacitor-only state - DOES NOT affect web app
   const [isIOSNative, setIsIOSNative] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -1548,6 +1614,9 @@ export default function PurchaserChatTab({
       ref={messagesContainerRef}
       className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`}
     >
+      {/* Save toast notification */}
+      <SaveToast show={showSaveToast} />
+
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
         /* HOME SCREEN - Centered hero, scrollable with bottom padding */
@@ -1711,7 +1780,7 @@ export default function PurchaserChatTab({
                 return (
                   <div key={`msg-${idx}`} className="flex justify-start message-container group">
                     {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
-                    <div className={`message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
+                    <div className={`message-bubble group max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
                       isDarkMode
                         ? 'bg-[#1A1A1A] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
@@ -1749,8 +1818,15 @@ export default function PurchaserChatTab({
                       {msg.contact_card && (
                         <ContactCard card={msg.contact_card} isDarkMode={isDarkMode} />
                       )}
-                      {/* Copy button - appears on hover */}
-                      <CopyButton content={msg.content} isDarkMode={isDarkMode} />
+                      {/* Save button — bookmark AI answers */}
+                      <SaveButton
+                        content={msg.content}
+                        sourceQuery={getSourceQuery(idx)}
+                        isDarkMode={isDarkMode}
+                        isSaved={savedNotes.some(n => n.content === msg.content)}
+                        onSave={() => handleSaveNote(msg.content, getSourceQuery(idx))}
+                        onUnsave={() => handleUnsaveNote(msg.content)}
+                      />
                       {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
                         isDarkMode

@@ -2070,6 +2070,8 @@ export const homeNotes = pgTable('home_notes', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   unit_id: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }).notNull(),
   content: text('content').notNull(),
+  source_query: text('source_query'),
+  title: text('title'),
   category: homeNoteCategoryEnum('category').default('general').notNull(),
   pinned: boolean('pinned').default(false).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
