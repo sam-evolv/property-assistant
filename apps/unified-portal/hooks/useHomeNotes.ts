@@ -314,5 +314,6 @@ export function useHomeNotes({ unitUid, enabled = true }: UseHomeNotesOptions): 
     refresh: fetchNotes,
     isAdding,
     isDeleting,
+    count: notes.length,
   };
 }

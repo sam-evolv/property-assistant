@@ -248,12 +248,12 @@ const SaveButton = ({
   return (
     <button
       onClick={handleClick}
-      className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-200 ${
+      className={`absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all duration-200 ${
         isSaved
           ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/30'
           : isDarkMode
-            ? 'bg-[#252525] border border-[#2A2A2A]'
-            : 'bg-gray-200 border border-gray-300'
+            ? 'bg-[#252525] hover:bg-[#2A2A2A] border border-[#2A2A2A]'
+            : 'bg-gray-200 hover:bg-gray-300 border border-gray-300'
       }`}
       title={isSaved ? 'Remove from Home Notes' : 'Save to Home Notes'}
       style={{
@@ -1780,7 +1780,7 @@ export default function PurchaserChatTab({
                 return (
                   <div key={`msg-${idx}`} className="flex justify-start message-container group">
                     {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
-                    <div className={`message-bubble group max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
+                    <div className={`message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
                       isDarkMode
                         ? 'bg-[#1A1A1A] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
