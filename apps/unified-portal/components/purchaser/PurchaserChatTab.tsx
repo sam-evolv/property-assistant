@@ -250,10 +250,10 @@ const SaveButton = ({
       onClick={handleClick}
       className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-200 ${
         isSaved
-          ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/30 opacity-100'
+          ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/30'
           : isDarkMode
-            ? 'bg-white/5 border border-transparent hover:bg-white/10 opacity-0 group-hover:opacity-100'
-            : 'bg-black/5 border border-transparent hover:bg-black/10 opacity-0 group-hover:opacity-100'
+            ? 'bg-[#252525] border border-[#2A2A2A]'
+            : 'bg-gray-200 border border-gray-300'
       }`}
       title={isSaved ? 'Remove from Home Notes' : 'Save to Home Notes'}
       style={{

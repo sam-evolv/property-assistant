@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { usePurchaserSession } from '@/contexts/PurchaserContext';
-import { MessageCircle, Map, Newspaper, FileText, LogOut, Loader2, Menu, X } from 'lucide-react';
+import { MessageCircle, Map, Newspaper, FileText, LogOut, Loader2, Menu, X, Bookmark } from 'lucide-react';
+import { useHomeNotes } from '@/hooks/useHomeNotes';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -57,6 +58,12 @@ export default function PurchaserAppPage() {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+
+  // Saved answers count for header badge
+  const { count: savedCount } = useHomeNotes({
+    unitUid: session?.unitUid || '',
+    enabled: !!session,
+  });
 
   useEffect(() => {
     if (!isLoading && !session) {
@@ -114,16 +121,33 @@ export default function PurchaserAppPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-grey-100'}`}
-          >
+          <div className="flex items-center gap-2">
+            {/* Saved Answers header icon */}
+            <button
+              onClick={() => setActiveTab('docs')}
+              className={`relative p-2 rounded-lg ${isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-grey-100'}`}
+              title="Saved Answers"
+            >
+              <Bookmark className={`w-5 h-5 ${isDarkMode ? 'text-[#A0A0A0]' : 'text-grey-600'}`} />
+              {savedCount > 0 && (
+                <div
+                  className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#D4AF37]"
+                  style={{ border: `1.5px solid ${isDarkMode ? '#0F0F0F' : '#ffffff'}` }}
+                />
+              )}
+            </button>
+
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className={`p-2 rounded-lg ${isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-grey-100'}`}
+            >
             {showMenu ? (
               <X className={`w-5 h-5 ${isDarkMode ? 'text-[#A0A0A0]' : 'text-grey-600'}`} />
             ) : (
               <Menu className={`w-5 h-5 ${isDarkMode ? 'text-[#A0A0A0]' : 'text-grey-600'}`} />
             )}
           </button>
+          </div>
         </div>
 
         {showMenu && (
