@@ -33,7 +33,7 @@ const btsNavSections: NavSection[] = [
     items: [
       { label: 'Overview', href: '/developer', icon: Home },
       { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
-      { label: 'Scheme Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
+      { label: 'OpenHouse Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
     ],
   },
   {

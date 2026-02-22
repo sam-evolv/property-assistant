@@ -8,7 +8,7 @@ import { routeQuery } from '@/lib/scheme-intelligence/router';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SYSTEM_PROMPT = `You are the Scheme Intelligence assistant for OpenHouse AI — a B2B platform for Irish property developers.
+const SYSTEM_PROMPT = `You are the OpenHouse Intelligence assistant for OpenHouse AI — a B2B platform for Irish property developers.
 
 You help developers understand their scheme data, uploaded documents, unit specifications, and Irish building regulations.
 

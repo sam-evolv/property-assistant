@@ -985,7 +985,7 @@ export default function SchemeIntelligencePage() {
                   <Image src="/icon-192.png" alt="OpenHouse AI" width={36} height={36} className="w-9 h-9 object-cover rounded-xl" />
                 </div>
                 <div>
-                  <h1 className="text-[20px] font-semibold text-white tracking-[-0.01em]">Scheme Intelligence</h1>
+                  <h1 className="text-[20px] font-semibold text-white tracking-[-0.01em]">OpenHouse Intelligence</h1>
                   {developmentName && (
                     <p className="text-xs text-[#9ca8bc]">{developmentName}</p>
                   )}
@@ -1194,7 +1194,7 @@ export default function SchemeIntelligencePage() {
                       <Image src="/icon-192.png" alt="OpenHouse AI" width={56} height={56} className="w-14 h-14 object-cover rounded-2xl" />
                     </div>
                     <h2 className="text-2xl font-semibold text-white tracking-[-0.01em]">
-                      Scheme Intelligence
+                      OpenHouse Intelligence
                     </h2>
                     <p className="text-[#9ca8bc] text-sm mt-1 mb-8">
                       Ask anything about your scheme — data, documents, regulations.
@@ -1282,7 +1282,7 @@ export default function SchemeIntelligencePage() {
                               {msg.isStreaming && !msg.content ? (
                                 /* Typing indicator with bouncing dots */
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[#9ca8bc] text-sm italic">Scheme Intelligence is thinking</span>
+                                  <span className="text-[#9ca8bc] text-sm italic">OpenHouse Intelligence is thinking</span>
                                   <div className="flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot" />
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot-delay-1" />
@@ -1345,7 +1345,7 @@ export default function SchemeIntelligencePage() {
                       value={input}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
-                      placeholder="Message Scheme Intelligence..."
+                      placeholder="Message OpenHouse Intelligence..."
                       rows={1}
                       className="w-full resize-none rounded-[20px] border-2 border-[#2A2A2A] bg-[#141414] px-5 py-4 text-[16px]
                         text-white placeholder-[#B0B0B0] focus:outline-none focus:border-[#D4AF37]
