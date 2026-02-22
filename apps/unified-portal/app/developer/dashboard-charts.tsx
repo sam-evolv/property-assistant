@@ -40,10 +40,10 @@ const CHART_TOOLTIP_STYLE_LIGHT = {
 };
 
 const CHART_TOOLTIP_STYLE_DARK = {
-  backgroundColor: '#1F2937',
-  border: '1px solid #374151',
+  backgroundColor: '#161a22',
+  border: '1px solid #1e2531',
   borderRadius: '8px',
-  color: '#FFFFFF'
+  color: '#eef2f8'
 };
 
 interface BarChartComponentProps {
@@ -57,8 +57,8 @@ export const DashboardBarChart = memo(function DashboardBarChart({
   isDarkMode = false, 
   height = 250 
 }: BarChartComponentProps) {
-  const strokeColor = isDarkMode ? '#444' : '#E5E7EB';
-  const axisColor = isDarkMode ? '#999' : '#6B7280';
+  const strokeColor = isDarkMode ? '#1e2531' : '#E5E7EB';
+  const axisColor = isDarkMode ? '#9ca8bc' : '#6B7280';
   const tooltipStyle = isDarkMode ? CHART_TOOLTIP_STYLE_DARK : CHART_TOOLTIP_STYLE_LIGHT;
 
   return (
@@ -129,8 +129,8 @@ export const TopQuestionsChart = memo(function TopQuestionsChart({
   isDarkMode = false,
   height = 280
 }: TopQuestionsChartProps) {
-  const strokeColor = isDarkMode ? '#444' : '#E5E7EB';
-  const axisColor = isDarkMode ? '#999' : '#6B7280';
+  const strokeColor = isDarkMode ? '#1e2531' : '#E5E7EB';
+  const axisColor = isDarkMode ? '#9ca8bc' : '#6B7280';
   const tooltipStyle = isDarkMode ? CHART_TOOLTIP_STYLE_DARK : CHART_TOOLTIP_STYLE_LIGHT;
 
   const formattedData = data.map((item, index) => ({
@@ -202,7 +202,7 @@ export const OnboardingFunnelChart = memo(function OnboardingFunnelChart({
   isDarkMode = false,
   height = 200
 }: OnboardingFunnelProps) {
-  const textColor = isDarkMode ? '#FFF' : '#111827';
+  const textColor = isDarkMode ? '#eef2f8' : '#111827';
 
   return (
     <div className="space-y-3">
@@ -282,8 +282,8 @@ export const ChatActivityChart = memo(function ChatActivityChart({
   isDarkMode = false,
   height = 200
 }: ChatActivityChartProps) {
-  const strokeColor = isDarkMode ? '#444' : '#E5E7EB';
-  const axisColor = isDarkMode ? '#999' : '#6B7280';
+  const strokeColor = isDarkMode ? '#1e2531' : '#E5E7EB';
+  const axisColor = isDarkMode ? '#9ca8bc' : '#6B7280';
 
   const formattedData = data.map(item => ({
     ...item,

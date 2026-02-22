@@ -12,10 +12,10 @@ interface ChartData {
 }
 
 const CHART_TOOLTIP_STYLE = {
-  backgroundColor: '#FFFFFF',
-  border: '1px solid #E5E7EB',
+  backgroundColor: '#161a22',
+  border: '1px solid #1e2531',
   borderRadius: '8px',
-  color: '#111827'
+  color: '#eef2f8'
 };
 
 const GRADIENT_DEF = (
@@ -37,9 +37,9 @@ export const ActivityChart = memo(function ActivityChart({ data, height = 280 }:
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data}>
         {GRADIENT_DEF}
-        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-        <XAxis stroke="#6B7280" />
-        <YAxis stroke="#6B7280" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e2531" />
+        <XAxis stroke="#1e2531" tick={{ fill: "#9ca8bc", fontSize: 12 }} />
+        <YAxis stroke="#1e2531" tick={{ fill: "#9ca8bc", fontSize: 12 }} />
         <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
         <Area type="monotone" dataKey="chats" stroke="#D4AF37" fillOpacity={1} fill="url(#colorChats)" strokeWidth={2} />
       </AreaChart>
@@ -56,9 +56,9 @@ export const ResponseTimeChart = memo(function ResponseTimeChart({ data, height 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-        <XAxis stroke="#6B7280" />
-        <YAxis stroke="#6B7280" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e2531" />
+        <XAxis stroke="#1e2531" tick={{ fill: "#9ca8bc", fontSize: 12 }} />
+        <YAxis stroke="#1e2531" tick={{ fill: "#9ca8bc", fontSize: 12 }} />
         <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
         <Line type="monotone" dataKey="avgTime" stroke="#D4AF37" dot={{ fill: '#D4AF37', r: 5 }} strokeWidth={2} name="Avg Response" />
         <Line type="monotone" dataKey="maxTime" stroke="#93C5FD" dot={{ fill: '#93C5FD', r: 4 }} strokeWidth={2} name="Max Response" />

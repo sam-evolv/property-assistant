@@ -205,13 +205,13 @@ function formatMessage(content: string): string {
       const [headers, ...bodyRows] = block.rows;
       let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-sm border-collapse"><thead><tr class="border-b-2 border-[#D4AF37]/30">';
       for (const h of headers) {
-        tableHtml += `<th class="text-left py-2 px-3 font-semibold text-[#E0E0E0] bg-[#141414]">${escapeHtml(h)}</th>`;
+        tableHtml += `<th class="text-left py-2 px-3 font-semibold text-[#9ca8bc] bg-[#161a22] uppercase text-xs tracking-wide">${escapeHtml(h)}</th>`;
       }
       tableHtml += '</tr></thead><tbody>';
       for (const row of bodyRows) {
-        tableHtml += '<tr class="border-b border-[#2A2A2A] hover:bg-white/5">';
+        tableHtml += '<tr class="border-b border-[#1e2531] hover:bg-[#1e2531]/50">';
         for (const cell of row) {
-          tableHtml += `<td class="py-2 px-3 text-[#B0B0B0]">${escapeHtml(cell)}</td>`;
+          tableHtml += `<td class="py-2 px-3 text-[#eef2f8]">${escapeHtml(cell)}</td>`;
         }
         tableHtml += '</tr>';
       }
@@ -353,7 +353,7 @@ function CollapsibleSources({
     switch (type) {
       case 'function': return <BarChart2 className="w-3.5 h-3.5 text-[#D4AF37]" />;
       case 'regulatory': return <BookOpen className="w-3.5 h-3.5 text-amber-400" />;
-      default: return <FileText className="w-3.5 h-3.5 text-[#B0B0B0]" />;
+      default: return <FileText className="w-3.5 h-3.5 text-[#9ca8bc]" />;
     }
   };
 
@@ -370,7 +370,7 @@ function CollapsibleSources({
       <div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-xs text-[#B0B0B0] hover:text-white flex items-center gap-1 transition-colors"
+          className="text-xs text-[#9ca8bc] hover:text-white flex items-center gap-1 transition-colors"
         >
           <span>{'\u2197'} {sources.length} source{sources.length !== 1 ? 's' : ''}</span>
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -385,8 +385,8 @@ function CollapsibleSources({
               >
                 {getSourceIcon(s.type)}
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-[#E0E0E0] truncate">{s.title}</p>
-                  <p className="text-[10px] text-[#B0B0B0]">{getSourceLabel(s.type)}</p>
+                  <p className="text-xs font-medium text-[#eef2f8] truncate">{s.title}</p>
+                  <p className="text-[10px] text-[#9ca8bc]">{getSourceLabel(s.type)}</p>
                 </div>
               </button>
             ))}
@@ -406,7 +406,7 @@ function ActionCards({ actions }: { actions?: ChatMessage['actions'] }) {
           key={i}
           href={a.href}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-            border border-[#2A2A2A] text-[#E0E0E0] hover:border-[#D4AF37]/50 hover:text-[#D4AF37]
+            border border-[#2A2A2A] text-[#eef2f8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37]
             hover:bg-[#D4AF37]/10 transition-all"
         >
           {a.label}
@@ -430,14 +430,14 @@ function SourceDrawer({
       <div className="flex items-center justify-between p-4 border-b border-[#2A2A2A]">
         <div>
           <h3 className="text-sm font-semibold text-white">{source.title}</h3>
-          <span className="text-xs text-[#B0B0B0] capitalize">{source.type}</span>
+          <span className="text-xs text-[#9ca8bc] capitalize">{source.type}</span>
         </div>
         <button onClick={onClose} className="p-1 hover:bg-[#2A2A2A] rounded-lg transition">
-          <X className="w-4 h-4 text-[#B0B0B0]" />
+          <X className="w-4 h-4 text-[#9ca8bc]" />
         </button>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <p className="text-sm text-[#E0E0E0] leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
+        <p className="text-sm text-[#eef2f8] leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
       </div>
     </div>
   );
@@ -503,7 +503,7 @@ function BriefingModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Today&apos;s Briefing</h2>
-              <p className="text-xs text-[#B0B0B0]">
+              <p className="text-xs text-[#9ca8bc]">
                 {new Date().toLocaleDateString('en-IE', {
                   weekday: 'long',
                   year: 'numeric',
@@ -514,14 +514,14 @@ function BriefingModal({
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-[#2A2A2A] rounded-lg transition">
-            <X className="w-5 h-5 text-[#B0B0B0]" />
+            <X className="w-5 h-5 text-[#9ca8bc]" />
           </button>
         </div>
         <div className="flex-1 overflow-auto p-6 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-[#D4AF37]" />
-              <span className="ml-3 text-sm text-[#B0B0B0]">Generating briefing...</span>
+              <span className="ml-3 text-sm text-[#9ca8bc]">Generating briefing...</span>
             </div>
           ) : (
             <>
@@ -549,12 +549,12 @@ function BriefingModal({
               })}
               {briefingText && (
                 <div className="mt-4 p-4 rounded-xl bg-[#141414] border border-[#2A2A2A]">
-                  <p className="text-sm text-[#E0E0E0] leading-relaxed whitespace-pre-wrap">{briefingText}</p>
+                  <p className="text-sm text-[#eef2f8] leading-relaxed whitespace-pre-wrap">{briefingText}</p>
                 </div>
               )}
               {!items.length && !briefingText && (
                 <div className="text-center py-12">
-                  <p className="text-sm text-[#B0B0B0]">No actionable items for today. Everything looks good!</p>
+                  <p className="text-sm text-[#9ca8bc]">No actionable items for today. Everything looks good!</p>
                 </div>
               )}
             </>
@@ -987,7 +987,7 @@ export default function SchemeIntelligencePage() {
                 <div>
                   <h1 className="text-[20px] font-semibold text-white tracking-[-0.01em]">Scheme Intelligence</h1>
                   {developmentName && (
-                    <p className="text-xs text-[#B0B0B0]">{developmentName}</p>
+                    <p className="text-xs text-[#9ca8bc]">{developmentName}</p>
                   )}
                 </div>
               </div>
@@ -1007,7 +1007,7 @@ export default function SchemeIntelligencePage() {
                       className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
                         compareWithId
                           ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]'
-                          : 'border-[#2A2A2A] text-[#B0B0B0] hover:border-[#3A3A3A]'
+                          : 'border-[#2A2A2A] text-[#9ca8bc] hover:border-[#3A3A3A]'
                       }`}
                       title={compareWithId ? 'Clear comparison' : 'Compare schemes'}
                     >
@@ -1024,7 +1024,7 @@ export default function SchemeIntelligencePage() {
                     {compareDropdownOpen && !compareWithId && (
                       <div className="absolute right-0 top-full mt-1 w-64 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-lg z-30 max-h-64 overflow-auto">
                         <div className="p-2">
-                          <p className="text-xs font-semibold text-[#B0B0B0] px-2 py-1">Compare with...</p>
+                          <p className="text-xs font-semibold text-[#9ca8bc] px-2 py-1">Compare with...</p>
                           {developments
                             .filter((d) => d.id !== developmentId)
                             .map((d) => (
@@ -1034,13 +1034,13 @@ export default function SchemeIntelligencePage() {
                                   setCompareWithId(d.id);
                                   setCompareDropdownOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-2 text-sm text-[#E0E0E0] hover:bg-[#2A2A2A] rounded-lg transition-colors"
+                                className="w-full text-left px-3 py-2 text-sm text-[#eef2f8] hover:bg-[#2A2A2A] rounded-lg transition-colors"
                               >
                                 {d.name}
                               </button>
                             ))}
                           {developments.filter((d) => d.id !== developmentId).length === 0 && (
-                            <p className="px-3 py-2 text-xs text-[#B0B0B0] italic">No other schemes available</p>
+                            <p className="px-3 py-2 text-xs text-[#9ca8bc] italic">No other schemes available</p>
                           )}
                         </div>
                       </div>
@@ -1074,12 +1074,12 @@ export default function SchemeIntelligencePage() {
                       text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/5 transition-all flex-shrink-0"
                   >
                     <span>{insight.icon}</span>
-                    <span className="font-semibold text-[#E0E0E0]">{insight.text}</span>
+                    <span className="font-semibold text-[#eef2f8]">{insight.text}</span>
                   </a>
                 ))}
                 <button
                   onClick={() => setInsightsDismissed(true)}
-                  className="p-1 hover:bg-[#2A2A2A] rounded-full transition flex-shrink-0 text-[#B0B0B0] hover:text-white"
+                  className="p-1 hover:bg-[#2A2A2A] rounded-full transition flex-shrink-0 text-[#9ca8bc] hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1094,7 +1094,7 @@ export default function SchemeIntelligencePage() {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="absolute top-1/2 -translate-y-1/2 z-20 w-6 h-10 flex items-center justify-center
                 bg-[#1A1A1A] border border-[#2A2A2A] rounded-r-lg shadow-sm hover:bg-[#2A2A2A]
-                transition-all duration-200 text-[#B0B0B0] hover:text-white"
+                transition-all duration-200 text-[#9ca8bc] hover:text-white"
               style={{ left: sidebarOpen ? '256px' : '0px', transition: 'left 200ms' }}
             >
               {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -1107,7 +1107,7 @@ export default function SchemeIntelligencePage() {
             >
               <div className="p-3 border-b border-[#2A2A2A]">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-semibold text-[#B0B0B0] uppercase tracking-wider">Conversations</span>
+                  <span className="text-xs font-semibold text-[#9ca8bc] uppercase tracking-wider">Conversations</span>
                 </div>
                 <button
                   onClick={startNewSession}
@@ -1138,7 +1138,7 @@ export default function SchemeIntelligencePage() {
                   >
                     {deletingSessionId === s.id ? (
                       <div className="flex items-center gap-2 px-3 py-2">
-                        <span className="text-xs text-[#E0E0E0] flex-1">Delete?</span>
+                        <span className="text-xs text-[#eef2f8] flex-1">Delete?</span>
                         <button
                           onClick={() => deleteSession(s.id)}
                           className="text-[11px] font-medium text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-900/30 transition-colors"
@@ -1147,7 +1147,7 @@ export default function SchemeIntelligencePage() {
                         </button>
                         <button
                           onClick={() => setDeletingSessionId(null)}
-                          className="text-[11px] font-medium text-[#B0B0B0] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#2A2A2A] transition-colors"
+                          className="text-[11px] font-medium text-[#9ca8bc] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#2A2A2A] transition-colors"
                         >
                           No
                         </button>
@@ -1159,18 +1159,18 @@ export default function SchemeIntelligencePage() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs truncate ${
-                            s.id === activeSessionId ? 'text-white font-medium' : 'text-[#E0E0E0]'
+                            s.id === activeSessionId ? 'text-white font-medium' : 'text-[#eef2f8]'
                           }`}>
                             {s.title || 'New conversation'}
                           </p>
-                          <p className="text-[10px] text-[#B0B0B0] mt-0.5">{relativeTime(s.createdAt)}</p>
+                          <p className="text-[10px] text-[#9ca8bc] mt-0.5">{relativeTime(s.createdAt)}</p>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeletingSessionId(s.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-900/30 hover:text-red-400 text-[#B0B0B0] transition-all flex-shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-900/30 hover:text-red-400 text-[#9ca8bc] transition-all flex-shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1179,7 +1179,7 @@ export default function SchemeIntelligencePage() {
                   </div>
                 ))}
                 {!sessionsLoading && sessions.length === 0 && (
-                  <p className="text-xs text-[#B0B0B0] text-center py-8 italic">No conversations yet</p>
+                  <p className="text-xs text-[#9ca8bc] text-center py-8 italic">No conversations yet</p>
                 )}
               </div>
             </div>
@@ -1196,7 +1196,7 @@ export default function SchemeIntelligencePage() {
                     <h2 className="text-2xl font-semibold text-white tracking-[-0.01em]">
                       Scheme Intelligence
                     </h2>
-                    <p className="text-[#B0B0B0] text-sm mt-1 mb-8">
+                    <p className="text-[#9ca8bc] text-sm mt-1 mb-8">
                       Ask anything about your scheme — data, documents, regulations.
                     </p>
 
@@ -1219,11 +1219,11 @@ export default function SchemeIntelligencePage() {
                             <span className="text-xl">{cardEmojis[catIdx]}</span>
                             <p
                               key={pillIndices[catIdx]}
-                              className="text-[14px] font-medium text-[#E0E0E0] mt-2 group-hover:text-[#D4AF37] transition-colors animate-fade-in"
+                              className="text-[14px] font-medium text-[#eef2f8] mt-2 group-hover:text-[#D4AF37] transition-colors animate-fade-in"
                             >
                               {cat.questions[pillIndices[catIdx]]}
                             </p>
-                            <p className="text-xs text-[#B0B0B0] mt-0.5">{cardLabels[catIdx]}</p>
+                            <p className="text-xs text-[#9ca8bc] mt-0.5">{cardLabels[catIdx]}</p>
                           </button>
                         );
                       })}
@@ -1269,7 +1269,7 @@ export default function SchemeIntelligencePage() {
                                     setTimeout(() => setCopiedMessageId(null), 2000);
                                   }}
                                   className="absolute top-0 right-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
-                                    text-[#B0B0B0] hover:text-white hover:bg-[#2A2A2A] transition-all"
+                                    text-[#9ca8bc] hover:text-white hover:bg-[#2A2A2A] transition-all"
                                   title="Copy message"
                                 >
                                   {copiedMessageId === msg.id ? (
@@ -1282,7 +1282,7 @@ export default function SchemeIntelligencePage() {
                               {msg.isStreaming && !msg.content ? (
                                 /* Typing indicator with bouncing dots */
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[#B0B0B0] text-sm italic">Scheme Intelligence is thinking</span>
+                                  <span className="text-[#9ca8bc] text-sm italic">Scheme Intelligence is thinking</span>
                                   <div className="flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot" />
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-bounce-dot-delay-1" />
@@ -1291,7 +1291,7 @@ export default function SchemeIntelligencePage() {
                                 </div>
                               ) : (
                                 <div
-                                  className="text-[#E0E0E0] leading-[1.5] text-[16px]"
+                                  className="text-[#eef2f8] leading-[1.5] text-[16px]"
                                   dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
                                 />
                               )}
@@ -1309,7 +1309,7 @@ export default function SchemeIntelligencePage() {
                                         <button
                                           key={i}
                                           onClick={() => sendMessage(question)}
-                                          className="rounded-full border border-[#2A2A2A] px-3 py-1.5 text-xs text-[#B0B0B0]
+                                          className="rounded-full border border-[#2A2A2A] px-3 py-1.5 text-xs text-[#9ca8bc]
                                             hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10
                                             transition-all duration-150"
                                         >
@@ -1335,7 +1335,7 @@ export default function SchemeIntelligencePage() {
                 <div className="flex items-center gap-3 max-w-3xl mx-auto">
                   <Link
                     href="/developer/overview"
-                    className="p-2.5 rounded-full bg-[#2A2A2A] hover:bg-[#3A3A3A] transition-all flex-shrink-0 text-[#B0B0B0] hover:text-white"
+                    className="p-2.5 rounded-full bg-[#2A2A2A] hover:bg-[#3A3A3A] transition-all flex-shrink-0 text-[#9ca8bc] hover:text-white"
                   >
                     <Home className="w-5 h-5" />
                   </Link>
