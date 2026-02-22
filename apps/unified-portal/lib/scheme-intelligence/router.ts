@@ -35,6 +35,7 @@ AVAILABLE LAYER 1 FUNCTIONS:
 - getSchemeSummary: overall scheme overview
 - getCommunicationsLog: noticeboard posts, announcements, communications
 - getUnitTypeBreakdown: unit types and bedroom count breakdown
+- getSEAIGrants: SEAI grant information (solar PV, EV charger, insulation, heat pump)
 
 Return JSON only. Example:
 {"layers":["layer1"],"functions":["getRegistrationRate"],"ragQuery":null,"isRegulatory":false}
@@ -131,6 +132,14 @@ function fallbackRoute(question: string): RouterResult {
     'bedroom': 'getUnitTypeBreakdown',
     'layout': 'getUnitTypeBreakdown',
     'mix': 'getUnitTypeBreakdown',
+    'grant': 'getSEAIGrants',
+    'seai': 'getSEAIGrants',
+    'solar': 'getSEAIGrants',
+    'ev charger': 'getSEAIGrants',
+    'insulation grant': 'getSEAIGrants',
+    'heat pump grant': 'getSEAIGrants',
+    'energy grant': 'getSEAIGrants',
+    'retrofit': 'getSEAIGrants',
   };
 
   for (const [keyword, fn] of Object.entries(dataKeywords)) {

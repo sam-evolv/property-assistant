@@ -134,6 +134,14 @@ import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy
 import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
+import { isGrantQuery, getSEAIGrantsResponse } from '@/lib/assistant/seai-grants';
+import {
+  isUtilityQuery,
+  hasActiveWizard,
+  startUtilitySetupWizard,
+  processUtilityStep,
+  getUtilityInfoResponse,
+} from '@/lib/assistant/utility-wizard';
 
 function generateFollowUpQuestions(intent: string, message: string): string[] {
   const msg = message.toLowerCase();
@@ -1844,6 +1852,131 @@ export async function POST(request: NextRequest) {
         metadata: {
           intent: 'local_history',
           historyCategory: historyCategory,
+        },
+      });
+    }
+
+    // SEAI GRANTS: Handle grant-related queries with structured knowledge base
+    if (isGrantQuery(message)) {
+      console.log('[Chat] SEAI grant query detected');
+      const grantResponse = getSEAIGrantsResponse(message);
+
+      await persistMessageSafely({
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
+        require_unit_id: true,
+        user_id: validatedUnitUid || userId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: grantResponse,
+        question_topic: 'seai_grants',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          assistantOS: true,
+          intent: 'grants',
+          userId: userId || null,
+        },
+        request_id: requestId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        answer: grantResponse,
+        source: 'seai_grants',
+        isNoInfo: false,
+        metadata: {
+          intent: 'grants',
+        },
+      });
+    }
+
+    // UTILITY WIZARD: Interactive multi-step utility setup guide
+    const wizardSessionId = validatedUnitUid || userId || requestId;
+
+    // Check for active wizard session first
+    if (hasActiveWizard(wizardSessionId)) {
+      console.log('[Chat] Active utility wizard session — processing step');
+      const wizardResponse = processUtilityStep(wizardSessionId, message);
+
+      if (wizardResponse) {
+        await persistMessageSafely({
+          tenant_id: userTenantId,
+          development_id: userDevelopmentId,
+          unit_id: actualUnitId,
+          require_unit_id: true,
+          user_id: validatedUnitUid || userId || null,
+          unit_uid: validatedUnitUid || null,
+          user_message: message,
+          ai_message: wizardResponse,
+          question_topic: 'utility_wizard',
+          source: 'purchaser_portal',
+          latency_ms: Date.now() - startTime,
+          metadata: {
+            assistantOS: true,
+            intent: 'utilities',
+            wizardActive: true,
+            userId: userId || null,
+          },
+          request_id: requestId,
+        });
+
+        return NextResponse.json({
+          success: true,
+          answer: wizardResponse,
+          source: 'utility_wizard',
+          isNoInfo: false,
+          metadata: {
+            intent: 'utilities',
+            wizardActive: true,
+          },
+        });
+      }
+    }
+
+    // New utility query — start wizard or return single utility info
+    if (isUtilityQuery(message)) {
+      const wantsFullWizard = /\butilities\b|set\s*up\s*(my\s*)?(all|everything)|just\s*got\s*(my\s*)?keys|mov(e|ing)\s*in|new\s*home\s*(set\s*up|checklist|guide)|new\s*homeowner|first\s*time\s*buyer|setup\s*wizard/i.test(message);
+
+      let utilityResponse: string;
+      if (wantsFullWizard) {
+        console.log('[Chat] Starting utility setup wizard');
+        utilityResponse = startUtilitySetupWizard(wizardSessionId);
+      } else {
+        console.log('[Chat] Single utility query detected');
+        utilityResponse = getUtilityInfoResponse(message);
+      }
+
+      await persistMessageSafely({
+        tenant_id: userTenantId,
+        development_id: userDevelopmentId,
+        unit_id: actualUnitId,
+        require_unit_id: true,
+        user_id: validatedUnitUid || userId || null,
+        unit_uid: validatedUnitUid || null,
+        user_message: message,
+        ai_message: utilityResponse,
+        question_topic: 'utility_setup',
+        source: 'purchaser_portal',
+        latency_ms: Date.now() - startTime,
+        metadata: {
+          assistantOS: true,
+          intent: 'utilities',
+          wizardStarted: wantsFullWizard,
+          userId: userId || null,
+        },
+        request_id: requestId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        answer: utilityResponse,
+        source: 'utility_setup',
+        isNoInfo: false,
+        metadata: {
+          intent: 'utilities',
+          wizardActive: wantsFullWizard,
         },
       });
     }

@@ -544,6 +544,24 @@ export async function getUnitTypeBreakdown(
   };
 }
 
+export async function getSEAIGrants(
+  _supabase: SupabaseClient,
+  _tenantId: string,
+  _developmentId?: string
+): Promise<FunctionResult> {
+  const grants = [
+    { name: 'Solar PV', amount: 'Up to €2,100', icon: '☀️', category: 'solar_pv' },
+    { name: 'EV Home Charger', amount: 'Up to €300', icon: '🔌', category: 'ev_charger' },
+    { name: 'Insulation', amount: 'Up to €6,500', icon: '🏠', category: 'insulation' },
+    { name: 'Heat Pump', amount: 'Up to €6,500', icon: '♨️', category: 'heat_pump' },
+  ];
+
+  return {
+    data: { grants, totalMaxGrants: '€15,400', source: 'SEAI' },
+    summary: `SEAI offers 4 key home energy grants: Solar PV (up to €2,100), EV Charger (up to €300), Insulation (up to €6,500), and Heat Pump (up to €6,500). Most grants require pre-2011 homes. Full details at seai.ie.`,
+  };
+}
+
 // Registry for the router to look up functions by name
 export const FUNCTION_REGISTRY: Record<string, (supabase: SupabaseClient, tenantId: string, developmentId?: string, ...args: any[]) => Promise<FunctionResult>> = {
   getRegistrationRate,
@@ -558,4 +576,5 @@ export const FUNCTION_REGISTRY: Record<string, (supabase: SupabaseClient, tenant
   getSchemeSummary,
   getCommunicationsLog,
   getUnitTypeBreakdown,
+  getSEAIGrants,
 };
