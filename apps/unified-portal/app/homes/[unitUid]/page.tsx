@@ -4,13 +4,14 @@ import { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import * as Tabs from '@radix-ui/react-tabs';
-import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User } from 'lucide-react';
+import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User, Bookmark } from 'lucide-react';
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
 import { PreHandoverPortal } from '@/components/pre-handover';
 import type { MilestoneDates, ContactInfo, FAQ, Document } from '@/components/pre-handover/types';
 import { storeToken, getToken, clearToken } from '@/lib/purchaserSession';
+import { useHomeNotes } from '@/hooks/useHomeNotes';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -94,6 +95,12 @@ export default function HomeResidentPage() {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+
+  // Saved answers count for header badge
+  const { count: savedCount } = useHomeNotes({
+    unitUid: unitUid || '',
+    enabled: !!unitUid,
+  });
 
   const [validatedToken, setValidatedToken] = useState<string | null>(null);
   
@@ -609,6 +616,27 @@ export default function HomeResidentPage() {
               </div>
             )}
           </div>
+
+          {/* Saved Answers Bookmark */}
+          <button
+            onClick={() => {
+              setShowProfilePanel(true);
+            }}
+            className={`relative flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition ${
+              isDarkMode
+                ? 'border-[#2A2A2A] bg-[#1A1A1A]/80 text-[#A0A0A0] hover:bg-[#252525]'
+                : 'border-slate-200 bg-white/80 text-slate-500 hover:bg-slate-50'
+            }`}
+            aria-label="Saved answers"
+          >
+            <Bookmark className="w-4 h-4" />
+            {savedCount > 0 && (
+              <div
+                className="absolute top-0 right-0 w-2 h-2 rounded-full bg-[#D4AF37]"
+                style={{ border: `1.5px solid ${isDarkMode ? '#0F0F0F' : '#ffffff'}` }}
+              />
+            )}
+          </button>
 
           {/* Dark/Light Mode Toggle */}
           <button
