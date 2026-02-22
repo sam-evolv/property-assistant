@@ -2060,6 +2060,27 @@ export const welcomeSequences = pgTable('welcome_sequences', {
   devIdx: index('welcome_dev_idx').on(table.development_id),
 }));
 
+// ─── Home Notes ──────────────────────────────────────────────────────────────
+
+export const homeNoteCategoryEnum = pgEnum('home_note_category_enum', [
+  'maintenance', 'warranty', 'utility', 'appliance', 'garden', 'security', 'general'
+]);
+
+export const homeNotes = pgTable('home_notes', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  unit_id: uuid('unit_id').references(() => units.id, { onDelete: 'cascade' }).notNull(),
+  content: text('content').notNull(),
+  category: homeNoteCategoryEnum('category').default('general').notNull(),
+  pinned: boolean('pinned').default(false).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  unitIdx: index('home_notes_unit_idx').on(table.unit_id),
+  categoryIdx: index('home_notes_category_idx').on(table.category),
+  pinnedIdx: index('home_notes_pinned_idx').on(table.pinned),
+  createdIdx: index('home_notes_created_idx').on(table.created_at),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
