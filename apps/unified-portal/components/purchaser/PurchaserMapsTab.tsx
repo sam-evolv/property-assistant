@@ -60,18 +60,18 @@ const FILTER_CATEGORIES: FilterCategory[] = [
 
 // Premium Info Panel Component
 const PremiumInfoPanel = ({ place, isDarkMode, onClose }: { place: any; isDarkMode: boolean; onClose: () => void }) => (
-  <div className={`w-full rounded-xl shadow-xl border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+  <div className={`w-full rounded-xl shadow-xl border ${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'}`}>
     {/* Header with close button */}
-    <div className="flex items-start justify-between px-4 py-3 border-b border-gray-700/50">
+    <div className="flex items-start justify-between px-4 py-3 border-b border-[#2A2A2A]">
       <div className="flex-1">
         <h3 className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
           {place.name}
         </h3>
-        <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+        <p className={`text-xs mt-1 ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600'}`}>
           {place.formatted_address || place.vicinity}
         </p>
       </div>
-      <button onClick={onClose} className={`p-1 rounded-lg transition ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
+      <button onClick={onClose} className={`p-1 rounded-lg transition ${isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-gray-100'}`}>
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -89,7 +89,7 @@ const PremiumInfoPanel = ({ place, isDarkMode, onClose }: { place: any; isDarkMo
         <div className="flex items-center gap-2">
           <Star className="w-4 h-4 text-gold-400 fill-gold-400" />
           <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            {place.rating} <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>({place.user_ratings_total} reviews)</span>
+            {place.rating} <span className={`text-xs ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600'}`}>({place.user_ratings_total} reviews)</span>
           </span>
         </div>
       )}
@@ -781,15 +781,15 @@ export default function PurchaserMapsTab({
   console.log('[Maps] Rendering PurchaserMapsTab', { isDarkMode, mapLoaded, mapError, address, latitude, longitude });
   
   return (
-    <div className={`flex flex-col md:flex-row gap-4 md:gap-0 p-4 md:p-0 ${isDarkMode ? 'bg-black' : 'bg-white'}`} style={{ height: '100%', minHeight: 'calc(100vh - 150px)' }}>
+    <div className={`flex flex-col md:flex-row gap-4 md:gap-0 p-4 md:p-0 ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`} style={{ height: '100%', minHeight: 'calc(100vh - 150px)' }}>
       {/* LEFT PANEL: Filter Categories (Desktop: Left Side, Mobile: Top) */}
-      <div className={`w-full md:w-80 md:border-r md:overflow-y-auto flex flex-col ${isDarkMode ? 'md:bg-gray-900 md:border-gray-800' : 'md:bg-gray-50 md:border-gray-200'}`}>
+      <div className={`w-full md:w-80 md:border-r md:overflow-y-auto flex flex-col ${isDarkMode ? 'md:bg-[#0F0F0F] md:border-[#2A2A2A]' : 'md:bg-gray-50 md:border-gray-200'}`}>
         {/* Filter Header */}
-        <div className={`px-4 py-3 md:border-b ${isDarkMode ? 'md:border-gray-800' : 'md:border-gray-200'}`}>
+        <div className={`px-4 py-3 md:border-b ${isDarkMode ? 'md:border-[#2A2A2A]' : 'md:border-gray-200'}`}>
           <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             Nearby Places
           </h3>
-          <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <p className={`text-xs mt-1 ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600'}`}>
             Select a category to explore
           </p>
         </div>
@@ -805,11 +805,11 @@ export default function PurchaserMapsTab({
                   selectedFilter === category.id
                     ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
                     : isDarkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                      ? 'bg-[#1A1A1A] text-[#E0E0E0] hover:bg-[#252525] border border-[#2A2A2A]'
                       : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
-                <span className={`flex-shrink-0 ${selectedFilter === category.id ? 'text-white' : isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <span className={`flex-shrink-0 ${selectedFilter === category.id ? 'text-white' : isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
                   {category.icon}
                 </span>
                 <span className="text-left">{category.label}</span>
@@ -820,7 +820,7 @@ export default function PurchaserMapsTab({
 
         {/* Favourites Section */}
         {favorites.length > 0 && (
-          <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+          <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200'}`}>
             <div className="flex items-center gap-2 mb-3">
               <Heart className="w-4 h-4 text-red-500 fill-red-500" />
               <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -832,8 +832,8 @@ export default function PurchaserMapsTab({
                 <div
                   key={fav.place_id}
                   className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition ${
-                    isDarkMode 
-                      ? 'bg-gray-800 hover:bg-gray-700 border border-gray-700' 
+                    isDarkMode
+                      ? 'bg-[#1A1A1A] hover:bg-[#252525] border border-[#2A2A2A]'
                       : 'bg-white hover:bg-gray-50 border border-gray-200'
                   }`}
                   onClick={() => {
@@ -846,7 +846,7 @@ export default function PurchaserMapsTab({
                     <div className={`text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       {fav.name}
                     </div>
-                    <div className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <div className={`text-xs truncate ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500'}`}>
                       {fav.address}
                     </div>
                   </div>
@@ -868,11 +868,11 @@ export default function PurchaserMapsTab({
       </div>
 
       {/* RIGHT PANEL: Map Canvas (Desktop: Right Side, Mobile: Bottom) */}
-      <div className={`flex-1 flex flex-col relative rounded-xl overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} shadow-lg border-2 border-gold-500`} style={{ minHeight: '500px' }}>
+      <div className={`flex-1 flex flex-col relative rounded-xl overflow-hidden ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-gray-100'} shadow-lg border-2 border-[#D4AF37]`} style={{ minHeight: '500px' }}>
         {/* Search Bar */}
-        <div className={`p-4 border-b ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`} style={{ zIndex: 10 }}>
+        <div className={`p-4 border-b ${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'}`} style={{ zIndex: 10 }}>
           <div className="relative">
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${isDarkMode ? 'border-gray-600 bg-gray-700' : 'border-gold-400 bg-white'}`}>
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${isDarkMode ? 'border-[#2A2A2A] bg-[#252525]' : 'border-gold-400 bg-white'}`}>
               <Search className="w-4 h-4 text-gold-500" />
               <input
                 ref={searchInputRef}
@@ -880,25 +880,25 @@ export default function PurchaserMapsTab({
                 placeholder={t.maps.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => handleSearchInput(e.target.value)}
-                className={`flex-1 outline-none text-sm ${isDarkMode ? 'bg-gray-700 text-white placeholder:text-gray-400' : 'bg-white text-gray-900 placeholder:text-gray-500'}`}
+                className={`flex-1 outline-none text-sm ${isDarkMode ? 'bg-[#252525] text-white placeholder:text-[#808080]' : 'bg-white text-gray-900 placeholder:text-gray-500'}`}
               />
             </div>
 
             {/* Search Results Dropdown */}
             {searchResults.length > 0 && (
-              <div className={`absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg border z-50 ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}>
+              <div className={`absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg border z-50 ${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'}`}>
                 {searchResults.map((result, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSearchResultClick(result.place_id, result.description)}
                     className={`w-full text-left px-3 py-2 text-sm transition ${
-                      idx === 0 
-                        ? (isDarkMode ? 'bg-gold-900/30' : 'bg-gold-50')
-                        : (isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-50')
-                    } ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}
+                      idx === 0
+                        ? (isDarkMode ? 'bg-[#D4AF37]/10' : 'bg-gold-50')
+                        : (isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')
+                    } ${isDarkMode ? 'text-[#E0E0E0]' : 'text-gray-900'}`}
                   >
                     <div className="font-medium">{result.structured_formatting?.main_text || result.description}</div>
-                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <div className={`text-xs ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500'}`}>
                       {result.structured_formatting?.secondary_text || ''}
                     </div>
                   </button>
@@ -915,7 +915,7 @@ export default function PurchaserMapsTab({
           style={{ 
             minHeight: '500px',
             maxHeight: '650px',
-            backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6'
+            backgroundColor: isDarkMode ? '#1A1A1A' : '#f3f4f6'
           }}
         />
 

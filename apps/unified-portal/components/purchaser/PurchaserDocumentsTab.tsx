@@ -528,11 +528,11 @@ export default function PurchaserDocumentsTab({
 
   const filteredDocs = filterDocuments();
 
-  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
+  const bgColor = isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
-  const cardBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
-  const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
+  const subtextColor = isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600';
+  const cardBg = isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200';
+  const inputBg = isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-300';
 
   // Get translated categories based on current language
   const baseCategories = useMemo(() => getTranslatedCategories(t.documents), [t.documents]);
@@ -642,7 +642,7 @@ export default function PurchaserDocumentsTab({
 
   return (
     <div className={`flex flex-col h-full ${bgColor}`}>
-      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3`}>
+      <div className={`${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'} border-b px-4 py-3`}>
         <div className="relative max-w-2xl mx-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -650,12 +650,12 @@ export default function PurchaserDocumentsTab({
             placeholder={t.documents.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 ${inputBg} border rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 ${isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'}`}
+            className={`w-full pl-10 pr-4 py-2 ${inputBg} border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] ${isDarkMode ? 'text-white placeholder-[#808080]' : 'text-gray-900 placeholder-gray-400'}`}
           />
         </div>
       </div>
 
-      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3 overflow-x-auto`}>
+      <div className={`${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'} border-b px-4 py-3 overflow-x-auto`}>
         <div className="flex gap-2 min-w-max">
           {categories.map(cat => {
             const count = getCategoryCount(cat.id);
@@ -684,7 +684,7 @@ export default function PurchaserDocumentsTab({
                 : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200';
             } else {
               buttonStyle = isDarkMode
-                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] hover:bg-[#252525] hover:border-[#D4AF37]/40'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
             }
             
@@ -697,7 +697,7 @@ export default function PurchaserDocumentsTab({
                 {cat.icon}
                 <span>{cat.label}</span>
                 {count > 0 && (
-                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${selectedCategory === cat.id ? 'bg-white/20' : (isDarkMode ? 'bg-gray-600' : 'bg-gray-200')}`}>
+                  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${selectedCategory === cat.id ? 'bg-white/20' : (isDarkMode ? 'bg-[#2A2A2A]' : 'bg-gray-200')}`}>
                     {count}
                   </span>
                 )}
@@ -849,7 +849,7 @@ export default function PurchaserDocumentsTab({
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500'}`}>
                       {new Date(doc.created_at).toLocaleDateString()}
                     </span>
                     <button

@@ -203,14 +203,14 @@ const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
     <div
       className={`rounded-[20px] rounded-bl-[6px] px-4 py-2.5 shadow-sm ${
         isDarkMode
-          ? 'bg-[#1C1C1E] shadow-black/20'
+          ? 'bg-[#1A1A1A] shadow-black/20'
           : 'bg-[#E9E9EB] shadow-black/5'
       }`}
     >
       <div className="flex items-center gap-1">
-        <div className={`typing-dot dot-1 ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
-        <div className={`typing-dot dot-2 ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
-        <div className={`typing-dot dot-3 ${isDarkMode ? 'bg-gray-500' : 'bg-gray-400'}`} />
+        <div className={`typing-dot dot-1 ${isDarkMode ? 'bg-[#808080]' : 'bg-gray-400'}`} />
+        <div className={`typing-dot dot-2 ${isDarkMode ? 'bg-[#808080]' : 'bg-gray-400'}`} />
+        <div className={`typing-dot dot-3 ${isDarkMode ? 'bg-[#808080]' : 'bg-gray-400'}`} />
       </div>
     </div>
   </div>
@@ -239,7 +239,7 @@ const CopyButton = ({ content, isDarkMode }: { content: string; isDarkMode: bool
       onClick={handleCopy}
       className={`copy-button absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all ${
         isDarkMode
-          ? 'bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white'
+          ? 'bg-[#252525] hover:bg-[#2A2A2A] text-[#808080] hover:text-white'
           : 'bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700'
       } ${copied ? 'opacity-100' : ''}`}
       title={copied ? 'Copied!' : 'Copy message'}
@@ -469,14 +469,14 @@ const WarrantyTimelineCard = ({ card, isDarkMode }: { card: NonNullable<Message[
 // Contact card — shown when LLM response contains contact details
 const ContactCard = ({ card, isDarkMode }: { card: NonNullable<Message['contact_card']>; isDarkMode: boolean }) => {
   return (
-    <div className={`mt-3 rounded-2xl border p-4 ${isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-gray-200'} shadow-sm`}>
+    <div className={`mt-3 rounded-2xl border p-4 ${isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'} shadow-sm`}>
       <div className="flex items-center gap-2 mb-3">
         <div className="w-8 h-8 rounded-full bg-[#C4A44A] flex items-center justify-center text-white text-sm font-bold">
           {card.name ? card.name[0] : '👤'}
         </div>
         <div>
           {card.name && <div className={`font-semibold text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{card.name}</div>}
-          <div className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>Contact</div>
+          <div className={`text-xs ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500'}`}>Contact</div>
         </div>
       </div>
       <div className="space-y-2">
@@ -523,11 +523,11 @@ const SourcesDropdown = ({
       
       {isOpen && (
         <div className={`mt-2 rounded-lg border p-2 text-xs ${
-          isDarkMode 
-            ? 'border-gray-700 bg-gray-800/50' 
+          isDarkMode
+            ? 'border-[#2A2A2A] bg-[#1A1A1A]'
             : 'border-gray-200 bg-gray-50'
         }`}>
-          <p className={`mb-1 font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`mb-1 font-medium ${isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500'}`}>
             Based on:
           </p>
           <ul className="space-y-1">
@@ -1470,10 +1470,10 @@ export default function PurchaserChatTab({
 
   const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
 
-  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-white';
+  const bgColor = isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-600';
-  const inputBg = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300';
+  const subtextColor = isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600';
+  const inputBg = isDarkMode ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-300';
   const inputText = isDarkMode ? 'text-white' : 'text-gray-900';
 
   // Ref for scrolling to bottom of messages
@@ -1546,7 +1546,7 @@ export default function PurchaserChatTab({
   return (
     <div 
       ref={messagesContainerRef}
-      className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+      className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`}
     >
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
@@ -1576,7 +1576,7 @@ export default function PurchaserChatTab({
 
           {/* Home Info Card */}
           {(address || schemeLat) && (
-            <div className={`w-full max-w-[300px] mt-3 rounded-2xl overflow-hidden border ${isDarkMode ? 'border-zinc-700 bg-zinc-800' : 'border-gray-200 bg-white'} shadow-sm`}>
+            <div className={`w-full max-w-[300px] mt-3 rounded-2xl overflow-hidden border ${isDarkMode ? 'border-[#2A2A2A] bg-[#1A1A1A]' : 'border-gray-200 bg-white'} shadow-sm`}>
               {schemeLat && schemeLng && (
                 <div className="relative w-full h-[110px]">
                   <img
@@ -1598,7 +1598,7 @@ export default function PurchaserChatTab({
                     </span>
                   )}
                   {estHandoverDate && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${isDarkMode ? 'bg-zinc-700 text-zinc-300' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${isDarkMode ? 'bg-[#252525] text-[#E0E0E0]' : 'bg-gray-100 text-gray-600'}`}>
                       🗝 Keys: {new Date(estHandoverDate).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
                     </span>
                   )}
@@ -1620,7 +1620,7 @@ export default function PurchaserChatTab({
           </h1>
 
           {/* Subtitle */}
-          <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>
+          <p className={`mt-1.5 text-center text-[12px] leading-relaxed max-w-[280px] ${isDarkMode ? 'text-[#B0B0B0]' : 'text-slate-500'}`}>
             {t.subtitle}
           </p>
 
@@ -1642,8 +1642,8 @@ export default function PurchaserChatTab({
                     handlePillClick(pill);
                   }}
                   className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer truncate touch-manipulation ${
-                    isDarkMode 
-                      ? 'border border-[#444444] bg-[#1E1E24] text-[#E8E8E8] hover:border-gold-500 hover:bg-[#252529] hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                    isDarkMode
+                      ? 'border border-[#2A2A2A] bg-[#1A1A1A] text-[#E0E0E0] hover:border-[#D4AF37] hover:bg-[#252525] hover:shadow-[0_0_10px_rgba(212,175,55,0.3)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
                   }`}
                   title={pill.label}
@@ -1666,8 +1666,8 @@ export default function PurchaserChatTab({
                     handleQuickPrompt(prompt);
                   }}
                   className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer touch-manipulation ${
-                    isDarkMode 
-                      ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.4)] active:scale-95'
+                    isDarkMode
+                      ? 'border border-[#2A2A2A] bg-[#1A1A1A] text-[#E0E0E0] hover:border-[#D4AF37] hover:shadow-[0_0_10px_rgba(212,175,55,0.3)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
                   }`}
                 >
@@ -1713,7 +1713,7 @@ export default function PurchaserChatTab({
                     {/* Assistant bubble - iMessage inspired, asymmetric rounded */}
                     <div className={`message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 shadow-sm relative ${
                       isDarkMode
-                        ? 'bg-[#1C1C1E] text-white shadow-black/20'
+                        ? 'bg-[#1A1A1A] text-white shadow-black/20'
                         : 'bg-[#E9E9EB] text-gray-900 shadow-black/5'
                     }`}>
                       {msg.weather_card ? (
@@ -1753,11 +1753,11 @@ export default function PurchaserChatTab({
                       <CopyButton content={msg.content} isDarkMode={isDarkMode} />
                       {msg.drawing && (
                       <div className={`mt-3 rounded-xl border overflow-hidden ${
-                        isDarkMode 
-                          ? 'border-gray-700 bg-gray-800/50' 
+                        isDarkMode
+                          ? 'border-[#2A2A2A] bg-[#1A1A1A]'
                           : 'border-gray-200 bg-gray-50'
                       }`}>
-                        <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200'}`}>
                           <div className="flex items-center gap-2">
                             <FileText className={`h-4 w-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
                             <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1782,7 +1782,7 @@ export default function PurchaserChatTab({
                             rel="noopener noreferrer"
                             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition border-r ${
                               isDarkMode
-                                ? 'border-gray-700 text-gold-400 hover:bg-gray-700/50'
+                                ? 'border-[#2A2A2A] text-[#D4AF37] hover:bg-[#252525]'
                                 : 'border-gray-200 text-gold-700 hover:bg-gray-100'
                             }`}
                           >
@@ -1795,7 +1795,7 @@ export default function PurchaserChatTab({
                             rel="noopener noreferrer"
                             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
                               isDarkMode
-                                ? 'text-gold-400 hover:bg-gray-700/50'
+                                ? 'text-[#D4AF37] hover:bg-[#252525]'
                                 : 'text-gold-700 hover:bg-gray-100'
                             }`}
                           >
@@ -1805,19 +1805,19 @@ export default function PurchaserChatTab({
                         </div>
                       </div>
                     )}
-                    
+
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="mt-3 flex flex-col gap-2">
                         {msg.attachments.map((attachment, attachIdx) => (
-                          <div 
+                          <div
                             key={attachment.id || attachIdx}
                             className={`rounded-xl border overflow-hidden ${
-                              isDarkMode 
-                                ? 'border-gray-700 bg-gray-800/50' 
+                              isDarkMode
+                                ? 'border-[#2A2A2A] bg-[#1A1A1A]'
                                 : 'border-gray-200 bg-gray-50'
                             }`}
                           >
-                            <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200'}`}>
                               <div className="flex items-center gap-2">
                                 <FileText className={`h-4 w-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
                                 <span className={`text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1835,7 +1835,7 @@ export default function PurchaserChatTab({
                                 rel="noopener noreferrer"
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition border-r ${
                                   isDarkMode
-                                    ? 'border-gray-700 text-gold-400 hover:bg-gray-700/50'
+                                    ? 'border-[#2A2A2A] text-[#D4AF37] hover:bg-[#252525]'
                                     : 'border-gray-200 text-gold-700 hover:bg-gray-100'
                                 }`}
                               >
@@ -1848,7 +1848,7 @@ export default function PurchaserChatTab({
                                 rel="noopener noreferrer"
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
                                   isDarkMode
-                                    ? 'text-gold-400 hover:bg-gray-700/50'
+                                    ? 'text-[#D4AF37] hover:bg-[#252525]'
                                     : 'text-gold-700 hover:bg-gray-100'
                                 }`}
                               >
@@ -1892,7 +1892,7 @@ export default function PurchaserChatTab({
                             }}
                             className={`flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-all ${
                               isDarkMode
-                                ? 'border-gray-700 bg-gray-800/70 hover:border-gold-500 hover:bg-gray-800'
+                                ? 'border-[#2A2A2A] bg-[#1A1A1A] hover:border-[#D4AF37] hover:bg-[#252525]'
                                 : 'border-gray-200 bg-white hover:border-gold-400 hover:bg-gold-50'
                             }`}
                           >
@@ -1951,8 +1951,8 @@ export default function PurchaserChatTab({
       <div 
         ref={inputBarRef}
         className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
-          isDarkMode 
-            ? 'bg-black/95 backdrop-blur-xl border-t border-white/5' 
+          isDarkMode
+            ? 'bg-[#0F0F0F]/97 backdrop-blur-xl border-t border-[#2A2A2A]/50'
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{ 
@@ -1981,7 +1981,7 @@ export default function PurchaserChatTab({
           {/* Input pill container - iMessage inspired */}
           <div className={`flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 transition-all duration-200 ${
             isDarkMode
-              ? 'bg-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]'
+              ? 'bg-[#1A1A1A] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04),0_1px_3px_0_rgba(0,0,0,0.12)]'
               : 'bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)]'
           }`}>
             <input
@@ -2028,13 +2028,13 @@ export default function PurchaserChatTab({
             )}
           </div>
         </div>
-        <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+        <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-[#808080]' : 'text-gray-400'}`}>
           {t.powered} •{' '}
           <a
             href="https://openhouseai.ie/privacy"
             target="_blank"
             rel="noopener noreferrer"
-            className={`underline hover:no-underline ${isDarkMode ? 'text-gray-500 hover:text-gray-400' : 'text-gray-500 hover:text-gray-600'}`}
+            className={`underline hover:no-underline ${isDarkMode ? 'text-[#808080] hover:text-[#B0B0B0]' : 'text-gray-500 hover:text-gray-600'}`}
           >
             {t.privacyLink || 'Privacy Policy'}
           </a>

@@ -443,8 +443,8 @@ function Avatar({ name, size = 'md', isDarkMode }: { name?: string; size?: 'sm' 
 function CategoryBadge({ category, t, isDarkMode }: { category?: string; t: any; isDarkMode: boolean }) {
   const config: Record<string, { bg: string; text: string; icon: string }> = {
     event: {
-      bg: isDarkMode ? 'bg-amber-900/40' : 'bg-amber-50',
-      text: isDarkMode ? 'text-amber-300' : 'text-amber-700',
+      bg: isDarkMode ? 'bg-[#2A2A2A] border border-[#D4AF37]/30' : 'bg-amber-50',
+      text: isDarkMode ? 'text-[#D4AF37]' : 'text-amber-700',
       icon: ''
     },
     alert: {
@@ -458,8 +458,8 @@ function CategoryBadge({ category, t, isDarkMode }: { category?: string; t: any;
       icon: ''
     },
     general: {
-      bg: isDarkMode ? 'bg-[#2A2A2E] border border-[#444444]' : 'bg-gray-100',
-      text: isDarkMode ? 'text-[#D0D0D0]' : 'text-gray-600',
+      bg: isDarkMode ? 'bg-[#252525] border border-[#2A2A2A]' : 'bg-gray-100',
+      text: isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-600',
       icon: ''
     },
   };
@@ -807,11 +807,11 @@ export default function PurchaserNoticeboardTab({
     ? notices 
     : notices.filter(n => n.category === selectedCategory);
 
-  const bgColor = isDarkMode ? 'bg-gray-900' : 'bg-gray-50';
-  const cardBg = isDarkMode ? 'bg-gray-800' : 'bg-white';
+  const bgColor = isDarkMode ? 'bg-[#0F0F0F]' : 'bg-gray-50';
+  const cardBg = isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const subtextColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
-  const borderColor = isDarkMode ? 'border-gray-700' : 'border-gray-200';
+  const subtextColor = isDarkMode ? 'text-[#B0B0B0]' : 'text-gray-500';
+  const borderColor = isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200';
 
   if (selectedNotice) {
     return (
@@ -865,7 +865,7 @@ export default function PurchaserNoticeboardTab({
                 {selectedNotice.title}
               </h1>
               
-              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} whitespace-pre-wrap leading-relaxed`}>
+              <p className={`${isDarkMode ? 'text-[#E0E0E0]' : 'text-gray-700'} whitespace-pre-wrap leading-relaxed`}>
                 {selectedNotice.message}
               </p>
             </div>
@@ -889,7 +889,7 @@ export default function PurchaserNoticeboardTab({
                     onChange={(e) => setAuthorName(e.target.value)}
                     placeholder={t.yourName}
                     maxLength={50}
-                    className={`w-full px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                    className={`w-full px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white placeholder-[#808080]' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 transition-all`}
                   />
                   <div className="flex gap-2">
                     <textarea
@@ -898,7 +898,7 @@ export default function PurchaserNoticeboardTab({
                       placeholder={t.writeComment}
                       maxLength={2000}
                       rows={2}
-                      className={`flex-1 px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 resize-none transition-all`}
+                      className={`flex-1 px-3 py-2 text-sm border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white placeholder-[#808080]' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 resize-none transition-all`}
                     />
                     <button
                       type="submit"
@@ -954,13 +954,13 @@ export default function PurchaserNoticeboardTab({
                           {comment.unit_id && (
                             <button
                               onClick={() => handleDeleteComment(comment.id)}
-                              className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 ${isDarkMode ? 'hover:bg-gray-700 text-gray-500 hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'} transition-all`}
+                              className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 ${isDarkMode ? 'hover:bg-[#252525] text-[#808080] hover:text-red-400' : 'hover:bg-gray-100 text-gray-400 hover:text-red-500'} transition-all`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                         </div>
-                        <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} whitespace-pre-wrap break-words leading-relaxed`}>
+                        <p className={`mt-1 text-sm ${isDarkMode ? 'text-[#E0E0E0]' : 'text-gray-700'} whitespace-pre-wrap break-words leading-relaxed`}>
                           {comment.body}
                         </p>
                       </div>
@@ -988,7 +988,7 @@ export default function PurchaserNoticeboardTab({
                   selectedCategory === cat
                     ? 'bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-md'
                     : isDarkMode
-                      ? 'bg-[#1A1A1C] border border-[#333333] text-[#E0E0E0] hover:bg-[#252528] hover:border-[#444444]'
+                      ? 'bg-[#1A1A1A] border border-[#2A2A2A] text-[#E0E0E0] hover:bg-[#252525] hover:border-[#D4AF37]/40'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -1005,7 +1005,7 @@ export default function PurchaserNoticeboardTab({
           </div>
         ) : filteredNotices.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
-            <div className={`p-6 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-3xl shadow-lg mb-6`}>
+            <div className={`p-6 ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white'} rounded-3xl shadow-lg mb-6`}>
               <Bell className={`w-12 h-12 ${isDarkMode ? 'text-gold-400' : 'text-gold-500'}`} />
             </div>
             <h3 className={`text-xl font-bold ${textColor} mb-2`}>
@@ -1023,7 +1023,7 @@ export default function PurchaserNoticeboardTab({
                   <article
                     key={notice.id}
                     onClick={() => setSelectedNotice(notice)}
-                    className={`${cardBg} rounded-xl border ${borderColor} overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg group flex flex-col`}
+                    className={`${cardBg} rounded-xl border ${borderColor} overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)] group flex flex-col`}
                   >
                     <div className="p-4 flex flex-col flex-1">
                       <div className="flex items-center gap-2 mb-3">
@@ -1094,7 +1094,7 @@ export default function PurchaserNoticeboardTab({
               <h2 className={`text-lg font-bold ${textColor}`}>{t.createTitle}</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                className={`p-2 rounded-full ${isDarkMode ? 'hover:bg-[#252525]' : 'hover:bg-gray-100'} transition-colors`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1111,7 +1111,7 @@ export default function PurchaserNoticeboardTab({
                   onChange={(e) => setNoticeAuthorName(e.target.value)}
                   maxLength={100}
                   placeholder={t.anonymous}
-                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white placeholder-[#808080]' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 transition-all`}
                 />
               </div>
 
@@ -1123,7 +1123,7 @@ export default function PurchaserNoticeboardTab({
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 transition-all`}
                   required
                 />
               </div>
@@ -1136,7 +1136,7 @@ export default function PurchaserNoticeboardTab({
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   rows={4}
-                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 resize-none transition-all`}
+                  className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 resize-none transition-all`}
                   required
                 />
               </div>
@@ -1149,7 +1149,7 @@ export default function PurchaserNoticeboardTab({
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 transition-all`}
                   >
                     <option value="general">{t.general}</option>
                     <option value="event">{t.event}</option>
@@ -1165,7 +1165,7 @@ export default function PurchaserNoticeboardTab({
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all`}
+                    className={`w-full px-4 py-3 border ${borderColor} ${isDarkMode ? 'bg-[#252525] text-white' : 'bg-gray-50 text-gray-900'} rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 transition-all`}
                   >
                     <option value="low">{t.low}</option>
                     <option value="medium">{t.medium}</option>
@@ -1174,11 +1174,11 @@ export default function PurchaserNoticeboardTab({
                 </div>
               </div>
 
-              <div className={`flex gap-3 pt-4 sticky bottom-0 ${isDarkMode ? 'bg-gradient-to-t from-gray-800 via-gray-800 to-transparent' : 'bg-gradient-to-t from-white via-white to-transparent'} md:bg-none md:relative -mx-5 px-5 pb-5 md:m-0 md:p-0`}>
+              <div className={`flex gap-3 pt-4 sticky bottom-0 ${isDarkMode ? 'bg-gradient-to-t from-[#1A1A1A] via-[#1A1A1A] to-transparent' : 'bg-gradient-to-t from-white via-white to-transparent'} md:bg-none md:relative -mx-5 px-5 pb-5 md:m-0 md:p-0`}>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className={`flex-1 px-4 py-3 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textColor} rounded-xl font-medium transition-all`}
+                  className={`flex-1 px-4 py-3 ${isDarkMode ? 'bg-[#252525] hover:bg-[#2A2A2A]' : 'bg-gray-100 hover:bg-gray-200'} ${textColor} rounded-xl font-medium transition-all`}
                 >
                   {t.cancel}
                 </button>

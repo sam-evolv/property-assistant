@@ -114,10 +114,10 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLangu
               border: 'none',
               cursor: 'pointer',
               transition: 'all 150ms ease-out',
-              color: isActive 
-                ? '#D4AF37' 
-                : isDarkMode 
-                  ? 'rgba(156, 163, 175, 1)' 
+              color: isActive
+                ? '#D4AF37'
+                : isDarkMode
+                  ? '#808080'
                   : 'rgba(107, 114, 128, 1)',
             };
 
