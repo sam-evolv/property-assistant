@@ -28,6 +28,7 @@ interface QuestionAnalysisData {
 
 interface QuestionsTabProps {
   tenantId: string;
+  developmentId?: string;
   days: number;
 }
 

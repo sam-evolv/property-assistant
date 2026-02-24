@@ -68,6 +68,8 @@ export interface MaintenanceRequest {
   first_response_at?: string;
   unit?: { address: string };
   tenancy?: { tenant_name: string };
+  unit_address?: string;
+  tenant_name_joined?: string;
 }
 
 export type ComplianceType =

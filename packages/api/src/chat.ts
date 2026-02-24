@@ -34,7 +34,7 @@ interface ChatRequest {
   message: string;
 }
 
-interface UnitDetails {
+interface UnitDetails extends Record<string, unknown> {
   id: string;
   unit_number: string;
   address_line_1: string;
@@ -224,7 +224,7 @@ export async function handleChatRequest(req: NextRequest) {
       }
     }
 
-    const tenantId = tenant.id;
+    const tenantId = tenant!.id;
     
     const rateLimitKey = getRateLimitKey(tenantId, 'chat');
     const rateLimitResult = await chatRateLimiter.check(rateLimitKey);
@@ -281,7 +281,7 @@ export async function handleChatRequest(req: NextRequest) {
             floor_area_m2,
             last_chat_at
           FROM units
-          WHERE unit_uid = ${tokenPayload.unitUid}
+          WHERE id = ${tokenPayload.supabaseUnitId}
           LIMIT 1
         `);
         

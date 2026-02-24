@@ -11,6 +11,7 @@ interface UploadModalProps {
   tenantId: string;
   developmentId: string;
   houseTypes?: Array<{ id: string; house_type_code: string; name: string | null }>;
+  defaultFolderId?: string;
 }
 
 interface FileUploadState {

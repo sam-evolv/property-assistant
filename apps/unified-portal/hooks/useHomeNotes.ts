@@ -40,6 +40,7 @@ interface UseHomeNotesReturn {
   refresh: () => Promise<void>;
   isAdding: boolean;
   isDeleting: string | null; // noteId being deleted
+  count: number;
 }
 
 // ─── Offline Cache ──────────────────────────────────────────────────────────

@@ -5,24 +5,26 @@ import { DocumentListItem } from './DocumentListItem';
 import { ChevronLeft, ChevronRight, FileX } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 
-interface DocumentGridProps {
+export interface DocumentGridProps {
   documents: ArchiveDocument[];
   isLoading?: boolean;
-  page: number;
-  totalPages: number;
-  totalCount: number;
-  onPageChange: (page: number) => void;
+  page?: number;
+  totalPages?: number;
+  totalCount?: number;
+  onPageChange?: (page: number) => void;
   onDocumentDeleted?: () => void;
+  onDocumentUpdate?: (docId: string, updates: Partial<ArchiveDocument>) => void;
+  onDocumentDelete?: (docId: string) => void;
   onMoveToFolder?: (document: ArchiveDocument) => void;
   viewMode?: 'grid' | 'list';
 }
 
-export function DocumentGrid({ 
-  documents, 
-  isLoading, 
-  page, 
-  totalPages,
-  totalCount,
+export function DocumentGrid({
+  documents,
+  isLoading,
+  page = 1,
+  totalPages = 1,
+  totalCount = 0,
   onPageChange,
   onDocumentDeleted,
   onMoveToFolder,
@@ -84,7 +86,7 @@ export function DocumentGrid({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-6">
           <button
-            onClick={() => onPageChange(page - 1)}
+            onClick={() => onPageChange?.(page - 1)}
             disabled={page <= 1}
             className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -107,7 +109,7 @@ export function DocumentGrid({
               return (
                 <button
                   key={pageNum}
-                  onClick={() => onPageChange(pageNum)}
+                  onClick={() => onPageChange?.(pageNum)}
                   className={`
                     w-10 h-10 rounded-lg font-medium transition-colors
                     ${pageNum === page 
@@ -123,7 +125,7 @@ export function DocumentGrid({
           </div>
           
           <button
-            onClick={() => onPageChange(page + 1)}
+            onClick={() => onPageChange?.(page + 1)}
             disabled={page >= totalPages}
             className="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

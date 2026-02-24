@@ -13,6 +13,7 @@ interface Development {
   tenant_id: string;
   name: string;
   address: string;
+  code?: string;
   description: string | null;
   system_instructions: string | null;
   created_at: string;

@@ -334,7 +334,7 @@ export default function CommunicationsHubPage() {
     {
       id: 'sentAt',
       header: 'Date',
-      accessor: (row) => row.sentAt || row.scheduledFor,
+      accessor: (row) => (row.sentAt || row.scheduledFor)?.toLocaleDateString() || '',
       sortable: true,
       cell: (_, row) => {
         const date = row.sentAt || row.scheduledFor;

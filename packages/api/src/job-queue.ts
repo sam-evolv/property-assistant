@@ -112,7 +112,7 @@ export class JobQueue {
         });
       }
     } catch (error) {
-      logger.error('[JobQueue] Error fetching pending jobs:', error);
+      logger.error('[JobQueue] Error fetching pending jobs:', { error: String(error) });
     }
   }
 
@@ -184,7 +184,7 @@ export class JobQueue {
     const result = await DocumentProcessor.processDocument(
       document.id,
       buffer,
-      document.mime_type,
+      document.mime_type || 'application/octet-stream',
       document.tenant_id,
       devId
     );

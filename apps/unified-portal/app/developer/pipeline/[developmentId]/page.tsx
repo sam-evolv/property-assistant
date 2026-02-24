@@ -2587,7 +2587,7 @@ export default function PipelineDevelopmentPage() {
     }
   }, [units, developmentId, fetchData, showToast]);
 
-  const handlePurchaserNameUpdate = (unitId: string, newName: string) => {
+  const handlePurchaserNameUpdate = (unitId: string, newName: string | null) => {
     setUnits(prev => prev.map(u => u.id === unitId ? { ...u, purchaserName: newName } : u));
   };
 

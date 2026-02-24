@@ -21,6 +21,8 @@ interface DocumentListItemProps {
   document: ArchiveDocument;
   onDelete?: (fileName: string) => void;
   onUpdate?: () => void;
+  onDocumentUpdate?: (docId: string, updates: Partial<ArchiveDocument>) => void;
+  onDocumentDelete?: (docId: string) => void;
   onMoveToFolder?: (document: ArchiveDocument) => void;
 }
 

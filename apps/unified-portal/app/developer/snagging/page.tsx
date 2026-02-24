@@ -946,7 +946,7 @@ function SnagDetailSlideOver({
               <EmptyState
                 title="No photos yet"
                 description="Upload photos to document this snag"
-                icon={Camera}
+                lucideIcon={Camera}
               />
             )}
 

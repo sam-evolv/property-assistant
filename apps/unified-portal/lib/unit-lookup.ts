@@ -110,8 +110,8 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
 
     return {
       id: supabaseUnit.id,
-      tenant_id: tenantId,
-      development_id: drizzleDevelopmentId,
+      tenant_id: tenantId || '',
+      development_id: drizzleDevelopmentId || '',
       supabase_project_id: supabaseProjectId,
       house_type_code: houseTypeCode,
       address: supabaseUnit.address || (supabaseUnit as any).address_line_1 || 'Unknown Unit',
