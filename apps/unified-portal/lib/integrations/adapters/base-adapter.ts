@@ -75,11 +75,11 @@ export interface SpreadsheetAdapter {
   getHeaders(spreadsheetId: string, sheetName?: string): Promise<string[]>;
   getRows(spreadsheetId: string, sheetName?: string): Promise<Record<string, any>[]>;
   getSampleData(spreadsheetId: string, sheetName?: string, rows?: number): Promise<string[][]>;
-  updateCell(spreadsheetId: string, row: number, column: string, value: any): Promise<void>;
-  addColumn(spreadsheetId: string, header: string): Promise<void>;
+  updateCell(spreadsheetId: string, sheetName: string, row: number, column: string, value: any): Promise<void>;
+  addColumn(spreadsheetId: string, sheetName: string, header: string): Promise<void>;
 
   // Change tracking
-  getChangedRows(spreadsheetId: string, since?: Date): Promise<Record<string, any>[]>;
+  getChangedRows(spreadsheetId: string, sheetName?: string): Promise<Record<string, any>[]>;
 
   // Webhooks / subscriptions
   registerSubscription?(spreadsheetId: string, callbackUrl: string): Promise<string>;
