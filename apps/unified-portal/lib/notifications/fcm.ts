@@ -13,15 +13,16 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Lazy-loaded firebase-admin to avoid build issues when not configured
-// @ts-ignore - firebase-admin is an optional dependency, lazy-loaded at runtime
-let firebaseAdmin: typeof import('firebase-admin') | null = null;
+let firebaseAdmin: any | null = null;
 
 async function getFirebaseAdmin() {
   if (firebaseAdmin) return firebaseAdmin;
 
   try {
+    // Use variable to prevent webpack from statically analyzing the import
+    const moduleName = 'firebase-admin';
     // @ts-ignore - firebase-admin is an optional dependency, lazy-loaded at runtime
-    const admin = await import('firebase-admin');
+    const admin = await import(/* webpackIgnore: true */ moduleName);
 
     if (!admin.apps.length) {
       const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;

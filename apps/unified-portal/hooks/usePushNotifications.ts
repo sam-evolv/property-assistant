@@ -46,15 +46,18 @@ export function usePushNotifications({ unitUid, token, enabled = true }: UsePush
 async function tryCapacitorPush(unitUid: string, token: string): Promise<boolean> {
   try {
     // Dynamically import Capacitor to avoid build errors when not installed
+    // Use variables to prevent webpack from statically analyzing the imports
+    const capacitorCore = '@capacitor/core';
+    const capacitorPush = '@capacitor/push-notifications';
     // @ts-ignore - @capacitor/core is an optional dependency, dynamically imported
-    const { Capacitor } = await import('@capacitor/core');
+    const { Capacitor } = await import(/* webpackIgnore: true */ capacitorCore);
 
     if (!Capacitor.isNativePlatform()) {
       return false;
     }
 
     // @ts-ignore - @capacitor/push-notifications is an optional dependency, dynamically imported
-    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { PushNotifications } = await import(/* webpackIgnore: true */ capacitorPush);
 
     // Request permission
     const permResult = await PushNotifications.requestPermissions();
