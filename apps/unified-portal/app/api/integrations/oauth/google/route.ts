@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { requireRole } from '@/lib/supabase-server';
+import { logAudit } from '@/lib/integrations/security/audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,14 @@ export async function GET(request: NextRequest) {
     }
 
     const state = randomUUID();
+
+    // Log state for CSRF validation on callback
+    await logAudit(session.tenantId, 'oauth.google.initiated', 'user', {
+      actor_id: session.id,
+      state,
+      development_id: developmentId,
+    });
+
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/oauth/google/callback`;
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');

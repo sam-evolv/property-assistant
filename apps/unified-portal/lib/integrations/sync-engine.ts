@@ -326,8 +326,8 @@ export async function syncInbound(
       }
     }
 
-    const finalStatus = conflictsDetected > 0 ? 'partial' : 'completed';
-    await completeSyncLog(syncLog.id, finalStatus as any, undefined, stats);
+    const finalStatus: 'completed' | 'partial' = conflictsDetected > 0 ? 'partial' : 'completed';
+    await completeSyncLog(syncLog.id, finalStatus, undefined, stats);
 
     // Update integration last_sync_at
     await supabase
@@ -341,7 +341,7 @@ export async function syncInbound(
 
     return {
       syncLogId: syncLog.id,
-      status: finalStatus as any,
+      status: finalStatus,
       recordsProcessed: stats.records_processed,
       recordsCreated: stats.records_created,
       recordsUpdated: stats.records_updated,

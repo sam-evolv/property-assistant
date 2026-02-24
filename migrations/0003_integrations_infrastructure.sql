@@ -43,10 +43,13 @@ CREATE TABLE IF NOT EXISTS integrations (
 
 ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
 
+-- RLS policies use the admins table to resolve tenant ownership.
+-- All API routes use service_role client which bypasses RLS, but these
+-- policies provide defense-in-depth for any non-admin client access.
 CREATE POLICY "Tenant can manage own integrations"
   ON integrations FOR ALL
-  USING (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()))
-  WITH CHECK (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()));
+  USING (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'))
+  WITH CHECK (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'));
 
 CREATE INDEX IF NOT EXISTS idx_integrations_tenant ON integrations(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_integrations_development ON integrations(development_id);
@@ -80,8 +83,8 @@ CREATE POLICY "Access via integration ownership"
   ON integration_field_mappings FOR ALL
   USING (
     integration_id IN (
-      SELECT id FROM integrations WHERE tenant_id = (
-        SELECT id FROM tenants WHERE user_id = auth.uid()
+      SELECT id FROM integrations WHERE tenant_id IN (
+        SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'
       )
     )
   );
@@ -119,8 +122,8 @@ CREATE POLICY "Access via integration ownership"
   ON integration_sync_log FOR ALL
   USING (
     integration_id IN (
-      SELECT id FROM integrations WHERE tenant_id = (
-        SELECT id FROM tenants WHERE user_id = auth.uid()
+      SELECT id FROM integrations WHERE tenant_id IN (
+        SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'
       )
     )
   );
@@ -154,8 +157,8 @@ CREATE POLICY "Access via integration ownership"
   ON integration_conflicts FOR ALL
   USING (
     integration_id IN (
-      SELECT id FROM integrations WHERE tenant_id = (
-        SELECT id FROM tenants WHERE user_id = auth.uid()
+      SELECT id FROM integrations WHERE tenant_id IN (
+        SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'
       )
     )
   );
@@ -188,8 +191,8 @@ ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Tenant can manage own API keys"
   ON api_keys FOR ALL
-  USING (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()))
-  WITH CHECK (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()));
+  USING (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'))
+  WITH CHECK (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'));
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
@@ -221,8 +224,8 @@ ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Tenant can manage own webhooks"
   ON webhooks FOR ALL
-  USING (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()))
-  WITH CHECK (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()));
+  USING (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'))
+  WITH CHECK (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'));
 
 -- 7. Webhook delivery log
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
@@ -242,6 +245,22 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Access via webhook ownership"
+  ON webhook_deliveries FOR ALL
+  USING (
+    webhook_id IN (
+      SELECT id FROM webhooks WHERE tenant_id IN (
+        SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'
+      )
+    )
+  );
+
+CREATE POLICY "System can manage deliveries"
+  ON webhook_deliveries FOR ALL
+  USING (current_setting('role', true) = 'service_role');
+
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending ON webhook_deliveries(status, next_retry_at)
   WHERE status = 'pending';
@@ -259,7 +278,7 @@ CREATE TABLE IF NOT EXISTS integration_audit_log (
   resource_id TEXT,
 
   metadata JSONB DEFAULT '{}',
-  ip_address INET,
+  ip_address TEXT,
 
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -268,7 +287,7 @@ ALTER TABLE integration_audit_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Tenant can view own audit logs"
   ON integration_audit_log FOR SELECT
-  USING (tenant_id = (SELECT id FROM tenants WHERE user_id = auth.uid()));
+  USING (tenant_id IN (SELECT tenant_id FROM admins WHERE email = auth.jwt()->>'email'));
 
 CREATE POLICY "System can insert audit logs"
   ON integration_audit_log FOR INSERT

@@ -40,9 +40,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse state: uuid:tenantId:developmentId
-    const [, tenantId, developmentId] = state.split(':');
+    const [stateUuid, tenantId, developmentId] = state.split(':');
 
-    if (!tenantId) {
+    if (!tenantId || !stateUuid) {
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=invalid_state`
+      );
+    }
+
+    // Verify the state UUID was issued by us (CSRF protection)
+    const supabaseCheck = getSupabaseAdmin();
+    const { data: stateRecord } = await supabaseCheck
+      .from('integration_audit_log')
+      .select('id')
+      .eq('action', 'oauth.google.initiated')
+      .eq('tenant_id', tenantId)
+      .contains('metadata', { state: stateUuid })
+      .limit(1)
+      .single();
+
+    if (!stateRecord) {
+      console.error('[OAuth Google Callback] State validation failed — possible CSRF');
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=invalid_state`
       );

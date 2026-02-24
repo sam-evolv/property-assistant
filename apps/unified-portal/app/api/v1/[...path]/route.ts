@@ -250,11 +250,24 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
     const body = await request.json();
     const supabase = getSupabaseAdmin();
 
+    // Prevent updating protected columns via API
+    const PROTECTED_FIELDS = ['id', 'tenant_id', 'development_id', 'created_at', 'unit_id'];
+    const sanitizedBody: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (!PROTECTED_FIELDS.includes(key)) {
+        sanitizedBody[key] = value;
+      }
+    }
+
+    if (Object.keys(sanitizedBody).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
     if (subResource === 'units' && subId) {
       // Update unit fields
       const { data, error } = await supabase
         .from('units')
-        .update(body)
+        .update(sanitizedBody)
         .eq('id', subId)
         .eq('development_id', id)
         .select()
@@ -267,7 +280,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
         key_prefix: ctx.key_prefix,
         development_id: id,
         unit_id: subId,
-        fields: Object.keys(body),
+        fields: Object.keys(sanitizedBody),
       });
 
       return NextResponse.json({ unit: data });
@@ -277,7 +290,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
       // Update pipeline fields
       const { data, error } = await supabase
         .from('unit_sales_pipeline')
-        .update(body)
+        .update(sanitizedBody)
         .eq('unit_id', subId)
         .eq('development_id', id)
         .select()
@@ -290,7 +303,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
         key_prefix: ctx.key_prefix,
         development_id: id,
         unit_id: subId,
-        fields: Object.keys(body),
+        fields: Object.keys(sanitizedBody),
       });
 
       return NextResponse.json({ pipeline: data });

@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
           .in('type', ['excel_onedrive', 'excel_sharepoint'])
           .eq('status', 'connected');
 
-        // Match by resource (file path in notification)
+        // Match by decrypting credentials to find matching subscription ID
         const integration = integrations?.find(i => {
           try {
-            const creds = JSON.parse(i.credentials || '{}');
+            if (!i.credentials || i.credentials === '{}') return false;
+            const creds = decryptCredentials(i.tenant_id, i.credentials);
             return creds.subscription_id === notification.subscriptionId;
           } catch {
             return false;

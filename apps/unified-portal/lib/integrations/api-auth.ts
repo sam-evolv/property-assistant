@@ -23,6 +23,7 @@ export interface ApiKeyContext {
   allowed_developments: string[] | null;
   key_id: string;
   key_prefix: string;
+  rate_limit_per_minute: number;
 }
 
 /**
@@ -79,6 +80,7 @@ export async function authenticateApiKey(request: NextRequest): Promise<ApiKeyCo
       allowed_developments: candidate.allowed_developments,
       key_id: candidate.id,
       key_prefix: keyPrefix,
+      rate_limit_per_minute: candidate.rate_limit_per_minute || 60,
     };
   }
 
@@ -126,8 +128,8 @@ export async function withApiAuth(
     );
   }
 
-  // Rate limit
-  const rateLimitResult = checkRateLimit(ctx.key_id, 60);
+  // Rate limit (use per-key limit from database)
+  const rateLimitResult = checkRateLimit(ctx.key_id, ctx.rate_limit_per_minute);
   if (!rateLimitResult.allowed) {
     const headers = getRateLimitHeaders(rateLimitResult);
     return NextResponse.json(
