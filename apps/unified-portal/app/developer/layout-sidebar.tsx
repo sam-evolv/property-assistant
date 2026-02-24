@@ -9,7 +9,7 @@ import {
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Link2, Radio
+  Plug, Megaphone
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -57,7 +57,7 @@ const btsNavSections: NavSection[] = [
   {
     title: 'Communication',
     items: [
-      { label: 'Broadcasts', href: '/developer/broadcasts', icon: Radio },
+      { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
       { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
       { label: 'Moderation', href: '/developer/moderation', icon: Shield },
     ],
@@ -73,7 +73,7 @@ const btsNavSections: NavSection[] = [
   {
     title: 'Settings',
     items: [
-      { label: 'Integrations', href: '/developer/integrations', icon: Link2 },
+      { label: 'Integrations', href: '/developer/integrations', icon: Plug },
     ],
   },
 ];
