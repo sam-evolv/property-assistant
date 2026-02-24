@@ -2083,6 +2083,192 @@ export const homeNotes = pgTable('home_notes', {
   createdIdx: index('home_notes_created_idx').on(table.created_at),
 }));
 
+// ─── Integration Infrastructure ──────────────────────────────────────────────
+
+export const integrationTypeEnum = pgEnum('integration_type_enum', [
+  'excel_onedrive', 'excel_sharepoint', 'google_sheets',
+  'dynamics_365', 'salesforce', 'hubspot', 'property_crm_ireland',
+  'api_key', 'webhook', 'custom'
+]);
+
+export const integrationStatusEnum = pgEnum('integration_status_enum', [
+  'pending', 'connected', 'syncing', 'error', 'paused', 'disconnected'
+]);
+
+export const syncDirectionEnum = pgEnum('sync_direction_enum', [
+  'inbound', 'outbound', 'bidirectional'
+]);
+
+export const syncFrequencyEnum = pgEnum('sync_frequency_enum', [
+  'realtime', 'hourly', 'daily', 'manual'
+]);
+
+export const syncTypeEnum = pgEnum('sync_type_enum', [
+  'full', 'incremental', 'manual'
+]);
+
+export const syncLogStatusEnum = pgEnum('sync_log_status_enum', [
+  'started', 'completed', 'failed', 'partial'
+]);
+
+export const conflictStatusEnum = pgEnum('conflict_status_enum', [
+  'pending', 'resolved_local', 'resolved_remote', 'ignored'
+]);
+
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status_enum', [
+  'pending', 'delivered', 'failed'
+]);
+
+export const auditActorTypeEnum = pgEnum('audit_actor_type_enum', [
+  'user', 'system', 'api_key', 'webhook'
+]);
+
+export const integrations = pgTable('integrations', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  development_id: uuid('development_id').references(() => developments.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('pending'),
+  credentials: jsonb('credentials').default(sql`'{}'::jsonb`),
+  sync_direction: text('sync_direction').notNull().default('bidirectional'),
+  sync_frequency: text('sync_frequency').notNull().default('realtime'),
+  external_ref: text('external_ref'),
+  last_error: text('last_error'),
+  last_error_at: timestamp('last_error_at', { withTimezone: true }),
+  last_sync_at: timestamp('last_sync_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_integrations_tenant').on(table.tenant_id),
+  developmentIdx: index('idx_integrations_development').on(table.development_id),
+  typeIdx: index('idx_integrations_type').on(table.type),
+}));
+
+export const integrationFieldMappings = pgTable('integration_field_mappings', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  integration_id: uuid('integration_id').references(() => integrations.id, { onDelete: 'cascade' }).notNull(),
+  external_field: text('external_field').notNull(),
+  external_field_label: text('external_field_label'),
+  oh_table: text('oh_table').notNull(),
+  oh_field: text('oh_field').notNull(),
+  direction: text('direction').notNull().default('bidirectional'),
+  transform_rule: jsonb('transform_rule'),
+  is_active: boolean('is_active').default(true),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  integrationIdx: index('idx_field_mappings_integration').on(table.integration_id),
+}));
+
+export const integrationSyncLog = pgTable('integration_sync_log', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  integration_id: uuid('integration_id').references(() => integrations.id, { onDelete: 'cascade' }).notNull(),
+  sync_type: text('sync_type').notNull(),
+  direction: text('direction').notNull(),
+  status: text('status').notNull(),
+  records_processed: integer('records_processed').default(0),
+  records_created: integer('records_created').default(0),
+  records_updated: integer('records_updated').default(0),
+  records_skipped: integer('records_skipped').default(0),
+  records_errored: integer('records_errored').default(0),
+  conflicts: jsonb('conflicts').default(sql`'[]'::jsonb`),
+  error_message: text('error_message'),
+  error_details: jsonb('error_details'),
+  started_at: timestamp('started_at', { withTimezone: true }).defaultNow(),
+  completed_at: timestamp('completed_at', { withTimezone: true }),
+  duration_ms: integer('duration_ms'),
+}, (table) => ({
+  integrationIdx: index('idx_sync_log_integration').on(table.integration_id),
+  startedIdx: index('idx_sync_log_started').on(table.started_at),
+}));
+
+export const integrationConflicts = pgTable('integration_conflicts', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  integration_id: uuid('integration_id').references(() => integrations.id, { onDelete: 'cascade' }).notNull(),
+  sync_log_id: uuid('sync_log_id').references(() => integrationSyncLog.id),
+  oh_table: text('oh_table').notNull(),
+  oh_record_id: uuid('oh_record_id').notNull(),
+  oh_field: text('oh_field').notNull(),
+  local_value: text('local_value'),
+  remote_value: text('remote_value'),
+  status: text('status').notNull().default('pending'),
+  resolved_by: uuid('resolved_by'),
+  resolved_at: timestamp('resolved_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  integrationIdx: index('idx_conflicts_integration').on(table.integration_id),
+  statusIdx: index('idx_conflicts_status').on(table.status),
+}));
+
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  key_prefix: text('key_prefix').notNull(),
+  key_hash: text('key_hash').notNull(),
+  scopes: text('scopes').array().notNull().default(sql`ARRAY['read']`),
+  allowed_developments: uuid('allowed_developments').array(),
+  rate_limit_per_minute: integer('rate_limit_per_minute').default(60),
+  is_active: boolean('is_active').default(true),
+  last_used_at: timestamp('last_used_at', { withTimezone: true }),
+  expires_at: timestamp('expires_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_api_keys_tenant').on(table.tenant_id),
+  hashIdx: index('idx_api_keys_hash').on(table.key_hash),
+}));
+
+export const webhooks = pgTable('webhooks', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  url: text('url').notNull(),
+  secret: text('secret').notNull(),
+  events: text('events').array().notNull(),
+  development_ids: uuid('development_ids').array(),
+  is_active: boolean('is_active').default(true),
+  last_triggered_at: timestamp('last_triggered_at', { withTimezone: true }),
+  consecutive_failures: integer('consecutive_failures').default(0),
+  last_failure_reason: text('last_failure_reason'),
+  max_failures: integer('max_failures').default(10),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_webhooks_tenant').on(table.tenant_id),
+}));
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  webhook_id: uuid('webhook_id').references(() => webhooks.id, { onDelete: 'cascade' }).notNull(),
+  event_type: text('event_type').notNull(),
+  payload: jsonb('payload').notNull(),
+  status: text('status').notNull(),
+  http_status: integer('http_status'),
+  response_body: text('response_body'),
+  attempt_number: integer('attempt_number').default(1),
+  next_retry_at: timestamp('next_retry_at', { withTimezone: true }),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  webhookIdx: index('idx_webhook_deliveries_webhook').on(table.webhook_id),
+  pendingIdx: index('idx_webhook_deliveries_pending').on(table.status, table.next_retry_at),
+}));
+
+export const integrationAuditLog = pgTable('integration_audit_log', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').notNull(),
+  action: text('action').notNull(),
+  actor_type: text('actor_type').notNull(),
+  actor_id: text('actor_id'),
+  resource_type: text('resource_type'),
+  resource_id: text('resource_id'),
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
+  ip_address: text('ip_address'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_integration_audit_log_tenant').on(table.tenant_id),
+  actionIdx: index('idx_integration_audit_log_action').on(table.action),
+  createdIdx: index('idx_integration_audit_log_created').on(table.created_at),
+}));
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;
@@ -2095,3 +2281,6 @@ export const assistantFeedback = assistant_feedback;
 export const developerSettings = developer_settings;
 export const unitPipeline = unitSalesPipeline;
 export const pipelineNotes = unitPipelineNotes;
+export const fieldMappings = integrationFieldMappings;
+export const syncLog = integrationSyncLog;
+export const syncConflicts = integrationConflicts;

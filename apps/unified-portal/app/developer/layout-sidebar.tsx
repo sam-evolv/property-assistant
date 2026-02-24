@@ -8,7 +8,8 @@ import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
-  CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome
+  CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
+  Link2
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -66,6 +67,12 @@ const btsNavSections: NavSection[] = [
       { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
       { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
       { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { label: 'Integrations', href: '/developer/integrations', icon: Link2 },
     ],
   },
 ];

@@ -43,6 +43,21 @@ const OPTIONAL_ENV_VARS: EnvVar[] = [
     required: false,
     description: 'Resend API key for email features (optional)',
   },
+  {
+    key: 'INTEGRATION_ENCRYPTION_KEY',
+    required: false,
+    description: 'AES-256 encryption key for integration credentials (optional)',
+  },
+  {
+    key: 'MICROSOFT_CLIENT_ID',
+    required: false,
+    description: 'Microsoft OAuth client ID for Excel/SharePoint/Dynamics integrations (optional)',
+  },
+  {
+    key: 'GOOGLE_CLIENT_ID',
+    required: false,
+    description: 'Google OAuth client ID for Google Sheets integration (optional)',
+  },
 ];
 
 export interface EnvValidationResult {
