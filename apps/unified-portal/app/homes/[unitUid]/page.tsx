@@ -12,6 +12,10 @@ import { PreHandoverPortal } from '@/components/pre-handover';
 import type { MilestoneDates, ContactInfo, FAQ, Document } from '@/components/pre-handover/types';
 import { storeToken, getToken, clearToken } from '@/lib/purchaserSession';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
+import { useNotifications } from '@/hooks/useNotifications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { NotificationBell } from '@/components/purchaser/notifications/NotificationBell';
+import { NotificationDrawer } from '@/components/purchaser/notifications/NotificationDrawer';
 
 const PurchaserChatTab = dynamic(
   () => import('@/components/purchaser/PurchaserChatTab'),
@@ -95,6 +99,7 @@ export default function HomeResidentPage() {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Saved answers count for header badge
   const { count: savedCount } = useHomeNotes({
@@ -103,6 +108,21 @@ export default function HomeResidentPage() {
   });
 
   const [validatedToken, setValidatedToken] = useState<string | null>(null);
+
+  // Notifications
+  const {
+    notifications: notificationsList,
+    unreadCount: notificationUnreadCount,
+    markAsRead: markNotificationsAsRead,
+    markAllAsRead: markAllNotificationsAsRead,
+  } = useNotifications(unitUid, validatedToken);
+
+  // Push notifications (registers device token)
+  usePushNotifications({
+    unitUid,
+    token: validatedToken,
+    enabled: !!validatedToken,
+  });
   
   // Important docs consent state
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -617,6 +637,27 @@ export default function HomeResidentPage() {
             )}
           </div>
 
+          {/* Notification Bell */}
+          <button
+            onClick={() => setShowNotifications(true)}
+            className={`relative flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition ${
+              isDarkMode
+                ? 'border-[#2A2A2A] bg-[#1A1A1A]/80 text-[#A0A0A0] hover:bg-[#252525]'
+                : 'border-slate-200 bg-white/80 text-slate-500 hover:bg-slate-50'
+            }`}
+            aria-label={`Notifications${notificationUnreadCount > 0 ? ` (${notificationUnreadCount} unread)` : ''}`}
+          >
+            <Bell className="w-4 h-4" />
+            {notificationUnreadCount > 0 && (
+              <div
+                className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-[16px] px-0.5 rounded-full bg-[#D4AF37] text-white text-[9px] font-bold"
+                style={{ border: `1.5px solid ${isDarkMode ? '#0F0F0F' : '#ffffff'}` }}
+              >
+                {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+              </div>
+            )}
+          </button>
+
           {/* Saved Answers Bookmark */}
           <button
             onClick={() => {
@@ -736,6 +777,17 @@ export default function HomeResidentPage() {
         unitUid={house.unit_id}
         isDarkMode={isDarkMode}
         token={validatedToken || undefined}
+      />
+
+      {/* Notification Drawer */}
+      <NotificationDrawer
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notificationsList}
+        unreadCount={notificationUnreadCount}
+        onMarkAsRead={markNotificationsAsRead}
+        onMarkAllAsRead={markAllNotificationsAsRead}
+        isDarkMode={isDarkMode}
       />
     </>
   );

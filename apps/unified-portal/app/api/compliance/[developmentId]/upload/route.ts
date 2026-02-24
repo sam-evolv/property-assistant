@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
+import { sendNotification } from '@/lib/notifications';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -187,6 +188,19 @@ export async function POST(
       return NextResponse.json({ success: true, message: `Uploaded to ${units?.length || 0} units` });
     } else {
       const documentId = await uploadToUnit(unitId);
+
+      // Send notification to the purchaser (non-blocking)
+      sendNotification({
+        userId: unitId,
+        unitId,
+        developmentId: actualDevelopmentId,
+        title: 'New Document',
+        body: `A new compliance document (${file.name}) has been uploaded to your property portal.`,
+        category: 'compliance',
+        triggeredBy: 'compliance.document_uploaded',
+        actionUrl: '/documents',
+      }).catch(err => console.error('[Compliance Upload] Notification failed (non-critical):', err));
+
       return NextResponse.json({ success: true, documentId });
     }
   } catch (error: any) {

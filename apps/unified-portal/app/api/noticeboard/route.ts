@@ -3,8 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { noticeboard_posts } from '@openhouse/db/schema';
+import { noticeboard_posts, developments } from '@openhouse/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { sendBulkNotification, resolveTargetRecipients } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
   try {
@@ -63,6 +64,34 @@ export async function POST(request: NextRequest) {
         active: active !== undefined ? active : true,
       })
       .returning();
+
+    // Send push notification to all purchasers in the tenant's developments (non-blocking)
+    if (post && (active !== false)) {
+      try {
+        // Get all developments for this tenant
+        const devs = await db
+          .select({ id: developments.id })
+          .from(developments)
+          .where(eq(developments.tenant_id, tenantId));
+
+        for (const dev of devs) {
+          const recipients = await resolveTargetRecipients(dev.id, 'all');
+          if (recipients.length > 0) {
+            sendBulkNotification(dev.id, {
+              title: 'New Notice',
+              body: title,
+              category: 'community',
+              triggeredBy: 'noticeboard.post_created',
+              actionUrl: '/noticeboard',
+            }, recipients).catch(err =>
+              console.error('[Noticeboard] Notification failed (non-critical):', err)
+            );
+          }
+        }
+      } catch (notifyError) {
+        console.error('[Noticeboard] Failed to send notifications (non-critical):', notifyError);
+      }
+    }
 
     return NextResponse.json({ post });
   } catch (error) {

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { sendNotification } from '@/lib/notifications';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -301,6 +302,28 @@ export async function PATCH(
       console.error('[Pipeline Unit Update API] Audit log failed (non-critical):', auditError);
     }
 
+    // Send push notification for significant pipeline date changes (non-blocking)
+    if (isDateField && value) {
+      try {
+        const notificationConfig = getPipelineNotification(field, value);
+        if (notificationConfig) {
+          // Use unitId as the user identifier (purchaser's unit UUID)
+          sendNotification({
+            userId: unitId,
+            unitId,
+            developmentId,
+            title: notificationConfig.title,
+            body: notificationConfig.body,
+            category: notificationConfig.category,
+            triggeredBy: `pipeline.${field}`,
+            actionUrl: '/home',
+          }).catch(err => console.error('[Pipeline] Notification failed (non-critical):', err));
+        }
+      } catch (notifyError) {
+        console.error('[Pipeline Unit Update API] Notification failed (non-critical):', notifyError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       unit: {
@@ -324,6 +347,61 @@ export async function PATCH(
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
+  }
+}
+
+/**
+ * Get notification config for a pipeline date change.
+ */
+function getPipelineNotification(field: string, value: string): { title: string; body: string; category: string } | null {
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  switch (field) {
+    case 'snagDate':
+      return {
+        title: 'Snagging Scheduled',
+        body: `Your snagging inspection is scheduled for ${formatDate(value)}.`,
+        category: 'snag_update',
+      };
+    case 'handoverDate':
+      return {
+        title: 'Handover Date Confirmed',
+        body: `Your handover is confirmed for ${formatDate(value)}. We'll send preparation details soon.`,
+        category: 'handover',
+      };
+    case 'drawdownDate':
+      return {
+        title: 'Closing Date',
+        body: `Your closing is scheduled for ${formatDate(value)}.`,
+        category: 'pipeline_update',
+      };
+    case 'kitchenDate':
+      return {
+        title: 'Kitchen Selection Date',
+        body: `Your kitchen selection is scheduled for ${formatDate(value)}.`,
+        category: 'pipeline_update',
+      };
+    case 'saleAgreedDate':
+      return {
+        title: 'Sale Update',
+        body: 'Your property sale has been agreed. Congratulations!',
+        category: 'pipeline_update',
+      };
+    case 'signedContractsDate':
+    case 'counterSignedDate':
+      return {
+        title: 'Contracts Update',
+        body: 'Your contracts status has been updated.',
+        category: 'pipeline_update',
+      };
+    default:
+      return null;
   }
 }
 
