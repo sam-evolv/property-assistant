@@ -1,10 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { LayoutClient } from './layout-client';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'OpenHouse AI - Unified Portal',
@@ -51,7 +48,7 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://maps.googleapis.com" />
         <link rel="dns-prefetch" href="https://maps.gstatic.com" />
       </head>
-      <body className={inter.className}>
+      <body className="font-sans">
         {/* Preload Google Maps JS as soon as the app hydrates — before the user even taps Maps tab.
             strategy="afterInteractive" = loads after Next.js hydration, non-blocking.
             OptimizedMapsTab checks window.google?.maps?.Map and skips its own script injection
