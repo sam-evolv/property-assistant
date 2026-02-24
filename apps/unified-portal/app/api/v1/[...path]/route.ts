@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { withApiAuth, hasScope, hasDevelopmentAccess, ApiKeyContext } from '@/lib/integrations/api-auth';
 import { logAudit } from '@/lib/integrations/security/audit';
+import { triggerOutboundSync } from '@/lib/integrations/sync-engine';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -283,6 +284,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
         fields: Object.keys(sanitizedBody),
       });
 
+      // Trigger outbound sync (fire-and-forget)
+      const changedFields: Record<string, { old_value: any; new_value: any }> = {};
+      for (const key of Object.keys(sanitizedBody)) {
+        changedFields[key] = { old_value: null, new_value: sanitizedBody[key] };
+      }
+      triggerOutboundSync(id, 'units', subId, changedFields).catch(() => {});
+
       return NextResponse.json({ unit: data });
     }
 
@@ -305,6 +313,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
         unit_id: subId,
         fields: Object.keys(sanitizedBody),
       });
+
+      // Trigger outbound sync (fire-and-forget)
+      const pipelineChanges: Record<string, { old_value: any; new_value: any }> = {};
+      for (const key of Object.keys(sanitizedBody)) {
+        pipelineChanges[key] = { old_value: null, new_value: sanitizedBody[key] };
+      }
+      triggerOutboundSync(id, 'unit_sales_pipeline', subId, pipelineChanges).catch(() => {});
 
       return NextResponse.json({ pipeline: data });
     }
