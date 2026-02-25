@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { daysAtStage } from '@/lib/dev-app/pipeline-helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,11 +19,13 @@ export async function GET(request: NextRequest) {
     const { data: developments } = await supabase
       .from('developments')
       .select('id, name')
-      .eq('developer_id', user.id);
+      .eq('developer_user_id', user.id);
 
     const devs = developments || [];
-    const devIds = devs.map((d) => d.id);
-    const devNameMap = Object.fromEntries(devs.map((d) => [d.id, d.name]));
+    const devIds = devs.map((d: any) => d.id);
+    const devNameMap = Object.fromEntries(
+      devs.map((d: any) => [d.id, d.name])
+    );
 
     if (devIds.length === 0) {
       return NextResponse.json({ items: [] });
@@ -34,31 +37,27 @@ export async function GET(request: NextRequest) {
       .select('id, development_id, unit_number')
       .in('development_id', devIds);
 
-    const unitIds = (units || []).map((u) => u.id);
+    const unitIds = (units || []).map((u: any) => u.id);
     const unitDevMap = Object.fromEntries(
-      (units || []).map((u) => [u.id, u.development_id])
+      (units || []).map((u: any) => [u.id, u.development_id])
     );
 
     const items: any[] = [];
 
     if (unitIds.length > 0) {
       // 1. Pipeline items stuck for >30 days
-      const { data: stuckPipeline } = await supabase
-        .from('sales_pipeline')
-        .select('unit_id, stage, updated_at')
+      const { data: pipelineItems } = await supabase
+        .from('unit_sales_pipeline')
+        .select('unit_id, updated_at, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
         .in('unit_id', unitIds);
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const stuckUnits = (stuckPipeline || []).filter(
-        (p) => p.updated_at && new Date(p.updated_at) < thirtyDaysAgo
+      const stuckUnits = (pipelineItems || []).filter(
+        (p: any) => daysAtStage(p) > 30 && !p.handover_date
       );
 
       if (stuckUnits.length > 0) {
-        // Group by development
         const byDev: Record<string, number> = {};
-        stuckUnits.forEach((u) => {
+        stuckUnits.forEach((u: any) => {
           const devId = unitDevMap[u.unit_id];
           if (devId) byDev[devId] = (byDev[devId] || 0) + 1;
         });
@@ -75,16 +74,16 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // 2. Compliance documents overdue
+      // 2. Compliance documents that are expired or missing
       const { data: overdueDocs } = await supabase
         .from('compliance_documents')
-        .select('unit_id, document_type, status')
+        .select('unit_id, status')
         .in('unit_id', unitIds)
-        .eq('status', 'overdue');
+        .in('status', ['expired', 'missing']);
 
       if (overdueDocs && overdueDocs.length > 0) {
         const byDev: Record<string, number> = {};
-        overdueDocs.forEach((d) => {
+        overdueDocs.forEach((d: any) => {
           const devId = unitDevMap[d.unit_id];
           if (devId) byDev[devId] = (byDev[devId] || 0) + 1;
         });
@@ -94,7 +93,7 @@ export async function GET(request: NextRequest) {
             id: `compliance-${devId}`,
             type: 'compliance_overdue',
             severity: 'amber',
-            title: `${count} compliance document${count > 1 ? 's' : ''} overdue`,
+            title: `${count} compliance document${count > 1 ? 's' : ''} need attention`,
             development_name: devNameMap[devId],
             development_id: devId,
           });
@@ -110,7 +109,7 @@ export async function GET(request: NextRequest) {
 
       if (openSnags && openSnags.length > 0) {
         const byDev: Record<string, number> = {};
-        openSnags.forEach((s) => {
+        openSnags.forEach((s: any) => {
           const devId = unitDevMap[s.unit_id];
           if (devId) byDev[devId] = (byDev[devId] || 0) + 1;
         });

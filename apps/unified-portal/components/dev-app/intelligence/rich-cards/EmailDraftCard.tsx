@@ -14,23 +14,27 @@ interface EmailDraftData {
 
 interface EmailDraftCardProps {
   data: EmailDraftData;
-  onSend?: () => void;
+  onSend?: () => Promise<void> | void;
   onEdit?: (body: string) => void;
 }
 
 export default function EmailDraftCard({ data, onSend, onEdit }: EmailDraftCardProps) {
   const [sent, setSent] = useState(data.sent);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState(false);
 
   const handleSend = async () => {
     if (sent || sending) return;
     setSending(true);
-    onSend?.();
-    // Optimistic: mark sent after a brief delay
-    setTimeout(() => {
+    setError(false);
+    try {
+      await onSend?.();
       setSent(true);
+    } catch {
+      setError(true);
+    } finally {
       setSending(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -61,14 +65,18 @@ export default function EmailDraftCard({ data, onSend, onEdit }: EmailDraftCardP
       </div>
 
       {!sent ? (
-        <div className="flex gap-2 px-3.5 pb-3">
+        <div className="px-3.5 pb-3 space-y-2">
+          {error && (
+            <p className="text-[11px] text-red-500 text-center">Failed to send. Please try again.</p>
+          )}
+          <div className="flex gap-2">
           <button
             onClick={handleSend}
             disabled={sending}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-semibold text-white transition active:scale-[0.97] disabled:opacity-50"
             style={{ backgroundColor: '#D4AF37' }}
           >
-            {sending ? 'Sending...' : 'Send'}
+            {sending ? 'Sending...' : error ? 'Retry' : 'Send'}
           </button>
           <button
             onClick={() => onEdit?.(data.body)}
@@ -77,6 +85,7 @@ export default function EmailDraftCard({ data, onSend, onEdit }: EmailDraftCardP
             <Edit3 size={12} />
             Edit
           </button>
+          </div>
         </div>
       ) : (
         <div className="px-3.5 pb-3">

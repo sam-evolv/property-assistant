@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
 
     // Enrich with development names
     const devIds = [
-      ...new Set((actions || []).map((a) => a.development_id).filter(Boolean)),
+      ...new Set(
+        (actions || []).map((a: any) => a.development_id).filter(Boolean)
+      ),
     ];
 
     let devNameMap: Record<string, string> = {};
@@ -35,11 +37,11 @@ export async function GET(request: NextRequest) {
         .in('id', devIds);
 
       devNameMap = Object.fromEntries(
-        (devs || []).map((d) => [d.id, d.name])
+        (devs || []).map((d: any) => [d.id, d.name])
       );
     }
 
-    const enriched = (actions || []).map((a) => ({
+    const enriched = (actions || []).map((a: any) => ({
       ...a,
       development_name: a.development_id
         ? devNameMap[a.development_id]

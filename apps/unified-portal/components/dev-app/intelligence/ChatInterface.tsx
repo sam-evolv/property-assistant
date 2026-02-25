@@ -54,7 +54,7 @@ export default function ChatInterface({
         created_at: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev: IntelligenceMessage[]) => [...prev, userMessage]);
       setInput('');
       setIsLoading(true);
 
@@ -78,12 +78,12 @@ export default function ChatInterface({
 
           // Add assistant messages
           if (data.messages && Array.isArray(data.messages)) {
-            setMessages((prev) => [...prev, ...data.messages]);
+            setMessages((prev: IntelligenceMessage[]) => [...prev, ...data.messages]);
           } else if (data.message) {
-            setMessages((prev) => [...prev, data.message]);
+            setMessages((prev: IntelligenceMessage[]) => [...prev, data.message]);
           }
         } else {
-          setMessages((prev) => [
+          setMessages((prev: IntelligenceMessage[]) => [
             ...prev,
             {
               id: `err-${Date.now()}`,
@@ -95,7 +95,7 @@ export default function ChatInterface({
           ]);
         }
       } catch {
-        setMessages((prev) => [
+        setMessages((prev: IntelligenceMessage[]) => [
           ...prev,
           {
             id: `err-${Date.now()}`,
@@ -128,7 +128,7 @@ export default function ChatInterface({
         }),
       });
       if (res.ok) {
-        setMessages((prev) => [
+        setMessages((prev: IntelligenceMessage[]) => [
           ...prev,
           {
             id: `action-${Date.now()}`,
@@ -157,7 +157,7 @@ export default function ChatInterface({
         className="flex-1 overflow-y-auto px-4 py-3"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {messages.map((msg) => (
+        {messages.map((msg: IntelligenceMessage) => (
           <MessageBubble
             key={msg.id}
             message={msg}
@@ -187,7 +187,7 @@ export default function ChatInterface({
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e: any) => setInput(e.target.value)}
             placeholder="Type a message..."
             className="flex-1 h-10 px-4 rounded-full bg-[#f3f4f6] text-[14px] text-[#111827] placeholder-[#9ca3af] outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
             disabled={isLoading}

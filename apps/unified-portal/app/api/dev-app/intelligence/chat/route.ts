@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, getSupabaseAdmin } from '@/lib/supabase-server';
 import OpenAI from 'openai';
+import {
+  PIPELINE_SELECT_COLUMNS,
+  PIPELINE_STAGES,
+  derivePipelineStage,
+  daysAtStage,
+  mapComplianceStatus,
+} from '@/lib/dev-app/pipeline-helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,12 +42,12 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'query_pipeline',
-      description: 'Query pipeline data with filters',
+      description: 'Query pipeline data with filters. Stages: Released, Sale Agreed, Deposit Received, Contracts Issued, Contracts Signed, Counter Signed, Kitchen Complete, Snagging Complete, Drawdown, Handover Complete',
       parameters: {
         type: 'object',
         properties: {
           development_id: { type: 'string' },
-          stage: { type: 'string' },
+          stage: { type: 'string', description: 'Stage name to filter by (partial match)' },
           days_at_stage_min: { type: 'number' },
         },
       },
@@ -55,7 +62,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: 'object',
         properties: {
           development_id: { type: 'string' },
-          document_type: { type: 'string' },
+          document_type: { type: 'string', description: 'Document type name to filter by (partial match)' },
           status: { type: 'string', enum: ['complete', 'pending', 'missing', 'overdue'] },
         },
       },
@@ -70,7 +77,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: 'object',
         properties: {
           development_id: { type: 'string' },
-          status: { type: 'string', enum: ['confirmed', 'pending', 'overdue'] },
+          status: { type: 'string', enum: ['confirmed', 'pending'] },
         },
       },
     },
@@ -111,7 +118,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'update_pipeline_stage',
-      description: 'Move a unit to a new pipeline stage (confirm before executing)',
+      description: 'Move a unit to a new pipeline stage (confirm before executing). Valid stages: Released, Sale Agreed, Deposit Received, Contracts Issued, Contracts Signed, Counter Signed, Kitchen Complete, Snagging Complete, Drawdown, Handover Complete',
       parameters: {
         type: 'object',
         properties: {
@@ -154,18 +161,24 @@ async function executeTool(
     .select('id, unit_number, development_id')
     .in('development_id', devIds);
 
-  const allUnits = units || [];
-  const unitIds = allUnits.map((u) => u.id);
+  const allUnits: any[] = units || [];
+  const unitIds = allUnits.map((u: any) => u.id);
 
   switch (toolName) {
     case 'lookup_unit': {
       const identifier = args.unit_identifier.replace(/[^0-9a-zA-Z]/g, '');
-      const matchingUnits = allUnits.filter(
-        (u) =>
+      let matchingUnits = allUnits.filter(
+        (u: any) =>
           u.unit_number === identifier ||
           u.unit_number === args.unit_identifier ||
           u.unit_number.toLowerCase().includes(identifier.toLowerCase())
       );
+
+      if (args.development_id) {
+        matchingUnits = matchingUnits.filter(
+          (u: any) => u.development_id === args.development_id
+        );
+      }
 
       if (matchingUnits.length === 0) {
         return { found: false, message: `No unit found matching "${args.unit_identifier}"` };
@@ -173,30 +186,23 @@ async function executeTool(
 
       const unit = matchingUnits[0];
 
-      // Get pipeline info
+      // Get pipeline info (includes purchaser data)
       const { data: pipeline } = await supabase
-        .from('sales_pipeline')
-        .select('*')
+        .from('unit_sales_pipeline')
+        .select(PIPELINE_SELECT_COLUMNS)
         .eq('unit_id', unit.id)
         .maybeSingle();
 
-      // Get homeowner
-      const { data: homeowner } = await supabase
-        .from('homeowner_profiles')
-        .select('full_name, email, phone')
-        .eq('unit_id', unit.id)
-        .maybeSingle();
-
-      // Get compliance docs
+      // Get compliance docs with type names
       const { data: compDocs } = await supabase
         .from('compliance_documents')
-        .select('document_type, status')
+        .select('id, status, compliance_document_types!inner(name)')
         .eq('unit_id', unit.id);
 
       // Get kitchen selections
       const { data: selections } = await supabase
         .from('kitchen_selections')
-        .select('kitchen_choice, status')
+        .select('has_kitchen, counter_type, unit_finish, handle_style')
         .eq('unit_id', unit.id);
 
       // Get snag items
@@ -215,30 +221,36 @@ async function executeTool(
       const fields: any[] = [];
       const sel = selections?.[0];
       if (sel) {
+        const kitchenChoice = sel.has_kitchen
+          ? [sel.counter_type, sel.unit_finish, sel.handle_style].filter(Boolean).join(', ') || 'Selected'
+          : 'Not selected';
         fields.push({
           label: 'Kitchen',
-          value: sel.kitchen_choice || 'Not selected',
-          status: sel.status === 'confirmed' ? 'complete' : sel.status === 'overdue' ? 'overdue' : 'pending',
+          value: kitchenChoice,
+          status: sel.has_kitchen ? 'complete' : 'pending',
         });
       }
 
-      (compDocs || []).forEach((d) => {
+      (compDocs || []).forEach((d: any) => {
+        const displayStatus = mapComplianceStatus(d.status);
+        const docName = d.compliance_document_types?.name || 'Document';
         fields.push({
-          label: d.document_type,
-          value: d.status,
-          status: d.status === 'complete' ? 'complete' : d.status === 'overdue' ? 'overdue' : 'pending',
+          label: docName,
+          value: displayStatus,
+          status: displayStatus === 'complete' ? 'complete' : displayStatus === 'overdue' ? 'overdue' : 'pending',
         });
       });
 
       if (pipeline) {
+        const derived = derivePipelineStage(pipeline);
         fields.push({
           label: 'Pipeline Stage',
-          value: pipeline.stage || 'N/A',
+          value: derived.stage,
           status: 'complete',
         });
       }
 
-      const openSnags = (snags || []).filter((s) => s.status !== 'resolved');
+      const openSnags = (snags || []).filter((s: any) => s.status !== 'resolved');
       if (openSnags.length > 0) {
         fields.push({
           label: 'Open Snags',
@@ -247,6 +259,7 @@ async function executeTool(
         });
       }
 
+      const derived = pipeline ? derivePipelineStage(pipeline) : null;
       return {
         found: true,
         unit_info: {
@@ -255,45 +268,53 @@ async function executeTool(
           development_name: dev?.name || 'Unknown',
           fields,
         },
-        purchaser: homeowner?.full_name || null,
-        pipeline: pipeline
-          ? { stage: pipeline.stage, price: pipeline.price, solicitor: pipeline.solicitor }
+        purchaser: pipeline?.purchaser_name || null,
+        pipeline: derived
+          ? { stage: derived.stage, purchaser_email: pipeline?.purchaser_email }
           : null,
       };
     }
 
     case 'query_pipeline': {
-      let query = supabase
-        .from('sales_pipeline')
-        .select('unit_id, stage, price, updated_at')
-        .in('unit_id', unitIds);
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u: any) => u.development_id === args.development_id)
+          .map((u: any) => u.id);
+      }
+
+      if (filteredUnitIds.length === 0) {
+        return { count: 0, pipeline: [] };
+      }
+
+      const { data: pipelineRows } = await supabase
+        .from('unit_sales_pipeline')
+        .select(PIPELINE_SELECT_COLUMNS)
+        .in('unit_id', filteredUnitIds);
+
+      let results = (pipelineRows || []).map((p: any) => ({
+        ...p,
+        ...derivePipelineStage(p),
+        days: daysAtStage(p),
+      }));
 
       if (args.stage) {
-        query = query.ilike('stage', `%${args.stage}%`);
+        const stageFilter = args.stage.toLowerCase();
+        results = results.filter((p: any) =>
+          p.stage.toLowerCase().includes(stageFilter)
+        );
       }
-
-      const { data: pipeline } = await query;
-      let results = pipeline || [];
 
       if (args.days_at_stage_min) {
-        const now = Date.now();
-        results = results.filter((p) => {
-          const days = p.updated_at
-            ? Math.floor((now - new Date(p.updated_at).getTime()) / 86400000)
-            : 0;
-          return days >= args.days_at_stage_min;
-        });
+        results = results.filter((p: any) => p.days >= args.days_at_stage_min);
       }
 
-      const enriched = results.map((p) => {
-        const unit = allUnits.find((u) => u.id === p.unit_id);
+      const enriched = results.map((p: any) => {
+        const unit = allUnits.find((u: any) => u.id === p.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
           stage: p.stage,
-          price: p.price,
-          days: p.updated_at
-            ? Math.floor((Date.now() - new Date(p.updated_at).getTime()) / 86400000)
-            : 0,
+          days: p.days,
         };
       });
 
@@ -301,25 +322,52 @@ async function executeTool(
     }
 
     case 'query_compliance': {
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u: any) => u.development_id === args.development_id)
+          .map((u: any) => u.id);
+      }
+
+      if (filteredUnitIds.length === 0) {
+        return { count: 0, documents: [] };
+      }
+
+      // Map display status to DB status for filtering
+      const dbStatusMap: Record<string, string> = {
+        complete: 'verified',
+        pending: 'uploaded',
+        overdue: 'expired',
+        missing: 'missing',
+      };
+
       let query = supabase
         .from('compliance_documents')
-        .select('unit_id, document_type, status')
-        .in('unit_id', unitIds);
+        .select('unit_id, status, compliance_document_types!inner(name)')
+        .in('unit_id', filteredUnitIds);
 
-      if (args.document_type) {
-        query = query.ilike('document_type', `%${args.document_type}%`);
-      }
       if (args.status) {
-        query = query.eq('status', args.status);
+        const dbStatus = dbStatusMap[args.status] || args.status;
+        query = query.eq('status', dbStatus);
       }
 
       const { data: docs } = await query;
-      const enriched = (docs || []).map((d) => {
-        const unit = allUnits.find((u) => u.id === d.unit_id);
+      let filteredDocs = docs || [];
+
+      // Filter by document type name (in JS since it's from a join)
+      if (args.document_type) {
+        const typeFilter = args.document_type.toLowerCase();
+        filteredDocs = filteredDocs.filter((d: any) =>
+          (d.compliance_document_types?.name || '').toLowerCase().includes(typeFilter)
+        );
+      }
+
+      const enriched = filteredDocs.map((d: any) => {
+        const unit = allUnits.find((u: any) => u.id === d.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
-          document_type: d.document_type,
-          status: d.status,
+          document_type: d.compliance_document_types?.name || 'Unknown',
+          status: mapComplianceStatus(d.status),
         };
       });
 
@@ -327,22 +375,42 @@ async function executeTool(
     }
 
     case 'query_selections': {
-      let query = supabase
-        .from('kitchen_selections')
-        .select('unit_id, kitchen_choice, status')
-        .in('unit_id', unitIds);
-
-      if (args.status) {
-        query = query.eq('status', args.status);
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u: any) => u.development_id === args.development_id)
+          .map((u: any) => u.id);
       }
 
-      const { data: sels } = await query;
-      const enriched = (sels || []).map((s) => {
-        const unit = allUnits.find((u) => u.id === s.unit_id);
+      if (filteredUnitIds.length === 0) {
+        return { count: 0, selections: [] };
+      }
+
+      const { data: sels } = await supabase
+        .from('kitchen_selections')
+        .select('unit_id, has_kitchen, counter_type, unit_finish, handle_style')
+        .in('unit_id', filteredUnitIds);
+
+      let results = sels || [];
+
+      // Filter by derived status
+      if (args.status) {
+        if (args.status === 'confirmed') {
+          results = results.filter((s: any) => s.has_kitchen === true);
+        } else if (args.status === 'pending') {
+          results = results.filter((s: any) => !s.has_kitchen);
+        }
+      }
+
+      const enriched = results.map((s: any) => {
+        const unit = allUnits.find((u: any) => u.id === s.unit_id);
+        const choice = s.has_kitchen
+          ? [s.counter_type, s.unit_finish, s.handle_style].filter(Boolean).join(', ') || 'Selected'
+          : 'Not selected';
         return {
           unit_number: unit?.unit_number || 'Unknown',
-          kitchen_choice: s.kitchen_choice,
-          status: s.status,
+          kitchen_choice: choice,
+          status: s.has_kitchen ? 'confirmed' : 'pending',
         };
       });
 
@@ -350,10 +418,21 @@ async function executeTool(
     }
 
     case 'query_snagging': {
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u: any) => u.development_id === args.development_id)
+          .map((u: any) => u.id);
+      }
+
+      if (filteredUnitIds.length === 0) {
+        return { count: 0, snags: [] };
+      }
+
       let query = supabase
         .from('snag_items')
         .select('id, unit_id, description, status, created_at')
-        .in('unit_id', unitIds);
+        .in('unit_id', filteredUnitIds);
 
       if (args.status) {
         query = query.eq('status', args.status);
@@ -363,8 +442,8 @@ async function executeTool(
       }
 
       const { data: snags } = await query;
-      const enriched = (snags || []).map((s) => {
-        const unit = allUnits.find((u) => u.id === s.unit_id);
+      const enriched = (snags || []).map((s: any) => {
+        const unit = allUnits.find((u: any) => u.id === s.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
           description: s.description,
@@ -388,23 +467,98 @@ async function executeTool(
     }
 
     case 'update_pipeline_stage': {
+      // Map stage name to date column
+      const stageMapping = Object.fromEntries(
+        PIPELINE_STAGES.map((s) => [s.label.toLowerCase(), s.key])
+      );
+      const dateColumn = stageMapping[args.new_stage.toLowerCase()];
+
+      if (!dateColumn) {
+        return {
+          error: `Unknown stage: "${args.new_stage}". Valid stages: ${PIPELINE_STAGES.map((s) => s.label).join(', ')}`,
+        };
+      }
+
       return {
         confirmation_required: true,
         unit_id: args.unit_id,
         new_stage: args.new_stage,
+        date_column: dateColumn,
         notes: args.notes,
-        message: `I'll update the pipeline stage to "${args.new_stage}". Please confirm this change.`,
+        message: `I'll update the pipeline stage to "${args.new_stage}" (set ${dateColumn} to today). Please confirm this change.`,
       };
     }
 
     case 'get_attention_items': {
-      // Re-use attention logic
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'https://app.openhouse.ai' : 'http://localhost:5000'}/api/dev-app/overview/attention`,
-        { headers: { Cookie: '' } }
-      ).catch(() => null);
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u: any) => u.development_id === args.development_id)
+          .map((u: any) => u.id);
+      }
 
-      return { message: 'Attention items retrieved. Displaying for the developer.' };
+      const attentionItems: any[] = [];
+
+      if (filteredUnitIds.length > 0) {
+        // Stuck pipeline items (>30 days at current stage)
+        const { data: pipelineItems } = await supabase
+          .from('unit_sales_pipeline')
+          .select(PIPELINE_SELECT_COLUMNS)
+          .in('unit_id', filteredUnitIds);
+
+        const stuckUnits = (pipelineItems || []).filter(
+          (p: any) => daysAtStage(p) > 30 && !p.handover_date
+        );
+
+        if (stuckUnits.length > 0) {
+          attentionItems.push({
+            type: 'stuck_pipeline',
+            severity: 'red',
+            count: stuckUnits.length,
+            title: `${stuckUnits.length} unit${stuckUnits.length > 1 ? 's' : ''} stuck in pipeline for over 30 days`,
+          });
+        }
+
+        // Compliance issues
+        const { data: overdueDocs } = await supabase
+          .from('compliance_documents')
+          .select('unit_id, status')
+          .in('unit_id', filteredUnitIds)
+          .in('status', ['expired', 'missing']);
+
+        if (overdueDocs && overdueDocs.length > 0) {
+          attentionItems.push({
+            type: 'compliance_overdue',
+            severity: 'amber',
+            count: overdueDocs.length,
+            title: `${overdueDocs.length} compliance document${overdueDocs.length > 1 ? 's' : ''} need attention`,
+          });
+        }
+
+        // Open snags
+        const { data: openSnags } = await supabase
+          .from('snag_items')
+          .select('unit_id, status')
+          .in('unit_id', filteredUnitIds)
+          .in('status', ['open', 'in_progress']);
+
+        if (openSnags && openSnags.length >= 5) {
+          attentionItems.push({
+            type: 'open_snags',
+            severity: 'amber',
+            count: openSnags.length,
+            title: `${openSnags.length} open snag items need resolution`,
+          });
+        }
+      }
+
+      // Filter by severity if specified
+      let filtered = attentionItems;
+      if (args.severity && args.severity !== 'all') {
+        filtered = attentionItems.filter((i) => i.severity === args.severity);
+      }
+
+      return { items: filtered, count: filtered.length };
     }
 
     default:
@@ -436,11 +590,11 @@ export async function POST(request: NextRequest) {
     const { data: developments } = await admin
       .from('developments')
       .select('id, name')
-      .eq('developer_id', user.id);
+      .eq('developer_user_id', user.id);
 
     const devs = developments || [];
-    const devIds = devs.map((d) => d.id);
-    const devList = devs.map((d) => `${d.name} (${d.id})`).join(', ');
+    const devIds = devs.map((d: any) => d.id);
+    const devList = devs.map((d: any) => `${d.name} (${d.id})`).join(', ');
 
     // Get or create conversation
     let convoId = conversation_id;
@@ -479,8 +633,8 @@ export async function POST(request: NextRequest) {
         .limit(20);
 
       contextMessages = (prevMessages || [])
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({
+        .filter((m: any) => m.role !== 'system')
+        .map((m: any) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         }));

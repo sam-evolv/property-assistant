@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import {
+  PIPELINE_SELECT_COLUMNS,
+  derivePipelineStage,
+  isSold,
+} from '@/lib/dev-app/pipeline-helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,8 +23,8 @@ export async function GET(request: NextRequest) {
     // Fetch developer's developments
     const { data: developments } = await supabase
       .from('developments')
-      .select('id, name, location, sector, created_at')
-      .eq('developer_id', user.id)
+      .select('id, name, address, project_type, created_at')
+      .eq('developer_user_id', user.id)
       .order('name');
 
     if (!developments || developments.length === 0) {
@@ -27,48 +32,43 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch unit counts per development
-    const devIds = developments.map((d) => d.id);
+    const devIds = developments.map((d: any) => d.id);
     const { data: units } = await supabase
       .from('units')
       .select('id, development_id')
       .in('development_id', devIds);
 
-    const { data: pipelineData } = await supabase
-      .from('sales_pipeline')
-      .select('unit_id, stage, price')
-      .in(
-        'unit_id',
-        (units || []).map((u) => u.id)
-      );
+    const unitIds = (units || []).map((u: any) => u.id);
+
+    // Fetch pipeline data
+    let pipelineData: any[] = [];
+    if (unitIds.length > 0) {
+      const { data } = await supabase
+        .from('unit_sales_pipeline')
+        .select(PIPELINE_SELECT_COLUMNS)
+        .in('unit_id', unitIds);
+      pipelineData = data || [];
+    }
 
     // Build unit-to-development map
     const unitDevMap: Record<string, string> = {};
-    (units || []).forEach((u) => {
+    (units || []).forEach((u: any) => {
       unitDevMap[u.id] = u.development_id;
     });
 
     // Aggregate per development
     const devUnitCounts: Record<string, number> = {};
     const devSoldCounts: Record<string, number> = {};
-    const devRecentActivity: Record<string, number> = {};
 
-    (units || []).forEach((u) => {
-      devUnitCounts[u.development_id] = (devUnitCounts[u.development_id] || 0) + 1;
+    (units || []).forEach((u: any) => {
+      devUnitCounts[u.development_id] =
+        (devUnitCounts[u.development_id] || 0) + 1;
     });
 
-    const soldStages = [
-      'contracts_signed',
-      'loan_approved',
-      'snagging',
-      'handover',
-      'complete',
-    ];
-
-    (pipelineData || []).forEach((p) => {
+    pipelineData.forEach((p: any) => {
       const devId = unitDevMap[p.unit_id];
       if (!devId) return;
-      const normalizedStage = (p.stage || '').toLowerCase().replace(/\s+/g, '_');
-      if (soldStages.includes(normalizedStage)) {
+      if (isSold(p)) {
         devSoldCounts[devId] = (devSoldCounts[devId] || 0) + 1;
       }
     });
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const result = developments.map((dev) => {
+    const result = developments.map((dev: any) => {
       const total = devUnitCounts[dev.id] || 0;
       const sold = devSoldCounts[dev.id] || 0;
       const progress = total > 0 ? Math.round((sold / total) * 100) : 0;
@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
       return {
         id: dev.id,
         name: dev.name,
-        location: dev.location || '',
-        sector: dev.sector || 'bts',
+        location: dev.address || '',
+        sector: dev.project_type || 'bts',
         total_units: total,
         sold_units: sold,
         progress,

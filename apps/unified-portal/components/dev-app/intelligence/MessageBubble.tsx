@@ -16,9 +16,9 @@ export interface IntelligenceMessage {
   created_at: string;
 }
 
-interface MessageBubbleProps {
+export interface MessageBubbleProps {
   message: IntelligenceMessage;
-  onSendEmail?: (messageId: string) => void;
+  onSendEmail?: (messageId: string) => Promise<void> | void;
   onEditEmail?: (body: string) => void;
 }
 
@@ -60,7 +60,7 @@ export default function MessageBubble({ message, onSendEmail, onEditEmail }: Mes
         )}
 
         {/* Text content */}
-        {message.content && (message.message_type === 'text' || (message.message_type !== 'action_result' && message.content)) && (
+        {message.message_type === 'text' && message.content && (
           <div
             className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
               isUser

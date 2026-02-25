@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import {
+  derivePipelineStage,
+  mapComplianceStatus,
+} from '@/lib/dev-app/pipeline-helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,11 +34,13 @@ export async function GET(request: NextRequest) {
     const { data: developments } = await supabase
       .from('developments')
       .select('id, name')
-      .eq('developer_id', user.id);
+      .eq('developer_user_id', user.id);
 
     const devs = developments || [];
-    const devIds = devs.map((d) => d.id);
-    const devNameMap = Object.fromEntries(devs.map((d) => [d.id, d.name]));
+    const devIds = devs.map((d: any) => d.id);
+    const devNameMap = Object.fromEntries(
+      devs.map((d: any) => [d.id, d.name])
+    );
 
     const items: ActivityItem[] = [];
 
@@ -46,7 +52,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(30);
 
-    (actions || []).forEach((a) => {
+    (actions || []).forEach((a: any) => {
       items.push({
         id: `action-${a.id}`,
         type: a.action_type,
@@ -68,12 +74,12 @@ export async function GET(request: NextRequest) {
         .in('development_id', devIds);
 
       const allUnits = units || [];
-      const unitIds = allUnits.map((u) => u.id);
+      const unitIds = allUnits.map((u: any) => u.id);
       const unitDevMap = Object.fromEntries(
-        allUnits.map((u) => [u.id, u.development_id])
+        allUnits.map((u: any) => [u.id, u.development_id])
       );
       const unitNameMap = Object.fromEntries(
-        allUnits.map((u) => [u.id, u.unit_number])
+        allUnits.map((u: any) => [u.id, u.unit_number])
       );
 
       if (unitIds.length > 0) {
@@ -82,21 +88,22 @@ export async function GET(request: NextRequest) {
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
         const { data: pipelineUpdates } = await supabase
-          .from('sales_pipeline')
-          .select('unit_id, stage, updated_at')
+          .from('unit_sales_pipeline')
+          .select('unit_id, updated_at, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
           .in('unit_id', unitIds)
           .gte('updated_at', fourteenDaysAgo.toISOString())
           .order('updated_at', { ascending: false })
           .limit(20);
 
-        (pipelineUpdates || []).forEach((p) => {
+        (pipelineUpdates || []).forEach((p: any) => {
           const devId = unitDevMap[p.unit_id];
           const unitNum = unitNameMap[p.unit_id];
+          const derived = derivePipelineStage(p);
           items.push({
             id: `pipeline-${p.unit_id}-${p.updated_at}`,
             type: 'pipeline_updated',
             category: 'pipeline',
-            title: `Unit ${unitNum || 'Unknown'} moved to ${p.stage}`,
+            title: `Unit ${unitNum || 'Unknown'} at ${derived.stage}`,
             development_name: devId ? devNameMap[devId] : undefined,
             development_id: devId || undefined,
             created_at: p.updated_at,
@@ -106,20 +113,23 @@ export async function GET(request: NextRequest) {
         // 3. Recent compliance doc changes (last 14 days)
         const { data: complianceUpdates } = await supabase
           .from('compliance_documents')
-          .select('id, unit_id, document_type, status, updated_at')
+          .select('id, unit_id, status, updated_at, compliance_document_types!inner(name)')
           .in('unit_id', unitIds)
           .gte('updated_at', fourteenDaysAgo.toISOString())
           .order('updated_at', { ascending: false })
           .limit(20);
 
-        (complianceUpdates || []).forEach((c) => {
+        (complianceUpdates || []).forEach((c: any) => {
           const devId = unitDevMap[c.unit_id];
           const unitNum = unitNameMap[c.unit_id];
+          const displayStatus = mapComplianceStatus(c.status);
+          const docName =
+            c.compliance_document_types?.name || 'Document';
           items.push({
             id: `compliance-${c.id}`,
-            type: `compliance_${c.status}`,
+            type: `compliance_${displayStatus}`,
             category: 'compliance',
-            title: `${c.document_type} ${c.status} — Unit ${unitNum || 'Unknown'}`,
+            title: `${docName} ${displayStatus} — Unit ${unitNum || 'Unknown'}`,
             development_name: devId ? devNameMap[devId] : undefined,
             development_id: devId || undefined,
             created_at: c.updated_at,
@@ -135,7 +145,7 @@ export async function GET(request: NextRequest) {
           .order('created_at', { ascending: false })
           .limit(20);
 
-        (snagUpdates || []).forEach((s) => {
+        (snagUpdates || []).forEach((s: any) => {
           const devId = unitDevMap[s.unit_id];
           const unitNum = unitNameMap[s.unit_id];
           items.push({

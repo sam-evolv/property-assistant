@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import {
+  PIPELINE_SELECT_COLUMNS,
+  derivePipelineStage,
+  daysAtStage,
+  mapComplianceStatus,
+} from '@/lib/dev-app/pipeline-helpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,14 +31,22 @@ export async function GET(
     // Verify ownership
     const { data: development } = await supabase
       .from('developments')
-      .select('id, name, location, sector')
+      .select('id, name, address, project_type')
       .eq('id', devId)
-      .eq('developer_id', user.id)
+      .eq('developer_user_id', user.id)
       .single();
 
     if (!development) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+
+    // Normalise for client (keep API shape stable)
+    const devResponse = {
+      id: development.id,
+      name: development.name,
+      location: development.address || '',
+      sector: development.project_type || 'bts',
+    };
 
     // Fetch units
     const { data: units } = await supabase
@@ -41,48 +55,31 @@ export async function GET(
       .eq('development_id', devId)
       .order('unit_number');
 
-    const unitIds = (units || []).map((u) => u.id);
+    const unitIds = (units || []).map((u: any) => u.id);
     const unitMap = Object.fromEntries(
-      (units || []).map((u) => [u.id, u.unit_number])
+      (units || []).map((u: any) => [u.id, u.unit_number])
     );
 
     let sectionData: any = {};
 
     if (section === 'pipeline' && unitIds.length > 0) {
       const { data: pipeline } = await supabase
-        .from('sales_pipeline')
-        .select('*')
+        .from('unit_sales_pipeline')
+        .select(PIPELINE_SELECT_COLUMNS)
         .in('unit_id', unitIds);
 
-      const { data: homeowners } = await supabase
-        .from('homeowner_profiles')
-        .select('unit_id, full_name, email, phone')
-        .in('unit_id', unitIds);
-
-      const hoMap = Object.fromEntries(
-        (homeowners || []).map((h) => [h.unit_id, h])
-      );
-
-      const now = Date.now();
-      sectionData.pipeline = (pipeline || []).map((p) => {
-        const daysAtStage = p.updated_at
-          ? Math.floor((now - new Date(p.updated_at).getTime()) / 86400000)
-          : 0;
-        const ho = hoMap[p.unit_id];
+      sectionData.pipeline = (pipeline || []).map((p: any) => {
+        const derived = derivePipelineStage(p);
+        const days = daysAtStage(p);
         return {
           unit_id: p.unit_id,
           unit_number: unitMap[p.unit_id] || '',
-          purchaser_name: ho?.full_name || 'Unknown',
-          phone: ho?.phone,
-          email: ho?.email,
-          stage: p.stage || 'Unknown',
-          days_at_stage: daysAtStage,
-          status:
-            daysAtStage > 30 ? 'red' : daysAtStage > 14 ? 'amber' : 'green',
-          solicitor: p.solicitor,
-          agent: p.agent,
-          deposit: p.deposit ? parseFloat(p.deposit) : undefined,
-          price: p.price ? parseFloat(p.price) : undefined,
+          purchaser_name: p.purchaser_name || 'Unknown',
+          phone: p.purchaser_phone,
+          email: p.purchaser_email,
+          stage: derived.stage,
+          days_at_stage: days,
+          status: days > 30 ? 'red' : days > 14 ? 'amber' : 'green',
         };
       });
     }
@@ -90,30 +87,40 @@ export async function GET(
     if (section === 'compliance' && unitIds.length > 0) {
       const { data: docs } = await supabase
         .from('compliance_documents')
-        .select('unit_id, document_type, status')
+        .select('unit_id, status, document_type_id, compliance_document_types!inner(name)')
         .in('unit_id', unitIds);
 
       const docTypes = [
-        ...new Set((docs || []).map((d) => d.document_type)),
+        ...new Set(
+          (docs || []).map(
+            (d: any) => d.compliance_document_types?.name || 'Unknown'
+          )
+        ),
       ].sort();
       const totalDocs = (docs || []).length;
       const completeDocs = (docs || []).filter(
-        (d) => d.status === 'complete'
+        (d: any) => d.status === 'verified'
       ).length;
 
       const byUnit: Record<
         string,
         Array<{ type: string; status: string }>
       > = {};
-      (docs || []).forEach((d) => {
+      (docs || []).forEach((d: any) => {
         if (!byUnit[d.unit_id]) byUnit[d.unit_id] = [];
-        byUnit[d.unit_id].push({ type: d.document_type, status: d.status });
+        byUnit[d.unit_id].push({
+          type: d.compliance_document_types?.name || 'Unknown',
+          status: mapComplianceStatus(d.status),
+        });
       });
 
       sectionData.compliance = {
-        overall_pct: totalDocs > 0 ? Math.round((completeDocs / totalDocs) * 100) : 0,
+        overall_pct:
+          totalDocs > 0
+            ? Math.round((completeDocs / totalDocs) * 100)
+            : 0,
         document_types: docTypes,
-        units: (units || []).map((u) => ({
+        units: (units || []).map((u: any) => ({
           unit_id: u.id,
           unit_number: u.unit_number,
           documents: byUnit[u.id] || [],
@@ -128,7 +135,7 @@ export async function GET(
         .in('unit_id', unitIds)
         .order('created_at', { ascending: false });
 
-      sectionData.snags = (snags || []).map((s) => ({
+      sectionData.snags = (snags || []).map((s: any) => ({
         ...s,
         unit_number: unitMap[s.unit_id] || '',
       }));
@@ -137,29 +144,47 @@ export async function GET(
     if (section === 'selections' && unitIds.length > 0) {
       const { data: selections } = await supabase
         .from('kitchen_selections')
-        .select('id, unit_id, kitchen_choice, status, deadline')
+        .select('id, unit_id, has_kitchen, counter_type, unit_finish, handle_style, has_wardrobe, wardrobe_style, updated_at')
         .in('unit_id', unitIds);
 
-      sectionData.selections = (selections || []).map((s) => ({
-        ...s,
-        unit_number: unitMap[s.unit_id] || '',
-      }));
+      sectionData.selections = (selections || []).map((s: any) => {
+        const choice = s.has_kitchen
+          ? [s.counter_type, s.unit_finish, s.handle_style]
+              .filter(Boolean)
+              .join(' / ') || 'Selected'
+          : 'Not selected';
+        return {
+          id: s.id,
+          unit_id: s.unit_id,
+          unit_number: unitMap[s.unit_id] || '',
+          kitchen_choice: choice,
+          status: s.has_kitchen ? 'confirmed' : 'pending',
+          deadline: null,
+        };
+      });
     }
 
     if (section === 'homeowners' && unitIds.length > 0) {
-      const { data: homeowners } = await supabase
-        .from('homeowner_profiles')
-        .select('id, full_name, email, phone, unit_id, created_at')
-        .in('unit_id', unitIds);
+      // Get purchaser info from pipeline (per-unit)
+      const { data: pipelineOwners } = await supabase
+        .from('unit_sales_pipeline')
+        .select('unit_id, purchaser_name, purchaser_email, purchaser_phone')
+        .in('unit_id', unitIds)
+        .not('purchaser_name', 'is', null);
 
-      sectionData.homeowners = (homeowners || []).map((h) => ({
-        ...h,
+      sectionData.homeowners = (pipelineOwners || []).map((h: any) => ({
+        id: h.unit_id,
+        full_name: h.purchaser_name,
+        email: h.purchaser_email,
+        phone: h.purchaser_phone,
+        unit_id: h.unit_id,
         unit_number: unitMap[h.unit_id] || '',
+        created_at: null,
       }));
     }
 
     return NextResponse.json({
-      development,
+      development: devResponse,
       units: units || [],
       ...sectionData,
     });

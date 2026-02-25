@@ -104,7 +104,7 @@ export default function ActivityFeed() {
   }, []);
 
   const filtered =
-    filter === 'all' ? items : items.filter((i) => i.category === filter);
+    filter === 'all' ? items : items.filter((i: ActivityItem) => i.category === filter);
 
   const visibleCount = useStaggeredEntrance(filtered.length);
 
@@ -135,7 +135,7 @@ export default function ActivityFeed() {
   }
 
   // Get unique categories present
-  const categories = ['all', ...new Set(items.map((i) => i.category))];
+  const categories: string[] = ['all', ...Array.from(new Set<string>(items.map((i: ActivityItem) => i.category)))];
 
   const grouped = groupByDate(filtered);
 
@@ -151,7 +151,7 @@ export default function ActivityFeed() {
             const count =
               cat === 'all'
                 ? items.length
-                : items.filter((i) => i.category === cat).length;
+                : items.filter((i: ActivityItem) => i.category === cat).length;
 
             return (
               <button
