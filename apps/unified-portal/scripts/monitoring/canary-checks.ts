@@ -13,7 +13,7 @@
  * Usage:
  *   npx tsx scripts/monitoring/canary-checks.ts
  * 
- * Schedule: Run every 15 minutes via cron/workflow
+ * Schedule: Run daily via cron/workflow
  */
 
 import { createClient } from '@supabase/supabase-js';

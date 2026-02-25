@@ -1,7 +1,7 @@
 // Cron job: Send Scheduled Broadcasts
-// Runs every 5 minutes to check for scheduled broadcasts.
+// Runs daily to check for scheduled broadcasts.
 // GET /api/cron/send-scheduled-broadcasts
-// vercel.json: { "path": "/api/cron/send-scheduled-broadcasts", "schedule": "every 5 min" }
+// vercel.json: { "path": "/api/cron/send-scheduled-broadcasts", "schedule": "0 0 * * *" }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';

@@ -2,11 +2,11 @@
 //
 // GET /api/cron/refresh-tokens
 //
-// Runs every 30 minutes via Vercel Cron to refresh OAuth tokens
+// Runs daily via Vercel Cron to refresh OAuth tokens
 // before they expire.
 //
 // vercel.json cron config:
-// { "path": "/api/cron/refresh-tokens", "schedule": "*/30 * * * *" }
+// { "path": "/api/cron/refresh-tokens", "schedule": "0 0 * * *" }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
