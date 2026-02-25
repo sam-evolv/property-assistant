@@ -13,7 +13,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 // Tool definitions for OpenAI function calling
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -666,7 +668,7 @@ Developments: ${devList || 'None'}
 Current date: ${today}`;
 
     // Call OpenAI
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -751,7 +753,7 @@ Current date: ${today}`;
       }
 
       // Second OpenAI call with tool results for natural language response
-      const followUp = await openai.chat.completions.create({
+      const followUp = await getOpenAI().chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
