@@ -61,14 +61,4 @@
       "destination": "/$1"
     }
   ],
-  "crons": [
-    {
-      "path": "/api/cron/refresh-tokens",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/send-scheduled-broadcasts",
-      "schedule": "0 0 * * *"
-    }
-  ]
 }
