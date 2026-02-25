@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import type { Metadata, Viewport } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'OpenHouse AI Developer',
   description: 'Developer mobile command centre for property developments',
