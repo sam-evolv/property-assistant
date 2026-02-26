@@ -253,30 +253,69 @@
    DEV-APP PREMIUM ANIMATIONS
    ============================================ */
 
-@keyframes da-fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes da-fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes da-fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes da-scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-@keyframes da-breathe { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }
-@keyframes da-pulseRing { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
-@keyframes da-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
-@keyframes da-typingBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
-@keyframes da-slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes da-ringDraw { from { stroke-dashoffset: var(--circ); } to { stroke-dashoffset: var(--target); } }
+
+@keyframes da-scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes da-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+@keyframes da-pulseRing {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes da-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes da-typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+@keyframes da-slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes da-ringDraw {
+  from { stroke-dashoffset: var(--circ); }
+  to { stroke-dashoffset: var(--target); }
+}
 
 .da-anim-in { animation: da-fadeInUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .da-anim-fade { animation: da-fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .da-anim-scale { animation: da-scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .da-anim-sheet { animation: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.da-anim-right { animation: da-slideInRight 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.da-s1 { animation-delay: 0ms; }
-.da-s2 { animation-delay: 60ms; }
-.da-s3 { animation-delay: 120ms; }
-.da-s4 { animation-delay: 180ms; }
-.da-s5 { animation-delay: 240ms; }
-.da-s6 { animation-delay: 300ms; }
-.da-s7 { animation-delay: 360ms; }
-.da-press { transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.da-anim-right { animation: da-slideInRight 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.da-s1 { animation-delay: 60ms; }
+.da-s2 { animation-delay: 120ms; }
+.da-s3 { animation-delay: 180ms; }
+.da-s4 { animation-delay: 240ms; }
+.da-s5 { animation-delay: 300ms; }
+.da-s6 { animation-delay: 360ms; }
+.da-s7 { animation-delay: 420ms; }
+.da-press {
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+}
 .da-press:active { transform: scale(0.97); }
+
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 
 @media (max-width: 768px) {
   .gold-shimmer,

@@ -2,12 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-  GOLD, GOLD_LIGHT, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
-  RED, AMBER, GREEN, BLUE, GREEN_BG, BLUE_BG, AMBER_BG, RED_BG, EASE_PREMIUM,
-  SECTORS, type Sector
+  GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
+  GREEN, EASE_PREMIUM,
 } from '@/lib/dev-app/design-system';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
-import { ChatAvatar } from '@/components/dev-app/shared/OHLogo';
+import OHLogo, { ChatAvatar, OHLogoFull } from '@/components/dev-app/shared/OHLogo';
 import { MicIcon, SendIcon } from '@/components/dev-app/shared/Icons';
 import TypingIndicator from '@/components/dev-app/shared/TypingIndicator';
 
@@ -15,7 +14,8 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  type?: 'text' | 'unit_info' | 'action_card' | 'summary';
+  type?: 'text' | 'unit_info' | 'action_card' | 'summary' | 'alert_list';
+  structured_data?: any;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -31,34 +31,53 @@ const LOG_ENTRIES = [
   { time: 'Yesterday', action: 'Generated pipeline report', status: 'complete' },
 ];
 
-function getAssistantResponse(content: string): string {
-  const lower = content.toLowerCase();
-  if (lower.includes('attention') || lower.includes('needing')) {
-    return 'There are 3 units currently needing attention across your developments. Unit 22 at Willow Brook has the most urgent mortgage approval expiring in 2 days.';
-  }
-  if (lower.includes('pipeline') || lower.includes('willow')) {
-    return 'Willow Brook pipeline: 28 of 45 units sold (62%). 12 are in active stages. Key focus: Units 18 and 22 have mortgage approvals pending over 28 days.';
-  }
-  if (lower.includes('compliance')) {
-    return 'Overall compliance is at 89%. 4 items are overdue — mainly BCMS submissions for Willow Brook Units 22-26. I\'d recommend prioritising these today.';
-  }
-  return 'I\'ve checked across your developments. Everything looks on track. Would you like me to drill into any specific development or unit?';
-}
-
 export default function IntelligencePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [view, setView] = useState<'chat' | 'log'>('chat');
+  const [displayName, setDisplayName] = useState('');
+  const [initialMessage, setInitialMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user name and attention count for initial message
+  useEffect(() => {
+    async function fetchInitialData() {
+      try {
+        const [statsRes, attentionRes] = await Promise.all([
+          fetch('/api/dev-app/overview/stats'),
+          fetch('/api/dev-app/overview/attention'),
+        ]);
+        const stats = statsRes.ok ? await statsRes.json() : {};
+        const attention = attentionRes.ok ? await attentionRes.json() : {};
+
+        const name = stats.display_name || 'there';
+        setDisplayName(name);
+
+        const items = attention.items || [];
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+        if (items.length > 0) {
+          const urgent = items[0];
+          setInitialMessage(`${greeting} ${name}. ${items.length} item${items.length > 1 ? 's' : ''} need attention today — ${urgent.title}. Heading to site?`);
+        } else {
+          setInitialMessage(`${greeting} ${name}. Everything looks on track today. What would you like to check?`);
+        }
+      } catch {
+        setDisplayName('there');
+      }
+    }
+    fetchInitialData();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
-  const handleSend = (text?: string) => {
+  const handleSend = async (text?: string) => {
     const messageText = text || input.trim();
-    if (!messageText) return;
+    if (!messageText || sending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -71,16 +90,43 @@ export default function IntelligencePage() {
     setInput('');
     setSending(true);
 
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    try {
+      const res = await fetch('/api/dev-app/intelligence/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages && Array.isArray(data.messages)) {
+          const assistantMsgs = data.messages.map((m: any) => ({
+            id: m.id || `${Date.now()}-${Math.random()}`,
+            role: 'assistant' as const,
+            content: m.content,
+            type: m.message_type || 'text',
+            structured_data: m.structured_data,
+          }));
+          setMessages(prev => [...prev, ...assistantMsgs]);
+        }
+      } else {
+        setMessages(prev => [...prev, {
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.',
+          type: 'text',
+        }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
         role: 'assistant',
-        content: getAssistantResponse(messageText),
+        content: 'Connection error. Please check your network and try again.',
         type: 'text',
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      }]);
+    } finally {
       setSending(false);
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -98,9 +144,9 @@ export default function IntelligencePage() {
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          background: 'rgba(255,255,255,0.82)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          background: 'rgba(255,255,255,0.88)',
           borderBottom: `1px solid ${BORDER_LIGHT}`,
           paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
           paddingBottom: 12,
@@ -115,9 +161,8 @@ export default function IntelligencePage() {
             justifyContent: 'space-between',
           }}
         >
-          {/* Left: avatar + title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ChatAvatar size={28} />
+            <ChatAvatar size={32} />
             <h1
               style={{
                 fontSize: 20,
@@ -131,7 +176,7 @@ export default function IntelligencePage() {
             </h1>
           </div>
 
-          {/* Right: toggle pill */}
+          {/* Toggle pill */}
           <div
             style={{
               display: 'flex',
@@ -141,101 +186,125 @@ export default function IntelligencePage() {
               padding: 3,
             }}
           >
-            <button
-              onClick={() => setView('chat')}
-              style={{
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 11.5,
-                fontWeight: 600,
-                borderRadius: 17,
-                padding: '5px 14px',
-                background: view === 'chat' ? '#fff' : 'transparent',
-                color: view === 'chat' ? TEXT_1 : TEXT_3,
-                boxShadow:
-                  view === 'chat'
-                    ? '0 1px 3px rgba(0,0,0,0.08)'
-                    : 'none',
-                transition: `all 200ms ${EASE_PREMIUM}`,
-              }}
-            >
-              Chat
-            </button>
-            <button
-              onClick={() => setView('log')}
-              style={{
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 11.5,
-                fontWeight: 600,
-                borderRadius: 17,
-                padding: '5px 14px',
-                background: view === 'log' ? '#fff' : 'transparent',
-                color: view === 'log' ? TEXT_1 : TEXT_3,
-                boxShadow:
-                  view === 'log'
-                    ? '0 1px 3px rgba(0,0,0,0.08)'
-                    : 'none',
-                transition: `all 200ms ${EASE_PREMIUM}`,
-              }}
-            >
-              Log
-            </button>
+            {(['chat', 'log'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  borderRadius: 17,
+                  padding: '5px 14px',
+                  background: view === v ? '#fff' : 'transparent',
+                  color: view === v ? TEXT_1 : TEXT_3,
+                  boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  transition: `all 200ms ${EASE_PREMIUM}`,
+                }}
+              >
+                {v === 'chat' ? 'Chat' : 'Log'}
+              </button>
+            ))}
           </div>
         </div>
       </header>
 
-      {/* ── Chat view: Welcome State ── */}
+      {/* ── Welcome State ── */}
       {view === 'chat' && messages.length === 0 && (
         <div
+          className="da-anim-in"
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '0 20px',
+            padding: '0 24px',
           }}
         >
-          <ChatAvatar size={56} />
+          <div className="da-anim-scale">
+            <OHLogo size={48} />
+          </div>
           <h2
+            className="da-anim-in da-s1"
             style={{
-              fontSize: 22,
-              fontWeight: 800,
+              fontSize: 17,
+              fontWeight: 700,
               color: TEXT_1,
               marginTop: 16,
               marginBottom: 0,
-              letterSpacing: '-0.02em',
             }}
           >
-            Hi Diarmuid,
+            OpenHouse Intelligence
           </h2>
           <p
+            className="da-anim-in da-s2"
             style={{
-              fontSize: 15,
+              fontSize: 13,
               color: TEXT_2,
-              marginTop: 4,
+              fontWeight: 450,
+              marginTop: 6,
               marginBottom: 0,
+              textAlign: 'center',
+              lineHeight: 1.5,
             }}
           >
-            What can I help you with today?
+            Your on-site co-worker. Ask about any unit, check compliance,
+            draft emails, and take action — all from here.
           </p>
 
-          {/* Suggested prompts */}
-          <div style={{ marginTop: 32, width: '100%', padding: '0 0' }}>
+          {/* Initial message from real data */}
+          {initialMessage && (
+            <div
+              className="da-anim-in da-s3"
+              style={{
+                marginTop: 20,
+                padding: '12px 16px',
+                background: SURFACE_1,
+                borderRadius: 14,
+                border: `1px solid ${BORDER_LIGHT}`,
+                fontSize: 13,
+                color: TEXT_1,
+                lineHeight: 1.5,
+                width: '100%',
+              }}
+            >
+              {initialMessage}
+            </div>
+          )}
+
+          {/* TRY ASKING label */}
+          <div
+            className="da-anim-in da-s4"
+            style={{
+              marginTop: 28,
+              marginBottom: 12,
+              fontSize: 11.5,
+              color: TEXT_3,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+            }}
+          >
+            TRY ASKING
+          </div>
+
+          {/* Suggestion cards */}
+          <div style={{ width: '100%' }}>
             {SUGGESTED_PROMPTS.map((prompt, i) => (
               <button
                 key={i}
-                className="da-press"
+                className={`da-press da-anim-in da-s${i + 5 > 7 ? 7 : i + 5}`}
                 onClick={() => handleSend(prompt)}
                 style={{
                   display: 'block',
                   width: '100%',
-                  background: '#fff',
+                  background: SURFACE_1,
                   borderRadius: 14,
-                  border: `1px solid ${BORDER_LIGHT}`,
-                  padding: '14px 16px',
-                  fontSize: 14,
+                  border: 'none',
+                  padding: '12px 16px',
+                  fontSize: 13.5,
                   fontWeight: 500,
                   color: TEXT_1,
                   textAlign: 'left',
@@ -250,7 +319,7 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ── Chat view: Messages State ── */}
+      {/* ── Messages State ── */}
       {view === 'chat' && messages.length > 0 && (
         <div
           style={{
@@ -264,42 +333,49 @@ export default function IntelligencePage() {
         >
           {messages.map(msg =>
             msg.role === 'user' ? (
+              /* ── User message ── */
               <div
                 key={msg.id}
+                className="da-anim-in"
                 style={{
                   alignSelf: 'flex-end',
-                  maxWidth: '80%',
-                  background: GOLD,
+                  maxWidth: '78%',
+                  background: '#111827',
                   color: '#fff',
-                  borderRadius: '20px 20px 4px 20px',
+                  borderRadius: 20,
+                  borderBottomRightRadius: 6,
                   padding: '12px 16px',
-                  fontSize: 14.5,
+                  fontSize: 14,
                   lineHeight: 1.5,
                 }}
               >
                 {msg.content}
               </div>
             ) : (
+              /* ── Assistant message ── */
               <div
                 key={msg.id}
+                className="da-anim-in"
                 style={{
                   alignSelf: 'flex-start',
                   maxWidth: '85%',
                   display: 'flex',
-                  gap: 10,
+                  gap: 8,
                   alignItems: 'flex-start',
                 }}
               >
-                <div style={{ flexShrink: 0 }}>
-                  <ChatAvatar size={28} />
+                <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                  <OHLogo size={26} />
                 </div>
                 <div
                   style={{
-                    background: SURFACE_1,
-                    borderRadius: '20px 20px 20px 4px',
+                    background: '#f9fafb',
+                    borderRadius: 20,
+                    borderBottomLeftRadius: 6,
+                    border: '1px solid #f3f4f6',
                     padding: '12px 16px',
-                    fontSize: 14.5,
-                    color: TEXT_1,
+                    fontSize: 14,
+                    color: '#111827',
                     lineHeight: 1.5,
                   }}
                 >
@@ -309,22 +385,7 @@ export default function IntelligencePage() {
             )
           )}
 
-          {sending && (
-            <div
-              style={{
-                alignSelf: 'flex-start',
-                maxWidth: '85%',
-                display: 'flex',
-                gap: 10,
-                alignItems: 'flex-start',
-              }}
-            >
-              <div style={{ flexShrink: 0 }}>
-                <ChatAvatar size={28} />
-              </div>
-              <TypingIndicator />
-            </div>
-          )}
+          {sending && <TypingIndicator />}
 
           <div ref={messagesEndRef} />
         </div>
@@ -347,6 +408,7 @@ export default function IntelligencePage() {
           {LOG_ENTRIES.map((entry, i) => (
             <div
               key={i}
+              className={`da-anim-in da-s${i + 1}`}
               style={{
                 padding: '14px 20px',
                 borderBottom: `1px solid ${BORDER_LIGHT}`,
@@ -385,7 +447,7 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ── Input bar (chat mode only) ── */}
+      {/* ── Input bar — ALWAYS visible in chat mode ── */}
       {view === 'chat' && (
         <div
           style={{
@@ -407,7 +469,7 @@ export default function IntelligencePage() {
               flex: 1,
               height: 44,
               background: SURFACE_1,
-              borderRadius: 22,
+              borderRadius: 24,
               border: `1px solid ${BORDER}`,
               padding: '0 16px',
               fontSize: 14,
@@ -416,6 +478,7 @@ export default function IntelligencePage() {
             }}
           />
           <button
+            className="da-press"
             style={{
               width: 36,
               height: 36,
@@ -432,11 +495,12 @@ export default function IntelligencePage() {
             <MicIcon />
           </button>
           <button
+            className="da-press"
             onClick={() => handleSend()}
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
               background: GOLD,
               border: 'none',
               display: 'flex',
@@ -444,9 +508,8 @@ export default function IntelligencePage() {
               justifyContent: 'center',
               cursor: 'pointer',
               flexShrink: 0,
-              opacity: input.trim() ? 1 : 0,
-              pointerEvents: input.trim() ? 'auto' : 'none',
-              transition: 'opacity 200ms',
+              boxShadow: '0 2px 8px rgba(212,175,55,0.3)',
+              opacity: 1,
             }}
           >
             <SendIcon />

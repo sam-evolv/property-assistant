@@ -77,7 +77,7 @@ export default function Header({
               <BackIcon />
             </button>
           ) : (
-            showLogo && <OHLogo size={28} />
+            showLogo && <OHLogo size={36} />
           )}
           <h1
             style={{

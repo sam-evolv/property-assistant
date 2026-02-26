@@ -1,6 +1,6 @@
 'use client';
 
-import { ChatAvatar } from '../shared/OHLogo';
+import OHLogo from '../shared/OHLogo';
 import UnitInfoCard from './rich-cards/UnitInfoCard';
 import EmailDraftCard from './rich-cards/EmailDraftCard';
 import SummaryCard from './rich-cards/SummaryCard';
@@ -27,33 +27,67 @@ export default function MessageBubble({ message, onSendEmail, onEditEmail }: Mes
 
   const isUser = message.role === 'user';
 
-  return (
-    <div className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'} mb-4`}>
-      {/* Avatar for assistant */}
-      {!isUser && <ChatAvatar />}
+  if (isUser) {
+    return (
+      <div className="da-anim-in flex justify-end mb-4">
+        <div
+          style={{
+            maxWidth: '78%',
+            background: '#111827',
+            color: '#fff',
+            borderRadius: 20,
+            borderBottomRightRadius: 6,
+            padding: '12px 16px',
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          {message.content}
+        </div>
+      </div>
+    );
+  }
 
-      <div className={`max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1.5`}>
+  return (
+    <div className="da-anim-in flex gap-2 mb-4" style={{ alignItems: 'flex-start' }}>
+      <div style={{ flexShrink: 0, paddingTop: 2 }}>
+        <OHLogo size={26} />
+      </div>
+
+      <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Rich cards */}
-        {!isUser && message.message_type === 'unit_info' && message.structured_data && (
+        {message.message_type === 'unit_info' && message.structured_data && (
           <UnitInfoCard data={message.structured_data} />
         )}
-        {!isUser && message.message_type === 'email_draft' && message.structured_data && (
+        {message.message_type === 'email_draft' && message.structured_data && (
           <EmailDraftCard
             data={message.structured_data}
             onSend={() => onSendEmail?.(message.id)}
             onEdit={onEditEmail}
           />
         )}
-        {!isUser && message.message_type === 'summary' && message.structured_data && (
+        {message.message_type === 'summary' && message.structured_data && (
           <SummaryCard data={message.structured_data} />
         )}
-        {!isUser && message.message_type === 'alert_list' && message.structured_data && (
+        {message.message_type === 'alert_list' && message.structured_data && (
           <AlertListCard data={message.structured_data} />
         )}
 
         {/* Action result bubble */}
-        {!isUser && message.message_type === 'action_result' && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(5,150,105,0.08)] text-[12px] text-[#059669] font-medium">
+        {message.message_type === 'action_result' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 8,
+              background: 'rgba(5,150,105,0.08)',
+              fontSize: 12,
+              color: '#059669',
+              fontWeight: 500,
+            }}
+          >
             <Check size={14} />
             {message.content}
           </div>
@@ -62,11 +96,16 @@ export default function MessageBubble({ message, onSendEmail, onEditEmail }: Mes
         {/* Text content */}
         {message.message_type === 'text' && message.content && (
           <div
-            className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
-              isUser
-                ? 'bg-[#111827] text-white rounded-br-md'
-                : 'bg-[#f3f4f6] text-[#111827] rounded-bl-md'
-            }`}
+            style={{
+              background: '#f9fafb',
+              color: '#111827',
+              borderRadius: 20,
+              borderBottomLeftRadius: 6,
+              border: '1px solid #f3f4f6',
+              padding: '12px 16px',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
           >
             {message.content}
           </div>

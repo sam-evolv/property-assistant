@@ -21,11 +21,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch developer's developments
+    // Fetch developer's developments (filter test/junk data)
     const { data: developments } = await supabase
       .from('developments')
       .select('id')
-      .eq('developer_user_id', user.id);
+      .eq('developer_user_id', user.id)
+      .not('name', 'ilike', '%test%')
+      .not('name', 'ilike', 'NULL%')
+      .not('name', 'ilike', '%demo%')
+      .not('name', 'ilike', '%sample%');
 
     const devIds = (developments || []).map((d: any) => d.id);
 
@@ -85,11 +89,20 @@ export async function GET(request: NextRequest) {
       isHandedOver(p)
     ).length;
 
+    // Include user's first name for greeting
+    const firstName = user.user_metadata?.full_name?.split(' ')[0]
+      || user.user_metadata?.first_name
+      || user.email?.split('@')[0]
+      || 'there';
+    const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+
     return NextResponse.json({
       pipeline_value: pipelineValue,
       units_sold: unitsSold,
+      total_units: unitIds.length,
       compliance_pct: compliancePct,
       handover_ready: handoverReady,
+      display_name: displayName,
     });
   } catch (error) {
     console.error('[dev-app/overview/stats] Error:', error);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   GOLD, GOLD_LIGHT, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
@@ -10,10 +10,11 @@ import {
 import AnimCounter from '@/components/dev-app/shared/AnimCounter';
 import ProgressRing from '@/components/dev-app/shared/ProgressRing';
 import ShimmerOverlay from '@/components/dev-app/shared/ShimmerEffect';
+import BreathingDot from '@/components/dev-app/shared/BreathingDot';
 import Badge from '@/components/dev-app/shared/Badge';
 import LiveBar from '@/components/dev-app/shared/LiveBar';
 import SectorSwitch from '@/components/dev-app/shared/SectorSwitch';
-import { SectionIcon, ChevronIcon } from '@/components/dev-app/shared/Icons';
+import { ChevronIcon } from '@/components/dev-app/shared/Icons';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
 import Header from '@/components/dev-app/layout/Header';
 
@@ -26,11 +27,79 @@ const RECENT_ACTIVITY = [
 export default function OverviewPage() {
   const router = useRouter();
   const [sector, setSector] = useState<Sector>('bts');
+  const [displayName, setDisplayName] = useState('');
+  const [apiStats, setApiStats] = useState<any>(null);
+  const [apiDevs, setApiDevs] = useState<any[]>([]);
+  const [apiAttention, setApiAttention] = useState<any[]>([]);
+
+  // Fetch real data from APIs
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [statsRes, devsRes, attentionRes] = await Promise.all([
+          fetch('/api/dev-app/overview/stats'),
+          fetch('/api/dev-app/developments'),
+          fetch('/api/dev-app/overview/attention'),
+        ]);
+
+        if (statsRes.ok) {
+          const data = await statsRes.json();
+          setApiStats(data);
+          if (data.display_name) setDisplayName(data.display_name);
+        }
+        if (devsRes.ok) {
+          const data = await devsRes.json();
+          if (data.developments?.length > 0) setApiDevs(data.developments);
+        }
+        if (attentionRes.ok) {
+          const data = await attentionRes.json();
+          if (data.items?.length > 0) setApiAttention(data.items);
+        }
+      } catch {
+        // Fallback to hardcoded data silently
+      }
+    }
+    fetchData();
+  }, []);
 
   const sectorConfig = SECTORS[sector];
-  const developments = DEV_DATA[sector];
-  const attentionItems = sectorConfig.attentionItems;
-  const stats = sectorConfig.stats;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  // Use API developments if available, otherwise fallback to hardcoded
+  const developments = apiDevs.length > 0
+    ? apiDevs
+        .filter(d => !sector || d.sector === sector || apiDevs.length <= 3)
+        .map(d => ({
+          name: d.name,
+          loc: d.location,
+          units: d.total_units,
+          pct: d.progress,
+          sold: d.sold_units,
+          active: d.total_units - d.sold_units,
+          handed: 0,
+          id: d.id,
+          is_most_active: d.is_most_active,
+        }))
+    : DEV_DATA[sector];
+
+  // Use API attention items if available, otherwise fallback
+  const attentionItems = apiAttention.length > 0
+    ? apiAttention.map(item => ({
+        color: item.severity === 'red' ? RED : item.severity === 'amber' ? AMBER : BLUE,
+        text: item.title,
+        dev: item.development_name || '',
+        action: 'View',
+      }))
+    : sectorConfig.attentionItems;
+
+  // Use API stats if available
+  const stats = apiStats ? [
+    { label: 'Pipeline Value', value: apiStats.pipeline_value > 1000000 ? +(apiStats.pipeline_value / 1000000).toFixed(1) : apiStats.pipeline_value, prefix: apiStats.pipeline_value > 1000000 ? '€' : '€', suffix: apiStats.pipeline_value > 1000000 ? 'M' : '', sub: '↑ active pipeline', color: GOLD },
+    { label: 'Units Sold', value: apiStats.units_sold, prefix: '', suffix: '', sub: `of ${apiStats.total_units || 0} total`, color: GREEN },
+    { label: 'Compliance', value: apiStats.compliance_pct, prefix: '', suffix: '%', sub: 'documents verified', color: apiStats.compliance_pct >= 80 ? GREEN : AMBER },
+    { label: 'Handover Ready', value: apiStats.handover_ready, prefix: '', suffix: '', sub: 'units fully cleared', color: GREEN },
+  ] : sectorConfig.stats;
 
   return (
     <MobileShell>
@@ -39,13 +108,13 @@ export default function OverviewPage() {
       {/* Greeting */}
       <div style={{ padding: '16px 20px' }}>
         <div className="da-anim-in" style={{ fontSize: 15, color: TEXT_2 }}>
-          Good morning,
+          {greeting},
         </div>
         <div
-          className="da-anim-in"
+          className="da-anim-in da-s1"
           style={{ fontSize: 26, fontWeight: 800, color: TEXT_1, letterSpacing: '-0.03em' }}
         >
-          Diarmuid
+          {displayName || 'Sam'}
         </div>
       </div>
 
@@ -60,6 +129,7 @@ export default function OverviewPage() {
       {/* Your Developments */}
       <div style={{ padding: '24px 20px 0' }}>
         <div
+          className="da-anim-in"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -68,10 +138,17 @@ export default function OverviewPage() {
           }}
         >
           <span style={{ fontSize: 17, fontWeight: 700, color: TEXT_1 }}>Your Developments</span>
-          <ChevronIcon />
+          <span
+            className="da-press"
+            style={{ fontSize: 13, fontWeight: 600, color: GOLD, cursor: 'pointer' }}
+            onClick={() => router.push('/dev-app/developments')}
+          >
+            View all
+          </span>
         </div>
 
         <div
+          className="hide-scrollbar"
           style={{
             display: 'flex',
             gap: 12,
@@ -79,71 +156,67 @@ export default function OverviewPage() {
             paddingBottom: 8,
           }}
         >
-          {developments.map((dev, i) => (
-            <div
-              key={dev.name}
-              className={`da-press da-anim-in da-s${i + 1}`}
-              style={{
-                width: 260,
-                minWidth: 260,
-                flexShrink: 0,
-                background: '#fff',
-                borderRadius: 16,
-                border: `1px solid ${BORDER_LIGHT}`,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                padding: 16,
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <ShimmerOverlay />
-
-              <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_1 }}>{dev.name}</div>
-              <div style={{ fontSize: 12, color: TEXT_3, marginTop: 2 }}>{dev.loc}</div>
-
-              {/* Progress bar */}
+          {developments.map((dev: any, i: number) => {
+            const isFirst = i === 0;
+            return (
               <div
+                key={dev.name}
+                className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
+                onClick={() => {
+                  if (dev.id) router.push(`/dev-app/developments/${dev.id}`);
+                }}
                 style={{
-                  marginTop: 12,
-                  height: 6,
-                  borderRadius: 3,
-                  background: SURFACE_2,
+                  width: 260,
+                  minWidth: 260,
+                  flexShrink: 0,
+                  background: '#fff',
+                  borderRadius: 16,
+                  border: isFirst ? `1.5px solid ${GOLD}40` : `1px solid ${BORDER_LIGHT}`,
+                  boxShadow: isFirst ? `0 2px 12px rgba(212,175,55,0.08)` : '0 1px 3px rgba(0,0,0,0.04)',
+                  padding: 16,
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                <div
-                  style={{
-                    height: 6,
-                    borderRadius: 3,
-                    background: GOLD,
-                    width: `${dev.pct}%`,
-                    transition: `width 1s ${EASE_PREMIUM}`,
-                  }}
-                />
-              </div>
+                {isFirst && <ShimmerOverlay />}
 
-              {/* Stats row */}
-              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: 11, color: TEXT_3 }}>Sold</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_1 }}>{dev.sold}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_1 }}>{dev.name}</div>
+                    <div style={{ fontSize: 12, color: TEXT_3, marginTop: 2 }}>{dev.loc}</div>
+                  </div>
+                  <ProgressRing percent={dev.pct} size={44} delay={300 + i * 200} />
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: TEXT_3 }}>Active</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_1 }}>{dev.active}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: TEXT_3 }}>Handed</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_1 }}>{dev.handed}</div>
+
+                {/* Stats row */}
+                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: TEXT_3 }}>Sold</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_1 }}>
+                      <AnimCounter value={dev.sold} delay={400 + i * 100} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: TEXT_3 }}>Total</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_1 }}>
+                      {dev.units}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: TEXT_3 }}>Progress</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: GOLD }}>{dev.pct}%</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* Needs Attention */}
       <div style={{ padding: '24px 20px 0' }}>
         <div
+          className="da-anim-in"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -158,10 +231,10 @@ export default function OverviewPage() {
           <ChevronIcon />
         </div>
 
-        {attentionItems.map((item, i) => (
+        {attentionItems.map((item: any, i: number) => (
           <div
             key={i}
-            className={`da-press da-anim-in da-s${i + 1}`}
+            className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
             style={{
               background: '#fff',
               borderRadius: 14,
@@ -173,16 +246,21 @@ export default function OverviewPage() {
               gap: 12,
             }}
           >
-            {/* Colored dot */}
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: item.color,
-                flexShrink: 0,
-              }}
-            />
+            {/* Breathing dot for red items, normal dot for others */}
+            <div style={{ flexShrink: 0 }}>
+              {item.color === RED ? (
+                <BreathingDot color={RED} size={8} />
+              ) : (
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: item.color,
+                  }}
+                />
+              )}
+            </div>
 
             {/* Text column */}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -192,6 +270,7 @@ export default function OverviewPage() {
 
             {/* Action button */}
             <div
+              className="da-press"
               style={{
                 fontSize: 12,
                 fontWeight: 600,
@@ -209,6 +288,7 @@ export default function OverviewPage() {
       {/* Today's Numbers */}
       <div style={{ padding: '24px 20px 0' }}>
         <div
+          className="da-anim-in"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -227,12 +307,12 @@ export default function OverviewPage() {
             gap: 12,
           }}
         >
-          {stats.map((stat, i) => {
+          {stats.map((stat: any, i: number) => {
             const isCompliance = stat.suffix === '%';
             return (
               <div
                 key={stat.label}
-                className={`da-anim-in da-s${i + 1}`}
+                className={`da-anim-in da-s${Math.min(i + 1, 7)}`}
                 style={{
                   background: '#fff',
                   borderRadius: 14,
@@ -244,7 +324,7 @@ export default function OverviewPage() {
 
                 {isCompliance ? (
                   <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center' }}>
-                    <ProgressRing percent={stat.value} size={44} color={stat.color} />
+                    <ProgressRing percent={stat.value} size={48} color={stat.color} delay={400 + i * 150} />
                   </div>
                 ) : (
                   <div
@@ -260,6 +340,7 @@ export default function OverviewPage() {
                       prefix={stat.prefix}
                       suffix={stat.suffix}
                       decimals={stat.suffix === 'M' ? 1 : 0}
+                      delay={300 + i * 100}
                     />
                   </div>
                 )}
@@ -274,6 +355,7 @@ export default function OverviewPage() {
       {/* Recent Activity */}
       <div style={{ padding: '24px 20px', marginBottom: 24 }}>
         <div
+          className="da-anim-in"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -283,6 +365,7 @@ export default function OverviewPage() {
         >
           <span style={{ fontSize: 17, fontWeight: 700, color: TEXT_1 }}>Recent Activity</span>
           <span
+            className="da-press"
             style={{ fontSize: 13, fontWeight: 600, color: GOLD, cursor: 'pointer' }}
             onClick={() => router.push('/dev-app/activity')}
           >
@@ -301,18 +384,21 @@ export default function OverviewPage() {
               padding: '10px 0',
             }}
           >
-            {/* Colored dot */}
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: item.color,
-                flexShrink: 0,
-              }}
-            />
+            <div style={{ flexShrink: 0 }}>
+              {item.color === RED ? (
+                <BreathingDot color={RED} size={8} />
+              ) : (
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: item.color,
+                  }}
+                />
+              )}
+            </div>
 
-            {/* Text column */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: TEXT_1 }}>{item.text}</div>
               <div style={{ fontSize: 11, color: TEXT_3 }}>{item.time}</div>

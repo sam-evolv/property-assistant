@@ -588,11 +588,15 @@ export async function POST(request: NextRequest) {
 
     const admin = getSupabaseAdmin();
 
-    // Get developer's developments
+    // Get developer's developments (filter test/junk data)
     const { data: developments } = await admin
       .from('developments')
       .select('id, name')
-      .eq('developer_user_id', user.id);
+      .eq('developer_user_id', user.id)
+      .not('name', 'ilike', '%test%')
+      .not('name', 'ilike', 'NULL%')
+      .not('name', 'ilike', '%demo%')
+      .not('name', 'ilike', '%sample%');
 
     const devs = developments || [];
     const devIds = devs.map((d: any) => d.id);

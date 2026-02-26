@@ -16,9 +16,19 @@ interface SuggestedPromptsProps {
 export default function SuggestedPrompts({ onSelect }: SuggestedPromptsProps) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
-      <div className="flex flex-col items-center mb-8">
-        <OHLogo size={48} variant="full" />
-        <p className="text-[13px] text-[#9ca3af] mt-2">Your on-site co-worker</p>
+      <div className="da-anim-scale flex flex-col items-center mb-6">
+        <OHLogo size={48} />
+        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111827', marginTop: 14, marginBottom: 0 }}>
+          OpenHouse Intelligence
+        </h2>
+        <p style={{ fontSize: 13, color: '#6b7280', fontWeight: 450, marginTop: 6, textAlign: 'center', lineHeight: 1.5 }}>
+          Your on-site co-worker. Ask about any unit, check compliance,
+          draft emails, and take action — all from here.
+        </p>
+      </div>
+
+      <div style={{ fontSize: 11.5, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, marginBottom: 12 }}>
+        TRY ASKING
       </div>
 
       <div className="w-full space-y-2">
@@ -26,25 +36,21 @@ export default function SuggestedPrompts({ onSelect }: SuggestedPromptsProps) {
           <button
             key={i}
             onClick={() => onSelect(prompt)}
-            className="w-full text-left p-3.5 rounded-xl border border-[#f3f4f6] bg-white transition-all active:scale-[0.97] hover:border-[#D4AF37]/30"
+            className={`da-press da-anim-in da-s${Math.min(i + 1, 7)} w-full text-left`}
             style={{
-              opacity: 0,
-              animation: `devapp-fadeInUp 0.45s cubic-bezier(0.16,1,0.3,1) ${i * 80}ms forwards`,
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: 'none',
+              background: '#f9fafb',
+              cursor: 'pointer',
             }}
           >
-            <p className="text-[13px] text-[#111827] leading-snug">
+            <p style={{ fontSize: 13.5, color: '#111827', lineHeight: 1.4, margin: 0, fontWeight: 500 }}>
               &ldquo;{prompt}&rdquo;
             </p>
           </button>
         ))}
       </div>
-
-      <style jsx>{`
-        @keyframes devapp-fadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

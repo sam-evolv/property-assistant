@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
     const { data: developments } = await supabase
       .from('developments')
       .select('id, name')
-      .eq('developer_user_id', user.id);
+      .eq('developer_user_id', user.id)
+      .not('name', 'ilike', '%test%')
+      .not('name', 'ilike', 'NULL%')
+      .not('name', 'ilike', '%demo%')
+      .not('name', 'ilike', '%sample%');
 
     const devs = developments || [];
     const devIds = devs.map((d: any) => d.id);

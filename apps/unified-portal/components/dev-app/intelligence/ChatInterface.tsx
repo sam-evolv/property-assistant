@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send } from 'lucide-react';
 import MessageBubble, { type IntelligenceMessage } from './MessageBubble';
 import TypingIndicator from '../shared/TypingIndicator';
-import { ChatAvatar } from '../shared/OHLogo';
 import VoiceInput from './VoiceInput';
 
 interface ChatInterfaceProps {
@@ -167,14 +166,13 @@ export default function ChatInterface({
         ))}
 
         {isLoading && (
-          <div className="flex items-center gap-2.5 mb-4">
-            <ChatAvatar />
+          <div className="mb-4">
             <TypingIndicator />
           </div>
         )}
       </div>
 
-      {/* Input bar */}
+      {/* Input bar - always visible with gold send button */}
       <div
         className="border-t border-[#f3f4f6] bg-white px-4 py-2.5"
         style={{
@@ -189,7 +187,8 @@ export default function ChatInterface({
             value={input}
             onChange={(e: any) => setInput(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 h-10 px-4 rounded-full bg-[#f3f4f6] text-[14px] text-[#111827] placeholder-[#9ca3af] outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+            className="flex-1 h-10 px-4 rounded-full bg-[#f9fafb] text-[14px] text-[#111827] placeholder-[#9ca3af] outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+            style={{ borderRadius: 24 }}
             disabled={isLoading}
           />
           <VoiceInput
@@ -199,9 +198,19 @@ export default function ChatInterface({
           />
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-30"
-            style={{ backgroundColor: '#D4AF37' }}
+            disabled={isLoading}
+            className="da-press flex items-center justify-center"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: '#D4AF37',
+              boxShadow: '0 2px 8px rgba(212,175,55,0.3)',
+              border: 'none',
+              cursor: 'pointer',
+              flexShrink: 0,
+              opacity: 1,
+            }}
           >
             <Send size={16} className="text-white" />
           </button>

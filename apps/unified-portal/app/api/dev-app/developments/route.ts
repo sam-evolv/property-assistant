@@ -20,11 +20,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch developer's developments
+    // Fetch developer's developments (filter test/junk data)
     const { data: developments } = await supabase
       .from('developments')
       .select('id, name, address, project_type, created_at')
       .eq('developer_user_id', user.id)
+      .not('name', 'ilike', '%test%')
+      .not('name', 'ilike', 'NULL%')
+      .not('name', 'ilike', '%demo%')
+      .not('name', 'ilike', '%sample%')
       .order('name');
 
     if (!developments || developments.length === 0) {
@@ -97,10 +101,18 @@ export async function GET(request: NextRequest) {
         sold_units: sold,
         progress,
         is_most_active: dev.id === mostActiveId,
+        created_at: dev.created_at,
       };
     });
 
-    return NextResponse.json({ developments: result });
+    // Filter out developments with 0 units (unless created within last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const filtered = result.filter((d: any) =>
+      d.total_units > 0 || (d.created_at && new Date(d.created_at) > sevenDaysAgo)
+    );
+
+    return NextResponse.json({ developments: filtered });
   } catch (error) {
     console.error('[dev-app/developments] Error:', error);
     return NextResponse.json(

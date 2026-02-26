@@ -129,14 +129,12 @@ export default function DevelopmentDetailPage() {
           }}
         >
           {sectorConfig.sections.map((section, i) => {
-            const stagger =
-              i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
             const isActive = activeSection === section.id;
 
             return (
               <div
                 key={section.id}
-                className={`da-press da-anim-in${stagger}`}
+                className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
                 onClick={() => {
                   setActiveSection(section.id);
                   setActivePill('All');
@@ -189,14 +187,12 @@ export default function DevelopmentDetailPage() {
           {/* Unit cards */}
           <div style={{ padding: '0 20px 20px' }}>
             {filteredUnits.map((unit, i) => {
-              const stagger =
-                i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
               const sc = STATUS_COLORS[unit.status] ?? STATUS_COLORS.green;
 
               return (
                 <div
                   key={unit.unit}
-                  className={`da-press da-anim-in${stagger}`}
+                  className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
                   onClick={() => setSelectedUnit(unit)}
                   style={{
                     background: '#fff',
