@@ -1,64 +1,26 @@
 'use client';
-
-interface OHLogoProps {
-  size?: number;
-  variant?: 'icon' | 'full' | 'icon-gold';
-  className?: string;
-}
-
-export default function OHLogo({ size = 24, variant = 'icon', className = '' }: OHLogoProps) {
-  const goldColor = '#D4AF37';
-  const darkColor = '#111827';
-  const fillColor = variant === 'icon-gold' ? goldColor : darkColor;
-
-  if (variant === 'full') {
-    return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-          <path
-            d="M16 3L3 13h4v14h18V13h4L16 3z"
-            fill={fillColor}
-          />
-          <rect x="13" y="19" width="6" height="8" rx="1" fill="white" />
-        </svg>
-        <span
-          className="font-bold tracking-tight"
-          style={{
-            fontSize: size * 0.65,
-            color: darkColor,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          OpenHouse
-          <span style={{ color: goldColor }}> AI</span>
-        </span>
-      </div>
-    );
-  }
-
+import { GOLD, TEXT_1 } from '@/lib/dev-app/design-system';
+interface OHLogoProps { size?: number; color?: string; }
+export default function OHLogo({ size = 24, color = GOLD }: OHLogoProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className}>
-      <path
-        d="M16 3L3 13h4v14h18V13h4L16 3z"
-        fill={fillColor}
-      />
-      <rect x="13" y="19" width="6" height="8" rx="1" fill="white" />
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill={`${color}12`} />
+      <path d="M20 8L10 15V28H16V22H24V28H30V15L20 8Z" fill={color} fillOpacity="0.9" />
+      <rect x="17" y="17" width="6" height="5" rx="0.5" fill="white" fillOpacity="0.9" />
     </svg>
   );
 }
-
-export function ChatAvatar({ size = 30 }: { size?: number }) {
+export function OHLogoFull({ height = 20 }: { height?: number }) {
   return (
-    <div
-      className="flex items-center justify-center flex-shrink-0"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: 8,
-        background: 'rgba(212,175,55,0.08)',
-      }}
-    >
-      <OHLogo size={size - 8} variant="icon-gold" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <OHLogo size={height * 1.4} />
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+        <span style={{ fontSize: height * 0.75, fontWeight: 800, color: TEXT_1, letterSpacing: '-0.03em' }}>OpenHouse</span>
+        <span style={{ fontSize: height * 0.45, fontWeight: 700, color: GOLD, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 1 }}>Intelligence</span>
+      </div>
     </div>
   );
+}
+export function ChatAvatar({ size = 26 }: { size?: number }) {
+  return <OHLogo size={size} />;
 }

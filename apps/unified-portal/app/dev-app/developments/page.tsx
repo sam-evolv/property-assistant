@@ -1,51 +1,154 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Header from '@/components/dev-app/layout/Header';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
-import DevelopmentCards from '@/components/dev-app/overview/DevelopmentCards';
-import type { DevelopmentSummary } from '@/components/dev-app/overview/DevelopmentCards';
+import Header from '@/components/dev-app/layout/Header';
+import SectorSwitch from '@/components/dev-app/shared/SectorSwitch';
+import { SearchIcon, ChevronIcon } from '@/components/dev-app/shared/Icons';
+import {
+  GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
+  DEV_DATA, type Sector,
+} from '@/lib/dev-app/design-system';
 
 export default function DevelopmentsPage() {
   const router = useRouter();
-  const [developments, setDevelopments] = useState<DevelopmentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sector, setSector] = useState<Sector>('bts');
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetch('/api/dev-app/developments')
-      .then((r) => r.json())
-      .then((data) => setDevelopments(data.developments || []))
-      .catch(() => setDevelopments([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const devs = DEV_DATA[sector].filter((d) =>
+    d.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <MobileShell>
-      <Header title="Developments" onNotificationTap={() => router.push('/dev-app/activity')} />
+      <Header title="Developments" />
 
-      {loading ? (
-        <div className="px-4 py-6 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 rounded-2xl bg-[#f3f4f6] animate-pulse" />
-          ))}
-        </div>
-      ) : developments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-          <div className="text-4xl mb-3 text-[#e5e7eb]">🏗️</div>
-          <p className="text-[15px] font-semibold text-[#111827]">No developments yet</p>
-          <p className="text-[13px] text-[#6b7280] mt-1">
-            Your developments will appear here once set up.
-          </p>
-        </div>
-      ) : (
-        <div className="py-3">
-          <DevelopmentCards
-            developments={developments}
-            onTap={(dev) => router.push(`/dev-app/developments/${dev.id}`)}
+      <div style={{ paddingTop: 14 }}>
+        <SectorSwitch sector={sector} onSectorChange={setSector} />
+      </div>
+
+      {/* Search bar */}
+      <div style={{ padding: '14px 20px 0' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            height: 44,
+            background: SURFACE_1,
+            borderRadius: 12,
+            border: `1px solid ${BORDER}`,
+            padding: '0 12px',
+          }}
+        >
+          <SearchIcon />
+          <input
+            type="text"
+            placeholder="Search developments..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              flex: 1,
+              border: 'none',
+              background: 'transparent',
+              outline: 'none',
+              fontSize: 14,
+              color: TEXT_1,
+              marginLeft: 8,
+            }}
           />
         </div>
-      )}
+      </div>
+
+      {/* Development list */}
+      <div style={{ padding: 20 }}>
+        {devs.map((dev, i) => {
+          const stagger =
+            i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
+
+          return (
+            <div
+              key={dev.name}
+              className={`da-press da-anim-in${stagger}`}
+              onClick={() =>
+                router.push(`/dev-app/developments/${encodeURIComponent(dev.name)}`)
+              }
+              style={{
+                background: '#fff',
+                borderRadius: 16,
+                border: `1px solid ${BORDER_LIGHT}`,
+                padding: 16,
+                marginBottom: 10,
+                cursor: 'pointer',
+              }}
+            >
+              {/* Top row */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div>
+                  <div style={{ color: TEXT_1, fontSize: 15, fontWeight: 700 }}>
+                    {dev.name}
+                  </div>
+                  <div style={{ color: TEXT_3, fontSize: 12, marginTop: 2 }}>
+                    {dev.loc}
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div
+                style={{
+                  marginTop: 12,
+                  height: 6,
+                  borderRadius: 3,
+                  background: SURFACE_2,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${dev.pct}%`,
+                    borderRadius: 3,
+                    background: GOLD,
+                  }}
+                />
+              </div>
+
+              {/* Bottom row */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 10,
+                }}
+              >
+                <span style={{ color: TEXT_2, fontSize: 12 }}>
+                  {dev.units} units
+                </span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span style={{ color: TEXT_2, fontSize: 12, fontWeight: 600 }}>
+                    {dev.pct}%
+                  </span>
+                  <ChevronIcon />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </MobileShell>
   );
 }

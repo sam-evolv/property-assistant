@@ -1,36 +1,8 @@
 'use client';
-
-interface ShimmerEffectProps {
-  className?: string;
-  children: React.ReactNode;
-  active?: boolean;
-}
-
-export default function ShimmerEffect({
-  className = '',
-  children,
-  active = true,
-}: ShimmerEffectProps) {
-  if (!active) return <>{children}</>;
-
+export default function ShimmerOverlay() {
   return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {children}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent, rgba(212,175,55,0.08) 50%, transparent)',
-          backgroundSize: '200% 100%',
-          animation: 'devapp-shimmer 3s linear infinite',
-        }}
-      />
-      <style jsx>{`
-        @keyframes devapp-shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-      `}</style>
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 'inherit', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.06), transparent)', animation: 'da-shimmer 3s ease-in-out infinite' }} />
     </div>
   );
 }
