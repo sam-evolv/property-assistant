@@ -1,37 +1,11 @@
 'use client';
-
-interface BreathingDotProps {
-  color?: string;
-  size?: number;
-  className?: string;
-}
-
-export default function BreathingDot({
-  color = '#059669',
-  size = 8,
-  className = '',
-}: BreathingDotProps) {
+import { GREEN } from '@/lib/dev-app/design-system';
+interface BreathingDotProps { color?: string; size?: number; }
+export default function BreathingDot({ color = GREEN, size = 8 }: BreathingDotProps) {
   return (
-    <span
-      className={`relative inline-flex ${className}`}
-      style={{ width: size, height: size }}
-    >
-      <span
-        className="absolute inset-0 rounded-full animate-ping"
-        style={{
-          backgroundColor: color,
-          opacity: 0.4,
-          animationDuration: '2s',
-        }}
-      />
-      <span
-        className="relative inline-flex rounded-full"
-        style={{
-          width: size,
-          height: size,
-          backgroundColor: color,
-        }}
-      />
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size + 8, height: size + 8 }}>
+      <span style={{ position: 'absolute', width: size + 6, height: size + 6, borderRadius: '50%', background: color, animation: 'da-pulseRing 2s ease-out infinite' }} />
+      <span style={{ width: size, height: size, borderRadius: '50%', background: color, animation: 'da-breathe 2s ease-in-out infinite', position: 'relative', zIndex: 1 }} />
     </span>
   );
 }

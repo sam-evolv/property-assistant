@@ -1,19 +1,13 @@
 'use client';
 
-import { LayoutDashboard, Building2, Sparkles, Activity } from 'lucide-react';
-
-const ICONS = {
-  overview: LayoutDashboard,
-  developments: Building2,
-  intelligence: Sparkles,
-  activity: Activity,
-} as const;
+import { PulseIcon, BuildingIcon, BrainIcon, ClockIcon } from '../shared/Icons';
+import { GOLD, TEXT_3, BORDER_LIGHT, EASE_PREMIUM } from '@/lib/dev-app/design-system';
 
 const TABS = [
-  { id: 'overview' as const, label: 'Overview' },
-  { id: 'developments' as const, label: 'Devs' },
-  { id: 'intelligence' as const, label: 'Intel' },
-  { id: 'activity' as const, label: 'Activity' },
+  { id: 'overview' as const, label: 'Overview', Icon: PulseIcon },
+  { id: 'developments' as const, label: 'Devs', Icon: BuildingIcon },
+  { id: 'intelligence' as const, label: 'Intel', Icon: BrainIcon },
+  { id: 'activity' as const, label: 'Activity', Icon: ClockIcon },
 ];
 
 interface TabBarProps {
@@ -25,42 +19,88 @@ interface TabBarProps {
 export default function TabBar({ activeTab, onTabChange, unreadActivity = 0 }: TabBarProps) {
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t frosted-glass-light"
       style={{
-        borderColor: '#f3f4f6',
-        paddingBottom: 'calc(16px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))',
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        borderTop: `1px solid ${BORDER_LIGHT}`,
+        background: 'rgba(255,255,255,0.88)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       }}
     >
-      <div className="flex items-center justify-around h-14 px-2">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          height: 56,
+          paddingLeft: 8,
+          paddingRight: 8,
+        }}
+      >
         {TABS.map((tab) => {
-          const Icon = ICONS[tab.id];
           const isActive = activeTab === tab.id;
 
           return (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1 transition-all duration-150"
               style={{
-                transform: isActive ? 'scale(1)' : 'scale(0.95)',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                flex: 1,
+                paddingTop: 4,
+                paddingBottom: 4,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                transform: isActive ? 'scale(1.05)' : 'scale(0.95)',
                 opacity: isActive ? 1 : 0.5,
+                transition: `all 200ms ${EASE_PREMIUM}`,
               }}
             >
-              <div className="relative">
-                <Icon
-                  size={22}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                  style={{ color: isActive ? '#D4AF37' : '#9ca3af' }}
-                />
+              <div style={{ position: 'relative' }}>
+                <tab.Icon active={isActive} />
                 {tab.id === 'activity' && unreadActivity > 0 && (
-                  <span className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-[#dc2626] text-white text-[9px] font-bold px-0.5">
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -6,
+                      minWidth: 14,
+                      height: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '50%',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      paddingLeft: 2,
+                      paddingRight: 2,
+                      lineHeight: 1,
+                    }}
+                  >
                     {unreadActivity > 99 ? '99+' : unreadActivity}
                   </span>
                 )}
               </div>
               <span
-                className="text-[10px] font-medium"
-                style={{ color: isActive ? '#D4AF37' : '#9ca3af' }}
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 500,
+                  color: isActive ? GOLD : TEXT_3,
+                  transition: `all 200ms ${EASE_PREMIUM}`,
+                }}
               >
                 {tab.label}
               </span>

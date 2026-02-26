@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import TabBar from './TabBar';
+import { BG } from '@/lib/dev-app/design-system';
 
 interface MobileShellProps {
   children: React.ReactNode;
@@ -37,12 +38,22 @@ export default function MobileShell({ children, unreadActivity = 0 }: MobileShel
   );
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-white overflow-hidden">
+    <div
+      style={{
+        height: '100dvh',
+        background: BG,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <main
-        className="flex-1 overflow-y-auto overscroll-y-contain"
         style={{
-          paddingBottom: 'calc(80px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))',
+          flex: 1,
+          overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
+          paddingBottom: 'calc(84px + env(safe-area-inset-bottom, 0px))',
         }}
       >
         {children}

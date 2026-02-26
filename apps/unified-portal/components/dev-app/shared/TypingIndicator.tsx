@@ -1,23 +1,11 @@
 'use client';
-
-export default function TypingIndicator({ className = '' }: { className?: string }) {
+import { SURFACE_1, BORDER_LIGHT, TEXT_3 } from '@/lib/dev-app/design-system';
+export default function TypingIndicator() {
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-2 h-2 rounded-full bg-[#D4AF37]"
-          style={{
-            animation: `devapp-bounce 1.4s ease-in-out ${i * 0.2}s infinite`,
-          }}
-        />
+    <div style={{ display: 'flex', gap: 4, padding: '14px 18px', background: SURFACE_1, borderRadius: 20, borderBottomLeftRadius: 6, border: `1px solid ${BORDER_LIGHT}`, width: 'fit-content' }}>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: TEXT_3, animation: 'da-typingBounce 1.4s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />
       ))}
-      <style jsx>{`
-        @keyframes devapp-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-6px); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
