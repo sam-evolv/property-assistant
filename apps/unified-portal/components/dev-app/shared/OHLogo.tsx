@@ -1,26 +1,62 @@
 'use client';
-import { GOLD, TEXT_1 } from '@/lib/dev-app/design-system';
-interface OHLogoProps { size?: number; color?: string; }
-export default function OHLogo({ size = 24, color = GOLD }: OHLogoProps) {
+
+import { GOLD } from '@/lib/dev-app/design-system';
+
+interface OHLogoProps {
+  size?: number;
+  variant?: 'icon' | 'full' | 'stacked';
+  className?: string;
+}
+
+export default function OHLogo({ size = 24, variant = 'icon', className = '' }: OHLogoProps) {
+  const src =
+    variant === 'icon'
+      ? '/oh-logo-icon.png'
+      : variant === 'full'
+        ? '/oh-logo-horizontal.png'
+        : '/oh-logo-stacked.png';
+
+  const width = variant === 'full' ? size * 3.5 : size;
+  const height = size;
+
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <rect width="40" height="40" rx="10" fill={`${color}12`} />
-      <path d="M20 8L10 15V28H16V22H24V28H30V15L20 8Z" fill={color} fillOpacity="0.9" />
-      <rect x="17" y="17" width="6" height="5" rx="0.5" fill="white" fillOpacity="0.9" />
-    </svg>
+    <img
+      src={src}
+      alt="OpenHouse AI"
+      width={width}
+      height={height}
+      className={className}
+      style={{ objectFit: 'contain', mixBlendMode: 'multiply' }}
+    />
   );
 }
+
 export function OHLogoFull({ height = 20 }: { height?: number }) {
+  return <OHLogo size={height} variant="full" />;
+}
+
+export function ChatAvatar({ size = 26 }: { size?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <OHLogo size={height * 1.4} />
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-        <span style={{ fontSize: height * 0.75, fontWeight: 800, color: TEXT_1, letterSpacing: '-0.03em' }}>OpenHouse</span>
-        <span style={{ fontSize: height * 0.45, fontWeight: 700, color: GOLD, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 1 }}>Intelligence</span>
-      </div>
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: `${GOLD}15`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <img
+        src="/oh-logo-icon.png"
+        alt="OpenHouse AI"
+        width={size * 0.65}
+        height={size * 0.65}
+        style={{ objectFit: 'contain', mixBlendMode: 'multiply' }}
+      />
     </div>
   );
-}
-export function ChatAvatar({ size = 26 }: { size?: number }) {
-  return <OHLogo size={size} />;
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
-  RED, AMBER, GREEN, BLUE, EASE_PREMIUM
+  GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_2, BORDER_LIGHT,
+  RED, AMBER, GREEN, BLUE,
 } from '@/lib/dev-app/design-system';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
 import Header from '@/components/dev-app/layout/Header';
@@ -11,66 +11,105 @@ import Pills from '@/components/dev-app/shared/Pills';
 import BreathingDot from '@/components/dev-app/shared/BreathingDot';
 
 interface ActivityItem {
-  time: string;
-  text: string;
-  detail: string;
-  color: string;
-  type: 'update' | 'urgent' | 'action';
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  detail?: string;
+  development_name?: string;
+  created_at: string;
 }
 
 interface ActivityGroup {
   label: string;
-  items: ActivityItem[];
+  items: (ActivityItem & { color: string; relTime: string })[];
 }
 
-const ACTIVITY_DATA: ActivityGroup[] = [
-  {
-    label: 'Today',
-    items: [
-      { time: '2h ago', text: 'Unit 14 — loan documents uploaded by solicitor', detail: 'Willow Brook', color: GREEN, type: 'update' },
-      { time: '3h ago', text: 'Mortgage approval warning — Unit 22 expiring in 2 days', detail: 'Willow Brook', color: RED, type: 'urgent' },
-      { time: '4h ago', text: 'Purchaser selected kitchen finish — Unit 7', detail: 'Riverside Gardens', color: BLUE, type: 'update' },
-      { time: '5h ago', text: 'New viewing request from M. Kelly', detail: 'Across developments', color: GOLD, type: 'action' },
-    ],
-  },
-  {
-    label: 'Yesterday',
-    items: [
-      { time: '9:30', text: 'Compliance report generated for Willow Brook', detail: 'Willow Brook', color: GREEN, type: 'update' },
-      { time: '14:15', text: 'BCMS submission overdue — 4 units flagged', detail: 'Willow Brook', color: AMBER, type: 'urgent' },
-      { time: '16:00', text: 'Handover pack approved — Unit 26', detail: 'Willow Brook', color: GREEN, type: 'update' },
-    ],
-  },
-  {
-    label: 'This Week',
-    items: [
-      { time: 'Mon', text: 'Pipeline report shared with stakeholders', detail: 'All developments', color: BLUE, type: 'action' },
-      { time: 'Mon', text: '3 new purchaser enquiries received', detail: 'Riverside Gardens', color: GOLD, type: 'update' },
-      { time: 'Sun', text: 'Weekly compliance check completed', detail: 'System', color: GREEN, type: 'update' },
-    ],
-  },
-];
-
-const FILTER_OPTIONS = ['All', 'Urgent', 'Updates', 'Actions'];
-
-const FILTER_TYPE_MAP: Record<string, string | null> = {
-  All: null,
-  Urgent: 'urgent',
-  Updates: 'update',
-  Actions: 'action',
+const CATEGORY_COLORS: Record<string, string> = {
+  action: GOLD,
+  pipeline: BLUE,
+  compliance: AMBER,
+  snag: RED,
+  system: GREEN,
 };
+
+const FILTER_OPTIONS = ['All', 'Urgent', 'Pipeline', 'Actions'];
+
+function categoriseFilter(category: string, type: string): string {
+  if (type.includes('expired') || type.includes('overdue') || type.includes('red') || category === 'snag') return 'Urgent';
+  if (category === 'pipeline') return 'Pipeline';
+  if (category === 'action') return 'Actions';
+  return 'Pipeline';
+}
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+}
+
+function groupByTime(items: (ActivityItem & { color: string; relTime: string })[]): ActivityGroup[] {
+  const today: typeof items = [];
+  const yesterday: typeof items = [];
+  const thisWeek: typeof items = [];
+  const older: typeof items = [];
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  const weekStart = new Date(todayStart.getTime() - 6 * 86400000);
+
+  items.forEach(item => {
+    const d = new Date(item.created_at);
+    if (d >= todayStart) today.push(item);
+    else if (d >= yesterdayStart) yesterday.push(item);
+    else if (d >= weekStart) thisWeek.push(item);
+    else older.push(item);
+  });
+
+  const groups: ActivityGroup[] = [];
+  if (today.length) groups.push({ label: 'Today', items: today });
+  if (yesterday.length) groups.push({ label: 'Yesterday', items: yesterday });
+  if (thisWeek.length) groups.push({ label: 'This Week', items: thisWeek });
+  if (older.length) groups.push({ label: 'Earlier', items: older });
+  return groups;
+}
 
 export default function ActivityPage() {
   const [filter, setFilter] = useState('All');
+  const [items, setItems] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filterType = FILTER_TYPE_MAP[filter];
+  useEffect(() => {
+    fetch('/api/dev-app/activity')
+      .then(r => r.json())
+      .then(data => setItems(data.items || []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const filteredGroups = ACTIVITY_DATA.map(group => ({
-    label: group.label,
-    items: filterType ? group.items.filter(item => item.type === filterType) : group.items,
-  })).filter(group => group.items.length > 0);
+  // Enrich with color and relative time
+  const enriched = items.map(item => ({
+    ...item,
+    color: CATEGORY_COLORS[item.category] || BLUE,
+    relTime: relativeTime(item.created_at),
+  }));
 
-  const hasResults = filteredGroups.length > 0;
+  // Apply filter
+  const filtered = filter === 'All'
+    ? enriched
+    : enriched.filter(item => categoriseFilter(item.category, item.type) === filter);
+
+  const groups = groupByTime(filtered);
+  const hasResults = groups.length > 0;
 
   let globalIndex = 0;
 
@@ -83,8 +122,50 @@ export default function ActivityPage() {
       </div>
 
       <div style={{ padding: 20 }}>
-        {hasResults ? (
-          filteredGroups.map((group, groupIdx) => (
+        {loading ? (
+          [1, 2, 3, 4].map(i => (
+            <div
+              key={i}
+              style={{
+                height: 56,
+                borderRadius: 12,
+                background: SURFACE_2,
+                marginBottom: 8,
+              }}
+              className="da-anim-fade"
+            />
+          ))
+        ) : !hasResults && items.length === 0 ? (
+          /* Empty state — no activity at all */
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '48px 20px',
+            }}
+          >
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🏗️</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: TEXT_1, marginBottom: 6 }}>
+              No activity yet
+            </div>
+            <div style={{ fontSize: 13.5, color: TEXT_3, lineHeight: 1.5 }}>
+              Activity will appear here as your developments progress — pipeline changes,
+              compliance updates, purchaser actions, and more.
+            </div>
+          </div>
+        ) : !hasResults ? (
+          /* Filter yields no results */
+          <div
+            style={{
+              textAlign: 'center',
+              padding: 40,
+              color: TEXT_3,
+              fontSize: 14,
+            }}
+          >
+            No {filter.toLowerCase()} items
+          </div>
+        ) : (
+          groups.map((group, groupIdx) => (
             <div key={group.label}>
               <div
                 style={{
@@ -106,7 +187,7 @@ export default function ActivityPage() {
 
                 return (
                   <div
-                    key={`${group.label}-${itemIdx}`}
+                    key={item.id}
                     className={`da-anim-in ${staggerClass} da-press`}
                     style={{
                       display: 'flex',
@@ -139,7 +220,7 @@ export default function ActivityPage() {
                           lineHeight: 1.4,
                         }}
                       >
-                        {item.text}
+                        {item.title}
                       </div>
                       <div
                         style={{
@@ -149,10 +230,10 @@ export default function ActivityPage() {
                         }}
                       >
                         <span style={{ color: TEXT_3, fontSize: 12 }}>
-                          {item.detail}
+                          {item.development_name || item.detail || ''}
                         </span>
                         <span style={{ color: TEXT_3, fontSize: 11 }}>
-                          {item.time}
+                          {item.relTime}
                         </span>
                       </div>
                     </div>
@@ -161,17 +242,6 @@ export default function ActivityPage() {
               })}
             </div>
           ))
-        ) : (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: 40,
-              color: TEXT_3,
-              fontSize: 14,
-            }}
-          >
-            No {filter.toLowerCase()} items
-          </div>
         )}
       </div>
     </MobileShell>

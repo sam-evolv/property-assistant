@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
-  GOLD, GOLD_LIGHT, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
-  RED, AMBER, GREEN, BLUE, GREEN_BG, BLUE_BG, AMBER_BG, RED_BG, EASE_PREMIUM,
-  SECTORS, type Sector
+  GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
+  GREEN, EASE_PREMIUM,
 } from '@/lib/dev-app/design-system';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
-import { ChatAvatar } from '@/components/dev-app/shared/OHLogo';
+import OHLogo, { ChatAvatar } from '@/components/dev-app/shared/OHLogo';
 import { MicIcon, SendIcon } from '@/components/dev-app/shared/Icons';
 import TypingIndicator from '@/components/dev-app/shared/TypingIndicator';
 
@@ -15,7 +15,6 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  type?: 'text' | 'unit_info' | 'action_card' | 'summary';
 }
 
 const SUGGESTED_PROMPTS = [
@@ -40,7 +39,7 @@ function getAssistantResponse(content: string): string {
     return 'Willow Brook pipeline: 28 of 45 units sold (62%). 12 are in active stages. Key focus: Units 18 and 22 have mortgage approvals pending over 28 days.';
   }
   if (lower.includes('compliance')) {
-    return 'Overall compliance is at 89%. 4 items are overdue — mainly BCMS submissions for Willow Brook Units 22-26. I\'d recommend prioritising these today.';
+    return 'Overall compliance is at 89%. 4 items are overdue \u2014 mainly BCMS submissions for Willow Brook Units 22-26. I\'d recommend prioritising these today.';
   }
   return 'I\'ve checked across your developments. Everything looks on track. Would you like me to drill into any specific development or unit?';
 }
@@ -64,7 +63,6 @@ export default function IntelligencePage() {
       id: Date.now().toString(),
       role: 'user',
       content: messageText,
-      type: 'text',
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -76,7 +74,6 @@ export default function IntelligencePage() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: getAssistantResponse(messageText),
-        type: 'text',
       };
       setMessages(prev => [...prev, assistantMessage]);
       setSending(false);
@@ -92,7 +89,7 @@ export default function IntelligencePage() {
 
   return (
     <MobileShell>
-      {/* ── Header ── */}
+      {/* Header */}
       <header
         style={{
           position: 'sticky',
@@ -115,7 +112,6 @@ export default function IntelligencePage() {
             justifyContent: 'space-between',
           }}
         >
-          {/* Left: avatar + title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <ChatAvatar size={28} />
             <h1
@@ -131,7 +127,7 @@ export default function IntelligencePage() {
             </h1>
           </div>
 
-          {/* Right: toggle pill */}
+          {/* Toggle pill */}
           <div
             style={{
               display: 'flex',
@@ -152,10 +148,7 @@ export default function IntelligencePage() {
                 padding: '5px 14px',
                 background: view === 'chat' ? '#fff' : 'transparent',
                 color: view === 'chat' ? TEXT_1 : TEXT_3,
-                boxShadow:
-                  view === 'chat'
-                    ? '0 1px 3px rgba(0,0,0,0.08)'
-                    : 'none',
+                boxShadow: view === 'chat' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 transition: `all 200ms ${EASE_PREMIUM}`,
               }}
             >
@@ -172,10 +165,7 @@ export default function IntelligencePage() {
                 padding: '5px 14px',
                 background: view === 'log' ? '#fff' : 'transparent',
                 color: view === 'log' ? TEXT_1 : TEXT_3,
-                boxShadow:
-                  view === 'log'
-                    ? '0 1px 3px rgba(0,0,0,0.08)'
-                    : 'none',
+                boxShadow: view === 'log' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 transition: `all 200ms ${EASE_PREMIUM}`,
               }}
             >
@@ -185,7 +175,7 @@ export default function IntelligencePage() {
         </div>
       </header>
 
-      {/* ── Chat view: Welcome State ── */}
+      {/* Welcome State */}
       {view === 'chat' && messages.length === 0 && (
         <div
           style={{
@@ -197,7 +187,7 @@ export default function IntelligencePage() {
             padding: '0 20px',
           }}
         >
-          <ChatAvatar size={56} />
+          <OHLogo size={56} variant="icon" />
           <h2
             style={{
               fontSize: 22,
@@ -208,7 +198,7 @@ export default function IntelligencePage() {
               letterSpacing: '-0.02em',
             }}
           >
-            Hi Diarmuid,
+            OpenHouse Intelligence
           </h2>
           <p
             style={{
@@ -218,11 +208,11 @@ export default function IntelligencePage() {
               marginBottom: 0,
             }}
           >
-            What can I help you with today?
+            Your on-site co-worker
           </p>
 
-          {/* Suggested prompts */}
-          <div style={{ marginTop: 32, width: '100%', padding: '0 0' }}>
+          {/* Suggestion cards */}
+          <div style={{ marginTop: 32, width: '100%' }}>
             {SUGGESTED_PROMPTS.map((prompt, i) => (
               <button
                 key={i}
@@ -231,9 +221,10 @@ export default function IntelligencePage() {
                 style={{
                   display: 'block',
                   width: '100%',
-                  background: '#fff',
+                  background: 'rgba(212,175,55,0.05)',
                   borderRadius: 14,
-                  border: `1px solid ${BORDER_LIGHT}`,
+                  border: 'none',
+                  borderLeft: `3px solid ${GOLD}`,
                   padding: '14px 16px',
                   fontSize: 14,
                   fontWeight: 500,
@@ -241,6 +232,7 @@ export default function IntelligencePage() {
                   textAlign: 'left',
                   cursor: 'pointer',
                   marginBottom: 8,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 }}
               >
                 {prompt}
@@ -250,7 +242,7 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ── Chat view: Messages State ── */}
+      {/* Chat Messages */}
       {view === 'chat' && messages.length > 0 && (
         <div
           style={{
@@ -306,7 +298,7 @@ export default function IntelligencePage() {
                   {msg.content}
                 </div>
               </div>
-            )
+            ),
           )}
 
           {sending && (
@@ -330,7 +322,7 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ── Log view ── */}
+      {/* Log view */}
       {view === 'log' && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <h2
@@ -357,14 +349,7 @@ export default function IntelligencePage() {
             >
               <div>
                 <div style={{ fontSize: 11, color: TEXT_3 }}>{entry.time}</div>
-                <div
-                  style={{
-                    fontSize: 13.5,
-                    fontWeight: 500,
-                    color: TEXT_1,
-                    marginTop: 2,
-                  }}
-                >
+                <div style={{ fontSize: 13.5, fontWeight: 500, color: TEXT_1, marginTop: 2 }}>
                   {entry.action}
                 </div>
               </div>
@@ -385,7 +370,7 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ── Input bar (chat mode only) ── */}
+      {/* Input bar */}
       {view === 'chat' && (
         <div
           style={{

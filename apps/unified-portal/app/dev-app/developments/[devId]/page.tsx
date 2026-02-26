@@ -1,16 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
-import { SectionIcon, BackIcon, ChevronIcon } from '@/components/dev-app/shared/Icons';
+import Header from '@/components/dev-app/layout/Header';
+import { SectionIcon } from '@/components/dev-app/shared/Icons';
 import Badge from '@/components/dev-app/shared/Badge';
 import Pills from '@/components/dev-app/shared/Pills';
 import ContactSheet from '@/components/dev-app/developments/ContactSheet';
 import {
   GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_2, BORDER_LIGHT,
   RED, RED_BG, AMBER, AMBER_BG, GREEN, GREEN_BG,
-  SECTORS, DEV_DATA, type Sector, type SectorUnit,
+  SECTORS, type Sector, type SectorUnit,
 } from '@/lib/dev-app/design-system';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
@@ -19,89 +20,85 @@ const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   red: { color: RED, bg: RED_BG },
 };
 
+interface DevDetail {
+  id: string;
+  name: string;
+  location: string;
+  sector: string;
+  total_units: number;
+  sold_units: number;
+  progress: number;
+}
+
 export default function DevelopmentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const devId = params.devId as string;
 
-  const [sector, setSector] = useState<Sector>('bts');
-  const [activeSection, setActiveSection] = useState<string>(
-    SECTORS['bts'].sections[0]?.id ?? 'pipeline',
-  );
+  const [dev, setDev] = useState<DevDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState('pipeline');
   const [selectedUnit, setSelectedUnit] = useState<SectorUnit | null>(null);
   const [activePill, setActivePill] = useState('All');
 
-  const devName = decodeURIComponent(devId);
-  const dev = DEV_DATA[sector].find((d) => d.name === devName) ?? DEV_DATA[sector][0];
+  useEffect(() => {
+    fetch(`/api/dev-app/developments/${encodeURIComponent(devId)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.development) {
+          setDev(data.development);
+        } else if (data.id) {
+          setDev(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [devId]);
+
+  // Auto-detect sector from development data, default to 'bts'
+  const sector: Sector = (dev?.sector as Sector) || 'bts';
   const sectorConfig = SECTORS[sector];
 
   const filteredUnits =
     activePill === 'All'
       ? sectorConfig.units
-      : sectorConfig.units.filter((u) =>
+      : sectorConfig.units.filter(u =>
           u.stage.toLowerCase().includes(activePill.toLowerCase()),
         );
 
+  if (loading) {
+    return (
+      <MobileShell>
+        <Header
+          title="Loading..."
+          showBack
+          onBack={() => router.back()}
+        />
+        <div style={{ padding: 20 }}>
+          {[1, 2, 3].map(i => (
+            <div
+              key={i}
+              style={{
+                height: 80,
+                borderRadius: 14,
+                background: SURFACE_2,
+                marginBottom: 10,
+              }}
+              className="da-anim-fade"
+            />
+          ))}
+        </div>
+      </MobileShell>
+    );
+  }
+
   return (
     <MobileShell>
-      {/* Custom header -- frosted glass, sticky */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 30,
-          background: 'rgba(255,255,255,0.88)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
-          paddingBottom: 12,
-          paddingLeft: 16,
-          paddingRight: 16,
-          borderBottom: `1px solid ${BORDER_LIGHT}`,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          {/* Back button */}
-          <div
-            onClick={() => router.back()}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: SURFACE_2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <BackIcon />
-          </div>
-
-          {/* Dev name */}
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              color: TEXT_1,
-              fontSize: 17,
-              fontWeight: 700,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {dev?.name ?? 'Development'}
-          </div>
-
-          {/* Sector badge */}
+      <Header
+        title={dev?.name || 'Development'}
+        showBack
+        onBack={() => router.back()}
+        rightContent={
           <span
             style={{
               fontSize: 10,
@@ -111,16 +108,15 @@ export default function DevelopmentDetailPage() {
               padding: '3px 8px',
               borderRadius: 6,
               letterSpacing: '0.04em',
-              flexShrink: 0,
             }}
           >
             {sectorConfig.short}
           </span>
-        </div>
-      </header>
+        }
+      />
 
       {/* Section cards grid */}
-      <div style={{ padding: 20, marginTop: 16 }}>
+      <div style={{ padding: 20, marginTop: 8 }}>
         <div
           style={{
             display: 'grid',
@@ -129,14 +125,11 @@ export default function DevelopmentDetailPage() {
           }}
         >
           {sectorConfig.sections.map((section, i) => {
-            const stagger =
-              i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
             const isActive = activeSection === section.id;
-
             return (
               <div
                 key={section.id}
-                className={`da-press da-anim-in${stagger}`}
+                className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
                 onClick={() => {
                   setActiveSection(section.id);
                   setActivePill('All');
@@ -179,24 +172,19 @@ export default function DevelopmentDetailPage() {
       {/* Section content */}
       {activeSection === 'pipeline' ? (
         <>
-          {/* Stage filter pills */}
           <Pills
             items={sectorConfig.stages}
             active={activePill}
             onSelect={setActivePill}
           />
 
-          {/* Unit cards */}
           <div style={{ padding: '0 20px 20px' }}>
             {filteredUnits.map((unit, i) => {
-              const stagger =
-                i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
               const sc = STATUS_COLORS[unit.status] ?? STATUS_COLORS.green;
-
               return (
                 <div
                   key={unit.unit}
-                  className={`da-press da-anim-in${stagger}`}
+                  className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
                   onClick={() => setSelectedUnit(unit)}
                   style={{
                     background: '#fff',
@@ -207,7 +195,6 @@ export default function DevelopmentDetailPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  {/* Top row */}
                   <div
                     style={{
                       display: 'flex',
@@ -231,19 +218,9 @@ export default function DevelopmentDetailPage() {
                       {unit.days}d
                     </span>
                   </div>
-
-                  {/* Person name */}
-                  <div
-                    style={{
-                      color: TEXT_2,
-                      fontSize: 13,
-                      marginTop: 4,
-                    }}
-                  >
+                  <div style={{ color: TEXT_2, fontSize: 13, marginTop: 4 }}>
                     {unit.name}
                   </div>
-
-                  {/* Stage pill */}
                   <div style={{ marginTop: 8 }}>
                     <Badge text={unit.stage} color={unit.stageColor} />
                   </div>
@@ -253,11 +230,10 @@ export default function DevelopmentDetailPage() {
           </div>
         </>
       ) : (
-        /* Other sections -- placeholder */
         <div style={{ padding: '0 20px 20px' }}>
           {sectorConfig.sections
-            .filter((s) => s.id === activeSection)
-            .map((s) => (
+            .filter(s => s.id === activeSection)
+            .map(s => (
               <div
                 key={s.id}
                 style={{
@@ -268,7 +244,7 @@ export default function DevelopmentDetailPage() {
                 }}
               >
                 <div style={{ color: TEXT_1, fontSize: 15, fontWeight: 700 }}>
-                  Section: {s.name}
+                  {s.name}
                 </div>
                 <div style={{ color: TEXT_2, fontSize: 13, marginTop: 4 }}>
                   {s.metric}
@@ -278,7 +254,6 @@ export default function DevelopmentDetailPage() {
         </div>
       )}
 
-      {/* Contact sheet */}
       <ContactSheet unit={selectedUnit} onClose={() => setSelectedUnit(null)} />
     </MobileShell>
   );

@@ -1,32 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
 import Header from '@/components/dev-app/layout/Header';
-import SectorSwitch from '@/components/dev-app/shared/SectorSwitch';
 import { SearchIcon, ChevronIcon } from '@/components/dev-app/shared/Icons';
 import {
   GOLD, TEXT_1, TEXT_2, TEXT_3, SURFACE_1, SURFACE_2, BORDER, BORDER_LIGHT,
-  DEV_DATA, type Sector,
 } from '@/lib/dev-app/design-system';
+
+interface Development {
+  id: string;
+  name: string;
+  location: string;
+  sector: string;
+  total_units: number;
+  sold_units: number;
+  progress: number;
+}
 
 export default function DevelopmentsPage() {
   const router = useRouter();
-  const [sector, setSector] = useState<Sector>('bts');
   const [search, setSearch] = useState('');
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const devs = DEV_DATA[sector].filter((d) =>
+  useEffect(() => {
+    fetch('/api/dev-app/developments')
+      .then(r => r.json())
+      .then(data => setDevelopments(data.developments || []))
+      .catch(() => setDevelopments([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = developments.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <MobileShell>
       <Header title="Developments" />
-
-      <div style={{ paddingTop: 14 }}>
-        <SectorSwitch sector={sector} onSectorChange={setSector} />
-      </div>
 
       {/* Search bar */}
       <div style={{ padding: '14px 20px 0' }}>
@@ -62,17 +75,42 @@ export default function DevelopmentsPage() {
 
       {/* Development list */}
       <div style={{ padding: 20 }}>
-        {devs.map((dev, i) => {
-          const stagger =
-            i === 0 ? '' : i === 1 ? ' da-delay-1' : i === 2 ? ' da-delay-2' : ' da-delay-3';
-
-          return (
+        {loading ? (
+          [1, 2, 3].map(i => (
             <div
-              key={dev.name}
-              className={`da-press da-anim-in${stagger}`}
-              onClick={() =>
-                router.push(`/dev-app/developments/${encodeURIComponent(dev.name)}`)
-              }
+              key={i}
+              style={{
+                height: 120,
+                borderRadius: 16,
+                background: SURFACE_2,
+                marginBottom: 10,
+              }}
+              className="da-anim-fade"
+            />
+          ))
+        ) : filtered.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🏗️</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: TEXT_1 }}>
+              {search ? 'No matching developments' : 'No developments yet'}
+            </div>
+            <div style={{ fontSize: 13, color: TEXT_3, marginTop: 4 }}>
+              {search
+                ? 'Try a different search term.'
+                : 'Your developments will appear here once set up.'}
+            </div>
+          </div>
+        ) : (
+          filtered.map((dev, i) => (
+            <div
+              key={dev.id}
+              className={`da-press da-anim-in da-s${Math.min(i + 1, 7)}`}
+              onClick={() => router.push(`/dev-app/developments/${dev.id}`)}
               style={{
                 background: '#fff',
                 borderRadius: 16,
@@ -90,14 +128,28 @@ export default function DevelopmentsPage() {
                   alignItems: 'flex-start',
                 }}
               >
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ color: TEXT_1, fontSize: 15, fontWeight: 700 }}>
                     {dev.name}
                   </div>
-                  <div style={{ color: TEXT_3, fontSize: 12, marginTop: 2 }}>
-                    {dev.loc}
-                  </div>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: GOLD,
+                      background: `${GOLD}12`,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {(dev.sector || 'bts').toUpperCase()}
+                  </span>
                 </div>
+              </div>
+              <div style={{ color: TEXT_3, fontSize: 12, marginTop: 2 }}>
+                {dev.location}
               </div>
 
               {/* Progress bar */}
@@ -113,7 +165,7 @@ export default function DevelopmentsPage() {
                 <div
                   style={{
                     height: '100%',
-                    width: `${dev.pct}%`,
+                    width: `${dev.progress}%`,
                     borderRadius: 3,
                     background: GOLD,
                   }}
@@ -130,24 +182,18 @@ export default function DevelopmentsPage() {
                 }}
               >
                 <span style={{ color: TEXT_2, fontSize: 12 }}>
-                  {dev.units} units
+                  {dev.total_units} units &middot; {dev.sold_units} sold
                 </span>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ color: TEXT_2, fontSize: 12, fontWeight: 600 }}>
-                    {dev.pct}%
+                    {dev.progress}%
                   </span>
                   <ChevronIcon />
                 </div>
               </div>
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
     </MobileShell>
   );
