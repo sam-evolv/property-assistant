@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenHouse Care</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--gold:#D4AF37;--gold-50:#FEFCE8;--gold-100:#FEF9C3;--gold-200:#FEF08A;--gold-300:#FDE047;--gold-400:#FACC15;--gold-500:#D4AF37;--gold-600:#C9A961;--gold-700:#B8934C;--gold-800:#A67C3A;
+--bg:#ffffff;--surface:#f8f9fa;--surface-2:#f1f3f5;--surface-3:#e9ecef;
+--text:#0f1419;--text-2:#536471;--text-3:#8899a6;--border:#ebeef0;
+--ok:#0d9f6e;--err:#dc2626;--warn:#d97706;--info:#2563eb;
+--ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.56,.64,1);
+--shadow-card:0 1px 2px rgba(0,0,0,.03);--shadow-hover:0 4px 16px rgba(0,0,0,.05);
+--shadow-gold:0 4px 20px rgba(212,175,55,.12);--shadow-gold-lg:0 8px 32px rgba(212,175,55,.18);
+}
+html,body{margin:0;padding:0;background:#f0f0f0;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden}
+
+/* iPhone Frame */
+.phone{position:relative;width:393px;height:852px;border-radius:52px;background:var(--bg);overflow:hidden;
+box-shadow:0 0 0 1px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06),0 24px 48px rgba(0,0,0,.08),0 48px 96px rgba(0,0,0,.12),inset 0 0 0 1px rgba(255,255,255,.4);
+}
+.dynamic-island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:126px;height:37px;background:#000;border-radius:22px;z-index:100}
+.status-bar{position:absolute;top:0;left:0;right:0;height:54px;z-index:90;display:flex;justify-content:space-between;align-items:center;padding:14px 28px 0}
+.status-time{font-size:15px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+.status-icons{display:flex;align-items:center;gap:6px}
+
+/* Screens */
+.screen-container{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:68px 20px 100px;opacity:0;transform:translateY(8px);transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;scrollbar-width:none}
+.screen::-webkit-scrollbar{display:none}
+.screen.active{opacity:1;transform:translateY(0);pointer-events:auto}
+#screenChat{padding-bottom:160px}
+#screenDiag .diag-flow{padding-bottom:20px}
+
+/* Tab Bar */
+.tab-bar{position:absolute;bottom:0;left:0;right:0;height:88px;background:rgba(255,255,255,.82);backdrop-filter:blur(32px) saturate(180%);-webkit-backdrop-filter:blur(32px) saturate(180%);border-top:1px solid rgba(0,0,0,.04);z-index:80;display:flex;justify-content:space-around;align-items:flex-start;padding-top:8px}
+.tab-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative;padding:4px 12px;transition:transform .15s var(--ease)}
+.tab-item:active{transform:scale(.82)}
+.tab-item svg{width:24px;height:24px;stroke:var(--text-3);stroke-width:1.8;fill:none;transition:stroke .3s var(--ease),stroke-width .3s var(--ease)}
+.tab-item.active svg{stroke:var(--gold);stroke-width:2.2}
+.tab-label{font-size:10px;font-weight:500;color:var(--text-3);letter-spacing:.02em;transition:color .3s var(--ease),font-weight .3s var(--ease)}
+.tab-item.active .tab-label{color:var(--gold);font-weight:700}
+.tab-dot{position:absolute;top:-2px;left:50%;transform:translateX(-50%) scale(0);width:5px;height:5px;background:var(--gold);border-radius:50%;transition:transform .35s var(--spring)}
+.tab-item.active .tab-dot{transform:translateX(-50%) scale(1)}
+
+/* Chat Input */
+.chat-input-bar{position:absolute;bottom:88px;left:0;right:0;padding:8px 16px 8px;background:rgba(255,255,255,.82);backdrop-filter:blur(32px) saturate(180%);-webkit-backdrop-filter:blur(32px) saturate(180%);border-top:1px solid rgba(0,0,0,.04);z-index:75;display:flex;gap:8px;align-items:center;opacity:0;transform:translateY(20px);transition:opacity .35s var(--ease),transform .35s var(--ease);pointer-events:none}
+.chat-input-bar.visible{opacity:1;transform:translateY(0);pointer-events:auto}
+.chat-input{flex:1;height:40px;border:1.5px solid var(--border);border-radius:100px;padding:0 16px;font-family:inherit;font-size:14px;font-weight:450;outline:none;background:var(--bg);transition:border-color .2s var(--ease)}
+.chat-input:focus{border-color:var(--gold)}
+.chat-input::placeholder{color:var(--text-3)}
+.chat-send{width:36px;height:36px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s var(--ease),box-shadow .2s var(--ease)}
+.chat-send:hover{box-shadow:var(--shadow-gold)}
+.chat-send:active{transform:scale(.9)}
+.chat-send svg{width:18px;height:18px;fill:#fff;stroke:none}
+
+/* Scroll Reveal */
+.rv{opacity:0;transform:translateY(18px);transition:opacity .55s var(--ease),transform .55s var(--ease)}
+.rv.visible{opacity:1;transform:translateY(0)}
+.rv:nth-child(2){transition-delay:60ms}
+.rv:nth-child(3){transition-delay:120ms}
+.rv:nth-child(4){transition-delay:180ms}
+.rv:nth-child(5){transition-delay:240ms}
+.rv:nth-child(6){transition-delay:300ms}
+
+/* Choreographed Entry */
+.cho{opacity:0;transform:translateY(12px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.cho.in{opacity:1;transform:translateY(0)}
+
+/* Push Notification */
+.push-notif{position:absolute;top:8px;left:12px;right:12px;z-index:200;background:rgba(255,255,255,.92);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-radius:20px;padding:14px 16px;box-shadow:0 4px 24px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.06);transform:translateY(-120px);opacity:0;transition:transform .55s var(--spring),opacity .35s var(--ease);cursor:pointer;pointer-events:none}
+.push-notif.show{transform:translateY(0);opacity:1;pointer-events:auto}
+.push-notif.dismiss{transform:translateY(-120px);opacity:0;transition:transform .4s var(--ease),opacity .3s var(--ease)}
+.push-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.push-app-icon{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--gold-50),var(--gold-200));display:flex;align-items:center;justify-content:center}
+.push-app-icon svg{width:12px;height:12px;fill:var(--gold)}
+.push-app-label{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+.push-app-dot{width:4px;height:4px;border-radius:50%;background:var(--gold);margin-left:-2px}
+.push-time{font-size:11px;color:var(--text-3);margin-left:auto}
+.push-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;letter-spacing:-.02em}
+.push-body{font-size:13px;font-weight:430;color:var(--text-2);line-height:1.4}
+
+/* ===== HOME SCREEN STYLES ===== */
+.greeting{font-size:15px;font-weight:450;color:var(--text-2);margin-bottom:4px}
+.home-title{font-size:30px;font-weight:800;color:var(--text);letter-spacing:-.035em;line-height:1.1;margin-bottom:12px}
+.installer-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--surface);border-radius:100px;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:20px}
+.installer-badge svg{width:14px;height:14px}
+.verified-tick{color:var(--ok)}
+
+/* Hero Card */
+.hero-card{position:relative;border-radius:20px;padding:24px;overflow:hidden;background:linear-gradient(145deg,#fefdf8,#fefce8 35%,#fef9c3 70%,#fef08a);margin-bottom:16px}
+.hero-orb{position:absolute;border-radius:50%;pointer-events:none}
+.hero-orb-1{width:200px;height:200px;top:-40px;right:-30px;background:radial-gradient(circle,rgba(212,175,55,.12) 0%,transparent 70%);animation:orbFloat1 6s ease-in-out infinite}
+.hero-orb-2{width:160px;height:160px;bottom:-30px;left:-20px;background:radial-gradient(circle,rgba(250,204,21,.1) 0%,transparent 70%);animation:orbFloat2 8s ease-in-out infinite}
+@keyframes orbFloat1{0%,100%{transform:translate(0,0)}50%{transform:translate(-12px,8px)}}
+@keyframes orbFloat2{0%,100%{transform:translate(0,0)}50%{transform:translate(8px,-12px)}}
+
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);border-radius:100px;font-size:12px;font-weight:650;color:var(--ok);margin-bottom:4px}
+.pulse-dot{position:relative;width:8px;height:8px}
+.pulse-dot::before{content:'';position:absolute;inset:0;background:var(--ok);border-radius:50%}
+.pulse-dot::after{content:'';position:absolute;inset:-3px;border:2px solid var(--ok);border-radius:50%;opacity:0;animation:pulseRing 2.5s ease-out infinite}
+@keyframes pulseRing{0%{transform:scale(.8);opacity:.6}100%{transform:scale(1.6);opacity:0}}
+
+.hero-updated{font-size:11px;font-weight:450;color:var(--text-3);margin-bottom:20px}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;position:relative}
+.metric{text-align:center;padding:0 8px;position:relative}
+.metric:not(:last-child)::after{content:'';position:absolute;right:0;top:4px;bottom:4px;width:1px;background:rgba(0,0,0,.08)}
+.metric-value{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.2}
+.metric-value.gold{color:var(--gold)}
+.metric-value.dark{color:var(--text)}
+.metric-value.green{color:var(--ok)}
+.metric-label{font-size:11px;font-weight:650;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* Savings Counter */
+.savings-card{border-radius:16px;padding:18px 20px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);margin-bottom:16px;position:relative;overflow:hidden}
+.savings-shimmer{position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:shimmer 3s ease-in-out infinite}
+@keyframes shimmer{0%{left:-100%}100%{left:200%}}
+.savings-inner{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+.savings-icon{width:44px;height:44px;border-radius:12px;background:rgba(13,159,110,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.savings-icon svg{width:22px;height:22px;fill:var(--ok)}
+.savings-content{flex:1}
+.savings-label{font-size:11px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.savings-amount{font-size:32px;font-weight:800;color:var(--text);letter-spacing:-.04em;line-height:1.1}
+.savings-cents{font-size:22px;font-weight:700}
+.savings-date{font-size:11px;font-weight:450;color:var(--text-2);margin-top:2px}
+
+/* Energy Chart */
+.chart-card{border-radius:16px;padding:20px;background:var(--bg);border:1px solid var(--border);margin-bottom:16px}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.chart-title{font-size:16px;font-weight:750;color:var(--text);letter-spacing:-.02em}
+.chart-toggle{display:flex;background:var(--surface);border-radius:100px;padding:2px;gap:2px}
+.chart-toggle-btn{padding:5px 14px;border-radius:100px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text-3);font-family:inherit;transition:all .25s var(--ease)}
+.chart-toggle-btn.active{background:var(--bg);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.chart-bars{display:flex;align-items:flex-end;justify-content:space-between;height:120px;gap:6px;margin-bottom:12px;padding:0 4px}
+.chart-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.bar-group{display:flex;gap:3px;align-items:flex-end;height:100px;width:100%}
+.bar{width:100%;border-radius:6px 6px 3px 3px;transition:height .6s var(--ease);position:relative}
+.bar-gen{background:linear-gradient(180deg,var(--gold),var(--gold-600))}
+.bar-con{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+.bar.today{box-shadow:0 2px 12px rgba(212,175,55,.2)}
+.chart-day{font-size:11px;font-weight:500;color:var(--text-3);transition:color .2s var(--ease),font-weight .2s var(--ease)}
+.chart-day.today{color:var(--gold);font-weight:750}
+.chart-legend{display:flex;gap:16px;justify-content:center}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--text-3)}
+.legend-dot{width:8px;height:8px;border-radius:2px}
+.legend-dot.gold{background:var(--gold)}
+.legend-dot.blue{background:#3b82f6}
+
+/* Tip Card */
+.tip-card{border-radius:16px;padding:18px 20px;background:linear-gradient(135deg,#eff6ff,#dbeafe);margin-bottom:16px;display:flex;gap:14px;align-items:flex-start}
+.tip-icon{width:40px;height:40px;border-radius:12px;background:rgba(37,99,235,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tip-icon svg{width:20px;height:20px;fill:var(--info)}
+.tip-title{font-size:14px;font-weight:750;color:var(--text);letter-spacing:-.02em;margin-bottom:3px}
+.tip-text{font-size:13px;font-weight:430;color:var(--text-2);line-height:1.5}
+
+/* Quick Actions */
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.quick-card{border-radius:14px;padding:16px;cursor:pointer;border:1.5px solid transparent;transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease);-webkit-tap-highlight-color:transparent}
+.quick-card:hover{transform:translateY(-3px);border-color:var(--gold);box-shadow:var(--shadow-gold)}
+.quick-card:active{transform:scale(.95)}
+.quick-card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;transition:transform .25s var(--ease)}
+.quick-card:hover .quick-card-icon{transform:scale(1.08)}
+.quick-card-icon svg{width:18px;height:18px}
+.quick-card-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.01em;margin-bottom:2px}
+.quick-card-sub{font-size:11px;font-weight:430;color:var(--text-3)}
+.qc-red{background:rgba(220,38,38,.06)}.qc-red .quick-card-icon{background:rgba(220,38,38,.1)}.qc-red .quick-card-icon svg{fill:var(--err);stroke:none}
+.qc-gold{background:rgba(212,175,55,.06)}.qc-gold .quick-card-icon{background:rgba(212,175,55,.1)}.qc-gold .quick-card-icon svg{fill:var(--gold);stroke:none}
+.qc-blue{background:rgba(37,99,235,.06)}.qc-blue .quick-card-icon{background:rgba(37,99,235,.1)}.qc-blue .quick-card-icon svg{fill:var(--info);stroke:none}
+.qc-green{background:rgba(13,159,110,.06)}.qc-green .quick-card-icon{background:rgba(13,159,110,.1)}.qc-green .quick-card-icon svg{fill:var(--ok);stroke:none}
+
+/* Warranty */
+.warranty-section{margin-bottom:24px}
+.warranty-title{font-size:16px;font-weight:750;color:var(--text);letter-spacing:-.02em;margin-bottom:12px}
+.warranty-card{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:var(--bg);border:1px solid var(--border);margin-bottom:8px;transition:transform .25s var(--ease),border-color .25s var(--ease)}
+.warranty-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.warranty-icon{width:38px;height:38px;border-radius:10px;background:var(--gold-50);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.warranty-icon svg{width:18px;height:18px;fill:var(--gold)}
+.warranty-info{flex:1}
+.warranty-name{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.warranty-years{font-size:11px;font-weight:450;color:var(--text-3)}
+.warranty-badge{padding:3px 10px;border-radius:100px;background:rgba(13,159,110,.08);font-size:10px;font-weight:700;color:var(--ok);text-transform:uppercase;letter-spacing:.06em}
+
+/* ===== CHAT SCREEN STYLES ===== */
+.chat-header{display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.chat-avatar{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--gold-50),var(--gold-200));display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-avatar svg{width:22px;height:22px;fill:var(--gold)}
+.chat-name{font-size:16px;font-weight:750;color:var(--text);letter-spacing:-.02em}
+.chat-status{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:450;color:var(--text-3)}
+.chat-online-dot{width:7px;height:7px;background:var(--ok);border-radius:50%;animation:breathe 2.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+.chat-messages{display:flex;flex-direction:column;gap:12px;padding-bottom:20px}
+.msg{max-width:82%;padding:12px 16px;border-radius:18px;font-size:14px;font-weight:430;line-height:1.55;animation:msgIn .4s var(--ease) both}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.msg-ai{align-self:flex-start;background:var(--surface);color:var(--text);border-bottom-left-radius:6px}
+.msg-user{align-self:flex-end;background:linear-gradient(135deg,var(--gold),var(--gold-600));color:#fff;border-bottom-right-radius:6px}
+.suggestions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.suggestion-pill{padding:8px 14px;border-radius:100px;background:var(--bg);border:1.5px solid var(--border);font-size:13px;font-weight:550;color:var(--text-2);cursor:pointer;font-family:inherit;transition:border-color .2s var(--ease),transform .15s var(--ease),background .2s var(--ease)}
+.suggestion-pill:hover{border-color:var(--gold);background:var(--gold-50)}
+.suggestion-pill:active{transform:scale(.95)}
+.typing-indicator{display:flex;gap:4px;padding:12px 16px;align-self:flex-start;background:var(--surface);border-radius:18px;border-bottom-left-radius:6px}
+.typing-dot{width:7px;height:7px;background:var(--text-3);border-radius:50%;animation:typingBounce 1.4s ease-in-out infinite}
+.typing-dot:nth-child(2){animation-delay:150ms}
+.typing-dot:nth-child(3){animation-delay:300ms}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
+/* Rich response blocks */
+.step-block{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:8px 0}
+.step-header{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.step-body{font-size:13px;font-weight:430;color:var(--text-2);line-height:1.5}
+.escalate-note{margin-top:8px;font-size:13px;font-weight:500;color:var(--text-2);font-style:italic}
+
+/* ===== GUIDES SCREEN STYLES ===== */
+.guides-title{font-size:28px;font-weight:800;color:var(--text);letter-spacing:-.035em;margin-bottom:16px}
+.search-bar{width:100%;height:42px;border-radius:12px;border:1.5px solid var(--border);padding:0 14px 0 40px;font-size:14px;font-weight:450;font-family:inherit;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238899a6' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 14px center;outline:none;color:var(--text);transition:border-color .2s var(--ease);margin-bottom:20px}
+.search-bar:focus{border-color:var(--gold)}
+.search-bar::placeholder{color:var(--text-3)}
+.section-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;margin-top:8px}
+.section-label svg{width:14px;height:14px}
+.guide-card{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:var(--bg);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:transform .25s var(--ease),border-color .25s var(--ease)}
+.guide-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.guide-card:active{transform:scale(.97)}
+.guide-thumb{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.guide-thumb svg{width:20px;height:20px}
+.guide-thumb.purple{background:rgba(139,92,246,.1)}.guide-thumb.purple svg{fill:#8b5cf6;stroke:none}
+.guide-thumb.red{background:rgba(220,38,38,.1)}.guide-thumb.red svg{fill:var(--err);stroke:none}
+.guide-thumb.blue{background:rgba(37,99,235,.1)}.guide-thumb.blue svg{fill:var(--info);stroke:none}
+.guide-info{flex:1}
+.guide-name{font-size:14px;font-weight:650;color:var(--text);letter-spacing:-.01em}
+.guide-meta{font-size:11px;font-weight:430;color:var(--text-3)}
+.guide-chevron{width:16px;height:16px;stroke:var(--text-3);fill:none;stroke-width:2;transition:transform .25s var(--ease)}
+.guide-card:hover .guide-chevron{transform:translateX(3px);stroke:var(--gold)}
+
+/* ===== DIAGNOSTIC SCREEN STYLES ===== */
+.diag-header{text-align:center;margin-bottom:20px}
+.diag-icon{width:56px;height:56px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:rgba(220,38,38,.08);border-radius:16px;animation:wobble 3s ease-in-out infinite}
+@keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+.diag-icon svg{width:28px;height:28px;fill:var(--err)}
+.diag-title{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-.035em;margin-bottom:4px}
+.diag-sub{font-size:14px;font-weight:430;color:var(--text-2)}
+.issue-card{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:var(--bg);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:transform .25s var(--ease),border-color .25s var(--ease)}
+.issue-card:hover{transform:translateY(-3px);border-color:var(--gold)}
+.issue-card:active{transform:scale(.97)}
+.issue-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .25s var(--ease)}
+.issue-card:hover .issue-icon{transform:rotate(-3deg) scale(1.08)}
+.issue-icon svg{width:20px;height:20px}
+.issue-icon.red{background:rgba(220,38,38,.1)}.issue-icon.red svg{fill:var(--err);stroke:none}
+.issue-icon.amber{background:rgba(217,119,6,.1)}.issue-icon.amber svg{fill:var(--warn);stroke:none}
+.issue-icon.blue{background:rgba(37,99,235,.1)}.issue-icon.blue svg{fill:var(--info);stroke:none}
+.issue-icon.purple{background:rgba(139,92,246,.1)}.issue-icon.purple svg{fill:#8b5cf6;stroke:none}
+.issue-icon.green{background:rgba(13,159,110,.1)}.issue-icon.green svg{fill:var(--ok);stroke:none}
+.issue-name{flex:1;font-size:14px;font-weight:650;color:var(--text)}
+.issue-chevron{width:16px;height:16px;stroke:var(--text-3);fill:none;stroke-width:2}
+.overflow-card{text-align:center;padding:14px;border-radius:14px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-2);transition:background .2s var(--ease);margin-top:4px}
+.overflow-card:hover{background:var(--surface-2)}
+
+/* Visual Diagnostic Steps */
+.diag-flow{display:none}
+.diag-flow.active{display:block;animation:fadeSlide .4s var(--ease) both}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.diag-back{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;margin-bottom:16px;background:none;border:none;font-family:inherit;padding:0;transition:color .2s var(--ease)}
+.diag-back:hover{color:var(--gold)}
+.diag-back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.diag-step{display:none}
+.diag-step.active{display:block;animation:fadeSlide .4s var(--ease) both}
+.diag-step-title{font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.03em;margin-bottom:16px;line-height:1.3}
+
+/* Inverter Diagram */
+.inverter-diagram{position:relative;padding:24px;background:var(--surface);border-radius:16px;margin-bottom:20px;display:flex;gap:20px;align-items:center;justify-content:center}
+.inverter-box{width:140px;height:180px;background:linear-gradient(180deg,#4a4a4a,#3a3a3a);border-radius:8px;position:relative;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.inverter-screen{position:absolute;top:20px;left:16px;right:16px;height:50px;background:#1a1a1a;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'Courier New',monospace;font-size:14px;font-weight:700;color:#22c55e}
+.inverter-led{position:absolute;top:85px;left:24px;width:10px;height:10px;border-radius:50%;background:var(--err);animation:ledBlink 1s ease-in-out infinite}
+@keyframes ledBlink{0%,100%{opacity:1;box-shadow:0 0 6px var(--err),0 0 12px rgba(220,38,38,.4)}50%{opacity:.3;box-shadow:0 0 2px var(--err)}}
+.inverter-led-label{position:absolute;top:83px;left:42px;font-size:9px;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.04em}
+.inverter-vents{position:absolute;bottom:20px;left:20px;right:20px;display:flex;flex-direction:column;gap:4px}
+.inverter-vent{height:2px;background:rgba(255,255,255,.08);border-radius:1px}
+
+.ac-switch-area{display:flex;flex-direction:column;align-items:center;gap:8px}
+.ac-switch-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}
+.ac-switch{width:48px;height:80px;background:var(--surface-2);border-radius:8px;border:2px solid var(--border);position:relative;cursor:pointer;transition:border-color .3s var(--ease);overflow:hidden}
+.ac-switch.highlight{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.15);animation:switchPulse 2s ease-in-out infinite}
+@keyframes switchPulse{0%,100%{box-shadow:0 0 0 3px rgba(212,175,55,.15)}50%{box-shadow:0 0 0 6px rgba(212,175,55,.08)}}
+.ac-switch-handle{position:absolute;left:6px;right:6px;height:34px;background:var(--err);border-radius:4px;bottom:6px;transition:all .3s var(--spring);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;letter-spacing:.04em}
+.ac-switch.on .ac-switch-handle{bottom:auto;top:6px;background:var(--ok)}
+.ac-switch-positions{position:absolute;right:-30px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-between;padding:8px 0}
+.ac-switch-pos{font-size:9px;font-weight:700;color:var(--text-3)}
+
+.diag-buttons{display:flex;gap:10px;margin-top:16px}
+.diag-btn{flex:1;padding:14px;border-radius:12px;border:none;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:transform .15s var(--ease),box-shadow .2s var(--ease);-webkit-tap-highlight-color:transparent}
+.diag-btn:active{transform:scale(.95)}
+.diag-btn-yes{background:var(--ok);color:#fff}
+.diag-btn-yes:hover{box-shadow:0 4px 16px rgba(13,159,110,.25)}
+.diag-btn-no{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+.diag-btn-no:hover{border-color:var(--gold)}
+
+/* Restart steps */
+.restart-steps{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.restart-step{display:flex;align-items:flex-start;gap:12px}
+.restart-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+.restart-num.red{background:var(--err)}
+.restart-num.gold{background:var(--gold)}
+.restart-num.green{background:var(--ok)}
+.restart-text{font-size:14px;font-weight:500;color:var(--text);line-height:1.5;padding-top:5px}
+
+/* Resolved */
+.resolved-check{width:72px;height:72px;margin:24px auto 16px;background:rgba(13,159,110,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:popIn .5s var(--spring) both}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.resolved-check svg{width:36px;height:36px;stroke:var(--ok);fill:none;stroke-width:2.5}
+.resolved-title{text-align:center;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.03em;margin-bottom:8px}
+.resolved-tag{text-align:center;display:inline-block;padding:6px 14px;border-radius:100px;background:rgba(13,159,110,.08);color:var(--ok);font-size:12px;font-weight:700;margin:0 auto;width:fit-content}
+.resolved-tag-wrap{text-align:center}
+
+/* Escalation */
+.escalate-icon{width:72px;height:72px;margin:24px auto 16px;background:rgba(217,119,6,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:popIn .5s var(--spring) both}
+.escalate-icon svg{width:36px;height:36px;stroke:var(--warn);fill:none;stroke-width:2}
+.escalate-title{text-align:center;font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.03em;margin-bottom:6px}
+.escalate-text{text-align:center;font-size:14px;font-weight:430;color:var(--text-2);line-height:1.5;margin-bottom:12px}
+.escalate-tag{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:100px;background:rgba(217,119,6,.08);color:var(--warn);font-size:12px;font-weight:700}
+.escalate-tag-wrap{text-align:center}
+.escalate-data{margin-top:16px;padding:16px;background:var(--surface);border-radius:12px}
+.escalate-data-title{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.escalate-data-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+.escalate-data-label{font-weight:500;color:var(--text-3)}
+.escalate-data-value{font-weight:650;color:var(--text)}
+
+/* ===== SYSTEM SCREEN STYLES ===== */
+.system-icon{width:72px;height:72px;margin:0 auto 16px;border-radius:20px;background:linear-gradient(135deg,var(--gold-50),var(--gold-200));display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-gold);animation:breatheShadow 4s ease-in-out infinite}
+@keyframes breatheShadow{0%,100%{box-shadow:var(--shadow-gold)}50%{box-shadow:var(--shadow-gold-lg)}}
+.system-icon svg{width:36px;height:36px;fill:var(--gold)}
+.system-address{text-align:center;font-size:14px;font-weight:500;color:var(--text-2);margin-bottom:24px}
+.sys-card{border-radius:16px;background:var(--bg);border:1px solid var(--border);padding:20px;margin-bottom:12px}
+.sys-card-title{font-size:15px;font-weight:750;color:var(--text);letter-spacing:-.02em;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sys-card-title svg{width:18px;height:18px}
+.sys-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.03)}
+.sys-row:last-child{border-bottom:none}
+.sys-label{font-size:13px;font-weight:450;color:var(--text-3)}
+.sys-value{font-size:13px;font-weight:650;color:var(--text);text-align:right}
+.sys-value.gold{color:var(--gold)}
+.sys-value.green{color:var(--ok)}
+.sys-footer{text-align:center;padding-top:16px;font-size:12px;font-weight:500;color:var(--text-3)}
+
+/* Quick Fix */
+.quickfix-card{padding:20px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-radius:16px;margin-bottom:16px}
+.quickfix-title{font-size:16px;font-weight:750;color:var(--ok);margin-bottom:4px}
+.quickfix-text{font-size:14px;font-weight:430;color:var(--text-2);line-height:1.5}
+
+/* Reduced Motion */
+@media(prefers-reduced-motion:reduce){
+*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+.rv{opacity:1;transform:none}
+.cho{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div class="phone">
+<!-- Dynamic Island -->
+<div class="dynamic-island"></div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+<span class="status-time">9:41</span>
+<div class="status-icons">
+<svg width="16" height="12" viewBox="0 0 16 12"><rect x="0" y="4" width="3" height="8" rx="1" fill="#0f1419"/><rect x="4.5" y="2.5" width="3" height="9.5" rx="1" fill="#0f1419"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#0f1419"/><rect x="13.5" y="0" width="2.5" height="12" rx="1" fill="#0f1419" opacity=".25"/></svg>
+<svg width="15" height="12" viewBox="0 0 15 12"><path d="M7.5 3.6C9.6 3.6 11.5 4.4 12.9 5.8L14.3 4.4C12.5 2.6 10.1 1.5 7.5 1.5S2.5 2.6.7 4.4L2.1 5.8C3.5 4.4 5.4 3.6 7.5 3.6Z" fill="#0f1419"/><path d="M7.5 7.2C8.7 7.2 9.8 7.7 10.6 8.5L12 7.1C10.8 5.9 9.2 5.2 7.5 5.2S4.2 5.9 3 7.1L4.4 8.5C5.2 7.7 6.3 7.2 7.5 7.2Z" fill="#0f1419"/><circle cx="7.5" cy="10.5" r="1.5" fill="#0f1419"/></svg>
+<svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="2.5" stroke="#0f1419" stroke-width="1" fill="none"/><rect x="22" y="4" width="2" height="4" rx="1" fill="#0f1419" opacity=".4"/><rect x="1.5" y="2.5" width="17" height="7" rx="1.5" fill="#0f1419"/></svg>
+</div>
+</div>
+
+<!-- Push Notification -->
+<div class="push-notif" id="pushNotif" onclick="dismissNotif()">
+<div class="push-header">
+<div class="push-app-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+<span class="push-app-label">OpenHouse Care</span>
+<span class="push-app-dot"></span>
+<span class="push-time">now</span>
+</div>
+<div class="push-title">Peak Solar Production</div>
+<div class="push-body">Peak solar production right now — great time to run the dishwasher or washing machine!</div>
+</div>
+
+<div class="screen-container">
+<!-- ===== SCREEN 1: HOME ===== -->
+<div class="screen active" id="screenHome">
+<div class="greeting cho" style="transition-delay:100ms">Good morning, Mary</div>
+<div class="home-title cho" style="transition-delay:150ms">Your Solar System</div>
+<div class="cho" style="transition-delay:250ms">
+<div class="installer-badge">
+<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/></svg>
+<span>Installed by SE Systems</span>
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#0d9f6e" stroke-width="2.5" class="verified-tick"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+</div>
+</div>
+
+<div class="hero-card cho" style="transition-delay:300ms">
+<div class="hero-orb hero-orb-1"></div>
+<div class="hero-orb hero-orb-2"></div>
+<div class="status-pill">
+<span class="pulse-dot"></span>
+All Systems Normal
+</div>
+<div class="hero-updated">Updated 2 min ago</div>
+<div class="metrics-grid">
+<div class="metric">
+<div class="metric-value gold" id="metricKwh">0</div>
+<div class="metric-label">Generated Today</div>
+</div>
+<div class="metric">
+<div class="metric-value dark" id="metricEuro">€0</div>
+<div class="metric-label">Saved Today</div>
+</div>
+<div class="metric">
+<div class="metric-value green" id="metricEff">0%</div>
+<div class="metric-label">Efficiency</div>
+</div>
+</div>
+</div>
+
+<div class="savings-card rv">
+<div class="savings-shimmer"></div>
+<div class="savings-inner">
+<div class="savings-icon">
+<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.94s4.18 1.36 4.18 3.85c0 1.89-1.39 2.9-3.12 3.19z"/></svg>
+</div>
+<div class="savings-content">
+<div class="savings-label">Total Savings</div>
+<div class="savings-amount">€<span id="savingsWhole">47</span>.<span class="savings-cents" id="savingsCents">20</span></div>
+<div class="savings-date">Since January 14, 2026</div>
+</div>
+</div>
+</div>
+
+<div class="chart-card rv">
+<div class="chart-header">
+<div class="chart-title">Energy Production</div>
+<div class="chart-toggle">
+<button class="chart-toggle-btn active">Week</button>
+<button class="chart-toggle-btn">Month</button>
+</div>
+</div>
+<div class="chart-bars" id="chartBars">
+<div class="chart-col"><div class="bar-group"><div class="bar bar-gen" data-h="55" style="height:0"></div><div class="bar bar-con" data-h="30" style="height:0"></div></div><div class="chart-day">Mon</div></div>
+<div class="chart-col"><div class="bar-group"><div class="bar bar-gen" data-h="68" style="height:0"></div><div class="bar bar-con" data-h="35" style="height:0"></div></div><div class="chart-day">Tue</div></div>
+<div class="chart-col"><div class="bar-group"><div class="bar bar-gen" data-h="72" style="height:0"></div><div class="bar bar-con" data-h="28" style="height:0"></div></div><div class="chart-day">Wed</div></div>
+<div class="chart-col today-col"><div class="bar-group"><div class="bar bar-gen today" data-h="82" style="height:0"></div><div class="bar bar-con" data-h="38" style="height:0"></div></div><div class="chart-day today">Thu</div></div>
+<div class="chart-col"><div class="bar-group" style="opacity:.25"><div class="bar bar-gen" data-h="45" style="height:0"></div><div class="bar bar-con" data-h="20" style="height:0"></div></div><div class="chart-day">Fri</div></div>
+<div class="chart-col"><div class="bar-group" style="opacity:.15"><div class="bar bar-gen" data-h="30" style="height:0"></div><div class="bar bar-con" data-h="15" style="height:0"></div></div><div class="chart-day">Sat</div></div>
+<div class="chart-col"><div class="bar-group" style="opacity:.1"><div class="bar bar-gen" data-h="20" style="height:0"></div><div class="bar bar-con" data-h="10" style="height:0"></div></div><div class="chart-day">Sun</div></div>
+</div>
+<div class="chart-legend">
+<div class="legend-item"><span class="legend-dot gold"></span>Generated</div>
+<div class="legend-item"><span class="legend-dot blue"></span>Consumed</div>
+</div>
+</div>
+
+<div class="tip-card rv">
+<div class="tip-icon">
+<svg viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+</div>
+<div>
+<div class="tip-title">Winter Energy Tip</div>
+<div class="tip-text">Run your dishwasher and washing machine between 11am–2pm to maximise free solar energy usage during shorter winter days.</div>
+</div>
+</div>
+
+<div class="quick-grid rv">
+<div class="quick-card qc-red" onclick="showScreen('diagnostic')">
+<div class="quick-card-icon"><svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></div>
+<div class="quick-card-title">Something Wrong?</div>
+<div class="quick-card-sub">Run diagnostics</div>
+</div>
+<div class="quick-card qc-gold" onclick="showScreen('chat')">
+<div class="quick-card-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg></div>
+<div class="quick-card-title">Ask Assistant</div>
+<div class="quick-card-sub">AI-powered help</div>
+</div>
+<div class="quick-card qc-blue" onclick="showScreen('docs')">
+<div class="quick-card-icon"><svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg></div>
+<div class="quick-card-title">Guides & Videos</div>
+<div class="quick-card-sub">Learn your system</div>
+</div>
+<div class="quick-card qc-green">
+<div class="quick-card-icon"><svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg></div>
+<div class="quick-card-title">Book a Visit</div>
+<div class="quick-card-sub">Schedule service</div>
+</div>
+</div>
+
+<div class="warranty-section rv">
+<div class="warranty-title">Your Warranties</div>
+<div class="warranty-card">
+<div class="warranty-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></div>
+<div class="warranty-info"><div class="warranty-name">Solar Panels</div><div class="warranty-years">25 Year Performance Warranty</div></div>
+<div class="warranty-badge">Active</div>
+</div>
+<div class="warranty-card">
+<div class="warranty-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></div>
+<div class="warranty-info"><div class="warranty-name">Inverter</div><div class="warranty-years">10 Year Manufacturer Warranty</div></div>
+<div class="warranty-badge">Active</div>
+</div>
+<div class="warranty-card">
+<div class="warranty-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></div>
+<div class="warranty-info"><div class="warranty-name">Workmanship</div><div class="warranty-years">5 Year Installation Warranty</div></div>
+<div class="warranty-badge">Active</div>
+</div>
+</div>
+</div>
+<!-- ===== SCREEN 2: CHAT ===== -->
+<div class="screen" id="screenChat">
+<div class="chat-header">
+<div class="chat-avatar">
+<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+</div>
+<div>
+<div class="chat-name">OpenHouse Care</div>
+<div class="chat-status"><span class="chat-online-dot"></span>Trained on your system</div>
+</div>
+</div>
+<div class="chat-messages" id="chatMessages">
+<div class="msg msg-ai">Hi Mary! I'm your OpenHouse Care assistant, trained specifically on your SE Systems solar installation. How can I help you today?</div>
+<div class="suggestions" id="suggestions">
+<button class="suggestion-pill" onclick="sendSuggestion(this)">My inverter has a red light</button>
+<button class="suggestion-pill" onclick="sendSuggestion(this)">How can I save more energy?</button>
+<button class="suggestion-pill" onclick="sendSuggestion(this)">Tell me about heat pumps</button>
+</div>
+</div>
+</div>
+
+<!-- ===== SCREEN 3: GUIDES ===== -->
+<div class="screen" id="screenDocs">
+<div class="guides-title cho" style="transition-delay:100ms">Guides &amp; Resources</div>
+<input class="search-bar cho" style="transition-delay:150ms" type="text" placeholder="Search guides, documents..." readonly>
+
+<div class="rv">
+<div class="section-label">
+<svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" width="14" height="14"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+Video Guides
+</div>
+<div class="guide-card">
+<div class="guide-thumb purple"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+<div class="guide-info"><div class="guide-name">Understanding Your Inverter</div><div class="guide-meta">4 min video</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="guide-card">
+<div class="guide-thumb purple"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+<div class="guide-info"><div class="guide-name">How to Read Your Energy Meter</div><div class="guide-meta">3 min video</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="guide-card">
+<div class="guide-thumb purple"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+<div class="guide-info"><div class="guide-name">Resetting After a Power Cut</div><div class="guide-meta">2 min video</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+</div>
+
+<div class="rv">
+<div class="section-label">
+<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+Documents
+</div>
+<div class="guide-card">
+<div class="guide-thumb red"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+<div class="guide-info"><div class="guide-name">Installation Certificate</div><div class="guide-meta">PDF Document</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="guide-card">
+<div class="guide-thumb red"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+<div class="guide-info"><div class="guide-name">SEAI Grant Confirmation</div><div class="guide-meta">PDF Document</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+</div>
+
+<div class="rv">
+<div class="section-label">
+<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+Troubleshooting
+</div>
+<div class="guide-card">
+<div class="guide-thumb blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+<div class="guide-info"><div class="guide-name">Inverter Error Code Guide</div><div class="guide-meta">Reference Guide</div></div>
+<svg class="guide-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+</div>
+</div>
+<!-- ===== SCREEN 4: DIAGNOSTIC ===== -->
+<div class="screen" id="screenDiag">
+<!-- Issue List -->
+<div id="issueList">
+<div class="diag-header">
+<div class="diag-icon">
+<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+</div>
+<div class="diag-title">What's the issue?</div>
+<div class="diag-sub">Select what you're experiencing</div>
+</div>
+
+<div class="issue-card rv" onclick="startDiagnostic()">
+<div class="issue-icon red"><svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></div>
+<div class="issue-name">Error Light on Inverter</div>
+<svg class="issue-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="issue-card rv">
+<div class="issue-icon amber"><svg viewBox="0 0 24 24"><path d="M11 15h2v2h-2v-2zm0-8h2v6h-2V7zm1-5C6.47 2 2 6.5 2 12s4.47 10 9.99 10C17.52 22 22 17.5 22 12S17.52 2 12 2zm.01 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8.01 3.58 8.01 8-3.59 8-8.01 8z"/></svg></div>
+<div class="issue-name">No Power Generating</div>
+<svg class="issue-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="issue-card rv">
+<div class="issue-icon blue"><svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z"/></svg></div>
+<div class="issue-name">Controls Not Responding</div>
+<svg class="issue-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="issue-card rv">
+<div class="issue-icon purple"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
+<div class="issue-name">Unusual Noise</div>
+<svg class="issue-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="issue-card rv">
+<div class="issue-icon green"><svg viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg></div>
+<div class="issue-name">Energy Bill Seems High</div>
+<svg class="issue-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+<div class="overflow-card" onclick="showScreen('chat')">Something else? Chat with assistant</div>
+</div>
+
+<!-- Diagnostic Flow -->
+<div class="diag-flow" id="diagFlow">
+<button class="diag-back" onclick="backToIssues()">
+<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+Back to issues
+</button>
+
+<!-- Step 1: Check AC Switch -->
+<div class="diag-step active" id="diagStep1">
+<div class="diag-step-title">Is the AC isolator switch in the ON position?</div>
+<div class="inverter-diagram">
+<div class="inverter-box">
+<div class="inverter-screen">FAULT</div>
+<div class="inverter-led"></div>
+<div class="inverter-led-label">Status</div>
+<div class="inverter-vents">
+<div class="inverter-vent"></div>
+<div class="inverter-vent"></div>
+<div class="inverter-vent"></div>
+<div class="inverter-vent"></div>
+</div>
+</div>
+<div class="ac-switch-area">
+<div class="ac-switch-label">AC Isolator</div>
+<div class="ac-switch highlight on" id="acSwitch" onclick="toggleSwitch()">
+<div class="ac-switch-handle" id="switchHandle">ON</div>
+</div>
+<div class="ac-switch-positions">
+<span class="ac-switch-pos">ON</span>
+<span class="ac-switch-pos">OFF</span>
+</div>
+</div>
+</div>
+<div class="diag-buttons">
+<div class="diag-btn diag-btn-yes" onclick="diagYesOn()">Yes, it's ON</div>
+<div class="diag-btn diag-btn-no" onclick="diagNoOff()">No, it's OFF</div>
+</div>
+</div>
+
+<!-- Step 2: Restart -->
+<div class="diag-step" id="diagStep2">
+<div class="diag-step-title">Try restarting: Turn AC isolator OFF, wait 30 seconds, then ON again</div>
+<div class="restart-steps">
+<div class="restart-step">
+<div class="restart-num red">1</div>
+<div class="restart-text">Turn the AC isolator switch to the <strong>OFF</strong> position</div>
+</div>
+<div class="restart-step">
+<div class="restart-num gold">2</div>
+<div class="restart-text">Wait <strong>30 seconds</strong> — this allows the inverter to fully reset</div>
+</div>
+<div class="restart-step">
+<div class="restart-num green">3</div>
+<div class="restart-text">Turn the AC isolator switch back to <strong>ON</strong> and check the status light</div>
+</div>
+</div>
+<div class="diag-buttons">
+<div class="diag-btn diag-btn-yes" onclick="diagResolved()">Done — light is green now</div>
+<div class="diag-btn diag-btn-no" onclick="diagEscalate()">Still showing red</div>
+</div>
+</div>
+
+<!-- Step 3: Resolved -->
+<div class="diag-step" id="diagStepResolved">
+<div class="resolved-check">
+<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+</div>
+<div class="resolved-title">Problem Resolved!</div>
+<div class="resolved-tag-wrap"><div class="resolved-tag">No technician visit needed</div></div>
+</div>
+
+<!-- Quick Fix (switch was off) -->
+<div class="diag-step" id="diagStepQuickFix">
+<div class="resolved-check">
+<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+</div>
+<div class="resolved-title">Quick Fix</div>
+<div class="quickfix-card">
+<div class="quickfix-title">Flip the switch to ON</div>
+<div class="quickfix-text">Your AC isolator switch appears to be off. Simply flip it to the ON position and wait 2–3 minutes for your inverter to restart. The status light should turn green.</div>
+</div>
+<div class="resolved-tag-wrap"><div class="resolved-tag">No technician visit needed</div></div>
+</div>
+
+<!-- Escalation -->
+<div class="diag-step" id="diagStepEscalate">
+<div class="escalate-icon">
+<svg viewBox="0 0 24 24"><path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>
+</div>
+<div class="escalate-title">Technician Visit Needed</div>
+<div class="escalate-text">SE Systems has been notified with your diagnostic data. A technician will be in touch shortly.</div>
+<div class="escalate-tag-wrap">
+<div class="escalate-tag">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+SE Systems will call within 24hrs
+</div>
+</div>
+<div class="escalate-data">
+<div class="escalate-data-title">Diagnostic Data Sent</div>
+<div class="escalate-data-row"><span class="escalate-data-label">Issue</span><span class="escalate-data-value">Error Light on Inverter</span></div>
+<div class="escalate-data-row"><span class="escalate-data-label">AC Isolator</span><span class="escalate-data-value">Checked — ON</span></div>
+<div class="escalate-data-row"><span class="escalate-data-label">Restart Attempted</span><span class="escalate-data-value">Yes — Still Red</span></div>
+<div class="escalate-data-row"><span class="escalate-data-label">System</span><span class="escalate-data-value">SolarEdge SE6000H</span></div>
+<div class="escalate-data-row"><span class="escalate-data-label">Address</span><span class="escalate-data-value">12 Meadow Drive</span></div>
+</div>
+</div>
+</div>
+</div>
+<!-- ===== SCREEN 5: SYSTEM ===== -->
+<div class="screen" id="screenSystem">
+<div style="text-align:center">
+<div class="system-icon cho" style="transition-delay:100ms">
+<svg viewBox="0 0 24 24"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z"/></svg>
+</div>
+</div>
+<div class="system-address cho" style="transition-delay:150ms">12 Meadow Drive, Ballincollig, Co. Cork</div>
+
+<div class="sys-card rv">
+<div class="sys-card-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+Solar Panel System
+</div>
+<div class="sys-row"><span class="sys-label">System Size</span><span class="sys-value">6.2 kW</span></div>
+<div class="sys-row"><span class="sys-label">Panel Type</span><span class="sys-value">JA Solar 400W</span></div>
+<div class="sys-row"><span class="sys-label">Panel Count</span><span class="sys-value">16 panels</span></div>
+<div class="sys-row"><span class="sys-label">Inverter</span><span class="sys-value">SolarEdge SE6000H</span></div>
+<div class="sys-row"><span class="sys-label">Install Date</span><span class="sys-value">Oct 15, 2024</span></div>
+<div class="sys-row"><span class="sys-label">Installer</span><span class="sys-value gold">SE Systems</span></div>
+<div class="sys-row"><span class="sys-label">SEAI Grant</span><span class="sys-value green">€2,400 Approved</span></div>
+</div>
+
+<div class="sys-card rv">
+<div class="sys-card-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+Service Schedule
+</div>
+<div class="sys-row"><span class="sys-label">Next Inspection</span><span class="sys-value">Jun 2025</span></div>
+<div class="sys-row"><span class="sys-label">Status</span><span class="sys-value green">Scheduled</span></div>
+</div>
+
+<div class="sys-footer cho" style="transition-delay:250ms">Powered by OpenHouse Care</div>
+</div>
+</div><!-- end screen-container -->
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+<div class="tab-item active" onclick="showScreen('home')" data-screen="home">
+<div class="tab-dot"></div>
+<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+<span class="tab-label">Home</span>
+</div>
+<div class="tab-item" onclick="showScreen('chat')" data-screen="chat">
+<div class="tab-dot"></div>
+<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+<span class="tab-label">Assistant</span>
+</div>
+<div class="tab-item" onclick="showScreen('docs')" data-screen="docs">
+<div class="tab-dot"></div>
+<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+<span class="tab-label">Guides</span>
+</div>
+<div class="tab-item" onclick="showScreen('system')" data-screen="system">
+<div class="tab-dot"></div>
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+<span class="tab-label">System</span>
+</div>
+</div>
+
+<!-- Chat Input Bar -->
+<div class="chat-input-bar" id="chatInputBar">
+<input class="chat-input" id="chatInput" type="text" placeholder="Ask about your system..." onkeydown="if(event.key==='Enter')sendChat()">
+<button class="chat-send" onclick="sendChat()">
+<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+</button>
+</div>
+
+</div><!-- end phone -->
+
+<script>
+// ===== STATE =====
+let currentScreen = 'home';
+let notifFired = false;
+let savingsValue = 4720; // cents
+let savingsInterval = null;
+let notifTimeout = null;
+let dismissTimeout = null;
+
+// ===== NAVIGATION =====
+function showScreen(name) {
+  // Map 'diagnostic' to internal screen name
+  const screenMap = { home:'screenHome', chat:'screenChat', docs:'screenDocs', diagnostic:'screenDiag', system:'screenSystem' };
+  const tabMap = { home:'home', chat:'chat', docs:'docs', diagnostic:'home', system:'system' };
+  
+  currentScreen = name;
+  
+  // Switch screens
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(screenMap[name]);
+  if (target) {
+    target.classList.add('active');
+    target.scrollTop = 0;
+  }
+  
+  // Update tabs
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  const activeTab = document.querySelector(`.tab-item[data-screen="${tabMap[name]}"]`);
+  if (activeTab) activeTab.classList.add('active');
+  
+  // Chat input bar
+  const chatBar = document.getElementById('chatInputBar');
+  if (name === 'chat') {
+    chatBar.classList.add('visible');
+  } else {
+    chatBar.classList.remove('visible');
+  }
+  
+  // Trigger choreographed animations
+  setTimeout(() => {
+    target.querySelectorAll('.cho').forEach(el => el.classList.add('in'));
+  }, 50);
+  
+  // Re-trigger Home animations
+  if (name === 'home') {
+    animateCounters();
+    animateBars();
+  }
+  
+  // Setup scroll reveals for this screen
+  setupScrollReveals(target);
+}
+
+// ===== ANIMATED COUNTERS =====
+function animateCounters() {
+  const targets = [
+    { el: document.getElementById('metricKwh'), value: 4.2, suffix: ' kWh', decimals: 1 },
+    { el: document.getElementById('metricEuro'), value: 3.18, prefix: '\u20AC', decimals: 2 },
+    { el: document.getElementById('metricEff'), value: 94, suffix: '%', decimals: 0 }
+  ];
+  
+  const duration = 1200;
+  const start = performance.now();
+  
+  function tick(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // Quartic ease-out
+    const eased = 1 - Math.pow(1 - progress, 4);
+    
+    targets.forEach(t => {
+      const current = t.value * eased;
+      let display = '';
+      if (t.prefix) display += t.prefix;
+      display += current.toFixed(t.decimals || 0);
+      if (t.suffix) display += t.suffix;
+      t.el.textContent = display;
+    });
+    
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ===== ENERGY BARS =====
+function animateBars() {
+  const bars = document.querySelectorAll('#chartBars .bar');
+  bars.forEach(bar => { bar.style.height = '0'; });
+  
+  setTimeout(() => {
+    bars.forEach((bar, i) => {
+      setTimeout(() => {
+        bar.style.height = bar.dataset.h + '%';
+      }, i * 80);
+    });
+  }, 200);
+}
+
+// ===== LIVE SAVINGS COUNTER =====
+function startSavingsCounter() {
+  function tick() {
+    savingsValue++;
+    const whole = Math.floor(savingsValue / 100);
+    const cents = savingsValue % 100;
+    document.getElementById('savingsWhole').textContent = whole;
+    document.getElementById('savingsCents').textContent = cents.toString().padStart(2, '0');
+    
+    // Random interval 3-5 seconds
+    const next = 3000 + Math.random() * 2000;
+    savingsInterval = setTimeout(tick, next);
+  }
+  
+  const initial = 3000 + Math.random() * 2000;
+  savingsInterval = setTimeout(tick, initial);
+}
+
+// ===== PUSH NOTIFICATION =====
+function triggerNotification() {
+  if (notifFired || currentScreen !== 'home') return;
+  notifFired = true;
+  
+  const notif = document.getElementById('pushNotif');
+  notif.classList.add('show');
+  
+  dismissTimeout = setTimeout(() => {
+    dismissNotif();
+  }, 6000);
+}
+
+function dismissNotif() {
+  const notif = document.getElementById('pushNotif');
+  notif.classList.remove('show');
+  notif.classList.add('dismiss');
+  if (dismissTimeout) clearTimeout(dismissTimeout);
+  
+  setTimeout(() => {
+    notif.classList.remove('dismiss');
+  }, 500);
+}
+
+// ===== SCROLL REVEALS =====
+function setupScrollReveals(container) {
+  if (!container) return;
+  const elements = container.querySelectorAll('.rv:not(.visible)');
+  if (elements.length === 0) return;
+  
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, {
+    root: container,
+    threshold: 0.1,
+    rootMargin: '0px 0px -20px 0px'
+  });
+  
+  elements.forEach(el => observer.observe(el));
+}
+
+// ===== CHAT SYSTEM =====
+const chatResponses = {
+  'my inverter has a red light': `<div>A red light on your inverter usually indicates a fault, but don't worry — most of the time it's something simple. Let's troubleshoot:</div>
+<div class="step-block"><div class="step-header">Step 1 — Check DC Isolators</div><div class="step-body">Locate the DC isolator switch on the side of your inverter. Make sure it's in the ON position. Sometimes it can be accidentally knocked off during maintenance.</div></div>
+<div class="step-block"><div class="step-header">Step 2 — Restart AC Isolator</div><div class="step-body">Find your AC isolator switch (usually on the wall near the inverter or in your consumer unit). Turn it OFF, wait 30 seconds, then turn it back ON. This resets the inverter.</div></div>
+<div class="step-block"><div class="step-header">Step 3 — Wait for Green Light</div><div class="step-body">After restarting, wait 2–3 minutes. Your inverter should boot up and the light should turn green, indicating normal operation.</div></div>
+<div class="escalate-note">If the red light persists after these steps, I can arrange for an SE Systems technician to take a look. Would you like me to do that?</div>`,
+
+  'how can i save more energy?': `<div>Great question! Here are some practical tips to maximise your solar savings:</div>
+<div class="step-block"><div class="step-header">Timing is Everything</div><div class="step-body">Run your high-energy appliances (dishwasher, washing machine, tumble dryer) between 11am–2pm when your panels are generating the most electricity. This way you use free solar power instead of drawing from the grid.</div></div>
+<div class="step-block"><div class="step-header">Hot Water Boost</div><div class="step-body">If you have an immersion heater, set it to run at midday. Your solar panels can heat your water for free during peak generation hours, saving you from using gas or night-rate electricity.</div></div>
+<div class="step-block"><div class="step-header">Export Tariff</div><div class="step-body">Register for the Clean Export Guarantee (CEG) with your energy supplier. Any excess electricity your panels generate gets exported to the grid and you get paid for it — currently around 24c per kWh with some providers.</div></div>`,
+
+  'tell me about heat pumps': `<div>Heat pumps are one of the most efficient ways to heat your home, and they pair brilliantly with solar panels!</div>
+<div class="step-block"><div class="step-header">How Heat Pumps Work</div><div class="step-body">A heat pump extracts heat from the outside air (even in cold weather) and uses it to heat your home and hot water. For every 1 kWh of electricity used, a heat pump generates 3–4 kWh of heat energy.</div></div>
+<div class="step-block"><div class="step-header">Solar + Heat Pump Synergy</div><div class="step-body">Your solar panels can power your heat pump during the day, essentially giving you free heating. Many homeowners see their heating bills drop by 50–70% with this combination.</div></div>
+<div class="step-block"><div class="step-header">SEAI Grant Available</div><div class="step-body">The SEAI offers a grant of up to €3,500 towards heat pump installation. Combined with the energy savings, most systems pay for themselves within 5–7 years.</div></div>
+<div class="step-block"><div class="step-header">SE Systems Installs Heat Pumps</div><div class="step-body">As your trusted solar installer, SE Systems also installs air-to-water heat pumps. They can assess your home and recommend the right system to complement your existing solar setup.</div></div>`
+};
+
+const fallbackResponses = [
+  "That's a great question! Let me look into that for you. In the meantime, you can also check our Guides section for helpful resources about your solar system.",
+  "I'd love to help with that. For specific technical queries, I'd recommend reaching out to SE Systems directly — they have all the details of your installation on file.",
+  "Thanks for asking! While I can help with common questions about your solar system, for this particular query I'd suggest checking the guides section or contacting SE Systems for personalised advice."
+];
+
+function sendSuggestion(btn) {
+  const text = btn.textContent;
+  // Remove suggestions
+  document.getElementById('suggestions').style.display = 'none';
+  
+  // Add user message
+  addMessage(text, 'user');
+  
+  // Show typing, then respond
+  showTypingThenRespond(text.toLowerCase());
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  
+  input.value = '';
+  addMessage(text, 'user');
+  showTypingThenRespond(text.toLowerCase());
+}
+
+function addMessage(text, type) {
+  const messages = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  msg.className = `msg msg-${type === 'user' ? 'user' : 'ai'}`;
+  msg.innerHTML = text;
+  messages.appendChild(msg);
+  scrollChatToBottom();
+}
+
+function showTypingThenRespond(query) {
+  const messages = document.getElementById('chatMessages');
+  
+  // Add typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'typing-indicator';
+  typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  messages.appendChild(typing);
+  scrollChatToBottom();
+  
+  // Random delay 1200-2000ms
+  const delay = 1200 + Math.random() * 800;
+  
+  setTimeout(() => {
+    typing.remove();
+    
+    // Find response
+    let response = chatResponses[query];
+    if (!response) {
+      response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+    }
+    
+    addMessage(response, 'ai');
+  }, delay);
+}
+
+function scrollChatToBottom() {
+  const screen = document.getElementById('screenChat');
+  setTimeout(() => {
+    screen.scrollTop = screen.scrollHeight;
+  }, 50);
+}
+
+// ===== DIAGNOSTIC FLOW =====
+function startDiagnostic() {
+  document.getElementById('issueList').style.display = 'none';
+  const flow = document.getElementById('diagFlow');
+  flow.classList.add('active');
+  showDiagStep('diagStep1');
+  document.getElementById('screenDiag').scrollTop = 0;
+}
+
+function backToIssues() {
+  document.getElementById('diagFlow').classList.remove('active');
+  document.getElementById('issueList').style.display = 'block';
+  
+  // Reset all steps
+  document.querySelectorAll('.diag-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('diagStep1').classList.add('active');
+  
+  // Reset switch
+  const sw = document.getElementById('acSwitch');
+  sw.classList.add('on');
+  document.getElementById('switchHandle').textContent = 'ON';
+  
+  document.getElementById('screenDiag').scrollTop = 0;
+}
+
+function showDiagStep(stepId) {
+  document.querySelectorAll('.diag-step').forEach(s => s.classList.remove('active'));
+  document.getElementById(stepId).classList.add('active');
+  document.getElementById('screenDiag').scrollTop = 0;
+}
+
+function toggleSwitch() {
+  const sw = document.getElementById('acSwitch');
+  const handle = document.getElementById('switchHandle');
+  if (sw.classList.contains('on')) {
+    sw.classList.remove('on');
+    handle.textContent = 'OFF';
+  } else {
+    sw.classList.add('on');
+    handle.textContent = 'ON';
+  }
+}
+
+function diagYesOn() { showDiagStep('diagStep2'); }
+function diagNoOff() { showDiagStep('diagStepQuickFix'); }
+function diagResolved() { showDiagStep('diagStepResolved'); }
+function diagEscalate() { showDiagStep('diagStepEscalate'); }
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  // Chart toggle buttons
+  document.querySelectorAll('.chart-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.chart-toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  // Choreographed entry for home screen
+  setTimeout(() => {
+    document.querySelectorAll('#screenHome .cho').forEach(el => el.classList.add('in'));
+  }, 100);
+  
+  // Animate counters and bars
+  setTimeout(animateCounters, 400);
+  setTimeout(animateBars, 500);
+  
+  // Start savings counter
+  startSavingsCounter();
+  
+  // Push notification after 8 seconds
+  notifTimeout = setTimeout(triggerNotification, 8000);
+  
+  // Setup scroll reveals for home
+  setTimeout(() => {
+    setupScrollReveals(document.getElementById('screenHome'));
+  }, 300);
+});
+</script>
+</body>
+</html>
