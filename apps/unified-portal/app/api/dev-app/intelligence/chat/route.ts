@@ -9,6 +9,14 @@ import {
   mapComplianceStatus,
 } from '@/lib/dev-app/pipeline-helpers';
 
+interface PipelineData {
+  unit_id: string;
+  purchaser_name?: string | null;
+  purchaser_email?: string | null;
+  purchaser_phone?: string | null;
+  [key: string]: any;
+}
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -193,7 +201,7 @@ async function executeTool(
         .from('unit_sales_pipeline')
         .select(PIPELINE_SELECT_COLUMNS)
         .eq('unit_id', unit.id)
-        .maybeSingle();
+        .maybeSingle() as any as { data: PipelineData | null };
 
       // Get compliance docs with type names
       const { data: compDocs } = await supabase

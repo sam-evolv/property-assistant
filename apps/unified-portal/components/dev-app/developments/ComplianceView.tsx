@@ -30,9 +30,7 @@ export default function ComplianceView({ units, overallPct, documentTypes }: Com
     <div className="px-4">
       {/* Overall progress */}
       <div className="flex items-center justify-center gap-4 py-4">
-        <ProgressRing progress={overallPct} size={72} strokeWidth={6}>
-          <span className="text-[16px] font-bold text-[#111827]">{overallPct}%</span>
-        </ProgressRing>
+        <ProgressRing percent={overallPct} size={72} stroke={6} />
         <div>
           <p className="text-[14px] font-semibold text-[#111827]">Overall Compliance</p>
           <p className="text-[12px] text-[#6b7280]">

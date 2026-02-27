@@ -17,7 +17,7 @@ export default function SuggestedPrompts({ onSelect }: SuggestedPromptsProps) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
       <div className="flex flex-col items-center mb-8">
-        <OHLogo size={48} variant="full" />
+        <OHLogo size={48} />
         <p className="text-[13px] text-[#9ca3af] mt-2">Your on-site co-worker</p>
       </div>
 

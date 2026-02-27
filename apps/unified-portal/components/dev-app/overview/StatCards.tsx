@@ -30,13 +30,14 @@ export default function StatCards({ stats }: StatCardsProps) {
               animation: `devapp-fadeInUp 0.55s cubic-bezier(0.16,1,0.3,1) ${i * 60}ms forwards`,
             }}
           >
-            <AnimCounter
-              value={stat.value}
-              prefix={stat.prefix}
-              suffix={stat.suffix}
-              decimals={stat.decimals}
-              className="block text-[18px] font-extrabold text-[#111827] tracking-tight"
-            />
+            <span className="block text-[18px] font-extrabold text-[#111827] tracking-tight">
+              <AnimCounter
+                value={stat.value}
+                prefix={stat.prefix}
+                suffix={stat.suffix}
+                decimals={stat.decimals}
+              />
+            </span>
             <span className="text-[10px] font-medium text-[#9ca3af] uppercase tracking-wider">
               {stat.label}
             </span>

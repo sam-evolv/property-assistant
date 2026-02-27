@@ -84,12 +84,11 @@ export default function DevelopmentCards({ developments, onTap }: DevelopmentCar
             </button>
           );
 
-          return dev.is_most_active ? (
-            <ShimmerEffect key={dev.id} active>
+          return (
+            <div key={dev.id} style={{ position: 'relative' }}>
               {card}
-            </ShimmerEffect>
-          ) : (
-            <div key={dev.id}>{card}</div>
+              {dev.is_most_active && <ShimmerEffect />}
+            </div>
           );
         })}
       </div>
