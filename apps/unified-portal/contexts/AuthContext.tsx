@@ -12,7 +12,7 @@
 
 import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 
-export type AdminRole = 'super_admin' | 'developer' | 'admin';
+export type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin' | 'installer' | 'installer_admin';
 
 export interface AuthContextType {
   userRole: AdminRole | null;

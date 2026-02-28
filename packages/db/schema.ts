@@ -2269,6 +2269,129 @@ export const integrationAuditLog = pgTable('integration_audit_log', {
   createdIdx: index('idx_integration_audit_log_created').on(table.created_at),
 }));
 
+// ============================================================
+// OpenHouse Care Vertical Tables
+// ============================================================
+
+export const installations = pgTable('installations', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  job_reference: text('job_reference').notNull(),
+  customer_name: text('customer_name').notNull(),
+  customer_email: text('customer_email'),
+  customer_phone: text('customer_phone'),
+  address_line_1: text('address_line_1').notNull(),
+  address_line_2: text('address_line_2'),
+  city: text('city').notNull(),
+  county: text('county'),
+  eircode: text('eircode'),
+  system_type: text('system_type').notNull().default('solar_pv'),
+  system_size_kwp: decimal('system_size_kwp', { precision: 5, scale: 2 }),
+  inverter_model: text('inverter_model'),
+  panel_model: text('panel_model'),
+  panel_count: integer('panel_count'),
+  system_specs: jsonb('system_specs').default(sql`'{}'::jsonb`),
+  install_date: timestamp('install_date', { mode: 'date' }).notNull(),
+  warranty_expiry: timestamp('warranty_expiry', { mode: 'date' }),
+  portal_status: text('portal_status').default('pending'),
+  portal_activated_at: timestamp('portal_activated_at', { withTimezone: true }),
+  health_status: text('health_status').default('healthy'),
+  source: text('source').default('private'),
+  unit_id: uuid('unit_id').references(() => units.id),
+  region: text('region'),
+  notes: text('notes'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_installations_tenant').on(table.tenant_id),
+  healthIdx: index('idx_installations_health').on(table.tenant_id, table.health_status),
+  regionIdx: index('idx_installations_region').on(table.tenant_id, table.region),
+  portalIdx: index('idx_installations_portal').on(table.tenant_id, table.portal_status),
+}));
+
+export const escalations = pgTable('escalations', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  installation_id: uuid('installation_id').references(() => installations.id).notNull(),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  support_query_id: uuid('support_query_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  diagnostic_context: jsonb('diagnostic_context').default(sql`'{}'::jsonb`),
+  priority: text('priority').default('medium'),
+  status: text('status').default('open'),
+  assigned_to: text('assigned_to'),
+  assigned_at: timestamp('assigned_at', { withTimezone: true }),
+  scheduled_date: timestamp('scheduled_date', { mode: 'date' }),
+  resolved_at: timestamp('resolved_at', { withTimezone: true }),
+  resolution_notes: text('resolution_notes'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantStatusIdx: index('idx_escalations_tenant_status').on(table.tenant_id, table.status),
+}));
+
+export const supportQueries = pgTable('support_queries', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  installation_id: uuid('installation_id').references(() => installations.id).notNull(),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  query_text: text('query_text').notNull(),
+  ai_response: text('ai_response'),
+  response_source: text('response_source').default('ai'),
+  resolved: boolean('resolved').default(true),
+  escalated: boolean('escalated').default(false),
+  escalation_id: uuid('escalation_id').references(() => escalations.id),
+  query_category: text('query_category'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  tenantIdx: index('idx_support_queries_tenant').on(table.tenant_id),
+  installationIdx: index('idx_support_queries_installation').on(table.installation_id),
+  createdIdx: index('idx_support_queries_created').on(table.tenant_id, table.created_at),
+}));
+
+export const diagnosticFlows = pgTable('diagnostic_flows', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  icon: text('icon'),
+  colour: text('colour').default('red'),
+  system_type: text('system_type').default('solar_pv'),
+  status: text('status').default('draft'),
+  steps: jsonb('steps').notNull().default(sql`'[]'::jsonb`),
+  stats_started: integer('stats_started').default(0),
+  stats_resolved: integer('stats_resolved').default(0),
+  stats_escalated: integer('stats_escalated').default(0),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+export const diagnosticCompletions = pgTable('diagnostic_completions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  diagnostic_flow_id: uuid('diagnostic_flow_id').references(() => diagnosticFlows.id).notNull(),
+  installation_id: uuid('installation_id').references(() => installations.id).notNull(),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  steps_completed: jsonb('steps_completed').default(sql`'[]'::jsonb`),
+  outcome: text('outcome').notNull(),
+  completed_at_step: integer('completed_at_step'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+export const installerContent = pgTable('installer_content', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  content_type: text('content_type').notNull(),
+  category: text('category'),
+  system_type: text('system_type').default('solar_pv'),
+  brand: text('brand'),
+  model: text('model'),
+  file_url: text('file_url'),
+  status: text('status').default('live'),
+  view_count: integer('view_count').default(0),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
 // Alias exports for camelCase naming convention compatibility
 export const docChunks = doc_chunks;
 export const analytics_events = analyticsEvents;

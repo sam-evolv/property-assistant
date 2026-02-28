@@ -1,4 +1,4 @@
-export type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
+export type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin' | 'installer' | 'installer_admin';
 
 export interface AdminSession {
   id: string;

@@ -30,6 +30,7 @@ const PUBLIC_PATHS = [
   '/archive',
   '/smart-archive',
   '/dev-tools',
+  '/care',
 ];
 
 const PROTECTED_PATHS = [
@@ -37,6 +38,7 @@ const PROTECTED_PATHS = [
   '/super',
   '/developer',
   '/portal',
+  '/care-dashboard',
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -48,18 +50,21 @@ function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some(path => pathname.startsWith(path));
 }
 
-type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin';
+type AdminRole = 'super_admin' | 'developer' | 'admin' | 'tenant_admin' | 'installer' | 'installer_admin';
 
 function resolveDefaultRoute(role: AdminRole | null, preferredRole?: AdminRole | null): string {
   if (!role) {
     return '/access-pending';
   }
-  
+
   const routingRole = preferredRole || role;
-  
+
   switch (routingRole) {
     case 'super_admin':
       return '/super';
+    case 'installer':
+    case 'installer_admin':
+      return '/care-dashboard';
     case 'developer':
     case 'admin':
     case 'tenant_admin':
@@ -73,23 +78,27 @@ function isRoleAllowedForPath(role: AdminRole | null, pathname: string): boolean
   if (!role) {
     return false;
   }
-  
+
   if (role === 'super_admin') {
     return true;
   }
-  
+
   if (pathname.startsWith('/super')) {
     return false;
   }
-  
+
   if (pathname.startsWith('/admin')) {
     return false;
   }
-  
+
+  if (role === 'installer' || role === 'installer_admin') {
+    return pathname.startsWith('/care-dashboard');
+  }
+
   if (role === 'developer' || role === 'admin' || role === 'tenant_admin') {
     return pathname.startsWith('/developer') || pathname.startsWith('/portal');
   }
-  
+
   return false;
 }
 

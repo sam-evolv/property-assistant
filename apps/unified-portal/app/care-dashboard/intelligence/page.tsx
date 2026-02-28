@@ -1,0 +1,5 @@
+import { CareIntelligenceClient } from './intelligence-client';
+
+export default function CareIntelligencePage() {
+  return <CareIntelligenceClient />;
+}
