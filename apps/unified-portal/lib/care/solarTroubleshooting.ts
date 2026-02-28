@@ -89,7 +89,7 @@ export const SOLAR_TROUBLESHOOTING: TroubleshootingEntry[] = [
     ],
     estimatedTime: '15 minutes (mostly waiting)',
     calloutCost: 180,
-    prevention: 'Never switch off the AC isolator unless you are performing maintenance. A 'DO NOT SWITCH' label is strongly recommended.',
+    prevention: `Never switch off the AC isolator unless you are performing maintenance. A 'DO NOT SWITCH' label is strongly recommended.`,
     relatedErrors: ['FAULT_AC', 'F25'],
   },
 
