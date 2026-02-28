@@ -149,9 +149,77 @@ interface HomeScreenProps {
 }
 
 export default function HomeScreen({ installationId }: HomeScreenProps) {
-  const [system] = useState<SystemOverview>(mockSystem);
-  const [performance] = useState<PerformanceData>(mockPerformance);
-  const [alerts] = useState<AlertItem[]>(mockAlerts);
+  const [installation, setInstallation] = useState<any>(null);
+  const [system, setSystem] = useState<SystemOverview>(mockSystem);
+  const [performance, setPerformance] = useState<PerformanceData>(mockPerformance);
+  const [alerts, setAlerts] = useState<AlertItem[]>(mockAlerts);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchInstallationData();
+  }, [installationId]);
+
+  const fetchInstallationData = async () => {
+    try {
+      const response = await fetch(`/api/care/installations/${installationId}`);
+      if (!response.ok) throw new Error('Failed to fetch installation');
+
+      const { installation: inst, solarData, alerts: dbAlerts } = await response.json();
+      setInstallation(inst);
+
+      // Build system overview from installation data
+      const systemData: SystemOverview = {
+        systemType: inst.system_type,
+        capacity: inst.capacity || '6.6 kWp',
+        panelCount: inst.component_specs?.panelCount || 16,
+        inverterModel: inst.component_specs?.inverter || inst.system_model,
+        installDate: inst.installation_date,
+        warrantyExpiry: inst.warranty_expiry || new Date(new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      setSystem(systemData);
+
+      // Build performance data from telemetry
+      if (solarData && inst.system_type === 'solar') {
+        const performanceData: PerformanceData = {
+          todayGeneration: `${solarData.generation.today.toFixed(1)} kWh`,
+          monthGeneration: `${solarData.generation.thisMonth.toFixed(0)} kWh`,
+          yearGeneration: `${solarData.generation.thisYear.toFixed(0)} kWh`,
+          co2Saved: `${(solarData.generation.thisYear * 0.407 / 1000).toFixed(2)} tonnes`,
+          selfConsumption: `${solarData.selfConsumption?.toFixed(0) || 68}%`,
+        };
+        setPerformance(performanceData);
+      }
+
+      // Set alerts
+      if (dbAlerts && dbAlerts.length > 0) {
+        const alertItems: AlertItem[] = dbAlerts.map((a: any) => ({
+          id: a.id,
+          type: a.alert_type === 'error' ? 'warning' : a.alert_type === 'warning' ? 'warning' : 'info',
+          title: a.title,
+          description: a.description,
+          date: new Date(a.created_at).toLocaleDateString(),
+        }));
+        setAlerts(alertItems);
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch installation data:', error);
+      setLoading(false);
+      // Fall back to mock data
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-auto flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#D4AF37]" />
+          <p className="text-sm text-gray-500 mt-2">Loading system data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto">
