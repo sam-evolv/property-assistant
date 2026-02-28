@@ -80,7 +80,7 @@ export function CareLayoutWithSidebar({ children }: SidebarMenuProps) {
   const [serviceTypeOpen, setServiceTypeOpen] = useState(false);
   const [selectedServiceType, setSelectedServiceType] = useState('All Services');
 
-  const serviceTypes = ['All Services', 'Plumbing', 'Electrical', 'HVAC', 'General'];
+  const serviceTypes = ['All Services', 'Solar PV', 'Heat Pump', 'MVHR', 'EV Charger'];
 
   /** Determine if a nav item is the currently active route. */
   const isActive = (href: string): boolean => {

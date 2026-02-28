@@ -10,6 +10,8 @@ import {
   Eye,
   Search,
   MoreHorizontal,
+  AlertTriangle,
+  Inbox,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -27,118 +29,16 @@ interface ContentItem {
   uploadDate: string;
 }
 
-// ---------------------------------------------------------------------------
-// Static demo data
-// ---------------------------------------------------------------------------
-
-const categories = ['All Content', 'Video Guides', 'Documents', 'Troubleshooting', 'FAQs'];
-
-const contentItems: ContentItem[] = [
-  {
-    id: 1,
-    title: 'Understanding Your Inverter',
-    type: 'Video',
-    category: 'Video Guides',
-    systemType: 'SolarEdge',
-    status: 'Live',
-    views: 1_842,
-    uploadDate: '2025-11-15',
-  },
-  {
-    id: 2,
-    title: 'How to Read Energy Meter',
-    type: 'Document',
-    category: 'Documents',
-    systemType: 'All Systems',
-    status: 'Live',
-    views: 2_310,
-    uploadDate: '2025-10-22',
-  },
-  {
-    id: 3,
-    title: 'Resetting After Power Cut',
-    type: 'Article',
-    category: 'Troubleshooting',
-    systemType: 'SolarEdge',
-    status: 'Live',
-    views: 3_105,
-    uploadDate: '2025-09-08',
-  },
-  {
-    id: 4,
-    title: 'Installation Certificate',
-    type: 'Document',
-    category: 'Documents',
-    systemType: 'All Systems',
-    status: 'Live',
-    views: 987,
-    uploadDate: '2025-12-01',
-  },
-  {
-    id: 5,
-    title: 'SEAI Grant Confirmation',
-    type: 'Document',
-    category: 'Documents',
-    systemType: 'All Systems',
-    status: 'Live',
-    views: 1_456,
-    uploadDate: '2025-11-28',
-  },
-  {
-    id: 6,
-    title: 'SolarEdge Error Codes',
-    type: 'Article',
-    category: 'Troubleshooting',
-    systemType: 'SolarEdge',
-    status: 'Live',
-    views: 4_230,
-    uploadDate: '2025-08-14',
-  },
-  {
-    id: 7,
-    title: 'Maximising Solar Savings',
-    type: 'Video',
-    category: 'Video Guides',
-    systemType: 'All Systems',
-    status: 'Live',
-    views: 2_780,
-    uploadDate: '2025-10-05',
-  },
-  {
-    id: 8,
-    title: 'Winter Solar Performance',
-    type: 'FAQ',
-    category: 'FAQs',
-    systemType: 'All Systems',
-    status: 'Draft',
-    views: 156,
-    uploadDate: '2026-01-12',
-  },
-  {
-    id: 9,
-    title: 'Fronius Quick Start',
-    type: 'Video',
-    category: 'Video Guides',
-    systemType: 'Fronius',
-    status: 'Live',
-    views: 1_120,
-    uploadDate: '2025-11-03',
-  },
-  {
-    id: 10,
-    title: 'Panel Cleaning Guide',
-    type: 'Article',
-    category: 'Documents',
-    systemType: 'All Systems',
-    status: 'Draft',
-    views: 340,
-    uploadDate: '2026-02-01',
-  },
-];
+interface ContentManagerProps {
+  contentItems?: ContentItem[];
+  error?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const categories = ['All Content', 'Video Guides', 'Documents', 'Troubleshooting', 'FAQs'];
 
 const typeConfig: Record<ContentItem['type'], { icon: React.ComponentType<{ className?: string }>; color: string }> = {
   Video: { icon: Video, color: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -156,9 +56,23 @@ function formatDate(dateStr: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ContentManagerClient() {
+export function ContentManagerClient({ contentItems: contentItemsProp, error }: ContentManagerProps) {
+  const contentItems = contentItemsProp || [];
   const [activeTab, setActiveTab] = useState('All Content');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
+        <div className="mx-8 mt-6 rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-red-800">Error loading data</h3>
+          <p className="text-xs text-red-600 mt-1">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
 
   const filtered = contentItems.filter((item) => {
     const matchesTab = activeTab === 'All Content' || item.category === activeTab;
@@ -319,7 +233,13 @@ export function ContentManagerClient() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
+        {filtered.length === 0 && contentItems.length === 0 && (
+          <div className="py-12 text-center">
+            <Inbox className="mx-auto h-8 w-8 text-gray-300" />
+            <p className="mt-2 text-sm text-gray-500">No content uploaded yet</p>
+          </div>
+        )}
+        {filtered.length === 0 && contentItems.length > 0 && (
           <div className="py-12 text-center">
             <FileText className="mx-auto h-8 w-8 text-gray-300" />
             <p className="mt-2 text-sm text-gray-500">No content found</p>

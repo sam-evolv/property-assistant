@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Shield,
   AlertTriangle,
   Bell,
   Search,
   ChevronRight,
+  Inbox,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -25,150 +26,16 @@ interface WarrantyItem {
   category: 'Solar Panels' | 'Inverters' | 'Workmanship' | 'Batteries';
 }
 
-// ---------------------------------------------------------------------------
-// Static demo data
-// ---------------------------------------------------------------------------
-
-const tabs = ['Solar Panels', 'Inverters', 'Workmanship', 'Batteries'] as const;
-
-const warrantyItems: WarrantyItem[] = [
-  {
-    id: 1,
-    customer: "P\u00e1draig O'Sullivan",
-    address: '14 Meadow Lane, Ballincollig, Cork',
-    product: 'JA Solar 410W (x12)',
-    warrantyStart: '2023-03-15',
-    warrantyExpiry: '2048-03-15',
-    daysRemaining: 8_050,
-    status: 'Active',
-    category: 'Solar Panels',
-  },
-  {
-    id: 2,
-    customer: 'Mary Murphy',
-    address: '7 Oak Drive, Carrigaline, Cork',
-    product: 'Trina Vertex S 405W (x10)',
-    warrantyStart: '2023-06-20',
-    warrantyExpiry: '2048-06-20',
-    daysRemaining: 8_147,
-    status: 'Active',
-    category: 'Solar Panels',
-  },
-  {
-    id: 3,
-    customer: 'Colm Fitzgerald',
-    address: '22 Castle View, Midleton, Cork',
-    product: 'SolarEdge SE5000H',
-    warrantyStart: '2023-04-10',
-    warrantyExpiry: '2035-04-10',
-    daysRemaining: 3_328,
-    status: 'Active',
-    category: 'Inverters',
-  },
-  {
-    id: 4,
-    customer: "Siobh\u00e1n O'Brien",
-    address: '3 River Walk, Fermoy, Cork',
-    product: 'Fronius Primo GEN24 5.0',
-    warrantyStart: '2022-11-05',
-    warrantyExpiry: '2026-05-05',
-    daysRemaining: 66,
-    status: 'Expiring Soon',
-    category: 'Inverters',
-  },
-  {
-    id: 5,
-    customer: 'Brendan Daly',
-    address: '9 Hilltop Crescent, Cobh, Cork',
-    product: 'SolarEdge SE3680H',
-    warrantyStart: '2023-01-18',
-    warrantyExpiry: '2026-04-18',
-    daysRemaining: 49,
-    status: 'Expiring Soon',
-    category: 'Inverters',
-  },
-  {
-    id: 6,
-    customer: 'Aoife McCarthy',
-    address: '31 Parklands, Mallow, Cork',
-    product: 'SE Systems Workmanship',
-    warrantyStart: '2023-05-22',
-    warrantyExpiry: '2028-05-22',
-    daysRemaining: 814,
-    status: 'Active',
-    category: 'Workmanship',
-  },
-  {
-    id: 7,
-    customer: 'Niamh Kelleher',
-    address: '5 Sunset Terrace, Kinsale, Cork',
-    product: 'SE Systems Workmanship',
-    warrantyStart: '2022-09-14',
-    warrantyExpiry: '2027-09-14',
-    daysRemaining: 564,
-    status: 'Active',
-    category: 'Workmanship',
-  },
-  {
-    id: 8,
-    customer: 'Declan Walsh',
-    address: '18 Harbour View, Youghal, Cork',
-    product: 'SE Systems Workmanship',
-    warrantyStart: '2021-07-08',
-    warrantyExpiry: '2026-01-08',
-    daysRemaining: -51,
-    status: 'Expired',
-    category: 'Workmanship',
-  },
-  {
-    id: 9,
-    customer: "Eoin O'Connell",
-    address: '12 Lakeview, Macroom, Cork',
-    product: 'BYD HVS 5.1 Battery',
-    warrantyStart: '2023-08-30',
-    warrantyExpiry: '2033-08-30',
-    daysRemaining: 2_740,
-    status: 'Active',
-    category: 'Batteries',
-  },
-  {
-    id: 10,
-    customer: 'Sarah Cronin',
-    address: '27 Ashwood Park, Bandon, Cork',
-    product: 'Huawei LUNA2000-5kWh',
-    warrantyStart: '2023-02-11',
-    warrantyExpiry: '2033-02-11',
-    daysRemaining: 2_540,
-    status: 'Active',
-    category: 'Batteries',
-  },
-  {
-    id: 11,
-    customer: 'Liam Hennessy',
-    address: '4 College Road, Bantry, Cork',
-    product: 'Fronius Symo GEN24 8.0',
-    warrantyStart: '2022-06-01',
-    warrantyExpiry: '2026-06-01',
-    daysRemaining: 93,
-    status: 'Expiring Soon',
-    category: 'Inverters',
-  },
-  {
-    id: 12,
-    customer: "Rois\u00edn O'Mahony",
-    address: '16 Greenfield Estate, Clonakilty, Cork',
-    product: 'SolarEdge SE4000H',
-    warrantyStart: '2021-12-15',
-    warrantyExpiry: '2025-12-15',
-    daysRemaining: -75,
-    status: 'Expired',
-    category: 'Inverters',
-  },
-];
+interface WarrantyTrackerProps {
+  warrantyItems?: WarrantyItem[];
+  error?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const tabs = ['Solar Panels', 'Inverters', 'Workmanship', 'Batteries'] as const;
 
 const statusConfig: Record<WarrantyItem['status'], { dot: string; badge: string }> = {
   Active: {
@@ -194,9 +61,23 @@ function formatDate(dateStr: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function WarrantyTrackerClient() {
+export function WarrantyTrackerClient({ warrantyItems: warrantyItemsProp, error }: WarrantyTrackerProps) {
+  const warrantyItems = warrantyItemsProp || [];
   const [activeTab, setActiveTab] = useState<string>('Inverters');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
+        <div className="mx-8 mt-6 rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-red-800">Error loading data</h3>
+          <p className="text-xs text-red-600 mt-1">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
 
   const filtered = warrantyItems.filter((item) => {
     const matchesTab = item.category === activeTab;
@@ -207,9 +88,15 @@ export function WarrantyTrackerClient() {
     return matchesTab && matchesSearch;
   });
 
-  const expiringInverters = warrantyItems.filter(
-    (w) => w.category === 'Inverters' && w.status === 'Expiring Soon'
-  ).length;
+  const expiring90Days = useMemo(
+    () => warrantyItems.filter((w) => w.daysRemaining > 0 && w.daysRemaining <= 90).length,
+    [warrantyItems]
+  );
+
+  const expiringInActiveTab = useMemo(
+    () => warrantyItems.filter((w) => w.category === activeTab && w.status === 'Expiring Soon').length,
+    [warrantyItems, activeTab]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
@@ -238,30 +125,32 @@ export function WarrantyTrackerClient() {
       </div>
 
       {/* Alert Banner */}
-      <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
-              <AlertTriangle className="h-[18px] w-[18px] text-amber-600" />
+      {expiring90Days > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
+                <AlertTriangle className="h-[18px] w-[18px] text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  {expiring90Days} warrant{expiring90Days !== 1 ? 'ies' : 'y'} expiring in 90 days
+                </p>
+                <p className="text-xs text-amber-600">
+                  {expiringInActiveTab} shown below matching current filters
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-amber-800">
-                47 inverter warranties expiring in 90 days
-              </p>
-              <p className="text-xs text-amber-600">
-                {expiringInverters} shown below matching current filters
-              </p>
-            </div>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700"
+            >
+              <Bell className="h-4 w-4" />
+              Send Reminders
+            </button>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700"
-          >
-            <Bell className="h-4 w-4" />
-            Send Reminders
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Category Tabs */}
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
@@ -383,10 +272,16 @@ export function WarrantyTrackerClient() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
+        {filtered.length === 0 && warrantyItems.length === 0 && (
+          <div className="py-12 text-center">
+            <Inbox className="mx-auto h-8 w-8 text-gray-300" />
+            <p className="mt-2 text-sm text-gray-500">No warranty records found</p>
+          </div>
+        )}
+        {filtered.length === 0 && warrantyItems.length > 0 && (
           <div className="py-12 text-center">
             <Shield className="mx-auto h-8 w-8 text-gray-300" />
-            <p className="mt-2 text-sm text-gray-500">No warranty records found</p>
+            <p className="mt-2 text-sm text-gray-500">No warranty records match your filters</p>
           </div>
         )}
       </div>

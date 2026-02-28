@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   MessageCircle,
   CheckCircle,
   Clock,
   Search,
+  Inbox,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -42,42 +44,14 @@ interface Ticket {
   timeAgo: string;
 }
 
-// ---------------------------------------------------------------------------
-// Static demo data
-// ---------------------------------------------------------------------------
+interface SupportQueueProps {
+  tickets?: Ticket[];
+  error?: string;
+}
 
-const statCards: StatCard[] = [
-  {
-    label: 'Open Escalations',
-    value: '3',
-    icon: AlertCircle,
-    iconBg: 'bg-red-50',
-    iconColor: 'text-red-500',
-  },
-  {
-    label: 'Queries Today',
-    value: '41',
-    icon: MessageCircle,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-500',
-  },
-  {
-    label: 'Resolution Rate',
-    value: '89%',
-    icon: CheckCircle,
-    iconBg: 'bg-emerald-50',
-    iconColor: 'text-emerald-500',
-    detail: 'AI-resolved',
-  },
-  {
-    label: 'Avg Response Time',
-    value: '< 30s',
-    icon: Clock,
-    iconBg: 'bg-violet-50',
-    iconColor: 'text-violet-500',
-    detail: 'AI assistant',
-  },
-];
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 const filterPills: FilterPill[] = [
   'All Tickets',
@@ -87,61 +61,6 @@ const filterPills: FilterPill[] = [
   'Scheduled',
   'Resolved',
 ];
-
-const tickets: Ticket[] = [
-  {
-    id: 412,
-    priority: 'critical',
-    title: 'Inverter not restarting after power cut',
-    ref: 'SE-2025-1198',
-    customerName: 'Siobhán Kelleher',
-    customerAddress: '3 Riverside Walk, Ballincollig',
-    diagnosticContext:
-      'Customer completed visual diagnostic flow. AC isolator confirmed ON. Restart attempted — inverter remained on red fault light after 5 min wait. SolarEdge SE3680H, installed Nov 2025.',
-    status: 'Open',
-    assignee: null,
-    assigneeInitials: null,
-    assigneeGradient: null,
-    scheduledDate: null,
-    timeAgo: '1 hour ago',
-  },
-  {
-    id: 411,
-    priority: 'critical',
-    title: 'No generation for 48 hours',
-    ref: 'SE-2025-1142',
-    customerName: 'Dermot Crowley',
-    customerAddress: '22 Hazel Park, Carrigaline',
-    diagnosticContext:
-      'System showing 0 kWh for 48+ hours despite clear weather. Visual check — no error lights. AC isolator restart — no change. Monitoring app shows offline. SolarEdge SE5000H.',
-    status: 'Assigned',
-    assignee: 'David Kelly',
-    assigneeInitials: 'DK',
-    assigneeGradient: 'from-blue-500 to-blue-600',
-    scheduledDate: null,
-    timeAgo: '2 hours ago',
-  },
-  {
-    id: 409,
-    priority: 'high',
-    title: 'Unusual buzzing noise from inverter',
-    ref: 'SE-2025-1089',
-    customerName: 'Aoife Brennan',
-    customerAddress: '7 Birch Lane, Douglas',
-    diagnosticContext:
-      'Customer reports intermittent buzzing during peak hours. Visual check — no visible damage. Noise occurs during 11am-2pm peak generation. SolarEdge SE3680H.',
-    status: 'Scheduled',
-    assignee: 'Mark Lynch',
-    assigneeInitials: 'ML',
-    assigneeGradient: 'from-emerald-500 to-emerald-600',
-    scheduledDate: 'Mar 3, 2026',
-    timeAgo: '1 day ago',
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const statusStyles: Record<TicketStatus, { bg: string; text: string }> = {
   Open: { bg: 'bg-red-50', text: 'text-red-800' },
@@ -162,9 +81,64 @@ const priorityDotStyles: Record<TicketPriority, { color: string; glow: boolean }
 // Component
 // ---------------------------------------------------------------------------
 
-export function SupportQueueClient() {
+export function SupportQueueClient({ tickets: ticketsProp, error }: SupportQueueProps) {
+  const tickets = ticketsProp || [];
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterPill>('All Tickets');
+
+  // Compute stat cards from tickets
+  const statCards: StatCard[] = useMemo(() => {
+    const open = tickets.filter((t) => t.status === 'Open' || t.status === 'Escalated').length;
+    const total = tickets.length;
+    const resolved = tickets.filter((t) => t.status === 'Resolved').length;
+    const resRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+    return [
+      {
+        label: 'Open Escalations',
+        value: open.toLocaleString(),
+        icon: AlertCircle,
+        iconBg: 'bg-red-50',
+        iconColor: 'text-red-500',
+      },
+      {
+        label: 'Total Tickets',
+        value: total.toLocaleString(),
+        icon: MessageCircle,
+        iconBg: 'bg-blue-50',
+        iconColor: 'text-blue-500',
+      },
+      {
+        label: 'Resolution Rate',
+        value: `${resRate}%`,
+        icon: CheckCircle,
+        iconBg: 'bg-emerald-50',
+        iconColor: 'text-emerald-500',
+        detail: 'resolved',
+      },
+      {
+        label: 'Avg Response Time',
+        value: '< 30s',
+        icon: Clock,
+        iconBg: 'bg-violet-50',
+        iconColor: 'text-violet-500',
+        detail: 'AI assistant',
+      },
+    ];
+  }, [tickets]);
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
+        <div className="mx-8 mt-6 rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-red-800">Error loading data</h3>
+          <p className="text-xs text-red-600 mt-1">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Filter tickets based on search query and active pill
   const filteredTickets = tickets.filter((ticket) => {
@@ -275,7 +249,16 @@ export function SupportQueueClient() {
       {/* Ticket List                                                        */}
       {/* ----------------------------------------------------------------- */}
       <div className="space-y-2">
-        {filteredTickets.length === 0 && (
+        {filteredTickets.length === 0 && tickets.length === 0 && (
+          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+            <Inbox className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">
+              No escalations in the queue
+            </p>
+          </div>
+        )}
+
+        {filteredTickets.length === 0 && tickets.length > 0 && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
             <p className="text-sm text-gray-500">
               No tickets match your current filters.

@@ -193,52 +193,89 @@ const WrenchIcon = (
   </svg>
 );
 
+interface ContentItem {
+  id: string;
+  title: string;
+  content_type: string;
+  category: string | null;
+  description: string | null;
+  view_count: number;
+}
+
+const typeGradients: Record<string, string> = {
+  video: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+  document: 'linear-gradient(135deg, #3B82F6, #2563EB)',
+  guide: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+  faq: 'linear-gradient(135deg, #10B981, #059669)',
+};
+
+const typeIcons: Record<string, React.ReactNode> = {
+  video: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+  ),
+  document: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+  ),
+  guide: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+  ),
+  faq: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+  ),
+};
+
 export default function GuidesScreen() {
-  const { installation } = useCareApp();
+  const { installation, installationId } = useCareApp();
   const [mounted, setMounted] = useState(false);
+  const [content, setContent] = useState<Record<string, ContentItem[]>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    const fetchContent = async () => {
+      try {
+        const res = await fetch(`/api/care/content?installation_id=${installationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setContent(data.content || {});
+        }
+      } catch {} finally {
+        setLoading(false);
+      }
+    };
+    fetchContent();
+  }, [installationId]);
 
-  const videoGuides = [
-    {
-      title: 'Understanding Your Solar Dashboard',
-      meta: 'Video \u00B7 4 min',
-      iconBg: 'linear-gradient(135deg, #D4AF37, #B8934C)',
-    },
-    {
-      title: 'Maximising Self-Consumption',
-      meta: 'Video \u00B7 6 min',
-      iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)',
-    },
-    {
-      title: 'Battery Storage Explained',
-      meta: 'Video \u00B7 5 min',
-      iconBg: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
-    },
-  ];
+  // Build guide sections from fetched content, falling back to defaults
+  const videoGuides = (content.video || []).map((c) => ({
+    title: c.title,
+    meta: `Video · ${c.view_count} views`,
+    iconBg: typeGradients.video,
+  }));
+  const documents = (content.document || []).map((c) => ({
+    title: c.title,
+    meta: 'PDF',
+    iconBg: typeGradients.document,
+  }));
+  const troubleshooting = (content.guide || content.faq || []).map((c) => ({
+    title: c.title,
+    meta: c.content_type === 'faq' ? 'FAQ' : 'Guide',
+    iconBg: typeGradients[c.content_type] || typeGradients.guide,
+  }));
 
-  const documents = [
-    {
-      title: 'SolarEdge SE3680H Manual',
-      meta: 'PDF \u00B7 2.4 MB',
-      iconBg: 'linear-gradient(135deg, #3B82F6, #2563EB)',
-    },
-    {
-      title: 'SEAI Grant Documentation',
-      meta: 'PDF \u00B7 1.1 MB',
-      iconBg: 'linear-gradient(135deg, #10B981, #059669)',
-    },
-  ];
-
-  const troubleshooting = [
-    {
-      title: 'Inverter Error Codes Guide',
-      meta: 'Interactive Guide',
-      iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)',
-    },
-  ];
+  // If no data loaded yet, use fallback
+  if (!loading && videoGuides.length === 0 && documents.length === 0 && troubleshooting.length === 0) {
+    videoGuides.push(
+      { title: 'Understanding Your Solar Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
+      { title: 'Maximising Self-Consumption', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+    );
+    documents.push(
+      { title: `${installation.inverter_model} Manual`, meta: 'PDF', iconBg: typeGradients.document },
+    );
+    troubleshooting.push(
+      { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+    );
+  }
 
   return (
     <div

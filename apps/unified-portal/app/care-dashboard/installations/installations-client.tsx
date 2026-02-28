@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Sun,
   CheckCircle,
@@ -52,10 +52,19 @@ interface Installation {
 }
 
 // ---------------------------------------------------------------------------
-// Demo Data — 10 SE Systems installations
+// Props
 // ---------------------------------------------------------------------------
 
-const installations: Installation[] = [
+interface InstallationsProps {
+  installations?: Installation[];
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Demo Data — fallback if no props provided
+// ---------------------------------------------------------------------------
+
+const defaultInstallations: Installation[] = [
   {
     id: '1',
     jobRef: 'SE-2025-1198',
@@ -306,14 +315,31 @@ interface RegionData {
   gray: number;
 }
 
-const regionData: RegionData[] = [
-  { name: 'Cork City', count: 412, percentage: 33, healthy: 380, amber: 18, red: 6, gray: 8 },
-  { name: 'Cork County', count: 389, percentage: 31, healthy: 352, amber: 21, red: 8, gray: 8 },
-  { name: 'Dublin', count: 234, percentage: 19, healthy: 212, amber: 12, red: 4, gray: 6 },
-  { name: 'Galway', count: 112, percentage: 9, healthy: 101, amber: 6, red: 2, gray: 3 },
-  { name: 'Limerick', count: 67, percentage: 5, healthy: 59, amber: 4, red: 1, gray: 3 },
-  { name: 'Other', count: 33, percentage: 3, healthy: 28, amber: 3, red: 1, gray: 1 },
-];
+function computeRegionData(installs: Installation[]): RegionData[] {
+  const regions: Record<string, { healthy: number; issue: number; pending: number }> = {};
+  installs.forEach((inst) => {
+    const r = inst.region || 'Unknown';
+    if (!regions[r]) regions[r] = { healthy: 0, issue: 0, pending: 0 };
+    if (inst.health === 'healthy') regions[r].healthy++;
+    else if (inst.health === 'issue') regions[r].issue++;
+    else regions[r].pending++;
+  });
+  const total = installs.length || 1;
+  return Object.entries(regions)
+    .map(([name, data]) => {
+      const count = data.healthy + data.issue + data.pending;
+      return {
+        name,
+        count,
+        percentage: Math.round((count / total) * 100),
+        healthy: data.healthy,
+        amber: 0,
+        red: data.issue,
+        gray: data.pending,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -470,8 +496,16 @@ function DetailPanel({
   const colors = getHealthColors(inst.health);
   const statusBadge = getStatusBadge(inst.portalStatus);
 
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/25"
@@ -697,8 +731,8 @@ function StatusView({
 // View: By Region
 // ---------------------------------------------------------------------------
 
-function RegionView() {
-  const maxCount = Math.max(...regionData.map((r) => r.count));
+function RegionView({ regionData }: { regionData: RegionData[] }) {
+  const maxCount = regionData.length > 0 ? Math.max(...regionData.map((r) => r.count)) : 1;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1004,39 +1038,50 @@ interface StatCardData {
   detail?: string;
 }
 
-const statCards: StatCardData[] = [
-  {
-    label: 'Total Installations',
-    value: '1,247',
-    icon: Sun,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-500',
-  },
-  {
-    label: 'Portal Active',
-    value: '943',
-    icon: CheckCircle,
-    iconBg: 'bg-emerald-50',
-    iconColor: 'text-emerald-500',
-    detail: '76% activation',
-  },
-  {
-    label: 'Needs Attention',
-    value: '5',
-    icon: AlertTriangle,
-    iconBg: 'bg-red-50',
-    iconColor: 'text-red-500',
-    detail: '2 critical',
-  },
-  {
-    label: 'This Month',
-    value: '23',
-    icon: Calendar,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-500',
-    detail: 'Feb 2026',
-  },
-];
+function computeStatCards(installs: Installation[]): StatCardData[] {
+  const total = installs.length;
+  const active = installs.filter((i) => i.portalStatus === 'Active').length;
+  const issues = installs.filter((i) => i.health === 'issue').length;
+  const now = new Date();
+  const thisMonth = installs.filter((i) => {
+    const d = new Date(i.installedDate);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const activationPct = total > 0 ? Math.round((active / total) * 100) : 0;
+
+  return [
+    {
+      label: 'Total Installations',
+      value: total.toLocaleString(),
+      icon: Sun,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-500',
+    },
+    {
+      label: 'Portal Active',
+      value: active.toLocaleString(),
+      icon: CheckCircle,
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-500',
+      detail: `${activationPct}% activation`,
+    },
+    {
+      label: 'Needs Attention',
+      value: issues.toLocaleString(),
+      icon: AlertTriangle,
+      iconBg: 'bg-red-50',
+      iconColor: 'text-red-500',
+    },
+    {
+      label: 'This Month',
+      value: thisMonth.toLocaleString(),
+      icon: Calendar,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-500',
+      detail: now.toLocaleDateString('en-IE', { month: 'short', year: 'numeric' }),
+    },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -1053,10 +1098,27 @@ const tabs: { id: ViewTab; label: string }[] = [
 // Main Component
 // ---------------------------------------------------------------------------
 
-export function InstallationsClient() {
+export function InstallationsClient({ installations: installationsProp, error }: InstallationsProps) {
+  const installations = installationsProp && installationsProp.length > 0 ? installationsProp : defaultInstallations;
   const [activeTab, setActiveTab] = useState<ViewTab>('status');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInstallation, setSelectedInstallation] = useState<Installation | null>(null);
+
+  const statCards = useMemo(() => computeStatCards(installations), [installations]);
+  const regionData = useMemo(() => computeRegionData(installations), [installations]);
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
+        <div className="mx-8 mt-6 rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-red-800">Error loading data</h3>
+          <p className="text-xs text-red-600 mt-1">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Filter installations by search query
   const filtered = useMemo(() => {
@@ -1069,7 +1131,7 @@ export function InstallationsClient() {
         i.address.toLowerCase().includes(q) ||
         i.jobRef.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
+  }, [searchQuery, installations]);
 
   return (
     <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
@@ -1188,7 +1250,7 @@ export function InstallationsClient() {
         />
       )}
 
-      {activeTab === 'region' && <RegionView />}
+      {activeTab === 'region' && <RegionView regionData={regionData} />}
 
       {activeTab === 'timeline' && (
         <TimelineView

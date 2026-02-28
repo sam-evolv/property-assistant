@@ -236,9 +236,14 @@ function EnergyChart() {
 function PushNotification() {
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const hasShownNotification = useRef(false);
 
   useEffect(() => {
-    const showTimer = setTimeout(() => setShow(true), 8000);
+    if (hasShownNotification.current) return;
+    const showTimer = setTimeout(() => {
+      setShow(true);
+      hasShownNotification.current = true;
+    }, 8000);
     return () => clearTimeout(showTimer);
   }, []);
 

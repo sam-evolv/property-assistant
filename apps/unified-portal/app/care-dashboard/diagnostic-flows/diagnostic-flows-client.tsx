@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   Layers,
   Users,
@@ -12,6 +13,7 @@ import {
   Receipt,
   Plus,
   Lightbulb,
+  Inbox,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -28,9 +30,10 @@ interface StatCard {
 }
 
 interface FlowCard {
+  id: string;
   name: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
+  iconKey: string;
   iconGradientFrom: string;
   iconGradientTo: string;
   iconColor: string;
@@ -39,152 +42,114 @@ interface FlowCard {
   badgeText: string;
   started: number;
   resolved: string;
+  resolvedRate: number;
+  escalated: number;
   steps: number;
 }
 
-interface Insight {
-  text: string;
+interface DiagnosticFlowsProps {
+  flows?: FlowCard[];
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Static demo data
+// Icon mapping
 // ---------------------------------------------------------------------------
 
-const statCards: StatCard[] = [
-  {
-    label: 'Active Flows',
-    value: '5',
-    icon: Layers,
-    iconBg: 'bg-[#D4AF37]/10',
-    iconColor: 'text-[#D4AF37]',
-  },
-  {
-    label: 'Customers Used',
-    value: '847',
-    icon: Users,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-500',
-    detail: 'lifetime completions',
-  },
-  {
-    label: 'Self-Resolved',
-    value: '78%',
-    icon: CheckCircle,
-    iconBg: 'bg-emerald-50',
-    iconColor: 'text-emerald-500',
-  },
-  {
-    label: 'Escalated',
-    value: '22%',
-    icon: PhoneForwarded,
-    iconBg: 'bg-red-50',
-    iconColor: 'text-red-500',
-  },
-];
-
-const flowCards: FlowCard[] = [
-  {
-    name: 'Inverter Error Light',
-    description:
-      'Guides customer through AC isolator check, restart procedure, and escalation.',
-    icon: AlertTriangle,
-    iconGradientFrom: 'from-red-100',
-    iconGradientTo: 'to-red-200',
-    iconColor: 'text-red-600',
-    badge: 'Live',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-800',
-    started: 342,
-    resolved: '81%',
-    steps: 3,
-  },
-  {
-    name: 'No Power Generating',
-    description:
-      'Walks customer through meter check, inverter status, and generation troubleshooting steps.',
-    icon: ZapOff,
-    iconGradientFrom: 'from-amber-100',
-    iconGradientTo: 'to-amber-200',
-    iconColor: 'text-amber-600',
-    badge: 'Live',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-800',
-    started: 218,
-    resolved: '72%',
-    steps: 5,
-  },
-  {
-    name: 'Display Not Responding',
-    description:
-      'Helps diagnose unresponsive inverter display with reset instructions and firmware guidance.',
-    icon: MonitorOff,
-    iconGradientFrom: 'from-blue-100',
-    iconGradientTo: 'to-blue-200',
-    iconColor: 'text-blue-600',
-    badge: 'Live',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-800',
-    started: 156,
-    resolved: '85%',
-    steps: 4,
-  },
-  {
-    name: 'Unusual Noise',
-    description:
-      'Guides customer through identifying noise source, checking fan operation, and documenting the issue.',
-    icon: Volume2,
-    iconGradientFrom: 'from-violet-100',
-    iconGradientTo: 'to-violet-200',
-    iconColor: 'text-violet-600',
-    badge: 'Live',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-800',
-    started: 89,
-    resolved: '64%',
-    steps: 4,
-  },
-  {
-    name: 'Energy Bill Concerns',
-    description:
-      'Helps customer compare expected vs actual savings with generation data and usage tips.',
-    icon: Receipt,
-    iconGradientFrom: 'from-emerald-100',
-    iconGradientTo: 'to-emerald-200',
-    iconColor: 'text-emerald-600',
-    badge: 'Live',
-    badgeBg: 'bg-emerald-50',
-    badgeText: 'text-emerald-800',
-    started: 42,
-    resolved: '91%',
-    steps: 3,
-  },
-];
-
-const performanceData = [
-  { name: 'Inverter Error Light', rate: 81 },
-  { name: 'No Power Generating', rate: 72 },
-  { name: 'Display Not Responding', rate: 85 },
-  { name: 'Unusual Noise', rate: 64 },
-  { name: 'Energy Bill Concerns', rate: 91 },
-];
-
-const insights: Insight[] = [
-  {
-    text: 'Energy Bill Concerns has the highest resolution rate at 91% \u2014 customers find it very helpful',
-  },
-  {
-    text: 'Unusual Noise has the lowest resolution rate at 64% \u2014 consider adding audio recording step',
-  },
-  {
-    text: '342 customers have used Inverter Error Light \u2014 your most popular flow',
-  },
-];
+const iconComponents: Record<string, React.ComponentType<{ className?: string }>> = {
+  'alert-triangle': AlertTriangle,
+  'zap-off': ZapOff,
+  'monitor-off': MonitorOff,
+  'volume-2': Volume2,
+  'receipt': Receipt,
+};
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function DiagnosticFlowsClient() {
+export function DiagnosticFlowsClient({ flows: flowsProp, error }: DiagnosticFlowsProps) {
+  const flows = flowsProp || [];
+
+  // Compute stat cards from flows
+  const statCards: StatCard[] = useMemo(() => {
+    const activeFlows = flows.filter((f) => f.badge === 'Live').length;
+    const totalStarted = flows.reduce((sum, f) => sum + f.started, 0);
+    const totalResolved = flows.reduce((sum, f) => sum + Math.round((f.resolvedRate / 100) * f.started), 0);
+    const totalEscalated = flows.reduce((sum, f) => sum + f.escalated, 0);
+    const resolvedPct = totalStarted > 0 ? Math.round((totalResolved / totalStarted) * 100) : 0;
+    const escalatedPct = totalStarted > 0 ? Math.round((totalEscalated / totalStarted) * 100) : 0;
+
+    return [
+      {
+        label: 'Active Flows',
+        value: activeFlows.toLocaleString(),
+        icon: Layers,
+        iconBg: 'bg-[#D4AF37]/10',
+        iconColor: 'text-[#D4AF37]',
+      },
+      {
+        label: 'Customers Used',
+        value: totalStarted.toLocaleString(),
+        icon: Users,
+        iconBg: 'bg-blue-50',
+        iconColor: 'text-blue-500',
+        detail: 'lifetime completions',
+      },
+      {
+        label: 'Self-Resolved',
+        value: `${resolvedPct}%`,
+        icon: CheckCircle,
+        iconBg: 'bg-emerald-50',
+        iconColor: 'text-emerald-500',
+      },
+      {
+        label: 'Escalated',
+        value: `${escalatedPct}%`,
+        icon: PhoneForwarded,
+        iconBg: 'bg-red-50',
+        iconColor: 'text-red-500',
+      },
+    ];
+  }, [flows]);
+
+  // Build performance data from flows
+  const performanceData = useMemo(
+    () => flows.filter((f) => f.badge === 'Live').map((f) => ({ name: f.name, rate: f.resolvedRate })),
+    [flows]
+  );
+
+  // Build insights from flows
+  const insights = useMemo(() => {
+    if (flows.length === 0) return [];
+    const liveFlows = flows.filter((f) => f.badge === 'Live');
+    if (liveFlows.length === 0) return [];
+
+    const sorted = [...liveFlows].sort((a, b) => b.resolvedRate - a.resolvedRate);
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+    const mostUsed = [...liveFlows].sort((a, b) => b.started - a.started)[0];
+
+    const result: { text: string }[] = [];
+    if (best) result.push({ text: `${best.name} has the highest resolution rate at ${best.resolvedRate}%` });
+    if (worst && worst.name !== best.name) result.push({ text: `${worst.name} has the lowest resolution rate at ${worst.resolvedRate}% -- consider adding more steps` });
+    if (mostUsed) result.push({ text: `${mostUsed.started.toLocaleString()} customers have used ${mostUsed.name} -- your most popular flow` });
+    return result;
+  }, [flows]);
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
+        <div className="mx-8 mt-6 rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-red-800">Error loading data</h3>
+          <p className="text-xs text-red-600 mt-1">Please refresh the page or contact support.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50/50 px-6 py-8 lg:px-10">
       {/* ----------------------------------------------------------------- */}
@@ -246,11 +211,18 @@ export function DiagnosticFlowsClient() {
       {/* Flow Cards Grid                                                    */}
       {/* ----------------------------------------------------------------- */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {flowCards.map((flow) => {
-          const Icon = flow.icon;
+        {flows.length === 0 && (
+          <div className="col-span-full rounded-xl border border-gray-200 bg-white p-8 text-center">
+            <Inbox className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">No diagnostic flows yet. Create your first flow to get started.</p>
+          </div>
+        )}
+
+        {flows.map((flow) => {
+          const Icon = iconComponents[flow.iconKey] || AlertTriangle;
           return (
             <div
-              key={flow.name}
+              key={flow.id}
               className="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white p-[22px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#D4AF37] hover:shadow-md"
             >
               {/* Gold gradient overlay on hover */}
@@ -317,62 +289,64 @@ export function DiagnosticFlowsClient() {
       {/* ----------------------------------------------------------------- */}
       {/* Flow Performance Panel                                             */}
       {/* ----------------------------------------------------------------- */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-6 text-base font-semibold text-gray-900">
-          Flow Performance
-        </h2>
+      {performanceData.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-6 text-base font-semibold text-gray-900">
+            Flow Performance
+          </h2>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* Left: Resolution by Flow */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Resolution by Flow
-            </h3>
-            <div className="space-y-4">
-              {performanceData.map((item) => (
-                <div key={item.name}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-sm text-gray-700">{item.name}</span>
-                    <span className="text-xs font-semibold text-gray-500">
-                      {item.rate}%
-                    </span>
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            {/* Left: Resolution by Flow */}
+            <div>
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">
+                Resolution by Flow
+              </h3>
+              <div className="space-y-4">
+                {performanceData.map((item) => (
+                  <div key={item.name}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-sm text-gray-700">{item.name}</span>
+                      <span className="text-xs font-semibold text-gray-500">
+                        {item.rate}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${item.rate}%`,
+                          background:
+                            'linear-gradient(90deg, #D4AF37, #e8c94b)',
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${item.rate}%`,
-                        background:
-                          'linear-gradient(90deg, #D4AF37, #e8c94b)',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Right: Insights */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Insights
-            </h3>
-            <div className="space-y-3">
-              {insights.map((insight, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start gap-3 rounded-lg bg-gray-50 p-3.5"
-                >
-                  <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
-                  <p className="text-sm leading-relaxed text-gray-600">
-                    {insight.text}
-                  </p>
-                </div>
-              ))}
+            {/* Right: Insights */}
+            <div>
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">
+                Insights
+              </h3>
+              <div className="space-y-3">
+                {insights.map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start gap-3 rounded-lg bg-gray-50 p-3.5"
+                  >
+                    <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+                    <p className="text-sm leading-relaxed text-gray-600">
+                      {insight.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -2,13 +2,25 @@
 
 import { createContext, useContext, useState, ReactNode } from 'react';
 
+export interface SystemSpecs {
+  battery: string | null;
+  optimizer_count: number;
+  roof_orientation: string;
+  panel_warranty_years: number;
+  inverter_warranty_years: number;
+  workmanship_warranty_years: number;
+  [key: string]: unknown;
+}
+
 export interface InstallationData {
   id: string;
   job_reference: string;
   customer_name: string;
+  customer_email?: string | null;
+  customer_phone?: string | null;
   address_line_1: string;
   city: string;
-  county: string;
+  county: string | null;
   system_type: string;
   system_size_kwp: number;
   inverter_model: string;
@@ -18,8 +30,9 @@ export interface InstallationData {
   warranty_expiry: string;
   health_status: string;
   portal_status: string;
-  system_specs: Record<string, any>;
+  system_specs: SystemSpecs;
   installer_name: string;
+  installer_contact?: Record<string, unknown>;
 }
 
 export interface CareAppContextType {
@@ -67,9 +80,11 @@ const DEMO_INSTALLATION: InstallationData = {
 
 export function CareAppProvider({
   installationId,
+  installation: installationProp,
   children,
 }: {
   installationId: string;
+  installation?: InstallationData;
   children: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState('home');
@@ -78,7 +93,7 @@ export function CareAppProvider({
     <CareAppContext.Provider
       value={{
         installationId,
-        installation: DEMO_INSTALLATION,
+        installation: installationProp || DEMO_INSTALLATION,
         activeTab,
         setActiveTab,
       }}

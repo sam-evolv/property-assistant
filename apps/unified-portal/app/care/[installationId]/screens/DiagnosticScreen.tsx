@@ -11,6 +11,7 @@ type DiagnosticView =
   | 'issues'
   | 'step-1'
   | 'step-2'
+  | 'generic-flow'
   | 'resolved'
   | 'escalated';
 
@@ -20,6 +21,29 @@ interface IssueCard {
   icon: React.ReactNode;
   iconBg: string;
   description: string;
+  flowId?: string;
+}
+
+interface DiagnosticFlow {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  colour: string | null;
+  steps: DiagnosticStep[];
+}
+
+interface DiagnosticStep {
+  id: string;
+  type: 'yes_no' | 'multiple_choice' | 'escalate' | 'info' | 'redirect';
+  title: string;
+  body?: string;
+  yes_next?: string;
+  no_next?: string;
+  yes_action?: string;
+  no_action?: string;
+  options?: Array<{ label: string; next?: string; action?: string }>;
+  next?: string;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -159,17 +183,59 @@ const ISSUES: IssueCard[] = [
    ══════════════════════════════════════════════════════════ */
 
 export default function DiagnosticScreen() {
-  const { installation, setActiveTab } = useCareApp();
+  const { installation, installationId, setActiveTab } = useCareApp();
   const [view, setView] = useState<DiagnosticView>('issues');
   const [mounted, setMounted] = useState(false);
   const [isolatorOn, setIsolatorOn] = useState(false);
+  const [dbFlows, setDbFlows] = useState<DiagnosticFlow[]>([]);
+  const [activeFlow, setActiveFlow] = useState<DiagnosticFlow | null>(null);
+  const [currentStepId, setCurrentStepId] = useState<string | null>(null);
+  const [stepsCompleted, setStepsCompleted] = useState<string[]>([]);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    const fetchFlows = async () => {
+      try {
+        const res = await fetch(`/api/care/diagnostic/flows?installation_id=${installationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDbFlows(data.flows || []);
+        }
+      } catch {}
+    };
+    fetchFlows();
+  }, [installationId]);
+
+  const completeFlow = useCallback(async (outcome: 'resolved' | 'escalated') => {
+    if (activeFlow) {
+      try {
+        await fetch('/api/care/diagnostic/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            installation_id: installationId,
+            diagnostic_flow_id: activeFlow.id,
+            steps_completed: stepsCompleted,
+            outcome,
+          }),
+        });
+      } catch {}
+    }
+  }, [activeFlow, installationId, stepsCompleted]);
 
   const handleBack = useCallback(() => {
-    if (view === 'step-1') {
+    if (view === 'generic-flow') {
+      if (stepsCompleted.length > 1) {
+        const prev = stepsCompleted[stepsCompleted.length - 2];
+        setCurrentStepId(prev);
+        setStepsCompleted((s) => s.slice(0, -1));
+      } else {
+        setView('issues');
+        setActiveFlow(null);
+        setCurrentStepId(null);
+        setStepsCompleted([]);
+      }
+    } else if (view === 'step-1') {
       setView('issues');
       setIsolatorOn(false);
     } else if (view === 'step-2') {
@@ -177,15 +243,30 @@ export default function DiagnosticScreen() {
     } else if (view === 'resolved' || view === 'escalated') {
       setView('issues');
       setIsolatorOn(false);
+      setActiveFlow(null);
+      setCurrentStepId(null);
+      setStepsCompleted([]);
     }
-  }, [view]);
+  }, [view, stepsCompleted]);
 
-  const handleSelectIssue = useCallback((issueId: string) => {
+  const handleSelectIssue = useCallback((issueId: string, flowId?: string) => {
     if (issueId === 'error-light') {
       setView('step-1');
+      return;
     }
-    // Other issues could have their own flows
-  }, []);
+    // For DB-driven flows
+    if (flowId) {
+      const flow = dbFlows.find((f) => f.id === flowId);
+      if (flow && flow.steps && flow.steps.length > 0) {
+        setActiveFlow(flow);
+        const firstStep = flow.steps[0];
+        setCurrentStepId(firstStep.id);
+        setStepsCompleted([firstStep.id]);
+        setView('generic-flow');
+        return;
+      }
+    }
+  }, [dbFlows]);
 
   const handleGoHome = useCallback(() => {
     setActiveTab('home');
@@ -227,6 +308,10 @@ export default function DiagnosticScreen() {
         @keyframes careDiagInverterGlowGreen {
           0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.3); }
           50% { box-shadow: 0 0 16px 4px rgba(34, 197, 94, 0.15); }
+        }
+        @keyframes careLedBlink {
+          0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+          50% { opacity: 0.3; box-shadow: 0 0 2px rgba(239, 68, 68, 0.1); }
         }
       `}</style>
 
@@ -356,9 +441,26 @@ export default function DiagnosticScreen() {
                   key={issue.id}
                   issue={issue}
                   index={i}
-                  onClick={() => handleSelectIssue(issue.id)}
+                  onClick={() => handleSelectIssue(issue.id, issue.flowId)}
                 />
               ))}
+              {/* DB-driven flows not in hardcoded list */}
+              {dbFlows
+                .filter((f) => !ISSUES.some((i) => i.title.toLowerCase().includes(f.name.toLowerCase().split(' ')[0])))
+                .map((flow, i) => (
+                  <IssueCardButton
+                    key={flow.id}
+                    issue={{
+                      id: flow.id,
+                      title: flow.name,
+                      icon: <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={flow.colour || '#D4AF37'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+                      iconBg: '#F5F3FF',
+                      description: flow.description || 'Troubleshoot this issue step by step',
+                    }}
+                    index={ISSUES.length + i}
+                    onClick={() => handleSelectIssue(flow.id, flow.id)}
+                  />
+                ))}
             </div>
           </div>
         )}
@@ -481,6 +583,7 @@ export default function DiagnosticScreen() {
                       : '0 0 8px rgba(239, 68, 68, 0.6)',
                     marginBottom: 16,
                     transition: 'all 500ms cubic-bezier(.16, 1, .3, 1)',
+                    animation: isolatorOn ? 'none' : 'careLedBlink 1s ease-in-out infinite',
                   }}
                 />
 
@@ -902,6 +1005,89 @@ export default function DiagnosticScreen() {
             </div>
           </div>
         )}
+
+        {/* ═══ GENERIC FLOW ENGINE ═══ */}
+        {view === 'generic-flow' && activeFlow && currentStepId && (() => {
+          const step = activeFlow.steps.find((s) => s.id === currentStepId);
+          if (!step) return null;
+          const stepIndex = activeFlow.steps.findIndex((s) => s.id === currentStepId);
+          const totalSteps = activeFlow.steps.filter((s) => s.type !== 'escalate').length;
+
+          const handleStepAction = (action?: string, nextId?: string) => {
+            if (action === 'resolved') {
+              completeFlow('resolved');
+              setView('resolved');
+            } else if (action === 'escalate' || action === 'escalated') {
+              completeFlow('escalated');
+              setView('escalated');
+            } else if (nextId) {
+              setCurrentStepId(nextId);
+              setStepsCompleted((s) => [...s, nextId]);
+            }
+          };
+
+          return (
+            <div style={{ animation: 'careDiagFadeIn 550ms cubic-bezier(.16, 1, .3, 1)' }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F5F3FF', borderRadius: 100, padding: '4px 12px', marginBottom: 12 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Step {stepIndex + 1} of {totalSteps}
+                  </span>
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', letterSpacing: '-0.03em', margin: '0 0 8px' }}>
+                  {step.title}
+                </h2>
+                {step.body && (
+                  <p style={{ fontSize: 14, color: '#888', margin: 0, lineHeight: 1.5 }}>{step.body}</p>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {step.type === 'yes_no' && (
+                  <>
+                    <button
+                      onClick={() => handleStepAction(step.yes_action, step.yes_next)}
+                      style={{ width: '100%', padding: '16px 24px', borderRadius: 16, border: 'none', background: 'linear-gradient(135deg, #22C55E, #16A34A)', color: 'white', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => handleStepAction(step.no_action, step.no_next)}
+                      style={{ width: '100%', padding: '16px 24px', borderRadius: 16, border: '1px solid rgba(0,0,0,0.08)', background: '#FAFAFA', color: '#1a1a1a', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      No
+                    </button>
+                  </>
+                )}
+                {step.type === 'multiple_choice' && step.options?.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleStepAction(opt.action, opt.next)}
+                    style={{ width: '100%', padding: '16px 24px', borderRadius: 16, border: '1px solid rgba(0,0,0,0.08)', background: i === 0 ? 'linear-gradient(135deg, #D4AF37, #B8934C)' : '#FAFAFA', color: i === 0 ? 'white' : '#1a1a1a', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent', animation: `careDiagFadeIn 400ms cubic-bezier(.16, 1, .3, 1) ${i * 60}ms both` }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                {step.type === 'info' && (
+                  <button
+                    onClick={() => handleStepAction(undefined, step.next)}
+                    style={{ width: '100%', padding: '16px 24px', borderRadius: 16, border: 'none', background: 'linear-gradient(135deg, #D4AF37, #B8934C)', color: 'white', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    Continue
+                  </button>
+                )}
+                {step.type === 'escalate' && (
+                  <button
+                    onClick={() => { completeFlow('escalated'); setView('escalated'); }}
+                    style={{ width: '100%', padding: '16px 24px', borderRadius: 16, border: 'none', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: 'white', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    Contact Installer
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ═══ RESOLVED SCREEN ═══ */}
         {view === 'resolved' && (

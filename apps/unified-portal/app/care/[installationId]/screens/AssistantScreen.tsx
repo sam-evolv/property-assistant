@@ -99,7 +99,7 @@ function TypingIndicator() {
 }
 
 export default function AssistantScreen() {
-  const { installation, activeTab } = useCareApp();
+  const { installation, installationId, activeTab } = useCareApp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -118,7 +118,7 @@ export default function AssistantScreen() {
   }, []);
 
   const handleSendMessage = useCallback(
-    (text: string) => {
+    async (text: string) => {
       if (!text.trim() || isTyping) return;
 
       const userMsg: ChatMessage = {
@@ -133,22 +133,38 @@ export default function AssistantScreen() {
       setIsTyping(true);
       scrollToBottom();
 
-      // Simulate AI response after typing delay
-      setTimeout(() => {
-        const response =
-          DEMO_RESPONSES[text.trim()] || DEMO_RESPONSES['default'];
+      try {
+        const res = await fetch('/api/care/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            installation_id: installationId,
+            message: text.trim(),
+          }),
+        });
+        const data = await res.json();
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          content: response,
+          content: data.response || 'Sorry, I couldn\'t process that. Please try again.',
           timestamp: new Date(),
         };
         setIsTyping(false);
         setMessages((prev) => [...prev, assistantMsg]);
         scrollToBottom();
-      }, 1500);
+      } catch {
+        const errorMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: 'Sorry, I couldn\'t process that right now. Please try again or contact your installer directly.',
+          timestamp: new Date(),
+        };
+        setIsTyping(false);
+        setMessages((prev) => [...prev, errorMsg]);
+        scrollToBottom();
+      }
     },
-    [scrollToBottom, isTyping]
+    [scrollToBottom, isTyping, installationId]
   );
 
   useEffect(() => {
