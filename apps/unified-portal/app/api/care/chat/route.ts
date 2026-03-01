@@ -2,8 +2,7 @@
  * POST /api/care/chat — Care AI assistant
  *
  * OpenAI function-calling assistant for homeowners.
- * Mirrors the developer intelligence assistant architecture
- * but scoped to a single installation with homeowner-friendly tools.
+ * Schema-matched to the real installations table.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -39,16 +38,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_system_status',
       description:
-        'Get the current status and live telemetry for this installation — power output, temperatures, inverter status, etc.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_alerts',
-      description:
-        'Get any active alerts or error codes on the system. Use this when the homeowner reports a problem or asks why something looks wrong.',
+        'Get the current status and details for this installation — system type, size, health, and components.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -57,7 +47,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'troubleshoot_issue',
       description:
-        'Search the troubleshooting knowledge base for a symptom or error code. Use this when the homeowner describes a problem or error.',
+        'Search the troubleshooting knowledge base for a symptom or error code. Use when the homeowner describes a problem.',
       parameters: {
         type: 'object',
         properties: {
@@ -73,16 +63,16 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_energy_report',
+      name: 'get_energy_estimate',
       description:
-        'Get energy production or consumption figures — today, this month, this year, and lifetime.',
+        'Get estimated energy generation figures based on system size and installation location.',
       parameters: {
         type: 'object',
         properties: {
           period: {
             type: 'string',
-            enum: ['today', 'month', 'year', 'lifetime'],
-            description: 'Which period to report on',
+            enum: ['daily', 'monthly', 'annual'],
+            description: 'Which period to estimate for',
           },
         },
       },
@@ -102,7 +92,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'draft_service_request',
       description:
-        'Draft a service request or message to the installer on behalf of the homeowner. Always show the draft first and wait for confirmation.',
+        'Draft a service request to the installer. Always show the draft first before confirming it is sent.',
       parameters: {
         type: 'object',
         properties: {
@@ -123,104 +113,40 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 async function executeTool(
   toolName: string,
   args: any,
-  installation: any,
-  supabase: ReturnType<typeof getSupabaseAdmin>
+  installation: any
 ): Promise<any> {
-  const installationId = installation.id;
-
   switch (toolName) {
     case 'get_system_status': {
-      const { data: telemetry } = await supabase
-        .from('installation_telemetry')
-        .select('*')
-        .eq('installation_id', installationId)
-        .order('recorded_at', { ascending: false })
-        .limit(1);
-
-      const latest = telemetry?.[0];
-      const systemType = installation.system_type;
-
-      if (systemType === 'solar') {
-        return {
-          system_type: 'solar',
-          model: installation.system_model,
-          capacity: installation.capacity,
-          status: latest?.inverter_status || 'OK',
-          current_output_kw: latest?.generation_kwh
-            ? (latest.generation_kwh / 1).toFixed(1)
-            : null,
-          self_consumption_pct: latest?.self_consumption_pct || null,
-          weather: latest?.weather_status || 'unknown',
-          last_updated: latest?.recorded_at || null,
-          installation_date: installation.installation_date,
-        };
-      }
-
-      if (systemType === 'heat_pump') {
-        return {
-          system_type: 'heat_pump',
-          model: installation.system_model,
-          capacity: installation.capacity,
-          status: latest?.inverter_status || 'OK',
-          cop: latest?.cop || null,
-          flow_temp_c: latest?.flow_temp_c || null,
-          return_temp_c: latest?.return_temp_c || null,
-          outdoor_temp_c: latest?.outdoor_temp_c || null,
-          last_updated: latest?.recorded_at || null,
-        };
-      }
-
-      if (systemType === 'ev_charger') {
-        return {
-          system_type: 'ev_charger',
-          model: installation.system_model,
-          capacity: installation.capacity,
-          status: latest?.inverter_status || 'OK',
-          last_updated: latest?.recorded_at || null,
-        };
-      }
-
+      const specs = installation.system_specs || {};
       return {
-        system_type: systemType,
-        model: installation.system_model,
-        status: 'OK',
-        last_updated: latest?.recorded_at || null,
-      };
-    }
-
-    case 'get_alerts': {
-      const { data: alerts } = await supabase
-        .from('installation_alerts')
-        .select('*')
-        .eq('installation_id', installationId)
-        .is('resolved_at', null)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      return {
-        active_alert_count: alerts?.length || 0,
-        alerts: (alerts || []).map((a: any) => ({
-          title: a.title,
-          description: a.description,
-          error_code: a.error_code,
-          severity: a.severity,
-          requires_technician: a.requires_technician,
-          reported_at: a.created_at,
-        })),
+        system_type: installation.system_type,
+        inverter: installation.inverter_model,
+        panels: installation.panel_model
+          ? `${installation.panel_count}x ${installation.panel_model}`
+          : null,
+        size_kwp: installation.system_size_kwp,
+        health_status: installation.health_status || 'healthy',
+        install_date: installation.install_date,
+        portal_status: installation.portal_status,
+        address: [installation.address_line_1, installation.city, installation.county]
+          .filter(Boolean)
+          .join(', '),
+        specs: {
+          battery: specs.battery || 'none',
+          optimizer_count: specs.optimizer_count || null,
+          roof_orientation: specs.roof_orientation || null,
+        },
       };
     }
 
     case 'troubleshoot_issue': {
       const query: string = args.query || '';
-
-      // Check for error codes like F21, F32
       const errorCodeMatch = query.match(/\b(F\d{2}|ERR_\w+)\b/i);
       let match = null;
 
       if (errorCodeMatch) {
         match = findByErrorCode(errorCodeMatch[1]);
       }
-
       if (!match) {
         const results = findBySymptom(query);
         match = results[0] || null;
@@ -229,7 +155,7 @@ async function executeTool(
       if (!match) {
         return {
           found: false,
-          message: `No specific guide found for "${query}". I can still help — describe what you're seeing in more detail.`,
+          message: `No specific guide found for "${query}". Describe what you're seeing in more detail and I can help further.`,
         };
       }
 
@@ -247,72 +173,70 @@ async function executeTool(
       };
     }
 
-    case 'get_energy_report': {
-      const period = args.period || 'today';
-      const baseline = installation.performance_baseline || {};
+    case 'get_energy_estimate': {
+      const period = args.period || 'annual';
+      const kwp = installation.system_size_kwp || 4;
 
-      // Get aggregated telemetry
-      let startDate = new Date();
-      if (period === 'month') startDate.setDate(1);
-      else if (period === 'year') startDate = new Date(startDate.getFullYear(), 0, 1);
-      else if (period === 'lifetime') startDate = new Date(installation.installation_date);
-      else {
-        // today
-        startDate.setHours(0, 0, 0, 0);
-      }
+      // Ireland average: ~850 kWh/kWp/year
+      const annualKwh = kwp * 850;
+      const monthlyKwh = annualKwh / 12;
+      const dailyKwh = annualKwh / 365;
 
-      const { data: telemetry } = await supabase
-        .from('installation_telemetry')
-        .select('generation_kwh, consumption_kwh, recorded_at')
-        .eq('installation_id', installationId)
-        .gte('recorded_at', startDate.toISOString());
+      // Irish electricity rate ~€0.35/kWh
+      const rate = 0.35;
 
-      const totalGeneration = (telemetry || []).reduce(
-        (sum: number, t: any) => sum + (t.generation_kwh || 0),
-        0
-      );
-      const totalConsumption = (telemetry || []).reduce(
-        (sum: number, t: any) => sum + (t.consumption_kwh || 0),
-        0
-      );
-
-      // Estimated savings at €0.35/kWh average Irish rate
-      const savingsEur = (totalGeneration * 0.35).toFixed(2);
+      const figures: Record<string, any> = {
+        daily: {
+          generation_kwh: dailyKwh.toFixed(1),
+          estimated_savings_eur: (dailyKwh * rate).toFixed(2),
+          note: 'Varies significantly with weather and season.',
+        },
+        monthly: {
+          generation_kwh: monthlyKwh.toFixed(0),
+          estimated_savings_eur: (monthlyKwh * rate).toFixed(2),
+          note: 'Summer months ~2x winter output in Ireland.',
+        },
+        annual: {
+          generation_kwh: annualKwh.toFixed(0),
+          estimated_savings_eur: (annualKwh * rate).toFixed(2),
+          note: 'Based on Irish average of 850 kWh/kWp/year.',
+        },
+      };
 
       return {
         period,
-        system_type: installation.system_type,
-        generation_kwh: totalGeneration.toFixed(1),
-        consumption_kwh: totalConsumption > 0 ? totalConsumption.toFixed(1) : null,
-        estimated_savings_eur: savingsEur,
-        baseline_daily_kwh: baseline.daily_avg_kWh || null,
-        note:
-          period === 'today' && new Date().getHours() < 10
-            ? 'Morning reading — generation will increase as the day progresses.'
-            : null,
+        system_size_kwp: kwp,
+        ...figures[period],
+        seai_export_note:
+          "You may also earn from excess exported to the grid via your energy supplier's Micro-generation Support Scheme.",
       };
     }
 
     case 'get_warranty_info': {
+      const specs = installation.system_specs || {};
       const warrantyExpiry = installation.warranty_expiry
         ? new Date(installation.warranty_expiry)
         : null;
-      const now = new Date();
       const daysRemaining = warrantyExpiry
-        ? Math.ceil((warrantyExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.ceil(
+            (warrantyExpiry.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+          )
         : null;
 
-      const specs = installation.component_specs || {};
-
       return {
-        system_model: installation.system_model,
-        installation_date: installation.installation_date,
+        inverter: installation.inverter_model,
+        install_date: installation.install_date,
         warranty_expiry: installation.warranty_expiry || 'Not recorded',
         days_remaining: daysRemaining,
-        is_in_warranty: daysRemaining !== null ? daysRemaining > 0 : null,
-        component_warranties: specs.warranties || null,
+        in_warranty: daysRemaining !== null ? daysRemaining > 0 : null,
+        coverage: {
+          panels_years: specs.panel_warranty_years || 25,
+          inverter_years: specs.inverter_warranty_years || 12,
+          workmanship_years: specs.workmanship_warranty_years || 10,
+        },
         how_to_claim:
-          'Contact your installer directly with your installation ID and a description of the fault. Keep your handover documents as proof of purchase.',
+          'Contact your installer with your job reference and a description of the fault. Keep your handover documents as proof of purchase.',
+        job_reference: installation.job_reference,
       };
     }
 
@@ -322,8 +246,11 @@ async function executeTool(
           subject: args.subject,
           description: args.description,
           urgency: args.urgency || 'routine',
-          installation_id: installationId,
-          system_model: installation.system_model,
+          installation_id: installation.id,
+          job_reference: installation.job_reference,
+          customer_name: installation.customer_name,
+          customer_email: installation.customer_email,
+          system: `${installation.inverter_model} (${installation.system_size_kwp} kWp)`,
           sent: false,
         },
       };
@@ -386,7 +313,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Load conversation history (last 20 messages)
+    // Load conversation history
     let contextMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
     if (convoId) {
       const { data: history } = await supabase
@@ -412,35 +339,39 @@ export async function POST(request: NextRequest) {
       day: 'numeric',
     });
 
-    const systemPrompt = `You are the OpenHouse Care Assistant — a friendly, knowledgeable AI for homeowners who have had renewable energy systems installed.
+    const specs = installation.system_specs || {};
+    const systemPrompt = `You are the OpenHouse Care Assistant — a friendly, knowledgeable AI helping homeowners who have had renewable energy systems installed.
 
 You help with:
 - Understanding system status and performance
 - Troubleshooting problems and error codes
-- Energy generation and savings reports
+- Energy generation estimates and savings
 - Warranty information and claims
 - Contacting the installer when needed
 
 TONE:
 - Friendly and reassuring. Homeowners may be anxious about technical issues.
-- Clear, jargon-free. Explain things simply.
+- Clear and jargon-free. Explain things simply.
 - Honest — never guess. If uncertain, say so and suggest contacting the installer.
-- Proactive — if you fetch data and notice something worth flagging, mention it.
+- Proactive — if you notice something worth flagging, mention it.
 
 RULES:
-- Always fetch real data before answering questions about status, alerts, or energy.
-- When drafting a service request, always show the draft first before confirming it's sent.
-- If an issue requires a technician, be clear about that — don't give false hope.
-- Use Irish context (€ for currency, kWp for solar capacity, SEAI for grants).
+- Always fetch real data before answering questions about the system.
+- When drafting a service request, always show it first before confirming it's sent.
+- If an issue requires a technician, be clear about that.
+- Use Irish context (€ for currency, kWp for solar, SEAI for grants/export).
 
 CURRENT INSTALLATION:
-System: ${installation.system_model} (${installation.system_type})
-Capacity: ${installation.capacity || 'not recorded'}
-Installed: ${installation.installation_date}
+Customer: ${installation.customer_name}
+Address: ${[installation.address_line_1, installation.city, installation.county].filter(Boolean).join(', ')}
+System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model}
+Size: ${installation.system_size_kwp} kWp
+Panels: ${installation.panel_count}x ${installation.panel_model}
+Battery: ${specs.battery || 'none'}
+Installed: ${installation.install_date}
 Warranty expires: ${installation.warranty_expiry || 'not recorded'}
-Serial: ${installation.serial_number || 'not recorded'}
-Installation ID: ${installation.id}
-
+Job reference: ${installation.job_reference}
+Health: ${installation.health_status || 'healthy'}
 Today: ${today}`;
 
     // First OpenAI call
@@ -468,7 +399,7 @@ Today: ${today}`;
 
       for (const call of toolCalls) {
         const args = JSON.parse(call.function.arguments);
-        const result = await executeTool(call.function.name, args, installation, supabase);
+        const result = await executeTool(call.function.name, args, installation);
 
         toolResults.push({
           role: 'tool',
@@ -480,58 +411,34 @@ Today: ${today}`;
         const richType =
           call.function.name === 'get_system_status'
             ? 'system_status'
-            : call.function.name === 'get_alerts'
-            ? 'alert'
-            : call.function.name === 'troubleshoot_issue'
+            : call.function.name === 'troubleshoot_issue' && result.found
             ? 'troubleshoot'
             : null;
 
-        if (richType && result && !result.error) {
-          const richMsg = {
+        if (richType) {
+          responseMessages.push({
             id: `rich-${Date.now()}-${call.id}`,
             role: 'assistant',
             message_type: richType,
             content: '',
             structured_data: result,
             created_at: new Date().toISOString(),
-          };
-          responseMessages.push(richMsg);
-
-          if (convoId) {
-            await supabase.from('care_messages').insert({
-              conversation_id: convoId,
-              role: 'assistant',
-              message_type: richType,
-              content: JSON.stringify(result).substring(0, 200),
-              structured_data: result,
-            });
-          }
+          });
         }
 
-        // Service request drafts get their own card too
         if (result.service_request_draft) {
-          const draftMsg = {
+          responseMessages.push({
             id: `draft-${Date.now()}-${call.id}`,
             role: 'assistant',
             message_type: 'service_request_draft',
             content: '',
             structured_data: result.service_request_draft,
             created_at: new Date().toISOString(),
-          };
-          responseMessages.push(draftMsg);
-
-          if (convoId) {
-            await supabase.from('care_messages').insert({
-              conversation_id: convoId,
-              role: 'assistant',
-              message_type: 'text',
-              content: `Service request draft: ${result.service_request_draft.subject}`,
-            });
-          }
+          });
         }
       }
 
-      // Second call: natural language summary with tool results in context
+      // Second call — natural language summary
       const followUp = await getOpenAI().chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -547,16 +454,15 @@ Today: ${today}`;
       assistantContent = followUp.choices[0]?.message?.content || '';
     }
 
-    // Add text response
+    // Save and return text response
     if (assistantContent) {
-      const textMsg = {
+      responseMessages.push({
         id: `text-${Date.now()}`,
         role: 'assistant',
         message_type: 'text',
         content: assistantContent,
         created_at: new Date().toISOString(),
-      };
-      responseMessages.push(textMsg);
+      });
 
       if (convoId) {
         await supabase.from('care_messages').insert({
