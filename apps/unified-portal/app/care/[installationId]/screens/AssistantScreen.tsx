@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Send, Info, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import Image from 'next/image';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 
@@ -145,6 +145,9 @@ export default function AssistantScreen({ installationId }: { installationId: st
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
   const [streamText, setStreamText] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const scroll = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
@@ -195,6 +198,36 @@ export default function AssistantScreen({ installationId }: { installationId: st
   }, [input, sending, installationId, scroll]);
 
   useEffect(() => { scroll(); }, [messages, scroll]);
+
+  /* ── Speech Recognition ── */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    setSpeechSupported(true);
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IE';
+    recognition.onresult = (event: any) => {
+      setInput(event.results[0][0].transcript);
+      setIsListening(false);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+  }, []);
+
+  const toggleVoiceInput = useCallback(() => {
+    if (!speechSupported || !recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setIsListening(true);
+      try { recognitionRef.current.start(); } catch { setIsListening(false); }
+    }
+  }, [speechSupported, isListening]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
@@ -305,6 +338,20 @@ export default function AssistantScreen({ installationId }: { installationId: st
               disabled={sending}
               className="flex-1 border-none bg-transparent text-[15px] sm:text-base placeholder:text-gray-400 focus:outline-none text-gray-900 disabled:opacity-50 transition-opacity duration-200"
             />
+            {speechSupported && (
+              <button
+                onClick={toggleVoiceInput}
+                disabled={sending}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 active:scale-95 disabled:opacity-50 flex-shrink-0 ${
+                  isListening
+                    ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/30'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-black/5'
+                }`}
+                aria-label="Voice input"
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
             {input.trim() && (
               <button 
                 onClick={() => send()} 
@@ -317,7 +364,17 @@ export default function AssistantScreen({ installationId }: { installationId: st
             )}
           </div>
         </div>
-        <p className="mt-2 text-center text-[10px] text-gray-400 sm:text-[11px]">Powered by AI · Information for reference only</p>
+        <p className="mt-2 text-center text-[10px] text-gray-400 sm:text-[11px]">
+          Powered by AI · Information for reference only ·{' '}
+          <a
+            href="https://openhouseai.ie/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-gray-600 hover:no-underline"
+          >
+            Privacy Policy
+          </a>
+        </p>
       </div>
     </div>
   );
