@@ -151,6 +151,14 @@ const LOCATION_PATTERNS = [
   new RegExp(`\\b(what|which|is\\s*there\\s*a)\\s+(bus|train|tram|dart|luas|rail)\\b`, 'i'),
   new RegExp(`\\b(bus|train|tram)\\s+(goes?|runs?|gets?|connects?|takes?|to)\\b`, 'i'),
   /\bhow\s+do\s+i\s+get\s+(to|into)\s+(town|city|centre|center|cork|dublin|galway)\b/i,
+  // Active travel — walking/cycling time/distance queries
+  /\bhow\s+long\s+(does|would|will)\s+it\s+take\s+to\s+(walk|cycle|bike)\b/i,
+  /\bhow\s+far\s+(is|would|can|to)\s+(it\s+)?(walk|cycle|bike|on\s+foot)\b/i,
+  /\bwalk(ing)?\s+(time|distance|to)\s+(to|from|into)?\s*(town|city|centre|center)\b/i,
+  /\bcycl(e|ing)\s+(time|distance|to)\s+(to|from|into)?\s*(town|city|centre|center)\b/i,
+  /\bcan\s+(i|you|we)\s+walk\s+(to|into)\s+(town|city|centre|center)\b/i,
+  /\bis\s+it\s+walkable\b/i,
+  /\bhow\s+walkable\b/i,
 ];
 
 const PLAYBOOK_PATTERNS = [
