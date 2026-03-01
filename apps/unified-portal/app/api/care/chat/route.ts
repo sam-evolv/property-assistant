@@ -12,6 +12,10 @@ import {
   findByErrorCode,
   findBySymptom,
 } from '@/lib/care/solarTroubleshooting';
+import {
+  getRelevantCareKnowledge,
+  formatCareKnowledge,
+} from '@/lib/care/care-knowledge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -331,6 +335,10 @@ export async function POST(request: NextRequest) {
         }));
     }
 
+    // Care KB — inject relevant knowledge based on the message
+    const careKnowledgeEntries = getRelevantCareKnowledge(message, installation.system_type);
+    const careKnowledgeContext = formatCareKnowledge(careKnowledgeEntries);
+
     // System prompt
     const today = new Date().toLocaleDateString('en-IE', {
       weekday: 'long',
@@ -372,7 +380,16 @@ Installed: ${installation.install_date}
 Warranty expires: ${installation.warranty_expiry || 'not recorded'}
 Job reference: ${installation.job_reference}
 Health: ${installation.health_status || 'healthy'}
-Today: ${today}`;
+Today: ${today}
+
+${careKnowledgeContext ? careKnowledgeContext : ''}
+
+RULES:
+- Use the knowledge base above to give accurate, specific answers.
+- If the KB covers the question, answer from it directly — don't say "check the manual".
+- If the KB doesn't cover it, use your own knowledge but be clear it's general guidance.
+- Never invent specific numbers (generation figures, costs) without a clear basis.
+- Safety issues (electrical faults, gas smells, structural damage): always direct to a professional.`;
 
     // First OpenAI call
     const completion = await getOpenAI().chat.completions.create({
