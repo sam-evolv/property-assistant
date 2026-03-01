@@ -48,9 +48,9 @@ export default function CareInstallationPage() {
           <Image
             src="/branding/openhouse-ai-logo.png"
             alt="OpenHouse AI"
-            width={100}
-            height={30}
-            className="h-8 w-auto object-contain"
+            width={125}
+            height={38}
+            className="h-10 w-auto object-contain"
           />
         </div>
       </header>
