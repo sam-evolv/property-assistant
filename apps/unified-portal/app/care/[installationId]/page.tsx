@@ -26,7 +26,6 @@ const SystemScreen = dynamic(
   { ssr: false, loading: () => <TabLoading /> }
 );
 
-/* Skeleton loading — matches Property portal exactly */
 function TabLoading() {
   return (
     <div className="p-4 space-y-3 animate-pulse">
@@ -56,20 +55,18 @@ export default function CareInstallationPage() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Header — matches Property portal header with backdrop blur */}
-      <header className="sticky top-0 z-50 px-4 py-3 border-b bg-white/95 backdrop-blur-lg border-gray-200">
+    <div className="h-screen flex flex-col bg-white">
+      {/* Header */}
+      <header className="flex-shrink-0 px-4 py-3 border-b bg-white/95 backdrop-blur-lg border-gray-200 z-50">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-              <Image
-                src="/icon-192.png"
-                alt="OpenHouse Care"
-                width={36}
-                height={36}
-                className="w-9 h-9 object-cover rounded-xl"
-              />
-            </div>
+            <Image
+              src="/branding/openhouse-care-logo.png"
+              alt="OpenHouse AI"
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-base font-semibold text-[#D4AF37]">OpenHouse</span>
@@ -84,8 +81,8 @@ export default function CareInstallationPage() {
         </div>
       </header>
 
-      {/* Content — fade-in transition on tab switch */}
-      <main className="flex-1 overflow-hidden">
+      {/* Content — takes remaining space between header and tab bar */}
+      <main className="flex-1 min-h-0 overflow-hidden">
         <div key={activeTab} className="h-full animate-fade-in">
           {activeTab === 'home' && <HomeScreen />}
           {activeTab === 'assistant' && (
@@ -96,8 +93,8 @@ export default function CareInstallationPage() {
         </div>
       </main>
 
-      {/* Bottom Tab Bar — COPIED from Property purchaser/app/page.tsx */}
-      <nav className="sticky bottom-0 border-t bg-white/95 backdrop-blur-lg border-gray-200 pb-[env(safe-area-inset-bottom)]">
+      {/* Bottom Tab Bar — always visible, never hidden */}
+      <nav className="flex-shrink-0 border-t bg-white border-gray-200 pb-[env(safe-area-inset-bottom)] z-50">
         <div className="flex max-w-4xl mx-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -112,7 +109,7 @@ export default function CareInstallationPage() {
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
-                <div className={`flex flex-col items-center gap-1 ${isActive ? 'bg-[#D4AF37]/12 rounded-2xl px-4 py-1' : ''}`}>
+                <div className={`flex flex-col items-center gap-1 transition-all duration-200 ${isActive ? 'bg-[#D4AF37]/12 rounded-2xl px-4 py-1' : 'px-4 py-1'}`}>
                   <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} strokeWidth={isActive ? 2.5 : 2} />
                   <span className="text-xs font-medium">{tab.label}</span>
                 </div>

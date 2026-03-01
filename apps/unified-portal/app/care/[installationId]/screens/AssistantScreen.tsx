@@ -649,14 +649,14 @@ export default function AssistantScreen({
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className={`flex flex-col h-full min-h-0 overflow-hidden ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`}>
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
         /* ── HOME SCREEN ── */
         <div
           className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
           style={{
-            paddingBottom: 'calc(var(--care-inputbar-h, 88px) + 24px)',
+            paddingBottom: '16px',
           }}
         >
           <style>{ANIMATION_STYLES}</style>
@@ -679,7 +679,7 @@ export default function AssistantScreen({
               }}
             >
               <Image
-                src="/icon-192.png"
+                src="/branding/openhouse-care-logo.png"
                 alt="OpenHouse AI"
                 width={48}
                 height={48}
@@ -741,7 +741,7 @@ export default function AssistantScreen({
           ref={scrollContainerRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-4 pt-3"
           style={{
-            paddingBottom: 'calc(var(--care-inputbar-h, 88px) + 24px)',
+            paddingBottom: '16px',
             overflowAnchor: 'auto',
             overscrollBehaviorY: 'contain',
           }}
@@ -790,7 +790,7 @@ export default function AssistantScreen({
                     }}
                   >
                     <Image
-                      src="/icon-192.png"
+                      src="/branding/openhouse-care-logo.png"
                       alt="OpenHouse AI"
                       width={18}
                       height={18}
@@ -857,14 +857,11 @@ export default function AssistantScreen({
       {/* ── INPUT BAR ── Fixed above bottom, glass feel */}
       <div
         ref={inputBarRef}
-        className={`fixed left-0 right-0 z-[60] px-4 pt-3 pb-2 ${
+        className={`flex-shrink-0 px-4 pt-3 pb-2 ${
           isDarkMode
             ? 'bg-[#0F0F0F]/97 backdrop-blur-xl border-t border-[#2A2A2A]/50'
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
-        style={{
-          bottom: 'env(safe-area-inset-bottom, 0px)',
-        }}
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {/* Home button - only show when in chat mode */}
