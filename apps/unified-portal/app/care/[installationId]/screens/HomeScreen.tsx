@@ -9,6 +9,26 @@ import {
   ArrowUpRight, ThermometerSun,
 } from 'lucide-react';
 
+/* ── Animation Styles ── */
+const ANIMATION_STYLES = `
+  @keyframes fade-in-up {
+    0% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in-scale {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .card-item { animation: fade-in-up 0.5s ease-out backwards; }
+  .card-item:nth-child(1) { animation-delay: 0.1s; }
+  .card-item:nth-child(2) { animation-delay: 0.15s; }
+  .card-item:nth-child(3) { animation-delay: 0.2s; }
+  .card-item:nth-child(4) { animation-delay: 0.25s; }
+  .card-item:nth-child(5) { animation-delay: 0.3s; }
+  .card-item:nth-child(6) { animation-delay: 0.35s; }
+  .card-item:nth-child(7) { animation-delay: 0.4s; }
+`;
+
 /* ── Helpers ── */
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -52,10 +72,11 @@ export default function HomeScreen() {
 
   return (
     <div className="h-full overflow-y-auto bg-[#FAFAFA]">
-      <div className="max-w-lg mx-auto px-4 pt-5 pb-8 space-y-5">
+      <style>{ANIMATION_STYLES}</style>
+      <div className="max-w-lg mx-auto px-4 pt-5 pb-8 space-y-5 sm:max-w-2xl">
 
         {/* ── Greeting ── */}
-        <div>
+        <div className="card-item">
           <p className="text-sm text-slate-500">
             {getGreeting()}, <span className="font-semibold text-slate-900">{getFirstName(installation.customer_name)}</span>
           </p>
@@ -63,7 +84,7 @@ export default function HomeScreen() {
         </div>
 
         {/* ── System Status Card — premium with gold accent ── */}
-        <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="card-item relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500" />
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -85,27 +106,27 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Performance Cards — 3-col grid ── */}
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="card-item grid grid-cols-3 gap-2.5 sm:gap-3">
           {[
             { label: 'Generated\nToday', value: '4.2', unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
             { label: 'Saved\nToday', value: '€3.18', icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
             { label: 'System\nEfficiency', value: '94%', icon: Zap, iconColor: 'text-blue-500', bg: 'bg-blue-50' },
           ].map((m) => (
-            <div key={m.label} className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 text-center">
-              <div className={`w-8 h-8 rounded-xl ${m.bg} flex items-center justify-center mx-auto mb-2`}>
-                <m.icon className={`w-4 h-4 ${m.iconColor}`} />
+            <div key={m.label} className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${m.bg} flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform duration-200`}>
+                <m.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${m.iconColor} group-hover:scale-110 transition-transform duration-200`} />
               </div>
-              <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
+              <p className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums leading-none">
                 {m.value}
                 {m.unit && <span className="text-xs font-medium text-slate-400 ml-0.5">{m.unit}</span>}
               </p>
-              <p className="text-[10px] text-slate-400 font-medium mt-1.5 whitespace-pre-line leading-tight">{m.label}</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-1.5 whitespace-pre-line leading-tight">{m.label}</p>
             </div>
           ))}
         </div>
 
         {/* ── Savings Card — green gradient ── */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 text-white shadow-lg shadow-emerald-500/15">
+        <div className="card-item relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 sm:p-6 text-white shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/25 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
           <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-bl-full" />
           <div className="flex items-center gap-2 mb-1">
             <ArrowUpRight className="w-4 h-4 text-white/60" />
@@ -118,7 +139,7 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Energy Tip ── */}
-        <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">
+        <div className="card-item rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
               <ThermometerSun className="w-4.5 h-4.5 text-amber-500" />
@@ -133,9 +154,9 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Warranty Overview ── */}
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 mb-2.5">Warranty Coverage</h3>
-          <div className="space-y-2">
+        <div className="card-item">
+          <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-2.5 sm:mb-3">Warranty Coverage</h3>
+          <div className="space-y-2 sm:space-y-2.5">
             {[
               { label: 'Solar Panels', years: installation.system_specs.panel_warranty_years, icon: Sun, color: 'text-amber-500' },
               { label: 'Inverter', years: installation.system_specs.inverter_warranty_years, icon: Zap, color: 'text-blue-500' },
@@ -145,7 +166,7 @@ export default function HomeScreen() {
               const pct = Math.min((used / w.years) * 100, 100);
               const remaining = Math.round(w.years - used);
               return (
-                <div key={w.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] px-4 py-3">
+                <div key={w.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-5 sm:py-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <w.icon className={`w-4 h-4 ${w.color}`} />
@@ -165,21 +186,21 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Quick Actions ── */}
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 mb-2.5">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-2.5">
+        <div className="card-item">
+          <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-2.5 sm:mb-3">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             {[
               { label: 'Contact Installer', icon: Phone, desc: installation.installer_name, iconColor: 'text-[#D4AF37]', bg: 'bg-[#D4AF37]/8' },
               { label: 'Report Issue', icon: AlertTriangle, desc: 'Get support', iconColor: 'text-red-500', bg: 'bg-red-50' },
               { label: 'Schedule Service', icon: Calendar, desc: 'Book maintenance', iconColor: 'text-blue-500', bg: 'bg-blue-50' },
               { label: 'SEAI Grant Info', icon: Leaf, desc: 'Check eligibility', iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
             ].map((a) => (
-              <button key={a.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 text-left hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98] group">
-                <div className={`w-9 h-9 rounded-xl ${a.bg} flex items-center justify-center mb-2.5`}>
-                  <a.icon className={`w-4.5 h-4.5 ${a.iconColor}`} />
+              <button key={a.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-left hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-gold-500/30 group" aria-label={`${a.label}: ${a.desc}`}>
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${a.bg} flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform duration-200`}>
+                  <a.icon className={`w-4.5 h-4.5 sm:w-5 sm:h-5 ${a.iconColor} group-hover:scale-110 transition-transform duration-200`} />
                 </div>
-                <p className="text-[13px] font-semibold text-slate-900 group-hover:text-[#D4AF37] transition-colors">{a.label}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{a.desc}</p>
+                <p className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-[#D4AF37] transition-colors duration-200">{a.label}</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">{a.desc}</p>
               </button>
             ))}
           </div>
