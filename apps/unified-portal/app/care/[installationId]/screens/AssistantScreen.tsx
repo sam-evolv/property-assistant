@@ -164,10 +164,14 @@ export default function AssistantScreen({ installationId }: { installationId: st
       const res = await fetch('/api/care/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ installation_id: installationId, message: msg }),
+        body: JSON.stringify({ installationId, message: msg }),
       });
       const data = await res.json();
-      const full = data.response || 'Sorry, I couldn\'t process that.';
+      // New API returns messages array — find the text response
+      const textMsg = Array.isArray(data.messages)
+        ? data.messages.find((m: any) => m.message_type === 'text')
+        : null;
+      const full = textMsg?.content || data.response || 'Sorry, I couldn\'t process that.';
       const sources = data.sources || [];
 
       // Word-by-word streaming
