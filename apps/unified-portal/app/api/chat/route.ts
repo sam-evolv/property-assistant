@@ -2214,9 +2214,16 @@ export async function POST(request: NextRequest) {
     }
 
     // ACTIVE TRAVEL GATE: walking/cycling time queries — use Directions API
+    // IMPORTANT: Only fires for GENERAL travel queries (to town, city centre, etc.)
+    // If the question mentions a specific amenity (pharmacy, supermarket, etc.), let the
+    // POI handler answer instead — it already returns walk times via Distance Matrix.
+    // Bug fix: "How far of a walk is it to the closest pharmacy?" was routing here
+    // instead of the pharmacy POI lookup, giving city-centre times instead of pharmacy distance.
     if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
       const activeTravelKeywords = /\b(walk|walking|walkable|on foot|cycle|cycling|cyclable|bike|biking|cycle to work|walk to (town|city|centre|center)|how far (is|to)|cycling distance|cycle time|walk time)\b/i;
-      if (activeTravelKeywords.test(message)) {
+      // If a specific amenity is detected, skip active travel and let POI handler answer with real distances
+      const mentionsSpecificAmenity = detectPOICategoryExpanded(message).category !== null;
+      if (activeTravelKeywords.test(message) && !mentionsSpecificAmenity) {
         console.log('[Chat] ACTIVE TRAVEL: detected walking/cycling query');
         try {
           const activeTravelResult = await getActiveTravelTimes(userSupabaseProjectId);

@@ -1136,7 +1136,15 @@ function formatBulletItem(poi: POIResult, driveOnly: boolean = false): string {
       extras.push(`approx. ${Math.round(poi.distance_km * 2)} min drive`);
     }
   } else {
-    if (poi.drive_time_min) {
+    // For walkable amenities, show walk time first (most relevant for local places).
+    // If within 30 min walk, lead with walk time and add drive time as secondary.
+    // Beyond 30 min, show drive time as the primary metric.
+    if (poi.walk_time_min && poi.walk_time_min <= 30) {
+      extras.push(`approx. ${poi.walk_time_min} min walk`);
+      if (poi.drive_time_min) {
+        extras.push(`${poi.drive_time_min} min drive`);
+      }
+    } else if (poi.drive_time_min) {
       extras.push(`approx. ${poi.drive_time_min} min drive`);
     } else if (poi.walk_time_min) {
       extras.push(`approx. ${poi.walk_time_min} min walk`);
