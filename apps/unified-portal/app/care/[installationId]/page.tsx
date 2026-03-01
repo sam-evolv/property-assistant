@@ -11,13 +11,16 @@ const AssistantScreen = dynamic(() => import('./screens/AssistantScreen'), { ssr
 const GuidesScreen = dynamic(() => import('./screens/GuidesScreen'), { ssr: false, loading: () => <TabLoading /> });
 const ProfileScreen = dynamic(() => import('./screens/ProfileScreen'), { ssr: false, loading: () => <TabLoading /> });
 
+/* Skeleton loading — verbatim from Property portal purchaser/app/page.tsx */
 function TabLoading() {
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="animate-pulse space-y-3 w-full max-w-sm px-4">
-        <div className="h-40 bg-slate-100 rounded-2xl" />
-        <div className="h-5 bg-slate-100 rounded-full w-3/4" />
-        <div className="h-4 bg-slate-100 rounded-full w-1/2" />
+    <div className="p-4 space-y-3 animate-pulse">
+      <div className="h-48 bg-slate-100 rounded-2xl" />
+      <div className="h-6 bg-slate-100 rounded-full w-3/4" />
+      <div className="h-4 bg-slate-100 rounded-full w-1/2" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-24 bg-slate-100 rounded-xl" />
+        <div className="h-24 bg-slate-100 rounded-xl" />
       </div>
     </div>
   );
@@ -52,9 +55,9 @@ export default function CareInstallationPage() {
         </div>
       </header>
 
-      {/* Content */}
+      {/* Content — animate-fade-in on tab switch matches Property portal */}
       <main className="flex-1 min-h-0 overflow-hidden">
-        <div key={activeTab} className="h-full">
+        <div key={activeTab} className="h-full animate-fade-in">
           {activeTab === 'assistant' && <AssistantScreen installationId={installationId} />}
           {activeTab === 'home' && <HomeScreen />}
           {activeTab === 'guides' && <GuidesScreen />}
@@ -62,8 +65,8 @@ export default function CareInstallationPage() {
         </div>
       </main>
 
-      {/* Bottom nav — EXACT copy of Property purchaser/app/page.tsx nav */}
-      <nav className="flex-shrink-0 border-t bg-white border-grey-200 z-50">
+      {/* Bottom nav — EXACT copy of Property purchaser/app/page.tsx nav styling */}
+      <nav className="flex-shrink-0 border-t bg-white border-grey-200 z-50 safe-area-inset-bottom">
         <div className="flex max-w-4xl mx-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;

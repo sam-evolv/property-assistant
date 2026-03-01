@@ -6,92 +6,151 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   Sparkles, FolderArchive, MessageSquare, LayoutDashboard,
-  ChevronLeft, ChevronRight, Settings,
+  Wrench, Shield, BookOpen, ChevronLeft, ChevronRight,
+  ClipboardList, BarChart3,
 } from 'lucide-react';
 
-const tokens = {
-  gold: '#D4AF37',
-  goldDark: '#B8934C',
-};
-
-const NAV_ITEMS = [
-  { href: '/care-dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/care-dashboard/intelligence', label: 'Intelligence', icon: Sparkles },
-  { href: '/care-dashboard/archive', label: 'Archive', icon: FolderArchive },
-  { href: '/care-dashboard/communications', label: 'Communications', icon: MessageSquare },
+/* ── Nav sections — mirrors Developer dashboard structure exactly ── */
+const NAV_SECTIONS = [
+  {
+    title: 'Main',
+    items: [
+      { href: '/care-dashboard', label: 'Overview', icon: LayoutDashboard },
+      { href: '/care-dashboard/intelligence', label: 'Intelligence', icon: Sparkles },
+    ],
+  },
+  {
+    title: 'Installer Tools',
+    items: [
+      { href: '/care-dashboard/installations', label: 'Installations', icon: ClipboardList },
+      { href: '/care-dashboard/diagnostics', label: 'Diagnostics', icon: Wrench },
+      { href: '/care-dashboard/support', label: 'Support Queue', icon: Shield },
+    ],
+  },
+  {
+    title: 'Management',
+    items: [
+      { href: '/care-dashboard/archive', label: 'Smart Archive', icon: FolderArchive },
+      { href: '/care-dashboard/content', label: 'Content Manager', icon: BookOpen },
+      { href: '/care-dashboard/warranty', label: 'Warranty Tracker', icon: BarChart3 },
+    ],
+  },
+  {
+    title: 'Communication',
+    items: [
+      { href: '/care-dashboard/communications', label: 'Communications', icon: MessageSquare },
+    ],
+  },
 ];
 
-export default function CareDashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function CareDashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const isActive = (href: string) =>
+    href === '/care-dashboard'
+      ? pathname === '/care-dashboard'
+      : pathname?.startsWith(href);
+
+  const SidebarContent = () => (
+    <>
+      {/* Logo — verbatim from developer layout: transparent PNG, centred */}
+      <div className="p-6 border-b border-gold-900/20 flex items-center justify-center">
+        {collapsed ? (
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center">
+            <span className="text-white font-bold text-xs">OH</span>
+          </div>
+        ) : (
+          <Image
+            src="/branding/openhouse-ai-logo.png"
+            alt="OpenHouse AI"
+            width={120}
+            height={36}
+            className="h-8 w-auto object-contain brightness-0 invert"
+          />
+        )}
+      </div>
+
+      {/* Navigation sections — same structure as developer sidebar */}
+      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {NAV_SECTIONS.map((section, idx) => (
+          <div key={idx}>
+            {!collapsed && (
+              <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: '#9CA3AF' }}>
+                {section.title}
+              </p>
+            )}
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium ${
+                      active
+                        ? 'bg-gold-500 text-white shadow-lg'
+                        : 'hover:bg-gold-500/10 hover:text-gold-300'
+                    } ${collapsed ? 'justify-center px-2' : ''}`}
+                    style={active ? undefined : { color: '#F9FAFB' }}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    {!collapsed && <span>{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Footer — mirrors developer layout footer */}
+      <div className="p-4 border-t border-gold-900/20">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-gold-500/10"
+          style={{ color: '#9CA3AF' }}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed
+            ? <ChevronRight className="w-4 h-4" />
+            : <><ChevronLeft className="w-4 h-4" /><span className="text-xs">Collapse</span></>
+          }
+        </button>
+        {!collapsed && (
+          <div className="px-4 py-2 text-xs text-center mt-1" style={{ color: '#9CA3AF' }}>
+            <p className="font-medium">OpenHouse Care</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar */}
+    <div className="min-h-screen flex bg-white">
+      {/* Desktop Sidebar — bg-black matches Developer dashboard exactly */}
       <aside
-        className="flex flex-col flex-shrink-0 border-r border-[#1a1d23] transition-all duration-200"
-        style={{
-          width: collapsed ? '64px' : '240px',
-          backgroundColor: '#0f1115',
-        }}
+        className={`hidden md:flex flex-col flex-shrink-0 bg-black transition-all duration-200`}
+        style={{ width: collapsed ? '64px' : '256px' }}
       >
-        {/* Logo */}
-        <div className="p-4 border-b border-[#1a1d23]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0">
-              <Image src="/icon-192.png" alt="OpenHouse Care" width={36} height={36} className="w-9 h-9 object-cover rounded-xl" />
-            </div>
-            {!collapsed && (
-              <div>
-                <h1 className="text-sm font-semibold text-white tracking-tight">OpenHouse Care</h1>
-                <p className="text-[10px] text-[#9ca8bc]">Solar Aftercare</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-2 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== '/care-dashboard' && pathname?.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 border-l-[3px] ${
-                  isActive
-                    ? 'bg-[#D4AF37]/10 text-[#D4AF37] border-[#D4AF37]'
-                    : 'text-[#9ca8bc] hover:text-white hover:bg-white/5 border-transparent'
-                }`}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#D4AF37]' : ''}`} />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Collapse Toggle */}
-        <div className="p-2 border-t border-[#1a1d23]">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[#9ca8bc]
-              hover:text-white hover:bg-white/5 transition-all duration-150"
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && <span className="text-xs">Collapse</span>}
-          </button>
-        </div>
+        <SidebarContent />
       </aside>
 
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="w-64 bg-black flex flex-col">
+            <SidebarContent />
+          </div>
+          <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="flex-1 min-h-screen overflow-auto">
+      <main className="flex-1 min-h-screen overflow-auto bg-gradient-to-br from-white via-grey-50 to-white">
         {children}
       </main>
     </div>
