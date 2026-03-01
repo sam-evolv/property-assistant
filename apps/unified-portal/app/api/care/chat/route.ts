@@ -21,6 +21,7 @@ import {
   getSeSystemsInstallerContext,
   isSeSystemsInstallation,
 } from '@/lib/care/seSystemsKnowledge';
+import { getIrelandRenewableKnowledge } from '@/lib/care/irelandRenewableKnowledge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -349,13 +350,21 @@ export async function POST(request: NextRequest) {
       ? getSeSystemsKnowledge(message, installation.system_type)
       : [];
 
-    // Merge: SE Systems entries take priority (prepended), generic entries fill gaps
+    // Generic Irish renewable knowledge (homeowner education layer)
+    const irelandEntries = getIrelandRenewableKnowledge(message, installation.system_type);
+
+    // Merge priority: SE Systems (most specific) → Ireland renewable (generic Irish) → generic care KB
     const mergedEntries = [
       ...seSystemsEntries,
-      ...careKnowledgeEntries.filter(
+      ...irelandEntries.filter(
         (e) => !seSystemsEntries.some((s) => s.content.startsWith(e.content.substring(0, 40)))
       ),
-    ].slice(0, 4); // Allow up to 4 entries when installer-specific content is present
+      ...careKnowledgeEntries.filter(
+        (e) =>
+          !seSystemsEntries.some((s) => s.content.startsWith(e.content.substring(0, 40))) &&
+          !irelandEntries.some((i) => i.content.startsWith(e.content.substring(0, 40)))
+      ),
+    ].slice(0, 4);
 
     const careKnowledgeContext = formatCareKnowledge(mergedEntries);
 
