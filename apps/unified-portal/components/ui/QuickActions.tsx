@@ -43,8 +43,8 @@ export function QuickActionsBar({ actions, className }: QuickActionsBarProps) {
               onClick={action.onClick}
               disabled={action.disabled}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all',
-                'active:scale-[0.98] shadow-sm',
+                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+                'active:scale-[0.98] shadow-sm hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-gold-500/30',
                 action.disabled && 'opacity-50 cursor-not-allowed',
                 action.variant === 'primary'
                   ? 'bg-gold-500 text-white hover:bg-gold-600 shadow-gold-200'

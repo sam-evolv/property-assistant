@@ -982,7 +982,7 @@ export default function SchemeIntelligencePage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0">
-                  <Image src="/icon-192.png" alt="OpenHouse AI" width={36} height={36} className="w-9 h-9 object-cover rounded-xl" />
+                  <Image src="/branding/openhouse-ai-logo.png" alt="OpenHouse AI" width={36} height={36} className="w-9 h-9 object-contain" />
                 </div>
                 <div>
                   <h1 className="text-[20px] font-semibold text-white tracking-[-0.01em]">OpenHouse Intelligence</h1>
@@ -1191,7 +1191,7 @@ export default function SchemeIntelligencePage() {
                 <div className="flex-1 flex items-center justify-center p-8">
                   <div className="text-center max-w-xl">
                     <div className="w-14 h-14 rounded-2xl mx-auto mb-5 overflow-hidden flex items-center justify-center">
-                      <Image src="/icon-192.png" alt="OpenHouse AI" width={56} height={56} className="w-14 h-14 object-cover rounded-2xl" />
+                      <Image src="/branding/openhouse-ai-logo.png" alt="OpenHouse AI" width={56} height={56} className="w-14 h-14 object-contain" />
                     </div>
                     <h2 className="text-2xl font-semibold text-white tracking-[-0.01em]">
                       OpenHouse Intelligence
@@ -1258,7 +1258,7 @@ export default function SchemeIntelligencePage() {
                           /* Assistant: flat with AI avatar */
                           <div className="flex items-start gap-3 group">
                             <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 mt-0.5">
-                              <Image src="/icon-192.png" alt="OpenHouse AI" width={28} height={28} className="w-7 h-7 object-cover rounded-full" />
+                              <Image src="/branding/openhouse-ai-logo.png" alt="OpenHouse AI" width={28} height={28} className="w-7 h-7 object-contain" />
                             </div>
                             <div className="flex-1 min-w-0 relative">
                               {!msg.isStreaming && (

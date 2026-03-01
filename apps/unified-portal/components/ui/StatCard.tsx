@@ -170,8 +170,8 @@ export function StatCard({
   return (
     <div
       className={cn(
-        'bg-white rounded-xl border border-gray-200 transition-all',
-        'hover:shadow-md hover:border-gray-300',
+        'bg-white rounded-xl border border-gray-200 transition-all duration-200 da-anim-in',
+        'hover:shadow-md hover:-translate-y-0.5 hover:border-gold-200',
         styles.padding,
         className
       )}

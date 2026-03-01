@@ -103,7 +103,7 @@ function KpiCard({
   const secondaryText = isDarkMode ? 'text-gray-300' : 'text-gray-600';
 
   return (
-    <div className={`rounded-xl border p-6 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>
+    <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
           <Icon className={`w-5 h-5 ${iconColour}`} />
@@ -154,7 +154,7 @@ function UnansweredQueriesCard({
 
   if (queries.length === 0) {
     return (
-      <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+      <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
         <div className="flex items-center gap-2 mb-4">
           <AlertCircle className="w-5 h-5 text-amber-500" />
           <h2 className={`text-lg font-semibold ${textColor}`}>Knowledge Gaps</h2>
@@ -171,7 +171,7 @@ function UnansweredQueriesCard({
   }
 
   return (
-    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+    <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -282,7 +282,7 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
 
   return (
     <>
-      <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+      <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-gold-500" />
@@ -550,7 +550,7 @@ function RecentActivityCard({
   const avgDaily = recentActivity.length > 0 ? Math.round(totalRecent / recentActivity.length) : 0;
 
   return (
-    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+    <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-gold-500" />
@@ -651,7 +651,7 @@ function QuickActionsCard({
   ];
 
   return (
-    <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+    <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
       <h2 className={`text-lg font-semibold ${textColor} mb-4`}>Quick Actions</h2>
       <div className="space-y-3">
         {actions.filter(a => a.show).map((action, index) => (
@@ -930,7 +930,7 @@ export default function DeveloperDashboardClient({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+            <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className={`text-lg font-semibold ${textColor}`}>What Homeowners Ask About</h2>
                 <span className={`text-xs ${secondaryText}`}>Last 30 days</span>
@@ -947,7 +947,7 @@ export default function DeveloperDashboardClient({
               </p>
             </div>
 
-            <div className={`rounded-xl border p-6 backdrop-blur-sm ${cardBg}`}>
+            <div className={`rounded-xl border p-6 backdrop-blur-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 da-anim-in ${cardBg}`}>
               <h2 className={`text-lg font-semibold ${textColor} mb-4`}>Onboarding Funnel</h2>
               <OnboardingFunnelChart data={data.onboardingFunnel} isDarkMode={isDarkMode} />
               <p className={`text-xs ${secondaryText} mt-4`}>

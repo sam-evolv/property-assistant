@@ -122,7 +122,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
   const role = roleConfig[member.role];
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -172,7 +172,7 @@ function TemplateCard({
   onEdit: () => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all group">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-lg bg-gray-100">
@@ -376,7 +376,7 @@ export default function CommunicationsHubPage() {
               </button>
               <button
                 onClick={() => setShowComposeModal(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 <Send className="w-4 h-4" />
                 Compose Message
@@ -463,7 +463,7 @@ export default function CommunicationsHubPage() {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-2">
                     <button
@@ -560,7 +560,7 @@ export default function CommunicationsHubPage() {
                     className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500"
                   />
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors">
+                <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
                   <Plus className="w-4 h-4" />
                   Create Template
                 </button>
@@ -635,7 +635,7 @@ export default function CommunicationsHubPage() {
               >
                 Cancel
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors">
+              <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gold-500 rounded-lg hover:bg-gold-600 hover:-translate-y-0.5 transition-all duration-200 active:scale-95">
                 <Send className="w-4 h-4" />
                 Send
               </button>

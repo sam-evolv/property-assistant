@@ -53,7 +53,7 @@ export default function CareDashboardOverview() {
             {stats.map((stat) => {
               const Icon = stat.icon;
               return (
-                <div key={stat.label} className="bg-white border border-gold-100 rounded-lg shadow-sm p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
+                <div key={stat.label} className="bg-white border border-gold-100 rounded-xl shadow-sm p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 da-anim-in">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.label}</span>
                     <div className="w-9 h-9 rounded-lg bg-gold-50 flex items-center justify-center">
