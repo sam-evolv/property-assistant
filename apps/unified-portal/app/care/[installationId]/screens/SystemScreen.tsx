@@ -1,270 +1,527 @@
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
-import {
-  Cpu, Sun, Battery, Zap, Thermometer, Calendar,
-  Shield, MapPin, Phone, Mail, ChevronRight, ExternalLink,
-  CheckCircle, AlertTriangle, Clock,
-} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useCareApp } from '../care-app-provider';
 
-// ============================================================================
-// Design Tokens (matching Property dashboard)
-// ============================================================================
+/* ── Scroll Reveal Hook ── */
+function useScrollReveal(threshold = 0.1) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
-const tokens = {
-  gold: '#D4AF37',
-  goldDark: '#B8934C',
-};
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
-// ============================================================================
-// Types
-// ============================================================================
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReduced) {
+      setVisible(true);
+      return;
+    }
 
-interface SystemComponent {
-  id: string;
-  name: string;
-  model: string;
-  manufacturer: string;
-  serialNumber: string;
-  warrantyExpiry: string;
-  status: 'healthy' | 'warning' | 'error';
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, visible };
 }
 
-interface InstallerInfo {
-  company: string;
-  contact: string;
-  phone: string;
-  email: string;
-  seaiRegistered: boolean;
-}
-
-interface SystemSpec {
-  label: string;
-  value: string;
-  icon: typeof Sun;
-}
-
-// ============================================================================
-// Mock Data
-// ============================================================================
-
-const mockComponents: SystemComponent[] = [
-  {
-    id: '1',
-    name: 'Solar Panels',
-    model: 'JA Solar JAM72S30-545/MR',
-    manufacturer: 'JA Solar',
-    serialNumber: 'JAS-2024-001 to JAS-2024-016',
-    warrantyExpiry: '2049-03-15',
-    status: 'healthy',
-  },
-  {
-    id: '2',
-    name: 'Inverter',
-    model: 'SolarEdge SE6000H',
-    manufacturer: 'SolarEdge',
-    serialNumber: 'SE-7F2A3B4C',
-    warrantyExpiry: '2036-03-15',
-    status: 'healthy',
-  },
-  {
-    id: '3',
-    name: 'Power Optimisers',
-    model: 'SolarEdge P505',
-    manufacturer: 'SolarEdge',
-    serialNumber: 'Multiple (16 units)',
-    warrantyExpiry: '2049-03-15',
-    status: 'healthy',
-  },
-  {
-    id: '4',
-    name: 'Mounting System',
-    model: 'K2 Systems SingleRail',
-    manufacturer: 'K2 Systems',
-    serialNumber: 'K2-BATCH-2024-03',
-    warrantyExpiry: '2044-03-15',
-    status: 'healthy',
-  },
-];
-
-const mockInstaller: InstallerInfo = {
-  company: 'SunPower Ireland Ltd.',
-  contact: 'Michael O\'Brien',
-  phone: '+353 1 234 5678',
-  email: 'support@sunpowerireland.ie',
-  seaiRegistered: true,
-};
-
-const mockSpecs: SystemSpec[] = [
-  { label: 'System Capacity', value: '6.6 kWp', icon: Zap },
-  { label: 'Panel Count', value: '16 panels', icon: Sun },
-  { label: 'Roof Orientation', value: 'South-facing', icon: MapPin },
-  { label: 'Tilt Angle', value: '35°', icon: Sun },
-  { label: 'Annual Yield (est.)', value: '5,800 kWh', icon: Battery },
-  { label: 'SEAI Grant', value: '€2,400 received', icon: Shield },
-];
-
-// ============================================================================
-// Sub-Components
-// ============================================================================
-
-function ComponentCard({ component }: { component: SystemComponent }) {
-  const statusConfig = {
-    healthy: { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-50', label: 'Healthy' },
-    warning: { icon: AlertTriangle, color: 'text-amber-500', bg: 'bg-amber-50', label: 'Attention Needed' },
-    error: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50', label: 'Issue Detected' },
-  };
-  const status = statusConfig[component.status];
-  const StatusIcon = status.icon;
+/* ── Reveal Section ── */
+function RevealSection({
+  children,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+}) {
+  const { ref, visible } = useScrollReveal(0.1);
 
   return (
-    <div className="bg-white border border-gold-100 rounded-lg shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-      <div className="flex items-start justify-between mb-2">
-        <h4 className="text-sm font-semibold text-gray-900">{component.name}</h4>
-        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${status.bg}`}>
-          <StatusIcon className={`w-3 h-3 ${status.color}`} />
-          <span className={`text-[10px] font-medium ${status.color}`}>{status.label}</span>
-        </div>
-      </div>
-      <p className="text-xs text-gray-600 font-medium">{component.model}</p>
-      <p className="text-[10px] text-gray-400 mt-0.5">{component.manufacturer}</p>
-      <div className="mt-3 pt-3 border-t border-gray-50 space-y-1">
-        <div className="flex justify-between">
-          <span className="text-[10px] text-gray-400">Serial</span>
-          <span className="text-[10px] text-gray-600 font-mono">{component.serialNumber}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-[10px] text-gray-400">Warranty until</span>
-          <span className="text-[10px] text-gray-600">
-            {new Date(component.warrantyExpiry).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
-          </span>
-        </div>
+    <div ref={ref}>
+      <div
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'translateY(0)' : 'translateY(20px)',
+          transition: `opacity 550ms cubic-bezier(.16, 1, .3, 1) ${delay}ms, transform 550ms cubic-bezier(.16, 1, .3, 1) ${delay}ms`,
+        }}
+      >
+        {children}
       </div>
     </div>
   );
 }
 
-// ============================================================================
-// Main Component
-// ============================================================================
-
-interface SystemScreenProps {
-  installationId: string;
+/* ── Spec Row ── */
+function SpecRow({
+  label,
+  value,
+  isLast = false,
+}: {
+  label: string;
+  value: string;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 0',
+        borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
+      }}
+    >
+      <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: 14,
+          color: '#1a1a1a',
+          fontWeight: 600,
+          textAlign: 'right',
+          maxWidth: '55%',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
 }
 
-export default function SystemScreen({ installationId }: SystemScreenProps) {
-  const [components] = useState<SystemComponent[]>(mockComponents);
-  const [installer] = useState<InstallerInfo>(mockInstaller);
-  const [specs] = useState<SystemSpec[]>(mockSpecs);
+/* ── Warranty Progress Bar ── */
+function WarrantyBar({
+  label,
+  totalYears,
+  installYear,
+}: {
+  label: string;
+  totalYears: number;
+  installYear: number;
+}) {
+  const currentYear = new Date().getFullYear();
+  const expiryYear = installYear + totalYears;
+  const elapsed = currentYear - installYear;
+  const remaining = Math.max(expiryYear - currentYear, 0);
+  const progress = Math.min((elapsed / totalYears) * 100, 100);
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">System Details</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Your solar installation specifications and components</p>
+    <div style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 6,
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>
+          {remaining} years remaining
+        </span>
+      </div>
+      <div
+        style={{
+          width: '100%',
+          height: 8,
+          borderRadius: 100,
+          background: '#f0f0f0',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${progress}%`,
+            height: '100%',
+            borderRadius: 100,
+            background: 'linear-gradient(90deg, #22C55E, #16A34A)',
+            transition: 'width 800ms cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        />
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 4,
+        }}
+      >
+        <span style={{ fontSize: 11, color: '#aaa' }}>{installYear}</span>
+        <span style={{ fontSize: 11, color: '#aaa' }}>{expiryYear}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function SystemScreen() {
+  const { installation } = useCareApp();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const installYear = parseInt(installation.install_date.split('-')[0], 10);
+  const installDateFormatted = new Date(
+    installation.install_date
+  ).toLocaleDateString('en-IE', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const specs = [
+    { label: 'Size', value: `${installation.system_size_kwp} kWp` },
+    { label: 'Panel Type', value: installation.panel_model },
+    { label: 'Panel Count', value: `${installation.panel_count} panels` },
+    { label: 'Inverter', value: installation.inverter_model },
+    {
+      label: 'Battery',
+      value: installation.system_specs.battery || 'None',
+    },
+    { label: 'Install Date', value: installDateFormatted },
+    { label: 'Installer', value: installation.installer_name },
+    { label: 'SEAI Grant', value: 'Approved' },
+  ];
+
+  const warranties = [
+    {
+      label: 'Panel Warranty',
+      totalYears: installation.system_specs.panel_warranty_years || 25,
+    },
+    {
+      label: 'Inverter Warranty',
+      totalYears: installation.system_specs.inverter_warranty_years || 12,
+    },
+    {
+      label: 'Workmanship',
+      totalYears:
+        installation.system_specs.workmanship_warranty_years || 10,
+    },
+  ];
+
+  return (
+    <div
+      className="care-screen-scroll"
+      style={{
+        height: '100%',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingBottom: 100,
+        WebkitOverflowScrolling: 'touch',
+        background: '#FFFFFF',
+      }}
+    >
+      {/* Breathing gold shadow animation */}
+      <style>{`
+        @keyframes careGoldBreathe {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.3); }
+          50% { box-shadow: 0 0 24px 8px rgba(212, 175, 55, 0.15); }
+        }
+      `}</style>
+
+      <div style={{ padding: '0 20px' }}>
+        {/* ── Header with breathing gear icon ── */}
+        <div
+          style={{
+            paddingTop: 56,
+            marginBottom: 16,
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? 'translateY(0)' : 'translateY(12px)',
+            transition:
+              'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16,
+                animation: 'careGoldBreathe 3s ease-in-out infinite',
+              }}
+            >
+              <svg
+                width={28}
+                height={28}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
+            <h1
+              style={{
+                fontSize: 24,
+                fontWeight: 800,
+                color: '#1a1a1a',
+                letterSpacing: '-0.03em',
+                margin: '0 0 6px',
+              }}
+            >
+              Your System
+            </h1>
+          </div>
+
+          {/* Address */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              marginBottom: 4,
+            }}
+          >
+            <svg
+              width={14}
+              height={14}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#999"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>
+              {installation.address_line_1}, Co. {installation.county}
+            </span>
+          </div>
         </div>
 
-        {/* Specs Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {specs.map((spec) => {
-            const Icon = spec.icon;
-            return (
-              <div key={spec.label} className="bg-white border border-gold-100 rounded-lg shadow-sm p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{spec.label}</span>
-                </div>
-                <p className="text-sm font-bold text-gray-900">{spec.value}</p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Components */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">System Components</h3>
-          <div className="space-y-3">
-            {components.map((component) => (
-              <ComponentCard key={component.id} component={component} />
+        {/* ── System Specs Card ── */}
+        <RevealSection delay={0}>
+          <div
+            style={{
+              background: '#FAFAFA',
+              borderRadius: 20,
+              padding: '4px 20px',
+              marginBottom: 20,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                padding: '16px 0 0',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              System Specifications
+            </h2>
+            {specs.map((spec, i) => (
+              <SpecRow
+                key={i}
+                label={spec.label}
+                value={spec.value}
+                isLast={i === specs.length - 1}
+              />
             ))}
           </div>
-        </div>
+        </RevealSection>
 
-        {/* Installer Info */}
-        <div className="bg-white border border-gold-100 rounded-lg shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Your Installer</h3>
-          <div className="flex items-start gap-3">
+        {/* ── Warranty Card ── */}
+        <RevealSection delay={60}>
+          <div
+            style={{
+              background: '#FAFAFA',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 20,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                margin: '0 0 16px',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Warranty Coverage
+            </h2>
+            {warranties.map((w, i) => (
+              <WarrantyBar
+                key={i}
+                label={w.label}
+                totalYears={w.totalYears}
+                installYear={installYear}
+              />
+            ))}
+          </div>
+        </RevealSection>
+
+        {/* ── Service Schedule Card ── */}
+        <RevealSection delay={120}>
+          <div
+            style={{
+              background: '#FAFAFA',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 20,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                margin: '0 0 16px',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Service Schedule
+            </h2>
+
+            {[
+              {
+                title: 'Annual Inspection',
+                date: 'January 2027',
+                status: 'Scheduled',
+                statusColor: '#3B82F6',
+                statusBg: '#EFF6FF',
+              },
+              {
+                title: 'Panel Cleaning',
+                date: 'April 2026',
+                status: 'Upcoming',
+                statusColor: '#F59E0B',
+                statusBg: '#FFFBEB',
+              },
+              {
+                title: 'Installation Inspection',
+                date: 'January 2026',
+                status: 'Completed',
+                statusColor: '#22C55E',
+                statusBg: '#F0FDF4',
+              },
+            ].map((service, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderBottom:
+                    i < 2 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#1a1a1a',
+                      marginBottom: 2,
+                    }}
+                  >
+                    {service.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    {service.date}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: service.statusColor,
+                    background: service.statusBg,
+                    padding: '4px 10px',
+                    borderRadius: 100,
+                  }}
+                >
+                  {service.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </RevealSection>
+
+        {/* ── Powered By Footer ── */}
+        <RevealSection delay={180}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '24px 0 16px',
+            }}
+          >
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                opacity: 0.5,
+              }}
             >
-              <Cpu className="w-6 h-6 text-white" />
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  width={11}
+                  height={11}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+              <span style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>
+                Powered by OpenHouse Care
+              </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{installer.company}</p>
-              <p className="text-xs text-gray-500">{installer.contact}</p>
-              {installer.seaiRegistered && (
-                <div className="flex items-center gap-1 mt-1">
-                  <CheckCircle className="w-3 h-3 text-emerald-500" />
-                  <span className="text-[10px] text-emerald-600 font-medium">SEAI Registered Installer</span>
-                </div>
-              )}
-            </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-gray-50 space-y-2">
-            <a
-              href={`tel:${installer.phone.replace(/\s/g, '')}`}
-              className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#B8934C] transition-colors"
-            >
-              <Phone className="w-4 h-4" />
-              {installer.phone}
-            </a>
-            <a
-              href={`mailto:${installer.email}`}
-              className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#B8934C] transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              {installer.email}
-            </a>
-          </div>
-        </div>
-
-        {/* Warranty Timeline */}
-        <div className="bg-white border border-gold-100 rounded-lg shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Warranty Coverage</h3>
-          <div className="space-y-3">
-            {components.map((component) => {
-              const expiryDate = new Date(component.warrantyExpiry);
-              const installDate = new Date('2024-03-15');
-              const now = new Date();
-              const totalMs = expiryDate.getTime() - installDate.getTime();
-              const elapsedMs = now.getTime() - installDate.getTime();
-              const progress = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
-              const yearsRemaining = Math.round((expiryDate.getTime() - now.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-
-              return (
-                <div key={component.id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-700">{component.name}</span>
-                    <span className="text-[10px] text-gray-400">{yearsRemaining} years remaining</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${100 - progress}%`,
-                        background: `linear-gradient(90deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        </RevealSection>
       </div>
     </div>
   );

@@ -1,295 +1,538 @@
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
-import {
-  BookOpen, Sun, Wrench, Shield, Zap, AlertTriangle,
-  ChevronRight, Search, ExternalLink, FileText, Video,
-} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useCareApp } from '../care-app-provider';
 
-// ============================================================================
-// Design Tokens (matching Property dashboard)
-// ============================================================================
+/* ── Scroll Reveal Hook ── */
+function useScrollReveal(threshold = 0.1) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
-const tokens = {
-  gold: '#D4AF37',
-  goldDark: '#B8934C',
-};
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
-// ============================================================================
-// Types
-// ============================================================================
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReduced) {
+      setVisible(true);
+      return;
+    }
 
-interface Guide {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  readTime: string;
-  icon: typeof Sun;
-  iconColor: string;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, visible };
+}
+
+/* ── Reveal Section Wrapper ── */
+function RevealSection({
+  children,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+}) {
+  const { ref, visible } = useScrollReveal(0.1);
+
+  return (
+    <div ref={ref}>
+      <div
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'translateY(0)' : 'translateY(20px)',
+          transition: `opacity 550ms cubic-bezier(.16, 1, .3, 1) ${delay}ms, transform 550ms cubic-bezier(.16, 1, .3, 1) ${delay}ms`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ── Guide Item ── */
+function GuideItem({
+  icon,
+  iconBg,
+  title,
+  meta,
+}: {
+  icon: React.ReactNode;
   iconBg: string;
-}
+  title: string;
+  meta: string;
+}) {
+  const [pressed, setPressed] = useState(false);
 
-interface GuideCategory {
-  id: string;
-  label: string;
-  icon: typeof Sun;
-  count: number;
-}
-
-// ============================================================================
-// Mock Data
-// ============================================================================
-
-const categories: GuideCategory[] = [
-  { id: 'all', label: 'All Guides', icon: BookOpen, count: 12 },
-  { id: 'getting-started', label: 'Getting Started', icon: Zap, count: 3 },
-  { id: 'maintenance', label: 'Maintenance', icon: Wrench, count: 4 },
-  { id: 'troubleshooting', label: 'Troubleshooting', icon: AlertTriangle, count: 3 },
-  { id: 'warranty', label: 'Warranty', icon: Shield, count: 2 },
-];
-
-const guides: Guide[] = [
-  {
-    id: '1',
-    title: 'Understanding Your Solar System',
-    description: 'Learn how your solar PV system works, from panels to inverter to grid connection.',
-    category: 'getting-started',
-    readTime: '5 min read',
-    icon: Sun,
-    iconColor: 'text-amber-500',
-    iconBg: 'bg-amber-50',
-  },
-  {
-    id: '2',
-    title: 'Reading Your Inverter Display',
-    description: 'How to check your inverter status, current generation, and error codes.',
-    category: 'getting-started',
-    readTime: '3 min read',
-    icon: Zap,
-    iconColor: 'text-blue-500',
-    iconBg: 'bg-blue-50',
-  },
-  {
-    id: '3',
-    title: 'Monitoring Your Energy Production',
-    description: 'Set up and use your monitoring app to track daily, weekly, and monthly generation.',
-    category: 'getting-started',
-    readTime: '4 min read',
-    icon: Zap,
-    iconColor: 'text-emerald-500',
-    iconBg: 'bg-emerald-50',
-  },
-  {
-    id: '4',
-    title: 'Panel Cleaning Guide',
-    description: 'When and how to clean your solar panels for optimal performance.',
-    category: 'maintenance',
-    readTime: '3 min read',
-    icon: Wrench,
-    iconColor: 'text-purple-500',
-    iconBg: 'bg-purple-50',
-  },
-  {
-    id: '5',
-    title: 'Seasonal Performance Expectations',
-    description: 'What to expect from your system in summer vs winter, and typical generation patterns.',
-    category: 'maintenance',
-    readTime: '4 min read',
-    icon: Sun,
-    iconColor: 'text-orange-500',
-    iconBg: 'bg-orange-50',
-  },
-  {
-    id: '6',
-    title: 'Annual System Health Check',
-    description: 'Your yearly maintenance checklist to keep your system running efficiently.',
-    category: 'maintenance',
-    readTime: '5 min read',
-    icon: Wrench,
-    iconColor: 'text-teal-500',
-    iconBg: 'bg-teal-50',
-  },
-  {
-    id: '7',
-    title: 'Shading and Obstructions',
-    description: 'How trees, chimneys, and new buildings can affect your system output.',
-    category: 'maintenance',
-    readTime: '3 min read',
-    icon: Sun,
-    iconColor: 'text-gray-500',
-    iconBg: 'bg-gray-50',
-  },
-  {
-    id: '8',
-    title: 'Inverter Error Codes',
-    description: 'Common inverter error codes, what they mean, and when to call your installer.',
-    category: 'troubleshooting',
-    readTime: '6 min read',
-    icon: AlertTriangle,
-    iconColor: 'text-red-500',
-    iconBg: 'bg-red-50',
-  },
-  {
-    id: '9',
-    title: 'Low Generation Troubleshooting',
-    description: 'Steps to diagnose why your system may be generating less than expected.',
-    category: 'troubleshooting',
-    readTime: '5 min read',
-    icon: AlertTriangle,
-    iconColor: 'text-amber-500',
-    iconBg: 'bg-amber-50',
-  },
-  {
-    id: '10',
-    title: 'What To Do In a Power Cut',
-    description: 'How your solar system behaves during a power outage and safety considerations.',
-    category: 'troubleshooting',
-    readTime: '3 min read',
-    icon: Zap,
-    iconColor: 'text-yellow-500',
-    iconBg: 'bg-yellow-50',
-  },
-  {
-    id: '11',
-    title: 'Your Warranty Coverage',
-    description: 'Understanding your panel, inverter, and workmanship warranty periods.',
-    category: 'warranty',
-    readTime: '4 min read',
-    icon: Shield,
-    iconColor: 'text-[#D4AF37]',
-    iconBg: 'bg-gold-50',
-  },
-  {
-    id: '12',
-    title: 'Making a Warranty Claim',
-    description: 'Step-by-step guide to submitting a warranty claim for your solar equipment.',
-    category: 'warranty',
-    readTime: '3 min read',
-    icon: FileText,
-    iconColor: 'text-[#D4AF37]',
-    iconBg: 'bg-gold-50',
-  },
-];
-
-// ============================================================================
-// Sub-Components
-// ============================================================================
-
-function GuideCard({ guide }: { guide: Guide }) {
-  const Icon = guide.icon;
   return (
     <button
-      className="w-full bg-white border border-gold-100 rounded-lg shadow-sm p-4 text-left
-        hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 group"
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        width: '100%',
+        padding: '14px 16px',
+        background: '#FAFAFA',
+        border: 'none',
+        borderRadius: 16,
+        cursor: 'pointer',
+        textAlign: 'left',
+        WebkitTapHighlightColor: 'transparent',
+        transform: pressed ? 'scale(0.97)' : 'scale(1)',
+        transition: 'transform 200ms cubic-bezier(.34, 1.56, .64, 1)',
+        fontFamily: 'inherit',
+      }}
     >
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-lg ${guide.iconBg} flex items-center justify-center flex-shrink-0`}>
-          <Icon className={`w-5 h-5 ${guide.iconColor}`} />
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#1a1a1a',
+            marginBottom: 3,
+          }}
+        >
+          {title}
         </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-semibold text-gray-900 group-hover:text-[#D4AF37] transition-colors">
-            {guide.title}
-          </h4>
-          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{guide.description}</p>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-[10px] text-gray-400">{guide.readTime}</span>
-            <ChevronRight className="w-3 h-3 text-gray-300 group-hover:text-[#D4AF37] transition-colors" />
-          </div>
+        <div style={{ fontSize: 12, color: '#999', fontWeight: 500 }}>
+          {meta}
         </div>
       </div>
+      <svg
+        width={18}
+        height={18}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#ccc"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ flexShrink: 0 }}
+      >
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
     </button>
   );
 }
 
-// ============================================================================
-// Main Component
-// ============================================================================
+/* ── Inline SVG Icons ── */
+const PlayIcon = (
+  <svg
+    width={20}
+    height={20}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="white"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polygon points="5 3 19 12 5 21 5 3" />
+  </svg>
+);
 
-interface GuidesScreenProps {
-  installationId: string;
+const FileIcon = (
+  <svg
+    width={20}
+    height={20}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="white"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const WrenchIcon = (
+  <svg
+    width={20}
+    height={20}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="white"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  </svg>
+);
+
+interface ContentItem {
+  id: string;
+  title: string;
+  content_type: string;
+  category: string | null;
+  description: string | null;
+  view_count: number;
 }
 
-export default function GuidesScreen({ installationId }: GuidesScreenProps) {
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+const typeGradients: Record<string, string> = {
+  video: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+  document: 'linear-gradient(135deg, #3B82F6, #2563EB)',
+  guide: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+  faq: 'linear-gradient(135deg, #10B981, #059669)',
+};
 
-  const filteredGuides = guides.filter((guide) => {
-    const matchesCategory = activeCategory === 'all' || guide.category === activeCategory;
-    const matchesSearch = !searchQuery ||
-      guide.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      guide.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+const typeIcons: Record<string, React.ReactNode> = {
+  video: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+  ),
+  document: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+  ),
+  guide: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+  ),
+  faq: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+  ),
+};
+
+export default function GuidesScreen() {
+  const { installation, installationId } = useCareApp();
+  const [mounted, setMounted] = useState(false);
+  const [content, setContent] = useState<Record<string, ContentItem[]>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+    const fetchContent = async () => {
+      try {
+        const res = await fetch(`/api/care/content?installation_id=${installationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setContent(data.content || {});
+        }
+      } catch {} finally {
+        setLoading(false);
+      }
+    };
+    fetchContent();
+  }, [installationId]);
+
+  // Build guide sections from fetched content, falling back to defaults
+  const videoGuides = (content.video || []).map((c) => ({
+    title: c.title,
+    meta: `Video · ${c.view_count} views`,
+    iconBg: typeGradients.video,
+  }));
+  const documents = (content.document || []).map((c) => ({
+    title: c.title,
+    meta: 'PDF',
+    iconBg: typeGradients.document,
+  }));
+  const troubleshooting = (content.guide || content.faq || []).map((c) => ({
+    title: c.title,
+    meta: c.content_type === 'faq' ? 'FAQ' : 'Guide',
+    iconBg: typeGradients[c.content_type] || typeGradients.guide,
+  }));
+
+  // If no data loaded yet, use fallback
+  if (!loading && videoGuides.length === 0 && documents.length === 0 && troubleshooting.length === 0) {
+    videoGuides.push(
+      { title: 'Understanding Your Solar Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
+      { title: 'Maximising Self-Consumption', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+    );
+    documents.push(
+      { title: `${installation.inverter_model} Manual`, meta: 'PDF', iconBg: typeGradients.document },
+    );
+    troubleshooting.push(
+      { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+    );
+  }
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-        {/* Header */}
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Guides & Resources</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Everything you need to know about your solar system</p>
+    <div
+      className="care-screen-scroll"
+      style={{
+        height: '100%',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingBottom: 100,
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      <div style={{ padding: '0 20px' }}>
+        {/* ── Header ── */}
+        <div
+          style={{
+            paddingTop: 56,
+            marginBottom: 8,
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? 'translateY(0)' : 'translateY(12px)',
+            transition:
+              'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 800,
+              color: '#1a1a1a',
+              letterSpacing: '-0.03em',
+              margin: '0 0 4px',
+            }}
+          >
+            Guides & Resources
+          </h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: '#888',
+              margin: '0 0 20px',
+            }}
+          >
+            Everything you need for your {installation.system_size_kwp} kWp
+            system
+          </p>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search guides..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl
-              focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37]
-              transition-all"
-          />
-        </div>
+        {/* ── Search Bar (read-only placeholder) ── */}
+        <RevealSection delay={0}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: '#F5F5F5',
+              borderRadius: 14,
+              padding: '12px 16px',
+              marginBottom: 28,
+            }}
+          >
+            <svg
+              width={18}
+              height={18}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#999"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span
+              style={{
+                fontSize: 15,
+                color: '#bbb',
+                fontWeight: 400,
+              }}
+            >
+              Search guides and documents...
+            </span>
+          </div>
+        </RevealSection>
 
-        {/* Category Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {categories.map((cat) => {
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap
-                  transition-all duration-150 border ${
-                  isActive
-                    ? 'bg-[#D4AF37] text-white border-[#D4AF37]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#D4AF37]/30'
-                }`}
-              >
-                <cat.icon className="w-3 h-3" />
-                {cat.label}
-                <span className={`text-[10px] ${isActive ? 'text-white/70' : 'text-gray-400'}`}>
-                  ({cat.count})
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Guides Grid */}
-        <div className="space-y-3">
-          {filteredGuides.map((guide) => (
-            <GuideCard key={guide.id} guide={guide} />
-          ))}
-          {filteredGuides.length === 0 && (
-            <div className="text-center py-12">
-              <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-900">No guides found</p>
-              <p className="text-xs text-gray-500 mt-1">Try a different search or category</p>
+        {/* ── Video Guides ── */}
+        <RevealSection delay={60}>
+          <div style={{ marginBottom: 28 }}>
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                marginBottom: 12,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Video Guides
+            </h2>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {videoGuides.map((guide, i) => (
+                <GuideItem
+                  key={i}
+                  icon={PlayIcon}
+                  iconBg={guide.iconBg}
+                  title={guide.title}
+                  meta={guide.meta}
+                />
+              ))}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </RevealSection>
 
-      <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
+        {/* ── Documents ── */}
+        <RevealSection delay={120}>
+          <div style={{ marginBottom: 28 }}>
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                marginBottom: 12,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Documents
+            </h2>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {documents.map((doc, i) => (
+                <GuideItem
+                  key={i}
+                  icon={FileIcon}
+                  iconBg={doc.iconBg}
+                  title={doc.title}
+                  meta={doc.meta}
+                />
+              ))}
+            </div>
+          </div>
+        </RevealSection>
+
+        {/* ── Troubleshooting ── */}
+        <RevealSection delay={180}>
+          <div style={{ marginBottom: 28 }}>
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                marginBottom: 12,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Troubleshooting
+            </h2>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {troubleshooting.map((item, i) => (
+                <GuideItem
+                  key={i}
+                  icon={WrenchIcon}
+                  iconBg={item.iconBg}
+                  title={item.title}
+                  meta={item.meta}
+                />
+              ))}
+            </div>
+          </div>
+        </RevealSection>
+
+        {/* ── Help Banner ── */}
+        <RevealSection delay={240}>
+          <div
+            style={{
+              borderRadius: 20,
+              padding: 20,
+              background:
+                'linear-gradient(135deg, #FDF8EF 0%, #F8ECDA 100%)',
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg
+                  width={22}
+                  height={22}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#1a1a1a',
+                    marginBottom: 4,
+                  }}
+                >
+                  Can&apos;t find what you need?
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: '#888',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Ask our AI assistant for instant help with your system.
+                </div>
+              </div>
+            </div>
+          </div>
+        </RevealSection>
+      </div>
     </div>
   );
 }

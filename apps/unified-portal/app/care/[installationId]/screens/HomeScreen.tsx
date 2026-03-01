@@ -1,308 +1,1179 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import {
-  Sun, Zap, TrendingUp, Calendar, AlertTriangle, CheckCircle,
-  ArrowUpRight, Battery, Thermometer, Clock, ChevronRight,
-} from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCareApp } from '../care-app-provider';
 
-// ============================================================================
-// Design Tokens (matching Property dashboard)
-// ============================================================================
-
-const tokens = {
-  gold: '#D4AF37',
-  goldLight: '#F5D874',
-  goldDark: '#B8934C',
-};
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface SystemOverview {
-  systemType: string;
-  capacity: string;
-  panelCount: number;
-  inverterModel: string;
-  installDate: string;
-  warrantyExpiry: string;
+/* ── Helpers ── */
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
-interface PerformanceData {
-  todayGeneration: string;
-  monthGeneration: string;
-  yearGeneration: string;
-  co2Saved: string;
-  selfConsumption: string;
+function getFirstName(fullName: string): string {
+  return fullName.split(' ')[0];
 }
 
-interface AlertItem {
-  id: string;
-  type: 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-  date: string;
+function easeOutQuart(t: number): number {
+  return 1 - Math.pow(1 - t, 4);
 }
 
-// ============================================================================
-// Mock Data
-// ============================================================================
-
-const mockSystem: SystemOverview = {
-  systemType: 'Solar PV',
-  capacity: '6.6 kWp',
-  panelCount: 16,
-  inverterModel: 'SolarEdge SE6000H',
-  installDate: '2024-03-15',
-  warrantyExpiry: '2034-03-15',
-};
-
-const mockPerformance: PerformanceData = {
-  todayGeneration: '18.4 kWh',
-  monthGeneration: '420 kWh',
-  yearGeneration: '5,240 kWh',
-  co2Saved: '2.1 tonnes',
-  selfConsumption: '68%',
-};
-
-const mockAlerts: AlertItem[] = [
-  {
-    id: '1',
-    type: 'success',
-    title: 'System performing well',
-    description: 'Your solar system is generating above average for this time of year.',
-    date: '2 hours ago',
-  },
-  {
-    id: '2',
-    type: 'info',
-    title: 'Annual service due',
-    description: 'Your annual system check is due in 30 days. We\'ll be in touch to schedule.',
-    date: '1 day ago',
-  },
-];
-
-// ============================================================================
-// Sub-Components
-// ============================================================================
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  subtitle,
-  color = 'text-gray-600',
-}: {
-  icon: typeof Sun;
-  label: string;
-  value: string;
-  subtitle?: string;
-  color?: string;
-}) {
-  return (
-    <div className="bg-white border border-gold-100 rounded-lg shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-150">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 rounded-lg bg-gold-50 flex items-center justify-center">
-          <Icon className={`w-4 h-4 ${color}`} />
-        </div>
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
-    </div>
-  );
-}
-
-function AlertCard({ alert }: { alert: AlertItem }) {
-  const styles = {
-    warning: { bg: 'bg-amber-50', border: 'border-amber-200', icon: AlertTriangle, iconColor: 'text-amber-500' },
-    info: { bg: 'bg-blue-50', border: 'border-blue-200', icon: Clock, iconColor: 'text-blue-500' },
-    success: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle, iconColor: 'text-emerald-500' },
-  };
-  const style = styles[alert.type];
-  const Icon = style.icon;
-
-  return (
-    <div className={`${style.bg} border ${style.border} rounded-lg p-4 transition-all duration-150`}
-      style={{ animation: 'fadeIn 0.4s ease-out' }}
-    >
-      <div className="flex items-start gap-3">
-        <Icon className={`w-5 h-5 ${style.iconColor} flex-shrink-0 mt-0.5`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{alert.title}</p>
-          <p className="text-xs text-gray-600 mt-0.5">{alert.description}</p>
-          <p className="text-[10px] text-gray-400 mt-1">{alert.date}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Main Component
-// ============================================================================
-
-interface HomeScreenProps {
-  installationId: string;
-}
-
-export default function HomeScreen({ installationId }: HomeScreenProps) {
-  const [installation, setInstallation] = useState<any>(null);
-  const [system, setSystem] = useState<SystemOverview>(mockSystem);
-  const [performance, setPerformance] = useState<PerformanceData>(mockPerformance);
-  const [alerts, setAlerts] = useState<AlertItem[]>(mockAlerts);
-  const [loading, setLoading] = useState(true);
+/* ── Scroll Reveal Hook ── */
+function useScrollReveal(threshold = 0.1) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    fetchInstallationData();
-  }, [installationId]);
+    const el = ref.current;
+    if (!el) return;
 
-  const fetchInstallationData = async () => {
-    try {
-      const response = await fetch(`/api/care/installations/${installationId}`);
-      if (!response.ok) throw new Error('Failed to fetch installation');
-
-      const { installation: inst, solarData, alerts: dbAlerts } = await response.json();
-      setInstallation(inst);
-
-      // Build system overview from installation data
-      const systemData: SystemOverview = {
-        systemType: inst.system_type,
-        capacity: inst.capacity || '6.6 kWp',
-        panelCount: inst.component_specs?.panelCount || 16,
-        inverterModel: inst.component_specs?.inverter || inst.system_model,
-        installDate: inst.installation_date,
-        warrantyExpiry: inst.warranty_expiry || new Date(new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-      setSystem(systemData);
-
-      // Build performance data from telemetry
-      if (solarData && inst.system_type === 'solar') {
-        const performanceData: PerformanceData = {
-          todayGeneration: `${solarData.generation.today.toFixed(1)} kWh`,
-          monthGeneration: `${solarData.generation.thisMonth.toFixed(0)} kWh`,
-          yearGeneration: `${solarData.generation.thisYear.toFixed(0)} kWh`,
-          co2Saved: `${(solarData.generation.thisYear * 0.407 / 1000).toFixed(2)} tonnes`,
-          selfConsumption: `${solarData.selfConsumption?.toFixed(0) || 68}%`,
-        };
-        setPerformance(performanceData);
-      }
-
-      // Set alerts
-      if (dbAlerts && dbAlerts.length > 0) {
-        const alertItems: AlertItem[] = dbAlerts.map((a: any) => ({
-          id: a.id,
-          type: a.alert_type === 'error' ? 'warning' : a.alert_type === 'warning' ? 'warning' : 'info',
-          title: a.title,
-          description: a.description,
-          date: new Date(a.created_at).toLocaleDateString(),
-        }));
-        setAlerts(alertItems);
-      }
-
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch installation data:', error);
-      setLoading(false);
-      // Fall back to mock data
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (prefersReduced) {
+      setVisible(true);
+      return;
     }
-  };
 
-  if (loading) {
-    return (
-      <div className="flex-1 overflow-auto flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#D4AF37]" />
-          <p className="text-sm text-gray-500 mt-2">Loading system data...</p>
-        </div>
-      </div>
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold }
     );
-  }
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, visible };
+}
+
+/* ── Animated Counter ── */
+function AnimatedCounter({
+  target,
+  prefix = '',
+  suffix = '',
+  decimals = 0,
+  duration = 1200,
+  delay = 0,
+}: {
+  target: number;
+  prefix?: string;
+  suffix?: string;
+  decimals?: number;
+  duration?: number;
+  delay?: number;
+}) {
+  const [value, setValue] = useState(0);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStarted(true), delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  useEffect(() => {
+    if (!started) return;
+    const start = performance.now();
+    let raf: number;
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeOutQuart(progress);
+      setValue(eased * target);
+      if (progress < 1) raf = requestAnimationFrame(animate);
+    };
+
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [started, target, duration]);
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome Section */}
+    <span>
+      {prefix}
+      {value.toFixed(decimals)}
+      {suffix}
+    </span>
+  );
+}
+
+/* ── Stagger Entry Wrapper ── */
+function StaggerItem({
+  index,
+  children,
+  baseDelay = 0,
+  stagger = 60,
+}: {
+  index: number;
+  children: React.ReactNode;
+  baseDelay?: number;
+  stagger?: number;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setVisible(true),
+      baseDelay + index * stagger
+    );
+    return () => clearTimeout(timer);
+  }, [index, baseDelay, stagger]);
+
+  return (
+    <div
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(20px)',
+        transition:
+          'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ── Energy Chart ── */
+function EnergyChart() {
+  const reveal = useScrollReveal(0.1);
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const values = [3.2, 4.1, 2.8, 5.0, 4.2, 3.6, 4.8];
+  const max = Math.max(...values);
+
+  return (
+    <div ref={reveal.ref}>
+      <div
+        style={{
+          background: '#FAFAFA',
+          borderRadius: 20,
+          padding: '20px 16px 16px',
+        }}
+      >
         <div
-          className="rounded-2xl p-6 text-white relative overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}
         >
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/20 flex items-center justify-center">
-                <Image src="/icon-192.png" alt="OpenHouse Care" width={40} height={40} className="w-10 h-10 object-cover rounded-xl" />
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+            This Week
+          </span>
+          <span style={{ fontSize: 12, color: '#888' }}>kWh generated</span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            height: 120,
+            gap: 8,
+          }}
+        >
+          {values.map((v, i) => {
+            const heightPct = (v / max) * 100;
+            const isToday = i === days.length - 1;
+            return (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: isToday ? '#B8934C' : '#999',
+                    opacity: reveal.visible ? 1 : 0,
+                    transition: `opacity 400ms ease ${i * 80 + 300}ms`,
+                  }}
+                >
+                  {v}
+                </span>
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: 32,
+                    borderRadius: 8,
+                    background: isToday
+                      ? 'linear-gradient(180deg, #D4AF37, #B8934C)'
+                      : 'linear-gradient(180deg, #E8E8E8, #D8D8D8)',
+                    height: reveal.visible ? `${heightPct}%` : '0%',
+                    transition: `height 600ms cubic-bezier(.16, 1, .3, 1) ${i * 80}ms`,
+                    minHeight: 4,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: isToday ? '#B8934C' : '#aaa',
+                    fontWeight: isToday ? 700 : 500,
+                  }}
+                >
+                  {days[i]}
+                </span>
               </div>
-              <div>
-                <h2 className="text-lg font-bold">Your Solar System</h2>
-                <p className="text-sm text-white/80">{system.capacity} &middot; {system.panelCount} panels</p>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Push Notification ── */
+function PushNotification() {
+  const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const hasShownNotification = useRef(false);
+
+  useEffect(() => {
+    if (hasShownNotification.current) return;
+    const showTimer = setTimeout(() => {
+      setShow(true);
+      hasShownNotification.current = true;
+    }, 8000);
+    return () => clearTimeout(showTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!show || dismissed) return;
+    const dismissTimer = setTimeout(() => setDismissed(true), 6000);
+    return () => clearTimeout(dismissTimer);
+  }, [show, dismissed]);
+
+  if (!show) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 16,
+        left: 16,
+        right: 16,
+        zIndex: 2000,
+        opacity: dismissed ? 0 : 1,
+        transform: dismissed
+          ? 'translateY(-100%) scale(0.95)'
+          : show
+            ? 'translateY(0) scale(1)'
+            : 'translateY(-100%) scale(0.95)',
+        transition:
+          'all 500ms cubic-bezier(.34, 1.56, .64, 1)',
+        pointerEvents: dismissed ? 'none' : 'auto',
+      }}
+      onClick={() => setDismissed(true)}
+    >
+      <div
+        style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderRadius: 16,
+          padding: '14px 16px',
+          boxShadow:
+            '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4" />
+            <path d="M12 8h.01" />
+          </svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#1a1a1a',
+              marginBottom: 2,
+            }}
+          >
+            Great news!
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: '#666',
+              lineHeight: 1.3,
+            }}
+          >
+            Your system generated 12% more energy than average this week.
+          </div>
+        </div>
+        <div
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: '#D4AF37',
+            flexShrink: 0,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── Main HomeScreen ── */
+export default function HomeScreen() {
+  const { installation, setActiveTab } = useCareApp();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  /* Scroll-reveal sections */
+  const savingsReveal = useScrollReveal(0.1);
+  const chartReveal = useScrollReveal(0.1);
+  const tipReveal = useScrollReveal(0.1);
+  const actionsReveal = useScrollReveal(0.1);
+  const warrantyReveal = useScrollReveal(0.1);
+
+  /* Savings ticker */
+  const [savingsTick, setSavingsTick] = useState(847.32);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSavingsTick((prev) => prev + 0.01);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const quickActions = [
+    {
+      label: 'Something Wrong?',
+      icon: (
+        <svg
+          width={22}
+          height={22}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#B8934C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      ),
+      action: () => setActiveTab('diagnostic'),
+      bg: 'linear-gradient(135deg, #FFF8E7, #FFF3D6)',
+    },
+    {
+      label: 'Ask Assistant',
+      icon: (
+        <svg
+          width={22}
+          height={22}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#B8934C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+      ),
+      action: () => setActiveTab('assistant'),
+      bg: 'linear-gradient(135deg, #F0F7FF, #E3EFFD)',
+    },
+    {
+      label: 'Guides & Videos',
+      icon: (
+        <svg
+          width={22}
+          height={22}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#B8934C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+      ),
+      action: () => setActiveTab('guides'),
+      bg: 'linear-gradient(135deg, #F0FFF4, #DCFCE7)',
+    },
+    {
+      label: 'View System',
+      icon: (
+        <svg
+          width={22}
+          height={22}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#B8934C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      ),
+      action: () => setActiveTab('system'),
+      bg: 'linear-gradient(135deg, #FFF5F5, #FEE2E2)',
+    },
+  ];
+
+  return (
+    <div
+      ref={scrollRef}
+      className="care-screen-scroll"
+      style={{
+        height: '100%',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        paddingBottom: 100,
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes careOrbFloat1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -20px) scale(1.1); }
+          66% { transform: translate(-20px, 15px) scale(0.95); }
+        }
+        @keyframes careOrbFloat2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(-25px, 25px) scale(0.9); }
+          66% { transform: translate(35px, -10px) scale(1.05); }
+        }
+        @keyframes carePulseGreen {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+          50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+        }
+        @keyframes careShimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        @keyframes careCounterPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+      `}</style>
+
+      <PushNotification />
+
+      <div style={{ padding: '0 20px' }}>
+        {/* ── Greeting ── */}
+        <StaggerItem index={1} baseDelay={100}>
+          <div style={{ marginBottom: 2, marginTop: 20 }}>
+            <span style={{ fontSize: 15, color: '#888' }}>
+              {getGreeting()},{' '}
+              <span style={{ color: '#1a1a1a', fontWeight: 600 }}>
+                {getFirstName(installation.customer_name)}
+              </span>
+            </span>
+          </div>
+        </StaggerItem>
+
+        {/* ── Title ── */}
+        <StaggerItem index={2} baseDelay={100}>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 800,
+              color: '#1a1a1a',
+              letterSpacing: '-0.03em',
+              lineHeight: 1.1,
+              margin: '0 0 8px',
+            }}
+          >
+            Your Solar System
+          </h1>
+        </StaggerItem>
+
+        {/* ── Installer Badge ── */}
+        <StaggerItem index={3} baseDelay={100}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#F8F8F8',
+              borderRadius: 100,
+              padding: '6px 14px 6px 8px',
+              marginBottom: 20,
+            }}
+          >
+            <svg
+              width={16}
+              height={16}
+              viewBox="0 0 24 24"
+              fill="#22C55E"
+              stroke="white"
+              strokeWidth={2}
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline
+                points="22 4 12 14.01 9 11.01"
+                fill="none"
+                stroke="#22C55E"
+                strokeWidth={2}
+              />
+            </svg>
+            <span style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>
+              Installed by{' '}
+              <span style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                {installation.installer_name}
+              </span>
+            </span>
+          </div>
+        </StaggerItem>
+
+        {/* ── Hero Card ── */}
+        <StaggerItem index={4} baseDelay={100}>
+          <div
+            style={{
+              position: 'relative',
+              borderRadius: 24,
+              padding: 24,
+              background:
+                'linear-gradient(145deg, #FDF8EF 0%, #F8ECDA 40%, #F2E0C4 100%)',
+              overflow: 'hidden',
+              marginBottom: 16,
+            }}
+          >
+            {/* Floating orbs */}
+            <div
+              style={{
+                position: 'absolute',
+                top: -20,
+                right: -20,
+                width: 100,
+                height: 100,
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle, rgba(212,175,55,0.2), transparent)',
+                animation: 'careOrbFloat1 6s ease-in-out infinite',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                bottom: -30,
+                left: -10,
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle, rgba(184,147,76,0.15), transparent)',
+                animation: 'careOrbFloat2 8s ease-in-out infinite',
+              }}
+            />
+
+            <div
+              style={{
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                {/* Pulsing green dot */}
+                <div
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: '#22C55E',
+                    animation: 'carePulseGreen 2s ease-in-out infinite',
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#22C55E',
+                  }}
+                >
+                  System Healthy
+                </span>
               </div>
-            </div>
-            <div className="flex items-center gap-4 mt-4">
-              <div>
-                <p className="text-3xl font-bold">{performance.todayGeneration}</p>
-                <p className="text-xs text-white/70">Generated today</p>
+
+              <div
+                style={{
+                  fontSize: 14,
+                  color: '#8B7355',
+                  marginBottom: 4,
+                  fontWeight: 500,
+                }}
+              >
+                {installation.system_size_kwp} kWp Solar PV System
               </div>
-              <div className="h-10 w-px bg-white/20" />
-              <div>
-                <p className="text-lg font-semibold">{performance.selfConsumption}</p>
-                <p className="text-xs text-white/70">Self-consumption</p>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: '#A08B6D',
+                }}
+              >
+                {installation.panel_count}x {installation.panel_model} &bull;{' '}
+                {installation.inverter_model}
               </div>
             </div>
           </div>
-          <Sun className="absolute right-4 bottom-4 w-24 h-24 text-white/10" />
-        </div>
+        </StaggerItem>
 
-        {/* Performance Stats */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Performance Overview</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={Zap} label="Today" value={performance.todayGeneration} color="text-[#D4AF37]" />
-            <StatCard icon={TrendingUp} label="This Month" value={performance.monthGeneration} color="text-blue-500" />
-            <StatCard icon={Battery} label="This Year" value={performance.yearGeneration} color="text-emerald-500" />
-            <StatCard icon={Thermometer} label="CO2 Saved" value={performance.co2Saved} subtitle="Environmental impact" color="text-green-600" />
-          </div>
-        </div>
-
-        {/* System Info */}
-        <div className="bg-white border border-gold-100 rounded-lg shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">System Details</h3>
-          <div className="space-y-2">
+        {/* ── Metrics Row ── */}
+        <StaggerItem index={5} baseDelay={100}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 16,
+            }}
+          >
             {[
-              { label: 'System Type', value: system.systemType },
-              { label: 'Capacity', value: system.capacity },
-              { label: 'Inverter', value: system.inverterModel },
-              { label: 'Installed', value: new Date(system.installDate).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) },
-              { label: 'Warranty Until', value: new Date(system.warrantyExpiry).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                <span className="text-xs text-gray-500">{item.label}</span>
-                <span className="text-sm font-medium text-gray-900">{item.value}</span>
+              {
+                label: 'Generated Today',
+                value: 4.2,
+                suffix: ' kWh',
+                decimals: 1,
+                delay: 300,
+              },
+              {
+                label: 'Saved Today',
+                value: 3.18,
+                prefix: '\u20AC',
+                decimals: 2,
+                delay: 400,
+              },
+              {
+                label: 'Efficiency',
+                value: 94,
+                suffix: '%',
+                decimals: 0,
+                delay: 500,
+              },
+            ].map((metric, i) => (
+              <div
+                key={i}
+                style={{
+                  background: '#FAFAFA',
+                  borderRadius: 16,
+                  padding: '16px 12px',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: '#1a1a1a',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1.2,
+                    marginBottom: 4,
+                  }}
+                >
+                  <AnimatedCounter
+                    target={metric.value}
+                    prefix={metric.prefix || ''}
+                    suffix={metric.suffix || ''}
+                    decimals={metric.decimals}
+                    delay={metric.delay}
+                    duration={1200}
+                  />
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#999',
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {metric.label}
+                </div>
               </div>
             ))}
           </div>
+        </StaggerItem>
+
+        {/* ── Savings Counter Card ── */}
+        <div ref={savingsReveal.ref}>
+          <div
+            style={{
+              opacity: savingsReveal.visible ? 1 : 0,
+              transform: savingsReveal.visible
+                ? 'translateY(0)'
+                : 'translateY(20px)',
+              transition:
+                'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+            }}
+          >
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: 20,
+                padding: '20px 20px',
+                background:
+                  'linear-gradient(135deg, #065F46, #047857, #059669)',
+                overflow: 'hidden',
+                marginBottom: 16,
+              }}
+            >
+              {/* Shimmer effect */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'hidden',
+                  borderRadius: 20,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background:
+                      'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)',
+                    animation: 'careShimmer 3s ease-in-out infinite',
+                  }}
+                />
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.7)',
+                    fontWeight: 500,
+                    marginBottom: 6,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Total Savings Since Install
+                </div>
+                <div
+                  style={{
+                    fontSize: 36,
+                    fontWeight: 800,
+                    color: 'white',
+                    letterSpacing: '-0.03em',
+                    lineHeight: 1,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {'\u20AC'}
+                  {savingsTick.toFixed(2)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.6)',
+                    marginTop: 6,
+                  }}
+                >
+                  Since {installation.install_date}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Alerts */}
-        {alerts.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Updates</h3>
-            <div className="space-y-3">
-              {alerts.map((alert) => (
-                <AlertCard key={alert.id} alert={alert} />
+        {/* ── Energy Chart ── */}
+        <div ref={chartReveal.ref}>
+          <div
+            style={{
+              opacity: chartReveal.visible ? 1 : 0,
+              transform: chartReveal.visible
+                ? 'translateY(0)'
+                : 'translateY(20px)',
+              transition:
+                'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+              marginBottom: 16,
+            }}
+          >
+            <EnergyChart />
+          </div>
+        </div>
+
+        {/* ── Tip Card ── */}
+        <div ref={tipReveal.ref}>
+          <div
+            style={{
+              opacity: tipReveal.visible ? 1 : 0,
+              transform: tipReveal.visible
+                ? 'translateY(0)'
+                : 'translateY(20px)',
+              transition:
+                'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                borderRadius: 20,
+                padding: 20,
+                background:
+                  'linear-gradient(135deg, #1E40AF, #3B82F6, #60A5FA)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -20,
+                  right: -20,
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.1)',
+                }}
+              />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 10,
+                  }}
+                >
+                  <svg
+                    width={18}
+                    height={18}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 12 18.469V19a3.374 3.374 0 0 0-.938-1.964l-.548-.547z" />
+                  </svg>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: 'white',
+                    }}
+                  >
+                    Energy Tip
+                  </span>
+                </div>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: 'rgba(255,255,255,0.9)',
+                    lineHeight: 1.5,
+                    margin: 0,
+                  }}
+                >
+                  Run your dishwasher and washing machine during peak solar
+                  hours (11am - 3pm) to maximise self-consumption and save
+                  more.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Quick Actions Grid ── */}
+        <div ref={actionsReveal.ref}>
+          <div
+            style={{
+              opacity: actionsReveal.visible ? 1 : 0,
+              transform: actionsReveal.visible
+                ? 'translateY(0)'
+                : 'translateY(20px)',
+              transition:
+                'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+              marginBottom: 20,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                marginBottom: 12,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Quick Actions
+            </h2>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+              }}
+            >
+              {quickActions.map((action, i) => (
+                <QuickActionButton
+                  key={i}
+                  label={action.label}
+                  icon={action.icon}
+                  bg={action.bg}
+                  onClick={action.action}
+                  delay={i * 60}
+                  parentVisible={actionsReveal.visible}
+                />
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+        {/* ── Warranty Cards ── */}
+        <div ref={warrantyReveal.ref}>
+          <div
+            style={{
+              opacity: warrantyReveal.visible ? 1 : 0,
+              transform: warrantyReveal.visible
+                ? 'translateY(0)'
+                : 'translateY(20px)',
+              transition:
+                'opacity 550ms cubic-bezier(.16, 1, .3, 1), transform 550ms cubic-bezier(.16, 1, .3, 1)',
+              marginBottom: 32,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                marginBottom: 12,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Warranty Coverage
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                {
+                  title: 'Panel Warranty',
+                  years: installation.system_specs.panel_warranty_years,
+                  icon: '\u2600\uFE0F',
+                  color: '#F59E0B',
+                },
+                {
+                  title: 'Inverter Warranty',
+                  years: installation.system_specs.inverter_warranty_years,
+                  icon: '\u26A1',
+                  color: '#3B82F6',
+                },
+                {
+                  title: 'Workmanship Warranty',
+                  years:
+                    installation.system_specs.workmanship_warranty_years,
+                  icon: '\uD83D\uDEE0\uFE0F',
+                  color: '#8B5CF6',
+                },
+              ].map((warranty, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: '#FAFAFA',
+                    borderRadius: 16,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        background: `${warranty.color}15`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 18,
+                      }}
+                    >
+                      {warranty.icon}
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: '#1a1a1a',
+                        }}
+                      >
+                        {warranty.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#888' }}>
+                        {warranty.years} years coverage
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: '#22C55E',
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#22C55E',
+                      }}
+                    >
+                      Active
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer ── */}
+        <div
+          style={{
+            textAlign: 'center',
+            paddingBottom: 16,
+            opacity: 0.4,
+          }}
+        >
+          <span style={{ fontSize: 11, color: '#888' }}>
+            Powered by OpenHouse Care
+          </span>
+        </div>
+      </div>
     </div>
+  );
+}
+
+/* ── Quick Action Button ── */
+function QuickActionButton({
+  label,
+  icon,
+  bg,
+  onClick,
+  delay,
+  parentVisible,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  bg: string;
+  onClick: () => void;
+  delay: number;
+  parentVisible: boolean;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!parentVisible) return;
+    const timer = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(timer);
+  }, [parentVisible, delay]);
+
+  return (
+    <button
+      onClick={onClick}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        background: bg,
+        border: 'none',
+        borderRadius: 20,
+        padding: '20px 12px',
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+        transform: pressed
+          ? 'scale(0.95)'
+          : visible
+            ? 'scale(1)'
+            : 'scale(0.95)',
+        opacity: visible ? 1 : 0,
+        transition:
+          'all 400ms cubic-bezier(.34, 1.56, .64, 1)',
+      }}
+    >
+      {icon}
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#1a1a1a',
+          lineHeight: 1.2,
+          textAlign: 'center',
+        }}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
