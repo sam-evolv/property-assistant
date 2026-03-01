@@ -44,13 +44,21 @@ Your system generates no electricity at night. Output peaks around solar noon on
   // SOLAR PV — MONITORING & APP
   // ===========================================================================
   {
-    topics: ['solar app', 'monitoring app', 'solaredge app', 'fronius app', 'solarman', 'solar monitoring', 'how do i check', 'check my solar', 'solar output', 'solar production', 'generation', 'how much am i generating', 'portal app', 'solar data'],
+    topics: ['solar app', 'monitoring app', 'solaredge app', 'fronius app', 'solarman', 'fusionsolar', 'solar monitoring', 'how do i check', 'check my solar', 'solar output', 'solar production', 'generation', 'how much am i generating', 'portal app', 'solar data'],
     systems: ['solar_pv'],
     content: `SOLAR PV — MONITORING:
-Your inverter has a monitoring portal or app (e.g. SolarEdge mySolarEdge, Fronius Solar.web, Sungrow iSolarCloud, SolarMan). These show:
+Your inverter has a monitoring portal or app. Common platforms in Ireland include:
+- Huawei FusionSolar (Huawei SUN2000 inverters — used by SE Systems)
+- OpenSolar (customer-facing dashboard, also used by SE Systems)
+- Fronius Solar.web (Fronius inverters)
+- SolarEdge mySolarEdge (SolarEdge inverters)
+- Sungrow iSolarCloud / SolarMan (Sungrow inverters)
+
+These show:
 - Real-time power output (kW)
 - Daily, monthly and annual generation (kWh)
 - Self-consumption vs export breakdown (if metered)
+- Battery state of charge (if fitted)
 - Alerts for faults or reduced performance
 
 To access monitoring: the app login details should be in your handover documentation. If you don't have them, contact your installer — they can resend the invitation email.
@@ -130,17 +138,22 @@ To apply: Contact your electricity supplier and request to register for the Micr
   {
     topics: ['seai solar grant', 'solar grant', 'seai grant solar', 'how much grant', 'solar pv grant', 'did i get a grant', 'solar subsidy'],
     systems: ['solar_pv'],
-    content: `SOLAR PV — SEAI GRANT:
-SEAI (Sustainable Energy Authority of Ireland) provides grants for solar PV installation. Current (2024/2025) grant rates are:
-- Up to 2 kWp: €900 per kWp
-- 2–4 kWp: €300 per kWp (for the additional capacity above 2 kWp)
-- Battery storage: €600 per kWh (up to a maximum)
+    content: `SOLAR PV — SEAI GRANT (Updated February 2026):
+SEAI (Sustainable Energy Authority of Ireland) provides grants for solar PV installation.
 
-Eligibility: Homeowners with a home built and occupied before 2021. Homes built after 2021 under the current building regulations are not eligible as they were required to include renewables as part of compliance.
+Current grant rates (from 3 February 2026):
+- First 2 kWp: €700 per kWp = €1,400
+- 2–4 kWp (each additional kWp): €200 per kWp = up to €400
+- Maximum grant: €1,800 (achieved at 4 kWp and above)
+- Example: 3.52 kWp = (2 × €700) + (1.52 × €200) = €1,704
+- 0% VAT applies to supply and installation of residential solar panels
+- No separate battery storage grant exists
 
-Note: If your home was completed after 2021, the solar system was likely installed as part of building regulation compliance and therefore no SEAI grant was applicable. Check with your installer or developer.
+Eligibility: Homeowners with a home built and occupied before 31 December 2020. Homes built after 2021 were required under building regulations to include renewables, so no SEAI grant was applicable.
 
-The grant is paid directly to the installer and should already be reflected in the price you paid.`,
+Note: If your home was completed after 2021, the solar system was likely installed as part of building regulation compliance. Check with your installer or developer.
+
+The grant is typically applied directly against the installation cost (paid to the installer) and should already be reflected in the net price you paid. Through a One Stop Shop like SE Systems, grants are deducted upfront.`,
   },
 
   // ===========================================================================
@@ -522,14 +535,15 @@ If your bill seems unexpectedly high:
 Renewable energy systems come with multiple warranties:
 
 Solar Panels:
-- Product warranty (materials/workmanship): 10–15 years
-- Performance warranty: 25–30 years (guaranteeing panels produce at least 80% of rated output after 25 years)
-- Most reputable panel brands (JA Solar, LONGi, REC, Trina) honour these globally.
+- Product warranty (materials/workmanship): 12–15 years (varies by brand)
+- Performance warranty: 25–30 years (guaranteeing panels produce at least 80–87.6% of rated output)
+- Most reputable Tier 1 panel brands (Astronergy, Trina Solar, JA Solar, LONGi, REC) honour these globally.
+- Astronergy (used by SE Systems): 30-year performance warranty with ≤0.4% annual degradation
 
 Solar Inverters:
 - Standard warranty: 5–10 years (varies by brand)
-- Extended warranty can often be purchased up to 25 years
-- Brands: SolarEdge (12 years standard), Fronius (5 years, extendable), Solis (5 years), Huawei
+- Extended warranty can often be purchased up to 20–25 years
+- Brands: Huawei SUN2000 (10 years standard, extendable to 15/20 years), SolarEdge (12 years standard), Fronius (5 years, extendable), Solis (5 years)
 
 Heat Pumps:
 - Typical warranty: 2–5 years parts and labour; 7–10 years on the compressor

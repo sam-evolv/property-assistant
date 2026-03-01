@@ -16,6 +16,11 @@ import {
   getRelevantCareKnowledge,
   formatCareKnowledge,
 } from '@/lib/care/care-knowledge';
+import {
+  getSeSystemsKnowledge,
+  getSeSystemsInstallerContext,
+  isSeSystemsInstallation,
+} from '@/lib/care/seSystemsKnowledge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -336,8 +341,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Care KB — inject relevant knowledge based on the message
+    // Generic knowledge base
     const careKnowledgeEntries = getRelevantCareKnowledge(message, installation.system_type);
-    const careKnowledgeContext = formatCareKnowledge(careKnowledgeEntries);
+
+    // SE Systems-specific knowledge (overrides/extends generic entries when applicable)
+    const seSystemsEntries = isSeSystemsInstallation(installation)
+      ? getSeSystemsKnowledge(message, installation.system_type)
+      : [];
+
+    // Merge: SE Systems entries take priority (prepended), generic entries fill gaps
+    const mergedEntries = [
+      ...seSystemsEntries,
+      ...careKnowledgeEntries.filter(
+        (e) => !seSystemsEntries.some((s) => s.content.startsWith(e.content.substring(0, 40)))
+      ),
+    ].slice(0, 4); // Allow up to 4 entries when installer-specific content is present
+
+    const careKnowledgeContext = formatCareKnowledge(mergedEntries);
 
     // System prompt
     const today = new Date().toLocaleDateString('en-IE', {
@@ -348,6 +368,10 @@ export async function POST(request: NextRequest) {
     });
 
     const specs = installation.system_specs || {};
+    const seSystemsContext = isSeSystemsInstallation(installation)
+      ? `\n${getSeSystemsInstallerContext()}`
+      : '';
+
     const systemPrompt = `You are the OpenHouse Care Assistant — a friendly, knowledgeable AI helping homeowners who have had renewable energy systems installed.
 
 You help with:
@@ -381,6 +405,7 @@ Warranty expires: ${installation.warranty_expiry || 'not recorded'}
 Job reference: ${installation.job_reference}
 Health: ${installation.health_status || 'healthy'}
 Today: ${today}
+${seSystemsContext}
 
 ${careKnowledgeContext ? careKnowledgeContext : ''}
 

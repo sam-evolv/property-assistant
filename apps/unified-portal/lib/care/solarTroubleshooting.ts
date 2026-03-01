@@ -4,10 +4,13 @@
  * Real error codes, symptoms, and solutions for solar PV systems.
  * Used to prevent unnecessary installer callouts.
  *
- * Based on common Irish installer experiences:
- * - SolarEdge systems (most common in Ireland)
- * - Fronius systems (secondary)
- * - String inverters (general troubleshooting)
+ * Sections:
+ * - Huawei SUN2000 (SE Systems installer — entries at top)
+ * - SolarEdge (legacy entries, clearly labelled)
+ * - General / brand-agnostic entries
+ *
+ * ⚠️ SE Systems exclusively uses Huawei SUN2000 inverters.
+ *    SolarEdge entries are retained for legacy/mixed-installer support only.
  */
 
 export interface TroubleshootingEntry {
@@ -30,6 +33,118 @@ export interface TroubleshootingEntry {
 }
 
 export const SOLAR_TROUBLESHOOTING: TroubleshootingEntry[] = [
+
+  // =========================================================================
+  // HUAWEI SUN2000 — Symptom-based entries (SE Systems installer)
+  // =========================================================================
+
+  {
+    id: 'hw_001',
+    symptom: 'Huawei inverter showing red light or fault indicator',
+    errorCode: undefined,
+    severity: 'warning',
+    requiresTechnician: false,
+    diagnosis: 'Huawei SUN2000 inverter has detected a fault condition. The specific cause is shown on the inverter display.',
+    homeownerCanFix: true,
+    steps: [
+      'Step 1: Look at the inverter display and note the exact error message or code shown.',
+      'Step 2: If the display shows "Isolation fault", "Earth fault", or "Arc fault" — do NOT attempt any reset. These are safety-critical. Call SE Systems immediately: 021 439 7938.',
+      'Step 3: For other faults, try a power cycle: Turn the AC isolator OFF. Turn the DC isolator OFF (red-handled switch). Wait 5 minutes. Turn AC back ON first, then DC. Wait 10 minutes for the system to restart.',
+      'Step 4: If the red light / fault returns after restart, note the exact display message and call SE Systems: 021 439 7938.',
+    ],
+    estimatedTime: '15 minutes',
+    calloutCost: 0,
+    prevention: 'Keep the area around the inverter ventilated and free from dust. Annual service by SE Systems helps catch issues early.',
+    relatedErrors: [],
+  },
+
+  {
+    id: 'hw_002',
+    symptom: 'Huawei FusionSolar app not updating or showing old data',
+    errorCode: undefined,
+    severity: 'info',
+    requiresTechnician: false,
+    diagnosis: 'The Huawei SUN2000 inverter has built-in Wi-Fi. If the monitoring data is not updating, the inverter has lost its Wi-Fi connection to the router.',
+    homeownerCanFix: true,
+    steps: [
+      'Step 1: Confirm your home Wi-Fi is working — browse the internet on your phone.',
+      'Step 2: Restart your Wi-Fi router: turn it off, wait 30 seconds, turn it back on.',
+      'Step 3: Check FusionSolar again after 10 minutes. Data should start updating.',
+      'Step 4: If still not updating, check if the router has moved or if your Wi-Fi password has changed. The inverter may need to be reconnected — contact SE Systems for remote support: 021 439 7938.',
+      'Step 5: Note — your solar system is still generating power and functioning normally even if monitoring is offline.',
+    ],
+    estimatedTime: '10 minutes',
+    calloutCost: 0,
+    prevention: 'Keep your Wi-Fi router in a stable location. Avoid changing the Wi-Fi password without also updating the inverter connection.',
+    relatedErrors: [],
+  },
+
+  {
+    id: 'hw_003',
+    symptom: 'Huawei inverter blank display or no lights at all',
+    errorCode: undefined,
+    severity: 'critical',
+    requiresTechnician: false,
+    diagnosis: 'No power is reaching the Huawei SUN2000 inverter. The AC circuit feeding it has likely been interrupted.',
+    homeownerCanFix: true,
+    steps: [
+      'Step 1: Check your consumer unit (fuse board). Look for a tripped MCB labelled "Solar", "PV", or "Inverter". A tripped breaker will be in the middle or OFF position.',
+      'Step 2: If tripped: switch it fully OFF, then back ON. If it trips again immediately, do NOT keep resetting — call SE Systems.',
+      'Step 3: Check the AC isolator switch, usually near the inverter or in the utility area. Is it in the ON position?',
+      'Step 4: If both are fine, try switching the AC isolator OFF for 2 minutes, then ON again.',
+      'Step 5: The inverter display should light up within 30 seconds. If not after all these steps, contact SE Systems: 021 439 7938.',
+    ],
+    estimatedTime: '5 minutes',
+    calloutCost: 0,
+    prevention: 'Label AC and DC isolators clearly. Do not switch them off unless performing maintenance or in an emergency.',
+    relatedErrors: [],
+  },
+
+  {
+    id: 'hw_004',
+    symptom: 'Huawei LUNA2000 battery not charging or always at 0%',
+    errorCode: undefined,
+    severity: 'warning',
+    requiresTechnician: false,
+    diagnosis: 'The LUNA2000 battery is not receiving charge from the solar system. This is usually a settings issue or the solar generation is too low to charge the battery.',
+    homeownerCanFix: true,
+    steps: [
+      'Step 1: Check FusionSolar — is the solar system generating power? If generation is very low (winter, overcast day), the system may be prioritising home consumption over battery charging.',
+      'Step 2: Check the battery operating mode in FusionSolar. If set to "Time of Use", it may be programmed to charge overnight from the grid instead of solar. Switch to "Maximum Self-Consumption" for solar-first charging.',
+      'Step 3: Check that the battery "minimum state of charge" setting is not set very high (e.g. 90%) — this limits how much usable capacity you see.',
+      'Step 4: If the battery displays "0%" and will not charge at all even on a sunny day with the system generating well, contact SE Systems: 021 439 7938.',
+    ],
+    estimatedTime: '10 minutes',
+    calloutCost: 0,
+    prevention: 'Set battery mode to Maximum Self-Consumption in summer for best results. Review settings each season.',
+    relatedErrors: [],
+  },
+
+  {
+    id: 'hw_005',
+    symptom: 'Huawei system generating zero or very low power on a sunny day',
+    errorCode: undefined,
+    severity: 'critical',
+    requiresTechnician: false,
+    diagnosis: 'Could be: (1) System in startup mode after power interruption, (2) DC isolator is off, (3) Inverter fault.',
+    homeownerCanFix: true,
+    steps: [
+      'Step 1: Check the inverter display. Does it say "Waiting" or "Initialising"? If so, wait 10–15 minutes — this is normal startup after a power event.',
+      'Step 2: Look at the inverter for any fault indicator (red light or error message). If present, follow the Huawei red light guide.',
+      'Step 3: Check the DC isolator switch (usually a red-handled switch near the solar meter). Is it in the ON position?',
+      'Step 4: Check your consumer unit for a tripped MCB.',
+      'Step 5: If all switches are on, inverter has no faults, but generation is still zero after 20 minutes of sunshine — contact SE Systems: 021 439 7938.',
+    ],
+    estimatedTime: '15 minutes',
+    calloutCost: 0,
+    prevention: 'Ensure DC and AC isolators are clearly labelled and always left in the ON position during normal operation.',
+    relatedErrors: [],
+  },
+
+  // =========================================================================
+  // SOLAREDGE — Legacy entries (non-SE Systems installations)
+  // =========================================================================
+
   {
     id: 'sol_001',
     symptom: 'Inverter display shows error code F32',
