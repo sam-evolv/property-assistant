@@ -655,6 +655,286 @@ Myth: "The battery is fully usable at its rated capacity."
 Reality: "Usable capacity" can differ from the nominal capacity on spec sheets. Warranty terms like "10 years at 60%" refer to a minimum capacity retention guarantee — the battery continues to function but with reduced runtime.`,
   },
 
+  // =========================================================================
+  // INVERTER LED MEANINGS & ERROR CODES — PER BRAND
+  // =========================================================================
+  {
+    topics: [
+      'inverter error code', 'inverter fault code', 'huawei error', 'fronius error',
+      'solaredge error', 'inverter led', 'red light inverter', 'green light inverter',
+      'blinking red inverter', '2032', '2062', '2064', 'state 107', 'state 307',
+      'state 509', 'isolation fault solaredge', 'inverter alarm code',
+      'what does the inverter light mean',
+    ],
+    systems: ['solar_pv'],
+    content: `INVERTER ERROR CODES AND LED MEANINGS — BY BRAND:
+
+HUAWEI SUN2000 (most common in Ireland):
+LED states:
+- Steady green → operating normally, feeding the grid ✅
+- Blinking green (1s on/1s off) → standby/sleep mode — normal at dawn/dusk
+- Steady red → hardware fault — contact installer
+- Blinking red (fast) → environmental alarm: grid voltage issue or DC insulation fault
+
+Key error codes:
+- 2032 (Grid Loss): Inverter cannot detect the ESB grid. Check main AC isolator; check for power cut.
+- 2062 (Low Insulation Resistance): Often triggered by moisture in DC connectors after heavy rain. If it persists in dry weather → wiring fault; call installer.
+- 2064 (Device Fault): Internal circuit error — contact installer; cannot be resolved by homeowner reset.
+
+SOLAREDGE (optimiser-based systems):
+LED states:
+- Green → production active
+- Blue → communicating with SolarEdge monitoring portal
+- Red → system error
+
+⚠️ ISOLATION FAULT (Code 03x9a): Do NOT attempt to reset. This signals a grounding issue — potential fire risk. Requires professional inspection.
+
+FusionSolar (Huawei monitoring) tip: The real-time energy flow diagram shows arrows indicating whether power is moving panels → battery, panels → home, or panels → grid. "Self-consumption ratio" is the key metric for Irish users.
+
+mySolarEdge tip: The "Layout" view shows every individual panel's performance. A panel showing black or significantly lower yield than neighbours may indicate shading or a hotspot.
+
+FRONIUS PRIMO / GEN24:
+Key error states:
+- State 107: Grid parameters outside limits — system waiting to stabilise; usually self-resolves.
+- State 307: DC input voltage too low — normal at night or if panels covered with snow/heavy debris.
+- State 509: No energy fed to grid for 24 hours — check all AC and DC breakers/isolators.
+
+UNIVERSAL RULE: Never reset after an isolation fault, earth fault, or arc fault. These are safety-critical and require a qualified installer.`,
+  },
+
+  // =========================================================================
+  // PANEL TECHNOLOGY COMPARISON
+  // =========================================================================
+  {
+    topics: [
+      'panel technology', 'solar panel types', 'topcon vs perc', 'hjt panels',
+      'n-type solar', 'p-type solar', 'best solar panels', 'panel efficiency',
+      'temperature coefficient', 'bifacial panels', 'monocrystalline', 'perc panels',
+      'which solar panels are best', 'panel brands ireland',
+    ],
+    systems: ['solar_pv'],
+    content: `SOLAR PANEL TECHNOLOGIES — 2026 IRISH MARKET:
+
+TECHNOLOGY COMPARISON:
+| Technology     | Efficiency | Temp Coefficient | Best For |
+|----------------|-----------|-----------------|----------|
+| Mono PERC      | 20–22%    | −0.35%/°C       | Budget/large roofs; being superseded |
+| N-type TOPCon  | 22–24%    | −0.30%/°C       | Current Irish residential standard |
+| HJT            | 24–26%    | −0.26%/°C       | High performance, limited roof space |
+| Bifacial       | Variable  | N/A             | Ground mounts, light-coloured roofs |
+
+THE 2026 STANDARD: N-type TOPCon has largely replaced P-type PERC in Irish residential installs. Better low-light performance and lower annual degradation than PERC.
+
+TEMPERATURE COEFFICIENT EXPLAINED:
+Lower (less negative) is better. A panel with −0.26%/°C loses less output as temperature rises. In Ireland's mild climate, this matters less than in southern Europe — but N-type still has the edge on dull, slightly warm days.
+
+BIFACIAL IN IRELAND:
+On a typical rooftop, bifacial gain is modest (the back of the panel faces the roof — limited reflectivity). Most beneficial on ground-mounted systems over light gravel or white membranes, where bifacial gain of 15–20% is achievable. Don't pay a significant premium for bifacial on a standard pitched roof.
+
+WHAT TO CHECK ON A QUOTE:
+- Wattage (W) per panel — current standard: 430–450W per module
+- Brand tier (Tier 1 Bloomberg BNEF is the benchmark)
+- Product warranty: 12–15 years
+- Performance warranty: 25–30 years
+- Annual degradation: ≤0.4% for premium N-type TOPCon
+
+COMMON BRANDS IN IRELAND: JinkoSolar, LONGi, JA Solar, Trina Solar, Canadian Solar, Astronergy`,
+  },
+
+  // =========================================================================
+  // BATTERY BRAND SPECS AND BACKUP GATEWAY
+  // =========================================================================
+  {
+    topics: [
+      'tesla powerwall', 'huawei luna2000', 'givEnergy battery', 'pylontech',
+      'byd battery', 'battery brands', 'which battery is best', 'battery comparison',
+      'round trip efficiency', 'battery backup box', 'backup gateway',
+      'lfp cycle life', 'battery lifespan cycles',
+    ],
+    systems: ['battery'],
+    content: `BATTERY BRANDS — 2026 SPECIFICATION REFERENCE:
+
+| Brand     | Model           | Usable Capacity        | Notes |
+|-----------|-----------------|------------------------|-------|
+| Huawei    | LUNA2000-S1     | 6.9/13.8/20.7 kWh      | Modular; 15-year warranty |
+| Tesla     | Powerwall 3     | 13.5 kWh               | Integrated hybrid inverter (20 kW solar input); 97.5% round-trip efficiency |
+| GivEnergy | All-in-One      | 13.5 kWh               | Whole-home backup capable; silent (<30 dB) |
+| Pylontech | US5000          | 4.8 kWh (per module)   | Modular rack-mount; stackable |
+| BYD       | Premium HVS     | 5.1–12.8 kWh           | High-voltage modular stacking |
+
+TESLA POWERWALL 3 (2026):
+The Powerwall 3 is significant — it integrates a full hybrid inverter and accepts up to 20 kW of solar input. Its 97.5% round-trip efficiency means only 2.5% of energy is lost in the charge/discharge cycle. One of the highest efficiencies currently available for home batteries.
+
+LFP vs NMC — THE KEY DIFFERENCE:
+- LFP (used by all brands above): 6,000+ charge cycles; thermally stable; non-toxic
+- NMC: 2,000–3,000 cycles; more compact; used in some EVs but less favoured for home storage
+- In 2026, LFP is the correct chemistry for all new Irish home battery installations
+
+BACKUP POWER — CRITICAL DISTINCTION:
+Standard grid-tied batteries shut down during a power cut (anti-islanding). To have backup power:
+1. You need a specific "Backup Box", "Gateway", or "Smart Energy Box" — installed at the time of setup
+2. The system must be configured to isolate from the grid and power a backup circuit
+3. This is NOT automatic and NOT included in standard battery installations
+4. Ask your installer: "Does my system have backup capability?" before assuming it does.
+
+If backup was not included, your battery will be offline during a power cut along with your solar panels.`,
+  },
+
+  // =========================================================================
+  // HEAT PUMP REFRIGERANTS — R290 VS R32
+  // =========================================================================
+  {
+    topics: [
+      'r290', 'r32', 'heat pump refrigerant', 'heat pump radiators',
+      'can heat pump work with existing radiators', 'radiator upgrade heat pump',
+      'flow temperature heat pump', 'high temperature heat pump',
+      'heat pump older home', 'retrofit heat pump radiators',
+      'mitsubishi ecodan r290', 'vaillant arotherm r290',
+    ],
+    systems: ['heat_pump'],
+    content: `HEAT PUMP REFRIGERANTS — R290 vs R32 (IMPORTANT FOR OLDER IRISH HOMES):
+
+The 2026 transition to R290 (Propane) refrigerant is a major development for retrofit projects in older Irish homes.
+
+WHY IT MATTERS FOR YOUR RADIATORS:
+| Refrigerant | Max Flow Temperature | Radiator Implication |
+|-------------|----------------------|----------------------|
+| R290 (Propane) | Up to 75°C | Can often RETAIN existing radiators in older homes |
+| R32 | Up to 55°C | Usually requires UPSIZED radiators to compensate |
+
+BACKGROUND:
+Older Irish homes typically have radiators sized for a gas/oil boiler running at 60–75°C. A heat pump running at 35–45°C (R32) delivers less heat through the same radiator — making rooms feel cooler unless radiators are replaced with larger ones.
+
+R290 units (e.g., Mitsubishi Ecodan R290, Vaillant aroTHERM Plus, Panasonic Aquarea T-CAP) can reach 75°C — meaning the existing radiator system can often be retained.
+
+2026 R290-CAPABLE BRANDS:
+- Mitsubishi Ecodan R290 — up to 75°C, ideal for radiator retrofits
+- Vaillant aroTHERM Plus — up to 75°C, very quiet
+- Panasonic Aquarea T-CAP — up to 75°C, maintains full capacity at −20°C
+
+R32-ONLY NOTE (e.g., Grant Aerona3, some Daikin Altherma 3 models):
+Still excellent units with high SCOP (Grant Aerona3: SCOP 5.4), but maximum 55°C means a radiator assessment and likely upgrade programme is needed for pre-2000 homes.
+
+PRACTICAL GUIDANCE:
+- New builds and well-insulated homes with underfloor heating: R32 is fine
+- Older homes with existing radiators being retained: ask specifically about R290 units
+- Always get a room-by-room heat loss calculation before committing to any unit`,
+  },
+
+  // =========================================================================
+  // HEAT PUMP PRESSURE CHECK
+  // =========================================================================
+  {
+    topics: [
+      'heat pump pressure', 'heating system pressure', 'pressure gauge heat pump',
+      'low pressure heat pump', 'heat pump pressure bar', 'repressurise heat pump',
+      'heat pump pressure drop', 'pressure 1 bar', 'boiler pressure heat pump',
+    ],
+    systems: ['heat_pump'],
+    content: `HEAT PUMP SYSTEM PRESSURE — WHAT TO CHECK:
+Your heat pump has a pressure gauge on the indoor unit or header. Correct operating pressure is between 1.0 and 2.0 bar.
+
+READING THE GAUGE:
+- 1.0–2.0 bar: Normal operating range ✅
+- Below 1.0 bar: System is low on pressure — heating performance will be affected
+- Above 3.0 bar: Overpressure — potential safety concern
+
+IF PRESSURE IS LOW (below 1.0 bar):
+- Do NOT attempt to repressurise a sealed heat pump system yourself
+- A heat pump system uses a fully sealed pressurised circuit — different from a simple combi boiler
+- Contact your installer — they will repressurise and check for the cause of the pressure loss
+- A recurring pressure drop indicates a slow leak somewhere in the system
+
+IF PRESSURE IS ABOVE 3.0 BAR:
+- The expansion vessel may need attention
+- Contact your installer
+
+COMMON CAUSE OF PRESSURE LOSS:
+- Minor leaks at radiator connections or system joints (more common in older systems connected to a new heat pump)
+- Installer note: a small annual top-up is normal in some systems; repeated large pressure drops are not
+
+NOTE FOR HEAT PUMP VS OLD BOILER:
+Some older combi boilers had a manual filling loop that homeowners used regularly. Heat pump systems should NOT need regular re-pressurising — if you're losing pressure frequently, there is a leak that needs finding and fixing.`,
+  },
+
+  // =========================================================================
+  // EV DYNAMIC LOAD BALANCING
+  // =========================================================================
+  {
+    topics: [
+      'dynamic load balancing', 'ev charger tripping fuse', 'ev charger overload',
+      'ct clamp ev', '63 amp fuse', 'main fuse ev charger', 'shower ev charger',
+      'ev charger reduce power', 'load management ev', 'easee load balancing',
+      'ohme load balancing', 'ev charger and shower',
+    ],
+    systems: ['ev_charger'],
+    content: `DYNAMIC LOAD BALANCING — HOW YOUR EV CHARGER PROTECTS YOUR MAIN FUSE:
+
+Most Irish homes have a 63A main fuse (approximately 14.5 kW on single phase). Running an EV charger at full power (7.4 kW) alongside other large appliances can trip this fuse.
+
+HOW DYNAMIC LOAD BALANCING WORKS:
+1. A CT clamp (Current Transformer) is installed at your main ESB meter
+2. The CT clamp monitors your total household electrical draw in real time
+3. When other large loads switch on, the charger automatically reduces car charging speed
+4. When those loads switch off, the charger ramps back up
+
+WORKED EXAMPLE:
+- EV charging at 7.4 kW + electric shower at 9 kW = 16.4 kW → would trip 63A fuse
+- With load balancing: shower detected → car charger drops to ~5 kW → total = 14 kW → no trip
+- When shower ends → car charger returns to 7.4 kW automatically
+
+CHARGERS WITH DYNAMIC LOAD BALANCING:
+- Easee One: specifically designed for this; allows multiple units on one circuit
+- Ohme Home Pro: integrates with smart tariffs and load management
+- Most modern smart chargers support this via a CT clamp accessory
+
+WHY IT MATTERS FOR IRELAND:
+Many Irish homes have electric showers (9 kW). Without load balancing, running the shower while charging an EV would regularly trip the main fuse. Load balancing eliminates this problem entirely — no need to "remember" not to shower while the car charges.
+
+NOTE: If your charger was installed without a CT clamp, it may be operating at a fixed current limit rather than dynamic load balancing. Ask your installer if dynamic load balancing was set up.`,
+  },
+
+  // =========================================================================
+  // SMART METER AND DEEMED EXPORT
+  // =========================================================================
+  {
+    topics: [
+      'smart meter', 'mprn', 'smart meter registers', 'deemed export',
+      'export without smart meter', 'smart meter solar ireland', 'export meter ireland',
+      'how do i get paid for solar without smart meter', 'smart meter installed',
+      'esb smart meter', 'when will i get smart meter',
+    ],
+    systems: ['solar_pv', 'general'],
+    content: `SMART METERS AND EXPORT PAYMENTS — IRISH HOMEOWNERS:
+
+YOUR MPRN:
+The MPRN (Meter Point Reference Number) is the 11-digit number on your electricity bill that uniquely identifies your ESB connection. You need it for SEAI grant applications and to register for export payments.
+
+SMART METER REGISTERS:
+When a smart meter is installed, it records:
+- Import (Cumulative): Total electricity bought from the grid
+- Export (Cumulative): Total electricity sent to the grid
+- Active (Current): Real-time demand or generation at this moment
+
+WHY YOU NEED A SMART METER FOR SOLAR:
+A smart meter enables accurate measurement of your exported electricity so you can receive Clean Export Guarantee (CEG) payments. ESB Networks installs smart meters free of charge — your installer's NC6 form triggers this process. ESB aims to install within 4 months of the NC6 being processed.
+
+DEEMED EXPORT — GETTING PAID BEFORE YOUR SMART METER ARRIVES:
+You don't have to wait for a smart meter to start receiving CEG payments. If a smart meter has not yet been installed:
+- Payments are made based on a "Deemed Export" calculation — SEAI's estimate of what a typical home in your situation would export
+- Once your smart meter is installed, payments switch to actual meter readings
+- Register with your electricity supplier for CEG as soon as your NC6 is confirmed — don't wait for the meter
+
+SMART METER INSTALLATION TIMELINE:
+1. Your installer submits NC6 to ESB Networks (up to 20 working days to process)
+2. ESB Networks notifies your electricity supplier
+3. ESB Networks schedules smart meter installation (target: within 4 months)
+4. In the interim: contact your supplier to start Deemed Export payments
+
+HOW TO REGISTER FOR CEG:
+Simply contact your current electricity supplier and ask to register for the Micro-generation Support Scheme / Clean Export Guarantee. The process is straightforward and they handle the rest.`,
+  },
+
 ];
 
 /**
