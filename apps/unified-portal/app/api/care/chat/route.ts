@@ -13,6 +13,10 @@ import {
   findBySymptom,
 } from '@/lib/care/solarTroubleshooting';
 import {
+  findHeatPumpByErrorCode,
+  findHeatPumpBySymptom,
+} from '@/lib/care/heatPumpTroubleshooting';
+import {
   getRelevantCareKnowledge,
   formatCareKnowledge,
 } from '@/lib/care/care-knowledge';
@@ -127,16 +131,40 @@ async function executeTool(
 ): Promise<any> {
   switch (toolName) {
     case 'get_system_status': {
-      const specs = installation.system_specs || {};
+      const specs = installation.system_specs || installation.component_specs || {};
+      const baseline = installation.performance_baseline || {};
+      const isHP = installation.system_type?.toLowerCase().includes('heat_pump') ||
+        installation.system_type?.toLowerCase().includes('heat pump');
+
+      if (isHP) {
+        return {
+          system_type: 'heat_pump',
+          model: installation.system_model || specs.model,
+          capacity: installation.capacity || specs.capacity_heating,
+          type: specs.type || 'Air-to-Water heat pump',
+          refrigerant: specs.refrigerant || 'R32',
+          smart_control: specs.smart_control || specs.controlModule || 'standard controller',
+          health_status: installation.health_status || 'healthy',
+          install_date: installation.installation_date || installation.install_date,
+          warranty_expiry: installation.warranty_expiry,
+          performance: {
+            average_cop: baseline.average_cop,
+            seasonal_cop: baseline.seasonal_cop,
+            annual_heating_kwh: baseline.annual_heating_kwh,
+            annual_hot_water_kwh: baseline.annual_hot_water_kwh,
+          },
+        };
+      }
+
       return {
         system_type: installation.system_type,
-        inverter: installation.inverter_model,
+        inverter: installation.inverter_model || installation.system_model,
         panels: installation.panel_model
           ? `${installation.panel_count}x ${installation.panel_model}`
-          : null,
+          : specs.panels || null,
         size_kwp: installation.system_size_kwp,
         health_status: installation.health_status || 'healthy',
-        install_date: installation.install_date,
+        install_date: installation.install_date || installation.installation_date,
         portal_status: installation.portal_status,
         address: [installation.address_line_1, installation.city, installation.county]
           .filter(Boolean)
@@ -151,15 +179,32 @@ async function executeTool(
 
     case 'troubleshoot_issue': {
       const query: string = args.query || '';
-      const errorCodeMatch = query.match(/\b(F\d{2}|ERR_\w+)\b/i);
+      const isHeatPump =
+        installation.system_type?.toLowerCase().includes('heat_pump') ||
+        installation.system_type?.toLowerCase().includes('heat pump');
+
+      // Match error codes — support solar codes (F##) and heat pump codes (E##)
+      const errorCodeMatch = query.match(/\b([EFef]\d{1,2}|ERR_\w+|HIGH[_\s]PRESSURE|LOW[_\s]PRESSURE)\b/i);
       let match = null;
 
       if (errorCodeMatch) {
-        match = findByErrorCode(errorCodeMatch[1]);
+        match = isHeatPump
+          ? findHeatPumpByErrorCode(errorCodeMatch[1])
+          : findByErrorCode(errorCodeMatch[1]);
       }
       if (!match) {
-        const results = findBySymptom(query);
+        const results = isHeatPump
+          ? findHeatPumpBySymptom(query)
+          : findBySymptom(query);
         match = results[0] || null;
+      }
+
+      // Cross-check the other KB if nothing found in primary
+      if (!match) {
+        const fallbackResults = isHeatPump
+          ? findBySymptom(query)
+          : findHeatPumpBySymptom(query);
+        match = fallbackResults[0] || null;
       }
 
       if (!match) {
@@ -376,7 +421,33 @@ export async function POST(request: NextRequest) {
       day: 'numeric',
     });
 
-    const specs = installation.system_specs || {};
+    const specs = installation.system_specs || installation.component_specs || {};
+    const baseline = installation.performance_baseline || {};
+    const isHeatPumpSystem = installation.system_type?.toLowerCase().includes('heat_pump') ||
+      installation.system_type?.toLowerCase().includes('heat pump');
+
+    // Build a human-readable system summary that works for both solar and heat pump schemas
+    const systemSummary = isHeatPumpSystem
+      ? [
+          `System: Heat Pump — ${installation.system_model || specs.model || 'unknown model'}`,
+          `Capacity: ${installation.capacity || specs.capacity_heating || 'unknown'}`,
+          `Type: ${specs.type || 'Air-to-Water heat pump'}`,
+          `Refrigerant: ${specs.refrigerant || 'R32'}`,
+          `Smart Control: ${specs.smart_control || specs.controlModule || 'standard controller'}`,
+          `Installed: ${installation.installation_date || installation.install_date || 'not recorded'}`,
+          `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
+          `Avg COP: ${baseline.average_cop || 'not recorded'}`,
+          `Annual heating: ${baseline.annual_heating_kwh ? baseline.annual_heating_kwh + ' kWh' : 'not recorded'}`,
+        ].join('\n')
+      : [
+          `System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model || installation.system_model || 'unknown'}`,
+          `Size: ${installation.system_size_kwp ? installation.system_size_kwp + ' kWp' : installation.capacity || 'unknown'}`,
+          `Panels: ${installation.panel_count ? installation.panel_count + 'x ' + installation.panel_model : specs.panels || 'not recorded'}`,
+          `Battery: ${specs.battery || 'none'}`,
+          `Installed: ${installation.install_date || installation.installation_date || 'not recorded'}`,
+          `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
+        ].join('\n');
+
     const seSystemsContext = isSeSystemsInstallation(installation)
       ? `\n${getSeSystemsInstallerContext()}`
       : '';
@@ -400,18 +471,13 @@ RULES:
 - Always fetch real data before answering questions about the system.
 - When drafting a service request, always show it first before confirming it's sent.
 - If an issue requires a technician, be clear about that.
-- Use Irish context (€ for currency, kWp for solar, SEAI for grants/export).
+- Use Irish context (€ for currency, SEAI for grants/schemes).
+- For solar: reference kWp, generation figures, export tariffs.
+- For heat pumps: reference COP, flow temperature, SEAI heat pump grant (€6,500), F-Gas regulations.
 
 CURRENT INSTALLATION:
-Customer: ${installation.customer_name}
-Address: ${[installation.address_line_1, installation.city, installation.county].filter(Boolean).join(', ')}
-System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model}
-Size: ${installation.system_size_kwp} kWp
-Panels: ${installation.panel_count}x ${installation.panel_model}
-Battery: ${specs.battery || 'none'}
-Installed: ${installation.install_date}
-Warranty expires: ${installation.warranty_expiry || 'not recorded'}
-Job reference: ${installation.job_reference}
+Customer: ${installation.customer_name || installation.homeowner_email || 'Homeowner'}
+${systemSummary}
 Health: ${installation.health_status || 'healthy'}
 Today: ${today}
 ${seSystemsContext}
