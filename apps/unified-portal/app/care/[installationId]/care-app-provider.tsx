@@ -75,7 +75,7 @@ const DEMO_INSTALLATION: InstallationData = {
     inverter_warranty_years: 12,
     workmanship_warranty_years: 10,
   },
-  installer_name: 'SE Systems',
+  installer_name: 'Horizon Renewables',
 };
 
 export function CareAppProvider({

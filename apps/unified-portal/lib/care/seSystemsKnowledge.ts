@@ -1,19 +1,19 @@
 /**
- * SE Systems — Installer-Specific Knowledge Base
+ * Horizon Renewables — Installer-Specific Knowledge Base
  *
  * These entries EXTEND and OVERRIDE the generic care-knowledge entries
- * when an installation is associated with SE Systems.
+ * when an installation is associated with Horizon Renewables.
  *
  * Key facts:
- * - SE Systems uses Huawei inverters (SUN2000 series) — NOT SolarEdge
+ * - Horizon Renewables uses Huawei inverters (SUN2000 series) — NOT SolarEdge
  * - Battery: Huawei LUNA2000 (LiFePO4, modular)
  * - Panels: Astronergy (solar division) / Trina Solar (retrofit division)
  * - EV charger: MyEnergi Zappi
  * - Heat pumps: Mitsubishi Electric
  * - Monitoring: Huawei FusionSolar + OpenSolar
- * - One Stop Shop: SE Systems handles all SEAI grant applications
+ * - One Stop Shop: Horizon Renewables handles all SEAI grant applications
  *
- * Source: SE Systems Ireland complete research brief (February 2026)
+ * Source: Horizon Renewables Ireland complete research brief (February 2026)
  */
 
 import { CareKnowledgeEntry } from './care-knowledge';
@@ -30,15 +30,15 @@ export const SE_SYSTEMS_KNOWLEDGE: CareKnowledgeEntry[] = [
     ],
     systems: ['solar_pv', 'heat_pump', 'ev_charger', 'battery', 'mvhr', 'general'],
     content: `SE SYSTEMS — ABOUT YOUR INSTALLER:
-Your system was installed by SE Systems (Sustainable Energy Systems), Ireland's largest deep retrofit energy upgrade provider.
+Your system was installed by Horizon Renewables, your certified renewable energy installer.
 
-Contact SE Systems:
-- Phone: 021 439 7938
+Contact Horizon Renewables:
+- Phone: 01 234 5678
 - Email: info@sesystems.ie
 - Website: sesystems.ie
 - Headquarters: Unit 6, Kilbarry Business Park, Dublin Hill, Cork
 
-About SE Systems:
+About Horizon Renewables:
 - Founded 2010 in Cork by John O'Leary (CEO) and Youenn Lowry (Managing Director)
 - 14,000+ homes retrofitted; €900M+ in SEAI grants delivered
 - Operates nationwide including offshore islands
@@ -64,13 +64,13 @@ When you call, have ready:
     ],
     systems: ['solar_pv'],
     content: `SOLAR MONITORING — HUAWEI FUSIONSOLAR & OPENSOLAR:
-Your SE Systems installation uses two monitoring tools:
+Your Horizon Renewables installation uses two monitoring tools:
 
 1. OpenSolar App (customer-facing dashboard):
    - Download on iOS or Android
    - Shows daily, monthly and annual generation
    - Tracks your savings and carbon offset
-   - Login details are in your handover documents — contact SE Systems if you can't find them
+   - Login details are in your handover documents — contact Horizon Renewables if you can't find them
 
 2. Huawei FusionSolar (real-time monitoring):
    - The FusionSolar platform provides the live data behind OpenSolar
@@ -87,7 +87,7 @@ If monitoring data stops updating:
 1. Check your home Wi-Fi is working
 2. Restart your router (off 30 seconds, back on)
 3. Check the Huawei SUN2000 inverter — it needs Wi-Fi to upload data (built-in Wi-Fi, no dongle required)
-4. If no update after 1 hour of Wi-Fi being restored, contact SE Systems`,
+4. If no update after 1 hour of Wi-Fi being restored, contact Horizon Renewables`,
   },
 
   // =========================================================================
@@ -102,7 +102,7 @@ If monitoring data stops updating:
     ],
     systems: ['solar_pv'],
     content: `HUAWEI SUN2000 INVERTER — STATUS INDICATORS:
-Your SE Systems installation uses a Huawei SUN2000 series inverter. Here's what the status indicators mean:
+Your Horizon Renewables installation uses a Huawei SUN2000 series inverter. Here's what the status indicators mean:
 
 NORMAL STATES:
 - Green light (solid) — System running normally, generating power ✅
@@ -111,7 +111,7 @@ NORMAL STATES:
 
 FAULT STATES (require action):
 - Red light or fault indicator — System fault; check the inverter display for an error code
-- Display shows "Isolation fault" or similar — ⚠️ Do not attempt to reset; contact SE Systems immediately
+- Display shows "Isolation fault" or similar — ⚠️ Do not attempt to reset; contact Horizon Renewables immediately
 
 POWER CYCLE (for non-safety faults only):
 1. Switch the AC isolator OFF (usually near the inverter or consumer unit)
@@ -120,12 +120,12 @@ POWER CYCLE (for non-safety faults only):
 4. Switch AC back ON first, then DC
 5. Wait 5–10 minutes for the inverter to reconnect to the grid
 
-⚠️ NEVER power cycle for isolation faults, earth faults, or arc faults — these are safety-critical. Call SE Systems.
+⚠️ NEVER power cycle for isolation faults, earth faults, or arc faults — these are safety-critical. Call Horizon Renewables.
 
 If the inverter shows an error code on its display:
 - Note the exact code/message displayed
 - Try the power cycle above (if no isolation/earth/arc fault)
-- If fault persists after restart, call SE Systems: 021 439 7938`,
+- If fault persists after restart, call Horizon Renewables: 01 234 5678`,
   },
 
   // =========================================================================
@@ -140,7 +140,7 @@ If the inverter shows an error code on its display:
     ],
     systems: ['battery'],
     content: `HUAWEI LUNA2000 — YOUR BATTERY SYSTEM:
-Your SE Systems installation may include a Huawei LUNA2000 battery. Key facts:
+Your Horizon Renewables installation may include a Huawei LUNA2000 battery. Key facts:
 
 ABOUT YOUR BATTERY:
 - Chemistry: Lithium Iron Phosphate (LiFePO4) — the safest, most durable home battery chemistry
@@ -162,7 +162,7 @@ In FusionSolar, look for:
 - Charge/Discharge power: Positive = charging, negative = discharging
 - A battery sitting at 100% all day with no discharge suggests your schedule needs adjustment
 
-OPERATING MODES (via FusionSolar or SE Systems portal):
+OPERATING MODES (via FusionSolar or Horizon Renewables portal):
 - Maximum Self-Consumption (recommended): Charges from solar, discharges in evening
 - Time of Use (TOU): Charges from cheap overnight grid electricity, discharges during peak hours
 - Fully Fed to Grid: Exports all solar (not recommended for most homes)
@@ -186,7 +186,7 @@ BEST PRACTICE:
     ],
     systems: ['solar_pv'],
     content: `YOUR SOLAR PANELS — ASTRONERGY / TRINA SOLAR:
-SE Systems installs premium Tier 1 solar panels:
+Horizon Renewables installs premium Tier 1 solar panels:
 
 ASTRONERGY (Solar PV division):
 - Technology: N-type TOPCon (Top Con Hot 2.0) — higher efficiency than standard panels
@@ -214,8 +214,8 @@ PANEL DEGRADATION (what to expect):
 - Panels don't "stop working" suddenly — gradual, very slow decline
 
 WHAT'S NOT NORMAL:
-- Cracked or shattered glass — contact SE Systems immediately (safety hazard)
-- Delamination (bubbles/peeling of the surface layer) — warranty claim, contact SE Systems
+- Cracked or shattered glass — contact Horizon Renewables immediately (safety hazard)
+- Delamination (bubbles/peeling of the surface layer) — warranty claim, contact Horizon Renewables
 - One string performing noticeably worse than others — shading, soiling, or wiring issue`,
   },
 
@@ -230,7 +230,7 @@ WHAT'S NOT NORMAL:
     ],
     systems: ['ev_charger'],
     content: `MYENERGI ZAPPI — YOUR EV CHARGER:
-Your SE Systems installation includes a MyEnergi Zappi smart EV charger.
+Your Horizon Renewables installation includes a MyEnergi Zappi smart EV charger.
 
 CHARGING SPEEDS:
 - Single-phase (7.4 kW): ~35–40 km of range per hour
@@ -259,7 +259,7 @@ ZAPPI WARRANTY: 3 years from installation date.
 TROUBLESHOOTING:
 - Zappi not starting charge: Check mode isn't set to Eco+ on a cloudy day (not enough solar)
 - No lights on unit: Check MCB in consumer unit hasn't tripped
-- Red/flashing light: Note any error code and contact SE Systems
+- Red/flashing light: Note any error code and contact Horizon Renewables
 - Car not connecting: Try removing and reinserting the cable at both ends; check vehicle's own charging settings`,
   },
 
@@ -275,7 +275,7 @@ TROUBLESHOOTING:
     ],
     systems: ['heat_pump'],
     content: `MITSUBISHI ELECTRIC ECODAN — YOUR HEAT PUMP:
-SE Systems installs Mitsubishi Electric heat pumps (Ecodan range) as part of deep retrofit packages.
+Horizon Renewables installs Mitsubishi Electric heat pumps (Ecodan range) as part of deep retrofit packages.
 
 YOUR SYSTEM:
 - Type: Air-to-water heat pump (replaces your old oil/gas boiler)
@@ -298,13 +298,13 @@ RECOMMENDED SETTINGS:
 
 SERVICING — IMPORTANT:
 - Annual service by a qualified F-Gas certified engineer is required to maintain warranty
-- SE Systems can arrange annual servicing — contact 021 439 7938
+- Horizon Renewables can arrange annual servicing — contact 01 234 5678
 - Warranty: Typically 5 years parts, 7 years compressor (check your specific model's documents)
 - Keep all service records — warranty claims require proof of annual service
 
 WARRANTY CLAIM:
-- Contact SE Systems with your job reference and fault description
-- SE Systems manage warranty claims with Mitsubishi Electric on your behalf`,
+- Contact Horizon Renewables with your job reference and fault description
+- Horizon Renewables manage warranty claims with Mitsubishi Electric on your behalf`,
   },
 
   // =========================================================================
@@ -347,7 +347,7 @@ INSULATION GRANTS (detached house):
 MAXIMUM COMBINED GRANTS (detached house): ~€30,650
 
 THROUGH SE SYSTEMS (One Stop Shop):
-SE Systems handles your entire grant application and deducts the grant upfront — you pay only the balance. This is the easiest route and SE Systems have delivered €900M+ in grants for customers.
+Horizon Renewables handles your entire grant application and deducts the grant upfront — you pay only the balance. This is the easiest route and Horizon Renewables have delivered €900M+ in grants for customers.
 
 IMPORTANT RULES:
 - Work must NOT start before SEAI grant approval (application made first)
@@ -388,7 +388,7 @@ KEY FACTS:
 - Requires a smart meter — request a free upgrade from ESB Networks
 - Apply through your electricity supplier (they coordinate with ESB Networks)
 - Payments credited on your electricity bill (usually quarterly)
-- SE Systems submits the ESB NC6 form during installation, which triggers your smart meter upgrade
+- Horizon Renewables submits the ESB NC6 form during installation, which triggers your smart meter upgrade
 
 IMPORTANT PERSPECTIVE:
 Self-consumption (using your own solar) saves ~35c/kWh — far more valuable than export (8–32c/kWh).
@@ -412,18 +412,18 @@ HOW TO APPLY:
     ],
     systems: ['solar_pv', 'heat_pump', 'general'],
     content: `SE SYSTEMS ONE STOP SHOP — HOW IT WORKS:
-SE Systems is an SEAI-registered One Stop Shop, meaning they manage the entire upgrade journey for you.
+Horizon Renewables is an SEAI-registered One Stop Shop, meaning they manage the entire upgrade journey for you.
 
 THE 7-STEP PROCESS:
-1. Contact — Fill in a form at sesystems.ie or call 021 439 7938. Response within 24 hours to schedule a site survey.
+1. Contact — Fill in a form at sesystems.ie or call 01 234 5678. Response within 24 hours to schedule a site survey.
 
-2. Site Survey — An SE Systems assessor visits your home. They assess roof orientation, structural condition, shading, electrical infrastructure, and heating system. This forms the basis for your design.
+2. Site Survey — An Horizon Renewables assessor visits your home. They assess roof orientation, structural condition, shading, electrical infrastructure, and heating system. This forms the basis for your design.
 
 3. Design & Quote — Detailed system design using OpenSolar software. Clear, no-obligation quote with transparent pricing (no hidden fees).
 
-4. SEAI Grant Application — SE Systems applies for all applicable grants on your behalf. SEAI typically approves within minutes. IMPORTANT: Works cannot start until grant approval is received.
+4. SEAI Grant Application — Horizon Renewables applies for all applicable grants on your behalf. SEAI typically approves within minutes. IMPORTANT: Works cannot start until grant approval is received.
 
-5. ESB NC6 Form — For solar PV, SE Systems submits the NC6 form to ESB Networks. ESB has 20 working days to process. This triggers your free smart meter installation (ESB aims to install within 4 months).
+5. ESB NC6 Form — For solar PV, Horizon Renewables submits the NC6 form to ESB Networks. ESB has 20 working days to process. This triggers your free smart meter installation (ESB aims to install within 4 months).
 
 6. Installation — In-house team installs your system (typically 1–2 days for residential solar). Full handover with system walkthrough. All compliance certificates provided.
 
@@ -461,16 +461,16 @@ A1 (best) → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3 → D1 → D2 
 
 WHY IT MATTERS FOR YOUR HOME:
 - SEAI grants for deep retrofit (heat pumps, insulation) require a post-works BER of at least B2
-- SE Systems' deep retrofit approach targets B2 minimum, with many homes achieving A1–A2
-- Example: Grange Housing Association properties improved from D1 to A2 with SE Systems
+- Horizon Renewables' deep retrofit approach targets B2 minimum, with many homes achieving A1–A2
+- Example: Grange Housing Association properties improved from D1 to A2 with Horizon Renewables
 - A higher BER means lower heating costs and is required for SEAI grant qualification
 
 FOR HEAT PUMP QUALIFICATION:
 - Your home's Heat Loss Indicator (HLI) must be ≤2.3 W/(K·m²) to qualify for the heat pump grant
-- SE Systems' deep retrofit approach insulates the home first, then installs the heat pump — this ensures the home qualifies and the pump is sized optimally (smaller, cheaper pump for a well-insulated home)
+- Horizon Renewables' deep retrofit approach insulates the home first, then installs the heat pump — this ensures the home qualifies and the pump is sized optimally (smaller, cheaper pump for a well-insulated home)
 
 AFTER YOUR SE SYSTEMS RETROFIT:
-- A post-works BER assessment is arranged by SE Systems and is required to release the SEAI grant payment
+- A post-works BER assessment is arranged by Horizon Renewables and is required to release the SEAI grant payment
 - SEAI grant for the assessment: €50
 - Keep your BER certificates — they increase your home's resale value (A-rated homes sell for up to 10% more)`,
   },
@@ -478,7 +478,7 @@ AFTER YOUR SE SYSTEMS RETROFIT:
 ];
 
 /**
- * Get SE Systems-specific knowledge entries relevant to a message.
+ * Get Horizon Renewables-specific knowledge entries relevant to a message.
  * These supplement (or override) the generic care-knowledge entries.
  */
 export function getSeSystemsKnowledge(
@@ -508,20 +508,20 @@ export function getSeSystemsKnowledge(
 }
 
 /**
- * Returns the SE Systems installer context block for the system prompt.
- * Always included when an SE Systems installation is detected.
+ * Returns the Horizon Renewables installer context block for the system prompt.
+ * Always included when an Horizon Renewables installation is detected.
  */
 export function getSeSystemsInstallerContext(): string {
-  return `INSTALLER: SE Systems (Sustainable Energy Systems)
+  return `INSTALLER: Horizon Renewables (Sustainable Energy Systems)
 - Ireland's largest deep retrofit energy upgrade provider
 - Technology stack: Huawei SUN2000 inverters | Huawei LUNA2000 batteries | Huawei FusionSolar monitoring | Astronergy / Trina Solar panels | MyEnergi Zappi EV chargers | Mitsubishi Electric heat pumps
 - ⚠️ This installer uses HUAWEI inverters — not SolarEdge. All troubleshooting must reference Huawei FusionSolar and SUN2000 series.
-- Contact: 021 439 7938 | info@sesystems.ie | sesystems.ie
+- Contact: 01 234 5678 | info@sesystems.ie | sesystems.ie
 - SEAI One Stop Shop: handles all grant applications; grants deducted upfront`;
 }
 
 /**
- * Detect if an installation is from SE Systems based on component specs
+ * Detect if an installation is from Horizon Renewables based on component specs
  * or installer metadata in the installation record.
  */
 export function isSeSystemsInstallation(installation: Record<string, any>): boolean {
@@ -550,7 +550,7 @@ export function isSeSystemsInstallation(installation: Record<string, any>): bool
     return true;
   }
 
-  // Check for Astronergy panels (SE Systems-specific brand)
+  // Check for Astronergy panels (Horizon Renewables-specific brand)
   const panels = (specs.panels || installation.panel_model || '').toLowerCase();
   if (panels.includes('astronergy')) {
     return true;

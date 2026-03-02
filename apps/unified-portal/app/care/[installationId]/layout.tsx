@@ -57,9 +57,12 @@ export default async function CareAppLayout({
     notFound();
   }
 
+  // DEMO: hardcoded for LinkedIn demo — revert to installation.tenants?.name for production
+  const installerName = 'Horizon Renewables';
+
   const installationData = {
     ...installation,
-    installer_name: installation.tenants?.name || 'Your Installer',
+    installer_name: installerName,
     installer_contact: installation.tenants?.contact || {},
   };
 
