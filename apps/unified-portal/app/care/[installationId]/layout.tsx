@@ -11,10 +11,23 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export const metadata: Metadata = {
-  title: 'OpenHouse Care',
-  description: 'Your home system care portal',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ installationId: string }>;
+}): Promise<Metadata> {
+  const { installationId } = await params;
+  return {
+    title: 'OpenHouse Care',
+    description: 'Your home system care portal',
+    manifest: `/api/care/manifest/${installationId}`,
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: 'OpenHouse Care',
+    },
+  };
+}
 
 function getSupabaseAdmin() {
   return createClient(
