@@ -61,13 +61,13 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'troubleshoot_issue',
       description:
-        'Search the troubleshooting knowledge base for a symptom or error code. Use when the homeowner describes a problem.',
+        'ALWAYS call this when the homeowner mentions any fault, error code, red light, flashing light, system not working, or any problem with their heat pump or solar system. This is the knowledge base — do not answer troubleshooting questions from your own knowledge, always search here first.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Error code (e.g. "F32") or symptom description',
+            description: 'The error code (e.g. "E3", "F32") and/or symptom description as described by the homeowner',
           },
         },
         required: ['query'],
@@ -179,32 +179,53 @@ async function executeTool(
 
     case 'troubleshoot_issue': {
       const query: string = args.query || '';
-      const isHeatPump =
+      const queryLower = query.toLowerCase();
+
+      // Explicit heat pump mention in query overrides installation system type
+      const queryMentionsHeatPump =
+        queryLower.includes('heat pump') ||
+        queryLower.includes('heatpump') ||
+        queryLower.includes('hp fault') ||
+        queryLower.includes('e1') || queryLower.includes('e2') ||
+        queryLower.includes('e3') || queryLower.includes('e4') ||
+        queryLower.includes('defrost') || queryLower.includes('cop') ||
+        queryLower.includes('flow temp') || queryLower.includes('cylinder');
+
+      const installationIsHeatPump =
         installation.system_type?.toLowerCase().includes('heat_pump') ||
         installation.system_type?.toLowerCase().includes('heat pump');
 
-      // Match error codes — support solar codes (F##) and heat pump codes (E##)
-      const errorCodeMatch = query.match(/\b([EFef]\d{1,2}|ERR_\w+|HIGH[_\s]PRESSURE|LOW[_\s]PRESSURE)\b/i);
+      // Always check both KBs and pick the best match — avoids false positives
+      // from partial keyword hits in the wrong KB
+      const errorCodeMatch = query.match(/\b([EFef]\d{1,2}|F\d{2}|ERR_\w+|HIGH[_\s]PRESSURE|LOW[_\s]PRESSURE)\b/i);
       let match = null;
 
       if (errorCodeMatch) {
-        match = isHeatPump
-          ? findHeatPumpByErrorCode(errorCodeMatch[1])
-          : findByErrorCode(errorCodeMatch[1]);
-      }
-      if (!match) {
-        const results = isHeatPump
-          ? findHeatPumpBySymptom(query)
-          : findBySymptom(query);
-        match = results[0] || null;
+        // Try heat pump KB first if query mentions heat pump or installation is HP
+        if (queryMentionsHeatPump || installationIsHeatPump) {
+          match = findHeatPumpByErrorCode(errorCodeMatch[1]);
+        }
+        // Fall through to solar KB if heat pump KB didn't match
+        if (!match) {
+          match = findByErrorCode(errorCodeMatch[1]);
+        }
+        // Last resort: try heat pump KB even for solar installations
+        if (!match) {
+          match = findHeatPumpByErrorCode(errorCodeMatch[1]);
+        }
       }
 
-      // Cross-check the other KB if nothing found in primary
       if (!match) {
-        const fallbackResults = isHeatPump
-          ? findBySymptom(query)
-          : findHeatPumpBySymptom(query);
-        match = fallbackResults[0] || null;
+        // Score against BOTH KBs and pick highest
+        const hpResults = findHeatPumpBySymptom(query);
+        const solarResults = findBySymptom(query);
+
+        // Prefer heat pump results if query mentions heat pump, else pick by KB type
+        if (queryMentionsHeatPump || installationIsHeatPump) {
+          match = hpResults[0] || solarResults[0] || null;
+        } else {
+          match = solarResults[0] || hpResults[0] || null;
+        }
       }
 
       if (!match) {
@@ -468,6 +489,7 @@ TONE:
 - Proactive — if you notice something worth flagging, mention it.
 
 RULES:
+- CRITICAL: Any fault, error code, red light, or "not working" message → ALWAYS call troubleshoot_issue first. Never answer troubleshooting questions from your own training data.
 - Always fetch real data before answering questions about the system.
 - When drafting a service request, always show it first before confirming it's sent.
 - If an issue requires a technician, be clear about that.
