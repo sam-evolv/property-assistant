@@ -30,6 +30,7 @@ const PUBLIC_PATHS = [
   '/archive',
   '/smart-archive',
   '/dev-tools',
+  '/care', // Homeowner care app — accessed via QR code, no auth required
 ];
 
 const PROTECTED_PATHS = [
