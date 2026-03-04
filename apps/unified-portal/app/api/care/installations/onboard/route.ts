@@ -31,6 +31,9 @@ export async function POST(request: NextRequest) {
       panel_count,
       install_date,
       job_reference,
+      telemetry_source,
+      serial_number,
+      telemetry_api_key,
     } = body;
 
     if (!customer_name || !address_line_1 || !city || !job_reference) {
@@ -59,6 +62,9 @@ export async function POST(request: NextRequest) {
         panel_count: panel_count || null,
         install_date: install_date || null,
         job_reference,
+        telemetry_source: telemetry_source || null,
+        serial_number: serial_number || null,
+        telemetry_api_key: telemetry_api_key || null,
         access_code,
         health_status: 'healthy',
         portal_status: 'active',

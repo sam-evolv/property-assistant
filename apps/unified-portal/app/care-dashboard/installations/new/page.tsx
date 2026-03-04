@@ -46,6 +46,9 @@ export default function NewInstallationPage() {
     panel_count: '',
     install_date: '',
     job_reference: '',
+    telemetry_source: '',
+    serial_number: '',
+    telemetry_api_key: '',
   });
 
   const set = (field: string, value: string) =>
@@ -304,6 +307,53 @@ export default function NewInstallationPage() {
                     placeholder="e.g. SE-2026-0312"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] outline-none transition-all"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Telemetry Integration (Optional) */}
+            <div className="bg-white border border-gold-100 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">Telemetry Integration</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Optional — connect to inverter monitoring for live data</p>
+                </div>
+                <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Optional</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Telemetry Source</label>
+                  <select
+                    value={form.telemetry_source}
+                    onChange={(e) => set('telemetry_source', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] outline-none transition-all bg-white"
+                  >
+                    <option value="">None (use estimates)</option>
+                    <option value="solarEdge">SolarEdge Monitoring</option>
+                    <option value="fronius">Fronius Solar.web</option>
+                    <option value="sma">SMA Sunny Portal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Site / Serial Number</label>
+                  <input
+                    type="text"
+                    value={form.serial_number}
+                    onChange={(e) => set('serial_number', e.target.value)}
+                    placeholder="e.g. 12345678"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] outline-none transition-all"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+                  <input
+                    type="password"
+                    value={form.telemetry_api_key}
+                    onChange={(e) => set('telemetry_api_key', e.target.value)}
+                    placeholder="Monitoring portal API key"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] outline-none transition-all"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">Found in your SolarEdge / Fronius monitoring portal under API access.</p>
                 </div>
               </div>
             </div>

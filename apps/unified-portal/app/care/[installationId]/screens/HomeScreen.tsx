@@ -64,9 +64,72 @@ function Counter({ target, prefix = '', decimals = 0 }: { target: number; prefix
   return <span ref={ref}>{prefix}{val.toFixed(decimals)}</span>;
 }
 
+/* ── Generation Chart ── */
+function GenerationChart({ hourlyProfile, loading }: { hourlyProfile: Array<{ hour: number; generation: number }>, loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="card-item rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4">
+        <div className="h-28 bg-slate-100 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  const maxVal = Math.max(...hourlyProfile.map(h => h.generation), 0.1);
+  const now = new Date().getHours();
+  const chartHours = hourlyProfile.filter(h => h.hour >= 6 && h.hour <= 21); // daylight hours only
+  const barWidth = 100 / chartHours.length;
+
+  return (
+    <div className="card-item rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">Generation Today</h4>
+          <p className="text-[11px] text-slate-400 mt-0.5">Hourly output (kWh)</p>
+        </div>
+        <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Live</span>
+      </div>
+      <svg viewBox={`0 0 100 40`} className="w-full h-28" preserveAspectRatio="none">
+        {chartHours.map((h, i) => {
+          const barH = (h.generation / maxVal) * 36;
+          const isPast = h.hour <= now;
+          const isCurrent = h.hour === now;
+          return (
+            <rect
+              key={h.hour}
+              x={i * barWidth + barWidth * 0.1}
+              y={40 - barH}
+              width={barWidth * 0.8}
+              height={barH}
+              rx="1"
+              fill={isCurrent ? '#D4AF37' : isPast ? '#10b981' : '#e2e8f0'}
+              opacity={isCurrent ? 1 : isPast ? 0.7 : 0.4}
+            />
+          );
+        })}
+      </svg>
+      <div className="flex justify-between text-[9px] text-slate-300 mt-1 px-0.5">
+        <span>6am</span>
+        <span>12pm</span>
+        <span>6pm</span>
+        <span>9pm</span>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main ── */
 export default function HomeScreen() {
-  const { installation, setActiveTab } = useCareApp();
+  const { installation, installationId, setActiveTab } = useCareApp();
+  const [telemetry, setTelemetry] = useState<any>(null);
+  const [telemetryLoading, setTelemetryLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/care/telemetry/${installationId}`)
+      .then(r => r.json())
+      .then(data => { setTelemetry(data); setTelemetryLoading(false); })
+      .catch(() => setTelemetryLoading(false));
+  }, [installationId]);
+
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
   const savings = daysSince * 5.8;
 
@@ -82,6 +145,17 @@ export default function HomeScreen() {
           </p>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">Your Solar System</h1>
         </div>
+
+        {/* ── Alerts Banner ── */}
+        {telemetry?.alerts?.length > 0 && (
+          <div className="card-item rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">{telemetry.alerts[0].message}</p>
+              {telemetry.alerts.length > 1 && <p className="text-xs text-amber-600 mt-0.5">+{telemetry.alerts.length - 1} more alert{telemetry.alerts.length > 2 ? 's' : ''}</p>}
+            </div>
+          </div>
+        )}
 
         {/* ── System Status Card — premium with gold accent ── */}
         <div className="card-item relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
@@ -126,9 +200,9 @@ export default function HomeScreen() {
         {/* ── Performance Cards — 3-col grid ── */}
         <div className="card-item grid grid-cols-3 gap-2.5 sm:gap-3">
           {[
-            { label: 'Generated\nToday', value: ((installation.system_size_kwp * 850) / 365).toFixed(1), unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
-            { label: 'Saved\nToday', value: '€' + ((installation.system_size_kwp * 850) / 365 * 0.35).toFixed(2), icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
-            { label: 'System\nEfficiency', value: installation.health_status === 'healthy' ? '94%' : installation.health_status === 'degraded' ? '78%' : 'Check', icon: Zap, iconColor: 'text-blue-500', bg: 'bg-blue-50' },
+            { label: 'Generated\nToday', value: telemetryLoading ? '...' : (telemetry?.generation?.today?.toFixed(1) ?? ((installation.system_size_kwp * 850) / 365).toFixed(1)), unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
+            { label: 'Saved\nToday', value: telemetryLoading ? '...' : '€' + ((telemetry?.generation?.today || 0) * 0.35).toFixed(2), icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'Self-\nUse', value: telemetryLoading ? '...' : Math.round(telemetry?.selfConsumption || 68) + '%', icon: Leaf, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
           ].map((m) => (
             <div key={m.label} className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
               <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${m.bg} flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform duration-200`}>
@@ -142,6 +216,9 @@ export default function HomeScreen() {
             </div>
           ))}
         </div>
+
+        {/* ── Generation Chart ── */}
+        <GenerationChart hourlyProfile={telemetry?.hourlyProfile || []} loading={telemetryLoading} />
 
         {/* ── Savings Card — green gradient ── */}
         <div className="card-item relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 sm:p-6 text-white shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/25 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
