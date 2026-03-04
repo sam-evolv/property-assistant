@@ -126,6 +126,16 @@ export default function DataHubPage() {
     fetchData()
   }, [fetchData])
 
+  // Re-fetch when returning from OAuth (handles ?connected= and ?error= params)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connected')) {
+      fetchData()
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   useEffect(() => {
     // Fetch developments for mapping
     fetch('/api/developer/developments')
