@@ -85,13 +85,31 @@ export default function HomeScreen() {
 
         {/* ── System Status Card — premium with gold accent ── */}
         <div className="card-item relative overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500" />
+          {(() => {
+            const healthConfig = {
+              healthy: { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'System Healthy', gradient: 'from-emerald-400 via-emerald-500 to-teal-500' },
+              degraded: { dot: 'bg-amber-500', text: 'text-amber-600', label: 'Performance Degraded', gradient: 'from-amber-400 via-amber-500 to-orange-400' },
+              fault: { dot: 'bg-red-500', text: 'text-red-600', label: 'System Fault', gradient: 'from-red-400 via-red-500 to-rose-500' },
+            };
+            const hc = healthConfig[installation.health_status as keyof typeof healthConfig] || healthConfig.healthy;
+            return <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${hc.gradient}`} />;
+          })()}
           <div className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-sm font-semibold text-emerald-600">System Healthy</span>
-              <span className="ml-auto text-xs text-slate-400">Installed by <strong className="text-slate-600">{installation.installer_name}</strong></span>
-            </div>
+            {(() => {
+              const healthConfig = {
+                healthy: { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'System Healthy' },
+                degraded: { dot: 'bg-amber-500', text: 'text-amber-600', label: 'Performance Degraded' },
+                fault: { dot: 'bg-red-500', text: 'text-red-600', label: 'System Fault' },
+              };
+              const hc = healthConfig[installation.health_status as keyof typeof healthConfig] || healthConfig.healthy;
+              return (
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-2 h-2 rounded-full ${hc.dot}`} />
+                  <span className={`text-sm font-semibold ${hc.text}`}>{hc.label}</span>
+                  <span className="ml-auto text-xs text-slate-400">Installed by <strong className="text-slate-600">{installation.installer_name}</strong></span>
+                </div>
+              );
+            })()}
             <p className="text-lg font-bold text-slate-900">{installation.system_size_kwp} kWp Solar PV System</p>
             <p className="text-sm text-slate-500 mt-0.5">
               {installation.panel_count}x {installation.panel_model} · {installation.inverter_model}

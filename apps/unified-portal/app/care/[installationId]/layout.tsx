@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { CareAppProvider } from './care-app-provider';
+import { SWRegister } from '../sw-register';
 import { notFound } from 'next/navigation';
 
 export const viewport: Viewport = {
@@ -67,6 +68,7 @@ export default async function CareAppLayout({
 
   return (
     <CareAppProvider installationId={installationId} installation={installationData}>
+      <SWRegister />
       {children}
     </CareAppProvider>
   );

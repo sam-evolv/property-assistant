@@ -583,7 +583,6 @@ function BriefingModal({
 export default function CareIntelligenceClient() {
   // Local context state (no useCurrentContext for Care)
   const [systemTypeId, setSystemTypeId] = useState<string | null>(null);
-  const systemTypeName = MOCK_SYSTEM_TYPES.find((s) => s.id === systemTypeId)?.name || null;
 
   // Sessions
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -611,13 +610,23 @@ export default function CareIntelligenceClient() {
 
   // Feature 5: System type comparison
   const [compareWithId, setCompareWithId] = useState<string | null>(null);
-  const [systemTypes] = useState<SystemType[]>(MOCK_SYSTEM_TYPES);
+  const [systemTypes, setSystemTypes] = useState<SystemType[]>(MOCK_SYSTEM_TYPES);
   const [compareDropdownOpen, setCompareDropdownOpen] = useState(false);
+
+  const systemTypeName = systemTypes.find((s) => s.id === systemTypeId)?.name || null;
 
   // Pill rotation
   const [pillIndices, setPillIndices] = useState([0, 0, 0, 0]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+
+  // Load real system types from API
+  useEffect(() => {
+    fetch('/api/care/system-types')
+      .then(r => r.json())
+      .then(data => { if (data.systemTypes?.length) setSystemTypes(data.systemTypes); })
+      .catch(() => {}); // silently fall back to mock
+  }, []);
 
   // Load sessions from API, fallback to localStorage
   useEffect(() => {

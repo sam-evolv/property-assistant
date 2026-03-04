@@ -232,6 +232,7 @@ export default function GuidesScreen() {
   const [mounted, setMounted] = useState(false);
   const [content, setContent] = useState<Record<string, ContentItem[]>>({});
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -279,6 +280,13 @@ export default function GuidesScreen() {
       { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
     );
   }
+
+  // Filter by search query
+  const q = searchQuery.toLowerCase();
+  const filteredVideos = q ? videoGuides.filter(g => g.title.toLowerCase().includes(q)) : videoGuides;
+  const filteredDocs = q ? documents.filter(g => g.title.toLowerCase().includes(q)) : documents;
+  const filteredTrouble = q ? troubleshooting.filter(g => g.title.toLowerCase().includes(q)) : troubleshooting;
+  const noResults = q && filteredVideos.length === 0 && filteredDocs.length === 0 && filteredTrouble.length === 0;
 
   return (
     <div
@@ -352,122 +360,145 @@ export default function GuidesScreen() {
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search guides and documents..."
               style={{
                 fontSize: 15,
-                color: '#bbb',
+                color: '#1a1a1a',
                 fontWeight: 400,
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                width: '100%',
+                fontFamily: 'inherit',
               }}
-            >
-              Search guides and documents...
-            </span>
+            />
           </div>
         </RevealSection>
 
-        {/* ── Video Guides ── */}
-        <RevealSection delay={60}>
-          <div style={{ marginBottom: 28 }}>
-            <h2
-              style={{
-                fontSize: 17,
-                fontWeight: 700,
-                color: '#1a1a1a',
-                marginBottom: 12,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Video Guides
-            </h2>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              {videoGuides.map((guide, i) => (
-                <GuideItem
-                  key={i}
-                  icon={PlayIcon}
-                  iconBg={guide.iconBg}
-                  title={guide.title}
-                  meta={guide.meta}
-                  onClick={() => setActiveTab('assistant')}
-                />
-              ))}
+        {noResults ? (
+          <RevealSection delay={60}>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', fontSize: 14 }}>
+              No results for &apos;{searchQuery}&apos;
             </div>
-          </div>
-        </RevealSection>
+          </RevealSection>
+        ) : (
+          <>
+            {/* ── Video Guides ── */}
+            {filteredVideos.length > 0 && (
+              <RevealSection delay={60}>
+                <div style={{ marginBottom: 28 }}>
+                  <h2
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      marginBottom: 12,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    Video Guides
+                  </h2>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    {filteredVideos.map((guide, i) => (
+                      <GuideItem
+                        key={i}
+                        icon={PlayIcon}
+                        iconBg={guide.iconBg}
+                        title={guide.title}
+                        meta={guide.meta}
+                        onClick={() => setActiveTab('assistant')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </RevealSection>
+            )}
 
-        {/* ── Documents ── */}
-        <RevealSection delay={120}>
-          <div style={{ marginBottom: 28 }}>
-            <h2
-              style={{
-                fontSize: 17,
-                fontWeight: 700,
-                color: '#1a1a1a',
-                marginBottom: 12,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Documents
-            </h2>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              {documents.map((doc, i) => (
-                <GuideItem
-                  key={i}
-                  icon={FileIcon}
-                  iconBg={doc.iconBg}
-                  title={doc.title}
-                  meta={doc.meta}
-                  onClick={() => setActiveTab('assistant')}
-                />
-              ))}
-            </div>
-          </div>
-        </RevealSection>
+            {/* ── Documents ── */}
+            {filteredDocs.length > 0 && (
+              <RevealSection delay={120}>
+                <div style={{ marginBottom: 28 }}>
+                  <h2
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      marginBottom: 12,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    Documents
+                  </h2>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    {filteredDocs.map((doc, i) => (
+                      <GuideItem
+                        key={i}
+                        icon={FileIcon}
+                        iconBg={doc.iconBg}
+                        title={doc.title}
+                        meta={doc.meta}
+                        onClick={() => setActiveTab('assistant')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </RevealSection>
+            )}
 
-        {/* ── Troubleshooting ── */}
-        <RevealSection delay={180}>
-          <div style={{ marginBottom: 28 }}>
-            <h2
-              style={{
-                fontSize: 17,
-                fontWeight: 700,
-                color: '#1a1a1a',
-                marginBottom: 12,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Troubleshooting
-            </h2>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              {troubleshooting.map((item, i) => (
-                <GuideItem
-                  key={i}
-                  icon={WrenchIcon}
-                  iconBg={item.iconBg}
-                  title={item.title}
-                  meta={item.meta}
-                  onClick={() => setActiveTab('assistant')}
-                />
-              ))}
-            </div>
-          </div>
-        </RevealSection>
+            {/* ── Troubleshooting ── */}
+            {filteredTrouble.length > 0 && (
+              <RevealSection delay={180}>
+                <div style={{ marginBottom: 28 }}>
+                  <h2
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 700,
+                      color: '#1a1a1a',
+                      marginBottom: 12,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    Troubleshooting
+                  </h2>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    {filteredTrouble.map((item, i) => (
+                      <GuideItem
+                        key={i}
+                        icon={WrenchIcon}
+                        iconBg={item.iconBg}
+                        title={item.title}
+                        meta={item.meta}
+                        onClick={() => setActiveTab('assistant')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </RevealSection>
+            )}
+          </>
+        )}
 
         {/* ── Help Banner ── */}
         <RevealSection delay={240}>

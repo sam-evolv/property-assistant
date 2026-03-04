@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText, Clock, X } from 'lucide-react';
 import Image from 'next/image';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 
@@ -139,6 +139,19 @@ const PILLS = [
 /* ══════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════════════════════ */
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMin = Math.floor((now - then) / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+}
+
 export default function AssistantScreen({ installationId }: { installationId: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -147,10 +160,20 @@ export default function AssistantScreen({ installationId }: { installationId: st
   const [streamText, setStreamText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const scroll = useCallback(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+
+  /* ── Load conversation history ── */
+  useEffect(() => {
+    fetch(`/api/care/conversations?installation_id=${installationId}`)
+      .then(r => r.json())
+      .then(data => { if (data.conversations) setConversations(data.conversations); })
+      .catch(() => {});
+  }, [installationId]);
 
   /* ── Send message ── */
   const send = useCallback(async (text?: string) => {
@@ -320,14 +343,60 @@ export default function AssistantScreen({ installationId }: { installationId: st
       <div className="flex-shrink-0 px-4 pt-3 pb-2 sm:pb-3 bg-white border-t border-black/5 transition-all duration-200">
         <div className="mx-auto flex max-w-3xl items-center gap-2 sm:gap-2.5">
           {messages.length > 0 && (
-            <button 
-              onClick={() => { setMessages([]); setShowHome(true); }} 
+            <button
+              onClick={() => { setMessages([]); setShowHome(true); }}
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700 hover:-translate-y-0.5 transition-all duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gold-500/30"
               aria-label="Back to assistant welcome"
             >
               <Home className="h-5 w-5" />
             </button>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700 hover:-translate-y-0.5 transition-all duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gold-500/30"
+              aria-label="Conversation history"
+            >
+              <Clock className="h-5 w-5" />
+            </button>
+            {showHistory && (
+              <div className="absolute bottom-12 left-0 w-64 bg-white rounded-xl border border-slate-200 shadow-lg z-20 overflow-hidden animate-[slideDown_0.2s_ease-out]">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Past Conversations</span>
+                  <button onClick={() => setShowHistory(false)} className="p-0.5 rounded hover:bg-slate-100">
+                    <X className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {conversations.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">No previous conversations.</p>
+                  ) : (
+                    conversations.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setShowHistory(false);
+                          // Load this conversation by navigating chat to this thread
+                          setMessages([]);
+                          setShowHome(false);
+                          // Set conversation context so subsequent messages continue this thread
+                          fetch(`/api/care/chat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ installationId, message: '', conversation_id: c.id }),
+                          }).catch(() => {});
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                      >
+                        <p className="text-sm text-slate-800 truncate font-medium">{c.title || 'Conversation'}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(c.updated_at || c.created_at)}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="group flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 sm:py-3 bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)] transition-all duration-200 hover:bg-black/[0.07] focus-within:ring-2 focus-within:ring-gold-500/30 focus-within:bg-black/[0.08]">
             <input
               type="text" 

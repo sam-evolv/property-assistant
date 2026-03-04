@@ -127,8 +127,8 @@ export default function ProfileScreen() {
                       { label: 'Inverter', value: installation.inverter_model },
                       { label: 'Installer', value: installation.installer_name },
                       { label: 'Install Date', value: new Date(installation.install_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) },
-                      { label: 'System Orientation', value: installation.system_specs.roof_orientation || 'South-facing' },
-                      { label: 'Roof Pitch', value: '35°' },
+                      { label: 'System Orientation', value: installation.system_specs?.roof_orientation || 'Not recorded' },
+                      { label: 'Roof Pitch', value: installation.system_specs?.roof_pitch ? installation.system_specs.roof_pitch + '\u00B0' : 'Not recorded' },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between">
                         <span className="text-sm text-slate-500">{item.label}</span>
