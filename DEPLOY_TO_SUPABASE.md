@@ -61,23 +61,13 @@ npm install
 ### **Step 4: Get Your Supabase Connection String**
 
 1. **Log in to Supabase**: https://app.supabase.com
-2. **Select your project**: `qgkyuaagcrrynnkipbad` (or your project)
+2. **Select your project**
 3. **Go to**: Project Settings → Database
 4. **Find**: Connection string → URI
 5. **Copy the connection string** - it should look like:
    ```
-   postgresql://postgres:[YOUR-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+   postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
    ```
-
-**Your connection string:**
-```
-postgresql://postgres:Munsterman99$evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
-```
-
-⚠️ **Important**: The `$` character in your password needs to be URL-encoded as `%24` for environment variables:
-```
-postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
-```
 
 ---
 
@@ -97,10 +87,10 @@ Add this content to `.env`:
 
 ```env
 # Supabase Database Connection
-SUPABASE_DB_URL=postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+SUPABASE_DB_URL=postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
 
 # Optional: Other environment variables
-NEXT_PUBLIC_SUPABASE_URL=https://qgkyuaagcrrynnkipbad.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://[YOUR-PROJECT-REF].supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
@@ -142,17 +132,17 @@ echo $SUPABASE_DB_URL
 echo $env:SUPABASE_DB_URL
 
 # You should see (with masked password):
-# postgresql://postgres:***@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+# postgresql://postgres:***@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
 ```
 
 If the variable is empty, load it manually:
 
 ```bash
 # On macOS/Linux:
-export SUPABASE_DB_URL="postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
+export SUPABASE_DB_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
 
 # On Windows PowerShell:
-$env:SUPABASE_DB_URL="postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
+$env:SUPABASE_DB_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
 ```
 
 ---
@@ -202,7 +192,7 @@ Detected schema changes:
 ### **Step 9: Verify Tables in Supabase**
 
 1. **Open Supabase Dashboard**: https://app.supabase.com
-2. **Select your project**: `qgkyuaagcrrynnkipbad`
+2. **Select your project**
 3. **Navigate to**: Table Editor (left sidebar)
 4. **Verify tables** appear under the `public` schema:
 
@@ -301,11 +291,11 @@ await client.end();
 
 Your deployment is successful when:
 
-✅ All 23 tables appear in Supabase Table Editor  
-✅ Table structures match your schema (columns, types, constraints)  
-✅ Foreign key relationships are established  
-✅ Indexes are created (check in SQL Editor)  
-✅ No error messages during `drizzle-kit push`  
+✅ All 23 tables appear in Supabase Table Editor
+✅ Table structures match your schema (columns, types, constraints)
+✅ Foreign key relationships are established
+✅ Indexes are created (check in SQL Editor)
+✅ No error messages during `drizzle-kit push`
 
 ---
 
@@ -389,11 +379,6 @@ Once your schema is deployed to Supabase:
 ## ✅ Deployment Complete!
 
 Your OpenHouse AI schema is now deployed to Supabase and ready for production use! 🎉
-
-**Connection String for Production:**
-```
-postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
-```
 
 ---
 

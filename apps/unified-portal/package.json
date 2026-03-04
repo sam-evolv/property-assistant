@@ -16,7 +16,8 @@
     "hardening:test": "npx tsx scripts/hardening/test-tenant-isolation.ts",
     "hardening:recover-messages": "npx tsx scripts/hardening/recover-orphaned-messages.ts",
     "hardening:recover-messages-apply": "npx tsx scripts/hardening/recover-orphaned-messages.ts --apply",
-    "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts"
+    "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts",
+    "db:migrate": "npx tsx scripts/run-migrations-local.ts"
   },
   "dependencies": {
     "@openhouse/api": "1.0.0",
