@@ -4,7 +4,7 @@
 -- Storage connections (Google Drive / OneDrive / SharePoint)
 CREATE TABLE storage_connections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES developer_tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   provider TEXT NOT NULL CHECK (provider IN ('google_drive', 'onedrive', 'sharepoint')),
   display_name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'connected' CHECK (status IN ('connected', 'syncing', 'error', 'disconnected')),
@@ -19,7 +19,7 @@ CREATE TABLE storage_connections (
 CREATE TABLE watched_folders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   connection_id UUID NOT NULL REFERENCES storage_connections(id) ON DELETE CASCADE,
-  tenant_id UUID NOT NULL REFERENCES developer_tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   folder_id TEXT NOT NULL,
   folder_path TEXT NOT NULL,
   folder_name TEXT NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE watched_folders (
 CREATE TABLE storage_files (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   connection_id UUID NOT NULL REFERENCES storage_connections(id) ON DELETE CASCADE,
-  tenant_id UUID NOT NULL REFERENCES developer_tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   folder_id UUID REFERENCES watched_folders(id) ON DELETE SET NULL,
   development_id UUID REFERENCES developments(id) ON DELETE SET NULL,
   provider_file_id TEXT NOT NULL,
@@ -53,15 +53,15 @@ ALTER TABLE storage_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE watched_folders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage_files ENABLE ROW LEVEL SECURITY;
 
--- RLS policies (tenant isolation)
+-- RLS policies (tenant isolation via JWT claim)
 CREATE POLICY "tenant_isolation" ON storage_connections
-  USING (tenant_id = (SELECT tenant_id FROM developer_users WHERE id = auth.uid()));
+  USING (tenant_id = (auth.jwt()->>'tenant_id')::uuid);
 
 CREATE POLICY "tenant_isolation" ON watched_folders
-  USING (tenant_id = (SELECT tenant_id FROM developer_users WHERE id = auth.uid()));
+  USING (tenant_id = (auth.jwt()->>'tenant_id')::uuid);
 
 CREATE POLICY "tenant_isolation" ON storage_files
-  USING (tenant_id = (SELECT tenant_id FROM developer_users WHERE id = auth.uid()));
+  USING (tenant_id = (auth.jwt()->>'tenant_id')::uuid);
 
 -- Indexes
 CREATE INDEX idx_storage_files_connection ON storage_files(connection_id);
