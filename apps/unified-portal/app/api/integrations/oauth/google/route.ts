@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const developmentId = request.nextUrl.searchParams.get('development_id');
+    const integrationType = request.nextUrl.searchParams.get('type') || '';
 
     if (!process.env.GOOGLE_CLIENT_ID) {
       return NextResponse.json({ error: 'Google integration not configured' }, { status: 503 });
@@ -31,18 +32,24 @@ export async function GET(request: NextRequest) {
       actor_id: session.id,
       state,
       development_id: developmentId,
+      type: integrationType,
     });
 
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/oauth/google/callback`;
+
+    // Cloud storage needs broader Drive scopes
+    const scopes = integrationType === 'cloud_storage'
+      ? 'https://www.googleapis.com/auth/drive.readonly'
+      : 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', process.env.GOOGLE_CLIENT_ID!);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file');
+    authUrl.searchParams.set('scope', scopes);
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    authUrl.searchParams.set('state', `${state}:${session.tenantId}:${developmentId || ''}`);
+    authUrl.searchParams.set('state', `${state}:${session.tenantId}:${developmentId || ''}:${integrationType}`);
 
     return NextResponse.json({ auth_url: authUrl.toString() });
   } catch (error: any) {

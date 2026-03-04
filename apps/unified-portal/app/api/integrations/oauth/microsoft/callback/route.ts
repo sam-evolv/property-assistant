@@ -101,6 +101,42 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    // Cloud storage flow: create storage_connections instead of integrations
+    if (integrationType === 'cloud_storage_onedrive' || integrationType === 'cloud_storage_sharepoint') {
+      const provider = integrationType === 'cloud_storage_sharepoint' ? 'sharepoint' : 'onedrive';
+      const displayName = provider === 'sharepoint' ? 'SharePoint' : 'OneDrive';
+
+      const { data: storageConn, error: storageError } = await supabase
+        .from('storage_connections')
+        .insert({
+          tenant_id: tenantId,
+          provider,
+          display_name: displayName,
+          status: 'connected',
+          credentials,
+        })
+        .select()
+        .single();
+
+      if (storageError) {
+        console.error('[OAuth Microsoft Callback] Storage connection insert error:', storageError);
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/developer/data-hub?error=save_failed`
+        );
+      }
+
+      await logAudit(tenantId, 'integration.created', 'user', {
+        resource_type: 'storage_connection',
+        resource_id: storageConn.id,
+        type: provider,
+        provider: 'microsoft',
+      });
+
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/developer/data-hub?connected=${storageConn.id}`
+      );
+    }
+
     // Create integration record
     const { data: integration, error: insertError } = await supabase
       .from('integrations')

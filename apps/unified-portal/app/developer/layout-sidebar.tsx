@@ -9,7 +9,7 @@ import {
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone
+  Plug, Megaphone, HardDrive
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -51,6 +51,7 @@ const btsNavSections: NavSection[] = [
     items: [
       { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
       { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
+      { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
       { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
     ],
   },

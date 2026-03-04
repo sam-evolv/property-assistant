@@ -39,8 +39,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Parse state: uuid:tenantId:developmentId
-    const [stateUuid, tenantId, developmentId] = state.split(':');
+    // Parse state: uuid:tenantId:developmentId or uuid:tenantId:developmentId:type
+    const stateParts = state.split(':');
+    const [stateUuid, tenantId, developmentId] = stateParts;
+    const stateType = stateParts[3] || '';
 
     if (!tenantId || !stateUuid) {
       return NextResponse.redirect(
@@ -98,6 +100,39 @@ export async function GET(request: NextRequest) {
     });
 
     const supabase = getSupabaseAdmin();
+
+    // Cloud storage flow: create storage_connections instead of integrations
+    if (stateType === 'cloud_storage') {
+      const { data: storageConn, error: storageError } = await supabase
+        .from('storage_connections')
+        .insert({
+          tenant_id: tenantId,
+          provider: 'google_drive',
+          display_name: 'Google Drive',
+          status: 'connected',
+          credentials,
+        })
+        .select()
+        .single();
+
+      if (storageError) {
+        console.error('[OAuth Google Callback] Storage connection insert error:', storageError);
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/developer/data-hub?error=save_failed`
+        );
+      }
+
+      await logAudit(tenantId, 'integration.created', 'user', {
+        resource_type: 'storage_connection',
+        resource_id: storageConn.id,
+        type: 'google_drive',
+        provider: 'google',
+      });
+
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/developer/data-hub?connected=${storageConn.id}`
+      );
+    }
 
     const { data: integration, error: insertError } = await supabase
       .from('integrations')
