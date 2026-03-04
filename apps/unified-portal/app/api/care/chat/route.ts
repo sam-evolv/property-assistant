@@ -31,6 +31,19 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60000 });
+    return true;
+  }
+  if (entry.count >= 20) return false;
+  entry.count++;
+  return true;
+}
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -349,6 +362,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'installationId and message required' },
         { status: 400 }
+      );
+    }
+
+    if (!checkRateLimit(installationId)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please wait before sending another message.' },
+        { status: 429 }
       );
     }
 

@@ -66,7 +66,7 @@ function Counter({ target, prefix = '', decimals = 0 }: { target: number; prefix
 
 /* ── Main ── */
 export default function HomeScreen() {
-  const { installation } = useCareApp();
+  const { installation, setActiveTab } = useCareApp();
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
   const savings = daysSince * 5.8;
 
@@ -108,9 +108,9 @@ export default function HomeScreen() {
         {/* ── Performance Cards — 3-col grid ── */}
         <div className="card-item grid grid-cols-3 gap-2.5 sm:gap-3">
           {[
-            { label: 'Generated\nToday', value: '4.2', unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
-            { label: 'Saved\nToday', value: '€3.18', icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
-            { label: 'System\nEfficiency', value: '94%', icon: Zap, iconColor: 'text-blue-500', bg: 'bg-blue-50' },
+            { label: 'Generated\nToday', value: ((installation.system_size_kwp * 850) / 365).toFixed(1), unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
+            { label: 'Saved\nToday', value: '€' + ((installation.system_size_kwp * 850) / 365 * 0.35).toFixed(2), icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'System\nEfficiency', value: installation.health_status === 'healthy' ? '94%' : installation.health_status === 'degraded' ? '78%' : 'Check', icon: Zap, iconColor: 'text-blue-500', bg: 'bg-blue-50' },
           ].map((m) => (
             <div key={m.label} className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
               <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl ${m.bg} flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform duration-200`}>
@@ -190,12 +190,12 @@ export default function HomeScreen() {
           <h3 className="text-sm sm:text-base font-semibold text-slate-900 mb-2.5 sm:mb-3">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             {[
-              { label: 'Contact Installer', icon: Phone, desc: installation.installer_name, iconColor: 'text-[#D4AF37]', bg: 'bg-[#D4AF37]/8' },
-              { label: 'Report Issue', icon: AlertTriangle, desc: 'Get support', iconColor: 'text-red-500', bg: 'bg-red-50' },
-              { label: 'Schedule Service', icon: Calendar, desc: 'Book maintenance', iconColor: 'text-blue-500', bg: 'bg-blue-50' },
-              { label: 'SEAI Grant Info', icon: Leaf, desc: 'Check eligibility', iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
+              { label: 'Contact Installer', icon: Phone, desc: installation.installer_name, iconColor: 'text-[#D4AF37]', bg: 'bg-[#D4AF37]/8', onClick: () => { if (installation.installer_contact?.phone) { window.open(`tel:${installation.installer_contact.phone}`); } else { window.open('mailto:support@openhouse.ai'); } } },
+              { label: 'Report Issue', icon: AlertTriangle, desc: 'Get support', iconColor: 'text-red-500', bg: 'bg-red-50', onClick: () => setActiveTab('assistant') },
+              { label: 'Schedule Service', icon: Calendar, desc: 'Book maintenance', iconColor: 'text-blue-500', bg: 'bg-blue-50', onClick: () => { window.open(`mailto:support@openhouse.ai?subject=${encodeURIComponent('Service Request - ' + installation.job_reference)}`); } },
+              { label: 'SEAI Grant Info', icon: Leaf, desc: 'Check eligibility', iconColor: 'text-emerald-500', bg: 'bg-emerald-50', onClick: () => { window.open('https://www.seai.ie/grants/', '_blank'); } },
             ].map((a) => (
-              <button key={a.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-left hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-gold-500/30 group" aria-label={`${a.label}: ${a.desc}`}>
+              <button key={a.label} onClick={a.onClick} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-left hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-gold-500/30 group" aria-label={`${a.label}: ${a.desc}`}>
                 <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${a.bg} flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform duration-200`}>
                   <a.icon className={`w-4.5 h-4.5 sm:w-5 sm:h-5 ${a.iconColor} group-hover:scale-110 transition-transform duration-200`} />
                 </div>
