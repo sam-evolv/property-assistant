@@ -67,16 +67,19 @@ function GuideItem({
   iconBg,
   title,
   meta,
+  onClick,
 }: {
   icon: React.ReactNode;
   iconBg: string;
   title: string;
   meta: string;
+  onClick?: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
 
   return (
     <button
+      onClick={onClick}
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
@@ -225,7 +228,7 @@ const typeIcons: Record<string, React.ReactNode> = {
 };
 
 export default function GuidesScreen() {
-  const { installation, installationId } = useCareApp();
+  const { installation, installationId, setActiveTab } = useCareApp();
   const [mounted, setMounted] = useState(false);
   const [content, setContent] = useState<Record<string, ContentItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -389,6 +392,7 @@ export default function GuidesScreen() {
                   iconBg={guide.iconBg}
                   title={guide.title}
                   meta={guide.meta}
+                  onClick={() => setActiveTab('assistant')}
                 />
               ))}
             </div>
@@ -423,6 +427,7 @@ export default function GuidesScreen() {
                   iconBg={doc.iconBg}
                   title={doc.title}
                   meta={doc.meta}
+                  onClick={() => setActiveTab('assistant')}
                 />
               ))}
             </div>
@@ -457,6 +462,7 @@ export default function GuidesScreen() {
                   iconBg={item.iconBg}
                   title={item.title}
                   meta={item.meta}
+                  onClick={() => setActiveTab('assistant')}
                 />
               ))}
             </div>
@@ -465,13 +471,20 @@ export default function GuidesScreen() {
 
         {/* ── Help Banner ── */}
         <RevealSection delay={240}>
-          <div
+          <button
+            onClick={() => setActiveTab('assistant')}
             style={{
               borderRadius: 20,
               padding: 20,
               background:
                 'linear-gradient(135deg, #FDF8EF 0%, #F8ECDA 100%)',
               marginBottom: 24,
+              width: '100%',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: 'inherit',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             <div
@@ -530,7 +543,7 @@ export default function GuidesScreen() {
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         </RevealSection>
       </div>
     </div>

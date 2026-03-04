@@ -142,24 +142,29 @@ export default function ProfileScreen() {
 
             {activeSection === 'documents' && (
               <div className="space-y-3">
+                <p className="text-sm text-slate-500 mb-4">
+                  Documents will appear here once uploaded by your installer.
+                </p>
                 {[
-                  { title: 'Installation Certificate', type: 'PDF', date: installation.install_date },
-                  { title: 'BER Certificate', type: 'PDF', date: installation.install_date },
-                  { title: 'SEAI Grant Confirmation', type: 'PDF', date: installation.install_date },
-                  { title: 'System Commissioning Report', type: 'PDF', date: installation.install_date },
-                  { title: 'Panel Warranty Certificate', type: 'PDF', date: installation.install_date },
-                  { title: 'Inverter Warranty Certificate', type: 'PDF', date: installation.install_date },
-                ].map((doc) => (
-                  <button key={doc.title} className="w-full flex items-center gap-3 rounded-xl border border-slate-200 p-3.5 hover:border-gold-300 hover:shadow-sm transition-all text-left group">
+                  'Installation Certificate',
+                  'BER Certificate',
+                  'SEAI Grant Confirmation',
+                  'System Commissioning Report',
+                  'Panel Warranty Certificate',
+                  'Inverter Warranty Certificate',
+                ].map((title) => (
+                  <div key={title} className="w-full flex items-center gap-3 rounded-xl border border-slate-200 p-3.5 opacity-50">
                     <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-red-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 group-hover:text-[#D4AF37] transition-colors truncate">{doc.title}</p>
-                      <p className="text-[11px] text-slate-400">{doc.type} · {new Date(doc.date).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}</p>
+                      <p className="text-sm font-medium text-slate-900 truncate">{title}</p>
+                      <p className="text-[11px] text-slate-400">PDF</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#D4AF37] transition-colors" />
-                  </button>
+                    <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                      Pending
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
