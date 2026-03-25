@@ -9,7 +9,19 @@ import {
   FolderArchive, BookOpen, Menu, X, ChevronDown,
 } from 'lucide-react';
 
-/* ── Nav sections — mirrors Developer dashboard structure exactly ── */
+/* ── SE Systems Logo (inline SVG — no external deps) ── */
+function SESystemsLogo({ width = 130 }: { width?: number }) {
+  return (
+    <svg width={width} height={width * (32 / 140)} viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="16" cy="16" rx="14" ry="6" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(-30 16 16)" />
+      <ellipse cx="16" cy="16" rx="14" ry="6" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(30 16 16)" />
+      <circle cx="16" cy="16" r="2.5" fill="white" />
+      <text x="38" y="21" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="700" fill="white" letterSpacing="2">SESYSTEMS</text>
+    </svg>
+  );
+}
+
+/* ── Nav sections ── */
 const NAV_SECTIONS = [
   {
     title: 'Main',
@@ -46,21 +58,14 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex h-screen bg-white">
-      {/* Desktop Sidebar — matches Developer sidebar exactly */}
+      {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
-        {/* Logo — same as developer sidebar */}
-        <div className="p-6 border-b border-gold-900/20 flex items-center justify-center">
-          <Image
-            src="/branding/openhouse-logo.png"
-            alt="OpenHouse AI"
-            width={220}
-            height={80}
-            className="h-20 w-auto object-contain"
-            priority
-          />
+        {/* SE Systems Logo — white label */}
+        <div style={{ padding: '24px 20px 20px' }} className="border-b border-gold-900/20 flex items-center justify-center">
+          <SESystemsLogo width={130} />
         </div>
 
-        {/* Installer Context Switcher — mirrors "CURRENT SCHEME" in developer sidebar */}
+        {/* Installer Context Switcher */}
         <div className="px-4 py-3 border-b border-gold-900/20">
           <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9CA3AF' }}>
             Current Installer
@@ -71,7 +76,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
           </button>
         </div>
 
-        {/* Navigation — same structure as developer sidebar */}
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {NAV_SECTIONS.map((section, idx) => (
             <div key={idx}>
@@ -104,11 +109,17 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
           ))}
         </nav>
 
-        {/* Footer — matches developer sidebar footer */}
-        <div className="p-4 border-t border-gold-900/20">
-          <div className="px-4 py-2 text-xs text-grey-600 text-center">
-            <p className="font-medium text-grey-500">OpenHouseAi</p>
-            <p className="text-grey-600 mt-0.5">v1.0.0</p>
+        {/* Footer — Powered by OpenHouse AI */}
+        <div className="mt-auto" style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <p className="text-center mb-2" style={{ fontSize: '10px', color: '#5c6478' }}>Powered by</p>
+          <div className="flex justify-center" style={{ opacity: 0.6 }}>
+            <Image
+              src="/branding/openhouse-logo.png"
+              alt="OpenHouse AI"
+              width={100}
+              height={36}
+              className="w-20 h-auto object-contain"
+            />
           </div>
         </div>
       </div>
@@ -118,10 +129,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
         {/* Mobile Header */}
         <div className="md:hidden border-b border-gold-200/30 px-4 py-4 flex items-center justify-between bg-white/50 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center text-white font-bold text-xs">
-              OH
-            </div>
-            <h1 className="text-grey-900 font-bold">Care</h1>
+            <SESystemsLogo width={100} />
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -170,7 +178,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
           </div>
         )}
 
-        {/* Content Area — same bg as developer dashboard */}
+        {/* Content Area */}
         <div className="flex-1 overflow-auto bg-gradient-to-br from-white via-grey-50 to-white">
           {children}
         </div>
