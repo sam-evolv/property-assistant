@@ -9,7 +9,7 @@ interface SupportQuery {
   customer_ref: string;
   address: string;
   query_type: string;
-  status: string;
+  query_status: string;
   description: string;
   created_at: string;
 }
@@ -58,7 +58,7 @@ export default function SupportQueuePage() {
 
   const filtered = activeTab === 'all'
     ? queries
-    : queries.filter(q => q.status === activeTab);
+    : queries.filter(q => q.query_status === activeTab);
 
   if (loading) {
     return (
@@ -83,7 +83,7 @@ export default function SupportQueuePage() {
           {/* Filter Tabs */}
           <div className="flex items-center gap-2">
             {TABS.map((tab) => {
-              const count = tab === 'all' ? queries.length : queries.filter(q => q.status === tab).length;
+              const count = tab === 'all' ? queries.length : queries.filter(q => q.query_status === tab).length;
               return (
                 <button
                   key={tab}
@@ -129,7 +129,7 @@ export default function SupportQueuePage() {
                   </thead>
                   <tbody>
                     {filtered.map((query) => {
-                      const statusStyle = STATUS_STYLES[query.status] || STATUS_STYLES.open;
+                      const statusStyle = STATUS_STYLES[query.query_status] || STATUS_STYLES.open;
                       const dateStr = new Date(query.created_at).toLocaleDateString('en-IE', {
                         day: 'numeric', month: 'short', year: 'numeric',
                       });
@@ -145,7 +145,7 @@ export default function SupportQueuePage() {
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-                              {STATUS_LABELS[query.status] || query.status}
+                              {STATUS_LABELS[query.query_status] || query.query_status}
                             </span>
                           </td>
                           <td className="px-4 py-3">
