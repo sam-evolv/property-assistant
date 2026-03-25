@@ -18,17 +18,38 @@ export async function GET() {
     .from('diagnostic_flows')
     .select(`
       id,
-      flow_name,
+      name,
+      description,
       system_type,
-      step_count,
-      times_triggered,
+      status,
+      icon,
+      colour,
+      steps,
+      stats_started,
+      stats_resolved,
+      stats_escalated,
+      created_at,
       updated_at
     `)
-    .order('times_triggered', { ascending: false });
+    .order('stats_started', { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ flows: data || [] });
+  // Map to friendlier shape
+  const flows = (data || []).map((f: Record<string, unknown>) => {
+    const steps = f.steps as unknown[] | null;
+    return {
+      id: f.id,
+      flow_name: f.name,
+      description: f.description,
+      system_type: f.system_type,
+      step_count: Array.isArray(steps) ? steps.length : 0,
+      times_triggered: (f.stats_started as number) || 0,
+      updated_at: f.updated_at,
+    };
+  });
+
+  return NextResponse.json({ flows });
 }

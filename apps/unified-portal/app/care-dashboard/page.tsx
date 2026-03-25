@@ -7,7 +7,7 @@ import {
   Sun, Zap, Activity, AlertTriangle,
   Plus, Bell, Download, BarChart3,
   RefreshCw, ChevronRight, CheckCircle, Clock, ArrowRight,
-  Loader2,
+  Loader2, Users, TrendingUp, Send, Check,
 } from 'lucide-react';
 import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
 import { QuickActionsBar } from '@/components/ui/QuickActions';
@@ -35,11 +35,33 @@ interface Installation {
   created_at: string;
 }
 
+interface SupportQuery {
+  id: string;
+  query_status: string;
+  resolved_without_callout: boolean;
+  created_at: string;
+}
+
+interface ActivityItem {
+  id: string;
+  activity_type: string;
+  description: string;
+  created_at: string;
+}
+
 const SYSTEM_LABELS: Record<string, string> = {
   solar_pv: 'Solar PV',
   heat_pump: 'Heat Pump',
   mvhr: 'MVHR',
   ev_charger: 'EV Charger',
+};
+
+const ACTIVITY_STYLES: Record<string, { dot: string }> = {
+  installation_added: { dot: 'bg-green-500' },
+  portal_activated: { dot: 'bg-blue-500' },
+  support_raised: { dot: 'bg-amber-500' },
+  support_resolved: { dot: 'bg-green-500' },
+  diagnostic_triggered: { dot: 'bg-blue-500' },
 };
 
 function getGreeting() {
@@ -49,10 +71,21 @@ function getGreeting() {
   return 'Good evening';
 }
 
+function formatRelativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+}
+
 function generateAlerts(installations: Installation[]): Alert[] {
   const alerts: Alert[] = [];
 
-  // Flagged installations
   const flagged = installations.filter(i => i.health_status === 'warning' || i.health_status === 'fault');
   if (flagged.length > 0) {
     alerts.push({
@@ -72,7 +105,6 @@ function generateAlerts(installations: Installation[]): Alert[] {
     });
   }
 
-  // Pending portals older than 14 days
   const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
   const pendingPortals = installations.filter(
     i => i.portal_status === 'pending' && new Date(i.created_at).getTime() < fourteenDaysAgo
@@ -109,24 +141,33 @@ function generateAlerts(installations: Installation[]): Alert[] {
 
 export default function CareDashboardOverview() {
   const [installations, setInstallations] = useState<Installation[]>([]);
+  const [supportQueries, setSupportQueries] = useState<SupportQuery[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const res = await fetch('/api/care/dashboard-stats');
-      if (res.ok) {
-        const data = await res.json();
+      const [instRes, sqRes, actRes] = await Promise.all([
+        fetch('/api/care/dashboard-stats'),
+        fetch('/api/care/support-queries'),
+        fetch('/api/care/activity-log'),
+      ]);
+
+      if (instRes.ok) {
+        const data = await instRes.json();
         setInstallations(data.installations || []);
-      } else {
-        // Fallback: try direct query
-        const res2 = await fetch('/api/care/installations-all');
-        if (res2.ok) {
-          const data2 = await res2.json();
-          setInstallations(data2.installations || []);
-        }
+      }
+      if (sqRes.ok) {
+        const data = await sqRes.json();
+        setSupportQueries(data.queries || []);
+      }
+      if (actRes.ok) {
+        const data = await actRes.json();
+        setActivities(data.activities || []);
       }
     } catch {
       // Will show empty state
@@ -148,6 +189,10 @@ export default function CareDashboardOverview() {
     }
   };
 
+  const handleSendReminder = (installId: string) => {
+    setSentReminders(prev => new Set(prev).add(installId));
+  };
+
   // Computed stats
   const active = installations;
   const totalCapacity = active.reduce((sum, i) => sum + (Number(i.system_size_kwp) || 0), 0);
@@ -157,6 +202,17 @@ export default function CareDashboardOverview() {
   const recent = [...installations].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   const alerts = generateAlerts(installations);
 
+  // Callout deflection stats
+  const deflectedCount = supportQueries.filter(q => q.resolved_without_callout).length;
+  const costPerCallout = 50;
+  const deflectedSavings = deflectedCount * costPerCallout;
+
+  // Portal adoption
+  const activatedCount = installations.filter(i => i.portal_status === 'activated' || i.portal_status === 'active').length;
+  const totalCount = installations.length;
+  const adoptionPct = totalCount > 0 ? Math.round((activatedCount / totalCount) * 100) : 0;
+  const pendingInstallations = installations.filter(i => i.portal_status === 'pending');
+
   const quickActions: QuickAction[] = [
     {
       id: 'log-installation',
@@ -165,27 +221,11 @@ export default function CareDashboardOverview() {
       onClick: () => window.location.href = '/care-dashboard/installations/new',
       variant: 'primary',
     },
-    {
-      id: 'send-notification',
-      label: 'Send Notification',
-      icon: Bell,
-      onClick: () => {},
-    },
-    {
-      id: 'export-report',
-      label: 'Export Report',
-      icon: Download,
-      onClick: () => {},
-    },
-    {
-      id: 'view-analytics',
-      label: 'View Analytics',
-      icon: BarChart3,
-      onClick: () => {},
-    },
+    { id: 'send-notification', label: 'Send Notification', icon: Bell, onClick: () => {} },
+    { id: 'export-report', label: 'Export Report', icon: Download, onClick: () => {} },
+    { id: 'view-analytics', label: 'View Analytics', icon: BarChart3, onClick: () => {} },
   ];
 
-  // Loading skeleton
   if (loading) {
     return (
       <div className="min-h-full bg-gray-50 p-6 lg:p-8">
@@ -212,9 +252,7 @@ export default function CareDashboardOverview() {
           {/* Header */}
           <div className="flex items-start justify-between">
             <div className="mb-2">
-              <h1 className="text-2xl font-bold text-gray-900">
-                {getGreeting()},
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">{getGreeting()},</h1>
               <p className="text-sm text-gray-500 mt-1">
                 Here&apos;s what&apos;s happening with your installations today.
               </p>
@@ -250,30 +288,14 @@ export default function CareDashboardOverview() {
 
           {/* Stat Cards */}
           <StatCardGrid columns={4}>
-            <StatCard
-              label="Active Installations"
-              value={active.length}
-              icon={Sun}
-              iconColor="text-[#D4AF37]"
-            />
+            <StatCard label="Active Installations" value={active.length} icon={Sun} iconColor="text-[#D4AF37]" />
             <StatCard
               label="Total Capacity"
               value={totalCapacity >= 1000 ? `${(totalCapacity / 1000).toFixed(1)} MWp` : `${totalCapacity.toFixed(1)} kWp`}
-              icon={Zap}
-              iconColor="text-blue-500"
+              icon={Zap} iconColor="text-blue-500"
             />
-            <StatCard
-              label="Avg System Health"
-              value={`${healthPct}%`}
-              icon={Activity}
-              iconColor="text-emerald-500"
-            />
-            <StatCard
-              label="Open Faults"
-              value={faultCount}
-              icon={AlertTriangle}
-              iconColor="text-amber-500"
-            />
+            <StatCard label="Avg System Health" value={`${healthPct}%`} icon={Activity} iconColor="text-emerald-500" />
+            <StatCard label="Open Faults" value={faultCount} icon={AlertTriangle} iconColor="text-amber-500" />
           </StatCardGrid>
 
           {/* Needs Attention */}
@@ -287,8 +309,7 @@ export default function CareDashboardOverview() {
                 href="/care-dashboard/installations"
                 className="text-xs font-medium text-gold-600 hover:text-gold-700 flex items-center gap-1"
               >
-                View All
-                <ArrowRight className="w-3 h-3" />
+                View All <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
             {recent.length === 0 ? (
@@ -307,16 +328,12 @@ export default function CareDashboardOverview() {
                   const statusColor = inst.health_status === 'healthy' ? 'text-emerald-500' : 'text-amber-500';
 
                   return (
-                    <div
-                      key={inst.id}
-                      className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors"
-                    >
+                    <div key={inst.id} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors">
                       <CheckCircle className={`w-4 h-4 flex-shrink-0 ${statusColor}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900">
                           <span className="font-medium">{inst.job_reference}</span>
-                          {' — '}
-                          {inst.address_line_1}, {inst.city}
+                          {' — '}{inst.address_line_1}, {inst.city}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {[systemLabel, inst.inverter_model, sizeLabel].filter(Boolean).join(' · ')}
@@ -328,9 +345,7 @@ export default function CareDashboardOverview() {
                         }`}>
                           {inst.health_status}
                         </span>
-                        {dateStr && (
-                          <p className="text-xs text-gray-400 mt-1">{dateStr}</p>
-                        )}
+                        {dateStr && <p className="text-xs text-gray-400 mt-1">{dateStr}</p>}
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                     </div>
@@ -339,6 +354,129 @@ export default function CareDashboardOverview() {
               </div>
             )}
           </div>
+
+          {/* Two-column layout: Deflection + Portal | Activity Feed */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left column: Callout Deflection + Portal Adoption */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Callout Deflection Card — Hero metric */}
+              <div className="bg-white rounded-xl border-2 border-[#D4AF37]/30 shadow-sm p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#D4AF37]/5 to-transparent rounded-bl-full" />
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-lg bg-[#D4AF37]/10">
+                      <Zap className="w-5 h-5 text-[#D4AF37]" />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[#D4AF37]">AI Deflection</span>
+                  </div>
+                  <div className="flex items-baseline gap-3 mb-2">
+                    <span className="text-4xl font-bold text-gray-900">{deflectedCount}</span>
+                    <span className="text-sm text-gray-600">
+                      quer{deflectedCount !== 1 ? 'ies' : 'y'} resolved without a callout this month
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3">
+                    <span className="text-sm font-semibold text-gray-900">
+                      Estimated saving: <span className="text-[#D4AF37]">&euro;{deflectedSavings.toLocaleString()}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                      <TrendingUp className="w-3 h-3" />
+                      12% vs last month
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Portal Adoption Card */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-blue-50">
+                    <Users className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900">Portal Adoption</h3>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-3">
+                  <span className="font-semibold text-gray-900">{activatedCount} of {totalCount}</span> customers have activated their portal
+                </p>
+
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${adoptionPct}%`,
+                      background: 'linear-gradient(90deg, #D4AF37, #c4a030)',
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mb-4">{adoptionPct}% activated</p>
+
+                {/* Pending installations */}
+                {pendingInstallations.length > 0 && (
+                  <div className="border-t border-gray-100 pt-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pending Activation</p>
+                    {pendingInstallations.map((inst) => {
+                      const sent = sentReminders.has(inst.id);
+                      return (
+                        <div key={inst.id} className="flex items-center justify-between py-1.5">
+                          <div className="min-w-0">
+                            <p className="text-sm text-gray-700 truncate">
+                              {inst.job_reference} — {inst.address_line_1}, {inst.city}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleSendReminder(inst.id)}
+                            disabled={sent}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-all duration-150 active:scale-[0.98] flex-shrink-0 ml-3',
+                              sent
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+                            )}
+                          >
+                            {sent ? <Check className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                            {sent ? 'Sent' : 'Send Reminder'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right column: Recent Activity */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900">Recent Activity</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Last 7 days</p>
+              </div>
+              {activities.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No recent activity</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {activities.map((act) => {
+                    const style = ACTIVITY_STYLES[act.activity_type] || { dot: 'bg-gray-400' };
+                    return (
+                      <div key={act.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                        <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${style.dot}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-700 leading-snug">{act.description}</p>
+                          <p className="text-xs text-gray-400 mt-1">{formatRelativeTime(act.created_at)}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
