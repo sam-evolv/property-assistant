@@ -29,7 +29,6 @@ interface Installation {
   install_date: string | null;
   health_status: string;
   portal_status: string;
-  is_active: boolean;
   energy_generated_kwh: number | null;
   savings_eur: number | null;
   warranty_expiry: string | null;
@@ -150,7 +149,7 @@ export default function CareDashboardOverview() {
   };
 
   // Computed stats
-  const active = installations.filter(i => i.is_active);
+  const active = installations;
   const totalCapacity = active.reduce((sum, i) => sum + (Number(i.system_size_kwp) || 0), 0);
   const healthyCount = active.filter(i => i.health_status === 'healthy').length;
   const healthPct = active.length > 0 ? Math.round((healthyCount / active.length) * 100) : 0;

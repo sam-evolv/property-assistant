@@ -23,7 +23,6 @@ interface Installation {
   warranty_expiry: string | null;
   health_status: string;
   portal_status: string;
-  is_active: boolean;
   energy_generated_kwh: number | null;
   savings_eur: number | null;
   created_at: string;

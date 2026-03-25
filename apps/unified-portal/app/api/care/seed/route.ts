@@ -61,7 +61,6 @@ function buildInstallations(tenantId: string) {
       warranty_expiry: warrantyExpiry.toISOString().split('T')[0],
       health_status: r.status === 'flagged' ? 'warning' : 'healthy',
       portal_status: r.portal,
-      is_active: true,
       energy_generated_kwh: totalGenerated,
       savings_eur: savings,
       created_at: installDate.toISOString(),
@@ -102,7 +101,8 @@ export async function POST() {
   const { count } = await supabase
     .from('installations')
     .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId);
+    .eq('tenant_id', tenantId)
+    .not('job_reference', 'is', null);
 
   if (count && count >= 12) {
     return NextResponse.json({ message: 'Demo data already seeded', tenantId, count });
