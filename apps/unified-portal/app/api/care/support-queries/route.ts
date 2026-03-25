@@ -22,7 +22,7 @@ export async function GET() {
       customer_ref,
       address,
       query_type,
-      status,
+      query_status,
       description,
       created_at
     `)
