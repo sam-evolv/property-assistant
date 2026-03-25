@@ -10,13 +10,13 @@ import {
 } from 'lucide-react';
 
 /* ── SE Systems Logo (inline SVG — no external deps) ── */
-function SESystemsLogo({ width = 130 }: { width?: number }) {
+function SESystemsLogo({ width = 160 }: { width?: number }) {
   return (
-    <svg width={width} height={width * (32 / 140)} viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="16" cy="16" rx="14" ry="6" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(-30 16 16)" />
-      <ellipse cx="16" cy="16" rx="14" ry="6" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(30 16 16)" />
-      <circle cx="16" cy="16" r="2.5" fill="white" />
-      <text x="38" y="21" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="700" fill="white" letterSpacing="2">SESYSTEMS</text>
+    <svg width={width} height={width * (36 / 160)} viewBox="0 0 160 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="18" cy="18" rx="16" ry="7" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(-35 18 18)" />
+      <ellipse cx="18" cy="18" rx="16" ry="7" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(35 18 18)" />
+      <circle cx="18" cy="18" r="2.8" fill="white" />
+      <text x="44" y="23" fontFamily="Inter, sans-serif" fontSize="14" fontWeight="700" fill="white" letterSpacing="2.5">SESYSTEMS</text>
     </svg>
   );
 }
@@ -62,7 +62,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
         {/* SE Systems Logo — white label */}
         <div style={{ padding: '24px 20px 20px' }} className="border-b border-gold-900/20 flex items-center justify-center">
-          <SESystemsLogo width={130} />
+          <SESystemsLogo width={160} />
         </div>
 
         {/* Installer Context Switcher */}
@@ -110,15 +110,16 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
         </nav>
 
         {/* Footer — Powered by OpenHouse AI */}
-        <div className="mt-auto" style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <p className="text-center mb-2" style={{ fontSize: '10px', color: '#5c6478' }}>Powered by</p>
-          <div className="flex justify-center" style={{ opacity: 0.6 }}>
+        <div className="mt-auto" style={{ padding: '20px 20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <p className="text-center" style={{ fontSize: '11px', color: '#778199', marginBottom: '8px' }}>Powered by</p>
+          <div className="flex justify-center" style={{ opacity: 0.8 }}>
             <Image
               src="/branding/openhouse-logo.png"
               alt="OpenHouse AI"
-              width={100}
-              height={36}
-              className="w-20 h-auto object-contain"
+              width={140}
+              height={50}
+              className="h-auto object-contain"
+              style={{ width: '110px' }}
             />
           </div>
         </div>
