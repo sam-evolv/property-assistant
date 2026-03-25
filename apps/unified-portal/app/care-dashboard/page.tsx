@@ -1,66 +1,210 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
+import { cn } from '@/lib/utils';
 import {
-  Sparkles, FolderArchive, MessageSquare,
-  Sun, Users, AlertTriangle, CheckCircle, ChevronRight,
-  Zap, Battery, Plus,
+  Sun, Zap, Activity, AlertTriangle,
+  Plus, Bell, Download, BarChart3,
+  RefreshCw, ChevronRight, CheckCircle, Clock, ArrowRight,
+  Loader2,
 } from 'lucide-react';
+import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
+import { QuickActionsBar } from '@/components/ui/QuickActions';
+import type { QuickAction } from '@/components/ui/QuickActions';
+import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
+import type { Alert } from '@/components/ui/ProactiveAlerts';
+import { StatCardGridSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 
-const tokens = {
-  gold: '#D4AF37',
-  goldDark: '#B8934C',
-};
-
-const quickLinks = [
-  { href: '/care-dashboard/installations', label: 'Installations', description: 'View and manage all installations', icon: Sun },
-  { href: '/care-dashboard/intelligence', label: 'Intelligence', description: 'Ask anything about your installations', icon: Sparkles },
-  { href: '/care-dashboard/archive', label: 'Document Archive', description: 'Installation records and documentation', icon: FolderArchive },
-  { href: '/care-dashboard/communications', label: 'Communications', description: 'Customer and installer messaging', icon: MessageSquare },
-];
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
+interface Installation {
+  id: string;
+  job_reference: string;
+  customer_name: string;
+  address_line_1: string;
+  city: string;
+  county: string;
+  system_type: string;
+  system_size_kwp: number | null;
+  inverter_model: string | null;
+  install_date: string | null;
+  health_status: string;
+  portal_status: string;
+  is_active: boolean;
+  energy_generated_kwh: number | null;
+  savings_eur: number | null;
+  warranty_expiry: string | null;
+  created_at: string;
 }
 
-export default async function CareDashboardOverview() {
-  const supabase = getSupabaseAdmin();
+const SYSTEM_LABELS: Record<string, string> = {
+  solar_pv: 'Solar PV',
+  heat_pump: 'Heat Pump',
+  mvhr: 'MVHR',
+  ev_charger: 'EV Charger',
+};
 
-  // Fetch stats in parallel
-  const [
-    { count: totalInstallations },
-    { data: capacityData },
-    { data: healthData },
-    { data: faultData },
-    { data: recentInstallations },
-  ] = await Promise.all([
-    supabase.from('installations').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('installations').select('system_size_kwp').eq('is_active', true),
-    supabase.from('installations').select('health_status').eq('is_active', true),
-    supabase.from('installations').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('health_status', 'fault'),
-    supabase.from('installations').select('id, customer_name, system_type, system_size_kwp, city, job_reference, created_at').eq('is_active', true).order('created_at', { ascending: false }).limit(5),
-  ]);
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
-  const totalCount = totalInstallations ?? 0;
-  const totalCapacityKwp = (capacityData || []).reduce((sum, r) => sum + (Number(r.system_size_kwp) || 0), 0);
-  const capacityDisplay = totalCapacityKwp >= 1000
-    ? `${(totalCapacityKwp / 1000).toFixed(1)} MWp`
-    : `${totalCapacityKwp.toFixed(0)} kWp`;
-  const healthyCount = (healthData || []).filter(r => r.health_status === 'healthy').length;
-  const healthPct = totalCount > 0 ? Math.round((healthyCount / totalCount) * 100) : 0;
-  const faultCount = faultData?.length ?? 0;
+function generateAlerts(installations: Installation[]): Alert[] {
+  const alerts: Alert[] = [];
 
-  const stats = [
-    { label: 'Active Installations', value: String(totalCount), icon: Sun, color: 'text-amber-500', change: '' },
-    { label: 'Total Capacity', value: capacityDisplay, icon: Zap, color: 'text-blue-500', change: '' },
-    { label: 'Avg System Health', value: `${healthPct}%`, icon: Battery, color: 'text-emerald-500', change: '' },
-    { label: 'Open Faults', value: String(faultCount), icon: AlertTriangle, color: 'text-amber-500', change: '' },
+  // Flagged installations
+  const flagged = installations.filter(i => i.health_status === 'warning' || i.health_status === 'fault');
+  if (flagged.length > 0) {
+    alerts.push({
+      id: 'flagged-installations',
+      title: `${flagged.length} installation${flagged.length > 1 ? 's' : ''} need${flagged.length === 1 ? 's' : ''} attention`,
+      description: 'Systems with warnings or faults require investigation',
+      priority: 'warning',
+      count: flagged.length,
+      link: '/care-dashboard/installations',
+      linkLabel: 'View Installations',
+      items: flagged.map(i => ({
+        id: i.id,
+        label: `${i.job_reference} — ${i.address_line_1}, ${i.city}`,
+        sublabel: `${SYSTEM_LABELS[i.system_type] || i.system_type} · ${i.health_status}`,
+        link: '/care-dashboard/installations',
+      })),
+    });
+  }
+
+  // Pending portals older than 14 days
+  const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const pendingPortals = installations.filter(
+    i => i.portal_status === 'pending' && new Date(i.created_at).getTime() < fourteenDaysAgo
+  );
+  if (pendingPortals.length > 0) {
+    alerts.push({
+      id: 'pending-portals',
+      title: `${pendingPortals.length} portal${pendingPortals.length > 1 ? 's' : ''} still pending activation`,
+      description: 'These customers haven\'t activated their portal yet',
+      priority: 'info',
+      count: pendingPortals.length,
+      link: '/care-dashboard/installations',
+      linkLabel: 'Send Activation Links',
+      items: pendingPortals.map(i => ({
+        id: i.id,
+        label: `${i.job_reference} — ${i.customer_name}`,
+        sublabel: `Created ${new Date(i.created_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}`,
+        link: '/care-dashboard/installations',
+      })),
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      id: 'all-clear',
+      title: 'All systems operational',
+      description: 'No immediate action required',
+      priority: 'ready',
+    });
+  }
+
+  return alerts;
+}
+
+export default function CareDashboardOverview() {
+  const [installations, setInstallations] = useState<Installation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const res = await fetch('/api/care/dashboard-stats');
+      if (res.ok) {
+        const data = await res.json();
+        setInstallations(data.installations || []);
+      } else {
+        // Fallback: try direct query
+        const res2 = await fetch('/api/care/installations-all');
+        if (res2.ok) {
+          const data2 = await res2.json();
+          setInstallations(data2.installations || []);
+        }
+      }
+    } catch {
+      // Will show empty state
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      await fetch('/api/care/seed', { method: 'POST' });
+      await fetchData();
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // Computed stats
+  const active = installations.filter(i => i.is_active);
+  const totalCapacity = active.reduce((sum, i) => sum + (Number(i.system_size_kwp) || 0), 0);
+  const healthyCount = active.filter(i => i.health_status === 'healthy').length;
+  const healthPct = active.length > 0 ? Math.round((healthyCount / active.length) * 100) : 0;
+  const faultCount = active.filter(i => i.health_status === 'fault' || i.health_status === 'warning').length;
+  const recent = [...installations].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  const alerts = generateAlerts(installations);
+
+  const quickActions: QuickAction[] = [
+    {
+      id: 'log-installation',
+      label: 'Log Installation',
+      icon: Plus,
+      onClick: () => window.location.href = '/care-dashboard/installations/new',
+      variant: 'primary',
+    },
+    {
+      id: 'send-notification',
+      label: 'Send Notification',
+      icon: Bell,
+      onClick: () => {},
+    },
+    {
+      id: 'export-report',
+      label: 'Export Report',
+      icon: Download,
+      onClick: () => {},
+    },
+    {
+      id: 'view-analytics',
+      label: 'View Analytics',
+      icon: BarChart3,
+      onClick: () => {},
+    },
   ];
 
-  const recent = recentInstallations || [];
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="min-h-full bg-gray-50 p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="mb-6">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 w-80 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <div className="h-14 bg-white rounded-xl border border-gray-200 animate-pulse" />
+          <StatCardGridSkeleton count={4} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <CardSkeleton className="lg:col-span-2" />
+            <CardSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -68,121 +212,136 @@ export default async function CareDashboardOverview() {
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Care Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-1">Solar aftercare management overview</p>
+            <div className="mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {getGreeting()},
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Here&apos;s what&apos;s happening with your installations today.
+              </p>
             </div>
-            <Link
-              href="/care-dashboard/installations/new"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"
-              style={{ background: `linear-gradient(135deg, ${tokens.gold}, ${tokens.goldDark})` }}
-            >
-              <Plus className="w-4 h-4" />
-              New Installation
-            </Link>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.label} className="bg-white border border-gold-100 rounded-xl shadow-sm p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{stat.label}</span>
-                    <div className="w-9 h-9 rounded-lg bg-gold-50 flex items-center justify-center">
-                      <Icon className={`w-5 h-5 ${stat.color}`} />
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  {stat.change && <p className="text-xs text-gray-500 mt-1">{stat.change}</p>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Quick Links + Recent Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Quick Links */}
-            <div className="lg:col-span-1 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">Quick Actions</h3>
-              {quickLinks.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="flex items-center gap-4 p-4 bg-white border border-gold-100 rounded-lg shadow-sm
-                      hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 group"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)` }}
-                    >
-                      <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 group-hover:text-[#D4AF37] transition-colors">{link.label}</p>
-                      <p className="text-xs text-gray-500">{link.description}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#D4AF37] transition-colors" />
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Recent Activity */}
-            <div className="lg:col-span-2">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Installations</h3>
-              <div className="bg-white border border-gold-100 rounded-lg shadow-sm overflow-hidden">
-                {recent.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-gray-400">
-                    No installations yet. Create your first one to get started.
-                  </div>
-                ) : (
-                  recent.map((inst, i) => {
-                    const systemLabel = inst.system_type === 'solar_pv' ? 'Solar PV' : inst.system_type === 'heat_pump' ? 'Heat Pump' : inst.system_type === 'ev_charger' ? 'EV Charger' : inst.system_type;
-                    const sizeLabel = inst.system_size_kwp ? `${inst.system_size_kwp} kWp` : '';
-                    const timeAgo = getTimeAgo(inst.created_at);
-                    return (
-                      <div
-                        key={inst.id}
-                        className={`flex items-start gap-3 px-4 py-3 ${
-                          i < recent.length - 1 ? 'border-b border-gray-50' : ''
-                        }`}
-                      >
-                        <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-700">
-                            <span className="font-medium">{inst.customer_name}</span>
-                            {' — '}
-                            {[systemLabel, sizeLabel].filter(Boolean).join(' · ')}
-                            {inst.city ? `, ${inst.city}` : ''}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {inst.job_reference} · {timeAgo}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
+            <div className="flex items-center gap-2">
+              {installations.length === 0 && (
+                <button
+                  onClick={handleSeed}
+                  disabled={seeding}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-gold-500 text-white hover:bg-gold-600 transition-colors disabled:opacity-50"
+                >
+                  {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Seed Demo Data
+                </button>
+              )}
+              <button
+                onClick={() => fetchData(true)}
+                disabled={refreshing}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                  'text-gray-600 hover:bg-gray-100',
+                  refreshing && 'opacity-50 cursor-not-allowed'
                 )}
-              </div>
+              >
+                <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+                Refresh
+              </button>
             </div>
+          </div>
+
+          {/* Quick Actions Bar */}
+          <QuickActionsBar actions={quickActions} />
+
+          {/* Stat Cards */}
+          <StatCardGrid columns={4}>
+            <StatCard
+              label="Active Installations"
+              value={active.length}
+              icon={Sun}
+              iconColor="text-[#D4AF37]"
+            />
+            <StatCard
+              label="Total Capacity"
+              value={totalCapacity >= 1000 ? `${(totalCapacity / 1000).toFixed(1)} MWp` : `${totalCapacity.toFixed(1)} kWp`}
+              icon={Zap}
+              iconColor="text-blue-500"
+            />
+            <StatCard
+              label="Avg System Health"
+              value={`${healthPct}%`}
+              icon={Activity}
+              iconColor="text-emerald-500"
+            />
+            <StatCard
+              label="Open Faults"
+              value={faultCount}
+              icon={AlertTriangle}
+              iconColor="text-amber-500"
+            />
+          </StatCardGrid>
+
+          {/* Needs Attention */}
+          <ProactiveAlertsWidget alerts={alerts} />
+
+          {/* Recent Installations */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900">Recent Installations</h3>
+              <Link
+                href="/care-dashboard/installations"
+                className="text-xs font-medium text-gold-600 hover:text-gold-700 flex items-center gap-1"
+              >
+                View All
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {recent.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <Sun className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No installations yet. Seed demo data or create your first installation.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {recent.map((inst) => {
+                  const systemLabel = SYSTEM_LABELS[inst.system_type] || inst.system_type;
+                  const sizeLabel = inst.system_size_kwp ? `${inst.system_size_kwp} kWp` : '';
+                  const dateStr = inst.install_date
+                    ? new Date(inst.install_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : '';
+                  const statusColor = inst.health_status === 'healthy' ? 'text-emerald-500' : 'text-amber-500';
+
+                  return (
+                    <div
+                      key={inst.id}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors"
+                    >
+                      <CheckCircle className={`w-4 h-4 flex-shrink-0 ${statusColor}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900">
+                          <span className="font-medium">{inst.job_reference}</span>
+                          {' — '}
+                          {inst.address_line_1}, {inst.city}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {[systemLabel, inst.inverter_model, sizeLabel].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          inst.health_status === 'healthy' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {inst.health_status}
+                        </span>
+                        {dateStr && (
+                          <p className="text-xs text-gray-400 mt-1">{dateStr}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-function getTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 }
