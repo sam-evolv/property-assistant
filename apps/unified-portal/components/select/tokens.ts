@@ -1,24 +1,62 @@
 /**
- * OpenHouse Select — Design Tokens
- * Single source of truth. Taken directly from prototype v4.
+ * OpenHouse Select — Design Tokens & Core Utilities
+ * Single source of truth for all visual decisions.
+ * Generated from approved prototype v4.
  */
 
+// ─── Colour system ────────────────────────────────────────────────────────────
 export const C = {
-  g:"#D4AF37", gHi:"#F5D060", gLo:"#7A5A08",
-  gGlow:"rgba(212,175,55,0.32)", gFog:"rgba(212,175,55,0.10)",
-  gB:"rgba(212,175,55,0.18)", gB2:"rgba(212,175,55,0.40)",
-  bg:"#04040A", s1:"#080810", s2:"#0E0E18", s3:"#161622", s4:"#1E1E2C",
-  glDark:"rgba(4,4,10,0.88)", glMid:"rgba(8,8,18,0.72)",
-  t1:"#EDE8DE", t2:"#7A7468", t3:"#3E3A34",
-  b1:"rgba(255,255,255,0.050)", b2:"rgba(255,255,255,0.085)", b3:"rgba(255,255,255,0.14)",
-  grn:"#2DC87A", blu:"#4899F0", pur:"#8E78E2", amb:"#F0981A",
+  g:      "#D4AF37",
+  gHi:    "#F5D060",
+  gLo:    "#7A5A08",
+  gGlow:  "rgba(212,175,55,0.32)",
+  gFog:   "rgba(212,175,55,0.10)",
+  gB:     "rgba(212,175,55,0.18)",
+  gB2:    "rgba(212,175,55,0.40)",
+  bg:     "#04040A",
+  s1:     "#080810",
+  s2:     "#0E0E18",
+  s3:     "#161622",
+  s4:     "#1E1E2C",
+  glDark: "rgba(4,4,10,0.88)",
+  glMid:  "rgba(8,8,18,0.72)",
+  t1:     "#EDE8DE",
+  t2:     "#7A7468",
+  t3:     "#3E3A34",
+  b1:     "rgba(255,255,255,0.050)",
+  b2:     "rgba(255,255,255,0.085)",
+  b3:     "rgba(255,255,255,0.14)",
+  grn:    "#2DC87A",
+  blu:    "#4899F0",
+  pur:    "#8E78E2",
+  amb:    "#F0981A",
 } as const;
 
-export const APP_W = 390;
-export const APP_H = 844; // iPhone 14/15 full height
-export const TAB_H = 66;
-export const EASE = "cubic-bezier(0.16,1,0.3,1)";
+// ─── Layout constants ─────────────────────────────────────────────────────────
+export const APP_W  = 390;
+export const APP_H  = 780;
+export const TAB_H  = 66;
+export const CONTENT_H = APP_H - TAB_H;
 
+// ─── Motion ───────────────────────────────────────────────────────────────────
+export const EASE    = "cubic-bezier(0.16,1,0.3,1)";
+export const EASE_IN = "cubic-bezier(0.4,0,1,1)";
+export const EASE_IO = "cubic-bezier(0.45,0,0.55,1)";
+
+export const DURATION = {
+  micro:   100,
+  fast:    200,
+  base:    320,
+  slide:   380,
+  reveal:  600,
+  window:  2200,
+  welcome: 2800,
+} as const;
+
+// ─── Handover date ────────────────────────────────────────────────────────────
+export const HANDOVER_DATE = new Date("2024-12-14");
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
 export const IC = {
   home:   "M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z",
   spark:  ["M13 2L3 14h9l-1 8 10-12h-9l1-8z"],
@@ -38,16 +76,28 @@ export const IC = {
   phone:  ["M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"],
 } as const;
 
+// ─── Tab definitions ──────────────────────────────────────────────────────────
 export const TABS = [
-  { icon: IC.home,   label: "Home"     },
-  { icon: IC.solar,  label: "Systems"  },
-  { icon: IC.story,  label: "Story"    },
-  { icon: IC.docs,   label: "Docs"     },
-  { icon: IC.shield, label: "Warranty" },
+  { id: "home",     icon: IC.home,   label: "Home"     },
+  { id: "systems",  icon: IC.solar,  label: "Systems"  },
+  { id: "story",    icon: IC.story,  label: "Story"    },
+  { id: "docs",     icon: IC.docs,   label: "Docs"     },
+  { id: "warranty", icon: IC.shield, label: "Warranty" },
 ] as const;
 
-/** Time-of-day sky config — drives background gradient and window glow */
-export function getSkyConfig(hr = new Date().getHours()) {
+export type TabId = typeof TABS[number]["id"];
+
+// ─── Time-of-day sky config ───────────────────────────────────────────────────
+export interface SkyConfig {
+  name:            "dawn" | "morning" | "afternoon" | "dusk" | "night";
+  bg:              string;
+  starsOpacity:    number;
+  windowGlowBase:  number;
+  orbColor:        string;
+  horizonGlow:     string;
+}
+
+export function getSkyConfig(hr: number = new Date().getHours()): SkyConfig {
   if (hr >= 5 && hr < 7) return {
     name: "dawn",
     bg: `radial-gradient(ellipse 100% 55% at 48% -4%, rgba(212,175,55,0.14) 0%, rgba(180,80,20,0.08) 35%, transparent 65%),
@@ -90,13 +140,45 @@ export function getSkyConfig(hr = new Date().getHours()) {
   };
 }
 
-/** Days since handover — displayed as "Day N" */
-export function getDaysHome(handoverDate: Date = new Date("2024-12-14")) {
-  const ms = Date.now() - handoverDate.getTime();
-  return Math.max(1, Math.floor(ms / 86400000));
+// ─── Days home counter ────────────────────────────────────────────────────────
+export function getDaysHome(handover: Date = HANDOVER_DATE): number {
+  const ms = Date.now() - handover.getTime();
+  return Math.max(1, Math.floor(ms / 86_400_000));
 }
 
-/** CSS keyframes for the app — inject via <style> tag */
+// ─── Typography scale ─────────────────────────────────────────────────────────
+export const TYPE = {
+  display:  { fontSize: 52, fontWeight: 900, letterSpacing: "-0.048em", lineHeight: 0.92 },
+  hero:     { fontSize: 56, fontWeight: 900, letterSpacing: "-0.05em",  lineHeight: 0.90 },
+  heading:  { fontSize: 26, fontWeight: 800, letterSpacing: "-0.03em" },
+  title:    { fontSize: 14, fontWeight: 600 },
+  body:     { fontSize: 13.5, lineHeight: 1.65 },
+  caption:  { fontSize: 10.5, letterSpacing: "0.01em" },
+  overline: { fontSize: 9.5, fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase" as const },
+  micro:    { fontSize: 8.5, fontWeight: 800, letterSpacing: "0.10em", textTransform: "uppercase" as const },
+} as const;
+
+// ─── Border radius ────────────────────────────────────────────────────────────
+export const RADIUS = {
+  sm:   9,
+  md:   13,
+  lg:   16,
+  xl:   18,
+  pill: 22,
+  full: 9999,
+} as const;
+
+// ─── Shadows ──────────────────────────────────────────────────────────────────
+export const SHADOW = {
+  goldGlow:  `0 0 24px rgba(212,175,55,0.32)`,
+  goldRing:  `0 0 0 4px rgba(212,175,55,0.12), 0 6px 24px rgba(212,175,55,0.30)`,
+  userMsg:   `0 4px 24px rgba(212,175,55,0.28), 0 1px 0 rgba(255,255,255,0.15) inset`,
+  aiMsg:     `0 2px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)`,
+  card:      `0 4px 32px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.04)`,
+  appShell:  `0 40px 100px rgba(0,0,0,0.80), 0 0 0 1px rgba(255,255,255,0.04)`,
+} as const;
+
+// ─── Animation keyframes (CSS) ────────────────────────────────────────────────
 export const KEYFRAMES = `
   *{-webkit-tap-highlight-color:transparent;box-sizing:border-box;}
   ::-webkit-scrollbar{display:none;}
@@ -104,7 +186,10 @@ export const KEYFRAMES = `
   @keyframes orb1{from{transform:translate(-50%,-50%)scale(1.1)}to{transform:translate(-50%,-50%)scale(0.76)}}
   @keyframes orb2{from{transform:translate(-50%,-50%)scale(0.88)}to{transform:translate(-50%,-50%)scale(1.28)}}
   @keyframes livePulse{0%,100%{opacity:1}50%{opacity:0.36}}
-  @keyframes badgePulse{0%,100%{box-shadow:0 0 18px rgba(212,175,55,0.32),inset 0 1px 0 rgba(255,255,255,0.24),0 2px 8px rgba(0,0,0,0.5)}50%{box-shadow:0 0 34px rgba(212,175,55,0.55),inset 0 1px 0 rgba(255,255,255,0.24),0 2px 8px rgba(0,0,0,0.5)}}
+  @keyframes badgePulse{
+    0%,100%{box-shadow:0 0 18px rgba(212,175,55,0.32),inset 0 1px 0 rgba(255,255,255,0.24),0 2px 8px rgba(0,0,0,0.5)}
+    50%{box-shadow:0 0 34px rgba(212,175,55,0.55),inset 0 1px 0 rgba(255,255,255,0.24),0 2px 8px rgba(0,0,0,0.5)}
+  }
   @keyframes thinkPulse{0%,100%{box-shadow:0 0 14px rgba(212,175,55,0.22)}50%{box-shadow:0 0 28px rgba(212,175,55,0.45)}}
   @keyframes thinkDot{0%,80%,100%{transform:translateY(0);opacity:.3}40%{transform:translateY(-6px);opacity:1}}
   @keyframes haloPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:.2;transform:scale(1.08)}}
