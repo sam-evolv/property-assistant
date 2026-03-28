@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText, Clock, X } from 'lucide-react';
 import Image from 'next/image';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
+import { useCareApp } from '../care-app-provider';
 
 /* ── Animation Styles — VERBATIM from PurchaserChatTab + UX Enhancements ──── */
 const ANIMATION_STYLES = `
@@ -128,10 +129,17 @@ function Sources({ sources }: { sources?: { title: string; snippet: string }[] }
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 interface Message { role: 'user' | 'assistant'; content: string; sources?: { title: string; snippet: string }[]; }
 
-/* ── Pills — 4 solar-specific prompts, "Run Diagnostic" always present ──── */
-const PILLS = [
+/* ── Pills — vary by system type ──── */
+const SOLAR_PILLS = [
   'How much energy am I generating?',
   'What does the red light mean?',
+  'When is my warranty up?',
+  '▶ Run Diagnostic',
+];
+
+const HEAT_PUMP_PILLS = [
+  'Why is my bill higher this month?',
+  'What\'s the noise from my heat pump?',
   'When is my warranty up?',
   '▶ Run Diagnostic',
 ];
@@ -153,6 +161,11 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function AssistantScreen({ installationId }: { installationId: string }) {
+  const { installation } = useCareApp();
+  const isHeatPump = installation.system_category === 'heat_pump' || installation.system_type === 'heat_pump';
+  const PILLS = isHeatPump ? HEAT_PUMP_PILLS : SOLAR_PILLS;
+  const systemLabel = isHeatPump ? 'heating' : 'solar';
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -273,7 +286,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
 
           {/* Headline — same text-[17px] font-semibold as Property */}
           <h1 className="mt-3 text-center text-[17px] font-semibold leading-tight text-slate-900 sm:text-lg md:text-xl">
-            Ask anything about{'\n'}your solar system
+            Ask anything about{'\n'}your {systemLabel} system
           </h1>
 
           {/* Subtitle — same text-[12px] as Property */}
@@ -403,7 +416,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Ask about your solar system..."
+              placeholder={`Ask about your ${systemLabel} system...`}
               disabled={sending}
               className="flex-1 border-none bg-transparent text-[15px] sm:text-base placeholder:text-gray-400 focus:outline-none text-gray-900 disabled:opacity-50 transition-opacity duration-200"
             />

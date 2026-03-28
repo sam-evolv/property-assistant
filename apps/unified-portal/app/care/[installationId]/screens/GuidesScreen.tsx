@@ -267,18 +267,39 @@ export default function GuidesScreen() {
     iconBg: typeGradients[c.content_type] || typeGradients.guide,
   }));
 
-  // If no data loaded yet, use fallback
+  // If no data loaded yet, use fallback content based on system type
+  const isHeatPump = installation.system_category === 'heat_pump' || installation.system_type === 'heat_pump';
+
   if (!loading && videoGuides.length === 0 && documents.length === 0 && troubleshooting.length === 0) {
-    videoGuides.push(
-      { title: 'Understanding Your Solar Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
-      { title: 'Maximising Self-Consumption', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-    );
-    documents.push(
-      { title: `${installation.inverter_model} Manual`, meta: 'PDF', iconBg: typeGradients.document },
-    );
-    troubleshooting.push(
-      { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
-    );
+    if (isHeatPump) {
+      videoGuides.push(
+        { title: 'Understanding Your Heat Pump Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
+        { title: 'Getting the Most from Underfloor Heating', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+        { title: 'How to Read Your Energy Bill', meta: 'Video · 5 min', iconBg: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
+      );
+      documents.push(
+        { title: `${installation.heat_pump_model || 'Heat Pump'} User Manual`, meta: 'PDF', iconBg: typeGradients.document },
+        { title: 'Pipelife Underfloor Heating Guide', meta: 'PDF', iconBg: typeGradients.document },
+        { title: 'SEAI Grant — What to Expect', meta: 'PDF', iconBg: 'linear-gradient(135deg, #10B981, #059669)' },
+        { title: `${installation.controls_model || 'Thermostat'} Setup Guide`, meta: 'PDF', iconBg: typeGradients.document },
+      );
+      troubleshooting.push(
+        { title: 'Heat Pump Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+        { title: 'Thermostat Not Responding', meta: 'Step-by-step', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+        { title: 'Underfloor Heating Not Heating', meta: 'Diagnostic', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+      );
+    } else {
+      videoGuides.push(
+        { title: 'Understanding Your Solar Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
+        { title: 'Maximising Self-Consumption', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+      );
+      documents.push(
+        { title: `${installation.inverter_model} Manual`, meta: 'PDF', iconBg: typeGradients.document },
+      );
+      troubleshooting.push(
+        { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+      );
+    }
   }
 
   // Filter by search query
@@ -329,8 +350,7 @@ export default function GuidesScreen() {
               margin: '0 0 20px',
             }}
           >
-            Everything you need for your {installation.system_size_kwp} kWp
-            system
+            Everything you need for your {isHeatPump ? (installation.heat_pump_model || 'heating') : `${installation.system_size_kwp} kWp`} system
           </p>
         </div>
 

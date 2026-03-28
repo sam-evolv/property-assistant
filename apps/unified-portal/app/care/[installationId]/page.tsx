@@ -1,17 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { Home, MessageCircle, BookOpen, User } from 'lucide-react';
+import { Home, MessageCircle, BookOpen, User, Wrench } from 'lucide-react';
+import { useCareApp } from './care-app-provider';
 
 const HomeScreen = dynamic(() => import('./screens/HomeScreen'), { ssr: false, loading: () => <TabLoading /> });
 const AssistantScreen = dynamic(() => import('./screens/AssistantScreen'), { ssr: false, loading: () => <TabLoading /> });
 const GuidesScreen = dynamic(() => import('./screens/GuidesScreen'), { ssr: false, loading: () => <TabLoading /> });
 const ProfileScreen = dynamic(() => import('./screens/ProfileScreen'), { ssr: false, loading: () => <TabLoading /> });
+const ServiceScreen = dynamic(() => import('./screens/ServiceScreen'), { ssr: false, loading: () => <TabLoading /> });
 
-/* Skeleton loading — verbatim from Property portal purchaser/app/page.tsx */
+/* Skeleton loading */
 function TabLoading() {
   return (
     <div className="p-4 space-y-3 animate-pulse">
@@ -26,23 +28,39 @@ function TabLoading() {
   );
 }
 
-type TabType = 'assistant' | 'home' | 'guides' | 'profile';
+type TabType = 'assistant' | 'home' | 'guides' | 'profile' | 'service';
 
-const TABS: { id: TabType; label: string; icon: typeof Home }[] = [
+interface TabDef { id: TabType; label: string; icon: typeof Home }
+
+const BASE_TABS: TabDef[] = [
   { id: 'assistant', label: 'Assistant', icon: MessageCircle },
   { id: 'home', label: 'Home', icon: Home },
   { id: 'guides', label: 'Guides', icon: BookOpen },
   { id: 'profile', label: 'My System', icon: User },
 ];
 
+const HEAT_PUMP_TABS: TabDef[] = [
+  { id: 'assistant', label: 'Assistant', icon: MessageCircle },
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'guides', label: 'Guides', icon: BookOpen },
+  { id: 'service', label: 'Service', icon: Wrench },
+  { id: 'profile', label: 'My System', icon: User },
+];
+
 export default function CareInstallationPage() {
   const params = useParams();
   const installationId = params.installationId as string;
+  const { installation } = useCareApp();
   const [activeTab, setActiveTab] = useState<TabType>('assistant');
+
+  const isHeatPump = installation.system_category === 'heat_pump' ||
+    installation.system_type === 'heat_pump';
+
+  const tabs = useMemo(() => isHeatPump ? HEAT_PUMP_TABS : BASE_TABS, [isHeatPump]);
 
   return (
     <div className="h-[100dvh] flex flex-col bg-white">
-      {/* Header — Property portal style: logo left, clean line */}
+      {/* Header */}
       <header className="flex-shrink-0 border-b border-grey-200 bg-white z-50">
         <div className="flex items-center px-4 py-2.5 max-w-4xl mx-auto">
           <Image
@@ -55,20 +73,21 @@ export default function CareInstallationPage() {
         </div>
       </header>
 
-      {/* Content — animate-fade-in on tab switch matches Property portal */}
+      {/* Content */}
       <main className="flex-1 min-h-0 overflow-hidden">
         <div key={activeTab} className="h-full animate-fade-in">
           {activeTab === 'assistant' && <AssistantScreen installationId={installationId} />}
           {activeTab === 'home' && <HomeScreen />}
           {activeTab === 'guides' && <GuidesScreen />}
           {activeTab === 'profile' && <ProfileScreen />}
+          {activeTab === 'service' && <ServiceScreen />}
         </div>
       </main>
 
-      {/* Bottom nav — EXACT copy of Property purchaser/app/page.tsx nav styling */}
+      {/* Bottom nav */}
       <nav className="flex-shrink-0 border-t bg-white border-grey-200 z-50 safe-area-inset-bottom">
         <div className="flex max-w-4xl mx-auto">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (

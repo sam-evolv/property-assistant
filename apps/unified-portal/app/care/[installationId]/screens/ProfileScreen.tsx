@@ -13,6 +13,7 @@ export default function ProfileScreen() {
   const { installation } = useCareApp();
   const [activeSection, setActiveSection] = useState<'system' | 'documents' | 'warranty'>('system');
 
+  const isHeatPump = installation.system_category === 'heat_pump' || installation.system_type === 'heat_pump';
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
 
   return (
@@ -53,7 +54,7 @@ export default function ProfileScreen() {
             {/* Tags */}
             <div className="flex items-center gap-1.5 mt-3 flex-wrap">
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: 'rgba(196,164,74,0.15)', color: '#9A7A2E' }}>
-                {installation.system_size_kwp} kWp
+                {isHeatPump ? (installation.heat_pump_model || 'Heat Pump') : `${installation.system_size_kwp} kWp`}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
                 🗓 Installed: {new Date(installation.install_date).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
@@ -88,7 +89,12 @@ export default function ProfileScreen() {
 
           {/* Tab Content */}
           <div className="p-6">
-            {activeSection === 'system' && (
+            {activeSection === 'system' && isHeatPump && (() => {
+              const HeatPumpProfileContent = require('./HeatPumpProfileContent').default;
+              return <HeatPumpProfileContent installation={installation} />;
+            })()}
+
+            {activeSection === 'system' && !isHeatPump && (
               <div className="space-y-4">
                 {/* System type card — matches Property HOUSE TYPE card */}
                 <div className="rounded-xl border border-slate-200 p-4">
