@@ -317,7 +317,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
             {messages.map((msg, idx) => (
               msg.role === 'user' ? (
                 <div key={idx} className="flex justify-end">
-                  <div className="message-bubble max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-sm shadow-gold-500/20">
+                  <div className="message-bubble max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 bg-[#D4AF37] text-[#1a1200] shadow-sm">
                     <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
                   </div>
                 </div>
@@ -410,7 +410,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
               </div>
             )}
           </div>
-          <div className="group flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 sm:py-3 bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)] transition-all duration-200 hover:bg-black/[0.07] focus-within:ring-2 focus-within:ring-gold-500/30 focus-within:bg-black/[0.08]">
+          <div className="group flex flex-1 items-center gap-2 rounded-full px-4 py-2.5 sm:py-3 bg-black/5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_3px_0_rgba(0,0,0,0.05)] transition-all duration-200 hover:bg-black/[0.07] focus-within:ring-2 focus-within:ring-gold-500/30 focus-within:bg-black/[0.08]">
             <input
               type="text" 
               value={input}
