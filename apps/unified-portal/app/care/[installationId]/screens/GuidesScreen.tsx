@@ -2,6 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useCareApp } from '../care-app-provider';
+import {
+  Search,
+  Play,
+  FileText,
+  BookOpen,
+  Wrench,
+  HelpCircle,
+  Clock,
+  ArrowRight,
+  Shield,
+  Award,
+  CheckCircle,
+  File,
+} from 'lucide-react';
 
 /* ── Scroll Reveal Hook ── */
 function useScrollReveal(threshold = 0.1) {
@@ -61,140 +75,29 @@ function RevealSection({
   );
 }
 
-/* ── Guide Item ── */
-function GuideItem({
-  icon,
-  iconBg,
-  title,
-  meta,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  iconBg: string;
-  title: string;
-  meta: string;
-  onClick?: () => void;
-}) {
-  const [pressed, setPressed] = useState(false);
+/* ── Filter chip types ── */
+type FilterChip = 'all' | 'video' | 'pdf' | 'interactive' | 'troubleshooting';
 
-  return (
-    <button
-      onClick={onClick}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        width: '100%',
-        padding: '14px 16px',
-        background: '#FAFAFA',
-        border: 'none',
-        borderRadius: 16,
-        cursor: 'pointer',
-        textAlign: 'left',
-        WebkitTapHighlightColor: 'transparent',
-        transform: pressed ? 'scale(0.97)' : 'scale(1)',
-        transition: 'transform 200ms cubic-bezier(.34, 1.56, .64, 1)',
-        fontFamily: 'inherit',
-      }}
-    >
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          background: iconBg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#1a1a1a',
-            marginBottom: 3,
-          }}
-        >
-          {title}
-        </div>
-        <div style={{ fontSize: 12, color: '#999', fontWeight: 500 }}>
-          {meta}
-        </div>
-      </div>
-      <svg
-        width={18}
-        height={18}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#ccc"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
-      >
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
-    </button>
-  );
+/* ── Doc icon color mapping ── */
+function getDocIconColor(title: string): { bg: string; border: string; icon: React.ElementType } {
+  const t = title.toLowerCase();
+  if (t.includes('manual') || t.includes('user')) return { bg: 'bg-blue-100', border: 'border-blue-300', icon: BookOpen };
+  if (t.includes('commission')) return { bg: 'bg-[#D4AF37]/10', border: 'border-[#D4AF37]/40', icon: CheckCircle };
+  if (t.includes('warranty')) return { bg: 'bg-green-100', border: 'border-green-300', icon: Shield };
+  if (t.includes('compliance') || t.includes('cert')) return { bg: 'bg-purple-100', border: 'border-purple-300', icon: Award };
+  if (t.includes('grant') || t.includes('seai')) return { bg: 'bg-amber-100', border: 'border-amber-300', icon: File };
+  return { bg: 'bg-orange-100', border: 'border-orange-300', icon: FileText };
 }
 
-/* ── Inline SVG Icons ── */
-const PlayIcon = (
-  <svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="white"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polygon points="5 3 19 12 5 21 5 3" />
-  </svg>
-);
-
-const FileIcon = (
-  <svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="white"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-    <polyline points="10 9 9 9 8 9" />
-  </svg>
-);
-
-const WrenchIcon = (
-  <svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="white"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-  </svg>
-);
+function getDocIconTextColor(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes('manual') || t.includes('user')) return 'text-blue-600';
+  if (t.includes('commission')) return 'text-[#D4AF37]';
+  if (t.includes('warranty')) return 'text-green-600';
+  if (t.includes('compliance') || t.includes('cert')) return 'text-purple-600';
+  if (t.includes('grant') || t.includes('seai')) return 'text-amber-600';
+  return 'text-orange-600';
+}
 
 interface ContentItem {
   id: string;
@@ -212,27 +115,14 @@ const typeGradients: Record<string, string> = {
   faq: 'linear-gradient(135deg, #10B981, #059669)',
 };
 
-const typeIcons: Record<string, React.ReactNode> = {
-  video: (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-  ),
-  document: (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-  ),
-  guide: (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
-  ),
-  faq: (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-  ),
-};
-
 export default function GuidesScreen() {
   const { installation, installationId, setActiveTab } = useCareApp();
   const [mounted, setMounted] = useState(false);
   const [content, setContent] = useState<Record<string, ContentItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
 
   useEffect(() => {
     setMounted(true);
@@ -253,16 +143,19 @@ export default function GuidesScreen() {
   // Build guide sections from fetched content, falling back to defaults
   const videoGuides = (content.video || []).map((c) => ({
     title: c.title,
-    meta: `Video · ${c.view_count} views`,
+    duration: `${c.view_count} views`,
+    meta: `Video`,
     iconBg: typeGradients.video,
   }));
   const documents = (content.document || []).map((c) => ({
     title: c.title,
     meta: 'PDF',
+    size: '',
     iconBg: typeGradients.document,
   }));
   const troubleshooting = (content.guide || content.faq || []).map((c) => ({
     title: c.title,
+    description: c.description || 'Step-by-step diagnostic guide',
     meta: c.content_type === 'faq' ? 'FAQ' : 'Guide',
     iconBg: typeGradients[c.content_type] || typeGradients.guide,
   }));
@@ -273,41 +166,62 @@ export default function GuidesScreen() {
   if (!loading && videoGuides.length === 0 && documents.length === 0 && troubleshooting.length === 0) {
     if (isHeatPump) {
       videoGuides.push(
-        { title: 'Understanding Your Heat Pump Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
-        { title: 'Getting the Most from Underfloor Heating', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-        { title: 'How to Read Your Energy Bill', meta: 'Video · 5 min', iconBg: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
+        { title: 'Understanding Your Heat Pump Dashboard', duration: '4 min', meta: 'Video', iconBg: typeGradients.video },
+        { title: 'Getting the Most from Underfloor Heating', duration: '6 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+        { title: 'How to Read Your Energy Bill', duration: '5 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
       );
       documents.push(
-        { title: `${installation.heat_pump_model || 'Heat Pump'} User Manual`, meta: 'PDF', iconBg: typeGradients.document },
-        { title: 'Pipelife Underfloor Heating Guide', meta: 'PDF', iconBg: typeGradients.document },
-        { title: 'SEAI Grant — What to Expect', meta: 'PDF', iconBg: 'linear-gradient(135deg, #10B981, #059669)' },
-        { title: `${installation.controls_model || 'Thermostat'} Setup Guide`, meta: 'PDF', iconBg: typeGradients.document },
+        { title: `${installation.heat_pump_model || 'Heat Pump'} User Manual`, meta: 'PDF', size: '2.4 MB', iconBg: typeGradients.document },
+        { title: 'Pipelife Underfloor Heating Guide', meta: 'PDF', size: '1.8 MB', iconBg: typeGradients.document },
+        { title: 'SEAI Grant - What to Expect', meta: 'PDF', size: '0.9 MB', iconBg: 'linear-gradient(135deg, #10B981, #059669)' },
+        { title: `${installation.controls_model || 'Thermostat'} Setup Guide`, meta: 'PDF', size: '1.2 MB', iconBg: typeGradients.document },
       );
       troubleshooting.push(
-        { title: 'Heat Pump Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
-        { title: 'Thermostat Not Responding', meta: 'Step-by-step', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-        { title: 'Underfloor Heating Not Heating', meta: 'Diagnostic', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+        { title: 'Heat Pump Error Codes Guide', description: 'Look up error codes and find step-by-step fixes for common heat pump issues.', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+        { title: 'Thermostat Not Responding', description: 'Diagnose and fix unresponsive thermostat or zone controller issues.', meta: 'Step-by-step', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+        { title: 'Underfloor Heating Not Heating', description: 'Check flow rates, valve positions and zone settings to restore heating.', meta: 'Diagnostic', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
       );
     } else {
       videoGuides.push(
-        { title: 'Understanding Your Solar Dashboard', meta: 'Video · 4 min', iconBg: typeGradients.video },
-        { title: 'Maximising Self-Consumption', meta: 'Video · 6 min', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
+        { title: 'Understanding Your Solar Dashboard', duration: '4 min', meta: 'Video', iconBg: typeGradients.video },
+        { title: 'Maximising Self-Consumption', duration: '6 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
       );
       documents.push(
-        { title: `${installation.inverter_model} Manual`, meta: 'PDF', iconBg: typeGradients.document },
+        { title: `${installation.inverter_model} Manual`, meta: 'PDF', size: '3.1 MB', iconBg: typeGradients.document },
       );
       troubleshooting.push(
-        { title: 'Inverter Error Codes Guide', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
+        { title: 'Inverter Error Codes Guide', description: 'Look up error codes and find step-by-step fixes for common inverter issues.', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
       );
     }
   }
 
   // Filter by search query
   const q = searchQuery.toLowerCase();
-  const filteredVideos = q ? videoGuides.filter(g => g.title.toLowerCase().includes(q)) : videoGuides;
-  const filteredDocs = q ? documents.filter(g => g.title.toLowerCase().includes(q)) : documents;
-  const filteredTrouble = q ? troubleshooting.filter(g => g.title.toLowerCase().includes(q)) : troubleshooting;
-  const noResults = q && filteredVideos.length === 0 && filteredDocs.length === 0 && filteredTrouble.length === 0;
+  let filteredVideos = q ? videoGuides.filter(g => g.title.toLowerCase().includes(q)) : videoGuides;
+  let filteredDocs = q ? documents.filter(g => g.title.toLowerCase().includes(q)) : documents;
+  let filteredTrouble = q ? troubleshooting.filter(g => g.title.toLowerCase().includes(q)) : troubleshooting;
+
+  // Apply chip filter
+  if (activeFilter === 'video') {
+    filteredDocs = [];
+    filteredTrouble = [];
+  } else if (activeFilter === 'pdf') {
+    filteredVideos = [];
+    filteredTrouble = [];
+  } else if (activeFilter === 'interactive' || activeFilter === 'troubleshooting') {
+    filteredVideos = [];
+    filteredDocs = [];
+  }
+
+  const noResults = (q || activeFilter !== 'all') && filteredVideos.length === 0 && filteredDocs.length === 0 && filteredTrouble.length === 0;
+
+  const filterChips: { key: FilterChip; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'video', label: 'Video' },
+    { key: 'pdf', label: 'PDF' },
+    { key: 'interactive', label: 'Interactive' },
+    { key: 'troubleshooting', label: 'Troubleshooting' },
+  ];
 
   return (
     <div
@@ -321,7 +235,7 @@ export default function GuidesScreen() {
       }}
     >
       <div style={{ padding: '0 20px' }}>
-        {/* ── Header ── */}
+        {/* -- Header -- */}
         <div
           style={{
             paddingTop: 56,
@@ -354,36 +268,29 @@ export default function GuidesScreen() {
           </p>
         </div>
 
-        {/* ── Search Bar (read-only placeholder) ── */}
+        {/* -- Search Bar with focus effect -- */}
         <RevealSection delay={0}>
           <div
+            className="transition-all duration-150"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               background: '#F5F5F5',
               borderRadius: 14,
-              padding: '12px 16px',
-              marginBottom: 28,
+              padding: searchFocused ? '12px 18px' : '12px 16px',
+              marginBottom: 12,
+              border: searchFocused ? '1.5px solid #D4AF37' : '1.5px solid transparent',
+              transition: 'border-color 150ms ease, padding 150ms ease',
             }}
           >
-            <svg
-              width={18}
-              height={18}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#999"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <Search className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               placeholder="Search guides and documents..."
               style={{
                 fontSize: 15,
@@ -397,121 +304,172 @@ export default function GuidesScreen() {
               }}
             />
           </div>
+
+          {/* -- Filter Chips -- */}
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            {filterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setActiveFilter(chip.key)}
+                className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.97] ${
+                  activeFilter === chip.key
+                    ? 'bg-[#D4AF37] text-white border border-[#D4AF37]'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
         </RevealSection>
 
         {noResults ? (
           <RevealSection delay={60}>
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', fontSize: 14 }}>
-              No results for &apos;{searchQuery}&apos;
+              No results found{searchQuery ? ` for '${searchQuery}'` : ''}
             </div>
           </RevealSection>
         ) : (
           <>
-            {/* ── Video Guides ── */}
+            {/* -- Video Guides: 2-col tile grid -- */}
             {filteredVideos.length > 0 && (
               <RevealSection delay={60}>
                 <div style={{ marginBottom: 28 }}>
-                  <h2
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      marginBottom: 12,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
+                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
                     Video Guides
                   </h2>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
+                  <div className="grid grid-cols-2 gap-3">
                     {filteredVideos.map((guide, i) => (
-                      <GuideItem
+                      <button
                         key={i}
-                        icon={PlayIcon}
-                        iconBg={guide.iconBg}
-                        title={guide.title}
-                        meta={guide.meta}
+                        type="button"
                         onClick={() => setActiveTab('assistant')}
-                      />
+                        className="text-left rounded-2xl overflow-hidden transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md group"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        {/* Thumbnail area */}
+                        <div
+                          className="relative w-full overflow-hidden"
+                          style={{ aspectRatio: '16/9' }}
+                        >
+                          {/* Warm gradient background (no thumbnail) */}
+                          <div
+                            className="absolute inset-0"
+                            style={{ background: guide.iconBg || 'linear-gradient(135deg, #D4AF37, #B8934C)' }}
+                          />
+                          {/* Dark gradient overlay */}
+                          <div
+                            className="absolute inset-0"
+                            style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 60%)' }}
+                          />
+                          {/* Play button */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+                              <Play className="w-5 h-5 text-gray-900 ml-0.5" fill="currentColor" />
+                            </div>
+                          </div>
+                          {/* Duration chip */}
+                          <div className="absolute bottom-2 right-2">
+                            <span className="text-[11px] font-medium text-white bg-black/50 rounded px-1.5 py-0.5 backdrop-blur-sm flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {guide.duration}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Title below tile */}
+                        <div className="pt-2 pb-1 px-0.5">
+                          <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">
+                            {guide.title}
+                          </p>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 </div>
               </RevealSection>
             )}
 
-            {/* ── Documents ── */}
+            {/* -- Documents: 2-col tile grid -- */}
             {filteredDocs.length > 0 && (
               <RevealSection delay={120}>
                 <div style={{ marginBottom: 28 }}>
-                  <h2
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      marginBottom: 12,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
+                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
                     Documents
                   </h2>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    {filteredDocs.map((doc, i) => (
-                      <GuideItem
-                        key={i}
-                        icon={FileIcon}
-                        iconBg={doc.iconBg}
-                        title={doc.title}
-                        meta={doc.meta}
-                        onClick={() => setActiveTab('assistant')}
-                      />
-                    ))}
+                  <div className="grid grid-cols-2 gap-3">
+                    {filteredDocs.map((doc, i) => {
+                      const docStyle = getDocIconColor(doc.title);
+                      const DocIcon = docStyle.icon;
+                      const iconTextColor = getDocIconTextColor(doc.title);
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActiveTab('assistant')}
+                          className={`text-left rounded-xl border border-gray-200 bg-white p-3 transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md hover:${docStyle.border}`}
+                          style={{ WebkitTapHighlightColor: 'transparent' }}
+                        >
+                          {/* Icon square */}
+                          <div className={`w-8 h-8 rounded-lg ${docStyle.bg} flex items-center justify-center mb-2.5`}>
+                            <DocIcon className={`w-4 h-4 ${iconTextColor}`} />
+                          </div>
+                          {/* Title */}
+                          <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5">
+                            {doc.title}
+                          </p>
+                          {/* Meta */}
+                          <p className="text-[11px] text-gray-400 font-medium">
+                            {doc.meta}{doc.size ? ` \u00B7 ${doc.size}` : ''}
+                          </p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </RevealSection>
             )}
 
-            {/* ── Troubleshooting ── */}
+            {/* -- Troubleshooting: 2-col tile grid -- */}
             {filteredTrouble.length > 0 && (
               <RevealSection delay={180}>
                 <div style={{ marginBottom: 28 }}>
-                  <h2
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                      marginBottom: 12,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
+                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
                     Troubleshooting
                   </h2>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
+                  <div className="grid grid-cols-2 gap-3">
                     {filteredTrouble.map((item, i) => (
-                      <GuideItem
+                      <button
                         key={i}
-                        icon={WrenchIcon}
-                        iconBg={item.iconBg}
-                        title={item.title}
-                        meta={item.meta}
+                        type="button"
                         onClick={() => setActiveTab('assistant')}
-                      />
+                        className="text-left rounded-xl border border-gray-200 bg-white overflow-hidden transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        {/* Red-to-orange gradient strip */}
+                        <div className="h-1" style={{ background: 'linear-gradient(90deg, #EF4444, #F97316)' }} />
+                        <div className="p-3">
+                          {/* Interactive chip */}
+                          <div className="flex justify-end mb-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5">
+                              Interactive
+                            </span>
+                          </div>
+                          {/* Title */}
+                          <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5">
+                            {item.title}
+                          </p>
+                          {/* Description */}
+                          <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2 mb-3">
+                            {item.description}
+                          </p>
+                          {/* Gold link */}
+                          <span className="text-xs font-semibold text-[#D4AF37] flex items-center gap-1">
+                            Start guide
+                            <ArrowRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -520,76 +478,30 @@ export default function GuidesScreen() {
           </>
         )}
 
-        {/* ── Help Banner ── */}
+        {/* -- Help Banner -- */}
         <RevealSection delay={240}>
           <button
             onClick={() => setActiveTab('assistant')}
+            className="w-full text-left rounded-2xl p-5 border-none cursor-pointer transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md"
             style={{
-              borderRadius: 20,
-              padding: 20,
-              background:
-                'linear-gradient(135deg, #FDF8EF 0%, #F8ECDA 100%)',
+              background: 'linear-gradient(135deg, #FDF8EF 0%, #F8ECDA 100%)',
               marginBottom: 24,
-              width: '100%',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
               fontFamily: 'inherit',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
+            <div className="flex items-center gap-3">
               <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
+                className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #D4AF37, #B8934C)' }}
               >
-                <svg
-                  width={22}
-                  height={22}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
+                <HelpCircle className="w-[22px] h-[22px] text-white" />
               </div>
               <div>
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: '#1a1a1a',
-                    marginBottom: 4,
-                  }}
-                >
+                <div className="text-sm font-bold text-gray-900 mb-1">
                   Can&apos;t find what you need?
                 </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: '#888',
-                    lineHeight: 1.4,
-                  }}
-                >
+                <div className="text-[13px] text-gray-500 leading-snug">
                   Ask our AI assistant for instant help with your system.
                 </div>
               </div>
