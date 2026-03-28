@@ -1,365 +1,303 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Thermometer,
-  Zap,
-  Banknote,
-  AlertTriangle,
-  Calendar,
-  Check,
-  Circle,
-  ShieldCheck,
-  X,
-  Leaf,
+  Thermometer, Zap, Leaf, AlertTriangle, Calendar, Check,
+  Circle, X, ArrowRight, MessageCircle, Upload, Banknote,
 } from 'lucide-react';
 
-/* ── Types ── */
+/* ── Animated counter ── */
+function AnimatedNumber({ value, suffix = '', prefix = '', decimals = 0, duration = 600 }: {
+  value: number; suffix?: string; prefix?: string; decimals?: number; duration?: number;
+}) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const started = useRef(false);
 
-interface SeaiGrantStatus {
-  current_step:
-    | 'application_submitted'
-    | 'ber_complete'
-    | 'installation_signed_off'
-    | 'seai_in_review'
-    | 'paid';
-  grant_amount_eur: number;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) { setDisplay(value); return; }
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true;
+        const t0 = performance.now();
+        const tick = (now: number) => {
+          const p = Math.min((now - t0) / duration, 1);
+          setDisplay(value * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [value, duration]);
+
+  return <span ref={ref}>{prefix}{display.toFixed(decimals)}{suffix}</span>;
 }
 
-interface SafetyAlert {
-  id: string;
-  title: string;
-  body: string;
-}
+/* ── Animated progress bar ── */
+function AnimatedBar({ percent }: { percent: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
 
-interface HeatPumpHomeContentProps {
-  installation: any; // The full installation object from CareAppProvider
-  onNavigateToProfile?: () => void;
-}
-
-/* ── SEAI Grant Steps ── */
-
-const GRANT_STEPS = [
-  { key: 'application_submitted', label: 'Application Submitted' },
-  { key: 'ber_complete', label: 'BER Assessment Complete' },
-  { key: 'installation_signed_off', label: 'Installation Signed Off' },
-  { key: 'seai_in_review', label: 'SEAI Review' },
-  { key: 'paid', label: 'Grant Payment' },
-] as const;
-
-/* ── Helpers ── */
-
-function weeksUntil(dateStr: string): number {
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.round(diff / (7 * 24 * 60 * 60 * 1000));
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-IE', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-/* ── Component ── */
-
-export default function HeatPumpHomeContent({
-  installation,
-  onNavigateToProfile,
-}: HeatPumpHomeContentProps) {
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(
-    new Set()
-  );
-
-  /* Safety alerts */
-  const activeAlerts: SafetyAlert[] = useMemo(() => {
-    const raw: SafetyAlert[] = installation.active_safety_alerts ?? [];
-    return raw.filter((a) => !dismissedAlerts.has(a.id));
-  }, [installation.active_safety_alerts, dismissedAlerts]);
-
-  /* Stats */
-  const indoorTemp: number | null = installation.indoor_temp_current ?? null;
-  const dailyCostCents: number | null =
-    installation.daily_running_cost_cents ?? null;
-  const cop: number | null = installation.heat_pump_cop ?? null;
-
-  /* CO2 */
-  const co2Grams: number = installation.co2_saved_today_grams ?? 0;
-  const co2Kg = (co2Grams / 1000).toFixed(1);
-  const co2Baseline = 3000; // grams — average oil heating comparison
-  const co2Pct = Math.min((co2Grams / co2Baseline) * 100, 100);
-
-  /* SEAI Grant */
-  const grant: SeaiGrantStatus | null = installation.seai_grant ?? null;
-  const grantStepIndex = grant
-    ? GRANT_STEPS.findIndex((s) => s.key === grant.current_step)
-    : -1;
-
-  /* Service reminder */
-  const nextServiceDue: string | null = installation.next_service_due ?? null;
-  const warrantyYears: number =
-    installation.warranty_years ??
-    installation.system_specs?.workmanship_warranty_years ??
-    0;
-  const serviceWeeksAway = nextServiceDue ? weeksUntil(nextServiceDue) : null;
-  const showServiceReminder =
-    nextServiceDue !== null &&
-    serviceWeeksAway !== null &&
-    serviceWeeksAway <= 13; // 90 days ~ 13 weeks (includes overdue: negative values)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        requestAnimationFrame(() => setWidth(Math.min(percent, 100)));
+        obs.unobserve(el);
+      }
+    }, { threshold: 0.2 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [percent]);
 
   return (
-    <div className="space-y-4">
-      {/* ─── 1. Safety Alert Banner ─── */}
-      {activeAlerts.map((alert) => (
-        <div
-          key={alert.id}
-          className="relative rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 shadow-sm transition-all duration-150"
-        >
-          <button
-            onClick={() =>
-              setDismissedAlerts((prev) => new Set(prev).add(alert.id))
-            }
-            className="absolute right-3 top-3 rounded-lg p-1 text-amber-400 hover:bg-amber-100 hover:text-amber-600 transition-all duration-150 active:scale-[0.98]"
-            aria-label="Dismiss alert"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <div ref={ref} className="w-full h-2.5 bg-white/50 rounded-full overflow-hidden">
+      <div
+        className="h-full rounded-full hover:shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+        style={{
+          width: `${width}%`,
+          background: 'linear-gradient(90deg, #10b981, #059669)',
+          transition: 'width 800ms cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      />
+    </div>
+  );
+}
 
-          <div className="flex items-start gap-3 pr-6">
-            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+const SEAI_STEPS = [
+  { key: 'application_submitted', label: 'Application submitted' },
+  { key: 'ber_complete', label: 'BER assessment complete' },
+  { key: 'installation_signed_off', label: 'Installation signed off' },
+  { key: 'seai_in_review', label: 'SEAI reviewing' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'paid', label: 'Grant payment' },
+];
+
+const ROTATING_QUESTIONS = [
+  '"Why is zone 3 warmer than the rest?"',
+  '"What temperature should my hot water be?"',
+  '"When is my next service due?"',
+];
+
+interface HeatPumpHomeContentProps {
+  installation: Record<string, unknown>;
+  onNavigateToProfile?: () => void;
+  onNavigateToAssistant?: () => void;
+}
+
+export default function HeatPumpHomeContent({ installation, onNavigateToProfile, onNavigateToAssistant }: HeatPumpHomeContentProps) {
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionVisible, setQuestionVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQuestionVisible(false);
+      setTimeout(() => {
+        setQuestionIndex(i => (i + 1) % ROTATING_QUESTIONS.length);
+        setQuestionVisible(true);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const alerts = (installation.active_safety_alerts as Array<{ id: string; title: string; body: string; severity: string; action_label?: string }>) || [];
+  const visibleAlerts = alerts.filter(a => !dismissedAlerts.has(a.id));
+
+  const dismissAlert = useCallback((alertId: string) => {
+    setDismissingId(alertId);
+    setTimeout(() => {
+      setDismissedAlerts(prev => new Set(prev).add(alertId));
+      setDismissingId(null);
+      fetch('/api/care/dismiss-alert', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertId, installationId: installation.id }),
+      }).catch(() => {});
+    }, 300);
+  }, [installation.id]);
+
+  const indoorTemp = Number(installation.indoor_temp_current) || 0;
+  const indoorTarget = Number(installation.indoor_temp_target) || 21;
+  const dailyCost = (Number(installation.daily_running_cost_cents) || 0) / 100;
+  const cop = Number(installation.heat_pump_cop) || 0;
+  const co2Today = (Number(installation.co2_saved_today_grams) || 0) / 1000;
+  const co2Percent = Math.min((co2Today / 3) * 100, 100);
+
+  const nextServiceStr = installation.next_service_due as string | null;
+  const nextServiceDate = nextServiceStr ? new Date(nextServiceStr) : null;
+  const weeksUntilService = nextServiceDate ? Math.round((nextServiceDate.getTime() - Date.now()) / (7 * 86400000)) : null;
+  const isOverdue = weeksUntilService !== null && weeksUntilService < 0;
+  const showServiceReminder = nextServiceDate && weeksUntilService !== null && weeksUntilService <= 13;
+
+  const grantStatus = installation.seai_grant_status as string | null;
+  const grantAmount = Number(installation.seai_grant_amount) || 0;
+  const grantFormatted = (grantAmount / 100).toLocaleString('en-IE', { minimumFractionDigits: 0 });
+
+  const copStatus = cop >= 3.0 ? { label: 'Excellent', color: 'text-emerald-600' } : cop >= 2.5 ? { label: 'Good', color: 'text-blue-600' } : { label: 'Below target', color: 'text-amber-600' };
+  const tempDiff = Math.abs(indoorTemp - indoorTarget);
+  const tempStatus = tempDiff <= 0.5 ? { label: 'At target', color: 'text-gray-400' } : indoorTemp > indoorTarget ? { label: 'Above target', color: 'text-amber-500' } : { label: 'Below target', color: 'text-blue-500' };
+
+  return (
+    <>
+      <style>{`
+        @media (prefers-reduced-motion: no-preference) {
+          @keyframes pulse-ring { 0% { opacity: 1; transform: scale(0.8); } 100% { opacity: 0; transform: scale(1.8); } }
+          @keyframes alert-dismiss { to { opacity: 0; transform: translateY(-8px); max-height: 0; margin: 0; padding: 0; overflow: hidden; } }
+          .pulse-dot { position: relative; }
+          .pulse-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid #ef4444; animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+          .seai-pulse { position: relative; }
+          .seai-pulse::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid #D4AF37; animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+          .alert-dismissing { animation: alert-dismiss 300ms cubic-bezier(0.4, 0, 1, 1) forwards; }
+        }
+      `}</style>
+
+      {/* ── Hero Metric Card ── */}
+      <div className="card-item rounded-2xl border border-gray-200 overflow-hidden" style={{ borderLeft: '4px solid #D4AF37', background: 'linear-gradient(135deg, #ffffff 60%, #D4AF3708 100%)', boxShadow: '0 2px 16px rgba(212,175,55,0.06)' }}>
+        <div className="p-5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 mb-4">Your system at a glance</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:scale-[1.03] hover:shadow-md transition-all duration-200">
+              <Thermometer className="w-5 h-5 text-rose-400 mx-auto mb-2" />
+              <p className="text-3xl font-bold tracking-tight text-gray-900"><AnimatedNumber value={indoorTemp} decimals={1} suffix="°" /></p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 mt-1">Indoors</p>
+              <p className={`text-[11px] font-medium mt-0.5 ${tempStatus.color}`}>{tempStatus.label}</p>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber-800">
-                {alert.title}
-              </p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-amber-700">
-                {alert.body}
-              </p>
-              <button
-                onClick={onNavigateToProfile}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-150 hover:bg-amber-700 active:scale-[0.98]"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Check my system
-              </button>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:scale-[1.03] hover:shadow-md transition-all duration-200">
+              <Banknote className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
+              <p className="text-3xl font-bold tracking-tight text-gray-900"><AnimatedNumber value={dailyCost} prefix="€" decimals={2} /></p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 mt-1">Today</p>
+              <p className="text-[11px] font-medium mt-0.5 text-gray-400">so far</p>
             </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:scale-[1.03] hover:shadow-md transition-all duration-200">
+              <Zap className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+              <p className="text-3xl font-bold tracking-tight text-gray-900"><AnimatedNumber value={cop} decimals={1} /></p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 mt-1">COP</p>
+              <p className={`text-[11px] font-medium mt-0.5 ${copStatus.color}`}>{copStatus.label}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CO₂ Savings ── */}
+      <div className="card-item rounded-2xl overflow-hidden hover:scale-[1.01] transition-all duration-200" style={{ background: '#ecfdf5', borderLeft: '4px solid #10b981' }}>
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Leaf className="w-5 h-5 text-emerald-600" />
+            <span className="text-base font-semibold text-emerald-800"><AnimatedNumber value={co2Today} decimals={1} /> kg CO₂ saved today</span>
+          </div>
+          <p className="text-xs text-emerald-600 mb-3">vs oil heating baseline</p>
+          <AnimatedBar percent={co2Percent} />
+          <p className="text-xs text-emerald-500 mt-2">{Math.round(co2Today * 30)} kg this month · {Math.round(co2Today * 365)} kg since install</p>
+        </div>
+      </div>
+
+      {/* ── Safety Alert ── */}
+      {visibleAlerts.map((alert) => (
+        <div key={alert.id} className={`card-item rounded-2xl bg-white border border-gray-200 overflow-hidden ${dismissingId === alert.id ? 'alert-dismissing' : ''}`} style={{ borderLeft: '4px solid #ef4444', background: 'linear-gradient(90deg, #fef2f211 0%, transparent 30%)' }}>
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2 h-2 bg-red-500 rounded-full pulse-dot" />
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-medium text-red-500 uppercase tracking-wide">Safety notice</span>
+              </div>
+              <button onClick={() => dismissAlert(alert.id)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <h4 className="text-sm font-semibold text-red-700 mb-1">{alert.title}</h4>
+            <p className="text-sm text-red-600 mb-4 leading-relaxed">{alert.body}</p>
+            <button onClick={onNavigateToProfile} className="px-4 py-2 rounded-xl text-sm font-medium border border-red-300 text-red-600 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-[0.97]">
+              {alert.action_label || 'Check my system'}
+            </button>
           </div>
         </div>
       ))}
 
-      {/* ─── 2. Stats Row (3-col) ─── */}
-      <div className="grid grid-cols-3 gap-2.5">
-        {/* Indoor Temp */}
-        <div className="rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
-          <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50">
-            <Thermometer className="h-4 w-4 text-rose-500" />
-          </div>
-          <p className="text-lg font-bold tabular-nums leading-none text-slate-900">
-            {indoorTemp !== null ? (
-              <>
-                {indoorTemp}
-                <span className="ml-0.5 text-xs font-medium text-slate-400">
-                  °C
-                </span>
-              </>
-            ) : (
-              <span className="text-slate-300">--</span>
-            )}
-          </p>
-          <p className="mt-1.5 text-[10px] font-medium text-slate-400">
-            Indoor Temp
-          </p>
-        </div>
-
-        {/* Daily Cost */}
-        <div className="rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
-          <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50">
-            <Banknote className="h-4 w-4 text-emerald-500" />
-          </div>
-          <p className="text-lg font-bold tabular-nums leading-none text-slate-900">
-            {dailyCostCents !== null ? (
-              <>
-                <span className="text-xs font-medium text-slate-400">
-                  &euro;
-                </span>
-                {(dailyCostCents / 100).toFixed(2)}
-              </>
-            ) : (
-              <span className="text-slate-300">--</span>
-            )}
-          </p>
-          <p className="mt-1.5 text-[10px] font-medium text-slate-400">
-            Today&apos;s Cost
-          </p>
-        </div>
-
-        {/* COP */}
-        <div className="rounded-xl border border-gray-200 bg-white p-3.5 text-center shadow-sm transition-all duration-150 hover:shadow-md hover:-translate-y-0.5">
-          <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50">
-            <Zap className="h-4 w-4 text-blue-500" />
-          </div>
-          <p className="text-lg font-bold tabular-nums leading-none text-slate-900">
-            {cop !== null ? (
-              cop.toFixed(1)
-            ) : (
-              <span className="text-slate-300">--</span>
-            )}
-          </p>
-          <p className="mt-1.5 text-[10px] font-medium text-slate-400">
-            System COP
-          </p>
-        </div>
-      </div>
-
-      {/* ─── 3. CO2 Saved Bar ─── */}
-      <div className="rounded-xl border border-gray-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-150">
-        <div className="mb-2 flex items-center gap-2">
-          <Leaf className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm font-semibold text-slate-900">
-            CO&#x2082; Savings
-          </span>
-        </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700 ease-out"
-            style={{ width: `${co2Pct}%` }}
-          />
-        </div>
-        <p className="mt-2 text-[12px] leading-snug text-slate-500">
-          <strong className="text-slate-700">{co2Kg} kg</strong> CO&#x2082;
-          saved today vs oil heating
-        </p>
-      </div>
-
-      {/* ─── 4. SEAI Grant Tracker ─── */}
-      {grant && (
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition-all duration-150">
-          <div className="mb-4 flex items-center gap-2">
-            <div
-              className="h-1 w-5 rounded-full"
-              style={{ backgroundColor: '#D4AF37' }}
-            />
-            <h4 className="text-sm font-semibold text-slate-900">
-              SEAI Grant Progress
-            </h4>
-          </div>
-
-          <div className="relative ml-3">
-            {/* Vertical line */}
-            <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-slate-100" />
-
-            <div className="space-y-4">
-              {GRANT_STEPS.map((step, idx) => {
-                const isComplete = idx < grantStepIndex;
-                const isCurrent = idx === grantStepIndex;
-                const isFuture = idx > grantStepIndex;
-
-                const isLastStep = idx === GRANT_STEPS.length - 1;
-                const label = isLastStep
-                  ? `Grant Payment (\u20AC${grant.grant_amount_eur.toLocaleString('en-IE')})`
-                  : step.label;
-
+      {/* ── SEAI Grant Tracker ── */}
+      {grantStatus && (
+        <div className="card-item rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">SEAI Grant — €{grantFormatted}</h3>
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: '#D4AF3720', color: '#96791A' }}>
+                {grantStatus === 'seai_in_review' ? 'In review' : grantStatus.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <div className="relative pl-6">
+              <div className="absolute left-[7px] top-2 bottom-2 w-px border-l border-dashed border-gray-300" />
+              {SEAI_STEPS.map((step, i) => {
+                const stepIndex = SEAI_STEPS.findIndex(s => s.key === grantStatus);
+                const isDone = i < stepIndex;
+                const isActive = i === stepIndex;
+                const isLast = i === SEAI_STEPS.length - 1;
+                const label = isLast ? `${step.label} (€${grantFormatted})` : step.label;
                 return (
-                  <div key={step.key} className="relative flex items-start gap-3">
-                    {/* Step indicator */}
-                    <div className="relative z-10 flex-shrink-0">
-                      {isComplete ? (
-                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500">
-                          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
-                        </div>
-                      ) : isCurrent ? (
-                        <div className="relative flex h-4 w-4 items-center justify-center">
-                          <div
-                            className="absolute inset-0 animate-ping rounded-full opacity-30"
-                            style={{ backgroundColor: '#D4AF37' }}
-                          />
-                          <div
-                            className="h-4 w-4 rounded-full"
-                            style={{ backgroundColor: '#D4AF37' }}
-                          />
-                        </div>
+                  <div key={step.key} className="relative flex items-start gap-3 mb-4 last:mb-0">
+                    <div className="absolute -left-6 top-0.5">
+                      {isDone ? (
+                        <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center"><Check className="w-2.5 h-2.5 text-white" /></div>
+                      ) : isActive ? (
+                        <div className="w-4 h-4 rounded-full bg-[#D4AF37] flex items-center justify-center seai-pulse"><div className="w-2 h-2 rounded-full bg-white" /></div>
                       ) : (
-                        <Circle className="h-4 w-4 text-slate-200" strokeWidth={2} />
+                        <Circle className="w-4 h-4 text-gray-300" />
                       )}
                     </div>
-
-                    {/* Label */}
-                    <div className="min-w-0 -mt-0.5">
-                      <p
-                        className={`text-[13px] font-medium leading-snug ${
-                          isComplete
-                            ? 'text-slate-500'
-                            : isCurrent
-                              ? 'text-slate-900'
-                              : 'text-slate-300'
-                        }`}
-                      >
-                        {label}
-                      </p>
-                      {isCurrent && (
-                        <span
-                          className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-                          style={{ backgroundColor: '#D4AF37' }}
-                        >
-                          {step.label}
-                        </span>
-                      )}
+                    <div>
+                      <p className={`text-sm ${isActive ? 'font-semibold text-gray-900' : isDone ? 'text-gray-500' : 'text-gray-400'}`}>{label}</p>
+                      {isActive && <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: '#D4AF3720', color: '#96791A' }}>Current step</span>}
                     </div>
                   </div>
                 );
               })}
             </div>
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400">Expected: 2–4 weeks</p>
+              <button className="flex items-center gap-1 text-xs font-medium text-[#D4AF37] hover:text-[#C8A951] transition-colors"><Upload className="w-3 h-3" /> Upload docs</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ─── 5. Service Reminder ─── */}
-      {showServiceReminder && nextServiceDue && serviceWeeksAway !== null && (
-        <div
-          className="rounded-xl border bg-white px-4 py-3.5 shadow-sm transition-all duration-150"
-          style={{ borderColor: '#D4AF37' }}
-        >
-          <div className="flex items-start gap-3">
-            <div
-              className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: 'rgba(212, 175, 55, 0.1)' }}
-            >
-              <Calendar className="h-4 w-4" style={{ color: '#D4AF37' }} />
+      {/* ── Service Reminder ── */}
+      {showServiceReminder && (
+        <div className="card-item rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden" style={{ borderLeft: isOverdue ? '4px solid #ef4444' : '4px solid #D4AF37', background: isOverdue ? 'linear-gradient(135deg, #fff 80%, #fef2f208)' : 'linear-gradient(135deg, #fff 80%, #D4AF3706)' }}>
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isOverdue ? 'bg-red-100' : 'bg-[#D4AF37]/10'}`}>
+                <Calendar className={`w-4 h-4 ${isOverdue ? 'text-red-500' : 'text-[#D4AF37]'}`} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">Annual service due</h4>
+                <p className="text-xs text-gray-500">{isOverdue ? <span className="text-red-500 font-medium">Overdue</span> : `${Math.abs(weeksUntilService!)} weeks away · ${nextServiceDate!.toLocaleDateString('en-IE', { month: 'long', year: 'numeric' })}`}</p>
+              </div>
+              {isOverdue && <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">OVERDUE</span>}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900">
-                {serviceWeeksAway < 0
-                  ? `Annual service overdue since ${formatDate(nextServiceDue)}`
-                  : serviceWeeksAway === 0
-                    ? `Annual service due this week`
-                    : `Annual service due ${formatDate(nextServiceDue)} \u2014 ${serviceWeeksAway} week${serviceWeeksAway !== 1 ? 's' : ''} away`}
-              </p>
-              {warrantyYears > 0 && (
-                <p className="mt-0.5 text-[12px] text-slate-500">
-                  Keeps your {warrantyYears}-year warranty valid
-                </p>
-              )}
-              <button
-                onClick={() => {
-                  window.open(
-                    `mailto:support@openhouse.ai?subject=${encodeURIComponent(
-                      'Service Booking - ' +
-                        (installation.job_reference ?? installation.id)
-                    )}`,
-                    '_blank'
-                  );
-                }}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-150 hover:brightness-110 active:scale-[0.98]"
-                style={{ backgroundColor: '#D4AF37' }}
-              >
-                Book now
-              </button>
-            </div>
+            <p className="text-sm text-gray-500 mb-4">Your {installation.warranty_years as number}-year warranty requires an annual service to stay valid.</p>
+            <button className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 active:scale-[0.97]" style={{ background: isOverdue ? '#ef4444' : '#D4AF37', color: isOverdue ? '#fff' : '#1a1200' }}>
+              Book your service →
+            </button>
           </div>
         </div>
       )}
-    </div>
+
+      {/* ── Quick Ask AI ── */}
+      <button onClick={onNavigateToAssistant} className="card-item w-full rounded-2xl bg-white border border-gray-200 shadow-sm p-5 text-left hover:border-[#D4AF37]/40 hover:shadow-[0_0_16px_rgba(212,175,55,0.1)] transition-all duration-200 active:scale-[0.98] group">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-full bg-[#D4AF37]/10 flex items-center justify-center"><MessageCircle className="w-4 h-4 text-[#D4AF37]" /></div>
+          <h4 className="text-sm font-semibold text-gray-900">Ask anything about your system</h4>
+          <ArrowRight className="w-4 h-4 text-gray-300 ml-auto group-hover:text-[#D4AF37] transition-colors" />
+        </div>
+        <p className="text-sm italic text-gray-400 ml-11 transition-opacity duration-300" style={{ opacity: questionVisible ? 1 : 0 }}>
+          {ROTATING_QUESTIONS[questionIndex]}
+        </p>
+      </button>
+    </>
   );
 }

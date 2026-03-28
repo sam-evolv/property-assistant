@@ -149,7 +149,7 @@ export default function HomeScreen() {
             </p>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">Your Heating System</h1>
           </div>
-          <HeatPumpHomeContent installation={installation} onNavigateToProfile={() => setActiveTab('profile')} />
+          <HeatPumpHomeContent installation={installation} onNavigateToProfile={() => setActiveTab('profile')} onNavigateToAssistant={() => setActiveTab('assistant')} />
           <div className="text-center pt-2 pb-1">
             <p className="text-[10px] text-slate-300">Powered by OpenHouse AI</p>
           </div>
