@@ -84,10 +84,10 @@ function ComponentCard({
       {/* Expandable detail area */}
       <div
         style={{
-          maxHeight: expanded ? 500 : 0,
+          maxHeight: expanded ? '600px' : '0px',
+          overflow: 'hidden',
           transition: 'max-height 300ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
-        className="overflow-hidden"
       >
         <div className="px-4 pb-4 pt-0">
           <div className="border-t border-gray-100 pt-3 space-y-3">
@@ -126,21 +126,20 @@ function ComponentCard({
    Main Heat Pump Profile Content
    ──────────────────────────────────────────────────────────── */
 export default function HeatPumpProfileContent({ installation }: HeatPumpProfileContentProps) {
-  const specs = installation.system_specs || {};
-
-  const zonesTotal = specs.zones_total ?? 4;
-  const warrantyYears = specs.workmanship_warranty_years ?? 7;
-  const heatPumpModel = specs.heat_pump_model ?? installation.inverter_model ?? 'Daikin Altherma 3';
-  const heatPumpSerial = specs.heat_pump_serial ?? 'Not recorded';
-  const heatPumpCOP = specs.cop ?? '4.5';
-  const heatPumpWarranty = specs.heat_pump_warranty_years ?? warrantyYears;
-  const heatPumpRuntime = specs.runtime_hours ?? '2,400 hrs';
-  const hotWaterCylinderModel = specs.hot_water_cylinder_model ?? 'Joule Cyclone 300L';
-  const hotWaterTemp = specs.hot_water_temp ?? '55';
-  const controlsModel = specs.controls_model ?? 'Daikin EKRUCBL3';
-  const controlsIssue = specs.controls_issue ?? false;
-  const flowTemp = specs.flow_temp ?? '40';
-  const berRating = specs.ber_rating ?? 'A2';
+  // Read from installation columns directly (heat pump fields are top-level columns, not in system_specs)
+  const zonesTotal = installation.zones_total ?? 4;
+  const warrantyYears = installation.warranty_years ?? 7;
+  const heatPumpModel = installation.heat_pump_model ?? installation.inverter_model ?? 'Heat Pump';
+  const heatPumpSerial = installation.heat_pump_serial ?? 'Not recorded';
+  const heatPumpCOP = installation.heat_pump_cop ?? 3.8;
+  const heatPumpWarranty = warrantyYears;
+  const heatPumpRuntime = '6.2 hrs';
+  const hotWaterCylinderModel = installation.hot_water_cylinder_model ?? 'DHW Cylinder';
+  const hotWaterTemp = installation.hot_water_temp_current ?? 55;
+  const controlsModel = installation.controls_model ?? 'Room Controls';
+  const controlsIssue = installation.controls_issue ?? null;
+  const flowTemp = installation.flow_temp_current ?? 38;
+  const berRating = installation.ber_rating ?? 'N/A';
 
   return (
     <div className="space-y-4">
@@ -176,7 +175,7 @@ export default function HeatPumpProfileContent({ installation }: HeatPumpProfile
       </div>
 
       {/* -- Component Cards (expandable accordion) -- */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
           Components
         </p>
