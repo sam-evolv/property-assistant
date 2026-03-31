@@ -31,6 +31,7 @@ const PUBLIC_PATHS = [
   '/smart-archive',
   '/dev-tools',
   '/care', // Homeowner care app — accessed via QR code, no auth required
+  '/agent', // Agent demo — self-contained PWA with hardcoded demo data
 ];
 
 const PROTECTED_PATHS = [
