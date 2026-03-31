@@ -103,11 +103,10 @@ export default function AIScreen({ unitUid, purchaserName, address, onClose }: A
         body: JSON.stringify({
           message: text.trim(),
           unitUid,
-          conversationHistory: history,
         }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response || data.message || 'I couldn\'t process that request.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.answer || data.response || 'I couldn\'t process that request.' }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I\'m having trouble connecting right now.' }]);
     } finally {
