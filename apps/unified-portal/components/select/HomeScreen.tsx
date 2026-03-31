@@ -12,591 +12,375 @@ interface HomeScreenProps {
   address: string;
   city: string;
   builderName: string;
-  handoverDate?: Date;
+  handoverDate?: string;
   solarKw?: number;
   heatPumpActive?: boolean;
   onAI: () => void;
 }
 
-// ─── Greeting helper ──────────────────────────────────────────────────────────
-function getGreeting(skyName: string): string {
-  switch (skyName) {
-    case 'dawn':
-    case 'morning':
-      return 'Good morning';
-    case 'afternoon':
-      return 'Good afternoon';
-    default:
-      return 'Good evening';
+// ─── Greeting ─────────────────────────────────────────────────────────────────
+function getGreeting(name: string): string {
+  switch (name) {
+    case 'dawn': case 'morning': return 'Good morning';
+    case 'afternoon': return 'Good afternoon';
+    default: return 'Good evening';
   }
 }
 
-// ─── Reveal helper — staggered opacity + translateY ───────────────────────────
-function revealStyle(
-  revealed: boolean,
-  delay: number,
-  y: number = 16,
-): React.CSSProperties {
+// ─── Reveal helper ────────────────────────────────────────────────────────────
+function rv(on: boolean, delay: number, y = 16): React.CSSProperties {
   return {
-    opacity: revealed ? 1 : 0,
-    transform: revealed ? 'translateY(0)' : `translateY(${y}px)`,
+    opacity: on ? 1 : 0,
+    transform: on ? 'translateY(0)' : `translateY(${y}px)`,
     transition: `all ${DURATION.reveal}ms ${EASE}`,
-    transitionDelay: revealed ? `${delay}ms` : '0ms',
+    transitionDelay: on ? `${delay}ms` : '0ms',
   };
 }
 
-// ─── House SVG illustration ───────────────────────────────────────────────────
-// Full architectural illustration with defs, gradients, windows, chimney,
-// door, sparkle animations. Window glow opacity passed as prop.
+// ─── House SVG ────────────────────────────────────────────────────────────────
 function House({ windowGlow }: { windowGlow: number }) {
   return (
-    <svg
-      viewBox="0 0 390 420"
-      fill="none"
-      style={{ width: '100%', height: '100%', display: 'block' }}
-    >
+    <svg viewBox="0 0 390 440" fill="none" style={{ width: '100%', height: '100%', display: 'block' }}>
       <defs>
-        {/* Gold metallic gradient — three-stop */}
-        <linearGradient id="goldMetal" x1="0" y1="0" x2="0" y2="1">
+        {/* Gold metallic 3-stop */}
+        <linearGradient id="hGold" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={C.gHi} />
           <stop offset="50%" stopColor={C.g} />
           <stop offset="100%" stopColor={C.gLo} />
         </linearGradient>
-
-        {/* Window warm glow */}
-        <radialGradient id="windowWarm" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor={C.gHi} stopOpacity="0.95" />
-          <stop offset="60%" stopColor={C.g} stopOpacity="0.7" />
-          <stop offset="100%" stopColor={C.gLo} stopOpacity="0.3" />
-        </radialGradient>
-
-        {/* Window ambient spill */}
-        <radialGradient id="windowSpill" cx="50%" cy="50%" r="100%">
-          <stop offset="0%" stopColor={C.g} stopOpacity="0.4" />
-          <stop offset="100%" stopColor={C.g} stopOpacity="0" />
-        </radialGradient>
-
-        {/* House body fill — dark surface with subtle warm tint */}
-        <linearGradient id="houseFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#12111A" />
+        {/* Wall */}
+        <linearGradient id="hWall" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#13121C" />
           <stop offset="100%" stopColor="#0A0A12" />
         </linearGradient>
-
-        {/* Roof gradient */}
-        <linearGradient id="roofFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#181722" />
+        {/* Roof */}
+        <linearGradient id="hRoof" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1A1926" />
           <stop offset="100%" stopColor="#0E0D16" />
         </linearGradient>
-
-        {/* Door gradient */}
-        <linearGradient id="doorFill" x1="0" y1="0" x2="0" y2="1">
+        {/* Window warm amber */}
+        <radialGradient id="hWin" cx="50%" cy="40%" r="70%">
+          <stop offset="0%" stopColor={C.gHi} stopOpacity="0.95" />
+          <stop offset="55%" stopColor={C.g} stopOpacity="0.65" />
+          <stop offset="100%" stopColor={C.gLo} stopOpacity="0.25" />
+        </radialGradient>
+        {/* Window spill blur */}
+        <filter id="hSpill" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="14" />
+        </filter>
+        {/* Sparkle glow */}
+        <filter id="hSpark" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" />
+        </filter>
+        {/* Ground glow */}
+        <radialGradient id="hGround" cx="50%" cy="0%" r="80%">
+          <stop offset="0%" stopColor={C.g} stopOpacity="0.12" />
+          <stop offset="100%" stopColor={C.g} stopOpacity="0" />
+        </radialGradient>
+        {/* Star twinkle */}
+        <filter id="hStar" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1" />
+        </filter>
+        {/* Door */}
+        <linearGradient id="hDoor" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#16151E" />
           <stop offset="100%" stopColor="#0C0B14" />
         </linearGradient>
-
-        {/* Sparkle glow filter */}
-        <filter id="sparkleGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="2" />
-        </filter>
-
-        {/* Window light spill filter */}
-        <filter id="windowBlur" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="12" />
-        </filter>
+        {/* Solar panel face */}
+        <linearGradient id="hPanel" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#14162A" />
+          <stop offset="100%" stopColor="#0C0E1E" />
+        </linearGradient>
+        {/* Tree canopy */}
+        <radialGradient id="hTree" cx="50%" cy="60%" r="55%">
+          <stop offset="0%" stopColor="#101A12" />
+          <stop offset="100%" stopColor="#080E0A" />
+        </radialGradient>
       </defs>
 
+      {/* ── Star field ── */}
+      <g filter="url(#hStar)" opacity={0.6}>
+        {[[48,28],[112,18],[165,42],[230,12],[285,35],[340,22],[70,55],[310,58],[195,8],[155,65]].map(([cx,cy],i) => (
+          <circle key={i} cx={cx} cy={cy} r={0.8 + (i % 3) * 0.4} fill={C.t1}>
+            <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${2.5 + i * 0.7}s`} repeatCount="indefinite" begin={`${i * 0.4}s`} />
+          </circle>
+        ))}
+      </g>
+
+      {/* ── Trees ── */}
+      {/* Left tree */}
+      <rect x="58" y="310" width="6" height="60" rx="2" fill="#0E0D14" />
+      <ellipse cx="61" cy="295" rx="22" ry="32" fill="url(#hTree)" stroke={C.b1} strokeWidth="0.5" />
+      {/* Right tree */}
+      <rect x="338" y="318" width="5" height="52" rx="2" fill="#0E0D14" />
+      <ellipse cx="340" cy="305" rx="18" ry="26" fill="url(#hTree)" stroke={C.b1} strokeWidth="0.5" />
+
+      {/* ── Ground glow ellipse ── */}
+      <ellipse cx="195" cy="380" rx="160" ry="30" fill="url(#hGround)" opacity={windowGlow} />
+
       {/* ── Ground line ── */}
-      <line
-        x1="40" y1="370" x2="350" y2="370"
-        stroke={C.b1}
-        strokeWidth="1"
-      />
+      <line x1="30" y1="375" x2="360" y2="375" stroke={C.b1} strokeWidth="1" />
 
       {/* ── Main house body ── */}
-      <rect
-        x="95" y="185" width="200" height="185"
-        rx="2"
-        fill="url(#houseFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
+      <rect x="100" y="190" width="190" height="185" rx="2" fill="url(#hWall)" stroke={C.b2} strokeWidth="0.5" />
 
       {/* ── Roof ── */}
-      <polygon
-        points="75,188 195,95 315,188"
-        fill="url(#roofFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-        strokeLinejoin="round"
-      />
-      {/* Roof ridge accent */}
-      <line
-        x1="195" y1="95" x2="195" y2="100"
-        stroke="url(#goldMetal)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <polygon points="80,193 195,95 310,193" fill="url(#hRoof)" stroke={C.b2} strokeWidth="0.5" strokeLinejoin="round" />
+      {/* Ridge cap */}
+      <line x1="195" y1="95" x2="195" y2="101" stroke="url(#hGold)" strokeWidth="2.5" strokeLinecap="round" />
 
       {/* ── Chimney ── */}
-      <rect
-        x="255" y="110" width="26" height="78"
-        rx="1"
-        fill="url(#houseFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
-      {/* Chimney cap */}
-      <rect
-        x="251" y="108" width="34" height="5"
-        rx="1.5"
-        fill={C.s3}
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
-
-      {/* ── Extension / garage wing ── */}
-      <rect
-        x="295" y="240" width="65" height="130"
-        rx="2"
-        fill="url(#houseFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
-      {/* Extension roof (flat) */}
-      <rect
-        x="290" y="236" width="75" height="6"
-        rx="1"
-        fill="url(#roofFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
-
-      {/* ── Window light spills (behind windows, blurred) ── */}
-      <g opacity={windowGlow} filter="url(#windowBlur)">
-        {/* Upper left */}
-        <ellipse cx="152" cy="248" rx="28" ry="22" fill={C.gFog} />
-        {/* Upper right */}
-        <ellipse cx="238" cy="248" rx="28" ry="22" fill={C.gFog} />
-        {/* Lower left */}
-        <ellipse cx="152" cy="320" rx="28" ry="22" fill={C.gFog} />
-        {/* Lower right */}
-        <ellipse cx="238" cy="320" rx="28" ry="22" fill={C.gFog} />
-        {/* Extension window */}
-        <ellipse cx="327" cy="295" rx="22" ry="18" fill={C.gFog} />
-        {/* Door fan light */}
-        <ellipse cx="195" cy="335" rx="14" ry="30" fill={C.gFog} />
+      <rect x="252" y="115" width="24" height="78" rx="1" fill="url(#hWall)" stroke={C.b2} strokeWidth="0.5" />
+      <rect x="248" y="113" width="32" height="5" rx="1.5" fill={C.s3} stroke={C.b2} strokeWidth="0.5" />
+      {/* Smoke wisps */}
+      <g opacity={0.18}>
+        <ellipse cx="264" cy="100" rx="5" ry="3" fill={C.t2}>
+          <animate attributeName="cy" values="100;75;50" dur="6s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.18;0.08;0" dur="6s" repeatCount="indefinite" />
+          <animate attributeName="rx" values="5;9;14" dur="6s" repeatCount="indefinite" />
+        </ellipse>
+        <ellipse cx="262" cy="95" rx="4" ry="2.5" fill={C.t2}>
+          <animate attributeName="cy" values="95;68;40" dur="7s" repeatCount="indefinite" begin="2s" />
+          <animate attributeName="opacity" values="0.14;0.06;0" dur="7s" repeatCount="indefinite" begin="2s" />
+          <animate attributeName="rx" values="4;8;12" dur="7s" repeatCount="indefinite" begin="2s" />
+        </ellipse>
       </g>
 
-      {/* ── Windows — upper row ── */}
-      <g opacity={windowGlow}>
-        {/* Upper left window */}
-        <rect x="130" y="220" width="44" height="54" rx="2"
-          fill="url(#windowWarm)" />
-        {/* Cross bars */}
-        <line x1="152" y1="220" x2="152" y2="274"
-          stroke={C.b3} strokeWidth="1.2" />
-        <line x1="130" y1="247" x2="174" y2="247"
-          stroke={C.b3} strokeWidth="1.2" />
-
-        {/* Upper right window */}
-        <rect x="216" y="220" width="44" height="54" rx="2"
-          fill="url(#windowWarm)" />
-        <line x1="238" y1="220" x2="238" y2="274"
-          stroke={C.b3} strokeWidth="1.2" />
-        <line x1="216" y1="247" x2="260" y2="247"
-          stroke={C.b3} strokeWidth="1.2" />
-      </g>
-
-      {/* ── Windows — lower row ── */}
-      <g opacity={windowGlow}>
-        {/* Lower left window */}
-        <rect x="130" y="292" width="44" height="54" rx="2"
-          fill="url(#windowWarm)" />
-        <line x1="152" y1="292" x2="152" y2="346"
-          stroke={C.b3} strokeWidth="1.2" />
-        <line x1="130" y1="319" x2="174" y2="319"
-          stroke={C.b3} strokeWidth="1.2" />
-
-        {/* Lower right window */}
-        <rect x="216" y="292" width="44" height="54" rx="2"
-          fill="url(#windowWarm)" />
-        <line x1="238" y1="292" x2="238" y2="346"
-          stroke={C.b3} strokeWidth="1.2" />
-        <line x1="216" y1="319" x2="260" y2="319"
-          stroke={C.b3} strokeWidth="1.2" />
-      </g>
-
-      {/* ── Roof window / dormer ── */}
-      <g opacity={windowGlow * 0.8}>
-        <rect x="178" y="140" width="34" height="38" rx="2"
-          fill="url(#windowWarm)" />
-        {/* Dormer frame */}
-        <polygon
-          points="172,142 195,122 218,142"
-          fill="url(#roofFill)"
-          stroke={C.b2}
-          strokeWidth="0.5"
-        />
-        <line x1="195" y1="140" x2="195" y2="178"
-          stroke={C.b3} strokeWidth="1" />
-      </g>
-
-      {/* ── Extension window ── */}
-      <g opacity={windowGlow}>
-        <rect x="309" y="270" width="36" height="48" rx="2"
-          fill="url(#windowWarm)" />
-        <line x1="327" y1="270" x2="327" y2="318"
-          stroke={C.b3} strokeWidth="1.2" />
-        <line x1="309" y1="294" x2="345" y2="294"
-          stroke={C.b3} strokeWidth="1.2" />
-      </g>
-
-      {/* ── Front door ── */}
-      <rect x="181" y="320" width="28" height="50" rx="2"
-        fill="url(#doorFill)"
-        stroke={C.b2}
-        strokeWidth="0.5"
-      />
-      {/* Door handle */}
-      <circle cx="203" cy="347" r="2"
-        fill="url(#goldMetal)" />
-      {/* Fan light above door */}
-      <g opacity={windowGlow * 0.6}>
-        <path
-          d="M181,322 A14,14 0 0,1 209,322"
-          fill="url(#windowWarm)"
-        />
-      </g>
-
-      {/* ── Window frames (unlit outlines) ── */}
-      <g opacity={1 - windowGlow * 0.6}>
-        <rect x="130" y="220" width="44" height="54" rx="2"
-          fill="none" stroke={C.b2} strokeWidth="0.7" />
-        <rect x="216" y="220" width="44" height="54" rx="2"
-          fill="none" stroke={C.b2} strokeWidth="0.7" />
-        <rect x="130" y="292" width="44" height="54" rx="2"
-          fill="none" stroke={C.b2} strokeWidth="0.7" />
-        <rect x="216" y="292" width="44" height="54" rx="2"
-          fill="none" stroke={C.b2} strokeWidth="0.7" />
-        <rect x="309" y="270" width="36" height="48" rx="2"
-          fill="none" stroke={C.b2} strokeWidth="0.7" />
-      </g>
-
-      {/* ── Sparkles — gold accent particles ── */}
-      <g filter="url(#sparkleGlow)">
-        <circle cx="138" cy="210" r="1.5" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;1;0" dur="3.2s" repeatCount="indefinite" begin="0s" />
-        </circle>
-        <circle cx="260" cy="195" r="1.2" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;1;0" dur="2.8s" repeatCount="indefinite" begin="0.8s" />
-        </circle>
-        <circle cx="310" cy="260" r="1" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;1;0" dur="3.6s" repeatCount="indefinite" begin="1.5s" />
-        </circle>
-        <circle cx="110" cy="310" r="1.4" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;1;0" dur="4s" repeatCount="indefinite" begin="0.4s" />
-        </circle>
-        <circle cx="195" cy="92" r="1.8" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;0.9;0" dur="5s" repeatCount="indefinite" begin="2s" />
-        </circle>
-        <circle cx="345" cy="230" r="1" fill={C.gHi}>
-          <animate attributeName="opacity"
-            values="0;0.8;0" dur="3s" repeatCount="indefinite" begin="1.2s" />
-        </circle>
-        <circle cx="85" cy="180" r="1.2" fill={C.g}>
-          <animate attributeName="opacity"
-            values="0;0.7;0" dur="4.4s" repeatCount="indefinite" begin="0.6s" />
-        </circle>
-      </g>
-
-      {/* ── Select badge — gold circle at rooftop ── */}
+      {/* ── Solar panels on roof ── */}
       <g>
-        <circle cx="195" cy="80" r="8"
-          fill={C.bg}
-          stroke="url(#goldMetal)"
-          strokeWidth="1.5"
-        >
-          <animate attributeName="r" values="8;8.6;8" dur="4s"
-            repeatCount="indefinite" />
+        {/* Row of 4 panels on right roof slope */}
+        {[0,1,2,3].map(i => {
+          const x = 210 + i * 22;
+          const yOff = -i * 9;
+          return (
+            <g key={i}>
+              <rect x={x} y={148 + yOff} width="18" height="28" rx="1.5"
+                fill="url(#hPanel)" stroke={C.b2} strokeWidth="0.5"
+                transform={`rotate(${24}, ${x + 9}, ${148 + yOff + 14})`} />
+              {/* Grid lines */}
+              <line x1={x + 9} y1={148 + yOff} x2={x + 9} y2={148 + yOff + 28}
+                stroke={C.b1} strokeWidth="0.3"
+                transform={`rotate(${24}, ${x + 9}, ${148 + yOff + 14})`} />
+              <line x1={x} y1={148 + yOff + 14} x2={x + 18} y2={148 + yOff + 14}
+                stroke={C.b1} strokeWidth="0.3"
+                transform={`rotate(${24}, ${x + 9}, ${148 + yOff + 14})`} />
+            </g>
+          );
+        })}
+        {/* Solar sparkles */}
+        <g filter="url(#hSpark)">
+          <circle cx="235" cy="140" r="1.8" fill={C.gHi}>
+            <animate attributeName="opacity" values="0;1;0" dur="3.5s" repeatCount="indefinite" begin="0s" />
+          </circle>
+          <circle cx="258" cy="128" r="1.4" fill={C.gHi}>
+            <animate attributeName="opacity" values="0;0.9;0" dur="4.2s" repeatCount="indefinite" begin="1.2s" />
+          </circle>
+          <circle cx="278" cy="118" r="1.2" fill={C.gHi}>
+            <animate attributeName="opacity" values="0;0.8;0" dur="3.8s" repeatCount="indefinite" begin="2.1s" />
+          </circle>
+        </g>
+      </g>
+
+      {/* ── Window light spills ── */}
+      <g opacity={windowGlow} filter="url(#hSpill)">
+        <ellipse cx="155" cy="260" rx="30" ry="24" fill={C.gFog} />
+        <ellipse cx="235" cy="260" rx="30" ry="24" fill={C.gFog} />
+        <ellipse cx="195" cy="345" rx="16" ry="32" fill={C.gFog} />
+      </g>
+
+      {/* ── Windows (2 main) ── */}
+      <g opacity={windowGlow}>
+        {/* Left window */}
+        <rect x="130" y="228" width="50" height="60" rx="2.5" fill="url(#hWin)" />
+        <line x1="155" y1="228" x2="155" y2="288" stroke={C.b3} strokeWidth="1.2" />
+        <line x1="130" y1="258" x2="180" y2="258" stroke={C.b3} strokeWidth="1.2" />
+        {/* Right window */}
+        <rect x="210" y="228" width="50" height="60" rx="2.5" fill="url(#hWin)" />
+        <line x1="235" y1="228" x2="235" y2="288" stroke={C.b3} strokeWidth="1.2" />
+        <line x1="210" y1="258" x2="260" y2="258" stroke={C.b3} strokeWidth="1.2" />
+      </g>
+      {/* Window frames (visible when unlit) */}
+      <g opacity={1 - windowGlow * 0.7}>
+        <rect x="130" y="228" width="50" height="60" rx="2.5" fill="none" stroke={C.b2} strokeWidth="0.7" />
+        <rect x="210" y="228" width="50" height="60" rx="2.5" fill="none" stroke={C.b2} strokeWidth="0.7" />
+      </g>
+
+      {/* ── Door ── */}
+      <rect x="180" y="322" width="30" height="53" rx="2" fill="url(#hDoor)" stroke={C.b2} strokeWidth="0.5" />
+      {/* Gold arch */}
+      <path d="M180,325 A15,15 0 0,1 210,325" fill="none" stroke="url(#hGold)" strokeWidth="1.2" />
+      {/* Fan light glow */}
+      <g opacity={windowGlow * 0.55}>
+        <path d="M182,325 A13,13 0 0,1 208,325 L182,325 Z" fill="url(#hWin)" />
+      </g>
+      {/* Handle */}
+      <circle cx="204" cy="350" r="2" fill="url(#hGold)" />
+
+      {/* ── Accent sparkles ── */}
+      <g filter="url(#hSpark)">
+        <circle cx="100" cy="215" r="1.5" fill={C.gHi}>
+          <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" begin="0.5s" />
         </circle>
-        <text x="195" y="83.5"
-          textAnchor="middle"
-          fill="url(#goldMetal)"
-          style={{ fontSize: 7, fontWeight: 900, letterSpacing: '0.06em' }}
-        >
-          S
-        </text>
+        <circle cx="300" cy="200" r="1.2" fill={C.gHi}>
+          <animate attributeName="opacity" values="0;0.9;0" dur="3.6s" repeatCount="indefinite" begin="1.8s" />
+        </circle>
+        <circle cx="195" cy="90" r="2" fill={C.gHi}>
+          <animate attributeName="opacity" values="0;0.85;0" dur="5s" repeatCount="indefinite" begin="0s" />
+        </circle>
       </g>
     </svg>
   );
 }
 
+// ─── Badge (gold circle with S) ───────────────────────────────────────────────
+function Badge({ size = 28 }: { size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: SHADOW.goldGlow,
+      flexShrink: 0,
+    }}>
+      <span style={{ ...TYPE.micro, color: C.bg, fontSize: size * 0.38 }}>S</span>
+    </div>
+  );
+}
+
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 export default function HomeScreen({
-  purchaserName,
-  address,
-  city,
-  builderName,
-  handoverDate,
-  solarKw,
-  heatPumpActive,
-  onAI,
+  purchaserName, address, city, builderName,
+  handoverDate, solarKw, heatPumpActive, onAI,
 }: HomeScreenProps) {
   const sky = useMemo(() => getSkyConfig(), []);
-  const daysHome = useMemo(() => getDaysHome(handoverDate), [handoverDate]);
+  const daysHome = useMemo(
+    () => getDaysHome(handoverDate ? new Date(handoverDate) : undefined),
+    [handoverDate],
+  );
   const firstName = purchaserName.split(' ')[0];
   const greeting = getGreeting(sky.name);
 
-  // ── Reveal state (staggered mount animation) ──
-  const [revealed, setRevealed] = useState(false);
-  useEffect(() => {
-    const id = setTimeout(() => setRevealed(true), 80);
-    return () => clearTimeout(id);
-  }, []);
+  // Reveal
+  const [on, setOn] = useState(false);
+  useEffect(() => { const id = setTimeout(() => setOn(true), 80); return () => clearTimeout(id); }, []);
 
-  // ── Window glow: rAF-driven 0→1 over DURATION.window ms ──
+  // Window glow: rAF 0→1 over DURATION.window with ease-out
   const [windowGlow, setWindowGlow] = useState(sky.windowGlowBase);
   const startRef = useRef<number | null>(null);
-
   const animate = useCallback((ts: number) => {
     if (startRef.current === null) startRef.current = ts;
-    const elapsed = ts - startRef.current;
-    const progress = Math.min(elapsed / DURATION.window, 1);
-    // Ease-out cubic
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const value = sky.windowGlowBase + (1 - sky.windowGlowBase) * eased;
-    setWindowGlow(value);
-    if (progress < 1) requestAnimationFrame(animate);
+    const p = Math.min((ts - startRef.current) / DURATION.window, 1);
+    const eased = 1 - Math.pow(1 - p, 2.4);
+    setWindowGlow(sky.windowGlowBase + (1 - sky.windowGlowBase) * eased);
+    if (p < 1) requestAnimationFrame(animate);
   }, [sky.windowGlowBase]);
+  useEffect(() => { const id = requestAnimationFrame(animate); return () => cancelAnimationFrame(id); }, [animate]);
 
-  useEffect(() => {
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
-  }, [animate]);
-
-  // ── Address display: extract street name for the "Rise." gold line ──
-  const streetName = address.split(',')[0].trim();
-  // Pull last word for the gold-gradient accent (e.g. "Rise", "Park", "Drive")
-  const addressWords = streetName.split(' ');
-  const lastWord = addressWords.pop() || '';
-  const addressPrefix = addressWords.join(' ');
+  // Address split
+  const lines = address.split(',');
+  const line1 = lines[0]?.trim() || address;
+  const words = line1.split(' ');
+  const lastWord = words.pop() || '';
+  const prefix = words.join(' ');
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        minHeight: '100vh',
-        maxHeight: APP_H,
-        background: sky.bg,
-        overflow: 'hidden',
-        fontFamily: '"Inter", system-ui, sans-serif',
-      }}
-    >
-      {/* Inject keyframes */}
+    <div style={{
+      position: 'relative', width: '100%', height: '100%',
+      background: sky.bg, overflow: 'hidden',
+      fontFamily: '"Inter", system-ui, sans-serif',
+    }}>
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
-      {/* ── Ambient breathing orbs ── */}
+      {/* ── Ambient orbs ── */}
       {[
-        { top: '12%', left: '15%', size: 280, anim: 'orb0', dur: 12 },
-        { top: '48%', left: '78%', size: 220, anim: 'orb1', dur: 14 },
-        { top: '68%', left: '30%', size: 190, anim: 'orb2', dur: 16 },
-      ].map((orb, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            top: orb.top,
-            left: orb.left,
-            width: orb.size,
-            height: orb.size,
-            borderRadius: '50%',
-            background: `radial-gradient(circle, ${sky.orbColor} 0%, transparent 70%)`,
-            opacity: revealed ? 1 : 0,
-            transition: `opacity ${DURATION.window}ms ${EASE}`,
-            animation: `${orb.anim} ${orb.dur}s ${EASE} infinite alternate`,
-            pointerEvents: 'none',
-          }}
-        />
+        { top: '52%', left: '20%', size: 260, anim: 'orb0', dur: 12 },
+        { top: '10%', left: '58%', size: 220, anim: 'orb1', dur: 14 },
+        { top: '88%', left: '48%', size: 190, anim: 'orb2', dur: 16 },
+      ].map((o, i) => (
+        <div key={i} style={{
+          position: 'absolute', top: o.top, left: o.left,
+          width: o.size, height: o.size, borderRadius: '50%',
+          background: `radial-gradient(circle, ${sky.orbColor} 0%, transparent 70%)`,
+          opacity: on ? 1 : 0, transition: `opacity ${DURATION.window}ms ${EASE}`,
+          animation: `${o.anim} ${o.dur}s ${EASE} infinite alternate`,
+          pointerEvents: 'none',
+        }} />
       ))}
 
-      {/* ── Star field ── */}
-      {sky.starsOpacity > 0.08 && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: revealed ? sky.starsOpacity : 0,
-            transition: `opacity ${DURATION.window}ms ${EASE}`,
-            background: `
-              radial-gradient(1px 1px at 12% 8%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 38% 22%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 64% 6%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 82% 30%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 22% 48%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 50% 14%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 75% 42%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1.2px 1.2px at 8% 34%, ${C.t1} 40%, transparent 100%),
-              radial-gradient(0.8px 0.8px at 90% 18%, ${C.t1} 50%, transparent 100%),
-              radial-gradient(1px 1px at 55% 38%, ${C.t1} 50%, transparent 100%)
-            `,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      {/* ── Horizon glow ── */}
-      {sky.horizonGlow !== 'none' && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 140,
-            background: `linear-gradient(0deg, ${sky.horizonGlow}, transparent)`,
-            opacity: revealed ? 1 : 0,
-            transition: `opacity ${DURATION.window}ms ${EASE}`,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      {/* ── House SVG — top 62% of screen, full bleed ── */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '62%',
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          opacity: revealed ? 1 : 0,
-          transform: revealed ? 'translateY(0)' : 'translateY(8px)',
-          transition: `all ${DURATION.window}ms ${EASE}`,
-        }}
-      >
+      {/* ── House zone — top 62% ── */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: '62%',
+        overflow: 'hidden', pointerEvents: 'none',
+        opacity: on ? 1 : 0, transform: on ? 'translateY(0)' : 'translateY(6px)',
+        transition: `all ${DURATION.window}ms ${EASE}`,
+      }}>
         <House windowGlow={windowGlow} />
+        {/* Bottom vignette */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 100,
+          background: `linear-gradient(0deg, ${C.bg}, transparent)`,
+        }} />
       </div>
 
       {/* ── Content — anchored to bottom ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: TAB_H + 16,
-          left: 0,
-          right: 0,
-          padding: '0 24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          zIndex: 2,
-        }}
-      >
+      <div style={{
+        position: 'absolute', bottom: 20, left: 0, right: 0,
+        padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8,
+        zIndex: 2,
+      }}>
         {/* Gold overline greeting */}
-        <div style={{
-          ...TYPE.overline,
-          color: C.g,
-          ...revealStyle(revealed, 200),
-        }}>
+        <div style={{ ...TYPE.overline, color: C.g, ...rv(on, 200) }}>
           {greeting}, {firstName}
         </div>
 
-        {/* Address — display type with gold gradient last word */}
+        {/* Address line 1 */}
+        <div style={{ ...TYPE.display, color: C.t1, margin: 0, ...rv(on, 320, 20) }}>
+          {prefix}
+        </div>
+        {/* Street name with gold gradient */}
         <div style={{
-          ...TYPE.display,
-          color: C.t1,
-          margin: 0,
-          ...revealStyle(revealed, 350, 20),
+          ...TYPE.display, margin: 0, ...rv(on, 400, 20),
+          background: `linear-gradient(180deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
         }}>
-          {addressPrefix}{' '}
-          <span
-            style={{
-              background: `linear-gradient(180deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            {lastWord}.
-          </span>
+          {lastWord}.
         </div>
 
-        {/* City + Builder */}
+        {/* Day · city · builder */}
         <div style={{
-          ...TYPE.body,
-          color: C.t2,
-          margin: 0,
-          ...revealStyle(revealed, 480),
+          fontSize: 11.5, color: C.t2, margin: 0, ...rv(on, 500),
         }}>
-          {city} · Built by {builderName}
+          Day {daysHome} · {city} · {builderName}
         </div>
 
-        {/* Day counter line */}
-        <div style={{
-          ...TYPE.caption,
-          color: C.t3,
-          ...revealStyle(revealed, 580),
-        }}>
-          Day {daysHome} in your new home
-        </div>
-
-        {/* ── Status pills row ── */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            marginTop: 6,
-            ...revealStyle(revealed, 680),
-          }}
-        >
-          {/* Solar kW pill */}
+        {/* Status pills */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, ...rv(on, 620) }}>
           {solarKw !== undefined && (
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 12px',
-              borderRadius: RADIUS.pill,
-              background: C.glMid,
-              border: `1px solid ${C.gB}`,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '5px 12px', borderRadius: RADIUS.pill,
+              background: C.glMid, border: `1px solid ${C.gB}`,
+              backdropFilter: 'blur(12px)',
             }}>
               <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: C.amb,
+                width: 6, height: 6, borderRadius: '50%', background: C.grn,
                 animation: `livePulse 2.4s ${EASE} infinite`,
               }} />
-              <span style={{ ...TYPE.caption, color: C.t2 }}>
-                {solarKw.toFixed(1)} kW
-              </span>
+              <span style={{ ...TYPE.caption, color: C.t2 }}>{solarKw.toFixed(1)} kW</span>
             </div>
           )}
-
-          {/* Heat pump pill */}
           {heatPumpActive !== undefined && (
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 12px',
-              borderRadius: RADIUS.pill,
-              background: C.glMid,
-              border: `1px solid ${C.gB}`,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '5px 12px', borderRadius: RADIUS.pill,
+              background: C.glMid, border: `1px solid ${C.gB}`,
+              backdropFilter: 'blur(12px)',
             }}>
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: heatPumpActive ? C.grn : C.t3,
-                animation: heatPumpActive
-                  ? `livePulse 2.4s ${EASE} infinite`
-                  : 'none',
+                background: heatPumpActive ? C.blu : C.t3,
+                animation: heatPumpActive ? `livePulse 2.4s ${EASE} infinite` : 'none',
               }} />
               <span style={{ ...TYPE.caption, color: C.t2 }}>
                 Heat Pump {heatPumpActive ? 'Active' : 'Idle'}
@@ -605,26 +389,18 @@ export default function HomeScreen({
           )}
         </div>
 
-        {/* ── AI CTA button ── */}
-        <button
-          onClick={onAI}
-          style={{
-            marginTop: 8,
-            padding: '13px 0',
-            width: '100%',
-            border: `1px solid ${C.gB2}`,
-            borderRadius: RADIUS.md,
-            background: `linear-gradient(180deg, ${C.s3}, ${C.s2})`,
-            color: C.g,
-            cursor: 'pointer',
-            boxShadow: SHADOW.goldGlow,
-            ...TYPE.title,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase' as const,
-            ...revealStyle(revealed, 800, 12),
-          }}
-        >
-          Ask Your Home
+        {/* AI CTA */}
+        <button onClick={onAI} style={{
+          marginTop: 6, padding: '13px 18px', width: '100%',
+          border: `1px solid ${C.gB}`, borderRadius: RADIUS.md,
+          background: C.glDark, backdropFilter: 'blur(16px)',
+          color: C.t1, cursor: 'pointer', boxShadow: SHADOW.card,
+          display: 'flex', alignItems: 'center', gap: 12,
+          ...rv(on, 740, 12),
+        }}>
+          <Badge size={26} />
+          <span style={{ ...TYPE.title, flex: 1, textAlign: 'left' }}>Ask Your Home</span>
+          <span style={{ color: C.t3, fontSize: 16 }}>›</span>
         </button>
       </div>
     </div>
