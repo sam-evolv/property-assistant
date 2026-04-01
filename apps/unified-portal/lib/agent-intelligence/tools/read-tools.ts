@@ -353,7 +353,7 @@ export async function getOutstandingItems(
   for (const p of pipeline || []) {
     const unit: any = unitMap.get(p.unit_id);
     const unitNum: string = unit?.unit_number || unit?.unit_uid || 'Unknown';
-    const schemeName: string = devMap.get(unit?.development_id || '') || 'Unknown';
+    const schemeName: string = (devMap.get(unit?.development_id || '') as string) || 'Unknown';
 
     // Unsigned contracts (contracts issued but not signed)
     if (p.contracts_issued_date && !p.signed_contracts_date && !p.counter_signed_date) {
@@ -480,7 +480,7 @@ export async function getCommunicationHistory(
     return { data: { communications: [] }, summary: 'No communication history found.' };
   }
 
-  const communications = comms.map(c => ({
+  const communications = comms.map((c: any) => ({
     date: c.created_at,
     type: c.type,
     direction: c.direction,

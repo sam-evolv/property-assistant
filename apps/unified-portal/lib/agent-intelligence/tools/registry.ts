@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types';
+import { ToolDefinition, ToolFunction } from '../types';
 import {
   getUnitStatus,
   getBuyerDetails,
@@ -26,7 +26,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['scheme_name', 'unit_identifier'],
     },
-    execute: getUnitStatus,
+    execute: getUnitStatus as ToolFunction,
   },
   {
     name: 'get_buyer_details',
@@ -38,7 +38,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['buyer_name'],
     },
-    execute: getBuyerDetails,
+    execute: getBuyerDetails as ToolFunction,
   },
   {
     name: 'get_scheme_overview',
@@ -50,7 +50,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['scheme_name'],
     },
-    execute: getSchemeOverview,
+    execute: getSchemeOverview as ToolFunction,
   },
   {
     name: 'get_outstanding_items',
@@ -92,7 +92,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['query'],
     },
-    execute: searchKnowledgeBase,
+    execute: searchKnowledgeBase as ToolFunction,
   },
   {
     name: 'create_task',
@@ -110,7 +110,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['title'],
     },
-    execute: createTask,
+    execute: createTask as ToolFunction,
   },
   {
     name: 'log_communication',
@@ -129,7 +129,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['unit_identifier', 'scheme_name', 'type', 'direction', 'summary'],
     },
-    execute: logCommunication,
+    execute: logCommunication as ToolFunction,
   },
   {
     name: 'draft_message',
@@ -146,7 +146,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['recipient_type', 'recipient_name', 'context'],
     },
-    execute: draftMessage,
+    execute: draftMessage as ToolFunction,
   },
   {
     name: 'generate_developer_report',
@@ -159,7 +159,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
       required: ['developer_name'],
     },
-    execute: generateDeveloperReport,
+    execute: generateDeveloperReport as ToolFunction,
   },
 ];
 

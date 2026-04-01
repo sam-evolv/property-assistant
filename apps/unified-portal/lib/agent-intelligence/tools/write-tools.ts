@@ -230,7 +230,7 @@ export async function generateDeveloperReport(
     return { data: null, summary: 'No schemes found for this developer.' };
   }
 
-  const schemeBreakdowns = await Promise.all(developments.map(async (dev) => {
+  const schemeBreakdowns = await Promise.all(developments.map(async (dev: any) => {
     // Get pipeline data
     const { data: pipeline } = await supabase
       .from('unit_sales_pipeline')
@@ -256,8 +256,8 @@ export async function generateDeveloperReport(
       else statusCounts.available++;
     }
 
-    const pipelineIds = new Set((pipeline || []).map(p => p.unit_id));
-    statusCounts.available += (units || []).filter(u => !pipelineIds.has(u.id)).length;
+    const pipelineIds = new Set((pipeline || []).map((p: any) => p.unit_id));
+    statusCounts.available += (units || []).filter((u: any) => !pipelineIds.has(u.id)).length;
 
     // Recent communications
     const { data: recentComms } = await supabase
@@ -272,11 +272,11 @@ export async function generateDeveloperReport(
 
     // Outstanding items
     const unsignedContracts = (pipeline || []).filter(
-      p => p.contracts_issued_date && !p.signed_contracts_date && !p.counter_signed_date
+      (p: any) => p.contracts_issued_date && !p.signed_contracts_date && !p.counter_signed_date
     ).length;
 
     const pendingSelections = (pipeline || []).filter(
-      p => p.sale_agreed_date && !p.kitchen_selected
+      (p: any) => p.sale_agreed_date && !p.kitchen_selected
     ).length;
 
     return {
@@ -292,8 +292,8 @@ export async function generateDeveloperReport(
     };
   }));
 
-  const totalUnits = schemeBreakdowns.reduce((sum, s) => sum + s.total_units, 0);
-  const totalSold = schemeBreakdowns.reduce((sum, s) => sum + s.status_breakdown.sold, 0);
+  const totalUnits = schemeBreakdowns.reduce((sum: any, s: any) => sum + s.total_units, 0);
+  const totalSold = schemeBreakdowns.reduce((sum: any, s: any) => sum + s.status_breakdown.sold, 0);
 
   return {
     data: {
