@@ -108,6 +108,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/static/') ||
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/branding/') ||
+    pathname.startsWith('/agent') ||
     pathname.includes('.')
   ) {
     return res;
