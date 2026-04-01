@@ -23,7 +23,7 @@ export async function getUnitStatus(
   // Find unit by number/identifier
   const { data: units } = await supabase
     .from('units')
-    .select('id, unit_uid, unit_number, unit_type, bedroom_count, floor_area_m2, development_id, purchaser_name, purchaser_email, purchaser_phone')
+    .select('id, unit_uid, unit_number, house_type_code, bedrooms, bathrooms, eircode, development_id, purchaser_name')
     .eq('tenant_id', tenantId)
     .eq('development_id', dev.id)
     .or(`unit_number.ilike.%${params.unit_identifier}%,unit_uid.ilike.%${params.unit_identifier}%`);
@@ -67,16 +67,18 @@ export async function getUnitStatus(
 
   const result = {
     unit_number: unit.unit_number || unit.unit_uid,
-    unit_type: unit.unit_type,
-    bed_count: unit.bedroom_count,
-    floor_area: unit.floor_area_m2,
+    house_type: unit.house_type_code || null,
+    bedrooms: unit.bedrooms || null,
+    bathrooms: unit.bathrooms || null,
+    eircode: unit.eircode || null,
     scheme_name: dev.name,
     status,
     buyer: {
       name: unit.purchaser_name || pipeline?.purchaser_name || null,
-      email: unit.purchaser_email || pipeline?.purchaser_email || null,
-      phone: unit.purchaser_phone || pipeline?.purchaser_phone || null,
+      email: pipeline?.purchaser_email || null,
+      phone: pipeline?.purchaser_phone || null,
     },
+    mortgage_expiry_date: pipeline?.mortgage_expiry_date || null,
     dates: pipeline ? {
       sale_agreed_date: pipeline.sale_agreed_date,
       deposit_date: pipeline.deposit_date,
@@ -88,6 +90,8 @@ export async function getUnitStatus(
     } : null,
     sale_price: pipeline?.sale_price || null,
     kitchen_selected: pipeline?.kitchen_selected || false,
+    estimated_close_date: pipeline?.estimated_close_date || null,
+    comments: pipeline?.comments || null,
     recent_communications: comms || [],
   };
 
@@ -114,7 +118,7 @@ export async function getBuyerDetails(
     // Also try units table
     const { data: unitMatches } = await supabase
       .from('units')
-      .select('id, unit_uid, unit_number, purchaser_name, purchaser_email, purchaser_phone, development_id')
+      .select('id, unit_uid, unit_number, purchaser_name, development_id')
       .eq('tenant_id', tenantId)
       .ilike('purchaser_name', `%${params.buyer_name}%`);
 
@@ -133,8 +137,6 @@ export async function getBuyerDetails(
 
     const results = unitMatches.map((u: any) => ({
       name: u.purchaser_name,
-      email: u.purchaser_email,
-      phone: u.purchaser_phone,
       unit_number: u.unit_number || u.unit_uid,
       scheme_name: devMap.get(u.development_id) || 'Unknown',
     }));

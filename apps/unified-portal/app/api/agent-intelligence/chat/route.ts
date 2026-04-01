@@ -35,14 +35,26 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Load agent context (profile + assigned schemes)
-    let agentContext = await loadAgentContext(supabase, adminContext.id, tenantId);
+    // 1. Resolve the auth.users ID
+    // adminContext.id is the admins table PK, NOT auth.users.id.
+    // agent_profiles.user_id references auth.users(id), so we need the real auth UID.
+    let authUserId = adminContext.id; // fallback
+    try {
+      const { data: usersData } = await supabase.auth.admin.listUsers();
+      const matchedUser = usersData?.users?.find((u: any) => u.email === adminContext.email);
+      if (matchedUser?.id) authUserId = matchedUser.id;
+    } catch (err) {
+      console.error('[AgentIntel] Failed to resolve auth user ID, using admin ID as fallback:', err);
+    }
+
+    // 2. Load agent context (profile + assigned schemes)
+    let agentContext = await loadAgentContext(supabase, authUserId, tenantId);
 
     // If no agent profile exists yet, create a minimal context
     if (!agentContext) {
       agentContext = {
-        agentId: adminContext.id,
-        userId: adminContext.id,
+        agentId: authUserId,
+        userId: authUserId,
         tenantId,
         displayName: adminContext.email.split('@')[0],
         assignedSchemes: [],
@@ -180,7 +192,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 8. Log intelligence interaction (async, non-blocking)
-    logInteraction(supabase, tenantId, adminContext.id, message, responseText, toolsCalled, startTime).catch(
+    logInteraction(supabase, tenantId, authUserId, message, responseText, toolsCalled, startTime).catch(
       (err) => console.error('[AgentIntel] Failed to log interaction:', err)
     );
 
