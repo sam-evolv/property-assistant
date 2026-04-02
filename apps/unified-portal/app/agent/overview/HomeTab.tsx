@@ -8,30 +8,15 @@ import {
   WARN, WARN_L,
   INFO, INFO_L,
 } from '@/lib/agent/design-tokens';
+import { SCHEMES, AGENT_STATS, URGENT_TOP5, formatPrice } from '@/lib/agent/demo-data';
 
 /* ------------------------------------------------------------------ */
-/*  Static demo data                                                   */
+/*  Static demo data (viewings only — no real viewing data yet)        */
 /* ------------------------------------------------------------------ */
-
-const stats = [
-  { value: '49', label: 'Sold', color: GOLD_D, bg: GOLD_L },
-  { value: '7', label: 'Active', color: INFO, bg: INFO_L },
-  { value: '2', label: 'Urgent', color: FLAG, bg: FLAG_L },
-];
-
-const actionItems = [
-  { name: 'Conor Ryan', unit: 'Coppice A1' },
-  { name: 'Mark Brennan', unit: 'Coppice A5' },
-];
 
 const viewings = [
-  { time: '10:00', buyer: 'Sarah Doyle', unit: 'Coppice — A4', status: 'confirmed' as const },
-  { time: '11:30', buyer: 'New Enquiry', unit: '7 Orchard Close', status: 'confirmed' as const },
-];
-
-const schemes = [
-  { name: 'The Coppice', dev: 'Cairn Homes', loc: 'Ballincollig', total: 48, sold: 31, res: 9, avail: 8, comp: 'Q3 2025' },
-  { name: 'Harbour View', dev: 'Evara Homes', loc: 'Blackrock', total: 24, sold: 18, res: 4, avail: 2, comp: 'Q1 2025' },
+  { time: '10:00', buyer: 'Sarah Doyle', unit: 'Riverside — Unit 12', status: 'confirmed' as const },
+  { time: '11:30', buyer: 'New Enquiry', unit: 'Harbour View — Unit 7', status: 'confirmed' as const },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -54,26 +39,49 @@ const card: React.CSSProperties = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Computed data                                                      */
+/* ------------------------------------------------------------------ */
+
+const stats = [
+  { value: String(AGENT_STATS.totalSold), label: 'Sold', color: GOLD_D, bg: GOLD_L },
+  { value: String(AGENT_STATS.activePipeline), label: 'Active', color: INFO, bg: INFO_L },
+  { value: String(AGENT_STATS.urgent), label: 'Urgent', color: FLAG, bg: FLAG_L },
+];
+
+const actionItems = URGENT_TOP5.map((b) => ({
+  name: b.name.split(' & ')[0].split(' and ')[0],
+  unit: `${b.scheme} ${b.unit}`,
+  days: b.daysSinceIssued ?? 0,
+}));
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
 export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const now = new Date();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const dateStr = `${dayNames[now.getDay()]}, ${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
   return (
     <div style={{ background: BG, paddingBottom: 32 }}>
       <div style={{ padding: '56px 16px 0' }}>
 
-        {/* 1 — Greeting */}
+        {/* 1 -- Greeting */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ color: T4, fontSize: 11 }}>Thursday, 26 March 2025</div>
+          <div style={{ color: T4, fontSize: 11 }}>{dateStr}</div>
           <div style={{ color: T1, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>
-            Good morning, Sarah.
+            {greeting}, Sam.
           </div>
           <div style={{ color: T3, fontSize: 13 }}>
-            Sherry FitzGerald Cork &middot; 2 schemes active
+            OpenHouse AI &middot; {AGENT_STATS.schemesActive} schemes active
           </div>
         </div>
 
-        {/* 2 — Stats row */}
+        {/* 2 -- Stats row */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {stats.map((s) => (
             <div
@@ -97,7 +105,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
           ))}
         </div>
 
-        {/* 3 — Intelligence CTA */}
+        {/* 3 -- Intelligence CTA */}
         <div
           onClick={() => onNavigate('intel')}
           style={{
@@ -141,7 +149,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
           </svg>
         </div>
 
-        {/* 4 — Requires Action */}
+        {/* 4 -- Requires Action */}
         <div style={{ marginBottom: 22 }}>
           <div style={sectionLabel}>Requires Action</div>
           <div style={{ ...card, overflow: 'hidden' }}>
@@ -172,7 +180,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
                   <div style={{ color: FLAG, fontSize: 13, fontWeight: 600 }}>
                     Contracts overdue — {item.name}
                   </div>
-                  <div style={{ color: 'rgba(191,55,40,0.5)', fontSize: 11 }}>{item.unit}</div>
+                  <div style={{ color: 'rgba(191,55,40,0.5)', fontSize: 11 }}>{item.unit} &middot; {item.days} days</div>
                 </div>
 
                 {/* Chevron */}
@@ -184,7 +192,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
           </div>
         </div>
 
-        {/* 5 — Today's Viewings */}
+        {/* 5 -- Today's Viewings */}
         <div style={{ marginBottom: 22 }}>
           <div style={sectionLabel}>Today&apos;s Viewings</div>
           <div style={{ ...card, overflow: 'hidden' }}>
@@ -260,15 +268,16 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
           </div>
         </div>
 
-        {/* 6 — Schemes */}
+        {/* 6 -- Schemes */}
         <div style={{ marginBottom: 16 }}>
           <div style={sectionLabel}>Schemes</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {schemes.map((s) => {
-              const pct = Math.round((s.sold / s.total) * 100);
+            {SCHEMES.map((s) => {
+              const soldCount = s.sold + s.contractsSigned;
+              const pct = Math.round((soldCount / s.total) * 100);
               return (
                 <div
-                  key={s.name}
+                  key={s.id}
                   style={{
                     ...card,
                     padding: 16,
@@ -279,7 +288,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                     <div>
                       <div style={{ color: T1, fontSize: 14, fontWeight: 600 }}>{s.name}</div>
-                      <div style={{ color: T3, fontSize: 11 }}>{s.dev} &middot; {s.loc}</div>
+                      <div style={{ color: T3, fontSize: 11 }}>{s.total} units &middot; {formatPrice(s.revenue)} revenue</div>
                     </div>
                     <div style={{ color: GOLD_D, fontSize: 22, fontWeight: 700 }}>{pct}%</div>
                   </div>
@@ -314,15 +323,13 @@ export default function HomeTab({ onNavigate }: { onNavigate: (tab: string) => v
                     {/* Reserved */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: INFO }} />
-                      <span style={{ fontSize: 11, color: T2 }}>{s.res} Reserved</span>
+                      <span style={{ fontSize: 11, color: T2 }}>{s.reserved} Reserved</span>
                     </div>
                     {/* Available */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: GO }} />
-                      <span style={{ fontSize: 11, color: T2 }}>{s.avail} Available</span>
+                      <span style={{ fontSize: 11, color: T2 }}>{s.available} Available</span>
                     </div>
-                    {/* Completion */}
-                    <div style={{ marginLeft: 'auto', fontSize: 11, color: T4 }}>{s.comp}</div>
                   </div>
                 </div>
               );

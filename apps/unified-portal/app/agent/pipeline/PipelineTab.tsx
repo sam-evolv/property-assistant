@@ -2,18 +2,22 @@
 
 import { useState } from 'react';
 import {
-  BG, CARD, S1, S2, S3, LINE, LINE_B,
+  BG, CARD, S1, S2, S3, LINE,
   T1, T2, T3, T4,
   GOLD, GOLD_D, GOLD_L, GOLD_M,
   GO, GO_L, GO_M,
   FLAG, FLAG_L, FLAG_M,
-  WARN, WARN_L,
   INFO, INFO_L, INFO_M,
-  VIO, VIO_L, VIO_M,
+  VIO, VIO_L,
   STATUS_STYLES,
 } from '@/lib/agent/design-tokens';
+import { BUYERS as REAL_BUYERS, SCHEMES, formatPrice, type Buyer as RealBuyer } from '@/lib/agent/demo-data';
 
 type View = 'buyers' | 'stages' | 'schemes';
+
+/* ------------------------------------------------------------------ */
+/*  Adapt real buyer data to the card format                           */
+/* ------------------------------------------------------------------ */
 
 interface Buyer {
   id: number;
@@ -21,10 +25,7 @@ interface Buyer {
   name: string;
   unit: string;
   dev: string;
-  score: number;
-  aip: boolean;
   status: string;
-  last: string;
   budget: string;
   dep: string | null;
   cdate: string | null;
@@ -34,14 +35,46 @@ interface Buyer {
   notes: string;
 }
 
-const BUYERS: Buyer[] = [
-  { id: 1, ini: 'CR', name: 'Conor Ryan', unit: 'Coppice A1', dev: 'The Coppice', score: 92, aip: true, status: 'contracts_out', last: '2d ago', budget: '420,000', dep: '14 Jan', cdate: '22 Jan', signed: null, closing: null, urgent: true, notes: 'Solicitor 3 days late.' },
-  { id: 2, ini: 'DW', name: 'Deirdre Walsh', unit: 'Coppice A2', dev: 'The Coppice', score: 78, aip: true, status: 'reserved', last: 'Yesterday', budget: '380,000', dep: '18 Jan', cdate: null, signed: null, closing: null, urgent: false, notes: 'Happy with A2.' },
-  { id: 3, ini: 'JM', name: 'James McCarthy', unit: 'Coppice A3', dev: 'The Coppice', score: 95, aip: true, status: 'exchanged', last: '4d ago', budget: '500,000', dep: '10 Jan', cdate: '19 Jan', signed: '25 Jan', closing: '15 Apr', urgent: false, notes: 'On track.' },
-  { id: 4, ini: 'RD', name: 'R & K Donovan', unit: '14 Fernwood', dev: 'Standalone', score: 88, aip: true, status: 'contracts_out', last: 'Today', budget: '560,000', dep: '16 Jan', cdate: '23 Jan', signed: null, closing: null, urgent: true, notes: 'Solicitor slow.' },
-  { id: 5, ini: 'MB', name: 'Mark Brennan', unit: 'Coppice A5', dev: 'The Coppice', score: 61, aip: false, status: 'reserved', last: 'Today', budget: '420,000', dep: '20 Jan', cdate: null, signed: null, closing: null, urgent: true, notes: 'Needs AIP.' },
-  { id: 6, ini: 'SD', name: 'Sarah Doyle', unit: 'Unassigned', dev: '\u2014', score: 44, aip: false, status: 'enquiry', last: 'Today', budget: '300,000', dep: null, cdate: null, signed: null, closing: null, urgent: false, notes: '2 beds under 300k.' },
-];
+function formatDateShort(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function adaptBuyer(b: RealBuyer): Buyer {
+  const priceK = `${Math.round(b.price / 1000)},000`;
+  let notes = '';
+  if (b.status === 'contracts_out' && b.daysSinceIssued) {
+    notes = `Contracts issued ${b.daysSinceIssued} days ago.`;
+  } else if (b.status === 'contracts_signed' && b.kitchenSelected === false) {
+    notes = 'Kitchen not yet selected.';
+  } else if (b.status === 'contracts_signed' && b.kitchenSelected === true) {
+    notes = 'Kitchen selected.';
+  } else if (b.status === 'sale_agreed') {
+    notes = 'Awaiting contracts.';
+  } else if (b.status === 'sold' && b.handoverDate) {
+    notes = `Handed over ${formatDateShort(b.handoverDate)}.`;
+  }
+
+  return {
+    id: b.id,
+    ini: b.initials,
+    name: b.name,
+    unit: `${b.unit} (${b.type})`,
+    dev: b.scheme,
+    status: b.status,
+    budget: priceK,
+    dep: formatDateShort(b.depositDate),
+    cdate: formatDateShort(b.contractsIssuedDate),
+    signed: formatDateShort(b.contractsSignedDate),
+    closing: formatDateShort(b.handoverDate),
+    urgent: b.urgent,
+    notes,
+  };
+}
+
+const BUYERS: Buyer[] = REAL_BUYERS.map(adaptBuyer);
 
 const TOGGLE_ITEMS: { key: View; label: string }[] = [
   { key: 'buyers', label: 'By Buyer' },
@@ -202,25 +235,7 @@ function BuyerCard({ buyer }: { buyer: Buyer }) {
 
       {/* Info pills */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        <Pill label="Budget" value={`\u20AC${buyer.budget}`} />
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 3,
-            padding: '3px 8px',
-            borderRadius: 8,
-            background: buyer.aip ? GO_L : FLAG_L,
-            border: `1px solid ${buyer.aip ? GO_M : FLAG_M}`,
-            fontSize: 10,
-            fontWeight: 600,
-            color: buyer.aip ? GO : FLAG,
-          }}
-        >
-          AIP {buyer.aip ? 'Yes' : 'No'}
-        </span>
-        <Pill label="Score" value={`${buyer.score}`} />
-        <Pill label="Last" value={buyer.last} />
+        <Pill label="Price" value={`\u20AC${buyer.budget}`} />
       </div>
 
       {/* Notes */}
@@ -233,10 +248,10 @@ function BuyerCard({ buyer }: { buyer: Buyer }) {
 
 /* ---- By Stage View ---- */
 const STAGE_GROUPS: { key: string; label: string; color: string; bg: string; statuses: string[] }[] = [
-  { key: 'deposit', label: 'Deposit', color: INFO, bg: INFO_L, statuses: ['reserved', 'enquiry'] },
-  { key: 'contracts_issued', label: 'Contracts Issued', color: GOLD_D, bg: GOLD_L, statuses: ['contracts_out'] },
-  { key: 'contracts_signed', label: 'Contracts Signed', color: VIO, bg: VIO_L, statuses: ['exchanged'] },
-  { key: 'closed', label: 'Closed', color: GO, bg: GO_L, statuses: ['sold', 'closing'] },
+  { key: 'sale_agreed', label: 'Sale Agreed', color: GOLD_D, bg: GOLD_L, statuses: ['sale_agreed'] },
+  { key: 'contracts_out', label: 'Contracts Out', color: FLAG, bg: FLAG_L, statuses: ['contracts_out'] },
+  { key: 'contracts_signed', label: 'Contracts Signed', color: VIO, bg: VIO_L, statuses: ['contracts_signed'] },
+  { key: 'sold', label: 'Sold', color: GO, bg: GO_L, statuses: ['sold'] },
 ];
 
 function ByStageView() {
@@ -294,7 +309,7 @@ function ByStageView() {
                       <div style={{ fontSize: 13, fontWeight: 600, color: T1 }}>{b.name}</div>
                       <div style={{ fontSize: 11, color: T3 }}>{b.unit}</div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: T1, whiteSpace: 'nowrap' }}>\u20AC{b.budget}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T1, whiteSpace: 'nowrap' }}>{'\u20AC'}{b.budget}</div>
                   </div>
                 ))
               )}
@@ -308,28 +323,27 @@ function ByStageView() {
 
 /* ---- By Scheme View ---- */
 function BySchemeView() {
-  const schemes = Array.from(new Set(BUYERS.map((b) => b.dev)));
   const stageColors = [
-    { key: 'deposit', label: 'Deposit', color: INFO, statuses: ['reserved', 'enquiry'] },
-    { key: 'contracts', label: 'Contracts', color: GOLD_D, statuses: ['contracts_out'] },
-    { key: 'signed', label: 'Signed', color: VIO, statuses: ['exchanged'] },
-    { key: 'closed', label: 'Closed', color: GO, statuses: ['sold', 'closing'] },
+    { key: 'sale_agreed', label: 'Sale Agreed', color: GOLD_D, statuses: ['sale_agreed'] },
+    { key: 'contracts_out', label: 'Contracts Out', color: FLAG, statuses: ['contracts_out'] },
+    { key: 'contracts_signed', label: 'Signed', color: VIO, statuses: ['contracts_signed'] },
+    { key: 'sold', label: 'Sold', color: GO, statuses: ['sold'] },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {schemes.map((scheme) => {
-        const schemeBuyers = BUYERS.filter((b) => b.dev === scheme);
-        const total = schemeBuyers.length;
+      {SCHEMES.map((scheme) => {
+        const schemeBuyers = BUYERS.filter((b) => b.dev === scheme.name);
+        const totalBuyers = schemeBuyers.length;
         const counts = stageColors.map((s) => ({
           ...s,
           count: schemeBuyers.filter((b) => s.statuses.includes(b.status)).length,
         }));
-        const pct = total > 0 ? Math.round((counts.filter((c) => c.key === 'closed')[0].count / total) * 100) : 0;
+        const soldPct = Math.round(((scheme.sold + scheme.contractsSigned) / scheme.total) * 100);
 
         return (
           <div
-            key={scheme}
+            key={scheme.id}
             style={{
               background: CARD,
               borderRadius: 14,
@@ -342,10 +356,10 @@ function BySchemeView() {
             <div style={{ padding: '14px 14px 10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: T1 }}>{scheme}</div>
-                  <div style={{ fontSize: 11, color: T3 }}>{total} buyer{total !== 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T1 }}>{scheme.name}</div>
+                  <div style={{ fontSize: 11, color: T3 }}>{scheme.total} units &middot; {formatPrice(scheme.revenue)} revenue</div>
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: T1 }}>{pct}%</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: T1 }}>{soldPct}%</div>
               </div>
 
               {/* Stacked bar */}
@@ -355,7 +369,7 @@ function BySchemeView() {
                     <div
                       key={c.key}
                       style={{
-                        width: `${(c.count / total) * 100}%`,
+                        width: `${totalBuyers > 0 ? (c.count / totalBuyers) * 100 : 0}%`,
                         background: c.color,
                       }}
                     />
@@ -375,7 +389,7 @@ function BySchemeView() {
             </div>
 
             {/* Buyer rows */}
-            {schemeBuyers.map((b, i) => (
+            {schemeBuyers.map((b) => (
               <div
                 key={b.id}
                 style={{
@@ -398,7 +412,7 @@ function BySchemeView() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {b.unit}
+                  {b.unit.split(' (')[0]}
                 </span>
                 <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: T1 }}>{b.name}</span>
                 <StatusBadge status={b.status} small />
@@ -415,7 +429,14 @@ function BySchemeView() {
 export default function PipelineTab() {
   const [view, setView] = useState<View>('buyers');
 
-  const urgentBuyers = BUYERS.filter((b) => b.urgent);
+  // Sort urgent buyers by days since issued (descending)
+  const urgentBuyers = BUYERS
+    .filter((b) => b.urgent)
+    .sort((a, b) => {
+      const aDays = parseInt(a.notes.match(/(\d+) days/)?.[1] || '0');
+      const bDays = parseInt(b.notes.match(/(\d+) days/)?.[1] || '0');
+      return bDays - aDays;
+    });
   const normalBuyers = BUYERS.filter((b) => !b.urgent);
 
   return (
@@ -507,7 +528,7 @@ export default function PipelineTab() {
                     marginBottom: 8,
                   }}
                 >
-                  Needs Attention
+                  Needs Attention ({urgentBuyers.length})
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   {urgentBuyers.map((b) => (
@@ -528,7 +549,7 @@ export default function PipelineTab() {
                 marginBottom: 8,
               }}
             >
-              All Buyers
+              All Buyers ({normalBuyers.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {normalBuyers.map((b) => (
