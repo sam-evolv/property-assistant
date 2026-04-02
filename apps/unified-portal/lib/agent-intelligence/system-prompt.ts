@@ -157,7 +157,9 @@ ${recentActivitySummary || 'No recent activity data available.'}
 UPCOMING DEADLINES (next 14 days):
 ${upcomingDeadlines || 'No upcoming deadlines found.'}
 
-${previousEntityContext ? `PREVIOUS CONTEXT (from your recent conversations):\n${previousEntityContext}` : ''}
+${previousEntityContext ? `PREVIOUS CONTEXT (background only — from prior conversations):
+${previousEntityContext}
+IMPORTANT: The above is background context ONLY. Do NOT reference names, events, or details from previous conversations unless the agent's current message specifically asks about those entities. Never weave previous conversation details into unrelated answers.` : ''}
 
 ${ragResults ? `DOCUMENT RESULTS:\n${ragResults}` : ''}`;
 }
