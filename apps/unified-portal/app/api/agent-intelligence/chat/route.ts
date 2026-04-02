@@ -196,14 +196,25 @@ export async function POST(request: NextRequest) {
       (err) => console.error('[AgentIntel] Failed to log interaction:', err)
     );
 
-    // 9. Stream the response
+    // 9. Strip markdown from response (plain text for mobile display)
+    const cleanResponse = responseText
+      .replace(/#{1,6}\s/g, '')           // strip heading markers
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // strip bold **text**
+      .replace(/\*([^*]+)\*/g, '$1')      // strip italic *text*
+      .replace(/__([^_]+)__/g, '$1')      // strip bold __text__
+      .replace(/_([^_]+)_/g, '$1')        // strip italic _text_
+      .replace(/`([^`]+)`/g, '$1')        // strip inline code
+      .replace(/```[\s\S]*?```/g, '')     // strip code blocks
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // strip links, keep text
+
+    // 10. Stream the response
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send the full response as tokens (for consistency with existing pattern)
+          // Send the cleaned response
           controller.enqueue(
-            encoder.encode(JSON.stringify({ type: 'token', content: responseText }) + '\n')
+            encoder.encode(JSON.stringify({ type: 'token', content: cleanResponse }) + '\n')
           );
 
           // Send tool call metadata
@@ -216,22 +227,22 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Generate follow-up suggestions
+          // Generate follow-up ACTION suggestions (not questions)
           try {
             const followUpCompletion = await openai.chat.completions.create({
               model: 'gpt-4.1-mini',
               messages: [
                 {
                   role: 'system',
-                  content: 'You are helping an estate agent selling new homes in Ireland. Based on this conversation, suggest 2-3 short follow-up questions they might ask next. Return ONLY a JSON array of strings, no explanation. Max 10 words per question.',
+                  content: 'You suggest next ACTIONS for a busy Irish estate agent. Based on this conversation, suggest 2-3 short next actions they might want to take. Return ONLY a JSON array of strings. Max 8 words each. These must be ACTIONS the agent can tap to execute, never questions. Examples of GOOD suggestions: "Draft follow-up emails now", "Show the full Meadow View pipeline", "Create a task for Monday", "Check other outstanding items". Examples of BAD suggestions (never use): "Would you like more details?", "Do you need help with anything else?", "What specific information do you need?"',
                 },
                 {
                   role: 'user',
-                  content: `Agent asked: ${message}\n\nAssistant replied: ${responseText.slice(0, 500)}`,
+                  content: `Agent asked: ${message}\n\nAssistant replied: ${cleanResponse.slice(0, 500)}`,
                 },
               ],
-              temperature: 0.7,
-              max_tokens: 200,
+              temperature: 0.5,
+              max_tokens: 150,
             });
 
             const followUpText = followUpCompletion.choices[0]?.message?.content?.trim();

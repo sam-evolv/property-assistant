@@ -163,14 +163,20 @@ export async function draftMessage(
     if (dev) {
       const { data: units } = await supabase
         .from('units')
-        .select('id, unit_number, unit_uid, purchaser_email')
+        .select('id, unit_number, unit_uid')
         .eq('development_id', dev.id)
         .or(`unit_number.ilike.%${params.related_unit}%,unit_uid.ilike.%${params.related_unit}%`)
         .limit(1);
 
       if (units?.[0]) {
-        recipientEmail = units[0].purchaser_email;
         unitContext = `Unit ${units[0].unit_number || units[0].unit_uid} in ${dev.name}`;
+        // Get email from pipeline table (units table doesn't have purchaser_email)
+        const { data: pipeline } = await supabase
+          .from('unit_sales_pipeline')
+          .select('purchaser_email')
+          .eq('unit_id', units[0].id)
+          .maybeSingle();
+        recipientEmail = pipeline?.purchaser_email || null;
       }
     }
   }

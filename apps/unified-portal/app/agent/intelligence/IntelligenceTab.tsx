@@ -2,25 +2,23 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-/* ─── Light palette — matches homeowner portal assistant ─── */
+/* ─── Light palette — matches property assistant exactly ─── */
 const C = {
   bg:       '#FFFFFF',
   surface:  '#F7F7F9',
-  surfaceB: '#F0F0F4',
   line:     '#EBEBF0',
-  lineB:    '#E0E0E8',
-  t1:       '#0D0D18',
-  t2:       '#3C3C52',
-  t3:       '#888899',
-  t4:       '#B4B4C8',
+  t1:       '#111827',   // slate-900
+  t2:       '#6b7280',   // gray-500
+  t3:       '#9ca3af',   // gray-400
+  t4:       '#d1d5db',   // gray-300
   gold:     '#D4AF37',
-  goldDim:  '#B8961E',
-  pillBorder: '#E2E2EA',
-  pillHover:  '#F5F5F7',
+  goldLight:'rgba(212,175,55,0.15)',
+  goldText: '#9A7A2E',
+  userBubble: 'linear-gradient(135deg, #D4AF37, #C4A030)',
+  assistBubble: '#E9E9EB',  // exact match to property assistant
 };
 
 /* ─── Types ─── */
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -29,37 +27,46 @@ interface Message {
   followUps?: string[];
 }
 
-/* ─── Tool step metadata ─── */
+/* ─── Format assistant content (matches property assistant formatting) ─── */
+function formatContent(text: string): string {
+  if (!text) return '';
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function toolMeta(name: string) {
-  if (name.includes('draft_message'))             return { label: 'Draft email',              color: '#1756A8', bg: 'rgba(23,86,168,0.08)',   border: 'rgba(23,86,168,0.12)',  icon: 'email' as const };
-  if (name.includes('generate_developer_report')) return { label: 'Compile report',            color: '#0A7855', bg: 'rgba(10,120,85,0.07)',   border: 'rgba(10,120,85,0.14)',  icon: 'report' as const };
-  if (name.includes('create_task'))               return { label: 'Task created',              color: '#B05208', bg: 'rgba(176,82,8,0.07)',    border: 'rgba(176,82,8,0.14)',   icon: 'reminder' as const };
-  if (name.includes('log_communication'))         return { label: 'Logged communication',      color: '#5B30AC', bg: 'rgba(91,48,172,0.07)',   border: 'rgba(91,48,172,0.14)',  icon: 'status' as const };
-  if (name.includes('search_knowledge_base'))     return { label: 'Searched knowledge base',   color: '#1756A8', bg: 'rgba(23,86,168,0.08)',   border: 'rgba(23,86,168,0.12)',  icon: 'search' as const };
-  if (name.includes('get_unit_status'))           return { label: 'Looked up unit',            color: '#1756A8', bg: 'rgba(23,86,168,0.08)',   border: 'rgba(23,86,168,0.12)',  icon: 'search' as const };
-  if (name.includes('get_buyer'))                 return { label: 'Looked up buyer',           color: '#1756A8', bg: 'rgba(23,86,168,0.08)',   border: 'rgba(23,86,168,0.12)',  icon: 'search' as const };
-  if (name.includes('get_scheme_overview'))       return { label: 'Scheme overview',           color: '#0A7855', bg: 'rgba(10,120,85,0.07)',   border: 'rgba(10,120,85,0.14)',  icon: 'report' as const };
-  if (name.includes('get_outstanding'))           return { label: 'Checked outstanding items', color: '#B05208', bg: 'rgba(176,82,8,0.07)',    border: 'rgba(176,82,8,0.14)',   icon: 'status' as const };
-  if (name.includes('get_communication'))         return { label: 'Checked comms history',     color: '#5B30AC', bg: 'rgba(91,48,172,0.07)',   border: 'rgba(91,48,172,0.14)',  icon: 'status' as const };
-  return { label: name.replace(/_/g, ' '), color: C.t3, bg: C.surface, border: C.line, icon: 'info' as const };
+  // Bold headings — lines ending with colon
+  html = html.replace(/^([A-Z][^:\n]{0,50}:)\s*$/gm, '<strong style="display:block;margin-top:12px;margin-bottom:4px;font-size:15px;font-weight:600">$1</strong>');
+
+  // List items with gold dots
+  html = html.replace(/^- (.+)$/gm, '<div style="display:flex;align-items:flex-start;gap:8px;margin:4px 0 4px 4px"><span style="color:#D4AF37;flex-shrink:0;margin-top:2px">\u2022</span><span style="flex:1">$1</span></div>');
+
+  // Numbered lists
+  html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<div style="display:flex;align-items:flex-start;gap:8px;margin:4px 0 4px 4px"><span style="color:#D4AF37;font-weight:500;flex-shrink:0;min-width:1.25rem;margin-top:1px">$1.</span><span style="flex:1">$2</span></div>');
+
+  // Prices highlighted
+  html = html.replace(/([€£]\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g, '<span style="font-weight:600;color:#9A7A2E">$1</span>');
+
+  // Paragraphs
+  html = html.replace(/\n\n/g, '</p><p style="margin-top:12px">');
+  html = html.replace(/\n/g, '<br/>');
+  html = '<p>' + html + '</p>';
+  html = html.replace(/<p><\/p>/g, '');
+
+  return html;
 }
 
-const ICON_PATHS: Record<string, string> = {
-  email:    '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
-  status:   '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-  reminder: '<circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>',
-  report:   '<polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/>',
-  search:   '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
-  info:     '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
-};
-
-function StepIcon({ type, color, size = 13 }: { type: string; color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
-      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
-      dangerouslySetInnerHTML={{ __html: ICON_PATHS[type] || ICON_PATHS.info }} />
-  );
+/* ─── Tool step metadata ─── */
+function toolLabel(name: string): string {
+  if (name.includes('draft_message')) return 'Drafted email';
+  if (name.includes('generate_developer_report')) return 'Generated report';
+  if (name.includes('create_task')) return 'Created task';
+  if (name.includes('log_communication')) return 'Logged communication';
+  if (name.includes('get_unit_status')) return 'Looked up unit';
+  if (name.includes('get_buyer')) return 'Looked up buyer';
+  if (name.includes('get_scheme_overview')) return 'Checked scheme';
+  if (name.includes('get_outstanding')) return 'Checked outstanding items';
+  if (name.includes('get_communication')) return 'Checked comms history';
+  if (name.includes('search_knowledge_base')) return 'Searched docs';
+  return name.replace(/_/g, ' ');
 }
 
 /* ─── Clipboard ─── */
@@ -74,36 +81,15 @@ async function copyText(text: string) {
 
 /* ─── Suggested prompts ─── */
 const PROMPTS = [
-  { label: 'Chase contracts',       query: 'What contracts are outstanding and need chasing?' },
-  { label: 'Weekly report',         query: 'Generate a weekly developer report' },
-  { label: 'AIP follow-up',         query: 'Which buyers still need AIP sorted?' },
-  { label: 'Email all pending',     query: 'Draft follow-up emails for all buyers with contracts outstanding' },
+  { label: "What's outstanding this week?", query: "What's outstanding this week?" },
+  { label: 'Give me a scheme overview',     query: 'Give me an overview of all my schemes' },
+  { label: 'Draft a buyer follow-up',       query: 'Draft a follow-up email to the buyer on the most overdue contract' },
+  { label: 'Generate developer report',     query: 'Generate a weekly developer report' },
 ];
 
-/* ─── Shared button styles ─── */
-const ghostBtn: React.CSSProperties = {
-  flex: 1, padding: '10px 14px', borderRadius: 10,
-  background: C.surfaceB, border: `1px solid ${C.line}`,
-  color: C.t2, fontSize: 12, fontWeight: 500,
-  fontFamily: 'inherit', cursor: 'pointer',
-};
-const goldBtn: React.CSSProperties = {
-  flex: 1, padding: '10px 14px', borderRadius: 10,
-  background: C.gold, border: 'none',
-  color: '#FFFFFF', fontSize: 12, fontWeight: 700,
-  fontFamily: 'inherit', cursor: 'pointer',
-  boxShadow: '0 2px 8px rgba(212,175,55,0.3)',
-};
-const darkBtn: React.CSSProperties = {
-  flex: 1, padding: '10px 14px', borderRadius: 10,
-  background: C.t1, border: 'none',
-  color: '#FFFFFF', fontSize: 12, fontWeight: 600,
-  fontFamily: 'inherit', cursor: 'pointer',
-};
-
-/* ═══════════════════════════════════════════════════
+/* ═══════════════════════════════════════
    Component
-   ═══════════════════════════════════════════════════ */
+   ═══════════════════════════════════════ */
 
 export default function IntelligenceTab() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -111,23 +97,15 @@ export default function IntelligenceTab() {
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const threadRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, sending]);
 
-  useEffect(() => {
-    if (document.getElementById('oh-intel-styles')) return;
-    const s = document.createElement('style');
-    s.id = 'oh-intel-styles';
-    s.textContent = '@keyframes ohBlink{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}';
-    document.head.appendChild(s);
-  }, []);
-
-  /* ── Send message via streaming API ── */
+  /* ── Send via streaming API ── */
   const handleSend = useCallback(async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || sending) return;
@@ -173,7 +151,6 @@ export default function IntelligenceTab() {
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
@@ -193,7 +170,6 @@ export default function IntelligenceTab() {
           } catch { /* skip */ }
         }
       }
-
       if (buffer.trim()) {
         try {
           const ev = JSON.parse(buffer);
@@ -206,7 +182,6 @@ export default function IntelligenceTab() {
 
       setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: full, toolsUsed: tools, followUps } : m));
       if (retSession && !sessionId) setSessionId(retSession);
-
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setMessages(prev => [...prev, {
@@ -222,24 +197,20 @@ export default function IntelligenceTab() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleCopy = (id: string, text: string) => {
-    copyText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const hasMessages = messages.length > 0;
+  const hasMessages = messages.length > 0 || sending;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg }}>
 
-      {/* ═══ LANDING STATE ═══ */}
-      {!hasMessages && !sending && (
+      {/* ═══ WELCOME / LANDING ═══ */}
+      {!hasMessages && (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '24px 28px 0', textAlign: 'center',
         }}>
           {/* Logo */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <div style={{ marginBottom: 12, cursor: 'pointer' }}>
             <img
               src="/openhouse-logo.png" alt="OpenHouse AI" width={72} height={72}
               style={{ objectFit: 'contain' }}
@@ -248,7 +219,7 @@ export default function IntelligenceTab() {
             <div style={{
               display: 'none', width: 72, height: 72, borderRadius: '50%',
               border: `2.5px solid ${C.gold}`, alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 0 6px rgba(212,175,55,0.1)',
+              boxShadow: `0 0 0 6px ${C.goldLight}`,
             }}>
               <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke={C.gold} strokeWidth="1.25"/>
@@ -256,26 +227,27 @@ export default function IntelligenceTab() {
                 <line x1="9.5" y1="14" x2="14.5" y2="14" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </div>
-            <span style={{ color: C.gold, fontSize: 13, fontWeight: 600, letterSpacing: '0.01em' }}>OpenHouse Ai</span>
           </div>
 
-          <h2 style={{ color: C.t1, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3, margin: '0 0 10px' }}>
+          {/* Title */}
+          <h1 style={{ color: C.t1, fontSize: 17, fontWeight: 600, lineHeight: 1.3, margin: '12px 0 6px' }}>
             Ask anything about your<br />pipeline or tasks
-          </h2>
-          <p style={{ color: C.t3, fontSize: 13, lineHeight: 1.65, margin: '0 0 28px', maxWidth: 300 }}>
-            Quick actions for sales agents: chase contracts, draft reports, follow up buyers, and more.
+          </h1>
+          <p style={{ color: C.t2, fontSize: 12, lineHeight: 1.5, margin: '0 0 16px', maxWidth: 280 }}>
+            Quick answers for sales, units, buyers, and tasks.
           </p>
 
-          {/* 2x2 pill grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', maxWidth: 320 }}>
+          {/* 2x2 pill grid — matches property assistant */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%', maxWidth: 300 }}>
             {PROMPTS.map(p => (
               <button key={p.label} onClick={() => handleSend(p.query)} style={{
-                padding: '11px 16px', background: C.bg,
-                border: `1px solid ${C.pillBorder}`, borderRadius: 24,
-                color: C.t2, fontSize: 13, fontWeight: 500,
+                padding: '8px 10px', background: C.bg,
+                border: '1px solid #e2e8f0', borderRadius: 9999,
+                color: C.t1, fontSize: 12, fontWeight: 500,
                 fontFamily: 'inherit', cursor: 'pointer',
                 textAlign: 'center', lineHeight: 1.4, width: '100%',
-                transition: 'background .15s ease',
+                transition: 'all .2s', overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {p.label}
               </button>
@@ -284,136 +256,129 @@ export default function IntelligenceTab() {
         </div>
       )}
 
-      {/* ═══ THREAD ═══ */}
-      {(hasMessages || sending) && (
-        <div ref={threadRef} style={{
-          flex: 1, overflowY: 'auto', padding: '16px 16px 8px',
-          display: 'flex', flexDirection: 'column', gap: 14,
-          WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' as any,
+      {/* ═══ MESSAGES ═══ */}
+      {hasMessages && (
+        <div ref={scrollRef} style={{
+          flex: 1, overflowY: 'auto', padding: '12px 16px 8px',
+          display: 'flex', flexDirection: 'column', gap: 16,
+          WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain',
         }}>
           {messages.map(msg => msg.role === 'user' ? (
-            /* ── User bubble — GOLD ── */
+            /* ── User bubble — gold gradient, iMessage style ── */
             <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{
-                background: C.gold, borderRadius: '18px 18px 4px 18px',
-                padding: '11px 16px', maxWidth: '80%',
-                boxShadow: '0 2px 8px rgba(212,175,55,0.25)',
+                background: C.userBubble,
+                borderRadius: '20px 20px 6px 20px',
+                padding: '10px 16px', maxWidth: '75%',
+                boxShadow: '0 1px 3px rgba(212,175,55,0.2)',
               }}>
-                <p style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 1.5, margin: 0, fontWeight: 500 }}>{msg.content}</p>
+                <p style={{ color: '#fff', fontSize: 15, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {msg.content}
+                </p>
               </div>
             </div>
           ) : (
-            /* ── AI response card — WHITE ── */
-            <div key={msg.id} style={{ maxWidth: '92%' }}>
-              <div style={{
-                background: C.bg, border: `1px solid ${C.line}`,
-                borderRadius: 16, overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)',
-              }}>
-                {/* Card header */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '12px 16px', borderBottom: `1px solid ${C.line}`,
-                }}>
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 8,
-                    background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <svg width={12} height={12} viewBox="0 0 24 24" fill={C.gold}>
-                      <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2" />
-                    </svg>
+            /* ── Assistant bubble — light grey, iMessage style ── */
+            <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-start', flexDirection: 'column', gap: 6 }}>
+              <div style={{ maxWidth: '80%' }}>
+                {/* Tool usage — subtle inline indicator */}
+                {msg.toolsUsed && msg.toolsUsed.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                    {msg.toolsUsed.map((t, i) => (
+                      <span key={i} style={{
+                        fontSize: 10, color: C.goldText,
+                        background: C.goldLight, padding: '2px 8px',
+                        borderRadius: 6, fontWeight: 500,
+                      }}>
+                        {toolLabel(t.name)}
+                      </span>
+                    ))}
                   </div>
-                  <span style={{ color: C.t1, fontSize: 13, fontWeight: 600 }}>Intelligence</span>
-                  {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                    <span style={{ color: C.t4, fontSize: 11, marginLeft: 'auto' }}>
-                      {msg.toolsUsed.length} action{msg.toolsUsed.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
+                )}
 
-                {/* Tool steps */}
-                {msg.toolsUsed && msg.toolsUsed.length > 0 && msg.toolsUsed.map((tool, ti) => {
-                  const meta = toolMeta(tool.name);
-                  return (
-                    <div key={ti} style={{ padding: '14px 16px', borderBottom: ti < (msg.toolsUsed?.length || 0) - 1 ? `1px solid ${C.line}` : 'none' }}>
-                      <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: 8,
-                          background: meta.bg, border: `1px solid ${meta.border}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0, marginTop: 1,
-                        }}>
-                          <StepIcon type={meta.icon} color={meta.color} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ color: C.t2, fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>{meta.label}</p>
-                          <p style={{ color: C.t3, fontSize: 11, margin: 0, lineHeight: 1.5 }}>{tool.summary}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Response body */}
-                <div style={{ padding: '14px 16px' }}>
+                {/* The bubble */}
+                <div style={{
+                  background: C.assistBubble,
+                  borderRadius: '20px 20px 20px 6px',
+                  padding: '10px 16px',
+                  boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
+                  position: 'relative',
+                }}>
                   {msg.toolsUsed?.some(t => t.name.includes('draft_message')) ? (
+                    /* ── Draft email card ── */
                     <div>
-                      <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 10 }}>
-                        <p style={{ color: C.t4, fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const, margin: '0 0 8px' }}>DRAFT EMAIL</p>
-                        <p style={{ color: C.t1, fontSize: 12, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+                      }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
+                          letterSpacing: '0.06em', color: C.goldText,
+                          background: C.goldLight, padding: '2px 8px', borderRadius: 6,
+                        }}>Draft</span>
+                        <span style={{ fontSize: 10, color: C.t3 }}>Review before sending</span>
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button style={ghostBtn}>Edit</button>
-                        <button onClick={() => handleCopy(msg.id, msg.content)} style={goldBtn}>
-                          {copiedId === msg.id ? 'Copied \u2713' : 'Send \u2197'}
+                      <div style={{
+                        fontSize: 15, lineHeight: 1.6, color: '#1f2937',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}
+                        dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button onClick={() => { copyText(msg.content); setCopiedId(msg.id); setTimeout(() => setCopiedId(null), 2000); }}
+                          style={{
+                            flex: 1, padding: '8px 12px', borderRadius: 10,
+                            background: C.gold, border: 'none', color: '#fff',
+                            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
+                          }}>
+                          {copiedId === msg.id ? 'Copied' : 'Copy draft'}
                         </button>
                       </div>
                     </div>
                   ) : msg.toolsUsed?.some(t => t.name.includes('generate_developer_report')) ? (
+                    /* ── Report card ── */
                     <div>
-                      <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 10 }}>
-                        <p style={{ color: C.t1, fontSize: 12, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
+                          letterSpacing: '0.06em', color: '#0A7855',
+                          background: 'rgba(10,120,85,0.08)', padding: '2px 8px', borderRadius: 6,
+                        }}>Report</span>
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button style={ghostBtn}>Edit</button>
-                        <button onClick={() => handleCopy(msg.id, msg.content)} style={goldBtn}>
-                          {copiedId === msg.id ? 'Copied \u2713' : 'Send to Developer \u2197'}
+                      <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                        dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button onClick={() => { copyText(msg.content); setCopiedId(msg.id); setTimeout(() => setCopiedId(null), 2000); }}
+                          style={{
+                            flex: 1, padding: '8px 12px', borderRadius: 10,
+                            background: C.gold, border: 'none', color: '#fff',
+                            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
+                          }}>
+                          {copiedId === msg.id ? 'Copied' : 'Send to developer'}
                         </button>
                       </div>
                     </div>
-                  ) : msg.toolsUsed?.some(t => t.name.includes('create_task')) ? (
-                    <div>
-                      <p style={{ color: C.t1, fontSize: 12, lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-line' }}>{msg.content}</p>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button style={ghostBtn}>Dismiss</button>
-                        <button style={darkBtn}>Confirm \u2713</button>
-                      </div>
-                    </div>
-                  ) : msg.toolsUsed?.some(t => t.name.includes('log_communication')) ? (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
-                      background: 'rgba(10,120,85,0.06)', border: '1px solid rgba(10,120,85,0.15)', borderRadius: 10,
-                    }}>
-                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0A7855" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                      <span style={{ color: '#0A7855', fontSize: 13, fontWeight: 600 }}>Done</span>
-                      <span style={{ color: C.t3, fontSize: 12, flex: 1 }}>{msg.content.slice(0, 100)}</span>
-                    </div>
                   ) : (
-                    <p style={{ color: C.t1, fontSize: 13, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                    /* ── Standard text ── */
+                    <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                      dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+                    />
                   )}
                 </div>
               </div>
 
-              {/* Follow-up pills */}
+              {/* Follow-up action pills */}
               {msg.followUps && msg.followUps.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingLeft: 4 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 4, maxWidth: '85%' }}>
                   {msg.followUps.map((q, i) => (
                     <button key={i} onClick={() => handleSend(q)} style={{
                       padding: '6px 12px', background: C.bg,
-                      border: `1px solid ${C.pillBorder}`, borderRadius: 20,
-                      color: C.t2, fontSize: 11, fontWeight: 500,
+                      border: '1px solid #e2e8f0', borderRadius: 9999,
+                      color: C.t1, fontSize: 12, fontWeight: 500,
                       cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all .2s',
                     }}>
                       {q}
                     </button>
@@ -423,60 +388,70 @@ export default function IntelligenceTab() {
             </div>
           ))}
 
-          {/* Typing indicator */}
+          {/* Typing indicator — matches property assistant */}
           {sending && (
-            <div style={{
-              background: C.bg, border: `1px solid ${C.line}`,
-              borderRadius: 14, padding: '14px 16px',
-              display: 'flex', alignItems: 'center', gap: 12,
-              maxWidth: '60%', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{ display: 'flex', gap: 5 }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{
-                    width: 7, height: 7, borderRadius: '50%', background: C.t4,
-                    animation: `ohBlink 1.2s ease-in-out ${i * 0.2}s infinite`,
-                  }} />
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{
+                background: C.assistBubble, borderRadius: '20px 20px 20px 6px',
+                padding: '10px 16px', boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{
+                      width: 8, height: 8, borderRadius: '50%', background: '#9ca3af',
+                      animation: `ohDotBounce 1.4s infinite ${i * 0.2}s`,
+                    }} />
+                  ))}
+                </div>
               </div>
-              <span style={{ color: C.t3, fontSize: 12 }}>Working on it...</span>
             </div>
           )}
         </div>
       )}
 
-      {/* ═══ BOTTOM BAR ═══ */}
-      <div style={{
-        flexShrink: 0, background: C.bg, padding: '8px 16px 14px',
-        borderTop: hasMessages ? `1px solid ${C.line}` : 'none',
-      }}>
-        <p style={{ color: C.t4, fontSize: 10, textAlign: 'center', margin: '0 0 10px' }}>
+      {/* ═══ INPUT BAR — matches property assistant ═══ */}
+      <div style={{ flexShrink: 0, background: C.bg, padding: '8px 16px 14px' }}>
+        <p style={{ color: C.t4, fontSize: 10, textAlign: 'center', margin: '0 0 8px' }}>
           Powered by AI &bull; Information for reference only
         </p>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
+          display: 'flex', alignItems: 'center', gap: 8,
           background: C.surface, border: `1px solid ${C.line}`,
-          borderRadius: 28, padding: '12px 16px',
+          borderRadius: 28, padding: '4px 4px 4px 16px',
         }}>
           <textarea
             ref={taRef} rows={1} value={input}
-            onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 88) + 'px'; }}
+            onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px'; }}
             onKeyDown={handleKeyDown}
             placeholder="Ask about your pipeline or tasks..."
             disabled={sending}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
               color: C.t1, fontSize: 14, lineHeight: 1.5, resize: 'none',
-              fontFamily: 'inherit', maxHeight: 88, opacity: sending ? 0.5 : 1,
+              fontFamily: 'inherit', maxHeight: 80, opacity: sending ? 0.5 : 1,
+              padding: '8px 0',
             }}
           />
-          <button style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}>
+          {/* Mic icon */}
+          <button style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'transparent', border: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
+          }}>
             <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={C.t3} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
             </svg>
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes ohDotBounce {
+          0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-8px); }
+        }
+      `}</style>
     </div>
   );
 }
