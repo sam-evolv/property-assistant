@@ -102,8 +102,8 @@ export default function AgentApp() {
               {t.special ? (
                 <div style={{
                   width: 36, height: 36, borderRadius: 12,
-                  background: active ? '#1A1E26' : '#F0F0F4',
-                  border: active ? '1px solid rgba(212,175,55,0.25)' : `1px solid ${LINE}`,
+                  background: active ? 'rgba(212,175,55,0.1)' : '#F0F0F4',
+                  border: active ? '1px solid rgba(212,175,55,0.3)' : `1px solid ${LINE}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'all .2s',
                 }}>
