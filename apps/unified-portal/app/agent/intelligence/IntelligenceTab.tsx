@@ -1,12 +1,21 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  CARD, S1, LINE, LINE_B,
-  T1, T2, T3, T4,
-  GOLD, GOLD_D, GOLD_L, GOLD_M,
-  GO, GO_L, WARN, WARN_L, INFO, INFO_L, VIO, VIO_L,
-} from '@/lib/agent/design-tokens';
+
+/* ─── Dark palette — Intelligence screen only ─── */
+const D = {
+  bg:       '#0B0C0F',
+  surface:  '#12151A',
+  surface2: '#1A1E26',
+  border:   '#1E2531',
+  border2:  '#2A3040',
+  t1:       '#EEF2F8',
+  t2:       '#9CA8BC',
+  t3:       '#566070',
+  gold:     '#D4AF37',
+  goldDim:  '#A88B20',
+  goldGlow: 'rgba(212,175,55,0.12)',
+};
 
 /* ─── Types ─── */
 
@@ -21,17 +30,17 @@ interface Message {
 /* ─── Tool step metadata ─── */
 
 function toolMeta(name: string) {
-  if (name.includes('draft_message'))             return { label: 'Draft email',              color: INFO, bg: INFO_L, icon: 'email' as const };
-  if (name.includes('generate_developer_report')) return { label: 'Compile report',            color: GO,   bg: GO_L,   icon: 'report' as const };
-  if (name.includes('create_task'))               return { label: 'Task created',              color: WARN, bg: WARN_L, icon: 'reminder' as const };
-  if (name.includes('log_communication'))         return { label: 'Logged communication',      color: VIO,  bg: VIO_L,  icon: 'status' as const };
-  if (name.includes('search_knowledge_base'))     return { label: 'Searched knowledge base',   color: INFO, bg: INFO_L, icon: 'search' as const };
-  if (name.includes('get_unit_status'))           return { label: 'Looked up unit',            color: INFO, bg: INFO_L, icon: 'search' as const };
-  if (name.includes('get_buyer'))                 return { label: 'Looked up buyer',           color: INFO, bg: INFO_L, icon: 'search' as const };
-  if (name.includes('get_scheme_overview'))       return { label: 'Scheme overview',           color: GO,   bg: GO_L,   icon: 'report' as const };
-  if (name.includes('get_outstanding'))           return { label: 'Checked outstanding items', color: WARN, bg: WARN_L, icon: 'status' as const };
-  if (name.includes('get_communication'))         return { label: 'Checked comms history',     color: VIO,  bg: VIO_L,  icon: 'status' as const };
-  return { label: name.replace(/_/g, ' '), color: T3, bg: S1, icon: 'info' as const };
+  if (name.includes('draft_message'))             return { label: 'Draft email',              color: '#3B82F6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.2)',  icon: 'email' as const };
+  if (name.includes('generate_developer_report')) return { label: 'Compile report',            color: '#10B981', bg: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.2)',  icon: 'report' as const };
+  if (name.includes('create_task'))               return { label: 'Task created',              color: '#F59E0B', bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.2)',  icon: 'reminder' as const };
+  if (name.includes('log_communication'))         return { label: 'Logged communication',      color: '#8B5CF6', bg: 'rgba(139,92,246,0.10)',  border: 'rgba(139,92,246,0.2)',  icon: 'status' as const };
+  if (name.includes('search_knowledge_base'))     return { label: 'Searched knowledge base',   color: '#3B82F6', bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.2)',  icon: 'search' as const };
+  if (name.includes('get_unit_status'))           return { label: 'Looked up unit',            color: '#3B82F6', bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.2)',  icon: 'search' as const };
+  if (name.includes('get_buyer'))                 return { label: 'Looked up buyer',           color: '#3B82F6', bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.2)',  icon: 'search' as const };
+  if (name.includes('get_scheme_overview'))       return { label: 'Scheme overview',           color: '#10B981', bg: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.2)',  icon: 'report' as const };
+  if (name.includes('get_outstanding'))           return { label: 'Checked outstanding items', color: '#F59E0B', bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.2)',  icon: 'status' as const };
+  if (name.includes('get_communication'))         return { label: 'Checked comms history',     color: '#8B5CF6', bg: 'rgba(139,92,246,0.10)',  border: 'rgba(139,92,246,0.2)',  icon: 'status' as const };
+  return { label: name.replace(/_/g, ' '), color: D.t3, bg: D.surface2, border: D.border, icon: 'info' as const };
 }
 
 const ICON_PATHS: Record<string, string> = {
@@ -43,7 +52,7 @@ const ICON_PATHS: Record<string, string> = {
   info:     '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
 };
 
-function StepIcon({ type, color, size = 13 }: { type: string; color: string; size?: number }) {
+function StepIcon({ type, color, size = 14 }: { type: string; color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
@@ -51,14 +60,45 @@ function StepIcon({ type, color, size = 13 }: { type: string; color: string; siz
   );
 }
 
-/* ─── Suggested prompts ─── */
+/* ─── Logo ─── */
 
-const PROMPTS = [
-  { label: 'Chase contracts',      query: 'What contracts are outstanding and need chasing?' },
-  { label: 'Weekly report',        query: 'Generate a weekly developer report' },
-  { label: 'Pipeline overview',    query: 'Give me an overview of all my schemes' },
-  { label: 'What needs attention?', query: "What's outstanding this week?" },
-];
+function OHLogo() {
+  return (
+    <div style={{
+      width: 80, height: 80, borderRadius: '50%',
+      border: `2px solid ${D.gold}`,
+      boxShadow: `0 0 0 8px ${D.goldGlow}, 0 0 32px rgba(212,175,55,0.1)`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      marginBottom: 20, flexShrink: 0,
+    }}>
+      <svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke={D.gold} strokeWidth="1.25" />
+        <path d="M8 14L12 9L16 14" stroke={D.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="9.5" y1="14" x2="14.5" y2="14" stroke={D.gold} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Prompt pill ─── */
+
+function PromptPill({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '12px 16px', background: 'transparent',
+      border: `1px solid ${D.border2}`, borderRadius: 14,
+      color: D.t2, fontSize: 13, fontWeight: 500,
+      fontFamily: 'inherit', cursor: 'pointer',
+      textAlign: 'center', lineHeight: 1.4,
+      transition: 'all 0.15s ease', width: '100%',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = D.gold; e.currentTarget.style.color = D.t1; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = D.border2; e.currentTarget.style.color = D.t2; }}
+    >
+      {label}
+    </button>
+  );
+}
 
 /* ─── Clipboard ─── */
 
@@ -71,8 +111,17 @@ async function copyText(text: string) {
   }
 }
 
+/* ─── Suggested prompts ─── */
+
+const PROMPTS = [
+  { label: 'Chase contracts',       query: 'What contracts are outstanding and need chasing?' },
+  { label: 'Weekly report',         query: 'Generate a weekly developer report' },
+  { label: 'AIP follow-up',         query: 'Which buyers still need AIP sorted?' },
+  { label: 'Email all pending',     query: 'Draft follow-up emails for all buyers with contracts outstanding' },
+];
+
 /* ═══════════════════════════════════════════════════
-   Component
+   Component — Dark premium Intelligence
    ═══════════════════════════════════════════════════ */
 
 export default function IntelligenceTab() {
@@ -82,6 +131,7 @@ export default function IntelligenceTab() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -100,6 +150,7 @@ export default function IntelligenceTab() {
     const userMsg: Message = { id: `u_${Date.now()}`, role: 'user', content: msg };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    if (taRef.current) taRef.current.style.height = 'auto';
     setSending(true);
 
     const history = [...messages, userMsg].slice(-10).map(m => ({ role: m.role, content: m.content }));
@@ -189,99 +240,116 @@ export default function IntelligenceTab() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: CARD, position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: D.bg, position: 'relative' }}>
 
       {/* ═══ LANDING STATE ═══ */}
-      {!hasMessages && (
+      {!hasMessages && !sending && (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          padding: '20px 28px 0', textAlign: 'center',
+          padding: '24px 28px 0', textAlign: 'center',
         }}>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              border: `2.5px solid ${GOLD_M}`, boxShadow: `0 0 0 6px ${GOLD_L}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width={36} height={36} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" stroke={GOLD} />
-                <path d="M8 14 L12 9 L16 14" stroke={GOLD} fill="none" />
-                <line x1="9.5" y1="14" x2="14.5" y2="14" stroke={GOLD} />
-              </svg>
-            </div>
-          </div>
+          <OHLogo />
 
-          <p style={{ color: GOLD_D, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '0 0 18px' }}>
-            OpenHouse AI
+          <p style={{
+            color: D.gold, fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.14em', textTransform: 'uppercase' as const,
+            margin: '0 0 20px',
+          }}>
+            OpenHouse Agent
           </p>
-          <h2 style={{ color: T1, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3, margin: '0 0 8px' }}>
-            Ask anything about your pipeline or tasks
+
+          <h2 style={{
+            color: D.t1, fontSize: 22, fontWeight: 700,
+            letterSpacing: '-0.025em', lineHeight: 1.25, margin: '0 0 10px',
+          }}>
+            Ask anything about your<br />pipeline or tasks
           </h2>
-          <p style={{ color: T3, fontSize: 13, lineHeight: 1.6, margin: '0 0 28px' }}>
-            Quick actions for sales agents: chase contracts, draft reports, follow up buyers, and more.
+
+          <p style={{
+            color: D.t2, fontSize: 13, lineHeight: 1.65,
+            margin: '0 0 32px', maxWidth: 300,
+          }}>
+            Tell me what to do — I'll draft emails, update your pipeline, and set reminders. You confirm each action before anything sends.
           </p>
 
+          {/* 2x2 prompt pills */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', maxWidth: 320 }}>
-            {PROMPTS.map((p, i) => (
-              <button key={i} onClick={() => handleSend(p.query)} style={{
-                padding: '11px 14px', background: CARD, border: `1px solid ${LINE_B}`, borderRadius: 24,
-                color: T2, fontSize: 12, fontWeight: 500, cursor: 'pointer', textAlign: 'center',
-                width: '100%', fontFamily: 'inherit', transition: 'all .15s',
-              }}>
-                {p.label}
-              </button>
+            {PROMPTS.map(p => (
+              <PromptPill key={p.label} label={p.label} onClick={() => handleSend(p.query)} />
             ))}
           </div>
         </div>
       )}
 
       {/* ═══ THREAD ═══ */}
-      {hasMessages && (
+      {(hasMessages || sending) && (
         <div ref={threadRef} style={{
           flex: 1, overflowY: 'auto', padding: '16px 16px 8px',
           display: 'flex', flexDirection: 'column', gap: 14,
-          WebkitOverflowScrolling: 'touch',
+          WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' as any,
         }}>
           {messages.map(msg => msg.role === 'user' ? (
+            /* ── User bubble ── */
             <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ background: T1, borderRadius: '16px 16px 4px 16px', padding: '10px 15px', maxWidth: '80%' }}>
-                <p style={{ color: '#fff', fontSize: 13, lineHeight: 1.55, margin: 0 }}>{msg.content}</p>
+              <div style={{
+                background: D.surface2, border: `1px solid ${D.border2}`,
+                borderRadius: '18px 18px 4px 18px',
+                padding: '10px 15px', maxWidth: '80%',
+              }}>
+                <p style={{ color: D.t1, fontSize: 13, lineHeight: 1.55, margin: 0 }}>{msg.content}</p>
               </div>
             </div>
           ) : (
+            /* ── Assistant response card ── */
             <div key={msg.id} style={{ maxWidth: '92%' }}>
               <div style={{
-                background: CARD, borderRadius: 16, border: `1px solid ${LINE}`, overflow: 'hidden',
-                boxShadow: '0 1px 2px rgba(0,0,0,.04), 0 4px 14px rgba(0,0,0,.03)',
+                background: D.surface, border: `1px solid ${D.border}`,
+                borderRadius: 18, overflow: 'hidden',
               }}>
-                {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', borderBottom: `1px solid ${LINE}` }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 8, background: GOLD_L, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width={12} height={12} viewBox="0 0 24 24" fill={GOLD_D} stroke={GOLD_D} strokeWidth="1.5">
+                {/* Card header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '13px 16px', borderBottom: `1px solid ${D.border}`,
+                }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: 8,
+                    background: 'rgba(212,175,55,0.12)',
+                    border: '1px solid rgba(212,175,55,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill={D.gold}>
                       <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2" />
                     </svg>
                   </div>
-                  <span style={{ color: T1, fontSize: 13, fontWeight: 600 }}>Intelligence</span>
+                  <span style={{ color: D.t1, fontSize: 13, fontWeight: 600 }}>Intelligence</span>
                   {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                    <span style={{ color: T3, fontSize: 11, marginLeft: 'auto' }}>
+                    <span style={{ color: D.t3, fontSize: 11, marginLeft: 'auto' }}>
                       {msg.toolsUsed.length} action{msg.toolsUsed.length > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
 
-                {/* Tool steps */}
+                {/* Tool action steps */}
                 {msg.toolsUsed && msg.toolsUsed.length > 0 && msg.toolsUsed.map((tool, ti) => {
                   const meta = toolMeta(tool.name);
                   return (
-                    <div key={ti} style={{ padding: '14px 16px', borderBottom: ti < (msg.toolsUsed?.length || 0) - 1 ? `1px solid ${LINE}` : 'none' }}>
+                    <div key={ti} style={{
+                      padding: '14px 16px',
+                      borderBottom: ti < (msg.toolsUsed?.length || 0) - 1 ? `1px solid ${D.border}` : 'none',
+                    }}>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 8, background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        <div style={{
+                          width: 30, height: 30, borderRadius: 9,
+                          background: meta.bg, border: `1px solid ${meta.border}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0, marginTop: 1,
+                        }}>
                           <StepIcon type={meta.icon} color={meta.color} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <p style={{ color: T2, fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>{meta.label}</p>
-                          <p style={{ color: T3, fontSize: 11, margin: 0, lineHeight: 1.5 }}>{tool.summary}</p>
+                          <p style={{ color: D.t2, fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>{meta.label}</p>
+                          <p style={{ color: D.t3, fontSize: 11, margin: 0, lineHeight: 1.5 }}>{tool.summary}</p>
                         </div>
                       </div>
                     </div>
@@ -291,52 +359,105 @@ export default function IntelligenceTab() {
                 {/* Response body */}
                 <div style={{ padding: '14px 16px' }}>
                   {msg.toolsUsed?.some(t => t.name.includes('draft_message')) ? (
+                    /* Draft email */
                     <div>
-                      <div style={{ background: S1, border: `1px solid ${LINE}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
-                        <p style={{ color: T4, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', margin: '0 0 8px' }}>DRAFT EMAIL</p>
-                        <p style={{ color: T2, fontSize: 12, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                      <div style={{
+                        background: D.surface2, border: `1px solid ${D.border}`,
+                        borderRadius: 12, padding: '12px 14px', marginBottom: 10,
+                      }}>
+                        <p style={{ color: D.t3, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, margin: '0 0 8px' }}>DRAFT EMAIL</p>
+                        <p style={{ color: D.t1, fontSize: 12, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
                       </div>
-                      <div style={{ display: 'flex', gap: 7 }}>
-                        <button onClick={() => handleCopy(msg.id, msg.content)} style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: T1, color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.08)' }}>
-                          {copiedId === msg.id ? 'Copied \u2713' : 'Copy Draft'}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button style={{
+                          flex: 1, padding: '10px 14px', borderRadius: 10,
+                          background: D.surface2, border: `1px solid ${D.border2}`,
+                          color: D.t2, fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>Edit</button>
+                        <button onClick={() => handleCopy(msg.id, msg.content)} style={{
+                          flex: 1, padding: '10px 14px', borderRadius: 10,
+                          background: D.gold, border: 'none',
+                          color: '#0B0C0F', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>
+                          {copiedId === msg.id ? 'Copied \u2713' : 'Send \u2197'}
                         </button>
-                        <button style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: S1, color: T2, fontSize: 12, fontWeight: 500, border: `1px solid ${LINE}`, cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                       </div>
                     </div>
                   ) : msg.toolsUsed?.some(t => t.name.includes('generate_developer_report')) ? (
+                    /* Report */
                     <div>
-                      <div style={{ background: S1, border: `1px solid ${LINE}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
-                        <p style={{ color: T2, fontSize: 12, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                      <div style={{
+                        background: D.surface2, border: `1px solid ${D.border}`,
+                        borderRadius: 12, padding: '12px 14px', marginBottom: 10,
+                      }}>
+                        <p style={{ color: D.t1, fontSize: 12, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
                       </div>
-                      <div style={{ display: 'flex', gap: 7 }}>
-                        <button onClick={() => handleCopy(msg.id, msg.content)} style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: GOLD, color: T1, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(196,164,74,.22), 0 4px 12px rgba(196,164,74,.16)' }}>
-                          {copiedId === msg.id ? 'Copied \u2713' : 'Send to Developer'}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button style={{
+                          flex: 1, padding: '10px 14px', borderRadius: 10,
+                          background: D.surface2, border: `1px solid ${D.border2}`,
+                          color: D.t2, fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>Edit</button>
+                        <button onClick={() => handleCopy(msg.id, msg.content)} style={{
+                          flex: 1, padding: '10px 14px', borderRadius: 10,
+                          background: D.gold, border: 'none',
+                          color: '#0B0C0F', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>
+                          {copiedId === msg.id ? 'Copied \u2713' : 'Send to Developer \u2197'}
                         </button>
-                        <button style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: S1, color: T2, fontSize: 12, fontWeight: 500, border: `1px solid ${LINE}`, cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                       </div>
                     </div>
                   ) : msg.toolsUsed?.some(t => t.name.includes('create_task')) ? (
+                    /* Task confirmation */
                     <div>
-                      <p style={{ color: T2, fontSize: 12, lineHeight: 1.6, margin: '0 0 8px', whiteSpace: 'pre-line' }}>{msg.content}</p>
-                      <div style={{ display: 'flex', gap: 7 }}>
-                        <button style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: T1, color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Confirm</button>
-                        <button style={{ flex: 1, padding: '10px 14px', borderRadius: 12, background: S1, color: T2, fontSize: 12, fontWeight: 500, border: `1px solid ${LINE}`, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
+                      <p style={{ color: D.t1, fontSize: 12, lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-line' }}>{msg.content}</p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button style={{
+                          flex: 1, padding: '9px 14px', borderRadius: 10,
+                          background: D.surface2, border: `1px solid ${D.border2}`,
+                          color: D.t3, fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>Dismiss</button>
+                        <button style={{
+                          flex: 1, padding: '9px 14px', borderRadius: 10,
+                          background: '#0D0D18', border: `1px solid ${D.border2}`,
+                          color: D.t1, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                        }}>Confirm \u2713</button>
                       </div>
                     </div>
+                  ) : msg.toolsUsed?.some(t => t.name.includes('log_communication')) ? (
+                    /* Logged communication — confirmed style */
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 16px', background: 'rgba(16,185,129,0.08)',
+                      borderRadius: 12, border: '1px solid rgba(16,185,129,0.2)',
+                    }}>
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                      <span style={{ color: '#10B981', fontSize: 13, fontWeight: 600 }}>Done</span>
+                      <span style={{ color: D.t3, fontSize: 12, marginLeft: 4, flex: 1 }}>{msg.content.slice(0, 100)}</span>
+                    </div>
                   ) : (
-                    <p style={{ color: T2, fontSize: 13, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
+                    /* Standard text */
+                    <p style={{ color: D.t1, fontSize: 13, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>{msg.content}</p>
                   )}
                 </div>
               </div>
 
-              {/* Follow-ups */}
+              {/* Follow-up pills */}
               {msg.followUps && msg.followUps.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingLeft: 4 }}>
                   {msg.followUps.map((q, i) => (
                     <button key={i} onClick={() => handleSend(q)} style={{
-                      padding: '6px 12px', background: CARD, border: `1px solid ${LINE_B}`, borderRadius: 20,
-                      color: T2, fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
+                      padding: '6px 12px', background: 'transparent',
+                      border: `1px solid ${D.border2}`, borderRadius: 20,
+                      color: D.t2, fontSize: 11, fontWeight: 500,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = D.gold; e.currentTarget.style.color = D.t1; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = D.border2; e.currentTarget.style.color = D.t2; }}
+                    >
                       {q}
                     </button>
                   ))}
@@ -345,40 +466,81 @@ export default function IntelligenceTab() {
             </div>
           ))}
 
+          {/* Typing indicator */}
           {sending && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: CARD, border: `1px solid ${LINE}`, borderRadius: 14, boxShadow: '0 1px 2px rgba(0,0,0,.04)', maxWidth: '70%' }}>
-              <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{
+              background: D.surface, border: `1px solid ${D.border}`,
+              borderRadius: 14, padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 12, maxWidth: '70%',
+            }}>
+              <div style={{ display: 'flex', gap: 5 }}>
                 {[0, 1, 2].map(i => (
-                  <div key={i} style={{ width: 5, height: 5, borderRadius: 3, background: GOLD, animation: `agentBlink ${1.1 + i * 0.15}s ease-in-out ${i * 0.18}s infinite` }} />
+                  <div key={i} style={{
+                    width: 6, height: 6, borderRadius: '50%', background: D.gold,
+                    animation: `intelligenceBlink 1.2s ease-in-out ${i * 0.18}s infinite`,
+                  }} />
                 ))}
               </div>
-              <span style={{ color: T3, fontSize: 12 }}>Working on it...</span>
+              <span style={{ color: D.t3, fontSize: 12 }}>Working on it...</span>
             </div>
           )}
         </div>
       )}
 
-      {/* ═══ FOOTER ═══ */}
-      <div style={{ flexShrink: 0, padding: '0 16px 0', background: CARD }}>
-        <p style={{ color: T4, fontSize: 10, textAlign: 'center', margin: '0 0 10px', padding: '8px 0 0' }}>
+      {/* ═══ BOTTOM BAR ═══ */}
+      <div style={{
+        flexShrink: 0, background: D.bg,
+        borderTop: `1px solid ${D.border}`,
+        padding: '8px 16px 14px',
+      }}>
+        <p style={{ color: D.t3, fontSize: 10, textAlign: 'center', margin: '0 0 10px' }}>
           Powered by AI &bull; Information for reference only
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', background: S1, border: `1px solid ${LINE}`, borderRadius: 28, padding: '12px 16px', gap: 10, marginBottom: 10 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: D.surface, border: `1px solid ${D.border2}`,
+          borderRadius: 28, padding: '12px 16px',
+        }}>
           <textarea
-            value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder="Ask about your pipeline or tasks..." disabled={sending} rows={1}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: T1, fontSize: 13, lineHeight: 1.5, maxHeight: 88, minHeight: 20, resize: 'none', outline: 'none', fontFamily: 'inherit', opacity: sending ? 0.6 : 1 }}
-            onInput={(e) => { const el = e.target as HTMLTextAreaElement; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 88) + 'px'; }}
+            ref={taRef}
+            rows={1}
+            value={input}
+            onChange={e => {
+              setInput(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 88) + 'px';
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about your pipeline or tasks..."
+            disabled={sending}
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              color: D.t1, fontSize: 13, lineHeight: 1.5, resize: 'none',
+              fontFamily: 'inherit', maxHeight: 88, caretColor: D.gold,
+              opacity: sending ? 0.5 : 1,
+            }}
           />
-          <button style={{ width: 34, height: 34, borderRadius: '50%', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={T3} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0014 0" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" />
+          <button style={{
+            background: 'transparent', border: 'none', padding: 0,
+            cursor: 'pointer', flexShrink: 0,
+          }}>
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={D.t3}
+              strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 10a7 7 0 0014 0" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+              <line x1="8" y1="22" x2="16" y2="22" />
             </svg>
           </button>
         </div>
       </div>
 
-      <style>{`@keyframes agentBlink { 0%,100% { opacity:.2 } 50% { opacity:.85 } }`}</style>
+      <style>{`
+        @keyframes intelligenceBlink {
+          0%, 100% { opacity: 0.2; transform: scale(0.85); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
