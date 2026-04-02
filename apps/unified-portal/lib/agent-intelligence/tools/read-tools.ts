@@ -17,7 +17,7 @@ export async function getUnitStatus(
     .maybeSingle();
 
   if (!dev) {
-    return { data: null, summary: `No scheme found matching "${params.scheme_name}".` };
+    return { data: null, summary: `No scheme found matching "${params.scheme_name}"` };
   }
 
   // Find unit by number/identifier
@@ -29,7 +29,7 @@ export async function getUnitStatus(
     .or(`unit_number.ilike.%${params.unit_identifier}%,unit_uid.ilike.%${params.unit_identifier}%`);
 
   if (!units?.length) {
-    return { data: null, summary: `No unit found matching "${params.unit_identifier}" in ${dev.name}.` };
+    return { data: null, summary: `No unit "${params.unit_identifier}" found in ${dev.name}` };
   }
 
   const unit = units[0];
@@ -95,8 +95,11 @@ export async function getUnitStatus(
     recent_communications: comms || [],
   };
 
-  const buyerName = result.buyer.name || 'no buyer assigned';
-  const summary = `Unit ${result.unit_number} in ${dev.name} — ${status.replace(/_/g, ' ')}. Buyer: ${buyerName}.`;
+  const buyerName = result.buyer.name || null;
+  const statusLabel = status.replace(/_/g, ' ');
+  const summary = buyerName
+    ? `Unit ${result.unit_number}, ${dev.name} — ${buyerName} (${statusLabel})`
+    : `Unit ${result.unit_number}, ${dev.name} — ${statusLabel}`;
 
   return { data: result, summary };
 }
@@ -123,7 +126,7 @@ export async function getBuyerDetails(
       .ilike('purchaser_name', `%${params.buyer_name}%`);
 
     if (!unitMatches?.length) {
-      return { data: { matches: [] }, summary: `No buyer found matching "${params.buyer_name}".` };
+      return { data: { matches: [] }, summary: `No buyer found matching "${params.buyer_name}"` };
     }
 
     // Get development names
@@ -141,9 +144,10 @@ export async function getBuyerDetails(
       scheme_name: devMap.get(u.development_id) || 'Unknown',
     }));
 
+    const nameList = results.map((r: any) => `${r.name} — Unit ${r.unit_number}, ${r.scheme_name}`).join('; ');
     return {
       data: { matches: results },
-      summary: `Found ${results.length} match(es) for "${params.buyer_name}": ${results.map((r: any) => `${r.name} (${r.unit_number}, ${r.scheme_name})`).join('; ')}.`,
+      summary: `Found ${results.length} buyer(s): ${nameList}`,
     };
   }
 
@@ -197,9 +201,10 @@ export async function getBuyerDetails(
     };
   }));
 
+  const nameList = results.map((r: any) => `${r.name} — Unit ${r.unit_number}, ${r.scheme_name}`).join('; ');
   return {
     data: { matches: results },
-    summary: `Found ${results.length} match(es) for "${params.buyer_name}": ${results.map((r: any) => `${r.name} — Unit ${r.unit_number} in ${r.scheme_name}, ${r.status.replace(/_/g, ' ')}`).join('; ')}.`,
+    summary: `Found ${results.length} buyer(s): ${nameList}`,
   };
 }
 
@@ -218,7 +223,7 @@ export async function getSchemeOverview(
     .maybeSingle();
 
   if (!dev) {
-    return { data: null, summary: `No scheme found matching "${params.scheme_name}".` };
+    return { data: null, summary: `No scheme found matching "${params.scheme_name}"` };
   }
 
   // Get all units
@@ -286,7 +291,7 @@ export async function getSchemeOverview(
     recent_activity: recentEvents || [],
   };
 
-  const summary = `${dev.name}: ${totalUnits} units total. Sold: ${breakdown.sold}, Contracts Signed: ${breakdown.contracts_signed}, Contracts Issued: ${breakdown.contracts_issued}, Sale Agreed: ${breakdown.sale_agreed}, Available: ${breakdown.for_sale}. Expected revenue: €${(totalExpectedRevenue / 1000).toFixed(0)}k.`;
+  const summary = `${dev.name} — ${totalUnits} units, ${breakdown.sold} sold, ${breakdown.for_sale} available`;
 
   return { data: result, summary };
 }
@@ -427,9 +432,12 @@ export async function getOutstandingItems(
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   items.sort((a, b) => (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3));
 
+  const highPriority = items.filter(i => i.priority === 'critical' || i.priority === 'high').length;
   return {
     data: { items, total: items.length },
-    summary: `${items.length} outstanding items. ${items.filter(i => i.priority === 'critical' || i.priority === 'high').length} are high priority.`,
+    summary: highPriority > 0
+      ? `${items.length} outstanding items, ${highPriority} high priority`
+      : `${items.length} outstanding items`,
   };
 }
 
@@ -479,7 +487,7 @@ export async function getCommunicationHistory(
   const { data: comms } = await query;
 
   if (!comms?.length) {
-    return { data: { communications: [] }, summary: 'No communication history found.' };
+    return { data: { communications: [] }, summary: 'No contact logged in the system' };
   }
 
   const communications = comms.map((c: any) => ({
@@ -494,9 +502,11 @@ export async function getCommunicationHistory(
     follow_up_date: c.follow_up_date,
   }));
 
+  const mostRecent = comms[0];
+  const recentDate = new Date(mostRecent.created_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
   return {
     data: { communications },
-    summary: `${communications.length} communication event(s) found. Most recent: ${comms[0].type} on ${new Date(comms[0].created_at).toLocaleDateString('en-IE')} — ${comms[0].summary}.`,
+    summary: `${communications.length} contact(s) — last: ${mostRecent.type} on ${recentDate}`,
   };
 }
 
@@ -528,7 +538,7 @@ export async function searchKnowledgeBase(
   });
 
   if (error || !chunks?.length) {
-    return { data: { results: [] }, summary: 'No matching documents found.' };
+    return { data: { results: [] }, summary: 'No matching documents found' };
   }
 
   const results = chunks.map((c: any) => ({
@@ -539,6 +549,6 @@ export async function searchKnowledgeBase(
 
   return {
     data: { results },
-    summary: `Found ${results.length} relevant document sections. Top result from "${results[0].source}".`,
+    summary: `${results.length} results from ${results[0].source}`,
   };
 }

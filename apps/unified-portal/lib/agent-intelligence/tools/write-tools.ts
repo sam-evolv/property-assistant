@@ -150,6 +150,8 @@ export async function draftMessage(
   // Gather context data for the draft
   let recipientEmail: string | null = null;
   let unitContext = '';
+  let schemeName = '';
+  let unitNumber = '';
 
   if (params.related_scheme && params.related_unit) {
     const { data: dev } = await supabase
@@ -161,6 +163,7 @@ export async function draftMessage(
       .maybeSingle();
 
     if (dev) {
+      schemeName = dev.name;
       const { data: units } = await supabase
         .from('units')
         .select('id, unit_number, unit_uid, purchaser_email')
@@ -170,7 +173,8 @@ export async function draftMessage(
 
       if (units?.[0]) {
         recipientEmail = units[0].purchaser_email;
-        unitContext = `Unit ${units[0].unit_number || units[0].unit_uid} in ${dev.name}`;
+        unitNumber = units[0].unit_number || units[0].unit_uid || params.related_unit;
+        unitContext = `Unit ${unitNumber} in ${dev.name}`;
       }
     }
   }
@@ -182,20 +186,26 @@ export async function draftMessage(
     'professional'
   );
 
-  // Return data for the LLM to generate the actual draft content
+  // Extract first name from recipient
+  const firstName = params.recipient_name.split(' ')[0];
+
+  // Return rich context so the LLM generates the COMPLETE email in its response
   return {
     data: {
-      draft_request: true,
+      draft_ready: true,
       recipient_type: params.recipient_type,
       recipient_name: params.recipient_name,
+      recipient_first_name: firstName,
       recipient_email: recipientEmail,
       context: params.context,
       tone,
       unit_context: unitContext,
+      unit_number: unitNumber,
+      scheme_name: schemeName,
       agent_name: agentContext.displayName,
-      notes: 'DRAFT — Review before sending. The agent must review, edit if needed, and send manually.',
+      instruction: `Generate the COMPLETE email now. Include: Subject line, greeting using "${firstName}", full body text, sign-off, and signature placeholder ([Agent Name] / [Agent Phone] / [Agency Name]). The email must sound like a real person wrote it in natural Irish conversational English. Do NOT describe what the email would say — write the actual email text ready to copy and send.`,
     },
-    summary: `Draft prepared for ${params.recipient_type} (${params.recipient_name}). Tone: ${tone}. The agent should review before sending.`,
+    summary: `Drafting email to ${firstName} ${params.recipient_name !== firstName ? `(${params.recipient_name})` : ''} — ${unitContext || params.context.slice(0, 60)}.`,
   };
 }
 

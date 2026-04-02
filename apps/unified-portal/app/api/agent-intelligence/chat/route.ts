@@ -218,19 +218,34 @@ export async function POST(request: NextRequest) {
 
           // Generate follow-up suggestions
           try {
+            const toolNames = toolsCalled.map(t => t.tool_name).join(', ');
             const followUpCompletion = await openai.chat.completions.create({
               model: 'gpt-4.1-mini',
               messages: [
                 {
                   role: 'system',
-                  content: 'You are helping an estate agent selling new homes in Ireland. Based on this conversation, suggest 2-3 short follow-up questions they might ask next. Return ONLY a JSON array of strings, no explanation. Max 10 words per question.',
+                  content: `You suggest next actions for a busy Irish estate agent selling new homes. Based on the conversation, suggest 2-3 short ACTION-ORIENTED next steps the agent might want to take.
+
+RULES:
+- Every suggestion must be an ACTION the agent can take, not a question back to the agent.
+- Start each suggestion with a verb: "Draft...", "Check...", "Show...", "Create...", "Generate...", "Log..."
+- Never ask the agent a clarifying question. Never use "Would you like..." or "Should I..."
+- Keep each suggestion under 8 words.
+- Make suggestions contextual to what was just discussed.
+- Return ONLY a JSON array of strings, no explanation.
+
+EXAMPLES by context:
+- After a unit/buyer lookup: ["Draft a follow-up email to the buyer", "Check outstanding items in this scheme", "Log a communication for this unit"]
+- After drafting an email: ["Check what else is due this week", "Create a follow-up task", "Draft the next outstanding email"]
+- After a scheme overview: ["Show me the overdue items", "Generate the developer report", "Which units need attention first?"]
+- After creating a task: ["Show my task list", "What else is outstanding?", "Draft a reminder for the buyer"]`,
                 },
                 {
                   role: 'user',
-                  content: `Agent asked: ${message}\n\nAssistant replied: ${responseText.slice(0, 500)}`,
+                  content: `Agent asked: ${message}\n\nTools used: ${toolNames || 'none'}\n\nAssistant replied: ${responseText.slice(0, 500)}`,
                 },
               ],
-              temperature: 0.7,
+              temperature: 0.5,
               max_tokens: 200,
             });
 
