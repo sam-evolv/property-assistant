@@ -333,6 +333,12 @@ export default function IntelligenceTab() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
+  const handleCopy = useCallback((id: string, text: string) => {
+    copyText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }, []);
+
   const hasMessages = messages.length > 0 || sending;
 
   return (
