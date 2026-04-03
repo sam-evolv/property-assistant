@@ -207,15 +207,22 @@ export async function POST(request: NextRequest) {
       .replace(/```[\s\S]*?```/g, '')     // strip code blocks
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // strip links, keep text
 
-    // 10. Stream the response
+    // 10. Stream the response word-by-word for natural text flow
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send the cleaned response
-          controller.enqueue(
-            encoder.encode(JSON.stringify({ type: 'token', content: cleanResponse }) + '\n')
-          );
+          // Stream words with small delays for natural appearance
+          const words = cleanResponse.split(/(\s+)/); // split keeping whitespace
+          for (let i = 0; i < words.length; i++) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'token', content: words[i] }) + '\n')
+            );
+            // Small delay between word groups for natural flow
+            if (i % 3 === 2 && i < words.length - 1) {
+              await new Promise(r => setTimeout(r, 20));
+            }
+          }
 
           // Send tool call metadata
           if (toolsCalled.length > 0) {
