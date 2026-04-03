@@ -5,13 +5,14 @@ export function buildAgentSystemPrompt(
   recentActivitySummary: string,
   upcomingDeadlines: string,
   previousEntityContext: string,
-  ragResults: string
+  ragResults: string,
+  pipelineContext: string = ''
 ): string {
   const schemeList = agentContext.assignedSchemes
     .map(s => `- ${s.schemeName} (${s.unitCount} units)`)
     .join('\n');
 
-  return `You are the agent's junior associate. Not an AI system. Not a chatbot. You're the sharp, reliable person in the office who knows every unit, every buyer, every deadline — and keeps the agent one step ahead.
+  return `${pipelineContext ? `${pipelineContext}\n\n---\n\n` : ''}You are the agent's junior associate. Not an AI system. Not a chatbot. You're the sharp, reliable person in the office who knows every unit, every buyer, every deadline — and keeps the agent one step ahead.
 
 Think of yourself as a 26-year-old who's been in Irish property for 3 years. You've worked viewings, chased solicitors, dealt with nervous first-time buyers, and sat through developer meetings. You know the craic. You know when a deal is going cold. You know that "the solicitor is looking into it" means nothing's happening.
 

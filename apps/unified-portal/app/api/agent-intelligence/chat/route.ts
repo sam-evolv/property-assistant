@@ -85,14 +85,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Build context components in parallel
-    const [recentActivity, upcomingDeadlines, entityMemory] = await Promise.all([
+    // 2. Build context components in parallel (including live pipeline data)
+    const [recentActivity, upcomingDeadlines, entityMemory, pipelineSummary, allDevelopments, unreleasedUnitsRaw] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
       agentContext.agentId
         ? loadEntityMemory(supabase, agentContext.agentId, message).catch(() => '')
         : Promise.resolve(''),
+      supabase
+        .from('unit_sales_pipeline')
+        .select(`
+          status,
+          sale_price,
+          sale_type,
+          housing_agency,
+          drawdown_date,
+          handover_date,
+          unit_id,
+          development:developments!development_id(name),
+          unit:units!unit_id(unit_number, house_type_code, bedrooms)
+        `)
+        .eq('tenant_id', tenantId)
+        .then(r => r.data ?? [])
+        .catch(() => [] as any[]),
+      supabase
+        .from('developments')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .then(r => r.data ?? [])
+        .catch(() => [] as any[]),
+      supabase
+        .from('units')
+        .select('id, development_id, unit_status')
+        .eq('tenant_id', tenantId)
+        .eq('unit_status', 'available')
+        .then(r => r.data ?? [])
+        .catch(() => [] as any[]),
     ]);
+
+    // Build pipeline context string for system prompt
+    const pipelineContext = buildPipelineContext(pipelineSummary, allDevelopments, unreleasedUnitsRaw);
 
     // 3. Build system prompt
     const systemPrompt = buildAgentSystemPrompt(
@@ -100,7 +133,8 @@ export async function POST(request: NextRequest) {
       recentActivity,
       upcomingDeadlines,
       entityMemory,
-      '' // RAG results injected after tool calls if needed
+      '', // RAG results injected after tool calls if needed
+      pipelineContext
     );
 
     // 4. Build message history
@@ -300,6 +334,72 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
+}
+
+/**
+ * Build a structured pipeline context string from live Supabase data, grouped by development.
+ *
+ * Status mapping injected into the prompt:
+ *   for_sale  = currently available / for sale
+ *   agreed    = sale agreed (buyer selected, not yet contracted)
+ *   signed    = contracts signed / legally binding
+ *   drawdown  = completed / funds transferred
+ */
+function buildPipelineContext(
+  pipelineSummary: any[],
+  allDevelopments: any[],
+  unreleasedUnitsRaw: any[]
+): string {
+  if (!allDevelopments.length && !pipelineSummary.length) return '';
+
+  const byDev: Record<string, {
+    name: string;
+    for_sale: number;
+    agreed: number;
+    signed: number;
+    drawdown: number;
+    total: number;
+    revenue: number;
+  }> = {};
+
+  for (const dev of allDevelopments) {
+    byDev[dev.id] = { name: dev.name, for_sale: 0, agreed: 0, signed: 0, drawdown: 0, total: 0, revenue: 0 };
+  }
+
+  // Track which unit IDs are already in the pipeline (for "not yet released" calc)
+  const pipelineUnitIds = new Set<string>();
+
+  for (const entry of pipelineSummary) {
+    const devName = entry.development?.name;
+    const devKey = Object.keys(byDev).find(k => byDev[k].name === devName);
+    if (!devKey) continue;
+
+    byDev[devKey].total++;
+    if (entry.unit_id) pipelineUnitIds.add(entry.unit_id);
+    if (entry.status === 'for_sale') byDev[devKey].for_sale++;
+    if (entry.status === 'agreed') byDev[devKey].agreed++;
+    if (entry.status === 'signed') byDev[devKey].signed++;
+    if (entry.drawdown_date) byDev[devKey].drawdown++;
+    if (entry.sale_price) byDev[devKey].revenue += Number(entry.sale_price);
+  }
+
+  // Count unreleased units (available status, no pipeline entry) per development
+  const unreleasedByDev: Record<string, number> = {};
+  for (const unit of unreleasedUnitsRaw) {
+    if (!pipelineUnitIds.has(unit.id)) {
+      unreleasedByDev[unit.development_id] = (unreleasedByDev[unit.development_id] ?? 0) + 1;
+    }
+  }
+
+  const lines = Object.entries(byDev).map(([devId, d]) => {
+    const unreleased = unreleasedByDev[devId] ?? 0;
+    return `${d.name}: ${d.total} units in pipeline | ${d.for_sale} for sale | ${d.agreed} sale agreed | ${d.signed} contracts signed | ${d.drawdown} drawn down | ${unreleased} not yet released | Revenue: €${d.revenue.toLocaleString()}`;
+  });
+
+  return `LIVE SALES PIPELINE DATA (as of now — treat this as authoritative, not general knowledge):
+Status guide: for_sale = currently available/for sale | agreed = sale agreed (buyer selected, not yet contracted) | signed = contracts signed/legally binding | drawdown = completed/funds transferred | not yet released = units with no pipeline entry yet
+
+${lines.join('\n')}`;
 }
 
 /**
