@@ -100,8 +100,8 @@ function DraftEmailQueue({ drafts, fallbackContent, msgId, copiedId, onCopy }: {
   const [current, setCurrent] = useState(0);
   const [sent, setSent] = useState<Set<number>>(new Set());
 
-  // If no structured drafts, fall back to showing the LLM text
-  if (drafts.length === 0) {
+  // If no structured drafts (or all invalid), fall back to showing the LLM text
+  if (!drafts || drafts.length === 0) {
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -120,9 +120,18 @@ function DraftEmailQueue({ drafts, fallbackContent, msgId, copiedId, onCopy }: {
     );
   }
 
-  const draft = drafts[current];
   const total = drafts.length;
-  const isSent = sent.has(current);
+  const safeIdx = Math.min(current, total - 1);
+  const draft = drafts[safeIdx];
+  const isSent = sent.has(safeIdx);
+
+  // Guard against undefined draft (shouldn't happen but prevents crash)
+  if (!draft) {
+    return (
+      <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap' }}
+        dangerouslySetInnerHTML={{ __html: formatContent(fallbackContent) }} />
+    );
+  }
 
   return (
     <div>
@@ -439,7 +448,9 @@ export default function IntelligenceTab() {
                   {msg.toolsUsed?.some(t => t.name.includes('draft_message')) ? (
                     /* ── Draft email queue ── */
                     <DraftEmailQueue
-                      drafts={(msg.toolsUsed || []).filter(t => t.name.includes('draft_message') && t.draft).map(t => t.draft!)}
+                      drafts={(msg.toolsUsed || [])
+                        .filter(t => t.name.includes('draft_message') && t.draft && t.draft.to && t.draft.body)
+                        .map(t => t.draft as DraftData)}
                       fallbackContent={msg.content}
                       msgId={msg.id}
                       copiedId={copiedId}
