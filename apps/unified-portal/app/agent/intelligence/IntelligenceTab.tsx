@@ -23,7 +23,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  toolsUsed?: Array<{ name: string; summary: string }>;
+  toolsUsed?: Array<{ name: string; summary: string; draft?: { to: string; email?: string; subject: string; body: string; unit_context?: string } }>;
   followUps?: string[];
 }
 
@@ -86,6 +86,133 @@ const PROMPTS = [
   { label: 'Draft a buyer follow-up',       query: 'Draft a follow-up email to the buyer on the most overdue contract' },
   { label: 'Generate developer report',     query: 'Generate a weekly developer report' },
 ];
+
+/* ─── Draft email queue component ─── */
+type DraftData = { to: string; email?: string; subject: string; body: string; unit_context?: string };
+
+function DraftEmailQueue({ drafts, fallbackContent, msgId, copiedId, onCopy }: {
+  drafts: DraftData[];
+  fallbackContent: string;
+  msgId: string;
+  copiedId: string | null;
+  onCopy: (id: string, text: string) => void;
+}) {
+  const [current, setCurrent] = useState(0);
+  const [sent, setSent] = useState<Set<number>>(new Set());
+
+  // If no structured drafts, fall back to showing the LLM text
+  if (drafts.length === 0) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: C.goldText, background: C.goldLight, padding: '2px 8px', borderRadius: 6 }}>Draft</span>
+          <span style={{ fontSize: 10, color: C.t3 }}>Review before sending</span>
+        </div>
+        <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+          dangerouslySetInnerHTML={{ __html: formatContent(fallbackContent) }} />
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button onClick={() => onCopy(msgId, fallbackContent)} style={{
+            flex: 1, padding: '8px 12px', borderRadius: 10, background: C.gold, border: 'none', color: '#fff',
+            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
+          }}>{copiedId === msgId ? 'Copied' : 'Copy draft'}</button>
+        </div>
+      </div>
+    );
+  }
+
+  const draft = drafts[current];
+  const total = drafts.length;
+  const isSent = sent.has(current);
+
+  return (
+    <div>
+      {/* Header with counter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: C.goldText, background: C.goldLight, padding: '2px 8px', borderRadius: 6 }}>
+          Draft {current + 1}/{total}
+        </span>
+        {sent.size > 0 && (
+          <span style={{ fontSize: 10, color: '#0A7855', fontWeight: 600 }}>{sent.size} sent</span>
+        )}
+      </div>
+
+      {/* Recipient */}
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', marginBottom: 4 }}>
+        To: {draft.to}
+      </div>
+      {draft.unit_context && (
+        <div style={{ fontSize: 11, color: C.t3, marginBottom: 8 }}>
+          Re: {draft.unit_context}
+        </div>
+      )}
+
+      {/* Subject */}
+      <div style={{ fontSize: 12, color: C.t2, fontWeight: 600, marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${C.line}` }}>
+        {draft.subject}
+      </div>
+
+      {/* Email body */}
+      <div style={{ fontSize: 14, lineHeight: 1.65, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 12 }}>
+        {draft.body}
+      </div>
+
+      {/* Action buttons */}
+      {isSent ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#0A7855" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span style={{ color: '#0A7855', fontSize: 13, fontWeight: 600 }}>Sent to {draft.to}</span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => onCopy(`${msgId}_${current}`, draft.body)} style={{
+            flex: 1, padding: '8px 12px', borderRadius: 10, background: C.surface, border: `1px solid ${C.line}`,
+            color: C.t2, fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
+          }}>{copiedId === `${msgId}_${current}` ? 'Copied' : 'Copy'}</button>
+          <button onClick={() => setSent(prev => new Set(prev).add(current))} style={{
+            flex: 1, padding: '8px 12px', borderRadius: 10, background: C.gold, border: 'none', color: '#fff',
+            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
+          }}>Send</button>
+        </div>
+      )}
+
+      {/* Navigation — prev/next */}
+      {total > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+          <button
+            onClick={() => setCurrent(Math.max(0, current - 1))}
+            disabled={current === 0}
+            style={{
+              padding: '6px 14px', borderRadius: 8, background: current === 0 ? C.surface : C.bg,
+              border: `1px solid ${C.line}`, color: current === 0 ? C.t4 : C.t2,
+              fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: current === 0 ? 'default' : 'pointer',
+            }}>Previous</button>
+          <span style={{ fontSize: 11, color: C.t3 }}>{current + 1} of {total}</span>
+          <button
+            onClick={() => setCurrent(Math.min(total - 1, current + 1))}
+            disabled={current === total - 1}
+            style={{
+              padding: '6px 14px', borderRadius: 8, background: current === total - 1 ? C.surface : C.bg,
+              border: `1px solid ${C.line}`, color: current === total - 1 ? C.t4 : C.t2,
+              fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: current === total - 1 ? 'default' : 'pointer',
+            }}>Next</button>
+        </div>
+      )}
+
+      {/* Send All button when multiple */}
+      {total > 1 && sent.size < total && (
+        <button onClick={() => {
+          const all = new Set<number>();
+          for (let i = 0; i < total; i++) all.add(i);
+          setSent(all);
+        }} style={{
+          width: '100%', padding: '10px 12px', borderRadius: 10, marginTop: 8,
+          background: '#1f2937', border: 'none', color: '#fff',
+          fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+        }}>Send all {total} emails</button>
+      )}
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════
    Component
@@ -281,20 +408,25 @@ export default function IntelligenceTab() {
             /* ── Assistant bubble — light grey, iMessage style ── */
             <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-start', flexDirection: 'column', gap: 6 }}>
               <div style={{ maxWidth: '80%' }}>
-                {/* Tool usage — subtle inline indicator */}
-                {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                    {msg.toolsUsed.map((t, i) => (
-                      <span key={i} style={{
-                        fontSize: 10, color: C.goldText,
-                        background: C.goldLight, padding: '2px 8px',
-                        borderRadius: 6, fontWeight: 500,
-                      }}>
-                        {toolLabel(t.name)}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {/* Tool usage — consolidated badges */}
+                {msg.toolsUsed && msg.toolsUsed.length > 0 && (() => {
+                  // Group tools by name to avoid 17x "Drafted email" badges
+                  const groups: Record<string, number> = {};
+                  msg.toolsUsed!.forEach(t => { const l = toolLabel(t.name); groups[l] = (groups[l] || 0) + 1; });
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                      {Object.entries(groups).map(([label, count]) => (
+                        <span key={label} style={{
+                          fontSize: 10, color: C.goldText,
+                          background: C.goldLight, padding: '2px 8px',
+                          borderRadius: 6, fontWeight: 500,
+                        }}>
+                          {label}{count > 1 ? ` (${count})` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* The bubble */}
                 <div style={{
@@ -305,36 +437,14 @@ export default function IntelligenceTab() {
                   position: 'relative',
                 }}>
                   {msg.toolsUsed?.some(t => t.name.includes('draft_message')) ? (
-                    /* ── Draft email card ── */
-                    <div>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
-                      }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
-                          letterSpacing: '0.06em', color: C.goldText,
-                          background: C.goldLight, padding: '2px 8px', borderRadius: 6,
-                        }}>Draft</span>
-                        <span style={{ fontSize: 10, color: C.t3 }}>Review before sending</span>
-                      </div>
-                      <div style={{
-                        fontSize: 15, lineHeight: 1.6, color: '#1f2937',
-                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      }}
-                        dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
-                      />
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <button onClick={() => { copyText(msg.content); setCopiedId(msg.id); setTimeout(() => setCopiedId(null), 2000); }}
-                          style={{
-                            flex: 1, padding: '8px 12px', borderRadius: 10,
-                            background: C.gold, border: 'none', color: '#fff',
-                            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-                            boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
-                          }}>
-                          {copiedId === msg.id ? 'Copied' : 'Copy draft'}
-                        </button>
-                      </div>
-                    </div>
+                    /* ── Draft email queue ── */
+                    <DraftEmailQueue
+                      drafts={(msg.toolsUsed || []).filter(t => t.name.includes('draft_message') && t.draft).map(t => t.draft!)}
+                      fallbackContent={msg.content}
+                      msgId={msg.id}
+                      copiedId={copiedId}
+                      onCopy={handleCopy}
+                    />
                   ) : msg.toolsUsed?.some(t => t.name.includes('generate_developer_report')) ? (
                     /* ── Report card ── */
                     <div>

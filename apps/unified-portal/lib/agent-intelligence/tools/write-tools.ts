@@ -188,20 +188,52 @@ export async function draftMessage(
     'professional'
   );
 
-  // Return data for the LLM to generate the actual draft content
+  // Generate the actual email using LLM
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const emailCompletion = await openai.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are writing an email on behalf of ${agentContext.displayName}, an Irish estate agent. Write the COMPLETE email — nothing else. No explanation, no preamble. Just the email text.
+
+Rules:
+- Start with a friendly greeting using the recipient's first name (e.g., "Hi Marcelo," or "Hi Stephanie and Kevin,")
+- Write in warm, natural Irish English. Not corporate. Not American.
+- Keep it short — 3-5 sentences maximum
+- End with a warm sign-off like "Thanks a million," or "Kind regards,"
+- Then the agent's name: ${agentContext.displayName}
+- The tone should be: ${tone}`,
+      },
+      {
+        role: 'user',
+        content: `Write an email to ${params.recipient_name} (${params.recipient_type}).${unitContext ? ` Regarding: ${unitContext}.` : ''} Purpose: ${params.context}`,
+      },
+    ],
+    temperature: 0.4,
+    max_tokens: 400,
+  });
+
+  const emailBody = emailCompletion.choices[0]?.message?.content?.trim() || '';
+
+  // Generate subject line
+  const subjectLine = unitContext
+    ? `Update — ${unitContext}`
+    : `Following up — ${params.context.slice(0, 40)}`;
+
   return {
     data: {
-      draft_request: true,
-      recipient_type: params.recipient_type,
-      recipient_name: params.recipient_name,
-      recipient_email: recipientEmail,
-      context: params.context,
-      tone,
-      unit_context: unitContext,
-      agent_name: agentContext.displayName,
-      notes: 'DRAFT — Review before sending. The agent must review, edit if needed, and send manually.',
+      draft: {
+        to: params.recipient_name,
+        email: recipientEmail,
+        subject: subjectLine,
+        body: emailBody,
+        unit_context: unitContext,
+      },
     },
-    summary: `Draft prepared for ${params.recipient_type} (${params.recipient_name}). Tone: ${tone}. The agent should review before sending.`,
+    summary: `Email drafted for ${params.recipient_name}${unitContext ? ` (${unitContext})` : ''}`,
   };
 }
 

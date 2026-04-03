@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
               tool_name: toolCall.function.name,
               params,
               result_summary: result.summary,
+              result_data: result.data,
             });
           } catch (err: any) {
             console.error(`[AgentIntel] Tool ${toolCall.function.name} failed:`, err);
@@ -229,7 +230,11 @@ export async function POST(request: NextRequest) {
             controller.enqueue(
               encoder.encode(JSON.stringify({
                 type: 'tools_used',
-                tools: toolsCalled.map(t => ({ name: t.tool_name, summary: t.result_summary })),
+                tools: toolsCalled.map(t => ({
+                  name: t.tool_name,
+                  summary: t.result_summary,
+                  ...(t.result_data?.draft ? { draft: t.result_data.draft } : {}),
+                })),
               }) + '\n')
             );
           }
