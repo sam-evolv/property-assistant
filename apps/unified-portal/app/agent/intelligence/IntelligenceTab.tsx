@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 /* ─── Light palette — matches property assistant exactly ─── */
 const C = {
@@ -223,11 +223,160 @@ function DraftEmailQueue({ drafts, fallbackContent, msgId, copiedId, onCopy }: {
   );
 }
 
+/* ─── Error boundary to prevent full-page crash ─── */
+class IntelligenceErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) {
+    console.error('[IntelligenceTab] Render crash caught:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32, textAlign: 'center' }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 8 }}>Something went wrong</p>
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>The assistant hit an unexpected error.</p>
+          <button onClick={() => this.setState({ hasError: false })} style={{
+            padding: '8px 20px', borderRadius: 9999, background: '#D4AF37', border: 'none',
+            color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ─── Safe message bubble — catches render errors per-message ─── */
+function SafeAssistantBubble({ msg, copiedId, handleCopy, handleSend, setCopiedId }: {
+  msg: Message;
+  copiedId: string | null;
+  handleCopy: (id: string, text: string) => void;
+  handleSend: (text?: string) => void;
+  setCopiedId: (id: string | null) => void;
+}) {
+  try {
+    const hasDrafts = msg.toolsUsed?.some(t => t.name?.includes('draft_message'));
+    const hasReport = msg.toolsUsed?.some(t => t.name?.includes('generate_developer_report'));
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-start', flexDirection: 'column', gap: 6 }}>
+        <div style={{ maxWidth: '80%' }}>
+          {/* Tool usage — consolidated badges */}
+          {msg.toolsUsed && msg.toolsUsed.length > 0 && (() => {
+            const groups: Record<string, number> = {};
+            msg.toolsUsed!.forEach(t => { const l = toolLabel(t.name || 'unknown'); groups[l] = (groups[l] || 0) + 1; });
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                {Object.entries(groups).map(([label, count]) => (
+                  <span key={label} style={{
+                    fontSize: 10, color: C.goldText,
+                    background: C.goldLight, padding: '2px 8px',
+                    borderRadius: 6, fontWeight: 500,
+                  }}>
+                    {label}{count > 1 ? ` (${count})` : ''}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* The bubble */}
+          <div style={{
+            background: C.assistBubble,
+            borderRadius: '20px 20px 20px 6px',
+            padding: '10px 16px',
+            boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
+            position: 'relative',
+          }}>
+            {hasDrafts ? (
+              <DraftEmailQueue
+                drafts={(msg.toolsUsed || [])
+                  .filter(t => t.name?.includes('draft_message') && t.draft && t.draft.to && t.draft.body)
+                  .map(t => t.draft as DraftData)}
+                fallbackContent={msg.content}
+                msgId={msg.id}
+                copiedId={copiedId}
+                onCopy={handleCopy}
+              />
+            ) : hasReport ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
+                    letterSpacing: '0.06em', color: '#0A7855',
+                    background: 'rgba(10,120,85,0.08)', padding: '2px 8px', borderRadius: 6,
+                  }}>Report</span>
+                </div>
+                <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                  dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={() => { copyText(msg.content); setCopiedId(msg.id); setTimeout(() => setCopiedId(null), 2000); }}
+                    style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 10,
+                      background: C.gold, border: 'none', color: '#fff',
+                      fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
+                    }}>
+                    {copiedId === msg.id ? 'Copied' : 'Send to developer'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Follow-up action pills */}
+        {msg.followUps && msg.followUps.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 4, maxWidth: '85%' }}>
+            {msg.followUps.map((q, i) => (
+              <button key={i} onClick={() => handleSend(q)} style={{
+                padding: '6px 12px', background: C.bg,
+                border: '1px solid #e2e8f0', borderRadius: 9999,
+                color: C.t1, fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all .2s',
+              }}>
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  } catch (err) {
+    console.error('[SafeAssistantBubble] Render error:', err);
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <div style={{
+          background: C.assistBubble, borderRadius: '20px 20px 20px 6px',
+          padding: '10px 16px', maxWidth: '80%',
+        }}>
+          <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap' }}>
+            {msg.content || 'Response received.'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
 /* ═══════════════════════════════════════
    Component
    ═══════════════════════════════════════ */
 
-export default function IntelligenceTab() {
+function IntelligenceTabInner() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -420,99 +569,14 @@ export default function IntelligenceTab() {
               </div>
             </div>
           ) : (
-            /* ── Assistant bubble — light grey, iMessage style ── */
-            <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-start', flexDirection: 'column', gap: 6 }}>
-              <div style={{ maxWidth: '80%' }}>
-                {/* Tool usage — consolidated badges */}
-                {msg.toolsUsed && msg.toolsUsed.length > 0 && (() => {
-                  // Group tools by name to avoid 17x "Drafted email" badges
-                  const groups: Record<string, number> = {};
-                  msg.toolsUsed!.forEach(t => { const l = toolLabel(t.name); groups[l] = (groups[l] || 0) + 1; });
-                  return (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                      {Object.entries(groups).map(([label, count]) => (
-                        <span key={label} style={{
-                          fontSize: 10, color: C.goldText,
-                          background: C.goldLight, padding: '2px 8px',
-                          borderRadius: 6, fontWeight: 500,
-                        }}>
-                          {label}{count > 1 ? ` (${count})` : ''}
-                        </span>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {/* The bubble */}
-                <div style={{
-                  background: C.assistBubble,
-                  borderRadius: '20px 20px 20px 6px',
-                  padding: '10px 16px',
-                  boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
-                  position: 'relative',
-                }}>
-                  {msg.toolsUsed?.some(t => t.name.includes('draft_message')) ? (
-                    /* ── Draft email queue ── */
-                    <DraftEmailQueue
-                      drafts={(msg.toolsUsed || [])
-                        .filter(t => t.name.includes('draft_message') && t.draft && t.draft.to && t.draft.body)
-                        .map(t => t.draft as DraftData)}
-                      fallbackContent={msg.content}
-                      msgId={msg.id}
-                      copiedId={copiedId}
-                      onCopy={handleCopy}
-                    />
-                  ) : msg.toolsUsed?.some(t => t.name.includes('generate_developer_report')) ? (
-                    /* ── Report card ── */
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
-                          letterSpacing: '0.06em', color: '#0A7855',
-                          background: 'rgba(10,120,85,0.08)', padding: '2px 8px', borderRadius: 6,
-                        }}>Report</span>
-                      </div>
-                      <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                        dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
-                      />
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <button onClick={() => { copyText(msg.content); setCopiedId(msg.id); setTimeout(() => setCopiedId(null), 2000); }}
-                          style={{
-                            flex: 1, padding: '8px 12px', borderRadius: 10,
-                            background: C.gold, border: 'none', color: '#fff',
-                            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-                            boxShadow: '0 2px 6px rgba(212,175,55,0.3)',
-                          }}>
-                          {copiedId === msg.id ? 'Copied' : 'Send to developer'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* ── Standard text ── */
-                    <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                      dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Follow-up action pills */}
-              {msg.followUps && msg.followUps.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 4, maxWidth: '85%' }}>
-                  {msg.followUps.map((q, i) => (
-                    <button key={i} onClick={() => handleSend(q)} style={{
-                      padding: '6px 12px', background: C.bg,
-                      border: '1px solid #e2e8f0', borderRadius: 9999,
-                      color: C.t1, fontSize: 12, fontWeight: 500,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      transition: 'all .2s',
-                    }}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <SafeAssistantBubble
+              key={msg.id}
+              msg={msg}
+              copiedId={copiedId}
+              handleCopy={handleCopy}
+              handleSend={handleSend}
+              setCopiedId={setCopiedId}
+            />
           ))}
 
           {/* Typing indicator — matches property assistant */}
@@ -580,5 +644,13 @@ export default function IntelligenceTab() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function IntelligenceTab() {
+  return (
+    <IntelligenceErrorBoundary>
+      <IntelligenceTabInner />
+    </IntelligenceErrorBoundary>
   );
 }
