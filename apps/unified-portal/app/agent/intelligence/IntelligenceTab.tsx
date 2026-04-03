@@ -5,19 +5,17 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 /* ─── Light palette — matches property assistant exactly ─── */
 const C = {
   bg:       '#FFFFFF',
-  surface:  '#F9FAFB',
-  line:     '#E5E7EB',
-  t1:       '#111827',
-  t2:       '#6b7280',
-  t3:       '#9ca3af',
-  t4:       '#d1d5db',
+  surface:  '#F7F7F9',
+  line:     '#EBEBF0',
+  t1:       '#111827',   // slate-900
+  t2:       '#6b7280',   // gray-500
+  t3:       '#9ca3af',   // gray-400
+  t4:       '#d1d5db',   // gray-300
   gold:     '#D4AF37',
   goldLight:'rgba(212,175,55,0.15)',
-  goldText: '#B8934C',
-  userBubble: '#D4AF37',
-  assistBg: '#FFFFFF',
-  assistBorder: '1px solid #E5E7EB',
-  assistShadow: '0 1px 2px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04)',
+  goldText: '#9A7A2E',
+  userBubble: 'linear-gradient(135deg, #D4AF37, #C4A030)',
+  assistBubble: '#E9E9EB',  // exact match to property assistant
 };
 
 /* ─── Types ─── */
@@ -83,10 +81,10 @@ async function copyText(text: string) {
 
 /* ─── Suggested prompts ─── */
 const PROMPTS = [
-  { label: 'Chase outstanding contracts', query: 'Chase all outstanding contracts and draft follow-up emails' },
-  { label: 'Draft weekly developer report', query: 'Generate a weekly developer report' },
-  { label: 'Follow up buyers without AIP', query: "Which buyers don't have AIP? Draft follow-ups" },
-  { label: 'Email all pending contract buyers', query: 'Draft emails to all buyers with contracts outstanding over 30 days' },
+  { label: "What's outstanding this week?", query: "What's outstanding this week?" },
+  { label: 'Give me a scheme overview',     query: 'Give me an overview of all my schemes' },
+  { label: 'Draft a buyer follow-up',       query: 'Draft a follow-up email to the buyer on the most overdue contract' },
+  { label: 'Generate developer report',     query: 'Generate a weekly developer report' },
 ];
 
 /* ─── Draft email queue component ─── */
@@ -289,14 +287,12 @@ function SafeAssistantBubble({ msg, copiedId, handleCopy, handleSend, setCopiedI
             );
           })()}
 
-          {/* The bubble — white card */}
+          {/* The bubble */}
           <div style={{
-            background: C.assistBg,
-            border: C.assistBorder,
-            borderRadius: 18,
+            background: C.assistBubble,
+            borderRadius: '20px 20px 20px 6px',
             padding: '10px 16px',
-            boxShadow: C.assistShadow,
-            overflow: 'hidden',
+            boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
             position: 'relative',
           }}>
             {hasDrafts ? (
@@ -364,8 +360,8 @@ function SafeAssistantBubble({ msg, copiedId, handleCopy, handleSend, setCopiedI
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
         <div style={{
-          background: C.assistBg, border: C.assistBorder, borderRadius: 18,
-          padding: '10px 16px', maxWidth: '80%', boxShadow: C.assistShadow,
+          background: C.assistBubble, borderRadius: '20px 20px 20px 6px',
+          padding: '10px 16px', maxWidth: '80%',
         }}>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1f2937', whiteSpace: 'pre-wrap' }}>
             {msg.content || 'Response received.'}
@@ -503,7 +499,6 @@ function IntelligenceTabInner() {
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '24px 28px 0', textAlign: 'center',
-          background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(212,175,55,0.06) 0%, #FFFFFF 100%)',
         }}>
           {/* Logo */}
           <div style={{ marginBottom: 12, cursor: 'pointer' }}>
@@ -533,18 +528,17 @@ function IntelligenceTabInner() {
             Quick answers for sales, units, buyers, and tasks.
           </p>
 
-          {/* Prompt pills — single column, full readable text, 48px tap targets */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 300 }}>
+          {/* 2x2 pill grid — matches property assistant */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%', maxWidth: 300 }}>
             {PROMPTS.map(p => (
-              <button key={p.label} onClick={() => handleSend(p.query)} className="interactive" style={{
-                padding: '13px 16px', minHeight: 48,
-                background: '#FFFFFF', border: '1px solid #E2E8F0',
-                borderRadius: 24, color: '#374151',
-                fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
-                cursor: 'pointer', textAlign: 'center', lineHeight: 1.4,
-                whiteSpace: 'normal', width: '100%',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                transition: 'all 0.15s ease',
+              <button key={p.label} onClick={() => handleSend(p.query)} style={{
+                padding: '8px 10px', background: C.bg,
+                border: '1px solid #e2e8f0', borderRadius: 9999,
+                color: C.t1, fontSize: 12, fontWeight: 500,
+                fontFamily: 'inherit', cursor: 'pointer',
+                textAlign: 'center', lineHeight: 1.4, width: '100%',
+                transition: 'all .2s', overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {p.label}
               </button>
@@ -561,15 +555,15 @@ function IntelligenceTabInner() {
           WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain',
         }}>
           {messages.map(msg => msg.role === 'user' ? (
-            /* ── User bubble — gold, matches brand ── */
+            /* ── User bubble — gold gradient, iMessage style ── */
             <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{
                 background: C.userBubble,
-                borderRadius: '18px 18px 4px 18px',
-                padding: '11px 16px', maxWidth: '80%',
-                boxShadow: '0 2px 8px rgba(212,175,55,0.3)',
+                borderRadius: '20px 20px 6px 20px',
+                padding: '10px 16px', maxWidth: '75%',
+                boxShadow: '0 1px 3px rgba(212,175,55,0.2)',
               }}>
-                <p style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 1.5, margin: 0, fontWeight: 500, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                <p style={{ color: '#fff', fontSize: 15, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {msg.content}
                 </p>
               </div>
@@ -589,8 +583,8 @@ function IntelligenceTabInner() {
           {sending && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{
-                background: C.assistBg, border: C.assistBorder, borderRadius: 18,
-                padding: '10px 16px', boxShadow: C.assistShadow,
+                background: C.assistBubble, borderRadius: '20px 20px 20px 6px',
+                padding: '10px 16px', boxShadow: '0 0.5px 1px rgba(0,0,0,0.05)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   {[0, 1, 2].map(i => (
