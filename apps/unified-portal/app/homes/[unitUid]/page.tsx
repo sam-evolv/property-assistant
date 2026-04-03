@@ -68,6 +68,7 @@ interface HouseContext {
     contacts?: ContactInfo;
     faqs?: FAQ[];
   } | null;
+  tier?: 'standard' | 'select';
 }
 
 const LANGUAGES = [
@@ -243,6 +244,11 @@ export default function HomeResidentPage() {
           };
 
           setHouse(houseData);
+
+          if (houseData.tier === 'select' && houseData.handover_complete) {
+            window.location.href = `/homes/${unitUid}/select`;
+            return;
+          }
 
           // Fire qr_scan analytics event (fire-and-forget, log failures loudly)
           fetch('/api/analytics/qr-scan', {
