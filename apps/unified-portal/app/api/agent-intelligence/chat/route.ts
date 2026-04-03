@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
               messages: [
                 {
                   role: 'system',
-                  content: 'You suggest next ACTIONS for a busy Irish estate agent. Based on this conversation, suggest 2-3 short next actions they might want to take. Return ONLY a JSON array of strings. Max 8 words each. These must be ACTIONS the agent can tap to execute, never questions. Examples of GOOD suggestions: "Draft follow-up emails now", "Show the full Meadow View pipeline", "Create a task for Monday", "Check other outstanding items". Examples of BAD suggestions (never use): "Would you like more details?", "Do you need help with anything else?", "What specific information do you need?"',
+                  content: 'You are suggesting the next thing a busy Irish estate agent would want to do. Return ONLY a JSON array of 2-3 short action strings (max 7 words each). These are buttons the agent taps — so they must be commands, not questions. Sound like a colleague suggesting the obvious next step. GOOD: "Draft chase emails for those 5", "Show me the Riverside pipeline", "Log that call", "Set a reminder for Monday". BAD: "Would you like more details?", "Get help with something else", "Learn more about this topic". Never start with Would/Do/Can/Should.',
                 },
                 {
                   role: 'user',
