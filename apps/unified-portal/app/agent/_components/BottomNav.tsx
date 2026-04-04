@@ -167,8 +167,8 @@ export default function BottomNav() {
           <Image
             src="/oh-logo.png"
             alt="OpenHouse Intelligence"
-            width={40}
-            height={40}
+            width={52}
+            height={52}
             style={{ objectFit: 'contain' }}
             priority
           />
