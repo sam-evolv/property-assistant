@@ -9,6 +9,8 @@ interface AIScreenProps {
   unitUid: string;
   purchaserName: string;
   address: string;
+  builderName?: string;
+  handoverDate?: string;
   onClose: () => void;
 }
 
@@ -73,7 +75,7 @@ const SUGGESTIONS = [
 ];
 
 // ─── AIScreen ─────────────────────────────────────────────────────────────────
-export default function AIScreen({ unitUid, purchaserName, address, onClose }: AIScreenProps) {
+export default function AIScreen({ unitUid, purchaserName, address, builderName, handoverDate, onClose }: AIScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -97,12 +99,17 @@ export default function AIScreen({ unitUid, purchaserName, address, onClose }: A
     setInput('');
     setThinking(true);
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/select/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text.trim(),
           unitUid,
+          purchaserName,
+          address,
+          builderName,
+          handoverDate,
+          conversationHistory: messages,
         }),
       });
       const data = await res.json();
