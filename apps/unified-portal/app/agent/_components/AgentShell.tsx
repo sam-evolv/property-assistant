@@ -22,7 +22,7 @@ export default function AgentShell({
         flexDirection: 'column',
         height: '100dvh',
         background: '#FAFAF8',
-        overflow: 'visible',
+        overflow: 'hidden',
         fontFamily:
           "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
         WebkitFontSmoothing: 'antialiased',
@@ -37,6 +37,8 @@ export default function AgentShell({
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
+          position: 'relative',
+          zIndex: 1,
         }}
         className="[&::-webkit-scrollbar]:hidden"
       >

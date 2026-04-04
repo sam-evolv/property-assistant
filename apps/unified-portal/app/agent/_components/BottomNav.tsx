@@ -121,7 +121,6 @@ export default function BottomNav() {
           flexDirection: 'column',
           alignItems: 'center',
           position: 'relative',
-          paddingTop: 28,
         }}
       >
         {/* White arch — masks nav border behind the logo */}
@@ -131,56 +130,61 @@ export default function BottomNav() {
             top: -1,
             left: '50%',
             transform: 'translateX(-50%)',
-            width: 88,
-            height: 32,
+            width: 100,
+            height: 44,
             background: '#FAFAF8',
-            borderRadius: '0 0 44px 44px',
+            borderRadius: '0 0 50px 50px',
+            zIndex: 1,
           }}
         />
 
-        {/* The logo — protrudes 28px above nav top */}
+        {/* The logo — protrudes dramatically above nav top */}
         <Link
           href="/agent/intelligence"
           style={{
             position: 'absolute',
-            top: -28,
+            top: -48,
+            left: '50%',
+            transform: 'translateX(-50%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 72,
-            height: 72,
+            width: 86,
+            height: 86,
             WebkitTapHighlightColor: 'transparent',
             cursor: 'pointer',
             textDecoration: 'none',
+            zIndex: 2,
           }}
         >
           <Image
             src="/oh-logo.png"
             alt="Intelligence"
-            width={72}
-            height={72}
+            width={86}
+            height={86}
             style={{
               objectFit: 'contain',
               display: 'block',
               mixBlendMode: 'multiply',
               filter: intelActive
-                ? 'drop-shadow(0 0 10px rgba(196, 155, 42, 0.7)) drop-shadow(0 2px 8px rgba(196, 155, 42, 0.4))'
-                : 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))',
+                ? 'drop-shadow(0 0 12px rgba(196, 155, 42, 0.7)) drop-shadow(0 2px 8px rgba(196, 155, 42, 0.4))'
+                : 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12))',
               transition: 'filter 0.22s ease, transform 0.15s ease',
-              transform: intelActive ? 'scale(1.05)' : 'scale(1)',
+              transform: intelActive ? 'scale(1.08)' : 'scale(1)',
             }}
             priority
           />
         </Link>
 
-        {/* Label — sits in normal nav flow */}
+        {/* Label — pushed down to align with other tab labels */}
         <span
           style={{
             fontSize: 9.5,
             fontWeight: intelActive ? 600 : 500,
             letterSpacing: '0.01em',
             color: intelActive ? '#0D0D12' : '#B0B8C4',
-            marginTop: 'auto',
+            position: 'absolute',
+            bottom: 0,
           }}
         >
           Intelligence
