@@ -2,7 +2,7 @@
   "buildCommand": "npm --workspace=@openhouse/unified-portal run build",
   "installCommand": "npm ci",
   "framework": "nextjs",
-  "outputDirectory": "apps/unified-portal/.next",
+  "outputDirectory": ".next",
   "crons": [
     {
       "path": "/api/cron/refresh-tokens",
