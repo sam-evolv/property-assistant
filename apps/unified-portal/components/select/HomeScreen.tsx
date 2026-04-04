@@ -321,7 +321,7 @@ export default function HomeScreen({
           style={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
-            objectFit: 'cover', objectPosition: 'center 30%',
+            objectFit: 'cover', objectPosition: "center 55%",
           }}
         />
         {/* Dark tint overlay — keeps photo subtle and preserves dark aesthetic */}
