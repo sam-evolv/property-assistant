@@ -126,24 +126,24 @@ export default function BottomNav() {
         <div
           style={{
             position: 'absolute',
-            top: -22,
-            width: 80,
-            height: 34,
+            top: -30,
+            width: 100,
+            height: 46,
             background: '#FAFAF8',
             borderRadius: '50% 50% 0 0',
             boxShadow: 'inset 0 0.5px 0 rgba(0,0,0,0.08)',
           }}
         />
 
-        {/* The FAB — 58px dark circle with OH logo */}
+        {/* The FAB — 80px dark circle with OH logo */}
         <Link
           href="/agent/intelligence"
           style={{
             position: 'absolute',
-            bottom: 16,
-            width: 58,
-            height: 58,
-            borderRadius: 29,
+            bottom: 12,
+            width: 80,
+            height: 80,
+            borderRadius: 40,
             background: '#0D0D12',
             display: 'flex',
             alignItems: 'center',
@@ -167,8 +167,8 @@ export default function BottomNav() {
           <Image
             src="/oh-logo.png"
             alt="OpenHouse Intelligence"
-            width={52}
-            height={52}
+            width={80}
+            height={80}
             style={{ objectFit: 'contain' }}
             priority
           />
