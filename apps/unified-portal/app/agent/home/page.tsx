@@ -155,7 +155,6 @@ export default function HomePage() {
           />
         </div>
 
-        {
 
         {/* Requires action section */}
         <SectionLabel>Requires action</SectionLabel>
