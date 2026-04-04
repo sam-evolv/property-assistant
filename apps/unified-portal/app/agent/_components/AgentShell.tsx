@@ -37,9 +37,7 @@ export default function AgentShell({
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
-          position: 'relative',
-          zIndex: 1,
-        }}
+        }}}
         className="[&::-webkit-scrollbar]:hidden"
       >
         {children}

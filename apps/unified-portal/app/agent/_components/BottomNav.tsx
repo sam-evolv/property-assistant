@@ -65,7 +65,7 @@ export default function BottomNav() {
   return (
     <nav
       style={{
-        height: 72,
+        height: 76,
         background: 'rgba(250, 250, 248, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
@@ -76,7 +76,6 @@ export default function BottomNav() {
         flexShrink: 0,
         position: 'relative',
         zIndex: 50,
-        overflow: 'visible',
       }}
     >
       {/* Left tabs: Home, Pipeline */}
@@ -113,7 +112,7 @@ export default function BottomNav() {
         );
       })}
 
-      {/* ── Intelligence FAB — protruding above nav ── */}
+      {/* ── Intelligence FAB — dark circle protruding above nav ── */}
       <div
         style={{
           flex: 1,
@@ -123,68 +122,67 @@ export default function BottomNav() {
           position: 'relative',
         }}
       >
-        {/* White arch — masks nav border behind the logo */}
+        {/* Notch arch — masks the nav border behind the FAB */}
         <div
           style={{
             position: 'absolute',
-            top: -1,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 100,
-            height: 44,
+            top: -22,
+            width: 80,
+            height: 34,
             background: '#FAFAF8',
-            borderRadius: '0 0 50px 50px',
-            zIndex: 1,
+            borderRadius: '50% 50% 0 0',
+            boxShadow: 'inset 0 0.5px 0 rgba(0,0,0,0.08)',
           }}
         />
 
-        {/* The logo — protrudes dramatically above nav top */}
+        {/* The FAB — 58px dark circle with OH logo */}
         <Link
           href="/agent/intelligence"
           style={{
             position: 'absolute',
-            top: -48,
-            left: '50%',
-            transform: 'translateX(-50%)',
+            bottom: 16,
+            width: 58,
+            height: 58,
+            borderRadius: 29,
+            background: '#0D0D12',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 86,
-            height: 86,
+            overflow: 'hidden',
+            boxShadow: intelActive
+              ? `0 0 0 1px rgba(255,255,255,0.10) inset,
+                 0 0 0 2.5px #C49B2A,
+                 0 8px 24px rgba(0,0,0,0.35),
+                 0 2px 6px rgba(0,0,0,0.20)`
+              : `0 0 0 1px rgba(255,255,255,0.10) inset,
+                 0 8px 24px rgba(0,0,0,0.35),
+                 0 2px 6px rgba(0,0,0,0.20)`,
+            transition:
+              'box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.15s ease',
             WebkitTapHighlightColor: 'transparent',
-            cursor: 'pointer',
+            userSelect: 'none',
             textDecoration: 'none',
-            zIndex: 2,
           }}
         >
           <Image
             src="/oh-logo.png"
-            alt="Intelligence"
-            width={86}
-            height={86}
-            style={{
-              objectFit: 'contain',
-              display: 'block',
-              mixBlendMode: 'multiply',
-              filter: intelActive
-                ? 'drop-shadow(0 0 12px rgba(196, 155, 42, 0.7)) drop-shadow(0 2px 8px rgba(196, 155, 42, 0.4))'
-                : 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12))',
-              transition: 'filter 0.22s ease, transform 0.15s ease',
-              transform: intelActive ? 'scale(1.08)' : 'scale(1)',
-            }}
+            alt="OpenHouse Intelligence"
+            width={40}
+            height={40}
+            style={{ objectFit: 'contain' }}
             priority
           />
         </Link>
 
-        {/* Label — pushed down to align with other tab labels */}
+        {/* Intelligence nav label */}
         <span
           style={{
             fontSize: 9.5,
             fontWeight: intelActive ? 600 : 500,
             letterSpacing: '0.01em',
             color: intelActive ? '#0D0D12' : '#B0B8C4',
-            position: 'absolute',
-            bottom: 0,
+            marginTop: 'auto',
+            paddingBottom: 0,
           }}
         >
           Intelligence
