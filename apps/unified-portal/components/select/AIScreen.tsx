@@ -75,7 +75,7 @@ const SUGGESTIONS = [
 ];
 
 // ─── AIScreen ─────────────────────────────────────────────────────────────────
-export default function AIScreen({ unitUid, purchaserName, address, builderName, handoverDate, onClose }: AIScreenProps) {
+export default function AIScreen({ unitUid, purchaserName, address, builderName = '', handoverDate, onClose }: AIScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -98,6 +98,12 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName,
     setMessages(history);
     setInput('');
     setThinking(true);
+
+    // Add empty assistant message to stream into
+    const assistantMsg: Message = { role: 'assistant', content: '' };
+    setMessages(prev => [...prev, assistantMsg]);
+    setThinking(false);
+
     try {
       const res = await fetch('/api/select/chat', {
         method: 'POST',
@@ -112,14 +118,40 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName,
           conversationHistory: messages,
         }),
       });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.answer || data.response || 'I couldn\'t process that request.' }]);
+
+      if (!res.ok || !res.body) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: "Sorry, I'm having trouble connecting right now." };
+          return updated;
+        });
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'assistant') {
+            updated[updated.length - 1] = { ...last, content: last.content + chunk };
+          }
+          return updated;
+        });
+      }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I\'m having trouble connecting right now.' }]);
-    } finally {
-      setThinking(false);
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content: "Sorry, I'm having trouble connecting right now." };
+        return updated;
+      });
     }
-  }, [messages, thinking, unitUid]);
+  }, [messages, thinking, unitUid, purchaserName, address, builderName, handoverDate]);
 
   const firstName = purchaserName.split(' ')[0];
 

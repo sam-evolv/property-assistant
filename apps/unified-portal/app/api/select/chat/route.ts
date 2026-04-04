@@ -1,9 +1,3 @@
-/**
- * POST /api/select/chat — Select-tier homeowner AI assistant
- *
- * Self-contained route. Does not modify /api/chat or /api/care/chat.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
@@ -12,22 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// ─── Rate limit ───────────────────────────────────────────────────────────────
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(key: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  if (entry.count >= 20) return false;
-  entry.count++;
-  return true;
-}
-
-// ─── Clients ──────────────────────────────────────────────────────────────────
-function getSupabase() {
+function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -38,7 +17,19 @@ function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
-// ─── System prompt ────────────────────────────────────────────────────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + 60000 });
+    return true;
+  }
+  if (entry.count >= 20) return false;
+  entry.count++;
+  return true;
+}
+
 function buildSelectSystemPrompt(params: {
   purchaserName: string;
   address: string;
@@ -95,66 +86,78 @@ ROOM DIMENSIONS
 Never quote specific measurements. If asked: "The floor plan will have the accurate dimensions."`;
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const {
       message,
       unitUid,
       purchaserName = 'Homeowner',
       address = '',
-      builderName = 'Builder',
+      builderName = 'your builder',
       handoverDate,
       conversationHistory = [],
     } = body;
 
-    if (!message?.trim()) {
-      return NextResponse.json({ error: 'message required' }, { status: 400 });
+    if (!message) {
+      return NextResponse.json({ error: 'Message required' }, { status: 400 });
     }
 
-    const rateLimitKey = unitUid || 'anonymous';
-    if (!checkRateLimit(rateLimitKey)) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please wait before sending another message.' },
-        { status: 429 }
-      );
+    if (!checkRateLimit(unitUid || 'anonymous')) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
-    // Build system prompt
-    const systemPrompt = buildSelectSystemPrompt({
-      purchaserName,
-      address,
-      builderName,
-      handoverDate,
-    });
+    const systemPrompt = buildSelectSystemPrompt({ purchaserName, address, builderName, handoverDate });
 
-    // Build messages array
-    const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory
-        .filter((m: any) => m.role === 'user' || m.role === 'assistant')
-        .map((m: any) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content as string,
-        })),
-      { role: 'user', content: message.trim() },
+      ...conversationHistory.map((m: { role: string; content: string }) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+      { role: 'user', content: message },
     ];
 
-    // Call OpenAI
     const openai = getOpenAI();
-    const completion = await openai.chat.completions.create({
+
+    // Streaming response
+    const stream = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: openaiMessages,
-      temperature: 0.4,
-      max_tokens: 1000,
+      messages,
+      temperature: 0.6,
+      max_tokens: 600,
+      stream: true,
     });
 
-    const answer = completion.choices[0]?.message?.content ?? '';
+    const encoder = new TextEncoder();
 
-    return NextResponse.json({ answer });
-  } catch (err) {
-    console.error('[Select Chat] Error:', err);
-    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const token = chunk.choices[0]?.delta?.content || '';
+            if (token) {
+              controller.enqueue(encoder.encode(token));
+            }
+          }
+        } catch (err) {
+          console.error('[Select chat] Stream error:', err);
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+        'X-Accel-Buffering': 'no',
+      },
+    });
+
+  } catch (error) {
+    console.error('[Select chat] Error:', error);
+    return NextResponse.json({ error: 'Assistant unavailable' }, { status: 500 });
   }
 }
