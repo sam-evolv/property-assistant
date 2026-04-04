@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // /api/super/assistant/process-knowledge/route.ts
 // Uses GPT-4o-mini to chunk and extract knowledge from large text content
 import { NextRequest, NextResponse } from 'next/server';

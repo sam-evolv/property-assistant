@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/care/installations — List installations for tenant
  * POST /api/care/installations — Create new installation

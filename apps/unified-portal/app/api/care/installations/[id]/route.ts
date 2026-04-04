@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/care/installations/[id] — Get installation details + telemetry
  * PUT /api/care/installations/[id] — Update installation

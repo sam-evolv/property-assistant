@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/care/solar-troubleshooting — Search solar troubleshooting KB
  *
