@@ -314,11 +314,32 @@ export default function HomeScreen({
         opacity: on ? 1 : 0, transform: on ? 'translateY(0)' : 'translateY(6px)',
         transition: `all ${DURATION.window}ms ${EASE}`,
       }}>
-        <House windowGlow={windowGlow} />
-        {/* Bottom vignette */}
+        {/* Hero photo */}
+        <img
+          src="/select-hero.png"
+          alt=""
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center 30%',
+          }}
+        />
+        {/* Dark tint overlay — keeps photo subtle and preserves dark aesthetic */}
         <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 100,
-          background: `linear-gradient(0deg, ${C.bg}, transparent)`,
+          position: 'absolute', inset: 0,
+          background: 'rgba(4, 4, 10, 0.62)',
+        }} />
+        {/* Subtle gold warmth gradient from bottom */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `linear-gradient(to top, ${C.bg} 0%, rgba(4,4,10,0.3) 45%, transparent 100%)`,
+        }} />
+        {/* SVG house sits on top of photo */}
+        <House windowGlow={windowGlow} />
+        {/* Bottom vignette — blend into app background */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 120,
+          background: `linear-gradient(0deg, ${C.bg} 0%, transparent 100%)`,
         }} />
       </div>
 
