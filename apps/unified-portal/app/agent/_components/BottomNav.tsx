@@ -126,9 +126,9 @@ export default function BottomNav() {
         <div
           style={{
             position: 'absolute',
-            top: -30,
+            top: -20,
             width: 100,
-            height: 46,
+            height: 34,
             background: '#FAFAF8',
             borderRadius: '50% 50% 0 0',
             boxShadow: 'inset 0 0.5px 0 rgba(0,0,0,0.08)',
@@ -140,7 +140,7 @@ export default function BottomNav() {
           href="/agent/intelligence"
           style={{
             position: 'absolute',
-            bottom: 12,
+            bottom: 20,
             width: 80,
             height: 80,
             borderRadius: 40,
