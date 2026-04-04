@@ -10,6 +10,7 @@ import StoryScreen from '@/components/select/StoryScreen';
 import DocsScreen from '@/components/select/DocsScreen';
 import WarrantyScreen from '@/components/select/WarrantyScreen';
 import AIScreen from '@/components/select/AIScreen';
+import SelectIntelligenceChat from '@/components/select/SelectIntelligenceChat';
 
 // ─── Tab icons (inline SVG paths) ────────────────────────────────────────────
 const TAB_ICONS: Record<string, string> = {
@@ -28,6 +29,7 @@ interface UnitData {
   handover_date?: string;
   tier?: string;
   unit_id?: string;
+  development_id?: string;
   development_name?: string;
 }
 
@@ -70,6 +72,8 @@ export default function SelectPage() {
           handover_date: data.handover_date || data.est_handover_date || undefined,
           tier: data.tier,
           unit_id: data.unit_id || data.unitId,
+          development_id: data.development_id || data.developmentId,
+          development_name: data.development_name,
         });
       } catch {
         // Fallback to demo data if resolve fails
@@ -81,6 +85,8 @@ export default function SelectPage() {
           handover_date: '2024-12-14',
           tier: 'select',
           unit_id: unitUid,
+          development_id: 'e0833063-55ac-4201-a50e-f329c090fbd6',
+          development_name: 'Rathard Park',
         });
       } finally {
         setLoading(false);
@@ -292,12 +298,40 @@ export default function SelectPage() {
 
       {/* ── AI Overlay ── */}
       {aiOpen && (
-        <AIScreen
-          unitUid={unitUid}
-          purchaserName={unitData.purchaser_name}
-          address={unitData.address}
-          onClose={() => setAiOpen(false)}
-        />
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: C.bg, display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: `1px solid ${C.b1}`,
+            background: C.s1,
+          }}>
+            <div>
+              <div style={{ ...TYPE.overline, color: C.g }}>OpenHouse Intelligence</div>
+              <div style={{ ...TYPE.title, color: C.t1, marginTop: 2 }}>{unitData.address}</div>
+            </div>
+            <button onClick={() => setAiOpen(false)} style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: C.s3, border: `1px solid ${C.b1}`,
+              color: C.t2, cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>✕</button>
+          </div>
+          {/* Chat */}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <SelectIntelligenceChat
+              unitId={unitData.unit_id || unitUid}
+              developmentId={unitData.development_id || ''}
+              homeownerName={unitData.purchaser_name}
+              developmentName={unitData.development_name || unitData.builder_name || ''}
+              builderName={unitData.builder_name || ''}
+              handoverDate={unitData.handover_date}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
