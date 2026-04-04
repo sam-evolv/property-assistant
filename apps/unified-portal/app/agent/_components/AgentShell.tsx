@@ -22,7 +22,7 @@ export default function AgentShell({
         flexDirection: 'column',
         height: '100dvh',
         background: '#FAFAF8',
-        overflow: 'hidden',
+        overflow: 'visible',
         fontFamily:
           "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
         WebkitFontSmoothing: 'antialiased',

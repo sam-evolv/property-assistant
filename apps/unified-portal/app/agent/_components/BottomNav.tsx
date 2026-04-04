@@ -65,7 +65,7 @@ export default function BottomNav() {
   return (
     <nav
       style={{
-        height: 76,
+        height: 72,
         background: 'rgba(250, 250, 248, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
@@ -76,6 +76,7 @@ export default function BottomNav() {
         flexShrink: 0,
         position: 'relative',
         zIndex: 50,
+        overflow: 'visible',
       }}
     >
       {/* Left tabs: Home, Pipeline */}
@@ -112,7 +113,7 @@ export default function BottomNav() {
         );
       })}
 
-      {/* ── Intelligence FAB — the centrepiece ── */}
+      {/* ── Intelligence FAB — protruding above nav ── */}
       <div
         style={{
           flex: 1,
@@ -120,39 +121,59 @@ export default function BottomNav() {
           flexDirection: 'column',
           alignItems: 'center',
           position: 'relative',
+          paddingTop: 28,
         }}
       >
-        {/* Intelligence logo — bare, no dark circle */}
+        {/* White arch — masks nav border behind the logo */}
+        <div
+          style={{
+            position: 'absolute',
+            top: -1,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 88,
+            height: 32,
+            background: '#FAFAF8',
+            borderRadius: '0 0 44px 44px',
+          }}
+        />
+
+        {/* The logo — protrudes 28px above nav top */}
         <Link
           href="/agent/intelligence"
-          className="agent-tappable"
           style={{
+            position: 'absolute',
+            top: -28,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            width: 72,
+            height: 72,
+            WebkitTapHighlightColor: 'transparent',
+            cursor: 'pointer',
             textDecoration: 'none',
-            marginBottom: 2,
           }}
         >
           <Image
             src="/oh-logo.png"
             alt="Intelligence"
-            width={52}
-            height={52}
+            width={72}
+            height={72}
             style={{
               objectFit: 'contain',
               display: 'block',
               mixBlendMode: 'multiply',
               filter: intelActive
-                ? 'drop-shadow(0 0 8px rgba(196, 155, 42, 0.6))'
-                : 'none',
-              transition: 'filter 0.22s ease',
+                ? 'drop-shadow(0 0 10px rgba(196, 155, 42, 0.7)) drop-shadow(0 2px 8px rgba(196, 155, 42, 0.4))'
+                : 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))',
+              transition: 'filter 0.22s ease, transform 0.15s ease',
+              transform: intelActive ? 'scale(1.05)' : 'scale(1)',
             }}
             priority
           />
         </Link>
 
-        {/* Intelligence nav label */}
+        {/* Label — sits in normal nav flow */}
         <span
           style={{
             fontSize: 9.5,
@@ -160,7 +181,6 @@ export default function BottomNav() {
             letterSpacing: '0.01em',
             color: intelActive ? '#0D0D12' : '#B0B8C4',
             marginTop: 'auto',
-            paddingBottom: 0,
           }}
         >
           Intelligence
