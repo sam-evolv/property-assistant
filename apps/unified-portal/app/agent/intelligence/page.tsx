@@ -81,34 +81,19 @@ export default function IntelligencePage() {
               minHeight: 0,
             }}
           >
-            {/* Logo on dark circle */}
-            <div
+            <Image
+              src="/oh-logo.png"
+              alt="OpenHouse"
+              width={96}
+              height={96}
               style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                background: '#0D0D12',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 20,
-                overflow: 'hidden',
-                boxShadow: `
-                  0 0 0 1px rgba(255,255,255,0.08) inset,
-                  0 8px 32px rgba(0,0,0,0.28),
-                  0 2px 8px rgba(0,0,0,0.16)
-                `,
+                objectFit: 'contain',
+                display: 'block',
+                mixBlendMode: 'multiply',
+                marginBottom: 22,
               }}
-            >
-              <Image
-                src="/oh-logo.png"
-                alt="OpenHouse"
-                width={54}
-                height={54}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
+              priority
+            />
 
             {/* Gold wordmark */}
             <p
@@ -367,26 +352,17 @@ function AIResponseCard({ text }: { text: string }) {
             marginBottom: 12,
           }}
         >
-          <div
+          <Image
+            src="/oh-logo.png"
+            alt=""
+            width={24}
+            height={24}
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 8,
-              background: '#0D0D12',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
+              objectFit: 'contain',
+              mixBlendMode: 'multiply',
+              flexShrink: 0,
             }}
-          >
-            <Image
-              src="/oh-logo.png"
-              alt=""
-              width={20}
-              height={20}
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
+          />
           <span
             style={{
               fontSize: 12,
@@ -431,26 +407,17 @@ function TypingIndicator() {
           gap: 8,
         }}
       >
-        <div
+        <Image
+          src="/oh-logo.png"
+          alt=""
+          width={24}
+          height={24}
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 8,
-            background: '#0D0D12',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
+            objectFit: 'contain',
+            mixBlendMode: 'multiply',
+            flexShrink: 0,
           }}
-        >
-          <Image
-            src="/oh-logo.png"
-            alt=""
-            width={20}
-            height={20}
-            style={{ objectFit: 'contain' }}
-          />
-        </div>
+        />
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           {[0, 1, 2].map((i) => (
             <div

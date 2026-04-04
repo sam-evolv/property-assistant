@@ -172,27 +172,16 @@ export default function HomePage() {
             textDecoration: 'none',
           }}
         >
-          <div
+          <Image
+            src="/oh-logo.png"
+            alt=""
+            width={42}
+            height={42}
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
+              objectFit: 'contain',
+              flexShrink: 0,
             }}
-          >
-            <Image
-              src="/oh-logo.png"
-              alt=""
-              width={32}
-              height={32}
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
+          />
           <div style={{ flex: 1 }}>
             <p
               style={{

@@ -122,54 +122,32 @@ export default function BottomNav() {
           position: 'relative',
         }}
       >
-        {/* Notch arch */}
-        <div
-          style={{
-            position: 'absolute',
-            top: -22,
-            width: 80,
-            height: 34,
-            background: '#FAFAF8',
-            borderRadius: '50% 50% 0 0',
-            boxShadow: 'inset 0 0.5px 0 rgba(0,0,0,0.08)',
-          }}
-        />
-
-        {/* The FAB button */}
+        {/* Intelligence logo — bare, no dark circle */}
         <Link
           href="/agent/intelligence"
+          className="agent-tappable"
           style={{
-            position: 'absolute',
-            bottom: 16,
-            width: 58,
-            height: 58,
-            borderRadius: 29,
-            background: '#0D0D12',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
-            boxShadow: intelActive
-              ? `0 0 0 1px rgba(255,255,255,0.10) inset,
-                 0 0 0 2.5px #C49B2A,
-                 0 8px 24px rgba(0,0,0,0.35),
-                 0 2px 6px rgba(0,0,0,0.20)`
-              : `0 0 0 1px rgba(255,255,255,0.10) inset,
-                 0 8px 24px rgba(0,0,0,0.35),
-                 0 2px 6px rgba(0,0,0,0.20)`,
-            transition:
-              'box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.15s ease',
-            WebkitTapHighlightColor: 'transparent',
-            userSelect: 'none',
             textDecoration: 'none',
+            marginBottom: 2,
           }}
         >
           <Image
             src="/oh-logo.png"
-            alt="OpenHouse Intelligence"
-            width={40}
-            height={40}
-            style={{ objectFit: 'contain' }}
+            alt="Intelligence"
+            width={52}
+            height={52}
+            style={{
+              objectFit: 'contain',
+              display: 'block',
+              mixBlendMode: 'multiply',
+              filter: intelActive
+                ? 'drop-shadow(0 0 8px rgba(196, 155, 42, 0.6))'
+                : 'none',
+              transition: 'filter 0.22s ease',
+            }}
             priority
           />
         </Link>
