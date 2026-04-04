@@ -123,6 +123,9 @@ export default function HomeScreen() {
   const [telemetry, setTelemetry] = useState<any>(null);
   const [telemetryLoading, setTelemetryLoading] = useState(true);
 
+  const isHeatPump = installation.system_category === 'heat_pump' ||
+    installation.system_type === 'heat_pump';
+
   useEffect(() => {
     fetch(`/api/care/telemetry/${installationId}`)
       .then(r => r.json())
@@ -132,6 +135,28 @@ export default function HomeScreen() {
 
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
   const savings = daysSince * 5.8;
+
+  // For heat pump portals, render a different home screen
+  if (isHeatPump) {
+    const HeatPumpHomeContent = require('./HeatPumpHomeContent').default;
+    return (
+      <div className="h-full overflow-y-auto bg-[#FAFAFA]">
+        <style>{ANIMATION_STYLES}</style>
+        <div className="max-w-lg mx-auto px-4 pt-5 pb-8 space-y-5 sm:max-w-2xl">
+          <div className="card-item">
+            <p className="text-sm text-slate-500">
+              {getGreeting()}, <span className="font-semibold text-slate-900">{getFirstName(installation.customer_name)}</span>
+            </p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">Your Heating System</h1>
+          </div>
+          <HeatPumpHomeContent installation={installation} onNavigateToProfile={() => setActiveTab('profile')} onNavigateToAssistant={() => setActiveTab('assistant')} />
+          <div className="text-center pt-2 pb-1">
+            <p className="text-[10px] text-slate-300">Powered by OpenHouse AI</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-[#FAFAFA]">

@@ -22,6 +22,7 @@ export interface InstallationData {
   city: string;
   county: string | null;
   system_type: string;
+  system_category?: string; // 'solar' | 'heat_pump' | 'underfloor_heating' | 'hybrid'
   system_size_kwp: number;
   inverter_model: string;
   panel_model: string;
@@ -33,6 +34,33 @@ export interface InstallationData {
   system_specs: SystemSpecs;
   installer_name: string;
   installer_contact?: Record<string, unknown>;
+  // Heat pump fields
+  heat_pump_model?: string | null;
+  heat_pump_serial?: string | null;
+  heat_pump_cop?: number | null;
+  flow_temp_current?: number | null;
+  zones_total?: number | null;
+  zones_active?: number | null;
+  hot_water_cylinder_model?: string | null;
+  hot_water_temp_current?: number | null;
+  controls_model?: string | null;
+  controls_issue?: string | null;
+  last_service_date?: string | null;
+  next_service_due?: string | null;
+  warranty_years?: number | null;
+  annual_service_required?: boolean;
+  seai_grant_amount?: number | null;
+  seai_grant_status?: string | null;
+  seai_grant_ref?: string | null;
+  seai_application_date?: string | null;
+  ber_rating?: string | null;
+  active_safety_alerts?: Array<{ id: string; title: string; body: string; severity: string; action_label?: string }>;
+  indoor_temp_current?: number | null;
+  indoor_temp_target?: number | null;
+  daily_running_cost_cents?: number | null;
+  co2_saved_today_grams?: number | null;
+  monthly_running_cost_cents?: number | null;
+  monthly_budget_cents?: number | null;
 }
 
 export interface CareAppContextType {
