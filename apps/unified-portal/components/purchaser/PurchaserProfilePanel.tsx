@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  X, 
-  Home, 
-  MapPin, 
-  Maximize2, 
-  FileText, 
-  Download, 
-  Bed, 
-  Bath, 
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  X,
+  Home,
+  MapPin,
+  Maximize2,
+  FileText,
+  Download,
+  Bed,
+  Bath,
   Leaf,
   Building2,
   User,
@@ -19,10 +21,15 @@ import {
   Calendar,
   Flame,
   Bookmark,
-  Trash2
+  Trash2,
+  LogOut,
+  Link2,
+  Mail,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useHomeNotes, type HomeNote, type NoteCategory } from '@/hooks/useHomeNotes';
 import { getEffectiveToken } from '../../lib/purchaserSession';
+import type { UserContext } from '@/types/userContext';
 
 interface ProfileData {
   unit: {
@@ -99,7 +106,7 @@ export default function PurchaserProfilePanel({
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<'home' | 'documents' | 'saved'>('home');
+  const [activeSection, setActiveSection] = useState<'home' | 'documents' | 'saved' | 'account'>('home');
   
   // Home Notes — saved AI answers
   const { notes: savedNotes, deleteNote: deleteSavedNote, isLoading: notesLoading } = useHomeNotes({
@@ -119,7 +126,14 @@ export default function PurchaserProfilePanel({
     apiError?: string;
     apiUrl?: string;
   } | null>(null);
-  
+
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [contexts, setContexts] = useState<UserContext[]>([]);
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkStep, setLinkStep] = useState<'idle' | 'input' | 'sent'>('idle');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const router = useRouter();
+
   useEffect(() => {
     let storageToken = 'NULL';
     let sessionToken = 'NULL';
@@ -215,10 +229,88 @@ export default function PurchaserProfilePanel({
     }
   }, [isOpen, unitUid, propToken]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    async function loadAuth() {
+      try {
+        const supabase = createClientComponentClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setAuthUser(user);
+        if (user) {
+          const { data } = await supabase
+            .from('user_contexts')
+            .select('*')
+            .eq('auth_user_id', user.id)
+            .order('last_active_at', { ascending: false });
+          setContexts(data || []);
+        }
+      } catch (e) {
+        // Auth not available in property-code-only sessions
+      }
+    }
+    loadAuth();
+  }, [isOpen]);
+
   const handleDownload = async (doc: ProfileData['documents'][0]) => {
     if (doc.file_url) {
       window.open(doc.file_url, '_blank');
     }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClientComponentClient();
+      await supabase.auth.signOut();
+    } catch (e) {
+      // May not have supabase auth session
+    }
+    // Clear purchaser session storage
+    try {
+      localStorage.removeItem('purchaser_session');
+      localStorage.removeItem(`house_token_${unitUid}`);
+      sessionStorage.removeItem(`house_token_${unitUid}`);
+      sessionStorage.removeItem(`intro_seen_${unitUid}`);
+      localStorage.removeItem('purchaser_language');
+      localStorage.removeItem('purchaser_theme');
+    } catch (e) {}
+    onClose();
+    router.push('/');
+  };
+
+  const handleLinkEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLinkLoading(true);
+    try {
+      const supabase = createClientComponentClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: linkEmail.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?context=homeowner&unit_id=${unitUid}`,
+        },
+      });
+      if (!error) setLinkStep('sent');
+    } catch (e) {}
+    setLinkLoading(false);
+  };
+
+  const switchContext = async (ctx: UserContext) => {
+    try {
+      const supabase = createClientComponentClient();
+      await supabase
+        .from('user_contexts')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('id', ctx.id);
+    } catch (e) {}
+
+    const routes: Record<string, string> = {
+      homeowner: `/homes/${ctx.context_id}`,
+      agent: '/agent/home',
+      developer: '/developer/overview',
+      care: `/care/${ctx.context_id}`,
+      select: '/select/overview',
+    };
+    onClose();
+    router.push(routes[ctx.product] || '/');
   };
 
   const getBerStyle = (rating: string | null) => {
@@ -398,6 +490,21 @@ export default function PurchaserProfilePanel({
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveSection('account')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+                ${activeSection === 'account'
+                  ? (isDarkMode
+                      ? 'bg-gray-900 text-gold-400 shadow-lg'
+                      : 'bg-white text-gold-600 shadow-lg')
+                  : (isDarkMode
+                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                }`}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              <span>Account</span>
+            </button>
           </div>
         </div>
 
@@ -572,6 +679,165 @@ export default function PurchaserProfilePanel({
                     </div>
                   </div>
                 </div>
+              </div>
+            ) : activeSection === 'account' ? (
+              <div className="p-6 space-y-5">
+                {/* Link email — only if no auth user */}
+                {!authUser && linkStep === 'idle' && (
+                  <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                        <Link2 className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          Link your account
+                        </p>
+                        <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Access all your OpenHouse products
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setLinkStep('input')}
+                      className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
+                        isDarkMode
+                          ? 'bg-gold-500/10 border border-gold-500/30 text-gold-400 hover:bg-gold-500/20'
+                          : 'bg-gold-50 border border-gold-200 text-gold-700 hover:bg-gold-100'
+                      }`}
+                    >
+                      Link your email to get started
+                    </button>
+                  </div>
+                )}
+
+                {!authUser && linkStep === 'input' && (
+                  <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                        <Mail className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                      </div>
+                      <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Enter your email
+                      </p>
+                    </div>
+                    <form onSubmit={handleLinkEmail} className="space-y-3">
+                      <input
+                        type="email"
+                        required
+                        value={linkEmail}
+                        onChange={e => setLinkEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        className={`w-full px-4 py-3 rounded-xl text-sm outline-none transition-all ${
+                          isDarkMode
+                            ? 'bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:border-gold-500'
+                            : 'bg-white border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-gold-400'
+                        }`}
+                      />
+                      <button
+                        type="submit"
+                        disabled={linkLoading}
+                        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
+                          linkLoading ? 'opacity-60 cursor-not-allowed' : ''
+                        } bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-lg shadow-gold-500/20 hover:shadow-gold-500/30`}
+                      >
+                        {linkLoading ? 'Sending...' : 'Send access link'}
+                      </button>
+                      <p className={`text-xs text-center ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        We&apos;ll email you a secure link to connect your property.
+                      </p>
+                    </form>
+                  </div>
+                )}
+
+                {!authUser && linkStep === 'sent' && (
+                  <div className={`rounded-xl p-5 border text-center ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className={`p-3 rounded-full mx-auto w-12 h-12 flex items-center justify-center mb-3 ${isDarkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
+                      <Mail className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <p className={`font-semibold mb-1 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      Link sent!
+                    </p>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Check your email and tap the link to connect.
+                    </p>
+                  </div>
+                )}
+
+                {/* Context switcher — only if auth user with contexts */}
+                {authUser && contexts.length > 0 && (
+                  <div>
+                    <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      Your OpenHouse
+                    </p>
+                    <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                      {contexts.map((ctx, i) => {
+                        const isActive = ctx.product === 'homeowner' && ctx.context_id === unitUid;
+                        const iconMap: Record<string, typeof Home> = {
+                          home: Home,
+                          briefcase: Building2,
+                          building: Building2,
+                          sun: Sparkles,
+                        };
+                        const CtxIcon = iconMap[ctx.display_icon || 'home'] || Home;
+
+                        return (
+                          <button
+                            key={ctx.id}
+                            onClick={() => !isActive && switchContext(ctx)}
+                            disabled={isActive}
+                            className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all ${
+                              i > 0 ? (isDarkMode ? 'border-t border-gray-700/50' : 'border-t border-gray-200/50') : ''
+                            } ${isActive
+                              ? (isDarkMode ? 'bg-gold-500/5' : 'bg-gold-50/50')
+                              : (isDarkMode ? 'hover:bg-gray-700/50' : 'hover:bg-white')
+                            }`}
+                          >
+                            <div className={`p-2 rounded-lg flex-shrink-0 ${
+                              isActive
+                                ? (isDarkMode ? 'bg-gold-500/10' : 'bg-gold-100')
+                                : (isDarkMode ? 'bg-gray-700' : 'bg-white')
+                            }`}>
+                              <CtxIcon className={`w-4 h-4 ${isActive ? (isDarkMode ? 'text-gold-400' : 'text-gold-600') : (isDarkMode ? 'text-gray-400' : 'text-gray-500')}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${
+                                isActive ? (isDarkMode ? 'text-gold-400' : 'text-gold-700') : (isDarkMode ? 'text-white' : 'text-gray-900')
+                              }`}>
+                                {ctx.display_name}
+                              </p>
+                              <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {ctx.display_subtitle || ctx.product}
+                              </p>
+                            </div>
+                            {isActive ? (
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider ${
+                                isDarkMode ? 'bg-gold-500/10 text-gold-400 border border-gold-500/30' : 'bg-gold-100 text-gold-700 border border-gold-200'
+                              }`}>
+                                ACTIVE
+                              </span>
+                            ) : (
+                              <ChevronRight className={`w-4 h-4 flex-shrink-0 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sign out */}
+                <button
+                  onClick={handleSignOut}
+                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-medium transition-all ${
+                    isDarkMode
+                      ? 'bg-gray-800/50 border border-gray-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/30'
+                      : 'bg-white border border-gray-200 text-red-500 hover:bg-red-50 hover:border-red-200'
+                  }`}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign out
+                </button>
               </div>
             ) : activeSection === 'saved' ? (
               /* Saved Answers Section */
