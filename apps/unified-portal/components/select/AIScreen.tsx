@@ -184,7 +184,7 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
             }} />
             {/* Logo */}
             <Image
-              src="/branding/openhouse-ai-logo.png"
+              src="/oh-logo-icon.png"
               width={100}
               height={100}
               alt="OpenHouse AI"
