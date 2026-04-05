@@ -3,14 +3,14 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import AgentBottomNav from '../_components/AgentBottomNavNew';
+import AgentShell from '../_components/AgentShell';
 import {
   getTimelineNudges, logPipelineNote,
   daysSince, daysFromNow, type PipelineUnit,
 } from '@/lib/agent/agentPipelineService';
 import {
-  Bell, AlertTriangle, ChevronRight, Filter,
-  Building2, Phone, Search, X, Check
+  AlertTriangle, ChevronRight,
+  Building2, Check
 } from 'lucide-react';
 
 type FilterKey = 'all' | 'for_sale' | 'sale_agreed' | 'contracts_issued' | 'signed' | 'sold';
@@ -83,43 +83,20 @@ export default function PipelinePage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="h-[54px] border-b border-gray-100" />
-        <div className="flex-1 p-5 space-y-3">
+      <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={0}>
+        <div style={{ padding: '16px 24px 100px' }}>
           {[1,2,3,4,5].map(i => (
-            <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+            <div key={i} style={{ height: 64, background: '#f3f4f6', borderRadius: 12, marginBottom: 8, animation: 'pulse 1.5s infinite' }} />
           ))}
         </div>
-      </div>
+      </AgentShell>
     );
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
-      {/* Header */}
-      <header className="h-[54px] flex items-center justify-between px-5 flex-shrink-0 bg-[#FAFAF8] border-b border-gray-100/50">
-        <div className="flex items-center gap-2">
-          <span className="text-[#D4AF37] font-bold text-sm tracking-wide">OPENHOUSE</span>
-          <span className="text-gray-300 text-sm">|</span>
-          <span className="text-gray-400 text-sm font-medium">{agent?.agencyName || 'Agent'}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500 font-medium">{agent?.displayName}</span>
-          <div className="relative">
-            <Bell size={20} className="text-gray-400" />
-            {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {alerts.length}
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
-        <div className="px-5 pt-4">
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight mb-4">Pipeline</h1>
+    <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={alerts.length}>
+      <div style={{ padding: '16px 24px 100px' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.02em', marginBottom: 16 }}>Pipeline</h1>
 
           {/* Filter pills */}
           <div className="flex gap-2 overflow-x-auto pb-3 -mx-5 px-5 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
@@ -170,10 +147,6 @@ export default function PipelinePage() {
             )}
           </div>
         </div>
-      </main>
-
-      {/* Bottom Nav */}
-      <AgentBottomNav />
 
       {/* Bulk Chase Confirmation Sheet */}
       {showBulkChase && (
@@ -209,7 +182,7 @@ export default function PipelinePage() {
           {overdueContracted.length} units logged for follow-up
         </div>
       )}
-    </div>
+    </AgentShell>
   );
 }
 

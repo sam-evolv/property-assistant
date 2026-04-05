@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import AgentBottomNav from '../_components/AgentBottomNavNew';
+import AgentShell from '../_components/AgentShell';
 import { getSolicitorDirectory, type SolicitorGroup } from '@/lib/agent/agentPipelineService';
-import { ArrowLeft, Phone, Mail, Building2, ChevronDown, ChevronUp, Bell, Users } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Building2, ChevronDown, ChevronUp, Users } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
   for_sale: 'For Sale', sale_agreed: 'Sale Agreed', contracts_issued: 'Contracts Out',
@@ -27,39 +27,17 @@ export default function SolicitorsPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="h-[54px] border-b border-gray-100" />
-        <div className="flex-1 p-5 space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
+      <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={alerts.length}>
+        <div style={{ padding: '16px 20px 100px' }}>
+          {[1,2,3].map(i => <div key={i} style={{ height: 96, background: '#f3f4f6', borderRadius: 12, marginBottom: 8, animation: 'pulse 1.5s infinite' }} />)}
         </div>
-      </div>
+      </AgentShell>
     );
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
-      {/* Header */}
-      <header className="h-[54px] flex items-center justify-between px-5 flex-shrink-0 bg-[#FAFAF8] border-b border-gray-100/50">
-        <div className="flex items-center gap-2">
-          <span className="text-[#D4AF37] font-bold text-sm tracking-wide">OPENHOUSE</span>
-          <span className="text-gray-300 text-sm">|</span>
-          <span className="text-gray-400 text-sm font-medium">{agent?.agencyName || 'Agent'}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500 font-medium">{agent?.displayName}</span>
-          <div className="relative">
-            <Bell size={20} className="text-gray-400" />
-            {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {alerts.length}
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
-        <div className="px-5 pt-4">
+    <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={alerts.length}>
+      <div style={{ padding: '16px 20px 100px' }}>
           <Link href="/agent/pipeline" className="flex items-center gap-1.5 text-sm text-gray-400 mb-4 transition-all active:opacity-70">
             <ArrowLeft size={16} /> Back to Pipeline
           </Link>
@@ -134,9 +112,6 @@ export default function SolicitorsPage() {
             </div>
           )}
         </div>
-      </main>
-
-      <AgentBottomNav />
-    </div>
+    </AgentShell>
   );
 }

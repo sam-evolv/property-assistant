@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import AgentBottomNav from '../../_components/AgentBottomNavNew';
+import AgentShell from '../../_components/AgentShell';
 import {
   getUnitProfile,
   logPipelineNote,
@@ -134,15 +134,8 @@ export default function UnitProfilePage() {
   ];
 
   return (
-    <div
-      className="flex flex-col h-dvh bg-[#FAFAF8]"
-      style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}
-    >
-      <main
-        className="flex-1 overflow-y-auto overflow-x-hidden"
-        style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + 140px + env(safe-area-inset-bottom, 0px))' } as any}
-      >
-        <div className="px-5 pt-4">
+    <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={0}>
+      <div style={{ padding: '16px 20px 220px' }}>
           {/* Back */}
           <Link
             href="/agent/pipeline"
@@ -398,7 +391,6 @@ export default function UnitProfilePage() {
             </div>
           </Section>
         </div>
-      </main>
 
       {/* Action buttons (fixed above bottom nav) */}
       <div
@@ -463,8 +455,7 @@ export default function UnitProfilePage() {
         </div>
       </div>
 
-      <AgentBottomNav />
-    </div>
+    </AgentShell>
   );
 }
 
