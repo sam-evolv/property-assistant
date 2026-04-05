@@ -62,12 +62,20 @@ export default function HomeownerLogin() {
         return;
       }
 
-      // Find any unit to use as demo context, or use tenant as context
-      const { data: unit } = await supabase
+      // Find a unit linked to this admin's email, or fall back to first unit
+      const { data: ownUnit } = await supabase
+        .from('units')
+        .select('id, address_line_1')
+        .eq('purchaser_email', email.trim().toLowerCase())
+        .limit(1)
+        .single();
+
+      const unit = ownUnit || (await supabase
         .from('units')
         .select('id, address_line_1')
         .limit(1)
-        .single();
+        .single()
+      ).data;
 
       if (unit) {
         await supabase.from('user_contexts').upsert({
