@@ -139,7 +139,9 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
         .from('agent_profiles')
         .select('id, display_name, agency_name, phone, email, tenant_id')
         .eq('user_id', user.id)
-        .single();
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
       if (data) {
         return {
