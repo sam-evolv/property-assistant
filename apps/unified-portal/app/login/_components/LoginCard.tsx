@@ -12,6 +12,52 @@ interface LoginCardProps {
 export default function LoginCard({ title, subtitle, children, showBack = true }: LoginCardProps) {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#050507' }}>
+      <style jsx global>{`
+        @keyframes logoBreath {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.16); }
+        }
+        @keyframes auraBreath {
+          0%, 100% { opacity: 0.45; transform: scale(1); }
+          50% { opacity: 0.65; transform: scale(1.15); }
+        }
+        .logo-breathing-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .logo-breathing-wrapper::before {
+          content: '';
+          position: absolute;
+          width: 180%;
+          height: 180%;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) scale(1);
+          background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.55) 0%, rgba(194, 158, 55, 0.35) 25%, rgba(178, 140, 55, 0.15) 50%, transparent 75%);
+          border-radius: 50%;
+          pointer-events: none;
+          filter: blur(12px);
+          animation: auraBreath 8s ease-in-out infinite;
+          z-index: -1;
+        }
+        .logo-breathe {
+          animation: logoBreath 8s ease-in-out infinite;
+          will-change: transform;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .logo-breathe,
+          .logo-breathing-wrapper::before {
+            animation: none;
+          }
+          .logo-breathing-wrapper::before {
+            opacity: 0.5;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+      `}</style>
+
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, #0a0a0f 0%, #050507 70%, #020203 100%)' }} />
 
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
@@ -47,13 +93,17 @@ export default function LoginCard({ title, subtitle, children, showBack = true }
             </Link>
           )}
 
-          {/* Logo — same size as developer login */}
+          {/* Logo — breathing animation matching developer login */}
           <div className="flex justify-center mb-12" style={{ marginTop: showBack ? 16 : 0 }}>
-            <img
-              src="/branding/openhouse-ai-logo.png"
-              alt="OpenHouse AI"
-              className="h-[6.5rem] md:h-32 w-auto object-contain"
-            />
+            <div className="logo-breathing-wrapper">
+              <div className="logo-breathe">
+                <img
+                  src="/branding/openhouse-ai-logo.png"
+                  alt="OpenHouse AI"
+                  className="h-[6.5rem] md:h-32 w-auto object-contain"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Title */}
