@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../_components/AgentShell';
 import {
-  getTimelineNudges, logPipelineNote,
-  daysSince, daysFromNow, type PipelineUnit,
+  getTimelineNudges, logPipelineNote, getInitials,
+  daysSince, daysFromNow, type PipelineUnit, type DevelopmentSummary,
 } from '@/lib/agent/agentPipelineService';
 import {
-  AlertTriangle, ChevronRight,
+  AlertTriangle, ChevronRight, ChevronDown, ChevronUp,
   Building2, Check
 } from 'lucide-react';
 
@@ -32,37 +32,65 @@ const STATUS_LABELS: Record<string, string> = {
   sold: 'Sold',
 };
 
+interface SchemeGroup {
+  id: string;
+  name: string;
+  allUnits: PipelineUnit[];
+  filteredUnits: PipelineUnit[];
+  sold: number;
+  reserved: number;
+  available: number;
+  total: number;
+  percentSold: number;
+  activeBuyers: number;
+  urgentCount: number;
+}
+
 export default function PipelinePage() {
-  const { agent, pipeline, alerts, loading } = useAgent();
+  const { agent, pipeline, alerts, developments, loading } = useAgent();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [expandedScheme, setExpandedScheme] = useState<string | null>(null);
   const [showBulkChase, setShowBulkChase] = useState(false);
   const [chaseSuccess, setChaseSuccess] = useState(false);
 
-  // Group and filter by development
-  const grouped = useMemo(() => {
-    let items = [...pipeline];
-    if (activeFilter !== 'all') {
-      items = items.filter(p => p.status === activeFilter);
+  const schemes = useMemo((): SchemeGroup[] => {
+    const devMap = new Map<string, PipelineUnit[]>();
+    for (const unit of pipeline) {
+      if (!devMap.has(unit.developmentId)) devMap.set(unit.developmentId, []);
+      devMap.get(unit.developmentId)!.push(unit);
     }
 
-    // Group by development
-    const devMap = new Map<string, { name: string; units: PipelineUnit[] }>();
-    for (const unit of items) {
-      if (!devMap.has(unit.developmentId)) {
-        devMap.set(unit.developmentId, { name: unit.developmentName, units: [] });
+    return Array.from(devMap.entries()).map(([devId, allUnits]) => {
+      const sold = allUnits.filter(u => u.status === 'sold').length;
+      const reserved = allUnits.filter(u => u.status === 'sale_agreed' || u.status === 'signed' || u.status === 'contracts_issued').length;
+      const available = allUnits.filter(u => u.status === 'for_sale').length;
+      const total = allUnits.length;
+      const urgentCount = alerts.filter(a => allUnits.some(u => u.unitId === a.unitId)).length;
+
+      let filteredUnits = allUnits;
+      if (activeFilter !== 'all') {
+        filteredUnits = allUnits.filter(u => u.status === activeFilter);
       }
-      devMap.get(unit.developmentId)!.units.push(unit);
-    }
+      // Sort: non-sold by unit number, sold at bottom
+      const nonSold = filteredUnits.filter(p => p.status !== 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
+      const soldUnits = filteredUnits.filter(p => p.status === 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
+      filteredUnits = [...nonSold, ...soldUnits];
 
-    // Sort units within each group: non-sold first by unit number, then sold
-    for (const group of devMap.values()) {
-      const nonSold = group.units.filter(p => p.status !== 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
-      const sold = group.units.filter(p => p.status === 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
-      group.units = [...nonSold, ...sold];
-    }
-
-    return Array.from(devMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [pipeline, activeFilter]);
+      return {
+        id: devId,
+        name: allUnits[0]?.developmentName || 'Unknown',
+        allUnits,
+        filteredUnits,
+        sold,
+        reserved,
+        available,
+        total,
+        percentSold: total > 0 ? Math.round((sold / total) * 100) : 0,
+        activeBuyers: allUnits.filter(u => u.status !== 'for_sale' && u.status !== 'sold').length,
+        urgentCount,
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pipeline, alerts, activeFilter]);
 
   const overdueContracted = useMemo(() => {
     return pipeline.filter(p => {
@@ -76,12 +104,7 @@ export default function PipelinePage() {
   const handleBulkChase = async () => {
     for (const unit of overdueContracted) {
       const dateStr = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-      await logPipelineNote(
-        unit.unitId,
-        unit.id,
-        `Bulk chase initiated by agent: ${dateStr}`,
-        'bulk_chase'
-      );
+      await logPipelineNote(unit.unitId, unit.id, `Bulk chase initiated by agent: ${dateStr}`, 'bulk_chase');
     }
     setShowBulkChase(false);
     setChaseSuccess(true);
@@ -92,8 +115,8 @@ export default function PipelinePage() {
     return (
       <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={0}>
         <div style={{ padding: '16px 24px 100px' }}>
-          {[1,2,3,4,5].map(i => (
-            <div key={i} style={{ height: 64, background: '#f3f4f6', borderRadius: 12, marginBottom: 8, animation: 'pulse 1.5s infinite' }} />
+          {[1,2,3].map(i => (
+            <div key={i} style={{ height: 140, background: '#f3f4f6', borderRadius: 18, marginBottom: 12, animation: 'pulse 1.5s infinite' }} />
           ))}
         </div>
       </AgentShell>
@@ -102,90 +125,76 @@ export default function PipelinePage() {
 
   return (
     <AgentShell agentName={agent?.displayName?.split(' ')[0]} urgentCount={alerts.length}>
-      <div style={{ padding: '16px 24px 100px' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.02em', marginBottom: 16 }}>Pipeline</h1>
+      <div style={{ padding: '8px 24px 100px' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.04em', marginBottom: 14 }}>Sales Pipeline</h1>
 
-          {/* Filter pills */}
-          <div className="flex gap-2 overflow-x-auto pb-3 -mx-5 px-5 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            {FILTERS.map(f => (
-              <button
-                key={f.key}
-                onClick={() => setActiveFilter(f.key)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.95] flex-shrink-0 ${
-                  activeFilter === f.key
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600'
-                }`}
-                style={{ minHeight: 32 }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Bulk Chase button */}
-          {activeFilter === 'contracts_issued' && overdueContracted.length > 0 && (
-            <button
-              onClick={() => setShowBulkChase(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium mb-3 transition-all duration-150 active:scale-[0.98]"
-            >
-              <AlertTriangle size={16} />
-              Chase All Overdue ({overdueContracted.length})
-            </button>
-          )}
-
-          {/* Solicitor Directory link */}
-          <Link
-            href="/agent/solicitors"
-            className="flex items-center gap-1.5 text-xs text-[#D4AF37] font-medium mb-4 transition-all duration-150 active:opacity-70"
+        {/* Bulk Chase button */}
+        {activeFilter === 'contracts_issued' && overdueContracted.length > 0 && (
+          <div
+            onClick={() => setShowBulkChase(true)}
+            className="agent-tappable"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '12px 16px', borderRadius: 14,
+              background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.15)',
+              marginBottom: 12, cursor: 'pointer',
+            }}
           >
-            <Building2 size={14} />
-            View Solicitor Directory
-            <ChevronRight size={12} />
-          </Link>
+            <AlertTriangle size={15} color="#DC2626" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>
+              Chase All Overdue ({overdueContracted.length})
+            </span>
+          </div>
+        )}
 
-          {/* Grouped unit list */}
-          {grouped.length === 0 ? (
-            <div className="text-center text-gray-400 text-sm py-8">No units match this filter</div>
-          ) : (
-            grouped.map(group => (
-              <div key={group.name} style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#0D0D12', letterSpacing: '-0.01em' }}>{group.name}</span>
-                  <span style={{ fontSize: 11, color: '#A0A8B0' }}>{group.units.length} unit{group.units.length !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="space-y-2">
-                  {group.units.map(unit => (
-                    <UnitCard key={unit.id} unit={unit} alerts={alerts} />
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
+        {/* Scheme cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {schemes.map(scheme => (
+            <SchemeCard
+              key={scheme.id}
+              scheme={scheme}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              expanded={expandedScheme === scheme.id}
+              onToggle={() => setExpandedScheme(expandedScheme === scheme.id ? null : scheme.id)}
+            />
+          ))}
         </div>
+
+        {/* Solicitor Directory link */}
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 20, cursor: 'pointer' }}
+          className="agent-tappable"
+        >
+          <Building2 size={14} color="#D4AF37" />
+          <Link href="/agent/solicitors" style={{
+            fontSize: 13, fontWeight: 600, color: '#D4AF37', textDecoration: 'none',
+            letterSpacing: '-0.01em',
+          }}>
+            View Solicitor Directory
+          </Link>
+          <ChevronRight size={12} color="#D4AF37" />
+        </div>
+      </div>
 
       {/* Bulk Chase Confirmation Sheet */}
       {showBulkChase && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end justify-center" onClick={() => setShowBulkChase(false)}>
-          <div className="bg-white rounded-t-2xl w-full max-w-lg p-5 pb-8" onClick={e => e.stopPropagation()} style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
-            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Chase All Overdue</h3>
-            <p className="text-sm text-gray-500 mb-4">This will log a follow-up note for {overdueContracted.length} overdue units:</p>
-            <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setShowBulkChase(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500, padding: '20px 20px 32px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 40, height: 4, background: '#E0E0DC', borderRadius: 2, margin: '0 auto 16px' }} />
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0D0D12', marginBottom: 4 }}>Chase All Overdue</h3>
+            <p style={{ fontSize: 13, color: '#A0A8B0', marginBottom: 16 }}>Log a follow-up note for {overdueContracted.length} overdue units:</p>
+            <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 20 }}>
               {overdueContracted.map(u => (
-                <div key={u.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50">
-                  <span className="font-medium text-gray-900">Unit {u.unitNumber}</span>
-                  <span className="text-gray-500 text-xs">{u.purchaserName}</span>
+                <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.04)', fontSize: 13 }}>
+                  <span style={{ fontWeight: 500, color: '#0D0D12' }}>Unit {u.unitNumber}</span>
+                  <span style={{ color: '#A0A8B0', fontSize: 12 }}>{u.purchaserName}</span>
                 </div>
               ))}
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowBulkChase(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium transition-all duration-150 active:scale-[0.98]">
-                Cancel
-              </button>
-              <button onClick={handleBulkChase} className="flex-1 py-3 rounded-xl bg-gray-900 text-white text-sm font-medium transition-all duration-150 active:scale-[0.98]">
-                Confirm Chase
-              </button>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowBulkChase(false)} className="agent-tappable" style={{ flex: 1, padding: '13px 0', borderRadius: 14, border: '1px solid rgba(0,0,0,0.08)', background: '#fff', fontSize: 13, fontWeight: 600, color: '#6B7280', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleBulkChase} className="agent-tappable" style={{ flex: 1, padding: '13px 0', borderRadius: 14, border: 'none', background: '#0D0D12', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>Confirm Chase</button>
             </div>
           </div>
         </div>
@@ -193,8 +202,8 @@ export default function PipelinePage() {
 
       {/* Success toast */}
       {chaseSuccess && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg z-[70] flex items-center gap-2">
-          <Check size={16} />
+        <div style={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', background: '#059669', color: '#fff', fontSize: 13, fontWeight: 600, padding: '10px 18px', borderRadius: 14, zIndex: 70, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+          <Check size={15} />
           {overdueContracted.length} units logged for follow-up
         </div>
       )}
@@ -202,52 +211,215 @@ export default function PipelinePage() {
   );
 }
 
-function UnitCard({ unit, alerts }: { unit: PipelineUnit; alerts: any[] }) {
-  const nudges = getTimelineNudges(unit);
-  const hasOverdue = nudges.length > 0;
-  const hasMortgageAlert = unit.mortgageExpiryDate && daysFromNow(unit.mortgageExpiryDate) !== null && (daysFromNow(unit.mortgageExpiryDate) || 999) <= 45;
-  const isSold = unit.status === 'sold';
+/* ─── Scheme card with expandable buyer list ─── */
 
+function SchemeCard({ scheme, activeFilter, onFilterChange, expanded, onToggle }: {
+  scheme: SchemeGroup;
+  activeFilter: FilterKey;
+  onFilterChange: (f: FilterKey) => void;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <Link
-      href={`/agent/pipeline/${unit.unitId}`}
-      className={`block transition-all duration-150 active:scale-[0.98] ${isSold ? 'opacity-60' : ''}`}
-    >
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className={`font-medium text-gray-900 ${isSold ? 'text-xs' : 'text-sm'}`}>
-              Unit {unit.unitNumber}
+    <div style={{
+      background: '#FFFFFF',
+      borderRadius: 18,
+      overflow: 'hidden',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
+    }}>
+      {/* Card header */}
+      <div style={{ padding: '16px 18px' }}>
+        {/* Name + % */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.025em', color: '#0D0D12' }}>
+              {scheme.name}
             </span>
-            <span className="text-gray-300 text-xs">&middot;</span>
-            <span className="text-gray-400 text-xs truncate">{unit.developmentName}</span>
-            {/* Nudge indicators */}
-            {hasOverdue && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />}
-            {hasMortgageAlert && !hasOverdue && <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />}
+            {scheme.urgentCount > 0 && (
+              <span style={{
+                background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700, color: '#DC2626', lineHeight: 1.2,
+              }}>
+                {scheme.urgentCount}
+              </span>
+            )}
           </div>
-          <div className={`text-gray-400 mt-0.5 ${isSold ? 'text-[11px]' : 'text-xs'}`}>
-            {unit.purchaserName || 'Available'}
+          <span style={{
+            background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em',
+          }}>
+            {scheme.percentSold}%
+          </span>
+        </div>
+
+        {/* Subtitle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: '#A0A8B0' }}>Longview Estates &middot; Co. Cork</span>
+          <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.sold} of {scheme.total}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 3, background: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+          <div style={{ height: '100%', width: `${scheme.percentSold}%`, background: 'linear-gradient(90deg, #B8960C, #E8C84A)', borderRadius: 2, transition: 'width 0.3s ease' }} />
+        </div>
+
+        {/* Status dots */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <StatusDot color="#10B981" label={`${scheme.sold} Sold`} />
+          <StatusDot color="#3B82F6" label={`${scheme.reserved} Reserved`} />
+          <StatusDot color="#A0A8B0" label={`${scheme.available} Available`} />
+        </div>
+      </div>
+
+      {/* Footer: active buyers + View buyers toggle */}
+      <div
+        className="agent-tappable"
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 18px', borderTop: '1px solid rgba(0,0,0,0.04)', cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.activeBuyers} active buyers</span>
+        <span style={{
+          background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          {expanded ? 'Hide buyers' : 'View buyers'}
+          {expanded ? <ChevronUp size={14} color="#C4A020" /> : <ChevronDown size={14} color="#C4A020" />}
+        </span>
+      </div>
+
+      {/* Expanded buyer list */}
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+          {/* Filter tabs within scheme */}
+          <div style={{ display: 'flex', gap: 0, overflowX: 'auto', padding: '8px 12px', scrollbarWidth: 'none' }}>
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => onFilterChange(f.key)}
+                style={{
+                  padding: '6px 12px', borderRadius: 20, border: 'none',
+                  fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer',
+                  background: activeFilter === f.key ? '#0D0D12' : 'transparent',
+                  color: activeFilter === f.key ? '#fff' : '#A0A8B0',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Buyer cards */}
+          <div style={{ padding: '0 12px 12px' }}>
+            {scheme.filteredUnits.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#A0A8B0', fontSize: 13, padding: '20px 0' }}>
+                No units match this filter
+              </div>
+            ) : (
+              scheme.filteredUnits.map((unit, i) => (
+                <BuyerRow key={unit.id} unit={unit} isLast={i === scheme.filteredUnits.length - 1} />
+              ))
+            )}
           </div>
         </div>
-        <StatusBadge status={unit.status} />
-        <ChevronRight size={16} className="text-gray-200 flex-shrink-0" />
+      )}
+    </div>
+  );
+}
+
+/* ─── Buyer row inside a scheme card ─── */
+
+function BuyerRow({ unit, isLast }: { unit: PipelineUnit; isLast: boolean }) {
+  const nudges = getTimelineNudges(unit);
+  const hasNudge = nudges.length > 0;
+  const isSold = unit.status === 'sold';
+  const initials = getInitials(unit.purchaserName);
+
+  return (
+    <Link href={`/agent/pipeline/${unit.unitId}`} style={{ textDecoration: 'none', display: 'block' }}>
+      <div
+        className="agent-tappable"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 6px',
+          borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
+          opacity: isSold ? 0.5 : 1,
+        }}
+      >
+        {/* Avatar */}
+        {unit.purchaserName ? (
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+            background: hasNudge
+              ? 'linear-gradient(135deg, #FEF2F2, #FEE2E2)'
+              : 'linear-gradient(135deg, #FFFBEB, #FEF3C7)',
+            border: hasNudge
+              ? '1px solid rgba(239,68,68,0.25)'
+              : '1px solid rgba(212,175,55,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ color: hasNudge ? '#B91C1C' : '#92400E', fontSize: 11, fontWeight: 700 }}>{initials}</span>
+          </div>
+        ) : (
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+            background: '#F3F4F6', border: '1px solid rgba(0,0,0,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ color: '#A0A8B0', fontSize: 11, fontWeight: 600 }}>--</span>
+          </div>
+        )}
+
+        {/* Name + unit */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#0D0D12', letterSpacing: '-0.01em', display: 'block' }}>
+            {unit.purchaserName || 'Available'}
+          </span>
+          <span style={{ fontSize: 11.5, color: '#A0A8B0', marginTop: 1, display: 'block' }}>
+            Unit {unit.unitNumber}
+          </span>
+        </div>
+
+        {/* Status badge */}
+        <StatusBadgeMini status={unit.status} />
       </div>
     </Link>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    for_sale: 'bg-gray-100 text-gray-600',
-    sale_agreed: 'bg-blue-50 text-blue-700',
-    contracts_issued: 'bg-amber-50 text-amber-700 border border-amber-200',
-    signed: 'bg-emerald-50 text-emerald-700',
-    sold: 'bg-gray-50 text-gray-400',
-  };
+/* ─── Helpers ─── */
+
+function StatusDot({ color, label }: { color: string; label: string }) {
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap flex-shrink-0 ${styles[status] || styles.for_sale}`}>
-      {STATUS_LABELS[status] || status}
-    </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ width: 5, height: 5, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={{ fontSize: 13, color: '#6B7280' }}>{label}</span>
+    </div>
   );
 }
 
+function StatusBadgeMini({ status }: { status: string }) {
+  const configs: Record<string, { bg: string; color: string; label: string }> = {
+    for_sale: { bg: '#F3F4F6', color: '#6B7280', label: 'AVAILABLE' },
+    sale_agreed: { bg: '#EFF6FF', color: '#1D4ED8', label: 'RESERVED' },
+    contracts_issued: { bg: '#FEF2F2', color: '#B91C1C', label: 'CONTRACTS' },
+    signed: { bg: '#F5F3FF', color: '#5B21B6', label: 'EXCHANGED' },
+    sold: { bg: '#ECFDF5', color: '#065F46', label: 'CONFIRMED' },
+  };
+  const c = configs[status] || configs.for_sale;
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+      color: c.color, background: c.bg,
+      padding: '2px 7px', borderRadius: 10, flexShrink: 0,
+    }}>
+      {c.label}
+    </span>
+  );
+}
