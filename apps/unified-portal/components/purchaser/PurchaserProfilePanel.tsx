@@ -439,7 +439,7 @@ export default function PurchaserProfilePanel({
           </div>
 
           {/* Section Tabs */}
-          <div className="px-6 flex gap-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}
+          <div className="px-6 flex gap-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             <button
               onClick={() => setActiveSection('home')}
               className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
