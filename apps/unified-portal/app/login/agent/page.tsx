@@ -48,7 +48,9 @@ export default function AgentLogin() {
       .from('agent_profiles')
       .select('id, display_name, agency_name')
       .eq('user_id', data.session.user.id)
-      .single();
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
     if (!profile) {
       await supabase.auth.signOut();
