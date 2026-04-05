@@ -67,21 +67,19 @@ export default function AgentLogin() {
       return;
     }
 
-    // Fallback: allow admins/developers/super_admins to access agent portal for testing
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id, role, tenant_id')
-      .eq('email', email.trim().toLowerCase())
-      .single();
+    // Fallback: check if user is an admin/developer/super_admin via server-side API
+    // (admins table has RLS that blocks client-side reads)
+    const meRes = await fetch('/api/auth/me');
+    const meData = meRes.ok ? await meRes.json() : null;
 
-    if (admin && ['super_admin', 'developer', 'admin'].includes(admin.role)) {
+    if (meData && ['super_admin', 'developer', 'admin'].includes(meData.role) && meData.tenantId) {
       // Admin accessing agent portal — upsert context with admin's tenant
       await supabase.from('user_contexts').upsert({
         auth_user_id: data.session.user.id,
         product: 'agent',
         context_type: 'organisation',
-        context_id: admin.tenant_id,
-        display_name: email.split('@')[0],
+        context_id: meData.tenantId,
+        display_name: meData.email?.split('@')[0] || email.split('@')[0],
         display_subtitle: 'Agent (Admin Access)',
         display_icon: 'briefcase',
         last_active_at: new Date().toISOString(),

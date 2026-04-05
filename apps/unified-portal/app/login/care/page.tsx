@@ -25,6 +25,59 @@ export default function CareLogin() {
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
 
+  async function handleAdminLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    setLoading(true);
+    setError('');
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (authError || !data.session) {
+      setError('Incorrect password.');
+      setLoading(false);
+      return;
+    }
+
+    // Verify admin role via server-side API (bypasses RLS)
+    const meRes = await fetch('/api/auth/me');
+    const meData = meRes.ok ? await meRes.json() : null;
+
+    if (!meData || !['super_admin', 'developer', 'admin'].includes(meData.role)) {
+      await supabase.auth.signOut();
+      setError('Admin access required.');
+      setLoading(false);
+      return;
+    }
+
+    // Find any installation to use as demo context
+    const { data: installation } = await supabase
+      .from('installations')
+      .select('id, address_line_1, system_type')
+      .limit(1)
+      .single();
+
+    if (installation) {
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'care',
+        context_type: 'installation',
+        context_id: installation.id,
+        display_name: installation.address_line_1 || 'Test Installation',
+        display_subtitle: installation.system_type || 'Energy System (Admin Access)',
+        display_icon: 'sun',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push(`/care/${installation.id}`);
+    } else {
+      router.push('/care-dashboard');
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) {
@@ -33,59 +86,6 @@ export default function CareLogin() {
     }
     setLoading(true);
     setError('');
-
-    // Check if this email belongs to an admin (for testing access)
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id, role, tenant_id')
-      .eq('email', email.trim().toLowerCase())
-      .single();
-
-    if (admin && ['super_admin', 'developer', 'admin'].includes(admin.role)) {
-      // Admin user — switch to password login mode
-      if (step !== 'admin-password') {
-        setStep('admin-password');
-        setLoading(false);
-        return;
-      }
-
-      // Admin password login
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      if (authError || !data.session) {
-        setError('Incorrect password.');
-        setLoading(false);
-        return;
-      }
-
-      // Find any installation to use as demo context
-      const { data: installation } = await supabase
-        .from('installations')
-        .select('id, address_line_1, system_type')
-        .limit(1)
-        .single();
-
-      if (installation) {
-        await supabase.from('user_contexts').upsert({
-          auth_user_id: data.session.user.id,
-          product: 'care',
-          context_type: 'installation',
-          context_id: installation.id,
-          display_name: installation.address_line_1 || 'Test Installation',
-          display_subtitle: installation.system_type || 'Energy System (Admin Access)',
-          display_icon: 'sun',
-          last_active_at: new Date().toISOString(),
-        }, { onConflict: 'auth_user_id,context_type,context_id' });
-
-        router.push(`/care/${installation.id}`);
-      } else {
-        router.push('/care-dashboard');
-      }
-      return;
-    }
 
     // Standard care flow — find installation by customer email, send magic link
     const { data: installation } = await supabase
@@ -142,7 +142,7 @@ export default function CareLogin() {
   if (step === 'admin-password') {
     return (
       <LoginCard title="Your Energy Portal" subtitle="Admin access — enter your password">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleAdminLogin} className="space-y-5">
           <div>
             <label htmlFor="care-email-admin" className={labelClassName} style={labelStyle}>Email Address</label>
             <input
@@ -234,9 +234,18 @@ export default function CareLogin() {
           {loading ? 'Sending...' : 'Send access link'}
         </button>
 
-        <p className="text-center text-sm" style={{ color: '#6b7280', margin: 0 }}>
-          We&apos;ll email you a secure link. No password needed.
-        </p>
+        <div className="text-center mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => { setStep('admin-password'); setError(''); }}
+            className="text-sm transition-colors"
+            style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#a1a1aa'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+          >
+            Admin / developer? Sign in with password
+          </button>
+        </div>
       </form>
     </LoginCard>
   );
