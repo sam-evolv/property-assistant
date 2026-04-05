@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { answer_gap_log } from '@openhouse/db/schema';

@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
+import { AgentProvider } from '@/lib/agent/AgentContext';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'OpenHouse Agent',
   description: 'Property sales agent command centre',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'OH Agent' },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'OH Agent',
+  },
 };
 
 export const viewport: Viewport = {
@@ -14,9 +21,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#F4F4F6',
+  themeColor: '#FAFAF8',
 };
 
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: '#FAFAF8', fontFamily: 'Inter, sans-serif', color: '#A0A8B0' }}>Loading...</div>}>
+      <AgentProvider>
+        {children}
+      </AgentProvider>
+    </Suspense>
+  );
 }

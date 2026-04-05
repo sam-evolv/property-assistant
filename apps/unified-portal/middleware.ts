@@ -12,6 +12,10 @@ function isIOSSafari(userAgent: string): boolean {
 const PUBLIC_PATHS = [
   '/',
   '/login',
+  '/login/developer',
+  '/login/agent',
+  '/login/homeowner',
+  '/login/care',
   '/install',
   '/access-pending',
   '/reset-password',
@@ -136,7 +140,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  const isLoginPage = pathname === '/login';
+  const isLoginPage = pathname === '/login' || pathname.startsWith('/login/');
   const isAccessPendingPage = pathname === '/access-pending';
   
   if (isPublicPath(pathname) && !isLoginPage) {
@@ -167,7 +171,14 @@ export async function middleware(req: NextRequest) {
       if (isLoginPage || isAccessPendingPage || isPublicPath(pathname)) {
         return res;
       }
-      const redirectUrl = new URL('/login', req.url);
+      // Route to product-specific login pages
+      let loginPath = '/login';
+      if (pathname.startsWith('/developer') || pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/portal')) {
+        loginPath = '/login/developer';
+      } else if (pathname.startsWith('/agent')) {
+        loginPath = '/login/agent';
+      }
+      const redirectUrl = new URL(loginPath, req.url);
       redirectUrl.searchParams.set('redirectTo', pathname);
       return NextResponse.redirect(redirectUrl);
     }
@@ -209,7 +220,13 @@ export async function middleware(req: NextRequest) {
   } catch (middlewareError) {
     console.error('[Middleware] auth middleware failed:', middlewareError);
     if (isProtectedPath(pathname)) {
-      return NextResponse.redirect(new URL('/login', req.url));
+      let loginPath = '/login';
+      if (pathname.startsWith('/developer') || pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/portal')) {
+        loginPath = '/login/developer';
+      } else if (pathname.startsWith('/agent')) {
+        loginPath = '/login/agent';
+      }
+      return NextResponse.redirect(new URL(loginPath, req.url));
     }
     return res;
   }

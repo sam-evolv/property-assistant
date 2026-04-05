@@ -1,261 +1,73 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
-function LoginForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [invitationCode, setInvitationCode] = useState('');
-  const [invitationCodeError, setInvitationCodeError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
-  const [showPassword, setShowPassword] = useState(false);
+const PRODUCTS = [
+  {
+    id: 'homeowner',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+    ),
+    title: 'My Property',
+    subtitle: 'Homeowner portal',
+    href: '/login/homeowner',
+  },
+  {
+    id: 'agent',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        <line x1="12" y1="12" x2="12.01" y2="12"/>
+      </svg>
+    ),
+    title: "I'm an Estate Agent",
+    subtitle: 'Sales pipeline & intelligence',
+    href: '/login/agent',
+  },
+  {
+    id: 'care',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
+      </svg>
+    ),
+    title: 'My Energy System',
+    subtitle: 'Solar, heat pump & EV portal',
+    href: '/login/care',
+  },
+  {
+    id: 'developer',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="8" y1="6" x2="16" y2="6"/>
+        <line x1="8" y1="10" x2="16" y2="10"/>
+        <line x1="8" y1="14" x2="12" y2="14"/>
+      </svg>
+    ),
+    title: 'Developer Portal',
+    subtitle: 'Project management & analytics',
+    href: '/login/developer',
+  },
+];
 
+export default function LoginSelector() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const rawRedirectTo = searchParams.get('redirectTo') || null;
-  
-  const sanitizeRedirect = (url: string | null): string | null => {
-    if (!url) return null;
-    try {
-      if (url.startsWith('/') && !url.startsWith('//')) {
-        return url;
-      }
-      const parsed = new URL(url, window.location.origin);
-      if (parsed.origin === window.location.origin) {
-        return parsed.pathname + parsed.search + parsed.hash;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
-  
-  const redirectTo = sanitizeRedirect(rawRedirectTo);
-
-  const hasSupabaseClientEnv =
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      if (mode === 'signin') {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          if (data.error === 'Invalid login credentials') {
-            throw new Error('Invalid email or password. Please check your credentials and try again.');
-          }
-          throw new Error(data.error || 'Login failed');
-        }
-
-        const meRes = await fetch('/api/auth/me');
-        const userData = await meRes.json();
-
-        if (!meRes.ok) {
-          if (userData.error === 'not_provisioned') {
-            router.push(`/access-pending?email=${encodeURIComponent(userData.email || email)}`);
-            return;
-          }
-          throw new Error(userData.message || 'Unable to verify account access.');
-        }
-
-        let finalRedirect = redirectTo;
-        if (!finalRedirect) {
-          const { resolvePostLoginRoute } = await import('@/lib/auth/resolvePostLoginRoute');
-          const resolution = resolvePostLoginRoute(userData.role, userData.preferredRole);
-          finalRedirect = resolution.route;
-        }
-
-        window.location.href = finalRedirect;
-      } else if (mode === 'signup') {
-        if (!supabase) {
-          throw new Error('Signup is temporarily unavailable: Supabase client config is missing.');
-        }
-        setInvitationCodeError(null);
-        
-        if (!fullName.trim()) {
-          throw new Error('Full name is required.');
-        }
-
-        if (password !== confirmPassword) {
-          throw new Error('Passwords do not match.');
-        }
-
-        if (password.length < 8) {
-          throw new Error('Password must be at least 8 characters.');
-        }
-
-        if (!invitationCode.trim()) {
-          setInvitationCodeError('Invitation code is required');
-          throw new Error('Invitation code is required');
-        }
-
-        // Step 1: Validate the invitation code
-        const validateRes = await fetch('/api/auth/validate-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: invitationCode }),
-        });
-        const validateData = await validateRes.json();
-
-        if (!validateData.valid) {
-          const errorMessage = validateData.error === 'Invalid code' 
-            ? 'Invalid code'
-            : validateData.error === 'Code already used'
-            ? 'This code has already been used'
-            : validateData.error === 'Code has expired'
-            ? 'This code has expired'
-            : validateData.error || 'Invalid invitation code';
-          setInvitationCodeError(errorMessage);
-          throw new Error(errorMessage);
-        }
-
-        // Pre-fill company name from code's tenant_name if not already set
-        const finalCompanyName = companyName.trim() || validateData.tenantName || '';
-
-        // Step 2: Create the Supabase account with user metadata
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            data: {
-              full_name: fullName.trim(),
-              company_name: finalCompanyName,
-              phone: phoneNumber.trim(),
-              tenant_id: validateData.tenantId,
-            },
-          },
-        });
-
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        // Step 3: Mark the code as used
-        await fetch('/api/auth/use-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: invitationCode, email }),
-        });
-
-        // Step 4: Create admin record with 'developer' role
-        const provisionRes = await fetch('/api/auth/provision-developer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            fullName: fullName.trim(),
-            tenantId: validateData.tenantId,
-            companyName: finalCompanyName,
-          }),
-        });
-        
-        if (!provisionRes.ok) {
-          console.error('Failed to provision developer account');
-        }
-
-        // Step 5: Send notification email
-        await fetch('/api/notify/new-signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName: fullName.trim(),
-            email,
-            phone: phoneNumber.trim(),
-            companyName: finalCompanyName,
-            code: invitationCode,
-          }),
-        });
-
-        // Step 6: Redirect to onboarding
-        router.push('/onboarding');
-        return;
-      } else if (mode === 'forgot') {
-        if (!supabase) {
-          throw new Error('Password reset is temporarily unavailable: Supabase client config is missing.');
-        }
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-
-        if (resetError) {
-          throw resetError;
-        }
-
-        setSuccess('Password reset email sent. Check your inbox.');
-        setMode('signin');
-      }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getTitle = () => {
-    switch (mode) {
-      case 'signup':
-        return 'Create Account';
-      case 'forgot':
-        return 'Reset Password';
-      default:
-        return 'Developer Login';
-    }
-  };
-
-  const getSubtitle = () => {
-    switch (mode) {
-      case 'signup':
-        return 'Join the OpenHouse AI platform';
-      case 'forgot':
-        return 'Enter your email to reset your password';
-      default:
-        return 'Access your developer portal';
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#050507' }}>
       <style jsx global>{`
         @keyframes logoBreath {
-          0%, 100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.16);
-          }
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.16); }
         }
         @keyframes auraBreath {
-          0%, 100% {
-            opacity: 0.45;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.65;
-            transform: scale(1.15);
-          }
+          0%, 100% { opacity: 0.45; transform: scale(1); }
+          50% { opacity: 0.65; transform: scale(1.15); }
         }
         .logo-breathing-wrapper {
           position: relative;
@@ -293,14 +105,12 @@ function LoginForm() {
           }
         }
       `}</style>
-      
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, #0a0a0f 0%, #050507 70%, #020203 100%)' }} />
-      
+
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
-      
-      
+
       <div className="relative z-10 w-full max-w-[420px] mx-4">
-        <div 
+        <div
           className="rounded-2xl p-8 md:p-10 overflow-hidden"
           style={{
             background: 'linear-gradient(180deg, rgba(18, 18, 22, 0.95) 0%, rgba(12, 12, 15, 0.98) 100%)',
@@ -308,6 +118,7 @@ function LoginForm() {
             boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
           }}
         >
+          {/* Logo — breathing animation matching developer login */}
           <div className="flex justify-center mb-12">
             <div className="logo-breathing-wrapper">
               <div className="logo-breathe">
@@ -322,464 +133,63 @@ function LoginForm() {
 
           <div className="text-center mb-8">
             <h1 className="text-2xl md:text-[1.65rem] font-semibold mb-2" style={{ color: '#f5f5f4' }}>
-              {getTitle()}
+              Welcome to OpenHouse
             </h1>
             <p className="text-sm tracking-wide" style={{ color: '#6b7280' }}>
-              {getSubtitle()}
+              Choose how you use it
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {mode === 'signup' && (
-              <>
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                    Full Name <span style={{ color: '#d4af37' }}>*</span>
-                  </label>
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    autoComplete="name"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
-                    style={{
-                      backgroundColor: '#0e1116',
-                      border: '1px solid rgba(212, 175, 55, 0.12)',
-                      color: '#e4e4e7',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                    placeholder="Your full name"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="companyName" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                    Company Name
-                  </label>
-                  <input
-                    id="companyName"
-                    name="companyName"
-                    type="text"
-                    autoComplete="organization"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
-                    style={{
-                      backgroundColor: '#0e1116',
-                      border: '1px solid rgba(212, 175, 55, 0.12)',
-                      color: '#e4e4e7',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                    placeholder="Your company name"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                    Phone Number <span className="text-xs" style={{ color: '#6b7280' }}>(recommended)</span>
-                  </label>
-                  <input
-                    id="phoneNumber"
-                    name="phoneNumber"
-                    type="tel"
-                    autoComplete="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
-                    style={{
-                      backgroundColor: '#0e1116',
-                      border: '1px solid rgba(212, 175, 55, 0.12)',
-                      color: '#e4e4e7',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                    placeholder="For onboarding coordination"
-                  />
-                </div>
-              </>
-            )}
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                Email Address {mode === 'signup' && <span style={{ color: '#d4af37' }}>*</span>}
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
+          {/* Product cards */}
+          <div className="flex flex-col gap-2.5">
+            {PRODUCTS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => router.push(p.href)}
+                className="flex items-center gap-4 w-full text-left rounded-[14px] transition-all duration-150"
                 style={{
-                  backgroundColor: '#0e1116',
-                  border: '1px solid rgba(212, 175, 55, 0.12)',
-                  color: '#e4e4e7',
-                  outline: 'none',
+                  padding: '16px 20px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
                 }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                  e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.borderColor = 'rgba(212,175,55,0.25)';
                 }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                  e.target.style.boxShadow = 'none';
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
                 }}
-                placeholder="you@company.com"
-              />
-            </div>
-
-            {mode !== 'forgot' && (
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3.5 pr-12 rounded-xl transition-all duration-200"
-                    style={{
-                      backgroundColor: '#0e1116',
-                      border: '1px solid rgba(212, 175, 55, 0.12)',
-                      color: '#e4e4e7',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                    placeholder="Enter your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#6b7280' }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#a1a1aa'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
-                  >
-                    {showPassword ? (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
+              >
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: 'rgba(212, 175, 55, 0.10)',
+                  border: '1px solid rgba(212, 175, 55, 0.20)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {p.icon}
                 </div>
-              </div>
-            )}
-
-            {mode === 'signup' && (
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                  Confirm Password <span style={{ color: '#d4af37' }}>*</span>
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
-                  style={{
-                    backgroundColor: '#0e1116',
-                    border: '1px solid rgba(212, 175, 55, 0.12)',
-                    color: '#e4e4e7',
-                    outline: 'none',
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  placeholder="Confirm your password"
-                />
-              </div>
-            )}
-
-            {mode === 'signup' && (
-              <div>
-                <label htmlFor="invitationCode" className="block text-sm font-medium mb-2.5" style={{ color: '#a1a1aa' }}>
-                  Invitation Code <span style={{ color: '#d4af37' }}>*</span>
-                </label>
-                <input
-                  id="invitationCode"
-                  name="invitationCode"
-                  type="text"
-                  required
-                  value={invitationCode}
-                  onChange={(e) => {
-                    setInvitationCode(e.target.value.toUpperCase());
-                    setInvitationCodeError(null);
-                  }}
-                  className="w-full px-4 py-3.5 rounded-xl transition-all duration-200"
-                  style={{
-                    backgroundColor: '#0e1116',
-                    border: invitationCodeError 
-                      ? '1px solid rgba(185, 28, 28, 0.5)' 
-                      : '1px solid rgba(212, 175, 55, 0.12)',
-                    color: '#e4e4e7',
-                    outline: 'none',
-                  }}
-                  onFocus={(e) => {
-                    if (!invitationCodeError) {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.35)';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(212, 175, 55, 0.08)';
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (!invitationCodeError) {
-                      e.target.style.borderColor = 'rgba(212, 175, 55, 0.12)';
-                      e.target.style.boxShadow = 'none';
-                    }
-                  }}
-                  placeholder="e.g., DEVELOPER-2026-X7K"
-                />
-                {invitationCodeError ? (
-                  <p className="mt-2 text-sm" style={{ color: '#fca5a5' }}>{invitationCodeError}</p>
-                ) : (
-                  <p className="mt-2 text-xs" style={{ color: '#6b7280' }}>Enter the code provided by OpenHouse AI</p>
-                )}
-              </div>
-            )}
-
-            {mode === 'signin' && (
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('forgot');
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  className="text-sm transition-colors"
-                  style={{ color: '#b8934c' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-                >
-                  Forgot password?
-                </button>
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(185, 28, 28, 0.3)' }}>
-                <p className="text-sm" style={{ color: '#fca5a5' }}>{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(6, 78, 59, 0.2)', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
-                <p className="text-sm" style={{ color: '#86efac' }}>{success}</p>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 px-4 font-semibold rounded-xl transition-all duration-200 mt-2"
-              style={{
-                background: 'linear-gradient(135deg, #d4af37 0%, #b8934c 100%)',
-                color: '#0a0a0f',
-                boxShadow: '0 4px 20px -4px rgba(212, 175, 55, 0.4)',
-                opacity: loading ? 0.6 : 1,
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 6px 25px -4px rgba(212, 175, 55, 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 20px -4px rgba(212, 175, 55, 0.4)';
-              }}
-              onMouseDown={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = 'translateY(1px)';
-                }
-              }}
-              onMouseUp={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Processing...
-                </span>
-              ) : mode === 'signin' ? (
-                'Sign In'
-              ) : mode === 'signup' ? (
-                'Create Account'
-              ) : (
-                'Send Reset Link'
-              )}
-            </button>
-          </form>
-
-          <div className="mt-7 text-center">
-            {mode === 'signin' && (
-              <p className="text-sm" style={{ color: '#6b7280' }}>
-                Need an account?{' '}
-                <button
-                  onClick={() => {
-                    setMode('signup');
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  className="font-medium transition-colors"
-                  style={{ color: '#b8934c' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-                >
-                  Create one
-                </button>
-              </p>
-            )}
-            {mode === 'signup' && (
-              <p className="text-sm" style={{ color: '#6b7280' }}>
-                Already have an account?{' '}
-                <button
-                  onClick={() => {
-                    setMode('signin');
-                    setError(null);
-                    setSuccess(null);
-                    setConfirmPassword('');
-                    setFullName('');
-                    setCompanyName('');
-                    setPhoneNumber('');
-                    setInvitationCode('');
-                    setInvitationCodeError(null);
-                  }}
-                  className="font-medium transition-colors"
-                  style={{ color: '#b8934c' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-                >
-                  Sign in
-                </button>
-              </p>
-            )}
-            {mode === 'forgot' && (
-              <p className="text-sm" style={{ color: '#6b7280' }}>
-                Remember your password?{' '}
-                <button
-                  onClick={() => {
-                    setMode('signin');
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  className="font-medium transition-colors"
-                  style={{ color: '#b8934c' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-                >
-                  Sign in
-                </button>
-              </p>
-            )}
+                <div style={{ flex: 1 }}>
+                  <p className="font-semibold text-[15px] mb-0.5" style={{ color: '#f5f5f4', letterSpacing: '-0.01em' }}>{p.title}</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)', margin: 0 }}>{p.subtitle}</p>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round"><polyline points="9,18 15,12 9,6"/></svg>
+              </button>
+            ))}
           </div>
 
-          <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}>
-            <p className="text-center text-xs" style={{ color: '#4b5563' }}>
-              By signing in, you agree to our{' '}
-              <a 
-                href="#" 
-                className="transition-colors"
-                style={{ color: '#78716c' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#78716c'}
-              >
-                Terms of Service
-              </a>{' '}
-              and{' '}
-              <a 
-                href="#" 
-                className="transition-colors"
-                style={{ color: '#78716c' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#78716c'}
-              >
-                Privacy Policy
-              </a>
-            </p>
-          </div>
+          <p className="text-center text-xs mt-8 tracking-wide" style={{ color: '#3f3f46' }}>
+            OpenHouse AI Property Intelligence Platform
+          </p>
         </div>
-
-        <p className="text-center text-xs mt-8 tracking-wide" style={{ color: '#3f3f46' }}>
-          OpenHouse AI Property Intelligence Platform
-        </p>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#050507' }}>
-          <div className="text-center">
-            <div className="w-10 h-10 rounded-full animate-spin mx-auto mb-4" style={{ border: '2px solid rgba(212, 175, 55, 0.2)', borderTopColor: '#d4af37' }} />
-            <p className="text-sm" style={{ color: '#6b7280' }}>Loading...</p>
-          </div>
-        </div>
-      }
-    >
-      <LoginForm />
-    </Suspense>
   );
 }

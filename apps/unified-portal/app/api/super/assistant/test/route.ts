@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // /api/super/assistant/test/route.ts
 // Ultra-fast test endpoint - optimized for speed
 import { NextRequest, NextResponse } from 'next/server';
