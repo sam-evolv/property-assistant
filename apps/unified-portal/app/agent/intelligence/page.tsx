@@ -84,8 +84,8 @@ export default function IntelligencePage() {
             <Image
               src="/oh-logo.png"
               alt="OpenHouse"
-              width={96}
-              height={96}
+              width={168}
+              height={168}
               style={{
                 objectFit: 'contain',
                 display: 'block',
