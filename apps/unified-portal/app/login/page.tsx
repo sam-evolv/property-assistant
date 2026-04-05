@@ -5,28 +5,50 @@ import { useRouter } from 'next/navigation';
 const PRODUCTS = [
   {
     id: 'homeowner',
-    emoji: '\u{1F3E0}',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+    ),
     title: 'My Property',
     subtitle: 'Homeowner portal',
     href: '/login/homeowner',
   },
   {
     id: 'agent',
-    emoji: '\u{1F454}',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/>
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        <line x1="12" y1="12" x2="12.01" y2="12"/>
+      </svg>
+    ),
     title: "I'm an Estate Agent",
     subtitle: 'Sales pipeline & intelligence',
     href: '/login/agent',
   },
   {
     id: 'care',
-    emoji: '\u2600\uFE0F',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/>
+      </svg>
+    ),
     title: 'My Energy System',
     subtitle: 'Solar, heat pump & EV portal',
     href: '/login/care',
   },
   {
     id: 'developer',
-    emoji: '\u{1F3D7}\uFE0F',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="8" y1="6" x2="16" y2="6"/>
+        <line x1="8" y1="10" x2="16" y2="10"/>
+        <line x1="8" y1="14" x2="12" y2="14"/>
+      </svg>
+    ),
     title: 'Developer Portal',
     subtitle: 'Project management & analytics',
     href: '/login/developer',
@@ -51,12 +73,12 @@ export default function LoginSelector() {
             boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
           }}
         >
-          {/* Logo */}
-          <div className="flex justify-center mb-10">
+          {/* Logo — same size as developer login */}
+          <div className="flex justify-center mb-12">
             <img
               src="/branding/openhouse-ai-logo.png"
               alt="OpenHouse AI"
-              className="h-20 w-auto object-contain"
+              className="h-[6.5rem] md:h-32 w-auto object-contain"
             />
           </div>
 
@@ -92,7 +114,19 @@ export default function LoginSelector() {
                   e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
                 }}
               >
-                <span style={{ fontSize: 24, flexShrink: 0, lineHeight: 1 }}>{p.emoji}</span>
+                <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: 'rgba(212, 175, 55, 0.10)',
+                  border: '1px solid rgba(212, 175, 55, 0.20)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {p.icon}
+                </div>
                 <div style={{ flex: 1 }}>
                   <p className="font-semibold text-[15px] mb-0.5" style={{ color: '#f5f5f4', letterSpacing: '-0.01em' }}>{p.title}</p>
                   <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)', margin: 0 }}>{p.subtitle}</p>

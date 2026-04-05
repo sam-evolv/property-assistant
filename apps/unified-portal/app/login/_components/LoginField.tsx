@@ -9,7 +9,7 @@ export const inputStyle: React.CSSProperties = {
   outline: 'none',
 };
 
-export const labelClassName = 'block text-sm font-medium mb-2.5';
+export const labelClassName = 'block text-sm font-medium mb-2';
 
 export const labelStyle: React.CSSProperties = {
   color: '#a1a1aa',
@@ -18,7 +18,7 @@ export const labelStyle: React.CSSProperties = {
 export const primaryButtonClassName = 'w-full py-4 px-4 font-semibold rounded-xl transition-all duration-200';
 
 export const primaryButtonStyle: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #d4af37 0%, #b8934c 100%)',
+  background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
   color: '#0a0a0f',
   boxShadow: '0 4px 20px -4px rgba(212, 175, 55, 0.4)',
   cursor: 'pointer',

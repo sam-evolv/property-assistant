@@ -18,18 +18,27 @@ export default function LoginCard({ title, subtitle, children, showBack = true }
 
       <div className="relative z-10 w-full max-w-[420px] mx-4">
         <div
-          className="rounded-2xl p-8 md:p-10 overflow-hidden"
+          className="rounded-2xl overflow-hidden relative"
           style={{
             background: 'linear-gradient(180deg, rgba(18, 18, 22, 0.95) 0%, rgba(12, 12, 15, 0.98) 100%)',
             border: '1px solid rgba(212, 175, 55, 0.08)',
             boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
+            padding: '40px 32px',
           }}
         >
+          {/* Back link — absolutely positioned so it doesn't push logo down */}
           {showBack && (
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 text-xs mb-6 transition-colors"
-              style={{ color: 'rgba(255,255,255,0.35)' }}
+              className="inline-flex items-center gap-1.5 transition-colors"
+              style={{
+                position: 'absolute',
+                top: 20,
+                left: 24,
+                color: 'rgba(255,255,255,0.35)',
+                fontSize: 13,
+                textDecoration: 'none',
+              }}
               onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
               onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}
             >
@@ -38,14 +47,17 @@ export default function LoginCard({ title, subtitle, children, showBack = true }
             </Link>
           )}
 
+          {/* Logo — same size as developer login */}
+          <div className="flex justify-center mb-12" style={{ marginTop: showBack ? 16 : 0 }}>
+            <img
+              src="/branding/openhouse-ai-logo.png"
+              alt="OpenHouse AI"
+              className="h-[6.5rem] md:h-32 w-auto object-contain"
+            />
+          </div>
+
+          {/* Title */}
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
-              <img
-                src="/branding/openhouse-ai-logo.png"
-                alt="OpenHouse AI"
-                className="h-16 w-auto object-contain"
-              />
-            </div>
             <h1 className="text-2xl md:text-[1.65rem] font-semibold mb-2" style={{ color: '#f5f5f4' }}>
               {title}
             </h1>

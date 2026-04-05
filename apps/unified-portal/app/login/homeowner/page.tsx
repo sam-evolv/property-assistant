@@ -134,7 +134,7 @@ export default function HomeownerLogin() {
           type="submit"
           disabled={loading}
           className={primaryButtonClassName}
-          style={{ ...primaryButtonStyle, marginTop: 4, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
           {loading ? 'Checking...' : 'Continue'}
         </button>
