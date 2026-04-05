@@ -1,0 +1,75 @@
+'use client';
+
+import Link from 'next/link';
+
+interface LoginCardProps {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  showBack?: boolean;
+}
+
+export default function LoginCard({ title, subtitle, children, showBack = true }: LoginCardProps) {
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#050507' }}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, #0a0a0f 0%, #050507 70%, #020203 100%)' }} />
+
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
+
+      <div className="relative z-10 w-full max-w-[420px] mx-4">
+        <div
+          className="rounded-2xl p-8 md:p-10 overflow-hidden"
+          style={{
+            background: 'linear-gradient(180deg, rgba(18, 18, 22, 0.95) 0%, rgba(12, 12, 15, 0.98) 100%)',
+            border: '1px solid rgba(212, 175, 55, 0.08)',
+            boxShadow: '0 25px 80px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.03)',
+          }}
+        >
+          {showBack && (
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 text-xs mb-6 transition-colors"
+              style={{ color: 'rgba(255,255,255,0.35)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15,18 9,12 15,6"/></svg>
+              All products
+            </Link>
+          )}
+
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <img
+                src="/branding/openhouse-ai-logo.png"
+                alt="OpenHouse AI"
+                className="h-16 w-auto object-contain"
+              />
+            </div>
+            <h1 className="text-2xl md:text-[1.65rem] font-semibold mb-2" style={{ color: '#f5f5f4' }}>
+              {title}
+            </h1>
+            <p className="text-sm tracking-wide" style={{ color: '#6b7280' }}>
+              {subtitle}
+            </p>
+          </div>
+
+          {children}
+
+          <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}>
+            <p className="text-center text-xs" style={{ color: '#4b5563' }}>
+              By signing in, you agree to our{' '}
+              <a href="/terms" className="transition-colors" style={{ color: '#78716c' }}>Terms of Service</a>
+              {' '}and{' '}
+              <a href="/privacy" className="transition-colors" style={{ color: '#78716c' }}>Privacy Policy</a>
+            </p>
+          </div>
+        </div>
+
+        <p className="text-center text-xs mt-8 tracking-wide" style={{ color: '#3f3f46' }}>
+          OpenHouse AI Property Intelligence Platform
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -1,9 +1,22 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import NotificationPanel from './NotificationPanel';
 import type { Notification } from './NotificationPanel';
 import { BUYERS, AGENT_STATS } from '@/lib/agent/demo-data';
+
+interface UserContext {
+  id: string;
+  product: string;
+  context_type: string;
+  context_id: string;
+  display_name: string;
+  display_subtitle: string | null;
+  display_icon: string | null;
+  last_active_at: string | null;
+}
 
 /* ─── Build notifications from demo data ─── */
 
@@ -101,6 +114,26 @@ interface StatusBarProps {
   urgentCount?: number;
 }
 
+function getContextRoute(ctx: UserContext): string {
+  switch (ctx.product) {
+    case 'homeowner': return `/homes/${ctx.context_id}`;
+    case 'care': return `/care/${ctx.context_id}`;
+    case 'developer': return '/developer/overview';
+    case 'agent': return '/agent/home';
+    default: return '/';
+  }
+}
+
+function getContextEmoji(ctx: UserContext): string {
+  switch (ctx.product) {
+    case 'homeowner': return '\u{1F3E0}';
+    case 'care': return '\u2600\uFE0F';
+    case 'developer': return '\u{1F3D7}\uFE0F';
+    case 'agent': return '\u{1F454}';
+    default: return '\u{1F4BC}';
+  }
+}
+
 export default function StatusBar({
   agentName = 'Sam',
 }: StatusBarProps) {
@@ -108,6 +141,29 @@ export default function StatusBar({
   const [notifications, setNotifications] = useState<Notification[]>(() =>
     buildNotifications()
   );
+  const [contexts, setContexts] = useState<UserContext[]>([]);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) && Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    if (!hasEnv) return;
+
+    async function fetchContexts() {
+      const supabase = createClientComponentClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('user_contexts')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .order('last_active_at', { ascending: false });
+
+      setContexts(data || []);
+    }
+    fetchContexts();
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -175,14 +231,17 @@ export default function StatusBar({
             }}
           />
           <span
+            onClick={() => contexts.length > 1 && setShowSwitcher(!showSwitcher)}
             style={{
               color: '#A0A8B0',
               fontSize: 11,
               fontWeight: 400,
               letterSpacing: '0.04em',
+              cursor: contexts.length > 1 ? 'pointer' : 'default',
             }}
           >
             {agentName}
+            {contexts.length > 1 && ' \u25BE'}
           </span>
         </div>
 
@@ -245,6 +304,69 @@ export default function StatusBar({
           )}
         </button>
       </header>
+
+      {/* Context switcher */}
+      {showSwitcher && contexts.length > 1 && (
+        <>
+          <div
+            onClick={() => setShowSwitcher(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.3)',
+              zIndex: 40,
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 54,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 280,
+              background: '#1a1a1f',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 14,
+              padding: '8px 0',
+              zIndex: 50,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', padding: '8px 16px 4px', margin: 0 }}>
+              SWITCH CONTEXT
+            </p>
+            {contexts.map((ctx) => (
+              <button
+                key={ctx.id}
+                onClick={() => {
+                  setShowSwitcher(false);
+                  router.push(getContextRoute(ctx));
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  width: '100%',
+                  padding: '10px 16px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: 'inherit',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                <span style={{ fontSize: 16 }}>{getContextEmoji(ctx)}</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: '#f5f5f4', fontSize: 13, fontWeight: 500, margin: 0 }}>{ctx.display_name}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: 0 }}>{ctx.display_subtitle || ctx.product}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Notification panel */}
       <NotificationPanel
