@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import {
   C, TYPE, RADIUS, SHADOW, EASE, DURATION, KEYFRAMES,
   APP_H, TAB_H, getSkyConfig, getDaysHome,
@@ -232,17 +233,15 @@ function House({ windowGlow }: { windowGlow: number }) {
   );
 }
 
-// ─── Badge (gold circle with S) ───────────────────────────────────────────────
+// ─── Badge (OpenHouse AI logo) ────────────────────────────────────────────────
 function Badge({ size = 28 }: { size?: number }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: SHADOW.goldGlow,
+      overflow: 'hidden',
       flexShrink: 0,
     }}>
-      <span style={{ ...TYPE.micro, color: C.bg, fontSize: size * 0.38 }}>S</span>
+      <Image src="/branding/openhouse-ai-logo.png" width={size} height={size} alt="AI" style={{ objectFit: 'contain' }} />
     </div>
   );
 }

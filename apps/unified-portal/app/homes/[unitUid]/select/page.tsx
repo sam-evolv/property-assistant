@@ -301,7 +301,7 @@ export default function SelectPage() {
           <button
             onClick={() => setTab('intel')}
             style={{
-              position: 'absolute', bottom: -2,
+              position: 'absolute', bottom: -6,
               width: 80, height: 80, borderRadius: 40,
               background: C.bg,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
