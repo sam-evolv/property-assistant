@@ -352,18 +352,31 @@ export default function PurchaserProfilePanel({
         <div className={`relative bg-gradient-to-br ${headerGradient} overflow-hidden`}>
           {/* Decorative gold accent line */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-400" />
-          
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className={`absolute top-4 right-4 p-2 rounded-full transition-all z-10
-              ${isDarkMode 
-                ? 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white' 
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700'
-              }`}
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Top action buttons — always visible */}
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <button
+              onClick={handleSignOut}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-all
+                ${isDarkMode
+                  ? 'bg-gray-800 hover:bg-red-900/50 text-red-400'
+                  : 'bg-red-50 hover:bg-red-100 text-red-500'
+                }`}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign out
+            </button>
+            <button
+              onClick={onClose}
+              className={`p-2 rounded-full transition-all
+                ${isDarkMode
+                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
           {/* Profile Info */}
           <div className="px-6 pt-8 pb-6">
@@ -903,35 +916,6 @@ export default function PurchaserProfilePanel({
           )}
         </div>
 
-        {/* Persistent footer — sign out + switch */}
-        <div className={`flex-shrink-0 px-6 py-4 border-t ${isDarkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}
-          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}
-        >
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setActiveSection('account')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
-                isDarkMode
-                  ? 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
-                  : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              Switch
-            </button>
-            <button
-              onClick={handleSignOut}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
-                isDarkMode
-                  ? 'bg-gray-800 border border-gray-700 text-red-400 hover:bg-red-500/10'
-                  : 'bg-white border border-gray-200 text-red-500 hover:bg-red-50'
-              }`}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
