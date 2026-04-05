@@ -114,7 +114,20 @@ export default function AgentHomePage() {
   const greeting = hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
 
   return (
-    <AgentShell agentName={agent?.displayName?.split(' ')[0] || 'Agent'} urgentCount={stats.urgent}>
+    <AgentShell
+      agentName={agent?.displayName?.split(' ')[0] || 'Agent'}
+      urgentCount={stats.urgent}
+      modal={modalType ? (
+        <StatModal
+          type={modalType}
+          onClose={() => setModalType(null)}
+          schemes={schemes}
+          totalSold={stats.sold}
+          totalActive={stats.active}
+          urgentBuyers={urgentBuyers}
+        />
+      ) : undefined}
+    >
       <div style={{ padding: '2px 24px 100px' }}>
         {/* Greeting */}
         <p style={{ color: '#A0A8B0', fontSize: 13, fontWeight: 400, marginBottom: 4, letterSpacing: '0.01em' }}>
@@ -243,17 +256,6 @@ export default function AgentHomePage() {
         </div>
       </div>
 
-      {/* Stat Modal */}
-      {modalType && (
-        <StatModal
-          type={modalType}
-          onClose={() => setModalType(null)}
-          schemes={schemes}
-          totalSold={stats.sold}
-          totalActive={stats.active}
-          urgentBuyers={urgentBuyers}
-        />
-      )}
     </AgentShell>
   );
 }

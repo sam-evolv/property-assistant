@@ -8,41 +8,47 @@ interface AgentShellProps {
   children: ReactNode;
   agentName?: string;
   urgentCount?: number;
+  modal?: ReactNode;
 }
 
 export default function AgentShell({
   children,
   agentName,
   urgentCount,
+  modal,
 }: AgentShellProps) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100dvh',
-        background: '#FAFAF8',
-        overflow: 'hidden',
-        fontFamily:
-          "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
-        WebkitFontSmoothing: 'antialiased',
-      }}
-    >
-      <StatusBar agentName={agentName} urgentCount={urgentCount} />
-      <main
+    <>
+      <div
         style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100dvh',
+          background: '#FAFAF8',
+          overflow: 'hidden',
+          fontFamily:
+            "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
+          WebkitFontSmoothing: 'antialiased',
         }}
-        className="[&::-webkit-scrollbar]:hidden"
       >
-        {children}
-      </main>
-      <BottomNav />
-    </div>
+        <StatusBar agentName={agentName} urgentCount={urgentCount} />
+        <main
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
+          className="[&::-webkit-scrollbar]:hidden"
+        >
+          {children}
+        </main>
+        <BottomNav />
+      </div>
+      {/* Render modals outside the overflow:hidden container */}
+      {modal}
+    </>
   );
 }
