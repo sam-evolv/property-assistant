@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { C, TYPE, RADIUS, EASE, DURATION, KEYFRAMES, TAB_H } from '@/components/select/tokens';
+import { C, TYPE, RADIUS, EASE, DURATION, KEYFRAMES, TAB_H, SHADOW } from '@/components/select/tokens';
 import WelcomeScreen from '@/components/select/WelcomeScreen';
 import HomeScreen from '@/components/select/HomeScreen';
 import SystemsScreen from '@/components/select/SystemsScreen';
@@ -79,6 +79,20 @@ export default function SelectPage() {
   const [error, setError] = useState<string | null>(null);
   const [welcomed, setWelcomed] = useState(false);
   const [tab, setTab] = useState<TabId>('home');
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Close notification dropdown when clicking outside
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
 
   // Check if already welcomed
   useEffect(() => {
@@ -230,7 +244,7 @@ export default function SelectPage() {
       overflow: 'hidden', fontFamily: '"Inter", system-ui, sans-serif',
       display: 'flex', flexDirection: 'column', position: 'relative',
     }}>
-      <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
+      <style dangerouslySetInnerHTML={{ __html: KEYFRAMES + '\n@keyframes notifSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}' }} />
 
       {/* ── Top bar ── */}
       <div style={{
@@ -247,16 +261,91 @@ export default function SelectPage() {
             Select
           </span>
         </div>
-        {/* Notification dot placeholder */}
-        <div style={{ position: 'relative' }}>
-          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.t2} strokeWidth={1.75}>
-            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-          </svg>
-          <div style={{
-            position: 'absolute', top: -1, right: -1,
-            width: 7, height: 7, borderRadius: 4,
-            background: C.g, border: `2px solid ${C.bg}`,
-          }} />
+        {/* Notification bell */}
+        <div ref={notifRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setNotifOpen(v => !v)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative',
+            }}
+          >
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={notifOpen ? C.g : C.t2} strokeWidth={1.75}
+              style={{ transition: `stroke ${DURATION.fast}ms ${EASE}` }}>
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
+            </svg>
+            <div style={{
+              position: 'absolute', top: 2, right: 2,
+              width: 7, height: 7, borderRadius: 4,
+              background: C.g, border: `2px solid ${C.bg}`,
+            }} />
+          </button>
+
+          {/* ── Notification dropdown ── */}
+          {notifOpen && (
+            <div style={{
+              position: 'absolute', top: 36, right: -8,
+              width: 300, maxHeight: 380,
+              background: C.s1,
+              border: `1px solid ${C.b2}`,
+              borderRadius: RADIUS.xl,
+              boxShadow: `0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset`,
+              backdropFilter: 'blur(32px)',
+              overflow: 'hidden',
+              zIndex: 200,
+              animation: `notifSlide ${DURATION.fast}ms ${EASE}`,
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '14px 16px 10px',
+                borderBottom: `1px solid ${C.b1}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span style={{ color: C.t1, fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                  Notifications
+                </span>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+                  color: C.bg, background: C.g,
+                  padding: '2px 7px', borderRadius: 10,
+                }}>
+                  3 new
+                </span>
+              </div>
+
+              {/* Notification items */}
+              <div style={{ overflowY: 'auto', maxHeight: 310 }}>
+                <NotifItem
+                  icon="🏠"
+                  title="Handover pack ready"
+                  desc="Your digital handover documents are now available in Docs."
+                  time="2h ago"
+                  unread
+                />
+                <NotifItem
+                  icon="☀️"
+                  title="Solar output milestone"
+                  desc="Your system generated 100 kWh this month — great performance!"
+                  time="1d ago"
+                  unread
+                />
+                <NotifItem
+                  icon="🔧"
+                  title="Heat pump service due"
+                  desc="Annual service recommended. Check warranties for coverage."
+                  time="3d ago"
+                  unread
+                />
+                <NotifItem
+                  icon="📄"
+                  title="BER certificate uploaded"
+                  desc="Your B2 energy rating certificate has been added."
+                  time="1w ago"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -370,5 +459,48 @@ function TabButton({ id, label, active, onClick }: {
         {label}
       </span>
     </button>
+  );
+}
+
+// ─── Notification item ──────────────────────────────────────────────────────
+function NotifItem({ icon, title, desc, time, unread }: {
+  icon: string; title: string; desc: string; time: string; unread?: boolean;
+}) {
+  return (
+    <div style={{
+      padding: '12px 16px',
+      display: 'flex', gap: 12, alignItems: 'flex-start',
+      borderBottom: `1px solid ${C.b1}`,
+      background: unread ? 'rgba(212,175,55,0.04)' : 'transparent',
+      cursor: 'pointer',
+      transition: `background ${DURATION.fast}ms ${EASE}`,
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+        background: C.s3, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 15,
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          {unread && (
+            <div style={{
+              width: 5, height: 5, borderRadius: '50%', background: C.g, flexShrink: 0,
+            }} />
+          )}
+          <span style={{ color: C.t1, fontSize: 12, fontWeight: 600 }}>{title}</span>
+        </div>
+        <p style={{
+          color: C.t2, fontSize: 11, lineHeight: 1.5,
+          margin: 0, whiteSpace: 'normal',
+        }}>
+          {desc}
+        </p>
+        <span style={{ color: C.t3, fontSize: 10, marginTop: 3, display: 'inline-block' }}>
+          {time}
+        </span>
+      </div>
+    </div>
   );
 }
