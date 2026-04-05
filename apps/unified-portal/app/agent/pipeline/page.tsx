@@ -33,7 +33,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function PipelinePage() {
-  const { agent, pipeline, alerts, loading, developmentName } = useAgent();
+  const { agent, pipeline, alerts, loading } = useAgent();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [showBulkChase, setShowBulkChase] = useState(false);
   const [chaseSuccess, setChaseSuccess] = useState(false);
@@ -117,7 +117,7 @@ export default function PipelinePage() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
         <div className="px-5 pt-4">
           <h1 className="text-xl font-bold text-gray-900 tracking-tight mb-4">Pipeline</h1>
 
@@ -152,7 +152,7 @@ export default function PipelinePage() {
 
           {/* Solicitor Directory link */}
           <Link
-            href="/agent/solicitors?preview=savills"
+            href="/agent/solicitors"
             className="flex items-center gap-1.5 text-xs text-[#D4AF37] font-medium mb-4 transition-all duration-150 active:opacity-70"
           >
             <Building2 size={14} />
@@ -221,7 +221,7 @@ function UnitCard({ unit, alerts }: { unit: PipelineUnit; alerts: any[] }) {
 
   return (
     <Link
-      href={`/agent/pipeline/${unit.unitId}?preview=savills`}
+      href={`/agent/pipeline/${unit.unitId}`}
       className={`block transition-all duration-150 active:scale-[0.98] ${isSold ? 'opacity-60' : ''}`}
     >
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3.5 flex items-center gap-3">

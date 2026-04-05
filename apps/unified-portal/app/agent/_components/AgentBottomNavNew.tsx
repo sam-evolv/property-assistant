@@ -8,8 +8,8 @@ export default function AgentBottomNav() {
   const pathname = usePathname();
 
   const tabs = [
-    { id: 'home', label: 'Home', href: '/agent/home?preview=savills', icon: Home },
-    { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline?preview=savills', icon: BarChart3 },
+    { id: 'home', label: 'Home', href: '/agent/home', icon: Home },
+    { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline', icon: BarChart3 },
     { id: 'viewings', label: 'Viewings', href: '#', icon: Calendar, disabled: true },
     { id: 'docs', label: 'Docs', href: '#', icon: FileText, disabled: true },
   ];
@@ -21,8 +21,8 @@ export default function AgentBottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-[76px] bg-[#FAFAF8]/92 backdrop-blur-xl border-t border-black/[0.08] flex items-end z-50"
-         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#FAFAF8]/92 backdrop-blur-xl border-t border-black/[0.08] flex items-end z-50"
+         style={{ height: 'calc(76px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
       {tabs.map((tab) => {
         const active = isActive(tab.id);
         const Icon = tab.icon;

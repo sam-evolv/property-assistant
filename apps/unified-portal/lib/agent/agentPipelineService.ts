@@ -75,6 +75,18 @@ export interface AgentProfile {
   tenantId: string;
 }
 
+export interface DevelopmentSummary {
+  id: string;
+  name: string;
+  totalUnits: number;
+  forSale: number;
+  saleAgreed: number;
+  contracted: number;
+  signed: number;
+  sold: number;
+  percentSold: number;
+}
+
 // ── Helper to parse comments JSON ──
 function parseComments(comments: string | null): { solicitor?: any; mortgage?: any; intelligence_log?: any[] } {
   if (!comments) return {};
@@ -85,13 +97,29 @@ function parseComments(comments: string | null): { solicitor?: any; mortgage?: a
   }
 }
 
+// Normalize status values from DB (some records use 'agreed' instead of 'sale_agreed')
+function normalizeStatus(status: string): PipelineUnit['status'] {
+  if (status === 'agreed') return 'sale_agreed';
+  if (['for_sale', 'sale_agreed', 'contracts_issued', 'signed', 'sold'].includes(status)) {
+    return status as PipelineUnit['status'];
+  }
+  return 'for_sale';
+}
+
+// Numeric sort helper for unit numbers
+function unitNumberSort(a: string, b: string): number {
+  const aNum = parseInt(a) || 0;
+  const bNum = parseInt(b) || 0;
+  if (aNum !== bNum) return aNum - bNum;
+  return a.localeCompare(b);
+}
+
 // ── Service functions ──
 
 const supabase = createClientComponentClient();
 
-// Get agent profile by preview mode or user_id
+// Get agent profile: try auth first, fallback to first profile in DB
 export async function getAgentProfile(preview?: string): Promise<AgentProfile | null> {
-  // If preview=savills, load Sarah Cronin directly
   if (preview === 'savills') {
     return {
       id: 'c3d4e5f6-a7b8-9012-cdef-345678901234',
@@ -103,13 +131,37 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
     };
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  // Try auth-based lookup first
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from('agent_profiles')
+        .select('id, display_name, agency_name, phone, email, tenant_id')
+        .eq('user_id', user.id)
+        .single();
 
+      if (data) {
+        return {
+          id: data.id,
+          displayName: data.display_name,
+          agencyName: data.agency_name,
+          phone: data.phone,
+          email: data.email,
+          tenantId: data.tenant_id,
+        };
+      }
+    }
+  } catch {
+    // Auth not available, fall through
+  }
+
+  // Fallback: load first agent profile (Sam Donworth for demo/preview)
   const { data } = await supabase
     .from('agent_profiles')
     .select('id, display_name, agency_name, phone, email, tenant_id')
-    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .single();
 
   if (!data) return null;
@@ -125,11 +177,6 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
 
 // Get assigned development IDs for agent
 export async function getAgentAssignments(agentId: string): Promise<string[]> {
-  // For the Savills preview, return Riverside Gardens
-  if (agentId === 'c3d4e5f6-a7b8-9012-cdef-345678901234') {
-    return ['84a559d1-89f1-4eb6-a48b-7ca068bcc164'];
-  }
-
   const { data } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id')
@@ -139,9 +186,8 @@ export async function getAgentAssignments(agentId: string): Promise<string[]> {
   return (data || []).map(d => d.development_id);
 }
 
-// Get all pipeline records for a development
+// Get all pipeline records for a development, sorted by unit number
 export async function getAgentPipeline(agentId: string, developmentId: string): Promise<PipelineUnit[]> {
-  // Query pipeline with unit join
   const { data: pipelineData, error } = await supabase
     .from('unit_sales_pipeline')
     .select(`
@@ -150,18 +196,15 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
       signed_contracts_date, counter_signed_date, kitchen_date, kitchen_selected,
       snag_date, estimated_close_date, handover_date, mortgage_expiry_date, comments
     `)
-    .eq('development_id', developmentId)
-    .order('created_at', { ascending: true });
+    .eq('development_id', developmentId);
 
   if (error || !pipelineData) return [];
 
-  // Get units for this development
   const { data: units } = await supabase
     .from('units')
     .select('id, unit_number, address, bedrooms, unit_type_id')
     .eq('development_id', developmentId);
 
-  // Get development name
   const { data: dev } = await supabase
     .from('developments')
     .select('name')
@@ -170,7 +213,7 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
 
   const unitMap = new Map((units || []).map(u => [u.id, u]));
 
-  return pipelineData.map(p => {
+  const result = pipelineData.map(p => {
     const unit = unitMap.get(p.unit_id);
     return {
       id: p.id,
@@ -181,7 +224,7 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
       developmentName: dev?.name || '',
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
-      status: p.status as PipelineUnit['status'],
+      status: normalizeStatus(p.status || 'for_sale'),
       purchaserName: p.purchaser_name,
       purchaserEmail: p.purchaser_email,
       purchaserPhone: p.purchaser_phone,
@@ -200,15 +243,55 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
       comments: p.comments,
     };
   });
+
+  // Sort by unit number numerically
+  result.sort((a, b) => unitNumberSort(a.unitNumber, b.unitNumber));
+  return result;
+}
+
+// Get pipeline for ALL developments
+export async function getAgentPipelineAll(agentId: string, developmentIds: string[]): Promise<PipelineUnit[]> {
+  const allUnits: PipelineUnit[] = [];
+  for (const devId of developmentIds) {
+    const units = await getAgentPipeline(agentId, devId);
+    allUnits.push(...units);
+  }
+  return allUnits;
+}
+
+// Get development summaries from pipeline data
+export function getDevelopmentSummaries(pipeline: PipelineUnit[]): DevelopmentSummary[] {
+  const devMap = new Map<string, PipelineUnit[]>();
+  for (const p of pipeline) {
+    if (!devMap.has(p.developmentId)) devMap.set(p.developmentId, []);
+    devMap.get(p.developmentId)!.push(p);
+  }
+
+  const summaries: DevelopmentSummary[] = [];
+  for (const [devId, units] of devMap) {
+    const total = units.length;
+    const sold = units.filter(u => u.status === 'sold').length;
+    summaries.push({
+      id: devId,
+      name: units[0]?.developmentName || 'Unknown',
+      totalUnits: total,
+      forSale: units.filter(u => u.status === 'for_sale').length,
+      saleAgreed: units.filter(u => u.status === 'sale_agreed').length,
+      contracted: units.filter(u => u.status === 'contracts_issued').length,
+      signed: units.filter(u => u.status === 'signed').length,
+      sold,
+      percentSold: total > 0 ? Math.round((sold / total) * 100) : 0,
+    });
+  }
+
+  return summaries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Get single unit profile with notes
-export async function getUnitProfile(unitId: string, developmentId: string): Promise<UnitProfile | null> {
-  const pipeline = await getAgentPipeline('', developmentId);
-  const unit = pipeline.find(p => p.unitId === unitId);
+export async function getUnitProfile(unitId: string, allPipeline: PipelineUnit[]): Promise<UnitProfile | null> {
+  const unit = allPipeline.find(p => p.unitId === unitId);
   if (!unit) return null;
 
-  // Get notes
   const { data: notesData } = await supabase
     .from('unit_pipeline_notes')
     .select('id, pipeline_id, unit_id, note_type, content, is_resolved, created_at')
@@ -241,11 +324,10 @@ export function getAgentAlerts(pipeline: PipelineUnit[]): Alert[] {
   const alerts: Alert[] = [];
 
   for (const p of pipeline) {
-    // Overdue contracts: issued > 60 days ago, not signed
     if (p.contractsIssuedDate && !p.signedContractsDate && p.status !== 'sold') {
       const issued = new Date(p.contractsIssuedDate);
-      const daysSince = Math.floor((now.getTime() - issued.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSince > 60) {
+      const daysSinceVal = Math.floor((now.getTime() - issued.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceVal > 60) {
         alerts.push({
           type: 'overdue_contracts',
           pipelineId: p.id,
@@ -253,13 +335,12 @@ export function getAgentAlerts(pipeline: PipelineUnit[]): Alert[] {
           unitNumber: p.unitNumber,
           purchaserName: p.purchaserName || 'Unknown',
           developmentName: p.developmentName,
-          daysOverdue: daysSince,
-          message: `${daysSince} days overdue: solicitor follow-up needed`,
+          daysOverdue: daysSinceVal,
+          message: `${daysSinceVal} days overdue: solicitor follow-up needed`,
         });
       }
     }
 
-    // Mortgage expiry within 45 days
     if (p.mortgageExpiryDate && p.status !== 'sold') {
       const expiry = new Date(p.mortgageExpiryDate);
       const daysUntil = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -278,7 +359,6 @@ export function getAgentAlerts(pipeline: PipelineUnit[]): Alert[] {
     }
   }
 
-  // Sort: overdue first (highest days), then mortgage expiry (lowest days)
   return alerts.sort((a, b) => {
     if (a.type === 'overdue_contracts' && b.type === 'mortgage_expiry') return -1;
     if (a.type === 'mortgage_expiry' && b.type === 'overdue_contracts') return 1;
@@ -393,7 +473,6 @@ export function getInitials(name: string | null): string {
     .join('');
 }
 
-// Generate AI intelligence summary from pipeline data
 export function generateIntelligenceSummary(unit: UnitProfile): string {
   const parts: string[] = [];
 
@@ -431,23 +510,19 @@ export function generateIntelligenceSummary(unit: UnitProfile): string {
   return parts.join('. ') + '.';
 }
 
-// Check timeline nudge flags
 export function getTimelineNudges(unit: PipelineUnit): string[] {
   const nudges: string[] = [];
 
-  // Sale Agreed but no deposit after 14 days
   if (unit.saleAgreedDate && !unit.depositDate) {
     const days = daysSince(unit.saleAgreedDate);
     if (days && days > 14) nudges.push('deposit_overdue');
   }
 
-  // Contracts issued but not signed after 60 days
   if (unit.contractsIssuedDate && !unit.signedContractsDate) {
     const days = daysSince(unit.contractsIssuedDate);
     if (days && days > 60) nudges.push('contracts_overdue');
   }
 
-  // Signed but no snag after 30 days
   if (unit.signedContractsDate && !unit.snagDate) {
     const days = daysSince(unit.signedContractsDate);
     if (days && days > 30) nudges.push('snag_overdue');

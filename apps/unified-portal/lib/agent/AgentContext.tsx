@@ -5,21 +5,23 @@ import { useSearchParams } from 'next/navigation';
 import {
   getAgentProfile,
   getAgentAssignments,
-  getAgentPipeline,
+  getAgentPipelineAll,
   getAgentAlerts,
+  getDevelopmentSummaries,
   type AgentProfile,
   type PipelineUnit,
   type Alert,
+  type DevelopmentSummary,
 } from './agentPipelineService';
 
 interface AgentContextValue {
   agent: AgentProfile | null;
   pipeline: PipelineUnit[];
   alerts: Alert[];
+  developments: DevelopmentSummary[];
+  developmentIds: string[];
   loading: boolean;
   error: string | null;
-  developmentId: string | null;
-  developmentName: string | null;
   refreshPipeline: () => Promise<void>;
 }
 
@@ -27,10 +29,10 @@ const AgentContext = createContext<AgentContextValue>({
   agent: null,
   pipeline: [],
   alerts: [],
+  developments: [],
+  developmentIds: [],
   loading: true,
   error: null,
-  developmentId: null,
-  developmentName: null,
   refreshPipeline: async () => {},
 });
 
@@ -45,17 +47,16 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [pipeline, setPipeline] = useState<PipelineUnit[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [developments, setDevelopments] = useState<DevelopmentSummary[]>([]);
+  const [developmentIds, setDevelopmentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [developmentId, setDevelopmentId] = useState<string | null>(null);
-  const [developmentName, setDevelopmentName] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get agent profile
       const profile = await getAgentProfile(preview || undefined);
       if (!profile) {
         setError('No agent profile found');
@@ -64,24 +65,21 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       }
       setAgent(profile);
 
-      // Get assigned developments
       const devIds = await getAgentAssignments(profile.id);
       if (devIds.length === 0) {
         setError('No schemes assigned');
         setLoading(false);
         return;
       }
+      setDevelopmentIds(devIds);
 
-      // Load pipeline for first development (Riverside Gardens for Savills)
-      const devId = devIds[0];
-      setDevelopmentId(devId);
-
-      const pipelineData = await getAgentPipeline(profile.id, devId);
+      // Load pipeline for ALL assigned developments
+      const pipelineData = await getAgentPipelineAll(profile.id, devIds);
       setPipeline(pipelineData);
 
-      if (pipelineData.length > 0) {
-        setDevelopmentName(pipelineData[0].developmentName);
-      }
+      // Compute development summaries
+      const devSummaries = getDevelopmentSummaries(pipelineData);
+      setDevelopments(devSummaries);
 
       // Compute alerts
       const alertData = getAgentAlerts(pipelineData);
@@ -99,22 +97,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, [loadData]);
 
   const refreshPipeline = useCallback(async () => {
-    if (!agent || !developmentId) return;
-    const pipelineData = await getAgentPipeline(agent.id, developmentId);
+    if (!agent || developmentIds.length === 0) return;
+    const pipelineData = await getAgentPipelineAll(agent.id, developmentIds);
     setPipeline(pipelineData);
-    const alertData = getAgentAlerts(pipelineData);
-    setAlerts(alertData);
-  }, [agent, developmentId]);
+    setDevelopments(getDevelopmentSummaries(pipelineData));
+    setAlerts(getAgentAlerts(pipelineData));
+  }, [agent, developmentIds]);
 
   return (
     <AgentContext.Provider value={{
       agent,
       pipeline,
       alerts,
+      developments,
+      developmentIds,
       loading,
       error,
-      developmentId,
-      developmentName,
       refreshPipeline,
     }}>
       {children}

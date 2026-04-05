@@ -58,9 +58,9 @@ export default function SolicitorsPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
         <div className="px-5 pt-4">
-          <Link href="/agent/pipeline?preview=savills" className="flex items-center gap-1.5 text-sm text-gray-400 mb-4 transition-all active:opacity-70">
+          <Link href="/agent/pipeline" className="flex items-center gap-1.5 text-sm text-gray-400 mb-4 transition-all active:opacity-70">
             <ArrowLeft size={16} /> Back to Pipeline
           </Link>
 
@@ -114,7 +114,7 @@ export default function SolicitorsPage() {
                         {group.units.map(u => (
                           <Link
                             key={u.unitId}
-                            href={`/agent/pipeline/${u.unitId}?preview=savills`}
+                            href={`/agent/pipeline/${u.unitId}`}
                             className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 transition-all active:opacity-70"
                           >
                             <div>

@@ -42,7 +42,7 @@ import {
 export default function UnitProfilePage() {
   const params = useParams();
   const unitId = params.unitId as string;
-  const { developmentId, agent } = useAgent();
+  const { pipeline, agent } = useAgent();
 
   const [profile, setProfile] = useState<UnitProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,12 +50,12 @@ export default function UnitProfilePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadProfile = useCallback(async () => {
-    if (!developmentId) return;
+    if (!pipeline.length) return;
     setLoading(true);
-    const data = await getUnitProfile(unitId, developmentId);
+    const data = await getUnitProfile(unitId, pipeline);
     setProfile(data);
     setLoading(false);
-  }, [unitId, developmentId]);
+  }, [unitId, pipeline]);
 
   useEffect(() => {
     loadProfile();
@@ -139,13 +139,13 @@ export default function UnitProfilePage() {
       style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}
     >
       <main
-        className="flex-1 overflow-y-auto overflow-x-hidden pb-52"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + 140px + env(safe-area-inset-bottom, 0px))' } as any}
       >
         <div className="px-5 pt-4">
           {/* Back */}
           <Link
-            href="/agent/pipeline?preview=savills"
+            href="/agent/pipeline"
             className="flex items-center gap-1.5 text-sm text-gray-400 mb-4 transition-all active:opacity-70"
           >
             <ArrowLeft size={16} /> Back to Pipeline

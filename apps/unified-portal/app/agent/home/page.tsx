@@ -3,22 +3,24 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { type Alert } from '@/lib/agent/agentPipelineService';
+import { type Alert, type DevelopmentSummary } from '@/lib/agent/agentPipelineService';
 import {
   AlertTriangle, Clock, Bell, ChevronRight, Zap, Building2,
-  BarChart3, FileText
+  BarChart3, FileText, TrendingUp
 } from 'lucide-react';
 import AgentBottomNav from '../_components/AgentBottomNavNew';
 
 export default function AgentHomePage() {
-  const { agent, pipeline, alerts, loading, developmentName } = useAgent();
+  const { agent, pipeline, alerts, developments, loading } = useAgent();
 
   const stats = useMemo(() => {
-    if (!pipeline.length) return { total: 0, forSale: 0, contracted: 0, sold: 0 };
+    if (!pipeline.length) return { total: 0, forSale: 0, saleAgreed: 0, contracted: 0, signed: 0, sold: 0 };
     return {
       total: pipeline.length,
       forSale: pipeline.filter(p => p.status === 'for_sale').length,
+      saleAgreed: pipeline.filter(p => p.status === 'sale_agreed').length,
       contracted: pipeline.filter(p => p.status === 'contracts_issued').length,
+      signed: pipeline.filter(p => p.status === 'signed').length,
       sold: pipeline.filter(p => p.status === 'sold').length,
     };
   }, [pipeline]);
@@ -62,7 +64,7 @@ export default function AgentHomePage() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(76px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
         <div className="px-5 pt-5">
           {/* Greeting */}
           <p className="text-gray-400 text-sm mb-1">{greeting}</p>
@@ -70,7 +72,7 @@ export default function AgentHomePage() {
             {agent?.displayName?.split(' ')[0] || 'Agent'}
           </h1>
           <p className="text-gray-400 text-xs mb-6">
-            {agent?.agencyName} &middot; {developmentName || 'No scheme'}
+            {agent?.agencyName} &middot; {developments.length} scheme{developments.length !== 1 ? 's' : ''} active
           </p>
 
           {/* Stats 2x2 grid */}
@@ -78,7 +80,7 @@ export default function AgentHomePage() {
             <StatCard icon={<Building2 size={18} />} label="Total Units" value={stats.total} color="#6B7280" bgColor="#F3F4F6" />
             <StatCard icon={<Zap size={18} />} label="For Sale" value={stats.forSale} color="#3B82F6" bgColor="#EFF6FF" />
             <StatCard icon={<FileText size={18} />} label="Contracted" value={stats.contracted} color="#D97706" bgColor="#FFFBEB" />
-            <StatCard icon={<BarChart3 size={18} />} label="Sold" value={stats.sold} color="#059669" bgColor="#ECFDF5" />
+            <StatCard icon={<TrendingUp size={18} />} label="Sold" value={stats.sold} color="#059669" bgColor="#ECFDF5" />
           </div>
 
           {/* Urgent Alerts */}
@@ -92,6 +94,44 @@ export default function AgentHomePage() {
               </div>
             </section>
           )}
+
+          {/* Schemes overview */}
+          <section className="mb-6">
+            <h2 className="text-[11px] font-semibold tracking-[0.06em] uppercase text-gray-400 mb-3">Your Schemes</h2>
+            <div className="space-y-2">
+              {developments.map(dev => (
+                <Link
+                  key={dev.id}
+                  href={`/agent/pipeline?dev=${dev.id}`}
+                  className="block transition-all duration-150 active:scale-[0.98]"
+                >
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900 text-sm">{dev.name}</span>
+                      <span className="text-[#D4AF37] text-sm font-bold">{dev.percentSold}%</span>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${dev.percentSold}%`,
+                          background: 'linear-gradient(90deg, #B8960C, #E8C84A)',
+                        }}
+                      />
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-gray-400">
+                      <span>{dev.totalUnits} total</span>
+                      <span>{dev.forSale} available</span>
+                      <span>{dev.saleAgreed} agreed</span>
+                      <span>{dev.signed} signed</span>
+                      <span>{dev.sold} sold</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
 
           {/* Recent Activity */}
           <section className="mb-6">
@@ -127,7 +167,7 @@ function AlertCard({ alert }: { alert: Alert }) {
   const isOverdue = alert.type === 'overdue_contracts';
   return (
     <Link
-      href={`/agent/pipeline/${alert.unitId}?preview=savills`}
+      href={`/agent/pipeline/${alert.unitId}`}
       className="block transition-all duration-150 active:scale-[0.98]"
     >
       <div className={`rounded-xl p-3.5 flex items-start gap-3 ${
@@ -148,7 +188,7 @@ function AlertCard({ alert }: { alert: Alert }) {
             Unit {alert.unitNumber}: {alert.message}
           </div>
           <div className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500' : 'text-amber-600'}`}>
-            {alert.purchaserName}
+            {alert.purchaserName} &middot; {alert.developmentName}
           </div>
         </div>
         <ChevronRight size={16} className={isOverdue ? 'text-red-300' : 'text-amber-300'} />
@@ -156,4 +196,3 @@ function AlertCard({ alert }: { alert: Alert }) {
     </Link>
   );
 }
-
