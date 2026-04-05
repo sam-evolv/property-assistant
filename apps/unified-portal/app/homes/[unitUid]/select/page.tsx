@@ -287,6 +287,7 @@ export default function SelectPage() {
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', position: 'relative',
+          alignSelf: 'stretch',
         }}>
           {/* Notch arch — masks the nav border behind the FAB */}
           <div style={{
@@ -300,7 +301,7 @@ export default function SelectPage() {
           <button
             onClick={() => setTab('intel')}
             style={{
-              position: 'absolute', bottom: 0,
+              position: 'absolute', bottom: -2,
               width: 80, height: 80, borderRadius: 40,
               background: C.bg,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
