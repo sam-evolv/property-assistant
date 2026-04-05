@@ -1,13 +1,81 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { type Alert, type DevelopmentSummary } from '@/lib/agent/agentPipelineService';
+import { type Alert, type DevelopmentSummary, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
 import AgentShell from '../_components/AgentShell';
+import StatModal from '../_components/StatModal';
+import type { StatModalType, Scheme as UIScheme, Buyer as UIBuyer } from '../_components/types';
+
+// Convert real pipeline data to the Scheme/Buyer types that StatModal expects
+function buildSchemes(pipeline: PipelineUnit[], developments: DevelopmentSummary[]): UIScheme[] {
+  return developments.map(dev => {
+    const devUnits = pipeline.filter(p => p.developmentId === dev.id);
+    const buyers: UIBuyer[] = devUnits
+      .filter(u => u.status !== 'for_sale')
+      .map(u => ({
+        id: u.unitId,
+        name: u.purchaserName || 'Unknown',
+        initials: getInitials(u.purchaserName),
+        unit: `Unit ${u.unitNumber}`,
+        price: u.salePrice || 0,
+        status: u.status === 'sale_agreed' ? 'reserved' as const
+          : u.status === 'contracts_issued' ? 'contracts_out' as const
+          : u.status === 'signed' ? 'exchanged' as const
+          : u.status === 'sold' ? 'confirmed' as const
+          : 'pending' as const,
+        depositDate: u.depositDate,
+        contractsDate: u.contractsIssuedDate,
+        signedDate: u.signedContractsDate,
+        closingDate: u.handoverDate,
+        daysOverdue: 0,
+        isUrgent: false,
+        schemeName: dev.name,
+      }));
+    return {
+      id: dev.id,
+      name: dev.name,
+      developer: 'Longview Estates',
+      location: 'Co. Cork',
+      totalUnits: dev.totalUnits,
+      sold: dev.sold,
+      reserved: dev.saleAgreed,
+      available: dev.forSale,
+      percentSold: dev.percentSold,
+      activeBuyers: buyers.length,
+      urgentCount: 0,
+      buyers,
+    };
+  });
+}
+
+function buildUrgentBuyers(pipeline: PipelineUnit[], alerts: Alert[]): UIBuyer[] {
+  return alerts
+    .filter(a => a.type === 'overdue_contracts')
+    .map(a => {
+      const unit = pipeline.find(p => p.unitId === a.unitId);
+      return {
+        id: a.unitId,
+        name: a.purchaserName,
+        initials: getInitials(a.purchaserName),
+        unit: `Unit ${a.unitNumber}`,
+        price: unit?.salePrice || 0,
+        status: 'contracts_out' as const,
+        depositDate: null,
+        contractsDate: unit?.contractsIssuedDate || null,
+        signedDate: null,
+        closingDate: null,
+        daysOverdue: a.daysOverdue || 0,
+        isUrgent: true,
+        schemeName: a.developmentName,
+      };
+    });
+}
 
 export default function AgentHomePage() {
   const { agent, pipeline, alerts, developments, loading } = useAgent();
+  const [modalType, setModalType] = useState<StatModalType>(null);
 
   const stats = useMemo(() => {
     if (!pipeline.length) return { total: 0, forSale: 0, saleAgreed: 0, contracted: 0, signed: 0, sold: 0, active: 0, urgent: 0 };
@@ -25,6 +93,9 @@ export default function AgentHomePage() {
       urgent,
     };
   }, [pipeline, alerts]);
+
+  const schemes = useMemo(() => buildSchemes(pipeline, developments), [pipeline, developments]);
+  const urgentBuyers = useMemo(() => buildUrgentBuyers(pipeline, alerts), [pipeline, alerts]);
 
   if (loading) {
     return (
@@ -58,9 +129,9 @@ export default function AgentHomePage() {
 
         {/* Stat rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-          <StatRow icon="trending" label="Units sold" value={stats.sold} color="#10B981" />
-          <StatRow icon="users" label="Active pipeline" value={stats.active} color="#3B82F6" />
-          <StatRow icon="clock" label="Need attention" value={stats.urgent} color="#EF4444" urgent />
+          <StatRow icon="trending" label="Units sold" value={stats.sold} color="#10B981" onClick={() => setModalType('sold')} />
+          <StatRow icon="users" label="Active pipeline" value={stats.active} color="#3B82F6" onClick={() => setModalType('active')} />
+          <StatRow icon="clock" label="Need attention" value={stats.urgent} color="#EF4444" urgent onClick={() => setModalType('urgent')} />
         </div>
 
         {/* Requires action section */}
@@ -171,6 +242,18 @@ export default function AgentHomePage() {
           ))}
         </div>
       </div>
+
+      {/* Stat Modal */}
+      {modalType && (
+        <StatModal
+          type={modalType}
+          onClose={() => setModalType(null)}
+          schemes={schemes}
+          totalSold={stats.sold}
+          totalActive={stats.active}
+          urgentBuyers={urgentBuyers}
+        />
+      )}
     </AgentShell>
   );
 }
@@ -183,17 +266,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatRow({ icon, label, value, color, urgent }: {
-  icon: 'trending' | 'users' | 'clock'; label: string; value: number; color: string; urgent?: boolean;
+function StatRow({ icon, label, value, color, urgent, onClick }: {
+  icon: 'trending' | 'users' | 'clock'; label: string; value: number; color: string; urgent?: boolean; onClick?: () => void;
 }) {
   const iconBg = urgent ? 'rgba(239,68,68,0.08)' : icon === 'trending' ? 'rgba(16,185,129,0.08)' : 'rgba(59,130,246,0.08)';
   const iconBorder = urgent ? 'rgba(239,68,68,0.15)' : icon === 'trending' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)';
 
   return (
-    <div className="agent-tappable" style={{
+    <div className="agent-tappable" onClick={onClick} style={{
       padding: '16px 18px', borderRadius: 16, background: '#FFFFFF',
       boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
       display: 'flex', alignItems: 'center', gap: 14, position: 'relative', overflow: 'hidden',
+      cursor: 'pointer',
     }}>
       {urgent && (
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg, #EF4444, #DC2626)', borderRadius: '3px 0 0 3px' }} />
