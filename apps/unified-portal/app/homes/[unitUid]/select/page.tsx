@@ -1,24 +1,63 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { C, TYPE, RADIUS, EASE, DURATION, KEYFRAMES, TAB_H, TABS } from '@/components/select/tokens';
+import { C, TYPE, RADIUS, EASE, DURATION, KEYFRAMES, TAB_H } from '@/components/select/tokens';
 import WelcomeScreen from '@/components/select/WelcomeScreen';
 import HomeScreen from '@/components/select/HomeScreen';
 import SystemsScreen from '@/components/select/SystemsScreen';
 import StoryScreen from '@/components/select/StoryScreen';
-import DocsScreen from '@/components/select/DocsScreen';
-import WarrantyScreen from '@/components/select/WarrantyScreen';
+import DocsWarrantyScreen from '@/components/select/DocsWarrantyScreen';
 import AIScreen from '@/components/select/AIScreen';
 
-// ─── Tab icons (inline SVG paths) ────────────────────────────────────────────
-const TAB_ICONS: Record<string, string> = {
-  home: 'M3 12l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z',
-  systems: 'M12 2a10 10 0 100 20 10 10 0 000-20zm0 3a1 1 0 110 2 1 1 0 010-2zm-1 4h2v8h-2z',
-  story: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-  docs: 'M7 3h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zm7 0v5h5',
-  warranty: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+// ─── 4 regular tabs + centre intelligence ────────────────────────────────────
+const TABS = [
+  { id: 'home', label: 'Home' },
+  { id: 'systems', label: 'Systems' },
+  // Intelligence button sits in the centre (index 2) — rendered specially
+  { id: 'story', label: 'Story' },
+  { id: 'docs', label: 'Docs' },
+] as const;
+
+type TabId = typeof TABS[number]['id'] | 'intel';
+
+// ─── SVG icon paths ──────────────────────────────────────────────────────────
+const ICONS: Record<string, (s: number, c: string) => JSX.Element> = {
+  home: (s, c) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+      <polyline points="9,22 9,12 15,12 15,22" />
+    </svg>
+  ),
+  systems: (s, c) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
+  story: (s, c) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  docs: (s, c) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14,2 14,8 20,8" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  ),
 };
+
+// ─── Intelligence zap icon ───────────────────────────────────────────────────
+function ZapIcon({ size = 18, color = C.bg }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth={1.5}>
+      <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2" />
+    </svg>
+  );
+}
 
 interface UnitData {
   purchaser_name: string;
@@ -38,12 +77,7 @@ export default function SelectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [welcomed, setWelcomed] = useState(false);
-  const [page, setPage] = useState(0);
-  const [aiOpen, setAiOpen] = useState(false);
-
-  // Swipe refs
-  const dragRef = useRef<{ startX: number; startPage: number } | null>(null);
-  const railRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<TabId>('home');
 
   // Check if already welcomed
   useEffect(() => {
@@ -70,9 +104,9 @@ export default function SelectPage() {
           handover_date: data.handover_date || data.est_handover_date || undefined,
           tier: data.tier,
           unit_id: data.unit_id || data.unitId,
+          development_name: data.development_name,
         });
       } catch {
-        // Fallback to demo data if resolve fails
         setUnitData({
           purchaser_name: 'Sarah Murphy',
           address: '14 Innishmore Rise',
@@ -81,6 +115,7 @@ export default function SelectPage() {
           handover_date: '2024-12-14',
           tier: 'select',
           unit_id: unitUid,
+          development_name: 'Rathard Park',
         });
       } finally {
         setLoading(false);
@@ -88,29 +123,60 @@ export default function SelectPage() {
     })();
   }, [unitUid]);
 
-  // Mark welcomed
   const handleEnter = useCallback(() => {
     localStorage.setItem(`oh_select_welcomed_${unitUid}`, 'true');
     setWelcomed(true);
   }, [unitUid]);
 
-  // Swipe handlers
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    dragRef.current = { startX: e.clientX, startPage: page };
-  }, [page]);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    if (Math.abs(dx) > 52) {
-      const dir = dx < 0 ? 1 : -1;
-      const next = Math.max(0, Math.min(4, dragRef.current.startPage + dir));
-      setPage(next);
+  // Render current tab content
+  const renderTab = () => {
+    if (!unitData) return null;
+    switch (tab) {
+      case 'home':
+        return (
+          <HomeScreen
+            purchaserName={unitData.purchaser_name}
+            address={unitData.address}
+            city={unitData.city || ''}
+            builderName={unitData.builder_name || ''}
+            handoverDate={unitData.handover_date}
+            solarKw={3.1}
+            heatPumpActive={true}
+            onAI={() => setTab('intel')}
+          />
+        );
+      case 'systems':
+        return (
+          <SystemsScreen
+            solarKwNow={3.1} solarKwhToday={4.2} solarKwhMonth={112}
+            solarSelfUse={68} heatPumpFlowTemp={42} heatPumpMode="Heating"
+            heatPumpDhwTemp={51} evChargerStatus="Standby"
+          />
+        );
+      case 'intel':
+        return (
+          <AIScreen
+            unitUid={unitUid}
+            purchaserName={unitData.purchaser_name}
+            address={unitData.address}
+            builderName={unitData.builder_name}
+            handoverDate={unitData.handover_date}
+          />
+        );
+      case 'story':
+        return (
+          <StoryScreen
+            builderName={unitData.builder_name || 'Sigma Homes'}
+            builderPhone="021 436 5866"
+            handoverDate={unitData.handover_date}
+          />
+        );
+      case 'docs':
+        return <DocsWarrantyScreen />;
     }
-    dragRef.current = null;
-  }, []);
+  };
 
-  // ── Loading state ──
+  // ── Loading ──
   if (loading) {
     return (
       <div style={{
@@ -118,18 +184,17 @@ export default function SelectPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: '"Inter", system-ui, sans-serif',
       }}>
-        <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
+        <style dangerouslySetInnerHTML={{ __html: KEYFRAMES + '\n@keyframes spin{to{transform:rotate(360deg)}}' }} />
         <div style={{
           width: 40, height: 40, borderRadius: '50%',
           border: `2px solid ${C.gB}`, borderTopColor: C.g,
           animation: 'spin 1s linear infinite',
         }} />
-        <style dangerouslySetInnerHTML={{ __html: '@keyframes spin{to{transform:rotate(360deg)}}' }} />
       </div>
     );
   }
 
-  // ── Error state ──
+  // ── Error ──
   if (error || !unitData) {
     return (
       <div style={{
@@ -143,7 +208,7 @@ export default function SelectPage() {
     );
   }
 
-  // ── Welcome screen ──
+  // ── Welcome ──
   if (!welcomed) {
     return (
       <WelcomeScreen
@@ -155,152 +220,131 @@ export default function SelectPage() {
     );
   }
 
+  const isIntel = tab === 'intel';
+
   // ── Main app ──
   return (
     <div style={{
       width: '100%', height: '100dvh', background: C.bg,
       overflow: 'hidden', fontFamily: '"Inter", system-ui, sans-serif',
-      position: 'relative',
+      display: 'flex', flexDirection: 'column', position: 'relative',
     }}>
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
       {/* ── Top bar ── */}
       <div style={{
-        position: 'relative', zIndex: 10,
-        height: 48, display: 'flex', alignItems: 'center',
+        height: 48, flexShrink: 0, display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', padding: '0 20px',
-        borderBottom: `1px solid ${C.b1}`,
+        borderBottom: `1px solid ${C.b1}`, zIndex: 80,
       }}>
-        {/* Wordmark */}
-        <div style={{
-          ...TYPE.title, color: C.g, letterSpacing: '0.04em',
-          fontSize: 13,
-        }}>
-          OpenHouse <span style={{ fontWeight: 400, color: C.t2 }}>Select</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: C.g, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em' }}>
+            OPENHOUSE
+          </span>
+          <span style={{ width: 1, height: 10, background: C.b1 }} />
+          <span style={{ color: C.t2, fontSize: 11, fontWeight: 400, letterSpacing: '0.04em' }}>
+            Select
+          </span>
         </div>
-        {/* Page dots */}
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {TABS.map((_, i) => (
-            <div key={i} style={{
-              width: i === page ? 16 : 5, height: 5,
-              borderRadius: 3,
-              background: i === page ? C.g : C.b2,
-              transition: `all ${DURATION.base}ms ${EASE}`,
-            }} />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Slide rail ── */}
-      <div
-        ref={railRef}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        style={{
-          display: 'flex',
-          width: '500%',
-          height: `calc(100dvh - 48px - ${TAB_H}px)`,
-          transform: `translateX(-${page * 20}%)`,
-          transition: `transform ${DURATION.slide}ms ${EASE}`,
-          touchAction: 'pan-y',
-        }}
-      >
-        <div style={{ width: '20%', height: '100%', overflow: 'hidden' }}>
-          <HomeScreen
-            purchaserName={unitData.purchaser_name}
-            address={unitData.address}
-            city={unitData.city || ''}
-            builderName={unitData.builder_name || ''}
-            handoverDate={unitData.handover_date}
-            solarKw={3.1}
-            heatPumpActive={true}
-            onAI={() => setAiOpen(true)}
-          />
-        </div>
-        <div style={{ width: '20%', height: '100%', overflow: 'hidden' }}>
-          <SystemsScreen
-            solarKwNow={3.1}
-            solarKwhToday={4.2}
-            solarKwhMonth={112}
-            solarSelfUse={68}
-            heatPumpFlowTemp={42}
-            heatPumpMode="Heating"
-            heatPumpDhwTemp={51}
-            evChargerStatus="Standby"
-          />
-        </div>
-        <div style={{ width: '20%', height: '100%', overflow: 'hidden' }}>
-          <StoryScreen
-            builderName={unitData.builder_name || 'Sigma Homes'}
-            builderPhone="021 436 5866"
-            handoverDate={unitData.handover_date}
-          />
-        </div>
-        <div style={{ width: '20%', height: '100%', overflow: 'hidden' }}>
-          <DocsScreen />
-        </div>
-        <div style={{ width: '20%', height: '100%', overflow: 'hidden' }}>
-          <WarrantyScreen />
+        {/* Notification dot placeholder */}
+        <div style={{ position: 'relative' }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.t2} strokeWidth={1.75}>
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
+          </svg>
+          <div style={{
+            position: 'absolute', top: -1, right: -1,
+            width: 7, height: 7, borderRadius: 4,
+            background: C.g, border: `2px solid ${C.bg}`,
+          }} />
         </div>
       </div>
 
-      {/* ── Tab bar ── */}
+      {/* ── Content area ── */}
       <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        height: TAB_H, zIndex: 20,
+        flex: 1, overflowY: 'auto', overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch' as any,
+      }}>
+        {renderTab()}
+      </div>
+
+      {/* ── Tab bar — 4 tabs + centre intelligence button ── */}
+      <div style={{
+        height: TAB_H, flexShrink: 0,
         background: 'rgba(4,4,10,0.94)',
         backdropFilter: 'blur(28px) saturate(1.3)',
         borderTop: `1px solid rgba(255,255,255,0.045)`,
         display: 'flex', alignItems: 'center',
+        paddingBottom: 2, zIndex: 100,
       }}>
-        {/* Sliding gold bar */}
-        <div style={{
-          position: 'absolute', top: -1, height: 2,
-          width: '20%', left: `${page * 20}%`,
-          background: `linear-gradient(90deg, transparent, ${C.g}, transparent)`,
-          transition: `left ${DURATION.slide}ms ${EASE}`,
-        }} />
+        {/* Home tab */}
+        <TabButton id="home" label="Home" active={tab === 'home'} onClick={() => setTab('home')} />
 
-        {TABS.map((tab, i) => (
+        {/* Systems tab */}
+        <TabButton id="systems" label="Systems" active={tab === 'systems'} onClick={() => setTab('systems')} />
+
+        {/* ── Centre Intelligence button — raised gold circle ── */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
           <button
-            key={tab.id}
-            onClick={() => setPage(i)}
+            onClick={() => setTab('intel')}
             style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 3,
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '8px 0',
-              opacity: i === page ? 1 : 0.4,
-              transition: `opacity ${DURATION.fast}ms ${EASE}`,
+              width: 52, height: 52, borderRadius: '50%',
+              background: isIntel
+                ? `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`
+                : C.s3,
+              border: isIntel ? 'none' : `1px solid ${C.gB}`,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'absolute', top: -22,
+              boxShadow: isIntel
+                ? `0 0 24px rgba(212,175,55,0.4), 0 4px 12px rgba(0,0,0,0.3)`
+                : `0 2px 8px rgba(0,0,0,0.3)`,
+              transition: `all ${DURATION.fast}ms ${EASE}`,
             }}
           >
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none"
-              stroke={i === page ? C.g : C.t2} strokeWidth={1.8}
-              strokeLinecap="round" strokeLinejoin="round"
-            >
-              <path d={TAB_ICONS[tab.id]} />
-            </svg>
-            <span style={{
-              ...TYPE.micro,
-              color: i === page ? C.g : C.t3,
-            }}>
-              {tab.label}
-            </span>
+            <ZapIcon size={20} color={isIntel ? C.bg : C.g} />
           </button>
-        ))}
-      </div>
+        </div>
 
-      {/* ── AI Overlay ── */}
-      {aiOpen && (
-        <AIScreen
-          unitUid={unitUid}
-          purchaserName={unitData.purchaser_name}
-          address={unitData.address}
-          builderName={unitData.builder_name}
-          handoverDate={unitData.handover_date}
-          onClose={() => setAiOpen(false)}
-        />
-      )}
+        {/* Story tab */}
+        <TabButton id="story" label="Story" active={tab === 'story'} onClick={() => setTab('story')} />
+
+        {/* Docs tab */}
+        <TabButton id="docs" label="Docs" active={tab === 'docs'} onClick={() => setTab('docs')} />
+      </div>
     </div>
+  );
+}
+
+// ─── Tab button helper ────────────────────────────────────────────────────────
+function TabButton({ id, label, active, onClick }: {
+  id: string; label: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: 3, padding: '8px 2px 0',
+        position: 'relative', background: 'none',
+        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+      }}
+    >
+      {active && (
+        <div style={{
+          position: 'absolute', top: 0, left: '50%',
+          transform: 'translateX(-50%)',
+          width: 14, height: 2, borderRadius: '0 0 2px 2px',
+          background: C.g,
+        }} />
+      )}
+      {ICONS[id]?.(20, active ? C.g : C.t3)}
+      <span style={{
+        color: active ? C.g : C.t3,
+        fontSize: 9, fontWeight: active ? 700 : 400,
+        letterSpacing: '0.01em',
+      }}>
+        {label}
+      </span>
+    </button>
   );
 }
