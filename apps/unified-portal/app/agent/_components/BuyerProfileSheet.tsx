@@ -64,7 +64,7 @@ export default function BuyerProfileSheet({ profile, onClose }: BuyerProfileShee
           <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E0E0DC' }} />
         </div>
 
-        <div style={{ padding: '0 24px 40px' }}>
+        <div style={{ padding: '0 24px 120px' }}>
 
           {/* ─── Header: Avatar, Name, Badge ─── */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
