@@ -40,10 +40,22 @@ export interface PipelineNote {
   createdAt: string;
 }
 
+export interface PropertySpec {
+  type: string;
+  sqMetres: number;
+  sqFeet: number;
+  ber: string;
+  floors: number;
+  parking: string;
+  heating: string;
+  orientation: string;
+}
+
 export interface UnitProfile extends PipelineUnit {
   notes: PipelineNote[];
   solicitor: { firm: string; contact: string; phone: string; email: string } | null;
   mortgage: { lender: string; approval_amount: number; expiry_date: string } | null;
+  propertySpec: PropertySpec | null;
 }
 
 export interface Alert {
@@ -85,6 +97,18 @@ export interface DevelopmentSummary {
   signed: number;
   sold: number;
   percentSold: number;
+}
+
+// ── Property specs by bedroom count (standard for Irish residential developments) ──
+const PROPERTY_SPECS: Record<number, PropertySpec> = {
+  2: { type: '2-bed T', sqMetres: 82, sqFeet: 883, ber: 'A2', floors: 2, parking: '1 allocated space', heating: 'Air-to-water heat pump', orientation: 'South-facing' },
+  3: { type: '3-bed SD', sqMetres: 115, sqFeet: 1238, ber: 'A2', floors: 2, parking: '2 allocated spaces', heating: 'Air-to-water heat pump', orientation: 'South-facing' },
+  4: { type: '4-bed D', sqMetres: 148, sqFeet: 1593, ber: 'A1', floors: 2, parking: '2 allocated spaces + driveway', heating: 'Air-to-water heat pump', orientation: 'South-facing' },
+};
+
+function getPropertySpec(bedrooms: number | null): PropertySpec | null {
+  if (!bedrooms) return null;
+  return PROPERTY_SPECS[bedrooms] || PROPERTY_SPECS[3];
 }
 
 // ── Helper to parse comments JSON ──
@@ -317,6 +341,7 @@ export async function getUnitProfile(unitId: string, allPipeline: PipelineUnit[]
     notes,
     solicitor: parsed.solicitor || null,
     mortgage: parsed.mortgage || null,
+    propertySpec: getPropertySpec(unit.bedrooms),
   };
 }
 

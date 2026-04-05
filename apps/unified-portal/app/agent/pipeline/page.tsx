@@ -38,23 +38,30 @@ export default function PipelinePage() {
   const [showBulkChase, setShowBulkChase] = useState(false);
   const [chaseSuccess, setChaseSuccess] = useState(false);
 
-  const filtered = useMemo(() => {
+  // Group and filter by development
+  const grouped = useMemo(() => {
     let items = [...pipeline];
     if (activeFilter !== 'all') {
       items = items.filter(p => p.status === activeFilter);
     }
-    // Sort: non-sold first by unit number, then sold
-    const nonSold = items.filter(p => p.status !== 'sold').sort((a, b) => {
-      const aNum = parseInt(a.unitNumber) || 0;
-      const bNum = parseInt(b.unitNumber) || 0;
-      return aNum - bNum;
-    });
-    const sold = items.filter(p => p.status === 'sold').sort((a, b) => {
-      const aNum = parseInt(a.unitNumber) || 0;
-      const bNum = parseInt(b.unitNumber) || 0;
-      return aNum - bNum;
-    });
-    return [...nonSold, ...sold];
+
+    // Group by development
+    const devMap = new Map<string, { name: string; units: PipelineUnit[] }>();
+    for (const unit of items) {
+      if (!devMap.has(unit.developmentId)) {
+        devMap.set(unit.developmentId, { name: unit.developmentName, units: [] });
+      }
+      devMap.get(unit.developmentId)!.units.push(unit);
+    }
+
+    // Sort units within each group: non-sold first by unit number, then sold
+    for (const group of devMap.values()) {
+      const nonSold = group.units.filter(p => p.status !== 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
+      const sold = group.units.filter(p => p.status === 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
+      group.units = [...nonSold, ...sold];
+    }
+
+    return Array.from(devMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [pipeline, activeFilter]);
 
   const overdueContracted = useMemo(() => {
@@ -137,15 +144,24 @@ export default function PipelinePage() {
             <ChevronRight size={12} />
           </Link>
 
-          {/* Unit list */}
-          <div className="space-y-2">
-            {filtered.map(unit => (
-              <UnitCard key={unit.id} unit={unit} alerts={alerts} />
-            ))}
-            {filtered.length === 0 && (
-              <div className="text-center text-gray-400 text-sm py-8">No units match this filter</div>
-            )}
-          </div>
+          {/* Grouped unit list */}
+          {grouped.length === 0 ? (
+            <div className="text-center text-gray-400 text-sm py-8">No units match this filter</div>
+          ) : (
+            grouped.map(group => (
+              <div key={group.name} style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#0D0D12', letterSpacing: '-0.01em' }}>{group.name}</span>
+                  <span style={{ fontSize: 11, color: '#A0A8B0' }}>{group.units.length} unit{group.units.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-2">
+                  {group.units.map(unit => (
+                    <UnitCard key={unit.id} unit={unit} alerts={alerts} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
       {/* Bulk Chase Confirmation Sheet */}

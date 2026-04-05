@@ -238,40 +238,51 @@ export default function UnitProfilePage() {
           </Section>
 
           {/* Property Details */}
-          <Section title="Property Details">
-            <DetailRow label="Unit" value={`Unit ${profile.unitNumber}`} />
-            <DetailRow
-              label="Bedrooms"
-              value={profile.bedrooms ? `${profile.bedrooms} bed` : null}
-            />
+          <Section title="Property Details" icon={<HomeIcon size={14} className="text-gray-400" />}>
+            <DetailRow label="Type" value={profile.propertySpec?.type || (profile.bedrooms ? `${profile.bedrooms}-bed` : null)} />
+            <DetailRow label="Bedrooms" value={profile.bedrooms ? String(profile.bedrooms) : null} />
+            {profile.propertySpec && (
+              <>
+                <DetailRow label="Size" value={`${profile.propertySpec.sqMetres} m\u00B2 / ${profile.propertySpec.sqFeet.toLocaleString()} sq ft`} />
+                <div className="flex items-center py-1.5">
+                  <span className="text-xs text-gray-400 w-24 flex-shrink-0">BER Rating</span>
+                  <span className="text-sm font-semibold" style={{ color: profile.propertySpec.ber.startsWith('A') ? '#059669' : '#D97706' }}>
+                    {profile.propertySpec.ber}
+                  </span>
+                </div>
+                <DetailRow label="Floors" value={String(profile.propertySpec.floors)} />
+                <DetailRow label="Orientation" value={profile.propertySpec.orientation} />
+                <DetailRow label="Parking" value={profile.propertySpec.parking} />
+                <DetailRow label="Heating" value={profile.propertySpec.heating} />
+              </>
+            )}
             <DetailRow label="Price" value={formatCurrency(profile.salePrice)} />
-            <DetailRow label="Address" value={profile.unitAddress} />
           </Section>
 
           {/* Contact Details */}
           {profile.purchaserName && (
-            <Section title="Contact Details">
+            <Section title="Contact Details" icon={<Mail size={14} className="text-gray-400" />}>
               {profile.purchaserPhone && (
-                <a
-                  href={`tel:${profile.purchaserPhone}`}
-                  className="flex items-center gap-3 py-2 transition-all active:opacity-70"
-                >
-                  <Phone size={16} className="text-emerald-500" />
-                  <span className="text-sm text-gray-900">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-xs text-gray-400">Phone</span>
+                  <a href={`tel:${profile.purchaserPhone}`} className="text-sm text-[#D4AF37] font-medium transition-all active:opacity-70">
                     {profile.purchaserPhone}
-                  </span>
-                </a>
+                  </a>
+                </div>
               )}
               {profile.purchaserEmail && (
-                <a
-                  href={`mailto:${profile.purchaserEmail}`}
-                  className="flex items-center gap-3 py-2 transition-all active:opacity-70"
-                >
-                  <Mail size={16} className="text-emerald-500" />
-                  <span className="text-sm text-gray-900">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-xs text-gray-400">Email</span>
+                  <a href={`mailto:${profile.purchaserEmail}`} className="text-sm text-[#D4AF37] font-medium transition-all active:opacity-70">
                     {profile.purchaserEmail}
-                  </span>
-                </a>
+                  </a>
+                </div>
+              )}
+              {profile.unitAddress && (
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-xs text-gray-400">Address</span>
+                  <span className="text-sm text-gray-900">{profile.unitAddress}</span>
+                </div>
               )}
             </Section>
           )}
@@ -318,30 +329,24 @@ export default function UnitProfilePage() {
 
           {/* Solicitor */}
           {solicitor && (
-            <Section title="Solicitor">
+            <Section title="Solicitor" icon={<Shield size={14} className="text-gray-400" />}>
               <DetailRow label="Firm" value={solicitor.firm} />
               <DetailRow label="Contact" value={solicitor.contact} />
               {solicitor.phone && (
-                <a
-                  href={`tel:${solicitor.phone}`}
-                  className="flex items-center gap-3 py-2 transition-all active:opacity-70"
-                >
-                  <Phone size={14} className="text-gray-400" />
-                  <span className="text-sm text-gray-900">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-xs text-gray-400">Phone</span>
+                  <a href={`tel:${solicitor.phone}`} className="text-sm text-[#D4AF37] font-medium transition-all active:opacity-70">
                     {solicitor.phone}
-                  </span>
-                </a>
+                  </a>
+                </div>
               )}
               {solicitor.email && (
-                <a
-                  href={`mailto:${solicitor.email}`}
-                  className="flex items-center gap-3 py-2 transition-all active:opacity-70"
-                >
-                  <Mail size={14} className="text-gray-400" />
-                  <span className="text-sm text-gray-900">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-xs text-gray-400">Email</span>
+                  <a href={`mailto:${solicitor.email}`} className="text-sm text-[#D4AF37] font-medium transition-all active:opacity-70">
                     {solicitor.email}
-                  </span>
-                </a>
+                  </a>
+                </div>
               )}
             </Section>
           )}
@@ -461,16 +466,21 @@ export default function UnitProfilePage() {
 
 function Section({
   title,
+  icon,
   children,
 }: {
   title: string;
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="mt-5 mb-2">
-      <h2 className="text-[11px] font-semibold tracking-[0.06em] uppercase text-gray-400 mb-2.5">
-        {title}
-      </h2>
+      <div className="flex items-center gap-2 mb-2.5">
+        {icon}
+        <h2 className="text-[11px] font-semibold tracking-[0.06em] uppercase text-gray-400">
+          {title}
+        </h2>
+      </div>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         {children}
       </div>
@@ -486,9 +496,9 @@ function DetailRow({
   value: string | number | null | undefined;
 }) {
   return (
-    <div className="flex items-center py-1.5">
-      <span className="text-xs text-gray-400 w-20 flex-shrink-0">{label}</span>
-      <span className="text-sm text-gray-900">
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-sm text-gray-900 text-right">
         {value !== null && value !== undefined ? String(value) : '\u2014'}
       </span>
     </div>
