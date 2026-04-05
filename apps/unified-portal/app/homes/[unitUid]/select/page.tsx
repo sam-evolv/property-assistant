@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { C, TYPE, RADIUS, EASE, DURATION, KEYFRAMES, TAB_H } from '@/components/select/tokens';
 import WelcomeScreen from '@/components/select/WelcomeScreen';
 import HomeScreen from '@/components/select/HomeScreen';
@@ -282,26 +283,48 @@ export default function SelectPage() {
         {/* Systems tab */}
         <TabButton id="systems" label="Systems" active={tab === 'systems'} onClick={() => setTab('systems')} />
 
-        {/* ── Centre Intelligence button — raised gold circle ── */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+        {/* ── Centre Intelligence FAB — dark circle with OH logo protruding above nav ── */}
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', position: 'relative',
+        }}>
+          {/* Notch arch — masks the nav border behind the FAB */}
+          <div style={{
+            position: 'absolute', top: -2,
+            width: 100, height: 16,
+            background: 'rgba(4,4,10,0.94)',
+            borderRadius: '50% 50% 0 0',
+          }} />
+
+          {/* The FAB — 80px dark circle with OH logo */}
           <button
             onClick={() => setTab('intel')}
             style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: isIntel
-                ? `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`
-                : C.s3,
-              border: isIntel ? 'none' : `1px solid ${C.gB}`,
-              cursor: 'pointer',
+              position: 'absolute', bottom: 0,
+              width: 80, height: 80, borderRadius: 40,
+              background: C.bg,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              position: 'absolute', top: -22,
+              overflow: 'hidden', border: 'none', cursor: 'pointer', padding: 0,
               boxShadow: isIntel
-                ? `0 0 24px rgba(212,175,55,0.4), 0 4px 12px rgba(0,0,0,0.3)`
-                : `0 2px 8px rgba(0,0,0,0.3)`,
-              transition: `all ${DURATION.fast}ms ${EASE}`,
+                ? `0 0 0 1px rgba(255,255,255,0.10) inset,
+                   0 0 0 2.5px ${C.g},
+                   0 8px 24px rgba(0,0,0,0.35),
+                   0 2px 6px rgba(0,0,0,0.20)`
+                : `0 0 0 1px rgba(255,255,255,0.10) inset,
+                   0 8px 24px rgba(0,0,0,0.35),
+                   0 2px 6px rgba(0,0,0,0.20)`,
+              transition: `box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.15s ease`,
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
-            <ZapIcon size={20} color={isIntel ? C.bg : C.g} />
+            <Image
+              src="/oh-logo-icon.png"
+              width={80}
+              height={80}
+              alt="OpenHouse Intelligence"
+              style={{ objectFit: 'contain' }}
+              priority
+            />
           </button>
         </div>
 
