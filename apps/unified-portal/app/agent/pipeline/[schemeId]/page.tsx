@@ -5,8 +5,11 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AgentShell from '../../_components/AgentShell';
 import BuyerCard from '../../_components/BuyerCard';
+import BuyerProfileSheet from '../../_components/BuyerProfileSheet';
 import type { Buyer as UIBuyer } from '../../_components/types';
 import { SCHEMES, BUYERS, AGENT_STATS } from '@/lib/agent/demo-data';
+import { getBuyerProfile } from '@/lib/agent/buyer-profiles';
+import type { BuyerProfile } from '@/lib/agent/buyer-profiles';
 
 type StageFilter = 'all' | 'reserved' | 'contracts' | 'signed' | 'closed';
 
@@ -18,9 +21,10 @@ const STAGE_FILTERS: { id: StageFilter; label: string }[] = [
   { id: 'closed', label: 'Closed' },
 ];
 
-function adaptBuyer(b: (typeof BUYERS)[number]): UIBuyer {
+function adaptBuyer(b: (typeof BUYERS)[number]): UIBuyer & { rawId: number } {
   return {
     id: String(b.id),
+    rawId: b.id,
     name: b.name,
     initials: b.initials,
     unit: b.unit,
@@ -62,6 +66,7 @@ export default function SchemeDetailPage() {
   const params = useParams();
   const schemeId = params.schemeId as string;
   const [activeStage, setActiveStage] = useState<StageFilter>('all');
+  const [selectedProfile, setSelectedProfile] = useState<BuyerProfile | null>(null);
 
   const scheme = SCHEMES.find((s) => s.id === schemeId);
   const schemeBuyers = useMemo(
@@ -100,6 +105,11 @@ export default function SchemeDetailPage() {
     });
     return counts;
   }, [schemeBuyers]);
+
+  const handleBuyerTap = (rawId: number) => {
+    const profile = getBuyerProfile(rawId);
+    if (profile) setSelectedProfile(profile);
+  };
 
   if (!scheme) {
     return (
@@ -232,7 +242,9 @@ export default function SchemeDetailPage() {
         {filteredBuyers.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {filteredBuyers.map((b) => (
-              <BuyerCard key={b.id} buyer={b} />
+              <div key={b.id} onClick={() => handleBuyerTap(b.rawId)}>
+                <BuyerCard buyer={b} />
+              </div>
             ))}
           </div>
         ) : (
@@ -263,6 +275,14 @@ export default function SchemeDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Buyer Profile Sheet */}
+      {selectedProfile && (
+        <BuyerProfileSheet
+          profile={selectedProfile}
+          onClose={() => setSelectedProfile(null)}
+        />
+      )}
     </AgentShell>
   );
 }
