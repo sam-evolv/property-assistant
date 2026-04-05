@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { AgentBottomNav } from '../home/page';
+import AgentBottomNav from '../_components/AgentBottomNavNew';
 import { getSolicitorDirectory, type SolicitorGroup } from '@/lib/agent/agentPipelineService';
 import { ArrowLeft, Phone, Mail, Building2, ChevronDown, ChevronUp, Bell, Users } from 'lucide-react';
 

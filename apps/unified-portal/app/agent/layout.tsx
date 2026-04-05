@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
+import { AgentProvider } from '@/lib/agent/AgentContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,5 +25,11 @@ export const viewport: Viewport = {
 };
 
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: '#FAFAF8', fontFamily: 'Inter, sans-serif', color: '#A0A8B0' }}>Loading...</div>}>
+      <AgentProvider>
+        {children}
+      </AgentProvider>
+    </Suspense>
+  );
 }

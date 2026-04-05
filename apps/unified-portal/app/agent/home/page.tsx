@@ -1,480 +1,159 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import AgentShell from '../_components/AgentShell';
-import SchemeCard from '../_components/SchemeCard';
-import StatModal from '../_components/StatModal';
-import type { StatModalType, Scheme as UIScheme, Buyer as UIBuyer } from '../_components/types';
+import { useAgent } from '@/lib/agent/AgentContext';
+import { type Alert } from '@/lib/agent/agentPipelineService';
 import {
-  SCHEMES,
-  BUYERS,
-  AGENT_STATS,
-  URGENT_TOP5,
-} from '@/lib/agent/demo-data';
+  AlertTriangle, Clock, Bell, ChevronRight, Zap, Building2,
+  BarChart3, FileText
+} from 'lucide-react';
+import AgentBottomNav from '../_components/AgentBottomNavNew';
 
-/* ─── Adapt demo data → component types ─── */
+export default function AgentHomePage() {
+  const { agent, pipeline, alerts, loading, developmentName } = useAgent();
 
-function adaptBuyers(
-  buyers: typeof BUYERS,
-  schemeName?: string
-): UIBuyer[] {
-  return buyers.map((b) => ({
-    id: String(b.id),
-    name: b.name,
-    initials: b.initials,
-    unit: b.unit,
-    price: b.price,
-    status:
-      b.status === 'sale_agreed'
-        ? 'reserved'
-        : b.status === 'contracts_signed'
-          ? 'exchanged'
-          : b.status === 'sold'
-            ? 'confirmed'
-            : (b.status as UIBuyer['status']),
-    depositDate: b.depositDate,
-    contractsDate: b.contractsIssuedDate,
-    signedDate: b.contractsSignedDate,
-    closingDate: b.handoverDate,
-    daysOverdue: b.daysSinceIssued ?? 0,
-    isUrgent: b.urgent,
-    schemeName: schemeName ?? b.scheme,
-  }));
-}
-
-function adaptSchemes(): UIScheme[] {
-  return SCHEMES.map((s) => {
-    const schemeBuyers = BUYERS.filter((b) => b.scheme === s.name);
-    const adapted = adaptBuyers(schemeBuyers, s.name);
-    const pct = s.total > 0 ? Math.round((s.sold / s.total) * 100) : 0;
-    const urgentCount = schemeBuyers.filter((b) => b.urgent).length;
-
+  const stats = useMemo(() => {
+    if (!pipeline.length) return { total: 0, forSale: 0, contracted: 0, sold: 0 };
     return {
-      id: s.id,
-      name: s.name,
-      developer: 'Longview Estates',
-      location: 'Co. Cork',
-      totalUnits: s.total,
-      sold: s.sold,
-      reserved: s.reserved,
-      available: s.available,
-      percentSold: pct,
-      activeBuyers: schemeBuyers.filter(
-        (b) => b.status !== 'sold'
-      ).length,
-      urgentCount,
-      buyers: adapted,
+      total: pipeline.length,
+      forSale: pipeline.filter(p => p.status === 'for_sale').length,
+      contracted: pipeline.filter(p => p.status === 'contracts_issued').length,
+      sold: pipeline.filter(p => p.status === 'sold').length,
     };
-  });
-}
+  }, [pipeline]);
 
-export default function HomePage() {
-  const [modalType, setModalType] = useState<StatModalType>(null);
-
-  const schemes = useMemo(() => adaptSchemes(), []);
-  const urgentBuyers = useMemo(
-    () => adaptBuyers(URGENT_TOP5, undefined),
-    []
-  );
-  const allUrgent = useMemo(
-    () =>
-      adaptBuyers(
-        BUYERS.filter((b) => b.urgent),
-        undefined
-      ).sort((a, b) => b.daysOverdue - a.daysOverdue),
-    []
-  );
+  if (loading) {
+    return (
+      <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="h-[54px] flex items-center px-5 border-b border-gray-100" />
+        <div className="flex-1 p-5 space-y-4">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="h-20 bg-gray-100 rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <AgentShell agentName="Sam" urgentCount={AGENT_STATS.urgent}>
-      <div style={{ padding: '2px 24px 100px' }}>
-        {/* Greeting */}
-        <p
-          style={{
-            color: '#A0A8B0',
-            fontSize: 13,
-            fontWeight: 400,
-            marginBottom: 4,
-            letterSpacing: '0.01em',
-          }}
-        >
-          {greeting}
-        </p>
-        <h1
-          style={{
-            color: '#0D0D12',
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: '-0.055em',
-            lineHeight: 1.05,
-            marginBottom: 4,
-          }}
-        >
-          Sam.
-        </h1>
-        <p
-          style={{
-            color: '#B0B8C4',
-            fontSize: 13,
-            letterSpacing: '0.01em',
-            marginBottom: 28,
-          }}
-        >
-          Sherry FitzGerald &middot; {AGENT_STATS.schemesActive} schemes active
-        </p>
-
-        {/* Stat rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-          <StatRow
-            icon="trending"
-            label="Units sold"
-            value={AGENT_STATS.totalSold}
-            color="#10B981"
-            onClick={() => setModalType('sold')}
-          />
-          <StatRow
-            icon="users"
-            label="Active pipeline"
-            value={AGENT_STATS.activePipeline}
-            color="#3B82F6"
-            onClick={() => setModalType('active')}
-          />
-          <StatRow
-            icon="clock"
-            label="Need attention"
-            value={AGENT_STATS.urgent}
-            color="#EF4444"
-            urgent
-            onClick={() => setModalType('urgent')}
-          />
+    <div className="flex flex-col h-dvh bg-[#FAFAF8]" style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
+      {/* Header */}
+      <header className="h-[54px] flex items-center justify-between px-5 flex-shrink-0 bg-[#FAFAF8] border-b border-gray-100/50">
+        <div className="flex items-center gap-2">
+          <span className="text-[#D4AF37] font-bold text-sm tracking-wide">OPENHOUSE</span>
+          <span className="text-gray-300 text-sm">|</span>
+          <span className="text-gray-400 text-sm font-medium">{agent?.agencyName || 'Agent'}</span>
         </div>
-
-
-        {/* Requires action section */}
-        <SectionLabel>Requires action</SectionLabel>
-        <div
-          style={{
-            background: '#FFFFFF',
-            borderRadius: 18,
-            overflow: 'hidden',
-            boxShadow:
-              '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
-            marginBottom: 28,
-          }}
-        >
-          {urgentBuyers.map((b, i) => (
-            <div
-              key={b.id}
-              className="agent-tappable"
-              onClick={() => setModalType('urgent')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '14px 18px',
-                position: 'relative',
-                borderBottom:
-                  i < urgentBuyers.length - 1
-                    ? '1px solid rgba(0,0,0,0.04)'
-                    : 'none',
-              }}
-            >
-              {/* Left bar */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 2,
-                  background: 'rgba(239, 68, 68, 0.3)',
-                  borderRadius:
-                    i === 0
-                      ? '18px 0 0 0'
-                      : i === urgentBuyers.length - 1
-                        ? '0 0 0 18px'
-                        : '0',
-                }}
-              />
-              <div style={{ flex: 1, minWidth: 0, paddingLeft: 6 }}>
-                <div
-                  style={{
-                    fontSize: 13.5,
-                    fontWeight: 500,
-                    letterSpacing: '-0.01em',
-                    color: '#0D0D12',
-                  }}
-                >
-                  {b.name}
-                </div>
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    color: '#A0A8B0',
-                    marginTop: 2,
-                  }}
-                >
-                  {b.schemeName} &middot; {b.unit}
-                </div>
-              </div>
-              <span
-                style={{
-                  background: '#FEF2F2',
-                  border: '1px solid rgba(239,68,68,0.2)',
-                  borderRadius: 20,
-                  padding: '3px 8px',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: '#DC2626',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-              >
-                {b.daysOverdue}d
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 font-medium">{agent?.displayName}</span>
+          <div className="relative">
+            <Bell size={20} className="text-gray-400" />
+            {alerts.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {alerts.length}
               </span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="px-5 pt-5">
+          {/* Greeting */}
+          <p className="text-gray-400 text-sm mb-1">{greeting}</p>
+          <h1 className="text-[28px] font-bold text-gray-900 tracking-tight mb-1">
+            {agent?.displayName?.split(' ')[0] || 'Agent'}
+          </h1>
+          <p className="text-gray-400 text-xs mb-6">
+            {agent?.agencyName} &middot; {developmentName || 'No scheme'}
+          </p>
+
+          {/* Stats 2x2 grid */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <StatCard icon={<Building2 size={18} />} label="Total Units" value={stats.total} color="#6B7280" bgColor="#F3F4F6" />
+            <StatCard icon={<Zap size={18} />} label="For Sale" value={stats.forSale} color="#3B82F6" bgColor="#EFF6FF" />
+            <StatCard icon={<FileText size={18} />} label="Contracted" value={stats.contracted} color="#D97706" bgColor="#FFFBEB" />
+            <StatCard icon={<BarChart3 size={18} />} label="Sold" value={stats.sold} color="#059669" bgColor="#ECFDF5" />
+          </div>
+
+          {/* Urgent Alerts */}
+          {alerts.length > 0 && (
+            <section className="mb-6">
+              <h2 className="text-[11px] font-semibold tracking-[0.06em] uppercase text-gray-400 mb-3">Urgent Alerts</h2>
+              <div className="space-y-2">
+                {alerts.map((alert, i) => (
+                  <AlertCard key={`${alert.unitId}-${alert.type}-${i}`} alert={alert} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Recent Activity */}
+          <section className="mb-6">
+            <h2 className="text-[11px] font-semibold tracking-[0.06em] uppercase text-gray-400 mb-3">Recent Activity</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <p className="text-sm text-gray-400 text-center py-2">No recent activity</p>
             </div>
-          ))}
+          </section>
         </div>
+      </main>
 
-        {/* Schemes */}
-        <SectionLabel>Your schemes</SectionLabel>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {schemes.map((s) => (
-            <SchemeCard key={s.id} scheme={s} />
-          ))}
-        </div>
-      </div>
-
-      {/* Stat Modal */}
-      {modalType && (
-        <StatModal
-          type={modalType}
-          onClose={() => setModalType(null)}
-          schemes={schemes}
-          totalSold={AGENT_STATS.totalSold}
-          totalActive={AGENT_STATS.activePipeline}
-          urgentBuyers={allUrgent}
-        />
-      )}
-    </AgentShell>
-  );
-}
-
-/* ─── Helpers ─── */
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        color: '#A0A8B0',
-        marginBottom: 12,
-      }}
-    >
-      {children}
+      {/* Bottom Nav */}
+      <AgentBottomNav />
     </div>
   );
 }
 
-function StatRow({
-  icon,
-  label,
-  value,
-  color,
-  urgent,
-  onClick,
-}: {
-  icon: 'trending' | 'users' | 'clock';
-  label: string;
-  value: number;
-  color: string;
-  urgent?: boolean;
-  onClick: () => void;
-}) {
-  const iconBg = urgent
-    ? 'rgba(239,68,68,0.08)'
-    : icon === 'trending'
-      ? 'rgba(16,185,129,0.08)'
-      : 'rgba(59,130,246,0.08)';
-  const iconBorder = urgent
-    ? 'rgba(239,68,68,0.15)'
-    : icon === 'trending'
-      ? 'rgba(16,185,129,0.15)'
-      : 'rgba(59,130,246,0.15)';
-  const chevronBg = iconBg;
-  const chevronBorder = iconBorder;
-
+function StatCard({ icon, label, value, color, bgColor }: { icon: React.ReactNode; label: string; value: number; color: string; bgColor: string }) {
   return (
-    <div
-      className="agent-tappable"
-      onClick={onClick}
-      style={{
-        padding: '16px 18px',
-        borderRadius: 16,
-        background: '#FFFFFF',
-        boxShadow:
-          '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Urgent left bar */}
-      {urgent && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 3,
-            background: 'linear-gradient(180deg, #EF4444, #DC2626)',
-            borderRadius: '3px 0 0 3px',
-          }}
-        />
-      )}
-
-      {/* Icon box */}
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          background: iconBg,
-          border: `1px solid ${iconBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginLeft: urgent ? 8 : 0,
-        }}
-      >
-        <StatIcon type={icon} color={color} />
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 transition-all duration-150 active:scale-[0.98]">
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: bgColor, color }}>
+          {icon}
+        </div>
       </div>
-
-      {/* Label */}
-      <span
-        style={{
-          flex: 1,
-          color: '#6B7280',
-          fontSize: 13,
-          fontWeight: 500,
-        }}
-      >
-        {label}
-      </span>
-
-      {/* Number */}
-      <span
-        style={{
-          color: urgent ? '#EF4444' : '#0D0D12',
-          fontSize: 24,
-          fontWeight: 700,
-          letterSpacing: '-0.05em',
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </span>
-
-      {/* Chevron */}
-      <div
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 7,
-          background: chevronBg,
-          border: `1px solid ${chevronBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <svg
-          width={10}
-          height={10}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={urgent ? 'rgba(239,68,68,0.5)' : `${color}80`}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="9,18 15,12 9,6" />
-        </svg>
-      </div>
+      <div className="text-2xl font-bold text-gray-900 tracking-tight">{value}</div>
+      <div className="text-xs text-gray-400 mt-0.5">{label}</div>
     </div>
   );
 }
 
-function StatIcon({
-  type,
-  color,
-}: {
-  type: 'trending' | 'users' | 'clock';
-  color: string;
-}) {
-  switch (type) {
-    case 'trending':
-      return (
-        <svg
-          width={16}
-          height={16}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={color}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="23,6 13.5,15.5 8.5,10.5 1,18" />
-          <polyline points="17,6 23,6 23,12" />
-        </svg>
-      );
-    case 'users':
-      return (
-        <svg
-          width={16}
-          height={16}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={color}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 00-3-3.87" />
-          <path d="M16 3.13a4 4 0 010 7.75" />
-        </svg>
-      );
-    case 'clock':
-      return (
-        <svg
-          width={16}
-          height={16}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={color}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12,6 12,12 16,14" />
-        </svg>
-      );
-  }
+function AlertCard({ alert }: { alert: Alert }) {
+  const isOverdue = alert.type === 'overdue_contracts';
+  return (
+    <Link
+      href={`/agent/pipeline/${alert.unitId}?preview=savills`}
+      className="block transition-all duration-150 active:scale-[0.98]"
+    >
+      <div className={`rounded-xl p-3.5 flex items-start gap-3 ${
+        isOverdue
+          ? 'bg-red-50 border border-red-100'
+          : 'bg-amber-50 border border-amber-200'
+      }`}>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+          isOverdue ? 'bg-red-100' : 'bg-amber-100'
+        }`}>
+          {isOverdue
+            ? <AlertTriangle size={16} className="text-red-500" />
+            : <Clock size={16} className="text-amber-600" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={`text-sm font-medium ${isOverdue ? 'text-red-700' : 'text-amber-800'}`}>
+            Unit {alert.unitNumber}: {alert.message}
+          </div>
+          <div className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500' : 'text-amber-600'}`}>
+            {alert.purchaserName}
+          </div>
+        </div>
+        <ChevronRight size={16} className={isOverdue ? 'text-red-300' : 'text-amber-300'} />
+      </div>
+    </Link>
+  );
 }
+
