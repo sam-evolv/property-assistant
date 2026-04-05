@@ -39,7 +39,7 @@ function ThinkingOrbs() {
         overflow: 'hidden',
         animation: `thinkPulse 2.4s ${EASE} infinite`,
       }}>
-        <Image src="/branding/openhouse-ai-logo.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
+        <Image src="/oh-logo-icon.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
       </div>
       <div style={{
         padding: '14px 20px',
@@ -184,7 +184,7 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
             }} />
             {/* Logo */}
             <Image
-              src="/branding/openhouse-ai-logo.png"
+              src="/oh-logo-icon.png"
               width={100}
               height={100}
               alt="OpenHouse AI"
@@ -249,7 +249,7 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
                   width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                   overflow: 'hidden',
                 }}>
-                  <Image src="/branding/openhouse-ai-logo.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
+                  <Image src="/oh-logo-icon.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
                 </div>
               ) : (
                 <div style={{

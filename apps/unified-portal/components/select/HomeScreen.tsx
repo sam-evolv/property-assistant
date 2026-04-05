@@ -241,7 +241,7 @@ function Badge({ size = 28 }: { size?: number }) {
       overflow: 'hidden',
       flexShrink: 0,
     }}>
-      <Image src="/branding/openhouse-ai-logo.png" width={size} height={size} alt="AI" style={{ objectFit: 'contain' }} />
+      <Image src="/oh-logo-icon.png" width={size} height={size} alt="AI" style={{ objectFit: 'contain' }} />
     </div>
   );
 }
