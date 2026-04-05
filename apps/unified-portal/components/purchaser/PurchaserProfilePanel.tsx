@@ -343,9 +343,9 @@ export default function PurchaserProfilePanel({
 
       {/* Panel */}
       <div 
-        className={`relative w-full md:w-[480px] md:max-w-[90vw] max-h-[92vh] md:max-h-[85vh] 
+        className={`relative w-full md:w-[480px] md:max-w-[90vw] max-h-[92vh] md:max-h-[85vh]
           ${panelClass} md:rounded-2xl rounded-t-3xl shadow-2xl border overflow-hidden
-          transform transition-all duration-300 ease-out
+          flex flex-col transform transition-all duration-300 ease-out
           animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95`}
       >
         {/* Premium Header with Gold Accent */}
@@ -426,10 +426,10 @@ export default function PurchaserProfilePanel({
           </div>
 
           {/* Section Tabs */}
-          <div className="px-6 flex gap-2">
+          <div className="px-6 flex gap-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}
             <button
               onClick={() => setActiveSection('home')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                 ${activeSection === 'home'
                   ? (isDarkMode 
                       ? 'bg-gray-900 text-gold-400 shadow-lg' 
@@ -444,7 +444,7 @@ export default function PurchaserProfilePanel({
             </button>
             <button
               onClick={() => setActiveSection('documents')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                 ${activeSection === 'documents'
                   ? (isDarkMode 
                       ? 'bg-gray-900 text-gold-400 shadow-lg' 
@@ -468,7 +468,7 @@ export default function PurchaserProfilePanel({
             </button>
             <button
               onClick={() => setActiveSection('saved')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                 ${activeSection === 'saved'
                   ? (isDarkMode 
                       ? 'bg-gray-900 text-gold-400 shadow-lg' 
@@ -492,7 +492,7 @@ export default function PurchaserProfilePanel({
             </button>
             <button
               onClick={() => setActiveSection('account')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                 ${activeSection === 'account'
                   ? (isDarkMode
                       ? 'bg-gray-900 text-gold-400 shadow-lg'
@@ -509,8 +509,7 @@ export default function PurchaserProfilePanel({
         </div>
 
         {/* Content */}
-        <div className={`overflow-y-auto ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`} 
-          style={{ maxHeight: 'calc(85vh - 220px)' }}>
+        <div className={`flex-1 min-h-0 overflow-y-auto ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
           
           {loading ? (
             <div className="p-6 space-y-4">
@@ -902,6 +901,36 @@ export default function PurchaserProfilePanel({
               </p>
             </div>
           )}
+        </div>
+
+        {/* Persistent footer — sign out + switch */}
+        <div className={`flex-shrink-0 px-6 py-4 border-t ${isDarkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setActiveSection('account')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
+                isDarkMode
+                  ? 'bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Switch
+            </button>
+            <button
+              onClick={handleSignOut}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
+                isDarkMode
+                  ? 'bg-gray-800 border border-gray-700 text-red-400 hover:bg-red-500/10'
+                  : 'bg-white border border-gray-200 text-red-500 hover:bg-red-50'
+              }`}
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </div>
