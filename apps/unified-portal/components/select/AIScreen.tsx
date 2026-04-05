@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import {
   C, TYPE, RADIUS, SHADOW, EASE, DURATION, KEYFRAMES,
 } from './tokens';
@@ -35,12 +36,10 @@ function ThinkingOrbs() {
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0' }}>
       <div style={{
         width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: SHADOW.goldGlow,
+        overflow: 'hidden',
         animation: `thinkPulse 2.4s ${EASE} infinite`,
       }}>
-        <span style={{ ...TYPE.micro, color: C.bg, fontSize: 10 }}>S</span>
+        <Image src="/branding/openhouse-ai-logo.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
       </div>
       <div style={{
         padding: '14px 20px',
@@ -165,9 +164,9 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
           padding: '24px 28px 0', textAlign: 'center',
           overflowY: 'auto',
         }}>
-          {/* Gold badge with halos */}
+          {/* OpenHouse AI logo */}
           <div style={{
-            width: 72, height: 72, margin: '0 auto 12px',
+            width: 100, height: 100, margin: '0 auto 12px',
             position: 'relative',
           }}>
             {/* Outer halo */}
@@ -183,16 +182,15 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
               animation: `haloPulse 4s ${EASE} infinite`,
               animationDelay: '0.5s',
             }} />
-            {/* Badge */}
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              background: `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: SHADOW.goldGlow,
-              animation: `badgePulse 3s ${EASE} infinite`,
-            }}>
-              <span style={{ color: C.bg, fontSize: 28, fontWeight: 900 }}>S</span>
-            </div>
+            {/* Logo */}
+            <Image
+              src="/branding/openhouse-ai-logo.png"
+              width={100}
+              height={100}
+              alt="OpenHouse AI"
+              style={{ objectFit: 'contain' }}
+              priority
+            />
           </div>
 
           {/* Overline */}
@@ -249,11 +247,9 @@ export default function AIScreen({ unitUid, purchaserName, address, builderName 
               {msg.role === 'assistant' ? (
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                  background: `linear-gradient(135deg, ${C.gHi}, ${C.g}, ${C.gLo})`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: SHADOW.goldGlow,
+                  overflow: 'hidden',
                 }}>
-                  <span style={{ ...TYPE.micro, color: C.bg, fontSize: 10 }}>S</span>
+                  <Image src="/branding/openhouse-ai-logo.png" width={28} height={28} alt="AI" style={{ objectFit: 'contain' }} />
                 </div>
               ) : (
                 <div style={{
