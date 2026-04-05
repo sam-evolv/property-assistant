@@ -50,26 +50,51 @@ export default function AgentLogin() {
       .eq('user_id', data.session.user.id)
       .single();
 
-    if (!profile) {
-      await supabase.auth.signOut();
-      setError("No agent account found for this email. Contact your agency admin.");
-      setLoading(false);
+    if (profile) {
+      // Standard agent login — upsert context and redirect
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'agent',
+        context_type: 'agent_profile',
+        context_id: profile.id,
+        display_name: profile.agency_name || profile.display_name,
+        display_subtitle: 'Estate Agent',
+        display_icon: 'briefcase',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push('/agent/home');
       return;
     }
 
-    // Upsert user_contexts row
-    await supabase.from('user_contexts').upsert({
-      auth_user_id: data.session.user.id,
-      product: 'agent',
-      context_type: 'agent_profile',
-      context_id: profile.id,
-      display_name: profile.agency_name || profile.display_name,
-      display_subtitle: 'Estate Agent',
-      display_icon: 'briefcase',
-      last_active_at: new Date().toISOString(),
-    }, { onConflict: 'auth_user_id,context_type,context_id' });
+    // Fallback: allow admins/developers/super_admins to access agent portal for testing
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('id, role, tenant_id')
+      .eq('email', email.trim().toLowerCase())
+      .single();
 
-    router.push('/agent/home');
+    if (admin && ['super_admin', 'developer', 'admin'].includes(admin.role)) {
+      // Admin accessing agent portal — upsert context with admin's tenant
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'agent',
+        context_type: 'organisation',
+        context_id: admin.tenant_id,
+        display_name: email.split('@')[0],
+        display_subtitle: 'Agent (Admin Access)',
+        display_icon: 'briefcase',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push('/agent/home');
+      return;
+    }
+
+    // Neither agent nor admin — reject
+    await supabase.auth.signOut();
+    setError("No agent account found for this email. Contact your agency admin.");
+    setLoading(false);
   }
 
   return (
