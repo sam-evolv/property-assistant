@@ -114,20 +114,26 @@ export function NotificationDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" />
+      {/* Backdrop — clickable to close */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className={`fixed top-0 right-0 z-50 h-full w-full max-w-md shadow-2xl transform transition-transform duration-300 ${
+        className={`fixed inset-0 z-50 flex flex-col shadow-2xl transform transition-transform duration-300 sm:left-auto sm:w-full sm:max-w-md ${
           isDarkMode ? 'bg-gray-900' : 'bg-white'
         }`}
       >
-        {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b ${
-          isDarkMode ? 'border-gray-700' : 'border-gray-200'
-        }`}>
+        {/* Header — with safe-area padding for mobile notch/status bar */}
+        <div
+          className={`flex items-center justify-between px-4 pb-3 border-b ${
+            isDarkMode ? 'border-gray-700' : 'border-gray-200'
+          }`}
+          style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 1rem))' }}
+        >
           <div className="flex items-center gap-2">
             <Bell className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-500'}`} />
             <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -155,9 +161,10 @@ export function NotificationDrawer({
             )}
             <button
               onClick={onClose}
-              className={`p-1.5 rounded-lg transition ${
+              className={`p-2 -mr-1 rounded-lg transition ${
                 isDarkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
               }`}
+              aria-label="Close notifications"
             >
               <X className="w-5 h-5" />
             </button>
@@ -165,7 +172,7 @@ export function NotificationDrawer({
         </div>
 
         {/* Notification List */}
-        <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 64px)' }}>
+        <div className="flex-1 overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6">
               <Bell className={`w-12 h-12 mb-4 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'}`} />
