@@ -344,7 +344,7 @@ export default function DocsPage() {
                   fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   marginTop: 8,
-                  marginBottom: 'max(32px, env(safe-area-inset-bottom))',
+                  marginBottom: 120,
                 }}
               >
                 <Upload size={15} />

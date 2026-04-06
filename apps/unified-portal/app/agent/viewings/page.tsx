@@ -371,7 +371,7 @@ export default function ViewingsPage() {
                   fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   marginTop: 8,
-                  marginBottom: 'max(32px, env(safe-area-inset-bottom))',
+                  marginBottom: 120,
                 }}
               >
                 <Clock size={15} />

@@ -26,7 +26,7 @@ const PRODUCTS = [
     ),
     title: 'OpenHouse Select',
     subtitle: 'One-off & custom builds',
-    href: '/login/homeowner',
+    href: '/login/homeowner?tier=select',
   },
   {
     id: 'agent',
