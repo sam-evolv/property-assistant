@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoginCard from '../_components/LoginCard';
 import {
   inputClassName, inputStyle, labelClassName, labelStyle,
@@ -9,87 +9,55 @@ import {
   handleInputFocus, handleInputBlur,
 } from '../_components/LoginField';
 
-type Step = 'form' | 'check-email';
-
 export default function HomeownerLogin() {
-  const [step, setStep] = useState<Step>('form');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tier = searchParams.get('tier');
   const [email, setEmail] = useState('');
   const [propertyCode, setPropertyCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const hasSupabaseClientEnv =
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase) {
-      setError('Authentication is temporarily unavailable.');
-      return;
-    }
     setLoading(true);
     setError('');
 
-    // 1. Verify property code exists
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address_line_1, unit_code')
-      .eq('unit_code', propertyCode.toUpperCase().trim())
-      .single();
+    try {
+      const res = await fetch('/api/auth/portal-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portal: 'homeowner',
+          email: email.trim().toLowerCase(),
+          propertyCode: propertyCode.toUpperCase().trim(),
+        }),
+      });
 
-    if (unitError || !unit) {
-      setError("Property code not found. Check your welcome pack or contact your developer.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Login failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (data.redirect) {
+        router.push(data.redirect);
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
       setLoading(false);
-      return;
     }
-
-    // 2. Send magic link
-    const redirectTo = `${window.location.origin}/auth/callback?context=homeowner&unit_id=${unit.id}`;
-
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: redirectTo,
-        data: { product: 'homeowner', unit_id: unit.id },
-      },
-    });
-
-    if (otpError) {
-      setError("Couldn't send the link. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    setStep('check-email');
-    setLoading(false);
   }
 
-  if (step === 'check-email') {
-    return (
-      <LoginCard title="Check your email" subtitle={`We've sent a link to ${email}`} showBack={false}>
-        <div className="text-center py-2 pb-4">
-          <div style={{ fontSize: 48, marginBottom: 20 }}>&#x1F4EC;</div>
-          <p className="text-sm mb-7" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-            Tap the link in your email to access your property portal. The link expires in 1 hour.
-          </p>
-          <button
-            onClick={() => setStep('form')}
-            className="text-sm transition-colors"
-            style={{ background: 'none', border: 'none', color: '#b8934c', cursor: 'pointer', fontFamily: 'inherit' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-          >
-            &larr; Try a different email
-          </button>
-        </div>
-      </LoginCard>
-    );
-  }
+  const title = tier === 'select' ? 'OpenHouse Select' : 'Welcome Home';
+  const subtitle = tier === 'select'
+    ? 'Access your custom build portal'
+    : 'Access your property information';
 
   return (
-    <LoginCard title="Welcome Home" subtitle="Access your property information">
+    <LoginCard title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label htmlFor="ho-email" className={labelClassName} style={labelStyle}>Your email address</label>
@@ -136,7 +104,7 @@ export default function HomeownerLogin() {
           className={primaryButtonClassName}
           style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
-          {loading ? 'Checking...' : 'Continue'}
+          {loading ? 'Signing in...' : 'Continue'}
         </button>
 
         <p className="text-center text-sm" style={{ color: '#6b7280', margin: 0 }}>
