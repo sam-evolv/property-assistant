@@ -1,17 +1,26 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useCareApp } from '../care-app-provider';
 import {
   Sparkles, MapPin, Home, FileText, Bookmark,
   Sun, Zap, Battery, Shield, Wrench, Calendar,
-  ChevronRight, ExternalLink,
+  ChevronRight, ExternalLink, LogOut,
 } from 'lucide-react';
 
 export default function ProfileScreen() {
   const { installation } = useCareApp();
   const [activeSection, setActiveSection] = useState<'system' | 'documents' | 'warranty'>('system');
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const supabase = createClientComponentClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const isHeatPump = installation.system_category === 'heat_pump' || installation.system_type === 'heat_pump';
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
@@ -215,6 +224,15 @@ export default function ProfileScreen() {
             )}
           </div>
         </div>
+
+        {/* Sign out button */}
+        <button
+          onClick={handleSignOut}
+          className="w-full mt-6 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-medium text-red-500 shadow-sm transition hover:bg-red-50 hover:border-red-200 active:scale-[0.98]"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
 
       </div>
     </div>

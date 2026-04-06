@@ -266,11 +266,10 @@ export default function ViewingsPage() {
             style={{
               width: '100%', background: '#fff',
               borderRadius: '24px 24px 0 0',
-              padding: '0 0 32px',
-              paddingBottom: 'max(32px, env(safe-area-inset-bottom))',
+              paddingBottom: 0,
               boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
               animation: 'slideUp 300ms cubic-bezier(.2,.8,.2,1)',
-              maxHeight: '85dvh',
+              maxHeight: '90dvh',
               overflowY: 'auto',
             }}
           >
@@ -372,6 +371,7 @@ export default function ViewingsPage() {
                   fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   marginTop: 8,
+                  marginBottom: 'max(32px, env(safe-area-inset-bottom))',
                 }}
               >
                 <Clock size={15} />
