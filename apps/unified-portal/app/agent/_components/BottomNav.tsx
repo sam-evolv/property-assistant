@@ -65,14 +65,14 @@ export default function BottomNav() {
   return (
     <nav
       style={{
-        height: 76,
+        minHeight: 76,
         background: 'rgba(250, 250, 248, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderTop: '0.5px solid rgba(0, 0, 0, 0.08)',
         display: 'flex',
         alignItems: 'flex-end',
-        paddingBottom: 12,
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
         flexShrink: 0,
         position: 'relative',
         zIndex: 50,

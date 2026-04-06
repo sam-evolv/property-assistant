@@ -9,34 +9,13 @@ import {
   daysSince, daysFromNow, type PipelineUnit, type DevelopmentSummary,
 } from '@/lib/agent/agentPipelineService';
 import {
-  AlertTriangle, ChevronRight, ChevronDown, ChevronUp,
-  Building2, Check
+  AlertTriangle, ChevronRight, Building2, Check
 } from 'lucide-react';
-
-type FilterKey = 'all' | 'for_sale' | 'sale_agreed' | 'contracts_issued' | 'signed' | 'sold';
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'for_sale', label: 'For Sale' },
-  { key: 'sale_agreed', label: 'Sale Agreed' },
-  { key: 'contracts_issued', label: 'Contracted' },
-  { key: 'signed', label: 'Signed' },
-  { key: 'sold', label: 'Sold' },
-];
-
-const STATUS_LABELS: Record<string, string> = {
-  for_sale: 'For Sale',
-  sale_agreed: 'Sale Agreed',
-  contracts_issued: 'Contracts Out',
-  signed: 'Contracts Signed',
-  sold: 'Sold',
-};
 
 interface SchemeGroup {
   id: string;
   name: string;
   allUnits: PipelineUnit[];
-  filteredUnits: PipelineUnit[];
   sold: number;
   reserved: number;
   available: number;
@@ -48,8 +27,6 @@ interface SchemeGroup {
 
 export default function PipelinePage() {
   const { agent, pipeline, alerts, developments, loading } = useAgent();
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
-  const [expandedScheme, setExpandedScheme] = useState<string | null>(null);
   const [showBulkChase, setShowBulkChase] = useState(false);
   const [chaseSuccess, setChaseSuccess] = useState(false);
 
@@ -67,20 +44,10 @@ export default function PipelinePage() {
       const total = allUnits.length;
       const urgentCount = alerts.filter(a => allUnits.some(u => u.unitId === a.unitId)).length;
 
-      let filteredUnits = allUnits;
-      if (activeFilter !== 'all') {
-        filteredUnits = allUnits.filter(u => u.status === activeFilter);
-      }
-      // Sort: non-sold by unit number, sold at bottom
-      const nonSold = filteredUnits.filter(p => p.status !== 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
-      const soldUnits = filteredUnits.filter(p => p.status === 'sold').sort((a, b) => (parseInt(a.unitNumber) || 0) - (parseInt(b.unitNumber) || 0));
-      filteredUnits = [...nonSold, ...soldUnits];
-
       return {
         id: devId,
         name: allUnits[0]?.developmentName || 'Unknown',
         allUnits,
-        filteredUnits,
         sold,
         reserved,
         available,
@@ -90,7 +57,7 @@ export default function PipelinePage() {
         urgentCount,
       };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [pipeline, alerts, activeFilter]);
+  }, [pipeline, alerts]);
 
   const overdueContracted = useMemo(() => {
     return pipeline.filter(p => {
@@ -129,7 +96,7 @@ export default function PipelinePage() {
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.04em', marginBottom: 14 }}>Sales Pipeline</h1>
 
         {/* Bulk Chase button */}
-        {activeFilter === 'contracts_issued' && overdueContracted.length > 0 && (
+        {overdueContracted.length > 0 && (
           <div
             onClick={() => setShowBulkChase(true)}
             className="agent-tappable"
@@ -147,17 +114,10 @@ export default function PipelinePage() {
           </div>
         )}
 
-        {/* Scheme cards */}
+        {/* Scheme cards — each links to scheme detail page */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {schemes.map(scheme => (
-            <SchemeCard
-              key={scheme.id}
-              scheme={scheme}
-              activeFilter={activeFilter}
-              onFilterChange={setActiveFilter}
-              expanded={expandedScheme === scheme.id}
-              onToggle={() => setExpandedScheme(expandedScheme === scheme.id ? null : scheme.id)}
-            />
+            <SchemeCard key={scheme.id} scheme={scheme} />
           ))}
         </div>
 
@@ -211,183 +171,83 @@ export default function PipelinePage() {
   );
 }
 
-/* ─── Scheme card with expandable buyer list ─── */
+/* ─── Scheme card — clickable, links to scheme detail ─── */
 
-function SchemeCard({ scheme, activeFilter, onFilterChange, expanded, onToggle }: {
-  scheme: SchemeGroup;
-  activeFilter: FilterKey;
-  onFilterChange: (f: FilterKey) => void;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
+function SchemeCard({ scheme }: { scheme: SchemeGroup }) {
   return (
-    <div style={{
-      background: '#FFFFFF',
-      borderRadius: 18,
-      overflow: 'hidden',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
-    }}>
-      {/* Card header */}
-      <div style={{ padding: '16px 18px' }}>
-        {/* Name + % */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.025em', color: '#0D0D12' }}>
-              {scheme.name}
-            </span>
-            {scheme.urgentCount > 0 && (
-              <span style={{
-                background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700, color: '#DC2626', lineHeight: 1.2,
-              }}>
-                {scheme.urgentCount}
+    <Link href={`/agent/pipeline/scheme/${scheme.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+      <div
+        className="agent-tappable"
+        style={{
+          background: '#FFFFFF',
+          borderRadius: 18,
+          overflow: 'hidden',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
+        }}
+      >
+        {/* Card header */}
+        <div style={{ padding: '16px 18px' }}>
+          {/* Name + % */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.025em', color: '#0D0D12' }}>
+                {scheme.name}
               </span>
-            )}
-          </div>
-          <span style={{
-            background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em',
-          }}>
-            {scheme.percentSold}%
-          </span>
-        </div>
-
-        {/* Subtitle */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontSize: 13, color: '#A0A8B0' }}>Longview Estates &middot; Co. Cork</span>
-          <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.sold} of {scheme.total}</span>
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ height: 3, background: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-          <div style={{ height: '100%', width: `${scheme.percentSold}%`, background: 'linear-gradient(90deg, #B8960C, #E8C84A)', borderRadius: 2, transition: 'width 0.3s ease' }} />
-        </div>
-
-        {/* Status dots */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <StatusDot color="#10B981" label={`${scheme.sold} Sold`} />
-          <StatusDot color="#3B82F6" label={`${scheme.reserved} Reserved`} />
-          <StatusDot color="#A0A8B0" label={`${scheme.available} Available`} />
-        </div>
-      </div>
-
-      {/* Footer: active buyers + View buyers toggle */}
-      <div
-        className="agent-tappable"
-        onClick={onToggle}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 18px', borderTop: '1px solid rgba(0,0,0,0.04)', cursor: 'pointer',
-        }}
-      >
-        <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.activeBuyers} active buyers</span>
-        <span style={{
-          background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-          {expanded ? 'Hide buyers' : 'View buyers'}
-          {expanded ? <ChevronUp size={14} color="#C4A020" /> : <ChevronDown size={14} color="#C4A020" />}
-        </span>
-      </div>
-
-      {/* Expanded buyer list */}
-      {expanded && (
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-          {/* Filter tabs within scheme */}
-          <div style={{ display: 'flex', gap: 0, overflowX: 'auto', padding: '8px 12px', scrollbarWidth: 'none' }}>
-            {FILTERS.map(f => (
-              <button
-                key={f.key}
-                onClick={() => onFilterChange(f.key)}
-                style={{
-                  padding: '6px 12px', borderRadius: 20, border: 'none',
-                  fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer',
-                  background: activeFilter === f.key ? '#0D0D12' : 'transparent',
-                  color: activeFilter === f.key ? '#fff' : '#A0A8B0',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
+              {scheme.urgentCount > 0 && (
+                <span style={{
+                  background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: 20, padding: '2px 7px', fontSize: 9.5, fontWeight: 700, color: '#DC2626', lineHeight: 1.2,
+                }}>
+                  {scheme.urgentCount}
+                </span>
+              )}
+            </div>
+            <span style={{
+              background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em',
+            }}>
+              {scheme.percentSold}%
+            </span>
           </div>
 
-          {/* Buyer cards */}
-          <div style={{ padding: '0 12px 12px' }}>
-            {scheme.filteredUnits.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#A0A8B0', fontSize: 13, padding: '20px 0' }}>
-                No units match this filter
-              </div>
-            ) : (
-              scheme.filteredUnits.map((unit, i) => (
-                <BuyerRow key={unit.id} unit={unit} isLast={i === scheme.filteredUnits.length - 1} />
-              ))
-            )}
+          {/* Subtitle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.name} &middot; {scheme.sold} of {scheme.total}</span>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 3, background: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+            <div style={{ height: '100%', width: `${scheme.percentSold}%`, background: 'linear-gradient(90deg, #B8960C, #E8C84A)', borderRadius: 2, transition: 'width 0.3s ease' }} />
+          </div>
+
+          {/* Status dots */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <StatusDot color="#10B981" label={`${scheme.sold} Sold`} />
+            <StatusDot color="#3B82F6" label={`${scheme.reserved} Reserved`} />
+            <StatusDot color="#A0A8B0" label={`${scheme.available} Available`} />
           </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-/* ─── Buyer row inside a scheme card ─── */
-
-function BuyerRow({ unit, isLast }: { unit: PipelineUnit; isLast: boolean }) {
-  const nudges = getTimelineNudges(unit);
-  const hasNudge = nudges.length > 0;
-  const isSold = unit.status === 'sold';
-  const initials = getInitials(unit.purchaserName);
-
-  return (
-    <Link href={`/agent/pipeline/${unit.unitId}`} style={{ textDecoration: 'none', display: 'block' }}>
-      <div
-        className="agent-tappable"
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 6px',
-          borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.04)',
-          opacity: isSold ? 0.5 : 1,
-        }}
-      >
-        {/* Avatar */}
-        {unit.purchaserName ? (
-          <div style={{
-            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-            background: hasNudge
-              ? 'linear-gradient(135deg, #FEF2F2, #FEE2E2)'
-              : 'linear-gradient(135deg, #FFFBEB, #FEF3C7)',
-            border: hasNudge
-              ? '1px solid rgba(239,68,68,0.25)'
-              : '1px solid rgba(212,175,55,0.25)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: hasNudge ? '#B91C1C' : '#92400E', fontSize: 11, fontWeight: 700 }}>{initials}</span>
+        {/* Footer: active buyers + chevron */}
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 18px', borderTop: '1px solid rgba(0,0,0,0.04)',
+          }}
+        >
+          <span style={{ fontSize: 13, color: '#A0A8B0' }}>{scheme.activeBuyers} active buyers</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{
+              background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em',
+            }}>
+              View all
+            </span>
+            <ChevronRight size={14} color="#C4A020" />
           </div>
-        ) : (
-          <div style={{
-            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-            background: '#F3F4F6', border: '1px solid rgba(0,0,0,0.04)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: '#A0A8B0', fontSize: 11, fontWeight: 600 }}>--</span>
-          </div>
-        )}
-
-        {/* Name + unit */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#0D0D12', letterSpacing: '-0.01em', display: 'block' }}>
-            {unit.purchaserName || 'Available'}
-          </span>
-          <span style={{ fontSize: 11.5, color: '#A0A8B0', marginTop: 1, display: 'block' }}>
-            Unit {unit.unitNumber}
-          </span>
         </div>
-
-        {/* Status badge */}
-        <StatusBadgeMini status={unit.status} />
       </div>
     </Link>
   );
@@ -401,25 +261,5 @@ function StatusDot({ color, label }: { color: string; label: string }) {
       <div style={{ width: 5, height: 5, borderRadius: '50%', background: color, flexShrink: 0 }} />
       <span style={{ fontSize: 13, color: '#6B7280' }}>{label}</span>
     </div>
-  );
-}
-
-function StatusBadgeMini({ status }: { status: string }) {
-  const configs: Record<string, { bg: string; color: string; label: string }> = {
-    for_sale: { bg: '#F3F4F6', color: '#6B7280', label: 'AVAILABLE' },
-    sale_agreed: { bg: '#EFF6FF', color: '#1D4ED8', label: 'RESERVED' },
-    contracts_issued: { bg: '#FEF2F2', color: '#B91C1C', label: 'CONTRACTS' },
-    signed: { bg: '#F5F3FF', color: '#5B21B6', label: 'EXCHANGED' },
-    sold: { bg: '#ECFDF5', color: '#065F46', label: 'CONFIRMED' },
-  };
-  const c = configs[status] || configs.for_sale;
-  return (
-    <span style={{
-      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-      color: c.color, background: c.bg,
-      padding: '2px 7px', borderRadius: 10, flexShrink: 0,
-    }}>
-      {c.label}
-    </span>
   );
 }

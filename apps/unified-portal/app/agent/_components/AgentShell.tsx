@@ -26,6 +26,7 @@ export default function AgentShell({
           height: '100dvh',
           background: '#FAFAF8',
           overflow: 'hidden',
+          paddingTop: 'env(safe-area-inset-top)',
           fontFamily:
             "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
           WebkitFontSmoothing: 'antialiased',

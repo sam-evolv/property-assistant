@@ -191,22 +191,6 @@ export default function StatusBar({
           zIndex: 10,
         }}
       >
-        {/* Time */}
-        <span
-          style={{
-            color: '#0D0D12',
-            fontSize: 15,
-            fontWeight: 600,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {new Date().toLocaleTimeString('en-IE', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: false,
-          })}
-        </span>
-
         {/* Brand wordmark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span
@@ -231,17 +215,16 @@ export default function StatusBar({
             }}
           />
           <span
-            onClick={() => contexts.length > 1 && setShowSwitcher(!showSwitcher)}
+            onClick={() => setShowSwitcher(!showSwitcher)}
             style={{
               color: '#A0A8B0',
               fontSize: 11,
               fontWeight: 400,
               letterSpacing: '0.04em',
-              cursor: contexts.length > 1 ? 'pointer' : 'default',
+              cursor: 'pointer',
             }}
           >
-            {agentName}
-            {contexts.length > 1 && ' \u25BE'}
+            {agentName} &#9662;
           </span>
         </div>
 
@@ -306,7 +289,7 @@ export default function StatusBar({
       </header>
 
       {/* Context switcher bottom sheet */}
-      {showSwitcher && contexts.length > 1 && (
+      {showSwitcher && (
         <div
           onClick={() => setShowSwitcher(false)}
           style={{
