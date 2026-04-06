@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
+import { requireRole } from '@/lib/supabase-server';
 
 interface UnitTypeRow {
   name: string;
@@ -25,13 +26,21 @@ function normalizeTypeName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function POST(request: Request) {
   try {
+    await requireRole(['developer', 'admin', 'super_admin']);
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 });
     }
 
     const buffer = await file.arrayBuffer();
@@ -162,7 +171,10 @@ export async function POST(request: Request) {
         distinctUnitTypesFromUnits: distinctUnitTypesFromUnits.size,
       },
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[API /projects/parse-excel] Error:', err);
     return NextResponse.json(
       { error: 'Failed to parse Excel file' },

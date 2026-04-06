@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -16,6 +17,9 @@ function getSupabaseAdmin() {
 
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication to access homeowner data
+    await requireRole(['developer', 'admin', 'super_admin']);
+
     const supabaseAdmin = getSupabaseAdmin();
     
     // Fetch units from Supabase (where units data lives)
@@ -55,7 +59,10 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Homeowners API] Returning ${formattedHomeowners.length} homeowners from Supabase`);
     return NextResponse.json({ homeowners: formattedHomeowners });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[API] /api/admin/homeowners/stats error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch homeowners', homeowners: [] },

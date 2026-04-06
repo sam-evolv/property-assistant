@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ interface Project {
 
 export async function GET() {
   try {
+    await requireRole(['developer', 'admin', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     const { data: projects, error } = await supabaseAdmin
       .from('projects')
@@ -113,7 +115,10 @@ export async function GET() {
         suppressedIds
       }
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[API /projects] Error:', err);
     return NextResponse.json(
       { error: 'Failed to fetch projects' },

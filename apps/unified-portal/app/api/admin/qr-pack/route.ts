@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
@@ -68,6 +69,9 @@ const SECTION_HEADINGS = [
 
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication to generate QR packs
+    await requireRole(['developer', 'admin', 'super_admin']);
+
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!baseUrl) {
       return NextResponse.json(
@@ -243,9 +247,12 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[QR Pack] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate QR pack' },
+      { error: 'Failed to generate QR pack' },
       { status: 500 }
     );
   }

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -12,6 +13,9 @@ function getSupabaseAdmin() {
 
 export async function GET() {
   try {
+    // Only super_admin can list all tenants
+    await requireRole(['super_admin']);
+
     const supabase = getSupabaseAdmin();
 
     // Fetch all tenants - use SELECT * to get all available columns
@@ -50,7 +54,10 @@ export async function GET() {
     }));
 
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('Error fetching tenants:', error);
     return NextResponse.json(
       { error: 'Failed to fetch tenants' },

@@ -4,9 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { units, developments, qr_tokens } from '@openhouse/db/schema';
 import { eq, sql, max, asc } from 'drizzle-orm';
+import { requireRole } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication to access unit data
+    await requireRole(['developer', 'admin', 'super_admin']);
     const unitsData = await db
       .select({
         id: units.id,
@@ -78,7 +81,10 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ units: formattedUnits });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[API] /api/admin/units error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch units' },
