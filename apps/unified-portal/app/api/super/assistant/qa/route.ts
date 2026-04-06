@@ -32,13 +32,11 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching Q&As:', error);
       return NextResponse.json({ error: 'Failed to fetch Q&As' }, { status: 500 });
     }
 
     return NextResponse.json({ qas: qas || [] });
   } catch (err) {
-    console.error('Error in GET /api/super/assistant/qa:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -69,13 +67,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating Q&A:', error);
       return NextResponse.json({ error: 'Failed to create Q&A' }, { status: 500 });
     }
 
     return NextResponse.json({ qa: data });
   } catch (err) {
-    console.error('Error in POST /api/super/assistant/qa:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -105,13 +101,11 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error updating Q&A:', error);
       return NextResponse.json({ error: 'Failed to update Q&A' }, { status: 500 });
     }
 
     return NextResponse.json({ qa: data });
   } catch (err) {
-    console.error('Error in PATCH /api/super/assistant/qa:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -134,13 +128,11 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting Q&A:', error);
       return NextResponse.json({ error: 'Failed to delete Q&A' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('Error in DELETE /api/super/assistant/qa:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -80,7 +80,6 @@ export async function GET(request: Request) {
       maxOverall: maxOverall || 0,
     });
   } catch (error) {
-    console.error('[API] /api/analytics/response-times error:', error);
     return NextResponse.json({ error: 'Failed to fetch response times' }, { status: 500 });
   }
 }

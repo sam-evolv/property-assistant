@@ -41,7 +41,6 @@ export async function GET(
       .order('unit_code', { ascending: true });
 
     if (error) {
-      console.error('Error fetching units:', error);
       return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
     }
 
@@ -63,7 +62,6 @@ export async function GET(
 
     return NextResponse.json({ units: mappedUnits });
   } catch (error) {
-    console.error('Error in GET units:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

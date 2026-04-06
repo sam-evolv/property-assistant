@@ -86,7 +86,6 @@ export async function GET() {
     // For now, return demo data
     return NextResponse.json(demoData);
   } catch (error) {
-    console.error('Pre-handover API error:', error);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

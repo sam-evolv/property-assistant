@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('[Branding Upload] Missing Supabase credentials');
       return NextResponse.json(
         { error: 'Storage not configured. Missing Supabase credentials.' },
         { status: 500 }
@@ -57,8 +56,6 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    console.log(`[Branding Upload] Uploading to bucket: ${BUCKET_NAME}, file: ${fileName}`);
-
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(fileName, buffer, {
@@ -66,10 +63,7 @@ export async function POST(request: NextRequest) {
         upsert: true,
       });
 
-    console.log('[Branding Upload] Upload result:', { data, error });
-
     if (error) {
-      console.error('[Branding Upload] Storage error:', error);
       return NextResponse.json(
         { error: `Upload failed: ${error.message}` },
         { status: 500 }
@@ -80,15 +74,12 @@ export async function POST(request: NextRequest) {
       .from(BUCKET_NAME)
       .getPublicUrl(fileName);
 
-    console.log('[Branding Upload] Public URL:', publicUrlData.publicUrl);
-
     return NextResponse.json({
       success: true,
       url: publicUrlData.publicUrl,
       path: fileName,
     });
   } catch (error: any) {
-    console.error('[Branding Upload] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

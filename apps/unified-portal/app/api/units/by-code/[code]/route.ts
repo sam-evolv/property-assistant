@@ -95,7 +95,6 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error('[Unit Lookup] Error:', error);
     
     if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

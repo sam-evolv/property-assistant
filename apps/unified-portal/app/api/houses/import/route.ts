@@ -103,9 +103,6 @@ function getString(val: any): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  console.log('================================================================================');
-  console.log('📥 CSV/XLSX HOUSES IMPORT API - REQUEST RECEIVED');
-  console.log('================================================================================');
   
   const results: ImportResult[] = [];
   let inserted = 0;
@@ -118,34 +115,25 @@ export async function POST(req: NextRequest) {
     const session = await getAdminSession();
     
     if (!session) {
-      console.error('❌ Unauthorized: No valid session');
       return NextResponse.json(
         { error: 'Unauthorized. Please log in.' },
         { status: 401 }
       );
     }
     
-    console.log(`✅ Authenticated: ${session.email} (${session.role})`);
-    
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const developmentId = formData.get('developmentId') as string;
     
-    console.log(`📁 File: ${file?.name || 'N/A'} (${file?.size || 0} bytes)`);
-    console.log(`🏢 Development ID: ${developmentId}`);
-    
     if (!file) {
-      console.error('❌ Missing file');
       return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
     
     if (!developmentId) {
-      console.error('❌ Missing developmentId');
       return NextResponse.json({ error: 'Missing developmentId' }, { status: 400 });
     }
 
     // Fetch development
-    console.log(`🔍 Fetching development from database...`);
     const dev = await db
       .select()
       .from(developments)
@@ -153,7 +141,6 @@ export async function POST(req: NextRequest) {
       .limit(1);
       
     if (!dev || dev.length === 0) {
-      console.error(`❌ Development not found: ${developmentId}`);
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
@@ -161,14 +148,11 @@ export async function POST(req: NextRequest) {
     
     // Tenant Authorization: Ensure admin can only import to their own tenant's developments
     if (development.tenant_id !== session.tenantId && session.role !== 'super_admin') {
-      console.error(`❌ Forbidden: Admin ${session.email} cannot import to development ${developmentId} (different tenant)`);
       return NextResponse.json(
         { error: 'Forbidden. You can only import houses to your own developments.' },
         { status: 403 }
       );
     }
-    
-    console.log(`✅ Authorization passed: Admin has access to tenant ${development.tenant_id}`);
     
     // Ensure development has a code
     let developmentCode = development.code;
@@ -178,42 +162,29 @@ export async function POST(req: NextRequest) {
         .replace(/[^A-Z0-9]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
-      console.log(`⚠️  Development has no code, generated: ${developmentCode}`);
     }
     
-    console.log(`✅ Development found: ${development.name} (${developmentCode})`);
-    
     // Fetch valid house types for this development
-    console.log(`🏗️  Fetching house types for development...`);
     const validHouseTypes = await db
       .select()
       .from(houseTypes)
       .where(eq(houseTypes.development_id, developmentId));
     
     const houseTypeCodesSet = new Set(validHouseTypes.map(ht => ht.house_type_code));
-    console.log(`✅ Found ${validHouseTypes.length} house types: ${Array.from(houseTypeCodesSet).join(', ')}`);
     
     // Parse file (CSV or XLSX)
-    console.log(`📄 Parsing file...`);
     const rawRecords = await parseFile(file);
     
     if (!rawRecords || rawRecords.length === 0) {
-      console.error('❌ No data found in file');
       return NextResponse.json({ error: 'No data found in file' }, { status: 400 });
     }
     
-    console.log(`✅ Detected ${rawRecords.length} rows`);
-    
     // Map columns using universal mapper
     const headers = Object.keys(rawRecords[0]);
-    console.log(`📋 CSV Headers:`, headers);
     
     const columnMappings = mapAllColumns(headers);
-    console.log(`🔗 Column Mappings:`, Object.fromEntries(columnMappings));
     
     // Process each row
-    console.log('\n📘 ROW VALIDATION & PROCESSING');
-    console.log('================================================================================');
     
     for (let i = 0; i < rawRecords.length; i++) {
       const rowIndex = i + 1;
@@ -226,8 +197,7 @@ export async function POST(req: NextRequest) {
       const validation = validateRequiredFields(mappedRow, rowIndex);
       
       if (!validation.valid) {
-        console.error(`❌ Row ${rowIndex}: FAILED VALIDATION`);
-        validation.errors.forEach(err => console.error(`   ${err}`));
+        // validation errors captured in results array below
         results.push({
           rowIndex,
           status: 'error',
@@ -239,8 +209,6 @@ export async function POST(req: NextRequest) {
       
       // Validate house type code
       if (validHouseTypes.length > 0 && !houseTypeCodesSet.has(mappedRow.house_type_code)) {
-        console.error(`❌ Row ${rowIndex}: Invalid house_type_code "${mappedRow.house_type_code}"`);
-        console.error(`   Valid types: ${Array.from(houseTypeCodesSet).join(', ')}`);
         results.push({
           rowIndex,
           status: 'error',
@@ -320,7 +288,6 @@ export async function POST(req: NextRequest) {
             .set(unitData)
             .where(eq(units.id, existing[0].id));
           
-          console.log(`🔄 Row ${rowIndex}: UPDATED - Unit ${normalizedUnitNumber} (${unitUid})`);
           results.push({
             rowIndex,
             status: 'updated',
@@ -332,7 +299,6 @@ export async function POST(req: NextRequest) {
           // Insert new unit
           await db.insert(units).values(unitData);
           
-          console.log(`✅ Row ${rowIndex}: INSERTED - Unit ${normalizedUnitNumber} (${unitUid})`);
           results.push({
             rowIndex,
             status: 'inserted',
@@ -342,11 +308,7 @@ export async function POST(req: NextRequest) {
           inserted++;
         }
       } catch (error: any) {
-        console.error(`❌ Row ${rowIndex}: DATABASE ERROR`);
-        console.error(`   Unit: ${normalizedUnitNumber}`);
-        console.error(`   Error: ${error.message}`);
-        if (error.detail) console.error(`   Detail: ${error.detail}`);
-        if (error.hint) console.error(`   Hint: ${error.hint}`);
+        // error.detail and error.hint captured in results array below
         
         results.push({
           rowIndex,
@@ -360,15 +322,6 @@ export async function POST(req: NextRequest) {
     }
     
     // Print summary
-    console.log('\n================================================================================');
-    console.log('🏁 IMPORT COMPLETED');
-    console.log('================================================================================');
-    console.log(`📊 Total rows: ${rawRecords.length}`);
-    console.log(`✅ Inserted: ${inserted}`);
-    console.log(`🔄 Updated: ${updated}`);
-    console.log(`⏭️  Skipped: ${skipped}`);
-    console.log(`❌ Errors: ${errored}`);
-    console.log('================================================================================\n');
 
     return NextResponse.json({
       success: errored === 0,
@@ -382,9 +335,6 @@ export async function POST(req: NextRequest) {
       results,
     });
   } catch (error: any) {
-    console.error('❌ [HOUSES IMPORT] FATAL ERROR:', error);
-    console.error('Stack:', error.stack);
-    console.log('================================================================================\n');
     
     return NextResponse.json({
       success: false,

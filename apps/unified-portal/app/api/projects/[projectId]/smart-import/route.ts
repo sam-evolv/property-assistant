@@ -248,8 +248,6 @@ export async function POST(
       }
     }
 
-    console.log(`[Smart Import] Project ${projectId}: created=${created}, updated=${updated}, skipped=${skipped}, errors=${errors.length}`);
-
     return NextResponse.json({
       success: true,
       created,
@@ -260,7 +258,6 @@ export async function POST(
     });
 
   } catch (err: any) {
-    console.error('[Smart Import] Error:', err);
     return NextResponse.json({ error: err.message || 'Import failed' }, { status: 500 });
   }
 }

@@ -26,7 +26,6 @@ async function safeQuery(queryFn: () => Promise<any>, fallback: any): Promise<an
     if (error?.cause?.code === '42P01') {
       return fallback;
     }
-    console.log('[HOMEOWNER DETAILS] Query failed (graceful fallback):', error?.message || error);
     return fallback;
   }
 }
@@ -59,7 +58,6 @@ export async function GET(
       .single();
 
     if (unitError || !unitRow) {
-      console.log('[HOMEOWNER DETAILS] Unit not found:', id, unitError);
       return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
     }
 
@@ -72,14 +70,7 @@ export async function GET(
         .eq('id', unitRow.project_id)
         .single();
       project = projectData ? { ...projectData, important_docs_version: 1 } : null;
-      console.log('[HOMEOWNER DETAILS] Project lookup:', { 
-        project_id: unitRow.project_id, 
-        found: !!projectData, 
-        name: projectData?.name,
-        error: projectError?.message 
-      });
     } else {
-      console.log('[HOMEOWNER DETAILS] No project_id on unit');
     }
 
     // NOTE: canAccessDevelopment checks Drizzle developments table, but units use Supabase projects table
@@ -91,7 +82,6 @@ export async function GET(
                          adminContext.role === 'admin';
 
     if (!isAuthorized) {
-      console.log('[HOMEOWNER DETAILS] Access denied for', adminContext.email, 'role:', adminContext.role);
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -162,7 +152,6 @@ export async function GET(
     
     // If no unit-level data, fallback to development-level aggregation
     if (unitConversations === 0 && developmentId) {
-      console.log('[HOMEOWNER DETAILS] No unit-level messages found, using development-level fallback');
       msgStatsResult = await safeQuery(
         async () => {
           const result = await db.execute(sql`
@@ -294,11 +283,9 @@ export async function GET(
           const agreement = agreementResult.rows[0] as any;
           agreedVersion = agreement.docs_version || 1;
           agreedAt = agreement.agreed_at;
-          console.log('[HOMEOWNER DETAILS] Found agreement in Drizzle purchaser_agreements:', agreement.agreed_at);
         }
       } catch (e: any) {
         // Table may not exist
-        console.log('[HOMEOWNER DETAILS] Could not check purchaser_agreements (table may not exist)');
       }
     }
     
@@ -367,7 +354,6 @@ export async function GET(
             address: project.address,
             important_docs_version: projectDocsVersion,
           } : null;
-          console.log('[HOMEOWNER DETAILS] Returning development:', dev);
           return dev;
         })(),
       },
@@ -385,7 +371,6 @@ export async function GET(
       noticeboard_terms,
     });
   } catch (error) {
-    console.error('[HOMEOWNER DETAILS] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch homeowner details' }, { status: 500 });
   }
 }

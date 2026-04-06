@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
       _note: 'Debug panel for message linkage diagnostics',
     });
   } catch (error: any) {
-    console.error('[Debug Messages] Error:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch debug data' }, { status: 500 });
   }
 }

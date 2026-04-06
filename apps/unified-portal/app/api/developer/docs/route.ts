@@ -35,7 +35,6 @@ export async function GET(request: NextRequest) {
     const { data: sections, error: sectionsError } = await query;
 
     if (sectionsError) {
-      console.error('[Docs API] Error fetching document_sections:', sectionsError);
     }
 
     // Also try to count from documents table if it exists
@@ -53,14 +52,11 @@ export async function GET(request: NextRequest) {
     const documents = sections || [];
     const totalCount = Math.max(documents.length, docsCount);
 
-    console.log(`[Docs API] Found ${documents.length} document sections, ${docsCount} documents`);
-
     return NextResponse.json({
       documents,
       count: totalCount,
     });
   } catch (error) {
-    console.error('[Docs API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch documents', documents: [], count: 0 },
       { status: 500 }

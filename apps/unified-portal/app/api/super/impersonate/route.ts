@@ -21,8 +21,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing unitUid' }, { status: 400 });
     }
 
-    console.log('[Super Admin Impersonation] Looking up unit:', unitUid);
-
     const supabase = getSupabaseAdmin();
     let unit: any = null;
 
@@ -59,9 +57,7 @@ export async function GET(req: NextRequest) {
         .select('id, project_id, address, purchaser_name')
         .limit(10);
       
-      console.log('[Super Admin Impersonation] fallback units:', anyUnits?.length || 0, 'error:', anyError?.message || 'none');
       if (anyUnits && anyUnits.length > 0) {
-        console.log('[Super Admin Impersonation] first unit sample:', JSON.stringify(anyUnits[0], null, 2));
       }
       
       if (anyUnits && anyUnits.length > 0) {
@@ -91,7 +87,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (!unit) {
-      console.error('[Super Admin Impersonation] Unit not found');
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
@@ -99,12 +94,10 @@ export async function GET(req: NextRequest) {
     const developmentId = unit.development_id;
     
     if (!tenantId || !developmentId) {
-      console.error('[Super Admin Impersonation] Missing tenant_id or development_id:', { tenantId, developmentId });
       return NextResponse.json({ 
         error: 'Development not found. Unit may not be properly configured.' 
       }, { status: 404 });
     }
-    console.log('[Super Admin Impersonation] Resolved development:', developmentId, 'tenant:', tenantId);
     
     // Use signQRToken directly (no DB storage needed for demo)
     const tokenResult = signQRToken({
@@ -112,9 +105,6 @@ export async function GET(req: NextRequest) {
       projectId: developmentId,
     });
 
-    console.log(`[Super Admin Impersonation] Found unit:`, unit.id, unit.address);
-    console.log(`[Super Admin Impersonation] URL:`, tokenResult.url);
-    
     return NextResponse.json({ 
       url: tokenResult.url,
       unitId: unit.id,
@@ -122,7 +112,6 @@ export async function GET(req: NextRequest) {
       purchaserName: unit.purchaser_name,
     });
   } catch (error) {
-    console.error('[Impersonation API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

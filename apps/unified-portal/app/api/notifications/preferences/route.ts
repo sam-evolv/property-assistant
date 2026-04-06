@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ preferences });
   } catch (error) {
-    console.error('[NotificationPreferences GET] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -91,13 +90,11 @@ export async function PUT(request: NextRequest) {
       );
 
     if (error) {
-      console.error('[NotificationPreferences PUT] Error:', error);
       return NextResponse.json({ error: 'Failed to update preferences' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[NotificationPreferences PUT] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

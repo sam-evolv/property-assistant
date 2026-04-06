@@ -233,7 +233,6 @@ export async function GET(request: NextRequest) {
       hasData: totalQuestions > 0,
     });
   } catch (err) {
-    console.error('Error fetching R&D analytics:', err);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

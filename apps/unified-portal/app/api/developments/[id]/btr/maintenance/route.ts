@@ -37,7 +37,6 @@ export async function PATCH(
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -74,7 +73,6 @@ export async function GET(
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -103,7 +101,6 @@ export async function POST(
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

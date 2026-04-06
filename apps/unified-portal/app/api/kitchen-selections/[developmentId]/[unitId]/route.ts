@@ -90,7 +90,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('Kitchen selection update error:', error);
         return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
       }
       result = data;
@@ -107,7 +106,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('Kitchen selection insert error:', error);
         return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
       }
       result = data;
@@ -141,8 +139,8 @@ export async function PATCH(
         })
         .eq('id', result.id)
         .eq('tenant_id', tenantId);
-    } catch (e) {
-      console.log('PC sum columns not yet available:', e);
+    } catch (_e) {
+        // error handled silently
     }
 
     const hasAllKitchenFields = result.kitchen_selected === true && 
@@ -168,7 +166,6 @@ export async function PATCH(
       }
     });
   } catch (error: any) {
-    console.error('Kitchen selection PATCH error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

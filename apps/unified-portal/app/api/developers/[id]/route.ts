@@ -47,7 +47,6 @@ export async function GET(
 
     return NextResponse.json({ developer });
   } catch (error) {
-    console.error('[DEVELOPER] Error fetching developer:', error);
     return NextResponse.json(
       { error: 'Failed to fetch developer' },
       { status: 500 }
@@ -89,11 +88,8 @@ export async function PATCH(
       );
     }
 
-    console.log(`[DEVELOPER] Updated developer: ${updated.email}`);
-
     return NextResponse.json({ developer: updated });
   } catch (error) {
-    console.error('[DEVELOPER] Error updating developer:', error);
     return NextResponse.json(
       { error: 'Failed to update developer' },
       { status: 500 }
@@ -127,11 +123,8 @@ export async function DELETE(
       );
     }
 
-    console.log(`[DEVELOPER] Deleted developer: ${deleted.email}`);
-
     return NextResponse.json({ success: true, developer: deleted });
   } catch (error) {
-    console.error('[DEVELOPER] Error deleting developer:', error);
     return NextResponse.json(
       { error: 'Failed to delete developer' },
       { status: 500 }

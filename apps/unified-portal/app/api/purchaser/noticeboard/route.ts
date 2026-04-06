@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
-      console.error('[Noticeboard] Unit not found in any database:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -65,7 +64,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!unit.tenant_id) {
-      console.error('[Noticeboard] Unit has no tenant association:', unitUid);
       return NextResponse.json(
         { error: 'Unit not linked to a tenant' },
         { status: 400 }
@@ -76,8 +74,6 @@ export async function GET(request: NextRequest) {
     const developmentId = unit.development_id;
     const now = new Date();
     
-    console.log('[Noticeboard GET] Fetching posts for tenant:', tenantId, 'development:', developmentId, 'unit:', unitUid);
-
     const posts = await db
       .select({
         id: noticeboard_posts.id,
@@ -111,8 +107,6 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(noticeboard_posts.priority), desc(noticeboard_posts.created_at))
       .limit(50);
 
-    console.log('[Noticeboard GET] Found', posts.length, 'posts');
-    
     const notices = posts.map((post) => {
       const createdAt = new Date(post.created_at);
       const editWindowEnd = new Date(createdAt.getTime() + EDIT_WINDOW_MINUTES * 60 * 1000);
@@ -139,7 +133,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ notices });
   } catch (error) {
     const err = error as Error;
-    console.error('[Purchaser Noticeboard GET Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'NOTICEBOARD_GET_FAILED',
@@ -179,7 +172,6 @@ export async function POST(request: NextRequest) {
     const unit = await getUnitInfo(unitUid);
 
     if (!unit) {
-      console.error('[Noticeboard POST] Unit not found in any database:', unitUid);
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -187,7 +179,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (!unit.tenant_id) {
-      console.error('[Noticeboard POST] Unit has no tenant association:', unitUid);
       return NextResponse.json(
         { error: 'Unit not linked to a tenant' },
         { status: 400 }
@@ -257,8 +248,6 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    console.log('[Noticeboard] Created post:', post.id, 'by unit:', unitUid);
-
     return NextResponse.json({
       success: true,
       post: {
@@ -279,7 +268,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[Purchaser Noticeboard POST Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'NOTICEBOARD_POST_FAILED',
@@ -404,7 +392,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     const err = error as Error;
-    console.error('[Purchaser Noticeboard PATCH Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'NOTICEBOARD_PATCH_FAILED',
@@ -504,7 +491,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     const err = error as Error;
-    console.error('[Purchaser Noticeboard DELETE Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'NOTICEBOARD_DELETE_FAILED',

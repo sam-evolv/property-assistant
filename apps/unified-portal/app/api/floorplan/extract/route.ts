@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
       .download(storagePath);
 
     if (downloadErr || !fileData) {
-      console.error('[FloorPlan API] Download error:', downloadErr?.message);
       return NextResponse.json(
         { success: false, reason: 'download_failed', error: downloadErr?.message },
         { status: 400 },
@@ -115,12 +114,6 @@ export async function POST(request: NextRequest) {
         });
 
       if (dimErr) {
-        console.warn(
-          '[FloorPlan API] Room insert error for',
-          room.room_name,
-          ':',
-          dimErr.message,
-        );
       } else {
         inserted++;
       }
@@ -135,7 +128,6 @@ export async function POST(request: NextRequest) {
       extraction_method: result.extraction_method,
     });
   } catch (error: any) {
-    console.error('[FloorPlan API] Error:', error);
     if (error.message === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (error.message === 'FORBIDDEN')

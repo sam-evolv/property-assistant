@@ -135,14 +135,12 @@ export async function GET(
         .from(developments)
         .where(and(eq(developments.id, developmentId), eq(developments.tenant_id, tenantId)));
       development = drizzleDev;
-      console.log('[Pipeline Development API] Drizzle development found:', !!development);
-    } catch (drizzleError) {
-      console.error('[Pipeline Development API] Drizzle error:', drizzleError);
+    } catch (_drizzleError) {
+        // error handled silently
     }
 
     if (!development) {
       usedFallback = true;
-      console.log('[Pipeline Development API] Falling back to Supabase for development');
 
       const { data: supabaseDev, error: supabaseError } = await supabaseAdmin
         .from('developments')
@@ -152,7 +150,6 @@ export async function GET(
         .single();
 
       if (supabaseError && supabaseError.code !== 'PGRST116') {
-        console.error('[Pipeline Development API] Supabase developments error:', supabaseError);
       }
       development = supabaseDev;
 
@@ -164,7 +161,6 @@ export async function GET(
           .single();
 
         if (projectError && projectError.code !== 'PGRST116') {
-          console.error('[Pipeline Development API] Supabase projects error:', projectError);
         }
         if (supabaseProject && supabaseProject.organization_id === tenantId) {
           development = {
@@ -175,7 +171,6 @@ export async function GET(
           };
         }
       }
-      console.log('[Pipeline Development API] Supabase development found:', !!development);
     }
 
     if (!development) {
@@ -199,12 +194,10 @@ export async function GET(
           .from(units)
           .where(and(eq(units.tenant_id, tenantId), eq(units.development_id, developmentId)))
           .orderBy(sql`${units.unit_number} ASC`);
-        console.log('[Pipeline Development API] Drizzle units:', unitData.length);
       } else {
         throw new Error('Using Supabase fallback');
       }
     } catch (e) {
-      console.log('[Pipeline Development API] Falling back to Supabase for units');
       const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
         .from('units')
         .select('*')
@@ -213,11 +206,9 @@ export async function GET(
         .order('unit_number', { ascending: true });
 
       if (supabaseError) {
-        console.error('[Pipeline Development API] Supabase units error:', supabaseError);
         throw supabaseError;
       }
       unitData = supabaseUnits || [];
-      console.log('[Pipeline Development API] Supabase units:', unitData.length);
     }
 
     // If pipeline tables exist, get pipeline data
@@ -245,13 +236,10 @@ export async function GET(
           .eq('development_id', developmentId);
 
         if (pipelineError) {
-          console.error('[Pipeline Development API] Error fetching pipeline data:', pipelineError);
         } else {
           // Debug: Log first few rows to see if queries_raised_date is present
           const rowsWithQueries = (pipelineRows || []).filter((r: any) => r.queries_raised_date);
-          console.log('[Pipeline DEBUG] Total rows:', pipelineRows?.length, 'Rows with queries_raised_date:', rowsWithQueries.length);
           if (rowsWithQueries.length > 0) {
-            console.log('[Pipeline DEBUG] Sample row with queries:', JSON.stringify(rowsWithQueries[0], null, 2));
           }
           for (const row of pipelineRows || []) {
             pipelineData.set(row.unit_id as string, row);
@@ -267,7 +255,6 @@ export async function GET(
             .in('pipeline_id', pipelineIds);
 
           if (notesError) {
-            console.error('[Pipeline Development API] Error fetching notes:', notesError);
           } else {
             // Count notes per pipeline
             const notesCountMap: Record<string, { total: number; unresolved: number }> = {};
@@ -282,8 +269,8 @@ export async function GET(
             }
           }
         }
-      } catch (e) {
-        console.error('[Pipeline Development API] Error querying pipeline data:', e);
+      } catch (_e) {
+          // error handled silently
       }
     }
 
@@ -296,7 +283,6 @@ export async function GET(
 
         // Debug: Log if pipeline has queries data
         if (pipeline?.queries_raised_date) {
-          console.log('[Pipeline DEBUG] Unit', unit.unit_number, 'has queries_raised_date:', pipeline.queries_raised_date, 'replied:', pipeline.queries_replied_date);
         }
 
         // Safely convert dates
@@ -391,8 +377,6 @@ export async function GET(
       pipelineTablesExist, // Let frontend know if tables exist
     });
   } catch (error) {
-    console.error('[Pipeline Development API] Error:', error);
-    console.error('[Pipeline Development API] Stack:', error instanceof Error ? error.stack : 'No stack');
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -448,8 +432,8 @@ export async function POST(
             inArray(units.id, unitIds)
           )
         );
-    } catch (drizzleError) {
-      console.error('[Pipeline Release API] Drizzle error:', drizzleError);
+    } catch (_drizzleError) {
+        // error handled silently
     }
 
     if (existingUnits.length === 0) {
@@ -461,7 +445,6 @@ export async function POST(
         .in('id', unitIds);
 
       if (supabaseError) {
-        console.error('[Pipeline Release API] Supabase error:', supabaseError);
         throw supabaseError;
       }
       existingUnits = supabaseUnits || [];
@@ -479,7 +462,6 @@ export async function POST(
       .in('unit_id', unitIds);
 
     if (existingPipelinesError) {
-      console.error('[Pipeline Release API] Error checking existing pipelines:', existingPipelinesError);
       throw existingPipelinesError;
     }
     const existingPipelinesResult = { rows: existingPipelinesData || [] };
@@ -513,7 +495,6 @@ export async function POST(
       .insert(pipelineRecords);
 
     if (insertError) {
-      console.error('[Pipeline Release API] Error inserting pipeline records:', insertError);
       throw insertError;
     }
 
@@ -532,8 +513,8 @@ export async function POST(
           count: unitsToRelease.length,
         },
       });
-    } catch (auditError) {
-      console.error('[Pipeline Release API] Audit log failed (non-critical):', auditError);
+    } catch (_auditError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -541,7 +522,6 @@ export async function POST(
       released: unitsToRelease.length,
     });
   } catch (error) {
-    console.error('[Pipeline Release API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

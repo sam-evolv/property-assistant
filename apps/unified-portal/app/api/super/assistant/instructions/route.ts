@@ -34,13 +34,11 @@ export async function PUT(request: NextRequest) {
       .eq('id', development_id);
 
     if (error) {
-      console.error('Error updating system instructions:', error);
       return NextResponse.json({ error: 'Failed to update system instructions' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('Error in PUT /api/super/assistant/instructions:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

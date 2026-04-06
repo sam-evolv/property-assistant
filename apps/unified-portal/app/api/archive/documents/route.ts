@@ -66,8 +66,8 @@ export async function PATCH(request: NextRequest) {
           .set(updates)
           .where(eq(documents.id, doc.id));
       }
-    } catch (dbError) {
-      console.error('[Archive Documents API] Local DB sync error (non-fatal):', dbError);
+    } catch (_dbError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -75,7 +75,6 @@ export async function PATCH(request: NextRequest) {
       updatedCount: result.updatedCount
     });
   } catch (error: any) {
-    console.error('[Archive Documents API] PATCH error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -130,8 +129,8 @@ export async function DELETE(request: NextRequest) {
             )
           )
         );
-    } catch (dbError) {
-      console.error('[Archive Documents API] Local DB delete error (non-fatal):', dbError);
+    } catch (_dbError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -139,7 +138,6 @@ export async function DELETE(request: NextRequest) {
       deletedCount: result.deletedCount
     });
   } catch (error: any) {
-    console.error('[Archive Documents API] DELETE error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

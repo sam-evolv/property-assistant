@@ -43,15 +43,12 @@ export async function GET(request: NextRequest) {
     const projectId = getSupabaseProjectId(developmentId);
     const supabase = getSupabaseClient();
 
-    console.log('[Important Docs API] Fetching for development:', developmentId, '-> project:', projectId);
-
     const { data: sections, error: sectionsError } = await supabase
       .from('document_sections')
       .select('id, content, metadata')
       .eq('project_id', projectId);
 
     if (sectionsError) {
-      console.error('[Important Docs API] Supabase error:', sectionsError.message);
       return NextResponse.json(
         { error: 'Failed to fetch documents' },
         { status: 500 }
@@ -83,13 +80,8 @@ export async function GET(request: NextRequest) {
 
     const docs = Array.from(documentMap.values());
 
-    console.log('[Important Docs API] Total docs:', docs.length, 
-      'Important:', docs.filter((d: any) => d.is_important).length,
-      'Must-read:', docs.filter((d: any) => d.must_read).length);
-
     return NextResponse.json({ documents: docs });
   } catch (error) {
-    console.error('[Important Docs API Error]:', error);
     return NextResponse.json(
       { error: 'Failed to fetch documents' },
       { status: 500 }

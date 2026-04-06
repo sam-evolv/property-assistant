@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[Spreadsheet Connect] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -190,7 +189,6 @@ async function handleConfirmMappings(
     .insert(mappingRecords);
 
   if (mappingError) {
-    console.error('[Spreadsheet Connect] Mapping insert error:', mappingError);
     return NextResponse.json({ error: 'Failed to save mappings' }, { status: 500 });
   }
 

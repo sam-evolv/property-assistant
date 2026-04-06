@@ -78,13 +78,11 @@ export async function POST(request: NextRequest) {
       );
 
     if (error) {
-      console.error('[RegisterDevice] Failed to register device:', error);
       return NextResponse.json({ error: 'Failed to register device' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[RegisterDevice] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

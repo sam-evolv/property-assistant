@@ -24,7 +24,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: result });
   } catch (error) {
-    console.error('[API] /api/analytics/platform/message-volume error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch message volume' },
       { status: 500 }

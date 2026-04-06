@@ -90,7 +90,6 @@ export async function GET(
       chunks,
     });
   } catch (error: any) {
-    console.error('[Document API] GET error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -145,7 +144,6 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Document API] PATCH error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -186,7 +184,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Document API] DELETE error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

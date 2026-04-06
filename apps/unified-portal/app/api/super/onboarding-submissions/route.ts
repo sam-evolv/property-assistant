@@ -51,7 +51,6 @@ export async function GET() {
       stats,
     });
   } catch (error: any) {
-    console.error('[Super Onboarding Submissions API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -76,8 +76,8 @@ export async function PATCH(
           dimensions: 1536,
         });
         embedding = embeddingResponse.data[0].embedding;
-      } catch (embError) {
-        console.error('[InfoRequest] Failed to generate embedding:', embError);
+      } catch (_embError) {
+          // error handled silently
       }
 
       await db.insert(docChunks).values({
@@ -100,10 +100,7 @@ export async function PATCH(
         },
       });
 
-      console.log('[InfoRequest] Added FAQ to knowledge base from request:', id);
     }
-
-    console.log('[InfoRequest] Updated request:', id, 'Status:', status);
 
     return NextResponse.json({
       success: true,
@@ -112,7 +109,6 @@ export async function PATCH(
         : 'Response saved successfully',
     });
   } catch (error) {
-    console.error('[InfoRequest] Error updating request:', error);
     return NextResponse.json(
       { error: 'Failed to update request' },
       { status: 500 }
@@ -145,7 +141,6 @@ export async function GET(
       request: result[0],
     });
   } catch (error) {
-    console.error('[InfoRequest] Error fetching request:', error);
     return NextResponse.json(
       { error: 'Failed to fetch request' },
       { status: 500 }

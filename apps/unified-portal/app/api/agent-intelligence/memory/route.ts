@@ -65,7 +65,6 @@ export async function GET(request: NextRequest) {
     const { data: conversations, error } = await query;
 
     if (error) {
-      console.error('[AgentIntel Memory] Query error:', error);
       return new Response(JSON.stringify({ error: 'Failed to load memory' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -76,7 +75,6 @@ export async function GET(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('[AgentIntel Memory] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

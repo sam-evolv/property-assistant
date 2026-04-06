@@ -214,7 +214,6 @@ export async function POST(
       ...result,
     });
   } catch (error: any) {
-    console.error('[Import Units] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Import failed' },
       { status: 500 }

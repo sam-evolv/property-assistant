@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('[Integrations] List error:', error);
       return NextResponse.json({ error: 'Failed to fetch integrations' }, { status: 500 });
     }
 
@@ -82,7 +81,6 @@ export async function GET(request: NextRequest) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[Integrations] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -134,7 +132,6 @@ export async function DELETE(request: NextRequest) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[Integrations] Delete error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

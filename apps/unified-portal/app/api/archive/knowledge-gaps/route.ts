@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ gaps });
   } catch (error) {
-    console.error('[KnowledgeGaps] Failed:', error);
     return NextResponse.json({ error: 'Failed to load knowledge gaps' }, { status: 500 });
   }
 }

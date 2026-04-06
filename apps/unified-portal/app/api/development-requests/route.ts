@@ -58,7 +58,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, requests });
   } catch (error) {
-    console.error('[Development Requests] Error fetching:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch requests' },
       { status: 500 }
@@ -96,14 +95,11 @@ export async function POST(req: NextRequest) {
       status: 'new',
     }).returning();
 
-    console.log(`[Development Requests] New request created: ${proposedName} by ${session.email}`);
-
     return NextResponse.json({ 
       success: true, 
       request: newRequest[0] 
     }, { status: 201 });
   } catch (error) {
-    console.error('[Development Requests] Error creating:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create request' },
       { status: 500 }

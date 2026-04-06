@@ -43,7 +43,6 @@ export async function GET(
       .order('unit_number', { ascending: true });
 
     if (unitsError) {
-      console.error('[Pipeline Unreleased API] Error fetching units:', unitsError);
       return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
     }
 
@@ -60,7 +59,6 @@ export async function GET(
       .not('release_date', 'is', null);
 
     if (pipelineError) {
-      console.error('[Pipeline Unreleased API] Error fetching pipelines:', pipelineError);
     }
 
     // Get set of released unit IDs
@@ -78,7 +76,6 @@ export async function GET(
 
     return NextResponse.json({ units: formattedUnits });
   } catch (error) {
-    console.error('[Pipeline Unreleased API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(*) as count FROM messages WHERE role = 'assistant'
       `);
       totalQuestionsAnswered = Number((messagesResult as any).rows?.[0]?.count || 0);
-    } catch (e) {
-      console.log('[KB Stats] Messages table not available');
+    } catch (_e) {
+        // error handled silently
     }
 
     const avgResponseTime = 2.3;
@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
       knowledge_coverage: knowledgeCoverage,
     });
   } catch (error) {
-    console.error('[KB Stats] Error:', error);
     return NextResponse.json({
       total_documents: 0,
       total_chunks: 0,

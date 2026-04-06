@@ -45,14 +45,11 @@ export async function GET(
     ]);
 
     if (projectResult.error) {
-      console.error('[Status API] Project not found:', projectId, projectResult.error);
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     const unitTypesCount = unitTypesResult.count || 0;
     const unitsCount = unitsResult.count || 0;
-
-    console.log(`[Status API] Project ${projectId}: ${unitsCount} units (error: ${unitsResult.error?.message || 'none'}), ${unitTypesCount} unit types`);
 
     const isSetupComplete = unitTypesCount > 0 && unitsCount > 0;
     const setupRequired = !isSetupComplete;
@@ -65,7 +62,6 @@ export async function GET(
       setupRequired,
     });
   } catch (err) {
-    console.error('[API /projects/[projectId]/status] Error:', err);
     return NextResponse.json(
       { error: 'Failed to fetch project status' },
       { status: 500 }

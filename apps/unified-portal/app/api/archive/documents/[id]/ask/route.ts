@@ -64,7 +64,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       chunks_used: chunks.rows.length,
     });
   } catch (error) {
-    console.error('[AskDoc] Failed:', error);
     return NextResponse.json({ error: 'Failed to process question' }, { status: 500 });
   }
 }

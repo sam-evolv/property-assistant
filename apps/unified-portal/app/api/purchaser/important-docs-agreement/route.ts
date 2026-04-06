@@ -99,19 +99,11 @@ export async function POST(request: NextRequest) {
       agreement = result;
       agreedAt = result.agreed_at;
       
-      console.log('[Important Docs Agreement] Recorded agreement in Drizzle:', {
-        unitId: unitUid,
-        purchaserName: name,
-        agreedAt,
-        docsCount: acknowledgedDocs.length,
-      });
     } catch (drizzleError: any) {
       // If Drizzle fails (table doesn't exist), log and continue
       // We'll return success anyway since user completed the UI flow
-      console.log('[Important Docs Agreement] Drizzle insert failed (table may not exist):', drizzleError?.message);
       
       // Still return success - the agreement happened, just storage failed
-      console.log('[Important Docs Agreement] Proceeding with success response despite storage issue');
     }
 
     return NextResponse.json({ 
@@ -120,7 +112,6 @@ export async function POST(request: NextRequest) {
       agreedAt: agreedAt.toISOString(),
     });
   } catch (error) {
-    console.error('[Important Docs Agreement Error]:', error);
     return NextResponse.json({ error: 'Failed to save agreement' }, { status: 500 });
   }
 }

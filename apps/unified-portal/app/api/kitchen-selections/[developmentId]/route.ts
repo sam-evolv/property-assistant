@@ -75,7 +75,6 @@ export async function GET(
 ) {
   try {
     const { developmentId } = await params;
-    console.log('[Kitchen Selections API] GET request for development:', developmentId);
     
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
@@ -119,7 +118,6 @@ export async function GET(
       .order('unit_number', { ascending: true });
     
     if (unitsError) {
-      console.error('[Kitchen Selections API] Units query error:', unitsError);
     }
     const allUnits = supabaseUnits || [];
 
@@ -130,7 +128,6 @@ export async function GET(
       .eq('development_id', actualDevelopmentId);
     
     if (pipelineError) {
-      console.error('[Kitchen Selections API] Pipeline query error:', pipelineError);
     }
     
     const pipelineMap = new Map((pipelineData || []).map(p => [p.unit_id, p]));
@@ -221,7 +218,6 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error('[Kitchen Selections API] Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -325,7 +321,6 @@ export async function PUT(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Update error:', error);
         return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
       }
       result = data;
@@ -342,7 +337,6 @@ export async function PUT(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Insert error:', error);
         return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
       }
       result = data;
@@ -350,7 +344,6 @@ export async function PUT(
 
     return NextResponse.json({ success: true, selection: result });
   } catch (error: any) {
-    console.error('[Kitchen Selections API] Update Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -439,7 +432,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Options update error:', error);
         return NextResponse.json({ error: 'Failed to update options' }, { status: 500 });
       }
       result = data;
@@ -451,7 +443,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Options insert error:', error);
         return NextResponse.json({ error: 'Failed to save options' }, { status: 500 });
       }
       result = data;
@@ -470,7 +461,6 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, options: transformedOptions });
   } catch (error: any) {
-    console.error('[Kitchen Selections API] Options Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -87,8 +87,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[QR Pack] Generating for projectId:', projectId);
-
     const { rows } = await db.execute(sql`
       SELECT id, unit_uid, address_line_1 as address, unit_number
       FROM units
@@ -104,8 +102,6 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log('[QR Pack] Found', units.length, 'units from Drizzle');
 
     const sortedUnits = sortUnits(units);
     const template = loadTemplate();
@@ -233,8 +229,6 @@ export async function GET(request: NextRequest) {
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 
-    console.log('[QR Pack] Generated PDF with', sortedUnits.length, 'pages');
-
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
@@ -243,7 +237,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[QR Pack] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to generate QR pack' },
       { status: 500 }

@@ -150,7 +150,6 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('[Pipeline] Error fetching pipeline data:', error);
     return NextResponse.json(
       { error: 'Failed to fetch pipeline data' },
       { status: 500 }
@@ -239,7 +238,6 @@ export async function PATCH(
     return NextResponse.json({ success: true, updated: updateData });
 
   } catch (error) {
-    console.error('[Pipeline] Error updating pipeline:', error);
     return NextResponse.json(
       { error: 'Failed to update pipeline' },
       { status: 500 }

@@ -647,7 +647,6 @@ RULES:
       messages: responseMessages,
     });
   } catch (error) {
-    console.error('[Care Chat API] error:', error);
     return NextResponse.json(
       { error: 'Failed to process chat request' },
       { status: 500 }

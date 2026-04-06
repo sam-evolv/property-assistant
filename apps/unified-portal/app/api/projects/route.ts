@@ -28,7 +28,6 @@ export async function GET() {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('[API /projects] Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -50,7 +49,6 @@ export async function GET() {
       });
 
     if (countError) {
-      console.error('[API /projects] Error counting units:', countError);
     }
 
     const projectUnitCounts = unitCounts || {};
@@ -85,14 +83,11 @@ export async function GET() {
 
         for (let i = 1; i < group.length; i++) {
           suppressedIds.push(group[i].id);
-          console.log(`[API /projects] Suppressed duplicate project ${group[i].id} in favor of ${canonical.id}`);
         }
       }
     }
 
     canonicalProjects.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    console.log('[API /projects] Found projects:', projects.length, 'canonical:', canonicalProjects.length);
 
     const idRemapping: Record<string, string> = {};
     for (const [key, group] of Object.entries(duplicateGroups)) {
@@ -114,7 +109,6 @@ export async function GET() {
       }
     });
   } catch (err) {
-    console.error('[API /projects] Error:', err);
     return NextResponse.json(
       { error: 'Failed to fetch projects' },
       { status: 500 }

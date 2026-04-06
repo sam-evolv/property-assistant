@@ -85,7 +85,6 @@ export async function GET(request: Request) {
       avgHealthScore,
     });
   } catch (error) {
-    console.error('[API] /api/analytics-v2/document-health error:', error);
     return NextResponse.json({ error: 'Failed to fetch document health' }, { status: 500 });
   }
 }

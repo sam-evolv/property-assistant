@@ -73,7 +73,6 @@ export async function GET() {
       total: formattedTenants.length,
     });
   } catch (error: any) {
-    console.error('[Super Tenants API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -104,7 +103,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ tenant: newTenant }, { status: 201 });
   } catch (error: any) {
-    console.error('[Super Tenants API] POST Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -62,7 +62,6 @@ export async function PATCH(
 
     return NextResponse.json({ house: updatedHouse });
   } catch (error) {
-    console.error('[House Update Error]:', error);
     return NextResponse.json(
       { error: 'Failed to update house' },
       { status: 500 }
@@ -97,7 +96,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[House Delete Error]:', error);
     return NextResponse.json(
       { error: 'Failed to delete house' },
       { status: 500 }

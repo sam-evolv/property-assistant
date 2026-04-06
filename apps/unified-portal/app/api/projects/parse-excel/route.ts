@@ -150,8 +150,6 @@ export async function POST(request: Request) {
       errors.push('No units found in the Excel file. Ensure there is a "units" sheet or that the first sheet contains unit data.');
     }
     
-    console.log(`[parse-excel] Parsed ${units.length} units, derived ${unitTypes.length} unit types (${unitTypesFromSheet.length} from sheet, ${distinctUnitTypesFromUnits.size} distinct in units)`);
-
     return NextResponse.json({
       unitTypes,
       units,
@@ -163,7 +161,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    console.error('[API /projects/parse-excel] Error:', err);
     return NextResponse.json(
       { error: 'Failed to parse Excel file' },
       { status: 500 }

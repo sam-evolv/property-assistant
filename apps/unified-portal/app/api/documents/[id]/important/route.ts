@@ -99,13 +99,12 @@ export async function PATCH(
             .eq('id', section.id);
         }
       }
-    } catch (syncError) {
-      console.error('[Important API] Supabase sync error (non-fatal):', syncError);
+    } catch (_syncError) {
+        // error handled silently
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Important API] Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

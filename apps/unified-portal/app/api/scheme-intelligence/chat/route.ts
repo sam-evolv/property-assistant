@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
               const result = await fn(supabase, tenantId, devId);
               return { name: fnName, ...result };
             } catch (err) {
-              console.error(`[SchemeIntel] Function ${fnName} failed for ${label}:`, err);
               return null;
             }
           })
@@ -164,8 +163,8 @@ export async function POST(request: NextRequest) {
             });
           }
         }
-      } catch (ragErr) {
-        console.error('[SchemeIntel] RAG search failed:', ragErr);
+      } catch (_ragErr) {
+          // error handled silently
       }
     }
 
@@ -307,7 +306,6 @@ export async function POST(request: NextRequest) {
           );
           controller.close();
         } catch (err) {
-          console.error('[SchemeIntel] Stream error:', err);
           controller.enqueue(
             encoder.encode(JSON.stringify({ type: 'error', message: 'Stream failed' }) + '\n')
           );
@@ -324,7 +322,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[SchemeIntel Chat] Error:', error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Internal server error',

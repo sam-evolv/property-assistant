@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
       .order('name');
 
     if (devError) {
-      console.error('[Portfolio Analytics] Error fetching developments:', devError);
       return NextResponse.json({ error: 'Failed to fetch developments' }, { status: 500 });
     }
 
@@ -143,7 +142,6 @@ export async function GET(request: NextRequest) {
     );
 
     if (unitsError) {
-      console.error('[Portfolio Analytics] Error fetching units:', unitsError);
       return NextResponse.json({ error: 'Failed to fetch analytics data' }, { status: 500 });
     }
 
@@ -635,7 +633,6 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Portfolio Analytics API] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

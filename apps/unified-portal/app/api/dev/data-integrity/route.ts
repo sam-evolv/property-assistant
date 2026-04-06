@@ -85,7 +85,6 @@ export async function GET(request: NextRequest) {
       ),
     });
   } catch (error) {
-    console.error('[DataIntegrity] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch data integrity stats', details: String(error) },
       { status: 500 }

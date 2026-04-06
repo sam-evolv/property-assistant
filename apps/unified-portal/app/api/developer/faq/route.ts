@@ -42,13 +42,11 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(faqEntries.priority), desc(faqEntries.created_at));
     } catch (dbErr) {
       // faq_entries table may not exist in this environment yet (migration pending)
-      console.warn('[FAQ API] faq_entries table query failed — returning empty list. Run Drizzle migration to enable this feature.', dbErr instanceof Error ? dbErr.message : 'unknown error');
       return NextResponse.json({ faqs: [] });
     }
 
     return NextResponse.json({ faqs });
   } catch (error) {
-    console.error('[FAQ API] GET Error:', error);
     return NextResponse.json({ error: 'Failed to fetch FAQs' }, { status: 500 });
   }
 }
@@ -80,10 +78,8 @@ export async function POST(request: NextRequest) {
       updated_by: session.id,
     }).returning();
 
-    console.log('[FAQ API] Created FAQ:', newFaq.id);
     return NextResponse.json({ faq: newFaq });
   } catch (error) {
-    console.error('[FAQ API] POST Error:', error);
     return NextResponse.json({ error: 'Failed to create FAQ' }, { status: 500 });
   }
 }

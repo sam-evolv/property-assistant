@@ -30,11 +30,6 @@ export async function GET(request: NextRequest) {
       ? session.tenantId
       : filterTenantId;
 
-    console.log('[Developments API] Fetching developments...', {
-      role: session.role,
-      filterTenantId: effectiveTenantId
-    });
-    
     let drizzleDevs: any[] = [];
     let drizzleError: Error | null = null;
 
@@ -43,8 +38,8 @@ export async function GET(request: NextRequest) {
     try {
       const allTenants = await db.select({ id: tenants.id, name: tenants.name }).from(tenants);
       allTenants.forEach(t => { tenantLookup[t.id] = t.name; });
-    } catch (err) {
-      console.error('[Developments API] Failed to fetch tenants:', err);
+    } catch (_err) {
+        // error handled silently
     }
 
     try {
@@ -58,10 +53,8 @@ export async function GET(request: NextRequest) {
       } else {
         drizzleDevs = await db.select().from(developments).orderBy(sql`created_at DESC`);
       }
-      console.log('[Developments API] Drizzle developments:', drizzleDevs.length);
     } catch (err) {
       drizzleError = err instanceof Error ? err : new Error('Drizzle query failed');
-      console.error('[Developments API] Drizzle error (falling back to Supabase):', drizzleError.message);
     }
 
     // For Supabase projects, we need to match by organization_id if filtering
@@ -73,10 +66,7 @@ export async function GET(request: NextRequest) {
     // For now, we'll include all and let the merge handle deduplication
     const supabaseResult = await supabaseQuery;
 
-    console.log('[Developments API] Supabase projects:', supabaseResult.data?.length || 0);
-
     if (supabaseResult.error) {
-      console.error('[Developments API] Supabase error:', supabaseResult.error);
     }
 
     const drizzleIds = new Set(drizzleDevs.map(d => d.id));
@@ -136,7 +126,6 @@ export async function GET(request: NextRequest) {
           active: activeCount || 0,
         };
       } catch (e) {
-        console.log(`[Developments API] Failed to get unit counts for ${dev.id}`);
         unitCounts[dev.id] = { total: 0, active: 0 };
       }
     }
@@ -146,8 +135,6 @@ export async function GET(request: NextRequest) {
       unitCount: unitCounts[dev.id]?.total || 0,
       activeUnitCount: unitCounts[dev.id]?.active || 0,
     }));
-
-    console.log('[Developments API] Total merged developments:', allDevelopments.length);
 
     // Include metadata about the query
     return NextResponse.json({
@@ -160,7 +147,6 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('[Developments API] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch developments' },
       { status: 500 }

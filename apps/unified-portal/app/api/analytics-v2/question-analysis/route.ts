@@ -93,7 +93,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(analysis);
   } catch (error) {
-    console.error('[API] /api/analytics-v2/question-analysis error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch question analysis' },
       { status: 500 }

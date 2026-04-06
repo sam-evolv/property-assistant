@@ -88,7 +88,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ installation });
   } catch (error) {
-    console.error('[Care API] POST /installations/onboard error:', error);
     return NextResponse.json(
       { error: 'Failed to create installation' },
       { status: 500 }

@@ -140,8 +140,8 @@ export async function POST(req: NextRequest) {
               controller.enqueue(encoder.encode(token));
             }
           }
-        } catch (err) {
-          console.error('[Select chat] Stream error:', err);
+        } catch (_err) {
+            // error handled silently
         } finally {
           controller.close();
         }
@@ -157,7 +157,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Select chat] Error:', error);
     return NextResponse.json({ error: 'Assistant unavailable' }, { status: 500 });
   }
 }

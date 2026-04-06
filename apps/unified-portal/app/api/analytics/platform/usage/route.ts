@@ -34,7 +34,6 @@ export async function GET(request: Request) {
       estimated_cost_usd: parseFloat(estimated_cost_usd.toFixed(4)),
     });
   } catch (error) {
-    console.error('[API] /api/analytics/platform/usage error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch usage metrics' },
       { status: 500 }

@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('[THEME] Error checking existing config:', fetchError);
       return NextResponse.json({ error: 'Database error' }, { status: 500 });
     }
 
@@ -98,7 +97,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.error) {
-      console.error('[THEME] Error saving config:', result.error);
       return NextResponse.json({ error: 'Failed to save theme' }, { status: 500 });
     }
 
@@ -108,7 +106,6 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('[THEME] Error in save route:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

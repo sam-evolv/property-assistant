@@ -27,7 +27,6 @@ export async function GET() {
     await db.execute(sql`SELECT 1`);
     checks.drizzle = { status: 'ok', latency: Date.now() - drizzleStart };
   } catch (error: any) {
-    console.error('[Health] Drizzle connection error:', error);
     const errMsg = error?.message || error?.code || 'Connection failed';
     const errCode = error?.code || '';
     checks.drizzle = { 

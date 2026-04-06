@@ -160,11 +160,6 @@ export async function POST(
       const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
       
-      console.log('[Pipeline Import] Sheet:', sheetName || workbook.SheetNames[0]);
-      console.log('[Pipeline Import] Raw data rows:', rawData.length);
-      console.log('[Pipeline Import] First row keys:', rawData[0] ? Object.keys(rawData[0]) : 'no data');
-      console.log('[Pipeline Import] Mappings received:', mappings);
-      
       const data = rawData.map((row) => {
         const normalizedRow: Record<string, any> = {};
         for (const [key, value] of Object.entries(row)) {
@@ -178,9 +173,6 @@ export async function POST(
         if (field) reverseMapping[field] = col.trim();
       }
       
-      console.log('[Pipeline Import] Reverse mapping:', reverseMapping);
-      console.log('[Pipeline Import] Normalized first row keys:', data[0] ? Object.keys(data[0]) : 'no data');
-
       const rows = data.map((row) => {
         const getValue = (field: string) => {
           const col = reverseMapping[field];
@@ -311,7 +303,6 @@ export async function POST(
 
           const newUnitId = unitResult.rows?.[0]?.id;
           if (!newUnitId) {
-            console.error('Failed to get new unit ID for:', row.address);
             continue;
           }
 
@@ -341,8 +332,8 @@ export async function POST(
 
           pipelineCreated++;
           summary[row._raw.statusMapped] = (summary[row._raw.statusMapped] || 0) + 1;
-        } catch (e) {
-          console.error('Error importing row:', row.address, e);
+        } catch (_e) {
+            // error handled silently
         }
       }
 
@@ -356,7 +347,6 @@ export async function POST(
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
-    console.error('[Pipeline Import API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

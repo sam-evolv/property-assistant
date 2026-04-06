@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(gapAnalysis);
   } catch (error) {
-    console.error('[API] /api/analytics/knowledge-gaps error:', error);
     
     if (error instanceof Error && (error.message.includes('Unauthorized') || error.message.includes('Forbidden'))) {
       return NextResponse.json(

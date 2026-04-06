@@ -135,7 +135,6 @@ export async function GET(
     return NextResponse.json({ comments: enrichedComments });
   } catch (error) {
     const err = error as Error;
-    console.error('[Comments GET Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'COMMENTS_GET_FAILED',
@@ -155,17 +154,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ noticeId: string }> }
 ) {
-  console.log('[Comments POST] Request received');
   try {
     const { noticeId } = await params;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const unitUid = searchParams.get('unitUid');
     
-    console.log('[Comments POST] noticeId:', noticeId, 'unitUid:', unitUid, 'token:', token ? 'present' : 'missing');
-
     if (!token || !unitUid) {
-      console.log('[Comments POST] Missing token or unitUid');
       return NextResponse.json(
         { error: 'Token and unit UID are required' },
         { status: 400 }
@@ -173,23 +168,17 @@ export async function POST(
     }
 
     const tokenResult = await validatePurchaserToken(token, unitUid);
-    console.log('[Comments POST] Token validation:', tokenResult.valid ? 'valid' : 'invalid', 'isShowhouse:', tokenResult.isShowhouse);
     
     if (!tokenResult.valid) {
-      console.log('[Comments POST] Token validation failed');
       return NextResponse.json(
         { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
       );
     }
     
-    console.log('[Comments POST] Token validated, unitId:', tokenResult.unitId);
-
     const unit = await getUnitInfo(unitUid);
-    console.log('[Comments POST] Unit lookup:', unit ? 'found' : 'not found');
 
     if (!unit) {
-      console.log('[Comments POST] Returning 404 - Unit not found');
       return NextResponse.json(
         { error: 'Unit not found' },
         { status: 404 }
@@ -197,18 +186,15 @@ export async function POST(
     }
 
     const tenantId = requireTenantId(unit);
-    console.log('[Comments POST] Using tenantId from unit:', tenantId);
 
     const rateLimit = await checkCommentRateLimit(unitUid, tenantId);
     if (!rateLimit.allowed) {
-      console.log('[Comments POST] Rate limit exceeded');
       return NextResponse.json(
         { error: 'You have reached the comment limit. Please try again later.' },
         { status: 429, headers: { 'X-RateLimit-Remaining': '0' } }
       );
     }
 
-    console.log('[Comments POST] Looking for notice:', noticeId, 'with tenant:', tenantId);
     const notice = await db
       .select({ id: noticeboard_posts.id })
       .from(noticeboard_posts)
@@ -220,18 +206,13 @@ export async function POST(
       )
       .limit(1);
 
-    console.log('[Comments POST] Notice lookup result:', notice?.length || 0, 'notices found');
-
     if (!notice || notice.length === 0) {
-      console.log('[Comments POST] Returning 404 - Notice not found');
       return NextResponse.json(
         { error: 'Notice not found' },
         { status: 404 }
       );
     }
     
-    console.log('[Comments POST] All checks passed, proceeding to create comment');
-
     const body = await request.json();
     const { text, termsAccepted } = body;
 
@@ -271,8 +252,6 @@ export async function POST(
       })
       .returning();
 
-    console.log('[Comments] Created comment:', comment.id, 'by unit:', unitUid);
-
     return NextResponse.json({
       success: true,
       comment: {
@@ -292,7 +271,6 @@ export async function POST(
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[Comments POST Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'COMMENTS_POST_FAILED',
@@ -422,7 +400,6 @@ export async function PATCH(
     return NextResponse.json({ success: true });
   } catch (error) {
     const err = error as Error;
-    console.error('[Comments PATCH Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'COMMENTS_PATCH_FAILED',
@@ -527,7 +504,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     const err = error as Error;
-    console.error('[Comments DELETE Error]:', err);
     void logError({
       errorType: 'purchaser',
       errorCode: 'COMMENTS_DELETE_FAILED',

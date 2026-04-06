@@ -18,7 +18,6 @@ const BASE_URL = 'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = getSupabaseClient();
-    console.log(`[QR] Generating for project: ${REAL_PROJECT_ID}`);
 
     // Simple query without join
     const { data: units, error } = await supabase
@@ -28,15 +27,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .order('address', { ascending: true });
 
     if (error) {
-      console.error('[QR] Supabase Error:', error);
       throw error;
     }
 
     if (!units || units.length === 0) {
       return NextResponse.json({ error: 'No units found.' }, { status: 404 });
     }
-
-    console.log(`[QR] Found ${units.length} units`);
 
     // Sort by address number
     const sortedUnits = [...units].sort((a, b) => {
@@ -107,7 +103,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const qrSize = 55;
         doc.addImage(qrDataUrl, 'PNG', x + (cardWidth - qrSize) / 2, y + 32, qrSize, qrSize);
       } catch (qrErr) {
-        console.error('[QR] QR generation failed for:', unit.id);
         doc.setFillColor(240, 240, 240);
         doc.rect(x + (cardWidth - 55) / 2, y + 32, 55, 55, 'F');
       }
@@ -148,7 +143,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
 
     const pdfBuffer = doc.output('arraybuffer');
-    console.log(`[QR] PDF generated with ${sortedUnits.length} cards`);
 
     return new NextResponse(pdfBuffer, {
       status: 200,
@@ -159,7 +153,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
   } catch (error: any) {
-    console.error('[QR] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

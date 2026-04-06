@@ -46,7 +46,6 @@ export async function GET(request: NextRequest) {
     const { data: unitsData, error: unitsError, count } = await query;
 
     if (unitsError) {
-      console.error('[Units API] Query error:', unitsError);
       return NextResponse.json({ error: unitsError.message }, { status: 500 });
     }
 
@@ -120,7 +119,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[API] /api/super/units error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -79,7 +79,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ units: formattedUnits });
   } catch (error) {
-    console.error('[API] /api/admin/units error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch units' },
       { status: 500 }

@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ conversations: conversations || [] });
   } catch (error) {
-    console.error('[dev-app/intelligence/conversations] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ conversation });
   } catch (error) {
-    console.error('[dev-app/intelligence/conversations] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

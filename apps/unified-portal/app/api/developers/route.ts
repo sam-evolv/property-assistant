@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ developers });
   } catch (error) {
-    console.error('[DEVELOPERS] Error fetching developers:', error);
     return NextResponse.json(
       { error: 'Failed to fetch developers' },
       { status: 500 }
@@ -74,8 +73,6 @@ export async function POST(request: NextRequest) {
       tenantId: tenant.id,
     });
 
-    console.log(`[DEVELOPERS] Created developer: ${developer.email} for tenant ${tenant.name}`);
-
     return NextResponse.json({
       developer: {
         ...developer,
@@ -83,7 +80,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[DEVELOPERS] Error creating developer:', error);
     return NextResponse.json(
       { error: 'Failed to create developer' },
       { status: 500 }

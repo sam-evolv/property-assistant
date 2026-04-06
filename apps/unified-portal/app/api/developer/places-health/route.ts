@@ -211,8 +211,6 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
 
-  console.log('[PlacesHealth] Authorized request via', resolvedAuth.method, 'role:', auth.role);
-
   const schemeAccess = await assertSchemeAccess(
     { schemeId: schemeId || undefined, schemeName: schemeName || undefined },
     auth

@@ -170,7 +170,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items: items.slice(0, 50) });
   } catch (error) {
-    console.error('[dev-app/activity] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

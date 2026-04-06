@@ -66,7 +66,6 @@ export async function GET(request: NextRequest) {
           }] : []
         } as HomeownerCountsResponse);
       } catch (err) {
-        console.error('[Homeowner Counts API] Failed to get count for development:', err);
         return NextResponse.json(
           { error: 'Failed to fetch homeowner counts' },
           { status: 500 }
@@ -107,14 +106,12 @@ export async function GET(request: NextRequest) {
         developments: developmentCounts,
       } as HomeownerCountsResponse);
     } catch (err) {
-      console.error('[Homeowner Counts API] Failed to fetch homeowner counts:', err);
       return NextResponse.json(
         { error: 'Failed to fetch homeowner counts' },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('[Homeowner Counts API] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch homeowner counts' },
       { status: 500 }

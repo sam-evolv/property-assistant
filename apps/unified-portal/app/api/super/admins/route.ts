@@ -46,7 +46,6 @@ export async function GET() {
       stats,
     });
   } catch (error: any) {
-    console.error('[Super Admins API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

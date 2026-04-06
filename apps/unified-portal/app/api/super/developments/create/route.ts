@@ -80,8 +80,6 @@ export async function POST(request: NextRequest) {
     if (created_by) insertData.created_by = created_by;
     if (developer_user_id) insertData.developer_user_id = developer_user_id;
 
-    console.log('[Super Developments Create] Inserting development:', { name, code: devCode, tenant_id });
-
     const { data: development, error } = await supabaseAdmin
       .from('developments')
       .insert(insertData)
@@ -89,7 +87,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[Super Developments Create] Error creating development:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -100,11 +97,8 @@ export async function POST(request: NextRequest) {
         .eq('id', from_submission_id);
     }
 
-    console.log('[Super Developments Create] Created development:', development.id);
-
     return NextResponse.json({ development }, { status: 201 });
   } catch (err: any) {
-    console.error('[Super Developments Create] Server error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

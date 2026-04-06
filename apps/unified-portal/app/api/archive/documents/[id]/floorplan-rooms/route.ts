@@ -99,7 +99,6 @@ export async function GET(
       unit_types: unitTypes,
     });
   } catch (error: any) {
-    console.error('[FloorPlan Rooms GET] Error:', error);
     if (error.message === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (error.message === 'FORBIDDEN')
@@ -149,7 +148,6 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error('[FloorPlan Rooms PATCH] Error:', error.message);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
@@ -188,7 +186,6 @@ export async function DELETE(
       .eq('tenant_id', tenantId);
 
     if (error) {
-      console.error('[FloorPlan Rooms DELETE] Error:', error.message);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 

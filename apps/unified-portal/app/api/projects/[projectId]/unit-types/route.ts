@@ -27,13 +27,11 @@ export async function GET(
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('[Unit Types] Error fetching:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ unitTypes });
   } catch (error) {
-    console.error('[Unit Types] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch unit types' },
       { status: 500 }
@@ -85,14 +83,11 @@ export async function POST(
       .single();
 
     if (error) {
-      console.error('[Unit Types] Error creating:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log('[Unit Types] Created:', unitType.name, 'for project:', params.projectId);
     return NextResponse.json({ unitType }, { status: 201 });
   } catch (error) {
-    console.error('[Unit Types] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create unit type' },
       { status: 500 }

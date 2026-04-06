@@ -38,10 +38,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'FAQ not found' }, { status: 404 });
     }
 
-    console.log('[FAQ API] Updated FAQ:', params.faqId);
     return NextResponse.json({ faq: updatedFaq });
   } catch (error) {
-    console.error('[FAQ API] PATCH Error:', error);
     return NextResponse.json({ error: 'Failed to update FAQ' }, { status: 500 });
   }
 }
@@ -67,10 +65,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'FAQ not found' }, { status: 404 });
     }
 
-    console.log('[FAQ API] Deleted FAQ:', params.faqId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[FAQ API] DELETE Error:', error);
     return NextResponse.json({ error: 'Failed to delete FAQ' }, { status: 500 });
   }
 }

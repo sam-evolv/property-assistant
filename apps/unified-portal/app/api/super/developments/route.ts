@@ -45,8 +45,8 @@ export async function GET() {
           }
           return acc;
         }, {} as Record<string, number>);
-      } catch (unitError) {
-        console.log('[Super Developments API] Units table query failed, using 0 counts');
+      } catch (_unitError) {
+          // error handled silently
       }
     }
 
@@ -74,7 +74,6 @@ export async function GET() {
       total: formattedDevelopments.length,
     });
   } catch (error: any) {
-    console.error('[Super Developments API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -142,14 +141,11 @@ export async function POST(request: NextRequest) {
         .where(eq(onboardingSubmissions.id, from_submission_id));
     }
 
-    console.log('[Super Developments API] Created development:', newDevelopment.id);
-
     return NextResponse.json({ 
       success: true,
       id: newDevelopment.id,
     });
   } catch (error: any) {
-    console.error('[Super Developments API] Create error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -34,7 +34,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (devError) {
-      console.error('Error fetching knowledge items:', devError);
       return NextResponse.json({ error: 'Failed to fetch knowledge items' }, { status: 500 });
     }
 
@@ -55,7 +54,6 @@ export async function GET(request: NextRequest) {
       platformItems,
     });
   } catch (err) {
-    console.error('Error in GET /api/super/assistant/knowledge:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -94,13 +92,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating knowledge item:', error);
       return NextResponse.json({ error: 'Failed to create knowledge item' }, { status: 500 });
     }
 
     return NextResponse.json({ item: data });
   } catch (err) {
-    console.error('Error in POST /api/super/assistant/knowledge:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -145,7 +141,6 @@ export async function PUT(request: NextRequest) {
       .select();
 
     if (error) {
-      console.error('Error bulk importing knowledge items:', error);
       return NextResponse.json({ error: 'Failed to import items' }, { status: 500 });
     }
 
@@ -154,7 +149,6 @@ export async function PUT(request: NextRequest) {
       items: data 
     });
   } catch (err) {
-    console.error('Error in PUT /api/super/assistant/knowledge:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -177,13 +171,11 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting knowledge item:', error);
       return NextResponse.json({ error: 'Failed to delete knowledge item' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('Error in DELETE /api/super/assistant/knowledge:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

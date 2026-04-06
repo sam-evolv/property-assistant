@@ -80,7 +80,6 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error: any) {
-    console.error('[Audit Log API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -25,7 +25,6 @@ export async function GET(
 
     return NextResponse.json({ submission });
   } catch (error: any) {
-    console.error('[Super Onboarding Submission API] GET Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -67,7 +66,6 @@ export async function PATCH(
 
     return NextResponse.json({ submission: updated });
   } catch (error: any) {
-    console.error('[Super Onboarding Submission API] PATCH Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -93,7 +91,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Super Onboarding Submission API] DELETE Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

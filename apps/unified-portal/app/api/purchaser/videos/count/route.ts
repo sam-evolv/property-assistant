@@ -118,7 +118,6 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('[PurchaserVideosCountAPI] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch video count', requestId },
       { status: 500 }

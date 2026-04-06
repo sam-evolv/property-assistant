@@ -23,7 +23,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       last_used: row?.last_used || null,
     });
   } catch (error) {
-    console.error('[AIUsage] Failed:', error);
     return NextResponse.json({ usage_count: 0, last_used: null });
   }
 }

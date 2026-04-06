@@ -46,7 +46,6 @@ async function ensureOnboardingSubmissionsTable(supabase: ReturnType<typeof getS
   });
   
   if (error) {
-    console.log('[OnboardingSubmit] Table creation RPC not available, table may already exist');
   }
 }
 
@@ -60,7 +59,6 @@ async function ensureStorageBucket(supabase: ReturnType<typeof getSupabaseAdmin>
       fileSizeLimit: 52428800, // 50MB
     });
     if (error && !error.message.includes('already exists')) {
-      console.error('[OnboardingSubmit] Failed to create bucket:', error);
     }
   }
 }
@@ -83,7 +81,6 @@ async function uploadFile(
     });
   
   if (error) {
-    console.error('[OnboardingSubmit] File upload error:', error);
     return null;
   }
   
@@ -99,7 +96,6 @@ export async function POST(request: NextRequest) {
     const { data: { session }, error: sessionError } = await authClient.auth.getSession();
     
     if (sessionError || !session?.user) {
-      console.error('[OnboardingSubmit] No valid session:', sessionError);
       return NextResponse.json({ error: 'Authentication required. Please log in again.' }, { status: 401 });
     }
     
@@ -122,7 +118,6 @@ export async function POST(request: NextRequest) {
     }
     
     if (!tenantId) {
-      console.error('[OnboardingSubmit] SECURITY: No tenant context for user:', developerEmail);
       return NextResponse.json({ error: 'No tenant context. Please complete signup first.' }, { status: 403 });
     }
     
@@ -185,7 +180,6 @@ export async function POST(request: NextRequest) {
       .single();
     
     if (insertError) {
-      console.error('[OnboardingSubmit] Insert error:', insertError);
       
       if (insertError.code === '42P01') {
         return NextResponse.json({ 
@@ -212,8 +206,8 @@ export async function POST(request: NextRequest) {
         hasSpreadsheet: !!masterSpreadsheetUrl,
         supportingDocsCount: supportingDocsUrls.length,
       });
-    } catch (emailError) {
-      console.error('[OnboardingSubmit] Email notification failed:', emailError);
+    } catch (_emailError) {
+        // error handled silently
     }
     
     return NextResponse.json({ 
@@ -223,7 +217,6 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('[OnboardingSubmit] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

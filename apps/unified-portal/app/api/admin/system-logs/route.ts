@@ -105,11 +105,8 @@ export async function GET(request: NextRequest) {
       created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
     }));
 
-    console.log(`[SystemLogs] Returning ${logs.length} logs for last ${hours}h`);
-
     return NextResponse.json({ logs });
   } catch (error: any) {
-    console.error('[SystemLogs] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch logs', logs: [] },
       { status: 500 }

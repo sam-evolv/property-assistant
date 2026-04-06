@@ -21,7 +21,6 @@ export async function GET() {
       .order('created_at', { ascending: true });
 
     if (tenantsError) {
-      console.error('Error fetching tenants:', tenantsError);
       throw tenantsError;
     }
 
@@ -31,7 +30,6 @@ export async function GET() {
       .select('tenant_id');
 
     if (devsError) {
-      console.error('Error fetching developments:', devsError);
       // Continue without counts rather than failing
     }
 
@@ -51,7 +49,6 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching tenants:', error);
     return NextResponse.json(
       { error: 'Failed to fetch tenants' },
       { status: 500 }

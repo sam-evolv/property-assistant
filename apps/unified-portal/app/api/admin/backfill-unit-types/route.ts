@@ -53,7 +53,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('[Admin Backfill Unit Types] GET error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch status' },
       { status: 500 }
@@ -66,7 +65,6 @@ export async function POST(request: Request) {
     const adminContext = await getAdminContextFromSession();
     
     if (!adminContext || !isSuperAdmin(adminContext)) {
-      console.warn(`[Admin Backfill] Unauthorized attempt by ${adminContext?.email || 'unknown'}`);
       return NextResponse.json(
         { error: 'Unauthorized. Super-admin access required.' },
         { status: 403 }
@@ -120,8 +118,6 @@ export async function POST(request: Request) {
     jobLock.inProgress = true;
     jobLock.lastRunBy = adminContext.email;
 
-    console.log(`[Admin Backfill] Started by ${adminContext.email} - mode: ${dryRun ? 'dry-run' : 'apply'}, target: ${projectId || 'all projects'}`);
-
     try {
       const supabase = getSupabaseAdmin();
       
@@ -131,8 +127,6 @@ export async function POST(request: Request) {
         allProjects,
         executedBy: adminContext.email,
       });
-
-      console.log(`[Admin Backfill] Completed by ${adminContext.email} - ${summary.projectsProcessed} projects, ${summary.totalUnitTypesCreated} types created, ${summary.totalUnitsUpdated} units updated`);
 
       jobLock.lastRun = new Date();
       jobLock.inProgress = false;
@@ -146,7 +140,6 @@ export async function POST(request: Request) {
       throw error;
     }
   } catch (error) {
-    console.error('[Admin Backfill Unit Types] POST error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Backfill failed' },
       { status: 500 }

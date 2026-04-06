@@ -811,7 +811,6 @@ Current date: ${today}`;
       messages: responseMessages,
     });
   } catch (error) {
-    console.error('[dev-app/intelligence/chat] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

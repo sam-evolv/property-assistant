@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       const errorDescription = request.nextUrl.searchParams.get('error_description');
-      console.error('[OAuth HubSpot Callback] Error:', error, errorDescription);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=${encodeURIComponent(errorDescription || error)}`
       );
@@ -61,7 +60,6 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!stateRecord) {
-      console.error('[OAuth HubSpot Callback] State validation failed — possible CSRF');
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=invalid_state`
       );
@@ -83,7 +81,6 @@ export async function GET(request: NextRequest) {
     const tokens = await tokenResponse.json();
 
     if (!tokenResponse.ok || !tokens.access_token) {
-      console.error('[OAuth HubSpot Callback] Token exchange failed:', tokens);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=token_exchange_failed`
       );
@@ -112,7 +109,6 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('[OAuth HubSpot Callback] Insert error:', insertError);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=save_failed`
       );
@@ -129,7 +125,6 @@ export async function GET(request: NextRequest) {
       `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?connected=${integration.id}`
     );
   } catch (err: any) {
-    console.error('[OAuth HubSpot Callback] Error:', err);
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=unexpected`
     );

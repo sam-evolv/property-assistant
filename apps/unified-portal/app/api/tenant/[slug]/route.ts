@@ -53,7 +53,6 @@ export async function GET(
       noticeboard_count: noticeboardCount?.count || 0,
     });
   } catch (error) {
-    console.error('Error fetching tenant details:', error);
     return NextResponse.json(
       { error: 'Failed to fetch tenant details' },
       { status: 500 }

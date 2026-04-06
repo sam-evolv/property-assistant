@@ -80,7 +80,6 @@ export async function GET(request: Request) {
       failedCalls: errorCount,
     });
   } catch (error) {
-    console.error('[API] /api/analytics/api-health error:', error);
     return NextResponse.json({ 
       uptimePercent: 100,
       avgTokensPerMessage: 0,

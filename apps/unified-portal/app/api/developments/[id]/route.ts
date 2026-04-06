@@ -24,8 +24,6 @@ export async function GET(
     const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     
-    console.log('[Development] Fetching details for:', params.id);
-
     // Try to get from local DB first
     const [development] = await db
       .select()
@@ -34,7 +32,6 @@ export async function GET(
       .limit(1);
 
     if (development) {
-      console.log('[Development] Found in local DB, project_type:', development.project_type);
       return NextResponse.json({ development });
     }
 
@@ -91,7 +88,6 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('[Development] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development' },
       { status: 500 }

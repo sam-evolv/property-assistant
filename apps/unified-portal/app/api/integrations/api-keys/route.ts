@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[API Keys] Create error:', error);
       return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 });
     }
 
@@ -89,7 +88,6 @@ export async function POST(request: NextRequest) {
     if (error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    console.error('[API Keys] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -112,7 +110,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[API Keys] List error:', error);
       return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 });
     }
 
@@ -121,7 +118,6 @@ export async function GET(request: NextRequest) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[API Keys] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -172,7 +168,6 @@ export async function DELETE(request: NextRequest) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[API Keys] Delete error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

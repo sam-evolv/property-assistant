@@ -15,7 +15,6 @@ function generateRequestId(): string {
 }
 
 function errorResponse(error: string, status: number, requestId: string, details?: string) {
-  console.error(`[HOMEOWNERS][${requestId}] Error (${status}): ${error}${details ? ` - ${details}` : ''}`);
   return NextResponse.json(
     { error, requestId, details },
     { 
@@ -197,7 +196,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ homeowners: homeownersList });
   } catch (error) {
-    console.error('[HOMEOWNERS] Error fetching:', error);
     return NextResponse.json(
       { error: 'Failed to fetch homeowners' },
       { status: 500 }
@@ -265,8 +263,6 @@ export async function POST(request: NextRequest) {
         unique_qr_token: uniqueQrToken,
       })
       .returning();
-
-    console.log(`[HOMEOWNERS][${requestId}] Created: ${cleanName} for development ${development.name} (${developmentId})`);
 
     return NextResponse.json(
       { homeowner, requestId }, 

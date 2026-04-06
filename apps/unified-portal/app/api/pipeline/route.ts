@@ -66,9 +66,7 @@ export async function GET(request: NextRequest) {
           .where(eq(developments.tenant_id, tenantId!))
           .orderBy(sql`name ASC`);
       }
-      console.log('[Pipeline API] Drizzle developments:', devList.length);
     } catch (drizzleError) {
-      console.error('[Pipeline API] Drizzle error (falling back to Supabase):', drizzleError);
       usedFallback = true;
 
       // Fallback to Supabase
@@ -84,12 +82,10 @@ export async function GET(request: NextRequest) {
       const { data: supabaseDevs, error: supabaseError } = await query;
 
       if (supabaseError) {
-        console.error('[Pipeline API] Supabase fallback error:', supabaseError);
         throw supabaseError;
       }
 
       devList = supabaseDevs || [];
-      console.log('[Pipeline API] Supabase developments:', devList.length);
     }
 
     // Check if pipeline tables exist
@@ -99,7 +95,6 @@ export async function GET(request: NextRequest) {
       pipelineTablesExist = true;
     } catch (e) {
       // Tables don't exist yet - that's OK
-      console.log('[Pipeline API] Pipeline tables not yet created, showing basic development list');
     }
 
     // Get stats for each development
@@ -175,7 +170,6 @@ export async function GET(request: NextRequest) {
             unresolvedNotesCount = Number(unresolvedResult.rows?.[0]?.count || 0);
           } catch (e) {
             // Query failed, use defaults
-            console.error('[Pipeline API] Error querying pipeline stats:', e);
           }
         }
 
@@ -202,7 +196,6 @@ export async function GET(request: NextRequest) {
       developments: developmentsWithStats,
     });
   } catch (error) {
-    console.error('[Pipeline API] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

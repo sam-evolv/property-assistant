@@ -71,7 +71,8 @@ export async function GET(
           .where(eq(admins.id, developmentData.developer_user_id))
           .limit(1);
         developerInfo = admin || null;
-      } catch (e) {}
+      } catch (_e) {}
+          // error handled silently
     }
 
     const formattedDevelopment = {
@@ -104,7 +105,6 @@ export async function GET(
 
     return NextResponse.json({ development: formattedDevelopment });
   } catch (error: any) {
-    console.error('[Super Development API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -136,7 +136,6 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Super Development API] Update error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -157,7 +156,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('[Super Development API] Delete error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

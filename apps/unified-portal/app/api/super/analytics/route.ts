@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
         .select({ count: count() })
         .from(messages);
       totalQuestions = Number(total?.count || 0);
-    } catch (e) {
-      console.log('[Analytics] Total questions count failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
         .from(messages)
         .where(gte(messages.created_at, dateThreshold));
       questionsInRange = Number(rangeCount?.count || 0);
-    } catch (e) {
-      console.log('[Analytics] Range questions count failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
         .where(sql`${messages.user_message} IS NOT NULL`)
         .orderBy(desc(messages.created_at))
         .limit(20);
-    } catch (e) {
-      console.log('[Analytics] Recent questions failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
           count: Number(d.count),
         }));
       }
-    } catch (e) {
-      console.log('[Analytics] Questions by development failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -127,8 +127,8 @@ export async function GET(request: NextRequest) {
         topic: t.topic || 'General',
         count: Number(t.count),
       }));
-    } catch (e) {
-      console.log('[Analytics] Top questions failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     knowledgeGaps = [
@@ -155,7 +155,6 @@ export async function GET(request: NextRequest) {
       knowledgeGaps,
     });
   } catch (error: any) {
-    console.error('[Analytics API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

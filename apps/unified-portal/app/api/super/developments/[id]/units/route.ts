@@ -35,8 +35,8 @@ export async function GET(
         .where(sql`${unitSalesPipeline.unit_id} IN (${sql.raw(unitsData.map(u => `'${u.id}'`).join(',') || "''")})`);
       
       pipelineUnitIds = new Set(pipelineData.map(p => p.unit_id).filter(Boolean) as string[]);
-    } catch (e) {
-      console.log('Pipeline query failed, assuming no pipeline data');
+    } catch (_e) {
+        // error handled silently
     }
 
     const formattedUnits = unitsData.map((unit) => ({
@@ -50,7 +50,6 @@ export async function GET(
 
     return NextResponse.json({ units: formattedUnits });
   } catch (error: any) {
-    console.error('[Super Development Units API] Error:', error);
     if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

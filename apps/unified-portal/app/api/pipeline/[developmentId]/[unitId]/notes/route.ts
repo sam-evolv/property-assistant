@@ -49,7 +49,6 @@ export async function GET(
       .single();
 
     if (pipelineError && pipelineError.code !== 'PGRST116') {
-      console.error('[Pipeline Notes GET API] Error fetching pipeline:', pipelineError);
     }
 
     if (!pipeline) {
@@ -64,7 +63,6 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (notesError) {
-      console.error('[Pipeline Notes GET API] Error fetching notes:', notesError);
       return NextResponse.json({ notes: [] });
     }
 
@@ -79,7 +77,6 @@ export async function GET(
 
     return NextResponse.json({ notes: formattedNotes });
   } catch (error) {
-    console.error('[Pipeline Notes GET API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -121,7 +118,6 @@ export async function POST(
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('[Pipeline Notes POST API] Error fetching pipeline:', fetchError);
     }
 
     if (existingPipeline) {
@@ -139,7 +135,6 @@ export async function POST(
         .single();
 
       if (insertError || !newPipeline) {
-        console.error('[Pipeline Notes POST API] Error creating pipeline:', insertError);
         return NextResponse.json({ error: 'Failed to create pipeline record' }, { status: 500 });
       }
       pipelineId = newPipeline.id;
@@ -165,7 +160,6 @@ export async function POST(
       .single();
 
     if (noteError || !newNote) {
-      console.error('[Pipeline Notes POST API] Error creating note:', noteError);
       return NextResponse.json({ error: 'Failed to create note' }, { status: 500 });
     }
 
@@ -184,8 +178,8 @@ export async function POST(
           development_id: developmentId,
         },
       });
-    } catch (auditError) {
-      console.error('[Pipeline Notes POST API] Audit log failed (non-critical):', auditError);
+    } catch (_auditError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -198,7 +192,6 @@ export async function POST(
       },
     });
   } catch (error) {
-    console.error('[Pipeline Notes POST API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

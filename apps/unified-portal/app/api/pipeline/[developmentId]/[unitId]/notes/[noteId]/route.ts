@@ -51,7 +51,6 @@ export async function PATCH(
       .single();
 
     if (fetchError || !existingNote) {
-      console.error('[Pipeline Note PATCH API] Note not found:', fetchError);
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
@@ -80,7 +79,6 @@ export async function PATCH(
       .single();
 
     if (updateError || !updatedNote) {
-      console.error('[Pipeline Note PATCH API] Error updating note:', updateError);
       return NextResponse.json({ error: 'Failed to update note' }, { status: 500 });
     }
 
@@ -98,8 +96,8 @@ export async function PATCH(
           development_id: developmentId,
         },
       });
-    } catch (auditError) {
-      console.error('[Pipeline Note PATCH API] Audit log failed (non-critical):', auditError);
+    } catch (_auditError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -112,7 +110,6 @@ export async function PATCH(
       },
     });
   } catch (error) {
-    console.error('[Pipeline Note PATCH API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

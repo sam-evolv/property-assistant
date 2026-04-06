@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
     
     if (unitsError) {
-      console.error('[Homeowners API] Units query error:', unitsError);
       return NextResponse.json({ homeowners: [], error: unitsError.message });
     }
     
@@ -53,10 +52,8 @@ export async function GET(request: NextRequest) {
       is_registered: !!(u.consent_at || u.registered_at || u.user_id),
     }));
 
-    console.log(`[Homeowners API] Returning ${formattedHomeowners.length} homeowners from Supabase`);
     return NextResponse.json({ homeowners: formattedHomeowners });
   } catch (error) {
-    console.error('[API] /api/admin/homeowners/stats error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch homeowners', homeowners: [] },
       { status: 500 }

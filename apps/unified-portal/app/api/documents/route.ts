@@ -27,8 +27,6 @@ export async function GET(request: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    console.log('[Documents List] Fetching for tenant:', tenantId, 'development:', developmentId);
-
     // First try the Drizzle-managed documents table (full schema with tenant_id / development_id)
     let documents: any[] = [];
     let usedDrizzle = false;
@@ -72,10 +70,9 @@ export async function GET(request: NextRequest) {
           created_at: d.created_at,
         }));
         usedDrizzle = true;
-        console.log('[Documents List] Drizzle returned:', documents.length, 'docs');
       }
-    } catch (drizzleErr) {
-      console.warn('[Documents List] Drizzle query failed, falling back to Supabase REST:', drizzleErr instanceof Error ? drizzleErr.message : 'unknown');
+    } catch (_drizzleErr) {
+        // error handled silently
     }
 
     // Fallback: query the legacy Supabase documents table (project_id schema)
@@ -92,7 +89,6 @@ export async function GET(request: NextRequest) {
       const { data, error } = await query;
 
       if (error) {
-        console.error('[Documents List] Supabase fallback error:', error);
         return NextResponse.json({ documents: [], count: 0 });
       }
 
@@ -108,12 +104,10 @@ export async function GET(request: NextRequest) {
         created_at: d.created_at,
       }));
 
-      console.log('[Documents List] Supabase fallback returned:', documents.length, 'docs');
     }
 
     return NextResponse.json({ documents, count: documents.length });
   } catch (error: any) {
-    console.error('[Documents List] Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

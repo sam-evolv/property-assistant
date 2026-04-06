@@ -55,7 +55,6 @@ export async function POST(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('[SchemeIntel Title] Error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to generate title' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

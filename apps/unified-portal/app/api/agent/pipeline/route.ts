@@ -217,7 +217,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ schemes, buyers });
   } catch (error: any) {
-    console.error('[agent/pipeline] Error:', error.message);
     return NextResponse.json(
       { error: 'Failed to fetch pipeline data', detail: error.message },
       { status: 500 }

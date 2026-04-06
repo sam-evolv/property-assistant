@@ -76,13 +76,11 @@ export async function POST(
       });
 
     if (uploadError) {
-      console.error('[Compliance Upload] Storage error:', uploadError);
       if (uploadError.message.includes('Bucket not found')) {
         const { error: createBucketError } = await supabaseAdmin.storage.createBucket('compliance-documents', {
           public: false,
         });
         if (createBucketError && !createBucketError.message.includes('already exists')) {
-          console.error('[Compliance Upload] Create bucket error:', createBucketError);
           return NextResponse.json({ error: 'Storage not available' }, { status: 500 });
         }
         const { error: retryError } = await supabaseAdmin.storage
@@ -92,7 +90,6 @@ export async function POST(
             upsert: false,
           });
         if (retryError) {
-          console.error('[Compliance Upload] Retry upload error:', retryError);
           return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
         }
       } else {
@@ -164,7 +161,6 @@ export async function POST(
         });
 
       if (fileError) {
-        console.error('[Compliance Upload] File record error:', fileError);
       }
 
       return documentId;
@@ -181,8 +177,8 @@ export async function POST(
         for (const unit of units) {
           try {
             await uploadToUnit(unit.id);
-          } catch (err) {
-            console.error('[Compliance Upload] Error uploading to unit:', unit.id, err);
+          } catch (_err) {
+              // error handled silently
           }
         }
       }
@@ -201,12 +197,11 @@ export async function POST(
         category: 'compliance',
         triggeredBy: 'compliance.document_uploaded',
         actionUrl: '/documents',
-      }).catch(err => console.error('[Compliance Upload] Notification failed (non-critical):', err));
+      }).catch(() => { /* notification failure is non-critical */ });
 
       return NextResponse.json({ success: true, documentId });
     }
   } catch (error: any) {
-    console.error('[Compliance Upload] Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

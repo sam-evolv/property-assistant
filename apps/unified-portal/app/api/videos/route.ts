@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ videos });
   } catch (error: any) {
     const isDev = process.env.NODE_ENV !== 'production';
-    console.error('[VIDEOS API] Error fetching videos:', error);
     return NextResponse.json({
       error: 'Failed to fetch videos',
       where: 'GET /api/videos',
@@ -105,7 +104,6 @@ export async function POST(request: NextRequest) {
 
     const invalidIds = targetIds.filter((_, i) => !validationResults[i]);
     if (invalidIds.length > 0) {
-      console.log('[VIDEOS API] Developments not found:', invalidIds);
       return NextResponse.json(
         { error: `Development(s) not found or access denied` },
         { status: 403 }
@@ -127,8 +125,6 @@ export async function POST(request: NextRequest) {
 
     const createdVideos = await db.insert(video_resources).values(videoValues).returning();
 
-    console.log(`[VIDEOS API] Created ${createdVideos.length} video(s) across ${targetIds.length} development(s)`);
-
     return NextResponse.json({
       video: createdVideos[0],
       videos: createdVideos,
@@ -136,7 +132,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     const isDev = process.env.NODE_ENV !== 'production';
-    console.error('[VIDEOS API] Error creating video:', error);
     return NextResponse.json({
       error: 'Failed to create video',
       where: 'POST /api/videos',
@@ -178,12 +173,9 @@ export async function DELETE(request: NextRequest) {
       .set({ is_active: false, updated_at: new Date() })
       .where(eq(video_resources.id, videoId));
 
-    console.log(`[VIDEOS API] Deleted video: ${videoId}`);
-
     return NextResponse.json({ success: true });
   } catch (error: any) {
     const isDev = process.env.NODE_ENV !== 'production';
-    console.error('[VIDEOS API] Error deleting video:', error);
     return NextResponse.json({
       error: 'Failed to delete video',
       where: 'DELETE /api/videos',

@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
     const { data, count, error } = await query;
 
     if (error) {
-      console.error('[Broadcasts GET] Error:', error);
       return NextResponse.json({ error: 'Failed to fetch broadcasts' }, { status: 500 });
     }
 
@@ -70,7 +69,6 @@ export async function GET(request: NextRequest) {
     if (error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    console.error('[Broadcasts GET] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -138,7 +136,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !broadcast) {
-      console.error('[Broadcasts POST] Error creating broadcast:', error);
       return NextResponse.json({ error: 'Failed to create broadcast' }, { status: 500 });
     }
 
@@ -166,7 +163,6 @@ export async function POST(request: NextRequest) {
     if (error.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    console.error('[Broadcasts POST] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -208,9 +204,7 @@ async function sendBroadcastNotifications(
       })
       .eq('id', broadcastId);
 
-    console.log(`[Broadcasts] Sent broadcast ${broadcastId}: ${sent} delivered, ${failed} failed`);
   } catch (error) {
-    console.error(`[Broadcasts] Failed to send broadcast ${broadcastId}:`, error);
 
     await supabase
       .from('broadcasts')

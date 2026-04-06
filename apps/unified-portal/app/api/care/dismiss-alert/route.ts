@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       .eq('id', installationId);
 
     if (updateError) {
-      console.error('[Care API] POST /dismiss-alert update error:', updateError);
       return NextResponse.json(
         { error: 'Failed to dismiss alert' },
         { status: 500 }
@@ -73,7 +72,6 @@ export async function POST(request: NextRequest) {
       remaining_alerts: updatedAlerts.length,
     });
   } catch (error) {
-    console.error('[Care API] POST /dismiss-alert error:', error);
     return NextResponse.json(
       { error: 'Failed to dismiss alert' },
       { status: 500 }

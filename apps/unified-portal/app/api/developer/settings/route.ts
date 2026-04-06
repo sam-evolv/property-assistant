@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
       exists: false
     });
   } catch (error) {
-    console.error('[API] GET /api/developer/settings error:', error);
     return NextResponse.json({ error: 'Failed to fetch setting' }, { status: 500 });
   }
 }
@@ -88,15 +87,11 @@ export async function POST(request: NextRequest) {
       });
 
     if (error) {
-      console.error('[API] POST /api/developer/settings error:', error);
       return NextResponse.json({ error: 'Failed to save setting' }, { status: 500 });
     }
 
-    console.log(`[SETTINGS] Saved ${key} for tenant ${session.tenantId}`);
-
     return NextResponse.json({ success: true, key, value });
   } catch (error) {
-    console.error('[API] POST /api/developer/settings error:', error);
     return NextResponse.json({ error: 'Failed to save setting' }, { status: 500 });
   }
 }

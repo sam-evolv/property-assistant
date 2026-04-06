@@ -65,8 +65,8 @@ async function getConnectionWithProvider(connectionId: string, tenantId: string)
         .from('storage_connections')
         .update({ credentials: encryptedCreds })
         .eq('id', connectionId)
-    } catch (err) {
-      console.error('[Data Hub Folders] Token refresh failed:', err)
+    } catch (_err) {
+        // error handled silently
     }
   }
 
@@ -101,7 +101,6 @@ export async function GET(
     if (message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('[Data Hub Folders GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -157,7 +156,6 @@ export async function POST(
     if (message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('[Data Hub Folders POST] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

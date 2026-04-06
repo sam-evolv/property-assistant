@@ -142,7 +142,6 @@ export async function POST(
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error: any) {
-    console.error('Error releasing units:', error);
     return NextResponse.json({ error: error.message || 'Failed to release units' }, { status: 500 });
   }
 }

@@ -30,12 +30,10 @@ async function deriveOrganizationId(
       .single();
     
     if (org) {
-      console.log(`[deriveOrganizationId] Using tenantId from context: ${adminContext.tenantId}`);
       return { organizationId: adminContext.tenantId };
     }
     
     // Fallback: check tenants table and see if there's a matching org
-    console.warn(`[deriveOrganizationId] tenantId ${adminContext.tenantId} not found in organisations table, checking tenants...`);
   }
   
   if (isSuperAdmin(adminContext)) {
@@ -48,7 +46,6 @@ async function deriveOrganizationId(
         .single();
       
       if (org) {
-        console.log(`[deriveOrganizationId] Super-admin using selected org: ${requestedOrgId}`);
         return { organizationId: requestedOrgId };
       }
       
@@ -60,7 +57,6 @@ async function deriveOrganizationId(
         .single();
       
       if (tenant) {
-        console.log(`[deriveOrganizationId] Super-admin using tenant as org (may fail if not in organisations table): ${requestedOrgId}`);
         return { organizationId: requestedOrgId };
       }
     }
@@ -73,12 +69,10 @@ async function deriveOrganizationId(
       .limit(5);
     
     if (orgs && orgs.length === 1) {
-      console.log(`[deriveOrganizationId] Super-admin fallback to single org: ${orgs[0].id} (${orgs[0].name})`);
       return { organizationId: orgs[0].id };
     }
     
     if (orgs && orgs.length > 1) {
-      console.warn(`[deriveOrganizationId] Super-admin has multiple orgs available, none selected`);
       return { 
         organizationId: null, 
         error: 'Multiple organisations available. Please select an organisation to create a project.' 
@@ -93,12 +87,10 @@ async function deriveOrganizationId(
       .limit(5);
     
     if (tenants && tenants.length === 1) {
-      console.log(`[deriveOrganizationId] Super-admin fallback to single tenant: ${tenants[0].id} (${tenants[0].name})`);
       return { organizationId: tenants[0].id };
     }
     
     if (tenants && tenants.length > 1) {
-      console.warn(`[deriveOrganizationId] Super-admin has multiple tenants available, none selected`);
       return { 
         organizationId: null, 
         error: 'Multiple organisations available. Please select an organisation to create a project.' 
@@ -234,7 +226,6 @@ async function materialiseUnitTypes(
             }
           }
         } else {
-          console.error(`[materialiseUnitTypes] Failed to create unit type "${originalName}":`, insertError);
           throw new Error(`Failed to create unit type "${originalName}": ${insertError.message}`);
         }
       } else if (inserted) {
@@ -280,15 +271,12 @@ export async function POST(request: Request) {
     );
     
     if (!organizationId || orgError) {
-      console.error(`[API /projects/create] Organization derivation failed for user ${adminContext.email}:`, orgError);
       return NextResponse.json(
         { error: orgError || 'Cannot determine organisation for project creation.' },
         { status: 400 }
       );
     }
     
-    console.log(`[API /projects/create] User: ${adminContext.email} (${adminContext.id}), Org: ${organizationId}, Project: ${project.name}`);
-
     const { data: projectData, error: projectError } = await supabaseAdmin
       .from('projects')
       .insert({
@@ -301,7 +289,6 @@ export async function POST(request: Request) {
       .single();
 
     if (projectError || !projectData) {
-      console.error('[API /projects/create] Project creation error:', projectError);
       return NextResponse.json({ error: projectError?.message || 'Failed to create project' }, { status: 500 });
     }
 
@@ -314,8 +301,6 @@ export async function POST(request: Request) {
       units || []
     );
     
-    console.log(`[API /projects/create] Materialised ${unitTypesCreated} unit types (${unitTypesEnriched} enriched) for project ${projectId}`);
-
     let unitsCreated = 0;
     let unitsWithMissingType = 0;
     
@@ -326,7 +311,6 @@ export async function POST(request: Request) {
         
         if (!unitTypeId) {
           unitsWithMissingType++;
-          console.warn(`[API /projects/create] Unit "${u.address}" has unmapped type "${u.unit_type_name}"`);
         }
         
         return {
@@ -344,7 +328,6 @@ export async function POST(request: Request) {
         .select();
 
       if (unitsError) {
-        console.error('[API /projects/create] Units error:', unitsError);
         await supabaseAdmin.from('unit_types').delete().eq('project_id', projectId);
         await supabaseAdmin.from('projects').delete().eq('id', projectId);
         return NextResponse.json({ error: unitsError.message || 'Failed to create units' }, { status: 500 });
@@ -352,8 +335,6 @@ export async function POST(request: Request) {
       
       unitsCreated = insertedUnits?.length || 0;
     }
-
-    console.log(`[API /projects/create] Successfully created project ${projectId}: ${unitTypesCreated} unit types, ${unitsCreated} units`);
 
     return NextResponse.json({
       projectId,
@@ -363,16 +344,14 @@ export async function POST(request: Request) {
       unitsWithMissingType,
     });
   } catch (err) {
-    console.error('[API /projects/create] Error:', err);
     
     if (projectId) {
       try {
         await supabaseAdmin.from('units').delete().eq('project_id', projectId);
         await supabaseAdmin.from('unit_types').delete().eq('project_id', projectId);
         await supabaseAdmin.from('projects').delete().eq('id', projectId);
-        console.log(`[API /projects/create] Rolled back project ${projectId}`);
-      } catch (rollbackErr) {
-        console.error('[API /projects/create] Rollback failed:', rollbackErr);
+      } catch (_rollbackErr) {
+          // error handled silently
       }
     }
     

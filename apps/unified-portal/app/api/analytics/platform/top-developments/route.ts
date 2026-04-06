@@ -26,7 +26,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: result.rows });
   } catch (error) {
-    console.error('[API] /api/analytics/platform/top-developments error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch top developments' },
       { status: 500 }

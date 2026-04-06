@@ -137,7 +137,6 @@ export async function GET(request: NextRequest) {
       total: integrations.length,
     });
   } catch (error: any) {
-    console.error('[Cron] Token refresh error:', error);
     return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
 }

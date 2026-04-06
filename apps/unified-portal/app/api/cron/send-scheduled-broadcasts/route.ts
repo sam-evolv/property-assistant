@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
     .lte('scheduled_for', new Date().toISOString());
 
   if (error) {
-    console.error('[CronBroadcasts] Error fetching scheduled broadcasts:', error);
     return NextResponse.json({ error: 'Failed to fetch broadcasts' }, { status: 500 });
   }
 
@@ -81,9 +80,7 @@ export async function GET(request: NextRequest) {
         .eq('id', broadcast.id);
 
       processed++;
-      console.log(`[CronBroadcasts] Sent broadcast ${broadcast.id}: ${sent} delivered`);
     } catch (err) {
-      console.error(`[CronBroadcasts] Failed broadcast ${broadcast.id}:`, err);
 
       await supabase
         .from('broadcasts')

@@ -41,8 +41,8 @@ async function resolveUnitContext(unitId: string | null): Promise<{ tenantId: st
     if (unit) {
       return { tenantId: unit.tenant_id, developmentId: unit.project_id };
     }
-  } catch (e) {
-    console.log('[InfoRequest] Could not resolve unit context:', e);
+  } catch (_e) {
+      // error handled silently
   }
   return { tenantId: null, developmentId: null };
 }
@@ -63,7 +63,6 @@ export async function POST(request: NextRequest) {
     const unitContext = await resolveUnitContext(unitId);
 
     if (!unitContext.tenantId || !unitContext.developmentId) {
-      console.error('[InfoRequest] FAIL: Could not resolve tenant/development for unit:', unitId);
       return NextResponse.json(
         { error: 'Could not resolve unit context. Please try again or contact support.' },
         { status: 422 }
@@ -88,14 +87,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('[InfoRequest] Insert error:', insertError);
       return NextResponse.json(
         { error: 'Failed to submit request' },
         { status: 500 }
       );
     }
-
-    console.log('[InfoRequest] Created new information request:', newRequest?.id);
 
     return NextResponse.json({
       success: true,
@@ -103,7 +99,6 @@ export async function POST(request: NextRequest) {
       message: 'Your question has been submitted. The developer team will review it and add this information to help future residents.',
     });
   } catch (error) {
-    console.error('[InfoRequest] Error creating request:', error);
     return NextResponse.json(
       { error: 'Failed to submit request' },
       { status: 500 }
@@ -142,7 +137,6 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       // Table might not exist - return empty list gracefully
-      console.log('[InfoRequest] Query error (table may not exist):', error.message);
       return NextResponse.json({
         success: true,
         requests: [],
@@ -156,7 +150,6 @@ export async function GET(request: NextRequest) {
       total: requests?.length || 0,
     });
   } catch (error) {
-    console.error('[InfoRequest] Error fetching requests:', error);
     return NextResponse.json(
       { error: 'Failed to fetch requests' },
       { status: 500 }

@@ -29,7 +29,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(costModel);
   } catch (error) {
-    console.error('[API] /api/analytics-v2/cost-model error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch cost model' },
       { status: 500 }

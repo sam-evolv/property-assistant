@@ -51,7 +51,6 @@ export async function GET(
       .limit(24); // Last 24 hours
 
     if (telError) {
-      console.warn('Telemetry fetch failed:', telError);
     }
 
     // For solar systems, optionally fetch real SolarEdge data
@@ -63,7 +62,6 @@ export async function GET(
           installation.telemetry_api_key // decrypted in production
         );
       } catch (error) {
-        console.warn('SolarEdge API fetch failed:', error);
         // Fall back to mock
         const { getMockDailyProfile } = await import('@/lib/care/solarEdgeApi');
         solarData = {
@@ -106,7 +104,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Care API] GET /installations/[id] error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch installation' },
       { status: 500 }
@@ -152,7 +149,6 @@ export async function PUT(
 
     return NextResponse.json({ installation: data });
   } catch (error) {
-    console.error('[Care API] PUT /installations/[id] error:', error);
     return NextResponse.json(
       { error: 'Failed to update installation' },
       { status: 500 }

@@ -65,7 +65,6 @@ export async function GET(request: NextRequest) {
       conversationStats
     });
   } catch (error) {
-    console.error('[Beta Control Room API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch analytics data' },
       { status: 500 }

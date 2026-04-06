@@ -23,8 +23,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Mark Handover] Marking unit as handed over:', unitId);
-
     const supabase = getSupabaseAdmin();
     const now = new Date().toISOString();
 
@@ -34,7 +32,6 @@ export async function POST(req: NextRequest) {
       .eq('id', unitId);
 
     if (unitError) {
-      console.error('[Mark Handover] Failed to update units table:', unitError);
     }
 
     const { error: pipelineError } = await supabase
@@ -43,7 +40,6 @@ export async function POST(req: NextRequest) {
       .eq('unit_id', unitId);
 
     if (pipelineError) {
-      console.error('[Mark Handover] Failed to update pipeline table:', pipelineError);
     }
 
     if (unitError && pipelineError) {
@@ -53,8 +49,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Mark Handover] Successfully marked unit as handed over:', unitId, 'at', now);
-
     return NextResponse.json({
       success: true,
       unitId: unitId,
@@ -62,7 +56,6 @@ export async function POST(req: NextRequest) {
       message: 'Unit marked as handed over'
     });
   } catch (error: any) {
-    console.error('[Mark Handover] Error:', error);
     return NextResponse.json(
       { error: 'Something went wrong. Please try again.' },
       { status: 500 }

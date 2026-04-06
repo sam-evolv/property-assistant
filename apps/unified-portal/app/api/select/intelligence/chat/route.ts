@@ -158,7 +158,6 @@ async function retrieveContext(
 
     return `\n--- BEGIN REFERENCE DATA ---\n${chunks}\n--- END REFERENCE DATA ---`;
   } catch (err) {
-    console.error('[Select Chat] RAG retrieval failed:', err);
     return '';
   }
 }
@@ -257,12 +256,10 @@ export async function POST(request: NextRequest) {
       });
     } catch (logErr) {
       // Non-fatal — log but don't fail the response
-      console.error('[Select Chat] Failed to log message:', logErr);
     }
 
     return NextResponse.json({ content });
   } catch (err) {
-    console.error('[Select Chat] Error:', err);
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
   }
 }

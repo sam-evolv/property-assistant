@@ -18,7 +18,6 @@ export const maxDuration = 120;
 const ALLOWED_MIME_TYPES = ['application/pdf'];
 
 export async function POST(request: NextRequest) {
-  console.log('\n🚀 [FLOORPLAN UPLOAD] Request received at:', new Date().toISOString());
   
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
@@ -54,8 +53,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    console.log(`[FLOORPLAN UPLOAD] Processing ${files.length} files for development: ${development.name}`);
-
     const results: FloorplanUploadResult[] = [];
     const extractionJobs: Promise<void>[] = [];
 
@@ -66,7 +63,6 @@ export async function POST(request: NextRequest) {
 
       const mimeType = file.type || 'application/octet-stream';
       if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-        console.warn(`[FLOORPLAN UPLOAD] Skipping non-PDF file: ${file.name}`);
         results.push({
           success: false,
           houseTypeCode: '',
@@ -78,7 +74,6 @@ export async function POST(request: NextRequest) {
 
       const houseTypeCode = extractHouseTypeCodeFromFilename(file.name);
       if (!houseTypeCode) {
-        console.warn(`[FLOORPLAN UPLOAD] Could not extract house type from: ${file.name}`);
         results.push({
           success: false,
           houseTypeCode: '',
@@ -87,8 +82,6 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-
-      console.log(`[FLOORPLAN UPLOAD] Processing: ${file.name} → House Type: ${houseTypeCode}`);
 
       const buffer = Buffer.from(await file.arrayBuffer());
       
@@ -115,7 +108,6 @@ export async function POST(request: NextRequest) {
           fileName: fileNameCapture,
         }).then(async (extractResult) => {
           if (extractResult.success && extractResult.rawPayload) {
-            console.log(`[FLOORPLAN UPLOAD] OCR extracted ${extractResult.roomsExtracted} rooms from ${fileNameCapture}`);
             
             const dimensions: Record<string, { length?: number; width?: number; area?: number }> = {};
             for (const level of extractResult.rawPayload.levels) {
@@ -133,13 +125,10 @@ export async function POST(request: NextRequest) {
               await db.update(houseTypes)
                 .set({ dimensions })
                 .where(eq(houseTypes.id, houseTypeIdCapture));
-              console.log(`[FLOORPLAN UPLOAD] Stored dimensions in house_types for ${fileNameCapture}`);
             }
           } else {
-            console.log(`[FLOORPLAN UPLOAD] OCR extraction failed for ${fileNameCapture}: ${extractResult.error}`);
           }
         }).catch((err: Error) => {
-          console.error(`[FLOORPLAN UPLOAD] OCR error for ${fileNameCapture}:`, err);
         });
 
         extractionJobs.push(extractionJob);
@@ -147,13 +136,10 @@ export async function POST(request: NextRequest) {
     }
 
     Promise.allSettled(extractionJobs).then(() => {
-      console.log('[FLOORPLAN UPLOAD] All background OCR jobs completed');
     });
 
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
-
-    console.log(`[FLOORPLAN UPLOAD] Complete: ${successful} succeeded, ${failed} failed`);
 
     return NextResponse.json({
       success: true,
@@ -165,7 +151,6 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
-    console.error('[FLOORPLAN UPLOAD] Error:', error);
     
     if (error instanceof Error) {
       if (error.message === 'UNAUTHORIZED') {

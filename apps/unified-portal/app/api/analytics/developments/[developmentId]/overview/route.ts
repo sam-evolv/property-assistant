@@ -40,7 +40,6 @@ export async function GET(
 
     return NextResponse.json(overview);
   } catch (error) {
-    console.error('[API] /api/analytics/developments/[id]/overview error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development overview' },
       { status: 500 }

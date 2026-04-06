@@ -75,7 +75,6 @@ export async function GET(request: NextRequest) {
       insights: insights.slice(0, 2),
     });
   } catch (error) {
-    console.error('[SchemeIntel Insights] Error:', error);
     return Response.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
