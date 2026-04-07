@@ -499,7 +499,7 @@ async function lookupRoomDimensions(
     }
 
     // Helper to parse dimension result
-    const parseDimension = (dim: any): RoomDimensionResult => ({
+    const parseDimension = (dim: { room_name: string; room_key: string; length_m?: string | null; width_m?: string | null; area_sqm?: string | null; ceiling_height_m?: string | null; verified?: boolean; source?: string }): RoomDimensionResult => ({
       found: true,
       roomName: dim.room_name,
       roomKey: dim.room_key,  // Include the actual room_key for debugging
@@ -739,7 +739,7 @@ interface MessagePersistParams {
   question_topic: string;
   source: string;
   latency_ms: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   request_id?: string;
   require_unit_id?: boolean;  // SEV-1: Set true to enforce unit_id requirement
 }
@@ -1057,18 +1057,18 @@ function extractHouseTypeFromFilename(filename: string): string | null {
 }
 
 // Get house type code from chunk metadata (checks multiple locations)
-function getChunkHouseTypeCode(chunk: any): string | null {
+function getChunkHouseTypeCode(chunk: { metadata?: Record<string, unknown>; content?: string }): string | null {
   const metadata = chunk.metadata || {};
-  const drawingClassification = metadata.drawing_classification || {};
-  const fileName = metadata.file_name || metadata.source || '';
-  
-  return metadata.house_type_code || 
-         drawingClassification.houseTypeCode || 
+  const drawingClassification = (metadata.drawing_classification || {}) as Record<string, unknown>;
+  const fileName = (metadata.file_name || metadata.source || '') as string;
+
+  return (metadata.house_type_code as string | null) ||
+         (drawingClassification.houseTypeCode as string | null) ||
          extractHouseTypeFromFilename(fileName);
 }
 
 // Parse embedding from Supabase (may be string, array, or object)
-function parseEmbedding(emb: any): number[] | null {
+function parseEmbedding(emb: unknown): number[] | null {
   if (!emb) return null;
   
   // Already an array
@@ -1676,7 +1676,7 @@ export async function POST(request: NextRequest) {
     if (!userSupabaseProjectId) {
       chatDiagnostics.fallback_reason = 'missing_scheme_id';
       
-      const errorResponse: any = {
+      const errorResponse: Record<string, unknown> = {
         success: true,
         answer: "I'm unable to access your development's knowledge base at the moment. Please try again later or contact your management company for assistance.",
         source: 'tenant_config_error',
@@ -2194,7 +2194,7 @@ export async function POST(request: NextRequest) {
             request_id: requestId,
           });
           
-          const dynamicResponseObj: any = {
+          const dynamicResponseObj: Record<string, unknown> = {
             success: true,
             answer: dynamicResponse,
             source: 'google_places_dynamic',
@@ -2255,7 +2255,7 @@ export async function POST(request: NextRequest) {
           request_id: requestId,
         });
         
-        const fallbackResponseObj: any = {
+        const fallbackResponseObj: Record<string, unknown> = {
           success: true,
           answer: fallbackResponse,
           source: 'amenities_fallback',
@@ -2446,7 +2446,7 @@ export async function POST(request: NextRequest) {
             request_id: requestId,
           });
           
-          const noResultsResponseObj: any = {
+          const noResultsResponseObj: Record<string, unknown> = {
             success: true,
             answer: noResultsResponse,
             source: 'amenities_fallback',
@@ -2554,7 +2554,7 @@ export async function POST(request: NextRequest) {
           destination: transitResult.destination,
         } : null;
 
-        const successResponseObj: any = {
+        const successResponseObj: Record<string, unknown> = {
           success: true,
           answer: poiResponse,
           source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
@@ -2658,7 +2658,7 @@ export async function POST(request: NextRequest) {
           request_id: requestId,
         });
         
-        const errorResponseObj: any = {
+        const errorResponseObj: Record<string, unknown> = {
           success: true,
           answer: errorResponse,
           source: 'amenities_fallback',
@@ -2740,7 +2740,7 @@ export async function POST(request: NextRequest) {
         WHERE tenant_id = ${userTenantId}::uuid 
         AND is_superseded = true
       `);
-      supersededDocIds = new Set((superseded as any[]).map(r => r.id));
+      supersededDocIds = new Set((superseded as { id: string }[]).map(r => r.id));
       if (supersededDocIds.size > 0) {
       }
     } catch (_e) {
@@ -2752,7 +2752,8 @@ export async function POST(request: NextRequest) {
     // Replaces the previous fetch-all-then-cosine-in-JS approach (was loading ~1000+ rows
     // of 1536-dim embeddings into memory on every request).
     
-    let allChunks: any[] | null = null;
+    type DocumentChunk = { id: string; content: string; metadata: Record<string, unknown>; embedding?: unknown; similarity?: number; _pgvector_similarity?: number | null; [key: string]: unknown };
+    let allChunks: DocumentChunk[] | null = null;
     let supabaseError: string | null = null;
 
     const chunkLoadStart = Date.now();
@@ -2780,8 +2781,11 @@ export async function POST(request: NextRequest) {
       } else {
         // RPC returns: { id, content, metadata, similarity }
         // Map similarity onto _pgvector_similarity so the scoring section can use it
-        allChunks = (data || []).map((d: any) => ({
+        allChunks = (data || []).map((d: Record<string, unknown>) => ({
           ...d,
+          id: d.id as string,
+          content: d.content as string,
+          metadata: (d.metadata || {}) as Record<string, unknown>,
           _pgvector_similarity: typeof d.similarity === 'number' ? d.similarity : null,
         }));
       }
@@ -2799,7 +2803,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate similarity scores for ALL chunks
-    let chunks: any[] = [];
+    let chunks: DocumentChunk[] = [];
     if (allChunks && allChunks.length > 0) {
       
       // DRAWING INTENT DETECTION: Only include floor plans if question is about drawings/dimensions
@@ -3014,7 +3018,7 @@ export async function POST(request: NextRequest) {
 
     if (chunks && chunks.length > 0) {
       const referenceData = chunks
-        .map((chunk: any) => {
+        .map((chunk) => {
           const fileName = chunk.metadata?.file_name || chunk.metadata?.source || 'Document';
           const section = chunk.metadata?.section ? `, Section: ${chunk.metadata.section}` : '';
           const page = chunk.metadata?.page_number ? `, p.${chunk.metadata.page_number}` : '';
@@ -3023,7 +3027,7 @@ export async function POST(request: NextRequest) {
         })
         .join('\n---\n');
 
-      const sources = Array.from(new Set(chunks.map((c: any) => c.metadata?.file_name || c.metadata?.source || 'Document')));
+      const sources = Array.from(new Set(chunks.map((c) => (c.metadata?.file_name || c.metadata?.source || 'Document') as string)));
 
       systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
 
@@ -3124,8 +3128,8 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         placesApiWorking: !!process.env.GOOGLE_PLACES_API_KEY,
         hasSessionMemory: isSessionMemoryEnabled() && hasRelevantMemory(sessionMemory),
         hasUnitInfo: !!userUnitDetails?.unitInfo,
-        hasFloorPlans: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('floor')),
-        hasDrawings: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('drawing')),
+        hasFloorPlans: chunks.some((c) => (c.metadata?.file_name as string | undefined)?.toLowerCase().includes('floor')),
+        hasDrawings: chunks.some((c) => (c.metadata?.file_name as string | undefined)?.toLowerCase().includes('drawing')),
         isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
       });
     } else {
@@ -3773,7 +3777,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
       if (capabilityContext && isNextBestActionEnabled()) {
         const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as any);
+        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as string);
         fullAnswer = nbaResult.response;
         nbaSuggestionUsed = nbaResult.suggestionUsed;
         nbaDebugInfo = nbaResult.debugInfo;
@@ -3812,7 +3816,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             isPlaybook: false,
             isSchemeProfile: false,
           },
-          citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+          citations: chunks?.slice(0, 3).map((c) => (c.metadata?.file_name as string) || 'document'),
         };
         
         firewallResult = enforceGrounding(firewallInput);
@@ -3914,7 +3918,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           };
           
           // Check if document is relevant to the question topic
-          const isDocumentRelevantToTopic = (fileName: string, chunk: any, topic: string | null): boolean => {
+          const isDocumentRelevantToTopic = (fileName: string, chunk: DocumentChunk, topic: string | null): boolean => {
             const lower = fileName.toLowerCase();
             const chunkContent = (chunk.content || '').toLowerCase();
             const docCategory = (chunk.metadata?.category || '').toLowerCase();
@@ -4064,7 +4068,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
           if (capabilityContext && isNextBestActionEnabled()) {
             const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as any);
+            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as string);
 
             if (streamNbaResult.suggestionUsed) {
               streamNbaSuggestion = streamNbaResult.suggestionUsed;
@@ -4133,7 +4137,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
                 hasApprovedFacts: false,
                 schemeId: DEFAULT_DEVELOPMENT_ID,
               },
-              citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+              citations: chunks?.slice(0, 3).map((c) => (c.metadata?.file_name as string) || 'document'),
             };
             
             streamFirewallResult = enforceGrounding(streamFirewallInput);
