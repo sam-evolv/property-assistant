@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
-import * as xlsx from 'xlsx';
+import { readExcel, readCsv, sheetToJson } from '@/lib/excel-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -105,13 +105,13 @@ export async function POST(
 
     if (fileName.endsWith('.csv')) {
       const text = buffer.toString('utf-8');
-      const workbook = xlsx.read(text, { type: 'string' });
+      const workbook = await readCsv(text);
       const sheetName = workbook.SheetNames[0];
-      rawRows = xlsx.utils.sheet_to_json<RawRow>(workbook.Sheets[sheetName]);
+      rawRows = sheetToJson<RawRow>(workbook.Sheets[sheetName]);
     } else {
-      const workbook = xlsx.read(buffer, { type: 'buffer' });
+      const workbook = await readExcel(buffer);
       const sheetName = workbook.SheetNames[0];
-      rawRows = xlsx.utils.sheet_to_json<RawRow>(workbook.Sheets[sheetName]);
+      rawRows = sheetToJson<RawRow>(workbook.Sheets[sheetName]);
     }
 
     if (rawRows.length === 0) {

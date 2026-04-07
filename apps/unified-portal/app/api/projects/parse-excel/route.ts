@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import * as XLSX from 'xlsx';
+import { readExcel, sheetToJson } from '@/lib/excel-utils';
 
 interface UnitTypeRow {
   name: string;
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const workbook = await readExcel(buffer);
     
     const errors: string[] = [];
     const unitTypesFromSheet: UnitTypeRow[] = [];
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     
     if (hasExplicitUnitTypesSheet) {
       const unitTypesSheet = workbook.Sheets['unit_types'];
-      const unitTypesData = XLSX.utils.sheet_to_json(unitTypesSheet) as any[];
+      const unitTypesData = sheetToJson(unitTypesSheet) as any[];
       for (const row of unitTypesData) {
         const name = row.name || row.Name || row.type || row.Type;
         if (name) {
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     
     const unitsSheet = workbook.Sheets['units'] || workbook.Sheets[workbook.SheetNames[0]];
     if (unitsSheet) {
-      const unitsData = XLSX.utils.sheet_to_json(unitsSheet) as any[];
+      const unitsData = sheetToJson(unitsSheet) as any[];
       for (let i = 0; i < unitsData.length; i++) {
         const row = unitsData[i];
         const address = row.address || row.Address || row.unit_address || row.unit_number || row.unit || row.Unit || row.plot;

@@ -5,7 +5,7 @@ import { db } from '@openhouse/db';
 import { units, developments, houseTypes } from '@openhouse/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { parse } from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
+import { readExcel, sheetToJson } from '@/lib/excel-utils';
 import { nanoid } from 'nanoid';
 import {
   mapAllColumns,
@@ -51,9 +51,9 @@ async function parseFile(file: File): Promise<any[]> {
   if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
     // Parse XLSX
     const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'buffer' });
+    const workbook = await readExcel(arrayBuffer);
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+    return sheetToJson(firstSheet, { defval: '' });
   } else {
     // Parse CSV
     const text = await file.text();

@@ -5,7 +5,7 @@ import { getServerSession } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { developments, units } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
-import * as xlsx from 'xlsx';
+import { readExcel, readCsv, sheetToJson } from '@/lib/excel-utils';
 
 export const runtime = 'nodejs';
 
@@ -126,13 +126,13 @@ export async function POST(
 
     if (fileName.endsWith('.csv')) {
       const text = buffer.toString('utf-8');
-      const workbook = xlsx.read(text, { type: 'string' });
+      const workbook = await readCsv(text);
       const sheetName = workbook.SheetNames[0];
-      rows = xlsx.utils.sheet_to_json<CSVRow>(workbook.Sheets[sheetName]);
+      rows = sheetToJson<CSVRow>(workbook.Sheets[sheetName]);
     } else {
-      const workbook = xlsx.read(buffer, { type: 'buffer' });
+      const workbook = await readExcel(buffer);
       const sheetName = workbook.SheetNames[0];
-      rows = xlsx.utils.sheet_to_json<CSVRow>(workbook.Sheets[sheetName]);
+      rows = sheetToJson<CSVRow>(workbook.Sheets[sheetName]);
     }
 
     const result: ImportResult = {

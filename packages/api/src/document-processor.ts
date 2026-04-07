@@ -460,18 +460,17 @@ export class DocumentProcessor {
   }
 
   private static async extractExcelText(buffer: Buffer): Promise<string> {
-    const XLSX = require('xlsx');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
     let text = '';
 
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-      
-      text += `\n\n=== Sheet: ${sheetName} ===\n\n`;
-      for (const row of sheetData as any[][]) {
-        text += row.join(' | ') + '\n';
-      }
+    for (const worksheet of workbook.worksheets) {
+      text += `\n\n=== Sheet: ${worksheet.name} ===\n\n`;
+      worksheet.eachRow({ includeEmpty: false }, (row: any) => {
+        const vals = (row.values as any[])?.slice(1) || [];
+        text += vals.map((v: any) => (v != null ? String(v) : '')).join(' | ') + '\n';
+      });
     }
 
     return text.replace(/\s+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
