@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LineChart } from '@/components/admin-enterprise/charts/LineChart';
-import { BarChart } from '@/components/admin-enterprise/charts/BarChart';
+import { DynamicEnterpriseLineChart, DynamicEnterpriseBarChart } from '@/lib/dynamic-imports';
 
 interface DevelopmentAnalytics {
   timeline: {
@@ -133,7 +132,7 @@ export default function DevelopmentAnalyticsClient({
                   ))}
                 </div>
               </div>
-              <LineChart
+              <DynamicEnterpriseLineChart
                 data={chartData}
                 xKey="name"
                 lines={[{ key: 'value', color: '#D4AF37', name: 'Messages' }]}
@@ -147,7 +146,7 @@ export default function DevelopmentAnalyticsClient({
                   <span className="h-1 w-8 bg-gradient-to-r from-gold-400 to-gold-600 rounded"></span>
                   Document Upload Timeline
                 </h2>
-                <LineChart
+                <DynamicEnterpriseLineChart
                   data={documentData}
                   xKey="name"
                   lines={[{ key: 'value', color: '#3B82F6', name: 'Documents' }]}
@@ -160,7 +159,7 @@ export default function DevelopmentAnalyticsClient({
                   <span className="h-1 w-8 bg-gradient-to-r from-gold-400 to-gold-600 rounded"></span>
                   Homeowner Onboarding
                 </h2>
-                <BarChart
+                <DynamicEnterpriseBarChart
                   data={homeownerData}
                   xKey="name"
                   bars={[{ key: 'value', color: '#10B981', name: 'Homeowners' }]}

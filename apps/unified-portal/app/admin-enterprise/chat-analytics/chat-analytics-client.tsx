@@ -6,8 +6,7 @@ import { MessageSquare, TrendingUp, AlertCircle, DollarSign, Clock, Zap } from '
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { LoadingSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
-import { LineChart } from '@/components/admin-enterprise/charts/LineChart';
-import { BarChart } from '@/components/admin-enterprise/charts/BarChart';
+import { DynamicEnterpriseLineChart, DynamicEnterpriseBarChart } from '@/lib/dynamic-imports';
 
 interface ChatMetrics {
   total_messages: number;
@@ -146,7 +145,7 @@ export function ChatAnalytics() {
             <TrendingUp className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Daily Message Volume</h3>
           </div>
-          <LineChart
+          <DynamicEnterpriseLineChart
             data={messageVolumeData}
             xKey="date"
             lines={[{ key: 'messages', color: '#D4AF37', name: 'Messages' }]}
@@ -160,7 +159,7 @@ export function ChatAnalytics() {
             <DollarSign className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Daily Cost Trend</h3>
           </div>
-          <LineChart
+          <DynamicEnterpriseLineChart
             data={costByDayData}
             xKey="date"
             lines={[{ key: 'cost', color: '#B8934C', name: 'Cost (USD)' }]}
@@ -175,7 +174,7 @@ export function ChatAnalytics() {
           <MessageSquare className="w-5 h-5 text-gold-600" />
           <h3 className="text-lg font-semibold text-gray-900">Top 10 Questions</h3>
         </div>
-        <BarChart
+        <DynamicEnterpriseBarChart
           data={topQuestionsData}
           xKey="question"
           bars={[{ key: 'count', color: '#8b5cf6', name: 'Frequency' }]}

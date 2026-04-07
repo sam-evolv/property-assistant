@@ -5,8 +5,7 @@ import { Database, AlertTriangle, FileX, Package, Activity } from 'lucide-react'
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { LoadingSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
-import { BarChart } from '@/components/admin-enterprise/charts/BarChart';
-import { LineChart } from '@/components/admin-enterprise/charts/LineChart';
+import { DynamicEnterpriseBarChart, DynamicEnterpriseLineChart } from '@/lib/dynamic-imports';
 
 interface RAGMetrics {
   total_chunks: number;
@@ -150,7 +149,7 @@ export function RAGAnalytics() {
             <Database className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Top 10 Developments by Chunks</h3>
           </div>
-          <BarChart
+          <DynamicEnterpriseBarChart
             data={chunksPerDevelopmentData}
             xKey="name"
             bars={[
@@ -167,7 +166,7 @@ export function RAGAnalytics() {
             <FileX className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Chunks by Document Type</h3>
           </div>
-          <BarChart
+          <DynamicEnterpriseBarChart
             data={chunksByTypeData}
             xKey="type"
             bars={[{ key: 'count', color: '#D4AF37', name: 'Chunks' }]}

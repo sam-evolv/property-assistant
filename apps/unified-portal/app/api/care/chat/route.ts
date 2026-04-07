@@ -377,7 +377,7 @@ export async function POST(request: NextRequest) {
     // Get installation
     const { data: installation, error: instErr } = await supabase
       .from('installations')
-      .select('*')
+      .select('id, system_type, system_model, capacity, system_specs, component_specs, performance_baseline, health_status, installation_date, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, homeowner_email, serial_number, telemetry_source, telemetry_api_key')
       .eq('id', installationId)
       .single();
 

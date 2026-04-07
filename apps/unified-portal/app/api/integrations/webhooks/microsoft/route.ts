@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         // Find integration by subscription ID stored in external_ref metadata
         const { data: integrations } = await supabase
           .from('integrations')
-          .select('*')
+          .select('id, tenant_id, credentials, external_ref')
           .in('type', ['excel_onedrive', 'excel_sharepoint'])
           .eq('status', 'connected');
 

@@ -3,7 +3,7 @@ import { db } from '@openhouse/db';
 import { analyticsEvents } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 // Event types that count as "Documents Served" - matches event-types.ts definition
 const DOCUMENT_SERVED_EVENT_TYPES = [

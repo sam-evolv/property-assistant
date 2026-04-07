@@ -73,7 +73,7 @@ export async function PATCH(
 
     const { data: existing } = await supabase
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id')
       .eq('unit_id', unitId)
       .eq('tenant_id', tenantId)
       .eq('development_id', developmentId)
