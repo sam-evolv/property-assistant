@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import NotificationPanel from './NotificationPanel';
 import type { Notification } from './NotificationPanel';
 import { BUYERS, AGENT_STATS } from '@/lib/agent/demo-data';
@@ -150,7 +150,7 @@ export default function StatusBar({
     if (!hasEnv) return;
 
     async function fetchContexts() {
-      const supabase = createClientComponentClient();
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -423,7 +423,7 @@ export default function StatusBar({
               <button
                 onClick={async () => {
                   setShowSwitcher(false);
-                  const supabase = createClientComponentClient();
+                  const supabase = createClient();
                   await supabase.auth.signOut();
                   router.push('/login/agent');
                 }}

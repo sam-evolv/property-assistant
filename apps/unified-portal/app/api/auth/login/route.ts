@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -16,8 +15,7 @@ export async function POST(request: NextRequest) {
     
     console.log('[AUTH LOGIN] Starting login attempt for:', email);
     
-    const cookieStore = await cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = await createClient();
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,

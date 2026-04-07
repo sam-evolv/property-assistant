@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { useCareApp } from '../care-app-provider';
 import {
   Sparkles, MapPin, Home, FileText, Bookmark,
@@ -17,7 +17,7 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/login');
   };

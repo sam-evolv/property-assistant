@@ -1,4 +1,4 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -158,9 +158,24 @@ export async function middleware(req: NextRequest) {
 
   let user: { email?: string | null } | null = null;
   let error: unknown = null;
+  let response = res;
 
   try {
-    const supabase = createMiddlewareClient({ req, res });
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return req.cookies.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+            response = NextResponse.next({ request: req });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options));
+          },
+        },
+      }
+    );
     const authResult = await supabase.auth.getUser();
     user = authResult.data.user;
     error = authResult.error;
@@ -169,7 +184,7 @@ export async function middleware(req: NextRequest) {
 
     if (!isAuthenticated) {
       if (isLoginPage || isAccessPendingPage || isPublicPath(pathname)) {
-        return res;
+        return response;
       }
       // Route to product-specific login pages
       let loginPath = '/login';
@@ -185,12 +200,12 @@ export async function middleware(req: NextRequest) {
 
     if (isAuthenticated && isLoginPage) {
       const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
-      
+
       if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
         return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
       }
-      
-      return res;
+
+      return response;
     }
 
     if (isAuthenticated && isProtectedPath(pathname)) {
@@ -228,10 +243,10 @@ export async function middleware(req: NextRequest) {
       }
       return NextResponse.redirect(new URL(loginPath, req.url));
     }
-    return res;
+    return response;
   }
 
-  return res;
+  return response;
 }
 
 export const config = {

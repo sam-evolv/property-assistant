@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV === 'production') {
@@ -12,7 +11,7 @@ export async function POST(request: Request) {
   try {
     const { email } = await request.json();
     
-    const supabase = createServerComponentClient({ cookies });
+    const supabase = await createClient();
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,

@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 // ── Types ──
 
@@ -140,7 +140,7 @@ function unitNumberSort(a: string, b: string): number {
 
 // ── Service functions ──
 
-const supabase = createClientComponentClient();
+const supabase = createClient();
 
 // Get agent profile: try auth first, fallback to first profile in DB
 export async function getAgentProfile(preview?: string): Promise<AgentProfile | null> {

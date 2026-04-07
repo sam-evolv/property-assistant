@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import LoginCard from '../_components/LoginCard';
 import {
   inputClassName, inputStyle, labelClassName, labelStyle,
@@ -23,7 +23,7 @@ export default function AgentLogin() {
   const hasSupabaseClientEnv =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
+  const supabase = hasSupabaseClientEnv ? createClient() : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

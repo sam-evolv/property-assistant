@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -47,7 +47,7 @@ function DeveloperLoginForm() {
   const hasSupabaseClientEnv =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
+  const supabase = hasSupabaseClientEnv ? createClient() : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

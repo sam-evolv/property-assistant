@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { getResendClient, sendOnboardingSubmissionNotification } from '@/lib/resend';
 
 export const dynamic = 'force-dynamic';
@@ -92,8 +91,7 @@ async function uploadFile(
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const authClient = createRouteHandlerClient({ cookies: () => cookieStore });
+    const authClient = await createServerClient();
     const supabaseAdmin = getSupabaseAdmin();
     
     const { data: { session }, error: sessionError } = await authClient.auth.getSession();

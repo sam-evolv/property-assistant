@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { createClient } from '@supabase/supabase-js';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -60,9 +59,8 @@ export async function POST(request: NextRequest) {
       // Extract the token from the generated link
       const token = linkData.properties?.hashed_token;
 
-      // Exchange the token for a session using the route handler client
-      const cookieStore = await cookies();
-      const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+      // Exchange the token for a session using the server client
+      const supabase = await createServerClient();
 
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         token_hash: token,
@@ -116,8 +114,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Sign in with password
-      const cookieStore = await cookies();
-      const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+      const supabase = await createServerClient();
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
