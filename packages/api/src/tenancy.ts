@@ -48,7 +48,6 @@ export async function resolveTenantBySlug(slug: string): Promise<Tenant | null> 
     
     return result[0] as Tenant;
   } catch (error) {
-    console.error('Error resolving tenant:', error);
     return null;
   }
 }

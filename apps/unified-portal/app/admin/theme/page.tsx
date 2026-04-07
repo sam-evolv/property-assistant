@@ -30,7 +30,7 @@ export default async function ThemeConfigPage() {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('*')
+    .select('id, name')
     .eq('id', user.tenant_id)
     .single();
 

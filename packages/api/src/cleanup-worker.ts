@@ -72,11 +72,8 @@ export async function cleanupExpiredCache(): Promise<void> {
       sessionsDeleted = sessionsResult.rowCount || 0;
     }
     
-    if (cacheDeleted > 0 || rateLimitsDeleted > 0 || sessionsDeleted > 0) {
-      console.log(`[Cleanup] Removed ${cacheDeleted} expired cache entries, ${rateLimitsDeleted} expired rate limits, ${sessionsDeleted} old sessions`);
-    }
   } catch (error) {
-    console.error('[Cleanup] Error cleaning up expired entries:', error);
+    // Cleanup failed silently
   }
 }
 
@@ -93,14 +90,11 @@ export function startCleanupWorker(intervalMinutes: number = 5): void {
     () => cleanupExpiredCache(),
     intervalMinutes * 60 * 1000
   );
-
-  console.log(`[Cleanup Worker] Started with ${intervalMinutes} minute interval`);
 }
 
 export function stopCleanupWorker(): void {
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
-    console.log('[Cleanup Worker] Stopped');
   }
 }

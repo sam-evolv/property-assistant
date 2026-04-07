@@ -104,7 +104,7 @@ export async function PATCH(
     // Get existing pipeline record using Supabase
     const { data: existingPipeline, error: fetchError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date, purchaser_name, purchaser_email, purchaser_phone, housing_agency, sale_price')
       .eq('tenant_id', tenantId)
       .eq('unit_id', unitId)
       .single();
@@ -119,7 +119,7 @@ export async function PATCH(
       // Get unit to verify it exists
       const { data: unit, error: unitError } = await supabaseAdmin
         .from('units')
-        .select('*')
+        .select('id, purchaser_name, purchaser_email, purchaser_phone')
         .eq('tenant_id', tenantId)
         .eq('id', unitId)
         .eq('development_id', developmentId)
@@ -239,7 +239,7 @@ export async function PATCH(
         // Fetch the updated pipeline record
         const { data: updatedPipeline } = await supabaseAdmin
           .from('unit_sales_pipeline')
-          .select('*')
+          .select('sale_agreed_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
           .eq('id', pipelineId)
           .single();
 
@@ -415,7 +415,7 @@ export async function GET(
     // Get unit using Supabase
     const { data: unit, error: unitError } = await supabaseAdmin
       .from('units')
-      .select('*')
+      .select('id, unit_number, address_line_1, house_type_code, purchaser_name, purchaser_email, purchaser_phone')
       .eq('tenant_id', tenantId)
       .eq('id', unitId)
       .eq('development_id', developmentId)
@@ -428,7 +428,7 @@ export async function GET(
     // Get pipeline data using Supabase
     const { data: pipeline, error: pipelineError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, purchaser_name, purchaser_email, purchaser_phone, sale_type, housing_agency, sale_price, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
       .eq('tenant_id', tenantId)
       .eq('unit_id', unitId)
       .single();

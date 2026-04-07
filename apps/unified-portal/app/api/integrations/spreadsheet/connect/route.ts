@@ -90,7 +90,7 @@ async function handleAnalyzeSpreadsheet(
   // Fetch integration
   const { data: integration } = await supabase
     .from('integrations')
-    .select('*')
+    .select('id, tenant_id, type, credentials, external_ref')
     .eq('id', integration_id)
     .eq('tenant_id', tenantId)
     .single();

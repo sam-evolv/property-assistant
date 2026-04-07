@@ -221,7 +221,7 @@ export async function dispatchWebhookEvent(
   // Find all active webhooks subscribed to this event
   const { data: webhooks } = await supabase
     .from('webhooks')
-    .select('*')
+    .select('id, tenant_id, url, secret, events, development_ids, is_active, consecutive_failures, max_failures')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .contains('events', [eventType]);
@@ -248,7 +248,7 @@ export async function retryPendingDeliveries() {
 
   const { data: pending } = await supabase
     .from('webhook_deliveries')
-    .select('*, webhooks(*)')
+    .select('id, webhook_id, event_type, payload, status, attempt_number, webhooks(id, tenant_id, url, secret, events, development_ids, is_active, consecutive_failures, max_failures)')
     .eq('status', 'pending')
     .lte('next_retry_at', new Date().toISOString())
     .limit(50);

@@ -33,7 +33,6 @@ export async function checkRateLimit(
     
     return { allowed: true, remaining: remaining - 1 };
   } catch (error) {
-    console.error('Rate limit check error:', error);
     return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW };
   }
 }

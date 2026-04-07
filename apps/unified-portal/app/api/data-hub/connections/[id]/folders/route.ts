@@ -41,7 +41,7 @@ async function getConnectionWithProvider(connectionId: string, tenantId: string)
 
   const { data: connection } = await supabase
     .from('storage_connections')
-    .select('*')
+    .select('id, tenant_id, provider, credentials')
     .eq('id', connectionId)
     .eq('tenant_id', tenantId)
     .single()

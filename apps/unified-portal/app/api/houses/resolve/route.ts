@@ -440,7 +440,7 @@ export async function POST(req: Request) {
           const supabase = getSupabaseClient();
           const { data: pipeline } = await supabase
             .from('unit_sales_pipeline')
-            .select('*')
+            .select('sale_agreed_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
             .eq('unit_id', supabaseUnit.id)
             .single();
           

@@ -15,25 +15,15 @@ async function getProjectIdFromDevelopmentId(developmentId: string): Promise<str
   try {
     const supabase = getSupabaseClient();
     
-    console.log('[RETRIEVAL] === MAPPING development_id to project_id ===');
-    console.log('[RETRIEVAL] Input development_id:', developmentId);
-    
     const { data: development, error: devError } = await supabase
       .from('developments')
       .select('id, name')
       .eq('id', developmentId)
       .single();
     
-    if (devError) {
-      console.log('[RETRIEVAL] Development lookup error:', devError.message);
-    }
-    
     if (!development) {
-      console.log('[RETRIEVAL] Development not found for id:', developmentId);
       return null;
     }
-    
-    console.log('[RETRIEVAL] Found development name:', development.name);
     
     const { data: project, error: projError } = await supabase
       .from('projects')
@@ -41,15 +31,8 @@ async function getProjectIdFromDevelopmentId(developmentId: string): Promise<str
       .eq('name', development.name)
       .single();
     
-    if (projError) {
-      console.log('[RETRIEVAL] Project lookup error:', projError.message);
-    }
-    
-    console.log('[RETRIEVAL] Mapped to project_id:', project?.id || 'NOT FOUND');
-    
     return project?.id || null;
   } catch (error) {
-    console.error('[RETRIEVAL] Failed to map development to project:', error);
     return null;
   }
 }
@@ -62,9 +45,6 @@ async function searchDocumentSections(
   try {
     const supabase = getSupabaseClient();
     
-    console.log('[RETRIEVAL] === SEARCHING document_sections ===');
-    console.log('[RETRIEVAL] Searching with project_id:', projectId);
-    
     const { data: sections, error } = await supabase
       .from('document_sections')
       .select('id, content, project_id')
@@ -73,17 +53,12 @@ async function searchDocumentSections(
       .limit(limit);
     
     if (error) {
-      console.log('[RETRIEVAL] document_sections query error:', error.message);
       return [];
     }
-    
+
     if (!sections || sections.length === 0) {
-      console.log('[RETRIEVAL] No document_sections found for project:', projectId);
       return [];
     }
-    
-    console.log('[RETRIEVAL] Found', sections.length, 'document_sections');
-    console.log('[RETRIEVAL] First result preview:', sections[0]?.content?.substring(0, 100));
     
     return sections.map((section: any) => ({
       id: section.id,
@@ -94,7 +69,6 @@ async function searchDocumentSections(
       metadata: { source: 'document_sections', project_id: section.project_id },
     }));
   } catch (error) {
-    console.error('[RETRIEVAL] Failed to search document_sections:', error);
     return [];
   }
 }
@@ -297,24 +271,9 @@ export async function getRelevantChunks(
 ): Promise<RelevantChunk[]> {
   const { developmentId, tenantId, query, houseTypeCode, limit = 12 } = params;
 
-  console.log(`[RETRIEVAL] Searching chunks for development: ${developmentId}`);
-  console.log(`[RETRIEVAL] Tenant ID: ${tenantId}`);
-  console.log(`[RETRIEVAL] Original query: "${query}"`);
-
-  if (houseTypeCode) {
-    console.log(`[RETRIEVAL] Filtering by house_type_code: ${houseTypeCode}`);
-  }
-
   // Expand the query with related terms for better recall
   const expandedQuery = expandQuery(query);
   const queryIntent = detectQueryIntent(query);
-
-  if (expandedQuery !== query) {
-    console.log(`[RETRIEVAL] Expanded query: "${expandedQuery}"`);
-  }
-  if (queryIntent.length > 0) {
-    console.log(`[RETRIEVAL] Detected intents: ${queryIntent.join(', ')}`);
-  }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -396,14 +355,6 @@ export async function getRelevantChunks(
         LIMIT ${limit}
       `);
 
-  console.log(`[RETRIEVAL] Found ${results.rows.length} relevant chunks from doc_chunks`);
-
-  // Log top results for debugging
-  if (results.rows.length > 0) {
-    const topSimilarity = parseFloat((results.rows[0] as any).similarity) || 0;
-    console.log(`[RETRIEVAL] Top similarity score: ${topSimilarity.toFixed(4)}`);
-  }
-
   let chunks: RelevantChunk[] = results.rows.map((row: any) => ({
     id: row.id,
     content: row.content,
@@ -417,13 +368,9 @@ export async function getRelevantChunks(
   // This catches content that exists in document_sections but not in doc_chunks
   const minResultsThreshold = 3;
   if (chunks.length < minResultsThreshold) {
-    console.log(`[RETRIEVAL] Fewer than ${minResultsThreshold} results, searching document_sections...`);
-    
     const projectId = await getProjectIdFromDevelopmentId(developmentId);
-    
+
     if (projectId) {
-      console.log(`[RETRIEVAL] Mapped development ${developmentId} to project ${projectId}`);
-      
       const docSectionChunks = await searchDocumentSections(projectId, queryEmbedding, limit);
       
       if (docSectionChunks.length > 0) {
@@ -434,10 +381,7 @@ export async function getRelevantChunks(
         );
         
         chunks = [...chunks, ...newChunks];
-        console.log(`[RETRIEVAL] Added ${newChunks.length} chunks from document_sections`);
       }
-    } else {
-      console.log(`[RETRIEVAL] Could not map development_id to project_id`);
     }
   }
 

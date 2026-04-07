@@ -44,7 +44,7 @@ export async function PATCH(
     // Get and verify the note exists and belongs to this tenant
     const { data: existingNote, error: fetchError } = await supabaseAdmin
       .from('unit_pipeline_notes')
-      .select('*')
+      .select('id')
       .eq('id', noteId)
       .eq('tenant_id', tenantId)
       .eq('unit_id', unitId)

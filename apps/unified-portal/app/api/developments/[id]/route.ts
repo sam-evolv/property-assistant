@@ -38,7 +38,7 @@ export async function GET(
     // Fallback: try Supabase projects table
     const { data: project, error } = await supabaseAdmin
       .from('projects')
-      .select('*')
+      .select('id, name, tenant_id, created_at, project_type')
       .eq('id', params.id)
       .single();
 
@@ -58,7 +58,7 @@ export async function GET(
     // Try with real project ID as last resort
     const { data: realProject } = await supabaseAdmin
       .from('projects')
-      .select('*')
+      .select('id, name, tenant_id, created_at, project_type')
       .eq('id', REAL_PROJECT_ID)
       .single();
 

@@ -200,7 +200,7 @@ export async function GET(
     } catch (e) {
       const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
         .from('units')
-        .select('*')
+        .select('id, unit_number, address_line_1, unit_uid, house_type_code, property_designation, property_type, bedrooms, bathrooms, square_footage, floor_area_m2, purchaser_name, purchaser_email, purchaser_phone')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .order('unit_number', { ascending: true });
@@ -221,7 +221,7 @@ export async function GET(
         // Get PC sum config for this development
         const { data: configData } = await supabaseAdmin
           .from('kitchen_selection_options')
-          .select('*')
+          .select('pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes')
           .eq('tenant_id', tenantId)
           .eq('development_id', developmentId)
           .single();
@@ -231,7 +231,7 @@ export async function GET(
         // Kitchen data is now stored directly in unit_sales_pipeline
         const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
           .from('unit_sales_pipeline')
-          .select('*')
+          .select('id, unit_id, purchaser_name, purchaser_email, purchaser_phone, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date, queries_raised_date, queries_replied_date, sale_type, housing_agency, sale_price, kitchen_selected, kitchen_counter, kitchen_cabinet, kitchen_handle, kitchen_wardrobes, kitchen_notes')
           .eq('tenant_id', tenantId)
           .eq('development_id', developmentId);
 
@@ -439,7 +439,7 @@ export async function POST(
     if (existingUnits.length === 0) {
       const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
         .from('units')
-        .select('*')
+        .select('id, purchaser_name, purchaser_email, purchaser_phone')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .in('id', unitIds);

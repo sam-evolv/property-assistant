@@ -130,7 +130,6 @@ async function renderPDFPageToBase64(buffer: Buffer, pageIndex: number): Promise
     
     return Buffer.from(imageData).toString('base64');
   } catch (error) {
-    console.error(`❌ Failed to render page ${pageIndex}:`, error);
     return null;
   }
 }
@@ -177,7 +176,6 @@ async function extractWithVision(imageBase64: string): Promise<{
     const parsed = JSON.parse(jsonStr);
     return { data: parsed, raw_response: rawContent };
   } catch {
-    console.error('❌ Failed to parse vision response as JSON:', rawContent);
     return {
       data: {
         rooms: [],
@@ -265,7 +263,6 @@ export async function extractWithGPT4Vision(
   const maxPages = options.maxPages || MAX_PAGES_PER_DOCUMENT;
   
   if (!options.forceExtraction && !isFloorplanDocument(fileName, documentType)) {
-    console.log(`⏭️ Skipping vision extraction for non-floorplan document: ${fileName}`);
     return {
       rooms: [],
       suppliers: [],
@@ -277,54 +274,36 @@ export async function extractWithGPT4Vision(
     };
   }
   
-  console.log(`\n🔍 GPT-4o VISION EXTRACTION: ${fileName}`);
-  console.log(`   Document Type: ${documentType}`);
-  console.log(`   Max Pages: ${maxPages}`);
-  
   let numPages = 1;
   try {
     const uint8Array = new Uint8Array(buffer);
     const pdf = await getDocumentProxy(uint8Array);
     numPages = Math.min(pdf.numPages, maxPages);
-    console.log(`   PDF Pages: ${pdf.numPages} (processing first ${numPages})`);
   } catch (error) {
-    console.log(`   Note: Could not get page count, will try as single image`);
+    // Could not get page count, will try as single image
   }
   
   const pageExtractions: any[] = [];
   let totalCost = 0;
   
   for (let pageIndex = 0; pageIndex < numPages; pageIndex++) {
-    console.log(`\n   Processing page ${pageIndex + 1}/${numPages}...`);
-    
     try {
       const imageBase64 = await renderPDFPageToBase64(buffer, pageIndex);
       
       if (!imageBase64) {
-        console.log(`   ⚠️ Could not render page ${pageIndex + 1}`);
         continue;
       }
       
       const { data, raw_response } = await extractWithVision(imageBase64);
       pageExtractions.push(data);
       totalCost += COST_PER_IMAGE_CENTS;
-      
-      console.log(`   ✅ Page ${pageIndex + 1}: ${data.rooms?.length || 0} rooms, ${data.suppliers?.length || 0} suppliers`);
-      
     } catch (error) {
-      console.error(`   ❌ Error processing page ${pageIndex + 1}:`, error);
+      // Error processing page, continue with next
     }
   }
   
   const merged = mergeExtractions(pageExtractions);
   const processingTime = Date.now() - startTime;
-  
-  console.log(`\n📊 VISION EXTRACTION COMPLETE`);
-  console.log(`   Total Rooms: ${merged.rooms.length}`);
-  console.log(`   Total Suppliers: ${merged.suppliers.length}`);
-  console.log(`   Pages Processed: ${pageExtractions.length}`);
-  console.log(`   Cost: ${totalCost} cents`);
-  console.log(`   Time: ${processingTime}ms\n`);
   
   try {
     await db.insert(intel_extractions).values({
@@ -347,7 +326,7 @@ export async function extractWithGPT4Vision(
       status: 'completed',
     });
   } catch (error) {
-    console.error('❌ Failed to save extraction record:', error);
+    // Failed to save extraction record
   }
   
   return {

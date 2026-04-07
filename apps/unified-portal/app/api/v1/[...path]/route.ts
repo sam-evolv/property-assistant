@@ -172,9 +172,9 @@ async function getAnalytics(ctx: ApiKeyContext, developmentId: string): Promise<
 
   // Get basic analytics
   const [unitsResult, messagesResult, docsResult] = await Promise.all([
-    supabase.from('units').select('*', { count: 'exact', head: true }).eq('development_id', developmentId),
-    supabase.from('messages').select('*', { count: 'exact', head: true }).eq('development_id', developmentId),
-    supabase.from('documents').select('*', { count: 'exact', head: true }).eq('development_id', developmentId).eq('status', 'active'),
+    supabase.from('units').select('id', { count: 'exact', head: true }).eq('development_id', developmentId),
+    supabase.from('messages').select('id', { count: 'exact', head: true }).eq('development_id', developmentId),
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('development_id', developmentId).eq('status', 'active'),
   ]);
 
   return NextResponse.json({

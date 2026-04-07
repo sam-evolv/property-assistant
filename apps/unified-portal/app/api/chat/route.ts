@@ -517,7 +517,7 @@ async function lookupRoomDimensions(
       if (unitId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('unit_id', unitId)
           .eq('room_key', searchKey)
@@ -533,7 +533,7 @@ async function lookupRoomDimensions(
       if (houseTypeId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('house_type_id', houseTypeId)
           .eq('room_key', searchKey)
@@ -550,7 +550,7 @@ async function lookupRoomDimensions(
       // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .eq('room_key', searchKey)
@@ -570,7 +570,7 @@ async function lookupRoomDimensions(
       if (unitId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('unit_id', unitId)
           .ilike('room_name', `%${searchName}%`)
@@ -586,7 +586,7 @@ async function lookupRoomDimensions(
       if (houseTypeId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('house_type_id', houseTypeId)
           .ilike('room_name', `%${searchName}%`)
@@ -603,7 +603,7 @@ async function lookupRoomDimensions(
       // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_name', `%${searchName}%`)
@@ -622,7 +622,7 @@ async function lookupRoomDimensions(
     for (const searchName of roomMapping.searchNames) {
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_key', `%${searchName}%`)

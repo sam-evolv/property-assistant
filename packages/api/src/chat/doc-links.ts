@@ -23,15 +23,8 @@ export async function getHouseDocLinksForContext(opts: {
   const { tenantId, developmentId, houseTypeCode } = opts;
 
   if (!houseTypeCode) {
-    console.log('[DocLinks] No house type code provided, returning empty');
     return [];
   }
-
-  console.log('[DocLinks] Fetching architectural docs for:', {
-    tenantId,
-    developmentId,
-    houseTypeCode,
-  });
 
   try {
     // Query documents with architectural types for this house type
@@ -51,8 +44,6 @@ export async function getHouseDocLinksForContext(opts: {
       )
       .orderBy(sql`${documents.created_at} DESC`);
 
-    console.log(`[DocLinks] Found ${docs.length} architectural documents`);
-
     const links: HouseDocLink[] = docs.map((doc) => ({
       kind: doc.document_type as HouseDocKind,
       title: doc.title || doc.file_name,
@@ -63,7 +54,6 @@ export async function getHouseDocLinksForContext(opts: {
 
     return links;
   } catch (error) {
-    console.error('[DocLinks] Error fetching document links:', error);
     return [];
   }
 }

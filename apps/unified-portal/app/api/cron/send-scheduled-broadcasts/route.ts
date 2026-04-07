@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   // Find broadcasts that are scheduled and due
   const { data: broadcasts, error } = await supabase
     .from('broadcasts')
-    .select('*')
+    .select('id, development_id, target_type, target_filter, target_unit_ids, title, body, category')
     .eq('status', 'scheduled')
     .lte('scheduled_for', new Date().toISOString());
 

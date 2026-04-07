@@ -224,7 +224,7 @@ export default function PurchaserProfilePanel({
         if (user) {
           const { data } = await supabase
             .from('user_contexts')
-            .select('*')
+            .select('id, auth_user_id, product, context_type, context_id, display_name, display_subtitle, display_icon, context_aware, last_active_at, linked_at')
             .eq('auth_user_id', user.id)
             .order('last_active_at', { ascending: false });
           setContexts(data || []);

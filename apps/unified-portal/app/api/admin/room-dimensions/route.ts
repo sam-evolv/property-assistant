@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     // Build query for room dimensions
     let query = supabase
       .from('unit_room_dimensions')
-      .select('*')
+      .select('id, tenant_id, development_id, house_type_id, unit_id, room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, source, verified, notes, created_at, updated_at')
       .eq('tenant_id', session.tenantId);
 
     if (developmentId) {
@@ -290,7 +290,7 @@ export async function PUT(request: NextRequest) {
     // Check existing dimension exists and belongs to tenant
     const { data: existing, error: existingError } = await supabase
       .from('unit_room_dimensions')
-      .select('*')
+      .select('id, unit_id, development_id')
       .eq('id', body.id)
       .eq('tenant_id', session.tenantId)
       .single();

@@ -112,7 +112,7 @@ export async function GET(
 
     const { data: supabaseUnits, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('*')
+      .select('id, unit_number, house_type_code, bedrooms, purchaser_name')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
@@ -123,7 +123,7 @@ export async function GET(
 
     const { data: pipelineData, error: pipelineError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, unit_id, purchaser_name, kitchen_selected, kitchen_counter, kitchen_cabinet, kitchen_handle, kitchen_wardrobes, kitchen_notes, kitchen_date')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId);
     
@@ -134,7 +134,7 @@ export async function GET(
 
     const { data: configData } = await supabaseAdmin
       .from('kitchen_selection_options')
-      .select('*')
+      .select('pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes, counter_types, cabinet_colors, handle_styles, wardrobe_styles')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .single();

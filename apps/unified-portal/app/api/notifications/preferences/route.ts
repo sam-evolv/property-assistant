@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from('notification_preferences')
-      .select('*')
+      .select('push_enabled, email_enabled, muted_categories, quiet_hours_enabled, quiet_hours_start, quiet_hours_end')
       .eq('user_id', unitUid)
       .single();
 

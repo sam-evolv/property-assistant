@@ -29,24 +29,12 @@ export async function handleTrainRequest(req: NextRequest) {
       return unauthorizedResponse();
     }
     
-    console.log('\n' + '='.repeat(80));
-    console.log('📥 TRAIN API - POST REQUEST RECEIVED');
-    console.log('='.repeat(80));
-    
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
-    
-    console.log('FILES RECEIVED:', files.length);
-    console.log('FILE DETAILS:', files.map(f => ({ 
-      name: f.name, 
-      size: f.size, 
-      type: f.type 
-    })));
     
     const developmentId = formData.get('developmentId') as string | null;
     
     if (!developmentId) {
-      console.error('❌ No developmentId provided');
       return new Response(JSON.stringify({ error: 'developmentId is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -58,7 +46,6 @@ export async function handleTrainRequest(req: NextRequest) {
     `);
     
     if (!devCheck.rows || devCheck.rows.length === 0) {
-      console.error('❌ Development not found');
       return new Response(JSON.stringify({ error: 'Development not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -68,7 +55,6 @@ export async function handleTrainRequest(req: NextRequest) {
     const tenantId = devCheck.rows[0].tenant_id as string;
     
     if (!tenantId) {
-      console.error('❌ Development has no tenant_id');
       return new Response(JSON.stringify({ error: 'Development has no associated tenant' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -99,17 +85,12 @@ export async function handleTrainRequest(req: NextRequest) {
     
     const requestTenant = await resolveTenantFromRequest(req.headers);
     if (requestTenant && requestTenant.id !== tenantId) {
-      console.error('❌ Development does not belong to request tenant');
       return new Response(JSON.stringify({ error: 'Unauthorized: Development does not belong to tenant' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    console.log('✅ Tenant ID:', tenantId);
-    console.log('✅ Development ID:', developmentId);
-
     if (!files || files.length === 0) {
-      console.error('❌ No files provided in FormData');
       return new Response(JSON.stringify({ error: 'No files provided' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +98,6 @@ export async function handleTrainRequest(req: NextRequest) {
     }
 
     if (files.length > MAX_FILE_COUNT) {
-      console.error(`❌ Too many files: ${files.length} (max: ${MAX_FILE_COUNT})`);
       return new Response(JSON.stringify({ 
         error: `Too many files. Maximum ${MAX_FILE_COUNT} files allowed per upload.`,
       }), {
@@ -126,36 +106,26 @@ export async function handleTrainRequest(req: NextRequest) {
       });
     }
 
-    console.log('\n🔍 VALIDATING FILES...');
     const validationErrors: string[] = [];
     const validFiles: File[] = [];
 
     for (const file of files) {
-      console.log(`  Checking: ${file.name} (${file.size} bytes, ${file.type})`);
-      
       if (file.size > MAX_FILE_SIZE) {
         const errorMsg = `${file.name}: File too large (max 50MB)`;
-        console.log(`    ❌ ${errorMsg}`);
         validationErrors.push(errorMsg);
         continue;
       }
 
       if (!ALLOWED_TYPES.includes(file.type)) {
         const errorMsg = `${file.name}: Unsupported file type`;
-        console.log(`    ❌ ${errorMsg}`);
         validationErrors.push(errorMsg);
         continue;
       }
 
-      console.log(`    ✅ Valid`);
       validFiles.push(file);
     }
 
-    console.log(`\n✅ Validation complete: ${validFiles.length} valid, ${validationErrors.length} errors`);
-
     if (validFiles.length === 0) {
-      console.error('❌ No valid files to process');
-      console.error('Validation errors:', validationErrors);
       return new Response(JSON.stringify({ 
         success: false,
         error: 'No valid files to process',
@@ -165,8 +135,6 @@ export async function handleTrainRequest(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    console.log(`\n🚀 Starting training for ${validFiles.length} file(s)...`);
 
     let totalChunks = 0;
     let totalInserted = 0;
@@ -181,7 +149,6 @@ export async function handleTrainRequest(req: NextRequest) {
         batch.map(async (file) => {
           const arrayBuffer = await file.arrayBuffer();
           const buffer = Buffer.from(new Uint8Array(arrayBuffer));
-          console.log(`📦 Processing file: ${file.name} (${file.size} bytes, type: ${file.type})`);
           return trainFromFile(buffer, file.name, tenantId, developmentId!, file.type);
         })
       );
@@ -229,7 +196,6 @@ export async function handleTrainRequest(req: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Training API error:', error);
     return new Response(JSON.stringify({ 
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error' 
@@ -263,7 +229,6 @@ export async function handleGetTrainingJobs(req: NextRequest) {
       jobs,
     });
   } catch (error) {
-    console.error('Get training jobs error:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

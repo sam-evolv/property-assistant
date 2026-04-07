@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     // 3. Get pipeline data
     const { data: pipeline, error: pipeError } = await supabase
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, unit_id, development_id, purchaser_name, purchaser_phone, purchaser_email, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, deposit_date, sale_agreed_date, snag_date, estimated_close_date, kitchen_selected, kitchen_date, drawdown_date, mortgage_expiry_date, comments')
       .eq('tenant_id', tenantId)
       .in('development_id', devIds);
 

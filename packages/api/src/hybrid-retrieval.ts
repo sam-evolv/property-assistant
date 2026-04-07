@@ -147,7 +147,6 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
   let candidates: any[] = [];
 
   if (houseTypeCode) {
-    console.log(`  Stage A: House type-scoped search (${houseTypeCode})...`);
     const houseTypeResults = await db.execute(sql`
       SELECT
         c.id,
@@ -167,12 +166,10 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
     `);
 
     candidates = houseTypeResults.rows || [];
-    console.log(`  Found ${candidates.length} house type-scoped candidates`);
   }
 
   // Stage B: Development-wide search (always run as fallback, but prefer house type matches)
   if (candidates.length < 20) {
-    console.log('  Stage B: Development-wide search...');
     const devResults = await db.execute(sql`
       SELECT
         c.id,
@@ -201,7 +198,6 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
     const existingIds = new Set(candidates.map((c: any) => c.id));
     const newCandidates = (devResults.rows || []).filter((c: any) => !existingIds.has(c.id));
     candidates = [...candidates, ...newCandidates];
-    console.log(`  Found ${candidates.length} total candidates after development search`);
   }
 
   // Step 4: Compute hybrid scores
@@ -232,11 +228,6 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
   // Step 5: Sort by final score and limit
   scoredChunks.sort((a, b) => b.final_score - a.final_score);
   const topChunks = scoredChunks.slice(0, limit);
-
-  console.log(`  Hybrid scoring complete: ${topChunks.length} chunks selected`);
-  console.log(`  Avg vector score: ${(topChunks.reduce((s, c) => s + c.vector_score, 0) / topChunks.length).toFixed(3)}`);
-  console.log(`  Avg keyword score: ${(topChunks.reduce((s, c) => s + c.keyword_score, 0) / topChunks.length).toFixed(3)}`);
-  console.log(`  Avg final score: ${(topChunks.reduce((s, c) => s + c.final_score, 0) / topChunks.length).toFixed(3)}`);
 
   return topChunks;
 }

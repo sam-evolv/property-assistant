@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Fetch units from Supabase (where units data lives)
     const { data: unitsData, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('*')
+      .select('id, unit_number, unit_code, lot_number, purchaser_name, owner_name, purchaser_email, owner_email, house_type_code, house_type, address, address_line_1, project_id, development_id, project_name, created_at, last_chat_at, consent_at, registered_at, user_id, important_docs_agreed_version, important_docs_agreed_at')
       .order('created_at', { ascending: false });
     
     if (unitsError) {

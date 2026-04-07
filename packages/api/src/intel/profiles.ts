@@ -167,16 +167,9 @@ export async function mergeVisionExtractionIntoProfile(
   documentId: string,
   visionResult: VisionExtractionResult
 ): Promise<IntelligenceProfile> {
-  console.log(`\n📊 MERGING VISION EXTRACTION INTO PROFILE`);
-  console.log(`   House Type: ${houseTypeCode}`);
-  console.log(`   Document: ${documentId}`);
-  console.log(`   Rooms Extracted: ${visionResult.rooms.length}`);
-  console.log(`   Suppliers Extracted: ${visionResult.suppliers.length}`);
-  
   let profile = await getLatestProfile(tenantId, developmentId, houseTypeCode);
-  
+
   if (!profile) {
-    console.log(`   Creating new profile for ${houseTypeCode}`);
     profile = {
       tenant_id: tenantId,
       development_id: developmentId,
@@ -260,11 +253,7 @@ export async function mergeVisionExtractionIntoProfile(
   profile.quality_score = calculateQualityScore(profile);
   
   await saveProfile(profile);
-  
-  console.log(`   ✅ Profile updated: Quality Score ${profile.quality_score}%`);
-  console.log(`   Total Rooms: ${Object.keys(profile.rooms).length}`);
-  console.log(`   Total Suppliers: ${Object.keys(profile.suppliers).length}\n`);
-  
+
   return profile;
 }
 
@@ -393,8 +382,6 @@ export async function syncHouseTypesToProfiles(
   tenantId: string,
   developmentId: string
 ): Promise<number> {
-  console.log(`\n🔄 SYNCING HOUSE TYPES TO INTELLIGENCE PROFILES`);
-  
   const houseTypesData = await db
     .select()
     .from(houseTypes)
@@ -462,9 +449,7 @@ export async function syncHouseTypesToProfiles(
     
     await saveProfile(profile);
     synced++;
-    console.log(`   ✅ Created profile for ${ht.house_type_code}`);
   }
-  
-  console.log(`   Synced ${synced} house types to profiles\n`);
+
   return synced;
 }

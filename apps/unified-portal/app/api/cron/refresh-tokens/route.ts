@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Find all connected integrations
     const { data: integrations } = await supabase
       .from('integrations')
-      .select('*')
+      .select('id, tenant_id, type, credentials')
       .in('status', ['connected', 'syncing'])
       .not('credentials', 'is', null);
 

@@ -32,7 +32,6 @@ export async function resolveQRTokenToHouse(token: string): Promise<ResolvedHous
     const payload = await validateQRToken(token);
     
     if (!payload) {
-      console.error('[QR Resolver] Invalid or expired token');
       return null;
     }
     
@@ -46,7 +45,6 @@ export async function resolveQRTokenToHouse(token: string): Promise<ResolvedHous
     });
     
     if (!unit) {
-      console.error('[QR Resolver] Unit not found for token payload');
       return null;
     }
     
@@ -59,7 +57,6 @@ export async function resolveQRTokenToHouse(token: string): Promise<ResolvedHous
     });
     
     if (!development) {
-      console.error('[QR Resolver] Development not found for token payload');
       return null;
     }
     
@@ -82,11 +79,8 @@ export async function resolveQRTokenToHouse(token: string): Promise<ResolvedHous
       },
     };
     
-    console.log(`[QR Resolver] Successfully resolved token for unit ${unit.unit_number} at ${development.name}`);
-    
     return result;
   } catch (error) {
-    console.error('[QR Resolver] Error resolving QR token:', error);
     return null;
   }
 }
@@ -99,7 +93,6 @@ export async function completeTokenUsage(token: string): Promise<boolean> {
   try {
     return await markTokenAsUsed(token);
   } catch (error) {
-    console.error('[QR Resolver] Failed to mark token as used:', error);
     return false;
   }
 }

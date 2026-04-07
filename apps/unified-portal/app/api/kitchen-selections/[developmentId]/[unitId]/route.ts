@@ -119,7 +119,7 @@ export async function PATCH(
 
     const { data: config } = await supabase
       .from('kitchen_selection_options')
-      .select('*')
+      .select('pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes')
       .eq('development_id', developmentId)
       .eq('tenant_id', tenantId)
       .single();

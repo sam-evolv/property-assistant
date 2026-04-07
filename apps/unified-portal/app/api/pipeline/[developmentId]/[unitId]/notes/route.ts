@@ -58,7 +58,7 @@ export async function GET(
     // Get notes using Supabase
     const { data: notes, error: notesError } = await supabaseAdmin
       .from('unit_pipeline_notes')
-      .select('*')
+      .select('id, content, is_resolved, created_at, created_by_email')
       .eq('pipeline_id', pipeline.id)
       .order('created_at', { ascending: false });
 

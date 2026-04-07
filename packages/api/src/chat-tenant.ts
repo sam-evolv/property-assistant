@@ -68,7 +68,7 @@ export async function handleTenantChat(request: NextRequest, tenantSlug: string)
         );
       }
     } catch (err) {
-      console.warn('Vector search failed, continuing without embeddings:', err);
+      // Vector search failed, continuing without embeddings
     }
 
     const context = buildTenantContext(tenant, tenantDocs, tenantPois, tenantDevs, relevantChunks);
@@ -106,7 +106,6 @@ Answer questions based on the provided context. If you don't have enough informa
     });
 
   } catch (error) {
-    console.error('Chat error:', error);
     return NextResponse.json(
       { error: 'Failed to process chat request' },
       { status: 500 }

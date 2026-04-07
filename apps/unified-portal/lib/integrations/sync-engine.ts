@@ -134,7 +134,7 @@ export async function getFieldMappings(integrationId: string): Promise<FieldMapp
 
   const { data, error } = await supabase
     .from('integration_field_mappings')
-    .select('*')
+    .select('id, integration_id, external_field, external_field_label, oh_table, oh_field, direction, transform_rule, is_active')
     .eq('integration_id', integrationId)
     .eq('is_active', true);
 
@@ -635,7 +635,7 @@ export async function triggerOutboundSync(
     // Find active integrations for this development with outbound/bidirectional sync
     const { data: integrations } = await supabase
       .from('integrations')
-      .select('*')
+      .select('id, tenant_id, development_id, type, name, status, credentials, sync_direction, sync_frequency, external_ref, last_sync_at')
       .eq('development_id', developmentId)
       .in('status', ['connected', 'syncing'])
       .in('sync_direction', ['outbound', 'bidirectional']);

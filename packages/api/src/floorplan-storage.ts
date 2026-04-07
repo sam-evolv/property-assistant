@@ -47,7 +47,6 @@ export async function uploadFloorplanToStorage(
     });
   
   if (error) {
-    console.error('[FloorplanStorage] Upload error:', error);
     return { success: false, path: storagePath, error: error.message };
   }
   
@@ -68,7 +67,6 @@ export async function getFloorplanSignedUrl(
     .createSignedUrl(storagePath, expiresIn);
   
   if (error || !data) {
-    console.log('[FloorplanStorage] Could not get signed URL:', error?.message);
     return null;
   }
   
@@ -81,7 +79,6 @@ export async function ensureFloorplansBucketExists(): Promise<boolean> {
   const { data: buckets, error: listError } = await supabase.storage.listBuckets();
   
   if (listError) {
-    console.error('[FloorplanStorage] Error listing buckets:', listError);
     return false;
   }
   
@@ -94,11 +91,8 @@ export async function ensureFloorplansBucketExists(): Promise<boolean> {
     });
     
     if (createError) {
-      console.error('[FloorplanStorage] Error creating bucket:', createError);
       return false;
     }
-    
-    console.log('[FloorplanStorage] Created floorplans bucket');
   }
   
   return true;
@@ -150,7 +144,6 @@ export async function processFloorplanUpload(
     }).returning();
     
     houseType = newHouseType;
-    console.log(`[FloorplanStorage] Created new house type: ${houseTypeCode}`);
   }
   
   return {
@@ -169,11 +162,9 @@ export async function storeDimensionsInHouseType(
     await db.update(houseTypes)
       .set({ dimensions })
       .where(eq(houseTypes.id, houseTypeId));
-    
-    console.log(`[FloorplanStorage] Stored dimensions for house type ${houseTypeId}`);
+
     return true;
   } catch (error) {
-    console.error('[FloorplanStorage] Error storing dimensions:', error);
     return false;
   }
 }

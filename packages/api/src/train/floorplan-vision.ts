@@ -17,7 +17,6 @@ async function loadCanvas(): Promise<CreateCanvasFn | null> {
     cachedCreateCanvas = canvasModule.createCanvas;
     return cachedCreateCanvas;
   } catch (error) {
-    console.warn('[floorplan-vision] Canvas library not available:', error);
     return null;
   }
 }
@@ -155,8 +154,6 @@ async function callVisionForFloorplan(
   fileName: string,
   unit_type_code: string
 ): Promise<FloorplanVisionOutput> {
-  console.log(`  Calling OpenAI Vision for floorplan: ${fileName}...`);
-  
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [
@@ -199,8 +196,7 @@ async function callVisionForFloorplan(
   }
   
   const parsed = JSON.parse(content) as FloorplanVisionOutput;
-  console.log(`  ✅ Vision extraction successful: ${parsed.levels.reduce((acc, l) => acc + l.rooms.length, 0)} rooms found`);
-  
+
   return parsed;
 }
 

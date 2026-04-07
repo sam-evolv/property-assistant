@@ -79,7 +79,6 @@ async function fetchNearbyPlaces(
     const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
-      console.error('[Places] No Google Maps API key configured');
       return [];
     }
 
@@ -89,7 +88,6 @@ async function fetchNearbyPlaces(
     const data = await response.json();
 
     if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      console.warn(`[Places] API returned status: ${data.status} for type: ${type}`);
       return [];
     }
 
@@ -113,7 +111,6 @@ async function fetchNearbyPlaces(
 
     return places;
   } catch (error) {
-    console.error(`[Places] Error fetching places for type ${type}:`, error);
     return [];
   }
 }
@@ -122,10 +119,8 @@ async function fetchNearbyPlaces(
  * Fetch all POI categories around a location
  */
 export async function fetchAllPOIs(lat: number, lng: number): Promise<POIsByCategory> {
-  console.log(`[Places] Fetching POIs around (${lat}, ${lng})`);
-  
   const startTime = Date.now();
-  
+
   // Fetch all categories in parallel for performance
   const [groceries, schools, parks, cafes, fitness, health, transport] = await Promise.all([
     fetchNearbyPlaces(lat, lng, CATEGORY_CONFIG.groceries.types[0]),
@@ -136,12 +131,6 @@ export async function fetchAllPOIs(lat: number, lng: number): Promise<POIsByCate
     fetchNearbyPlaces(lat, lng, CATEGORY_CONFIG.health.types[0]),
     fetchNearbyPlaces(lat, lng, CATEGORY_CONFIG.transport.types[0]),
   ]);
-
-  const duration = Date.now() - startTime;
-  const totalPOIs = groceries.length + schools.length + parks.length + cafes.length + 
-                    fitness.length + health.length + transport.length;
-  
-  console.log(`[Places] Fetched ${totalPOIs} POIs across 7 categories in ${duration}ms`);
 
   return {
     groceries,

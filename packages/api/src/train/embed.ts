@@ -46,19 +46,15 @@ export async function embedChunk(chunk: TextChunk, retries: number = 0): Promise
   } catch (error: any) {
     if (error?.status === 429 && retries < MAX_RETRIES) {
       const retryDelay = RATE_LIMIT_DELAY * Math.pow(2, retries);
-      console.log(`  ⏳ Rate limit hit, retrying in ${retryDelay}ms (attempt ${retries + 1}/${MAX_RETRIES})`);
       await delay(retryDelay);
       return embedChunk(chunk, retries + 1);
     }
     
-    console.error(`❌ Embedding error for chunk ${chunk.index}:`, error);
     throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export async function embedChunks(chunks: TextChunk[]): Promise<EmbeddingResult[]> {
-  console.log(`\n🧠 Generating embeddings for ${chunks.length} chunks using ${EMBEDDING_MODEL}...`);
-  
   const results: EmbeddingResult[] = [];
   const batches = [];
   
@@ -68,8 +64,6 @@ export async function embedChunks(chunks: TextChunk[]): Promise<EmbeddingResult[
   
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
-    console.log(`  📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} chunks)`);
-    
     const batchResults = await Promise.all(
       batch.map(chunk => embedChunk(chunk))
     );
@@ -81,7 +75,6 @@ export async function embedChunks(chunks: TextChunk[]): Promise<EmbeddingResult[
     }
   }
   
-  console.log(`✅ Generated ${results.length} embeddings`);
   return results;
 }
 

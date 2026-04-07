@@ -109,7 +109,6 @@ async function getStructuredRoomDimensions(
     }
     return { total_floor_area_sqm: null, room_dimensions: null };
   } catch (error) {
-    console.error('Error fetching structured room dimensions:', error);
     return { total_floor_area_sqm: null, room_dimensions: null };
   }
 }
