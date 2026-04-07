@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     
     const projectsMap = new Map((projectsData || []).map(p => [p.id, p.name]));
 
-    const formattedHomeowners = (unitsData || []).map((u: any) => ({
+    const formattedHomeowners = (unitsData || []).map((u) => ({
       id: u.id,
       name: u.purchaser_name || u.owner_name || `Unit ${u.unit_number || u.unit_code || u.lot_number || 'Unknown'}`,
       email: u.purchaser_email || u.owner_email || 'Not provided',

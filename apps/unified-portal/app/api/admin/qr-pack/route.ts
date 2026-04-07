@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
@@ -67,6 +68,12 @@ const SECTION_HEADINGS = [
 ];
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+  const rateLimit = checkRateLimit(ip, 'qr-pack');
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   try {
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!baseUrl) {

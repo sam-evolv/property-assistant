@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireRole } from '@/lib/supabase-server';
 import { SuperLayoutClient } from './super-layout-client';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,5 +16,9 @@ export default async function AdminEnterpriseLayout({
     redirect('/unauthorized');
   }
 
-  return <SuperLayoutClient>{children}</SuperLayoutClient>;
+  return (
+    <ErrorBoundary>
+      <SuperLayoutClient>{children}</SuperLayoutClient>
+    </ErrorBoundary>
+  );
 }

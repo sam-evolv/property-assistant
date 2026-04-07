@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent');
 
     // Try to save agreement to Drizzle database
-    let agreement: any = null;
+    let agreement: unknown = null;
     let agreedAt = new Date();
     
     try {

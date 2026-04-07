@@ -216,7 +216,18 @@ export async function GET(request: NextRequest) {
     // 1. Have no house_type_code (project-wide docs) OR
     // 2. Match the unit's house_type_code exactly
     const filteredReasons: string[] = [];
-    const documentMap = new Map<string, any>();
+    const documentMap = new Map<string, {
+      id: string;
+      title: string;
+      file_name: string;
+      file_url: string | null;
+      discipline: string;
+      is_important: boolean;
+      must_read: boolean;
+      category: string;
+      created_at: string;
+      house_type_code: string | null;
+    }>();
     let filteredOutCount = 0;
     
     for (const section of sections || []) {

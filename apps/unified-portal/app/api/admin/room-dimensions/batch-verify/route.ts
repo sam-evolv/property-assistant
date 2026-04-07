@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       verified: body.verified,
       updatedAt: new Date(),
     };

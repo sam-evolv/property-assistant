@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+interface UnitRow {
+  id: string;
+  project_id: string;
+  address: string;
+  purchaser_name: string;
+}
 
 function getSupabaseAdmin() {
   return createClient(
@@ -13,6 +21,12 @@ function getSupabaseAdmin() {
 }
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+  const rateLimit = checkRateLimit(ip, 'impersonate');
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const unitUid = searchParams.get('unitUid');
@@ -22,7 +36,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    let unit: any = null;
+    let unit: UnitRow & { development_id: string; tenant_id: string; development_name?: string } | null = null;
 
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(unitUid);
     
@@ -64,7 +78,7 @@ export async function GET(req: NextRequest) {
         const numMatch = unitUid.match(/(\d+)/);
         const unitNum = numMatch ? parseInt(numMatch[1], 10) : 1;
         
-        const exactMatch = anyUnits.find((u: any) => {
+        const exactMatch = anyUnits.find((u: UnitRow) => {
           const addrMatch = u.address?.match(/^(\d+)\s/);
           return addrMatch && parseInt(addrMatch[1], 10) === unitNum;
         });

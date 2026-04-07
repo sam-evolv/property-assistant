@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const revalidate = 86400;
+export const dynamic = 'force-dynamic';
 
 function getSupabaseAdmin() {
   return createClient(

@@ -371,7 +371,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updates: Record<string, any> = { updated_at: new Date() };
+    const updates: Record<string, unknown> = { updated_at: new Date() };
     if (title) updates.title = title.trim().substring(0, 200);
     if (message) updates.content = message.trim().substring(0, 5000);
 

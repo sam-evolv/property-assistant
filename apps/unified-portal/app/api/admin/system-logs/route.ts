@@ -11,7 +11,7 @@ interface AuditLog {
   type: string;
   action: string;
   actor: string | null;
-  metadata: any;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute(query);
 
-    const logs: AuditLog[] = (result.rows || []).map((row: any) => ({
+    const logs: AuditLog[] = (result.rows || []).map((row: Record<string, unknown>) => ({
       id: row.id || String(Math.random()),
       type: row.type || 'event',
       action: row.action || row.type || 'system',

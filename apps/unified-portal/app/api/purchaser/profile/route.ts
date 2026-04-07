@@ -40,7 +40,7 @@ function getSupabaseClient() {
   );
 }
 
-function parseNumericValue(value: any): number | null {
+function parseNumericValue(value: unknown): number | null {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
     const match = value.match(/(\d+)/);
@@ -129,13 +129,13 @@ export async function GET(request: NextRequest) {
         houseTypeCode = unitType.name || '';
         houseTypeName = unitType.name || '';
         
-        const specs = unitType.specification_json as any;
+        const specs = unitType.specification_json as Record<string, unknown>;
         if (specs) {
           bedrooms = parseNumericValue(specs.bedrooms);
           bathrooms = parseNumericValue(specs.bathrooms);
           floorAreaSqm = parseNumericValue(specs.floor_area_sqm) || parseNumericValue(specs.floor_area);
           if (specs.property_type) {
-            houseTypeName = specs.property_type;
+            houseTypeName = specs.property_type as string;
           }
         }
       }
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
       ? `Unit ${unitNumber}, ${developmentAddress}`
       : (supabaseUnit.address || developmentAddress || 'Address not available');
     
-    const documents: any[] = [];
+    const documents: { id: string; title: string; file_url: string | null; mime_type: string; category: string }[] = [];
     try {
       const { data: docSections } = await supabase
         .from('document_sections')
@@ -157,15 +157,15 @@ export async function GET(request: NextRequest) {
         .eq('project_id', supabaseUnit.project_id);
 
       if (docSections && docSections.length > 0) {
-        const uniqueDocs = new Map<string, any>();
+        const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
         const houseCodeLower = houseTypeCode.toLowerCase();
         
         for (const section of docSections) {
-          const meta = section.metadata as any;
+          const meta = section.metadata as Record<string, unknown>;
           if (!meta) continue;
           
-          const fileName = meta.file_name || meta.source || 'Unknown';
-          const fileUrl = meta.file_url || null;
+          const fileName = (meta.file_name as string | undefined) || (meta.source as string | undefined) || 'Unknown';
+          const fileUrl = (meta.file_url as string | undefined) || null;
           const fileNameLower = fileName.toLowerCase();
           
           const isThisHouseType = fileNameLower.includes(houseCodeLower);

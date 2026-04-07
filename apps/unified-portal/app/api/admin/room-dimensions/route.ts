@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
     const { count: verifiedCount } = await verifiedQuery;
 
     // Transform dimension field names for API compatibility
-    const transformedDimensions = (dimensions || []).map((d: any) => ({
+    const transformedDimensions = (dimensions || []).map((d) => ({
       id: d.id,
       tenant_id: d.tenant_id,
       development_id: d.development_id,
@@ -315,7 +315,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
