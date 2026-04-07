@@ -10,10 +10,8 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { devId: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ devId: string }> }) {
+  const params = await props.params;
   try {
     const supabase = await createServerSupabaseClient();
     const {

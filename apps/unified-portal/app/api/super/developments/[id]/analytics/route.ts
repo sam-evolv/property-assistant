@@ -6,10 +6,8 @@ import { db } from '@openhouse/db/client';
 import { developments, messages, documents, homeowners } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin']);
     const developmentId = params.id;

@@ -19,10 +19,8 @@ function getSupabaseAdmin() {
 /**
  * GET: Installation details + current telemetry + performance summary
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const installationId = params.id;
 
@@ -117,10 +115,8 @@ export async function GET(
 /**
  * PUT: Update installation (adoption status, etc.)
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const installationId = params.id;
     const updates = await request.json();

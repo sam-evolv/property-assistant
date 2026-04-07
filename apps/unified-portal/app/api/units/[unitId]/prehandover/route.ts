@@ -12,10 +12,8 @@ function getSupabaseClient() {
 
 // GET /api/units/:unitId/prehandover
 // Returns pre-handover portal data for a unit
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { unitId: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ unitId: string }> }) {
+  const params = await props.params;
   try {
     const supabase = getSupabaseClient();
     const { unitId } = params;
@@ -94,10 +92,8 @@ export async function GET(
 
 // PATCH /api/units/:unitId/prehandover
 // Update unit milestone or estimated dates
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { unitId: string } }
-) {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ unitId: string }> }) {
+  const params = await props.params;
   try {
     const supabase = getSupabaseClient();
     const { unitId } = params;

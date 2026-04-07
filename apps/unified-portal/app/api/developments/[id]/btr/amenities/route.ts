@@ -6,10 +6,8 @@ import { btrAmenities, amenityBookings } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;
@@ -30,10 +28,8 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;

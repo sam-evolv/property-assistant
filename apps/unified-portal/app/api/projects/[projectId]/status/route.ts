@@ -14,10 +14,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { projectId } = params;

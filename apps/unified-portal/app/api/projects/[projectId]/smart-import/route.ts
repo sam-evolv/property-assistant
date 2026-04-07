@@ -60,10 +60,8 @@ function extractPurchaserName(row: Record<string, any>): string {
   return clean(row['purchaser_name'] ?? row['purchaser'] ?? row['owner'] ?? row['buyer_name'] ?? row['buyer'] ?? row['customer_name'] ?? row['customer'] ?? row['name'] ?? row['owner_name']);
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { projectId: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin']);
     const supabaseAdmin = getSupabaseAdmin();

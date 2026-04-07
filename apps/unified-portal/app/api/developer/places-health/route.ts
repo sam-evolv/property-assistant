@@ -71,7 +71,7 @@ async function resolveAuth(request: NextRequest): Promise<ResolvedAuth> {
     }
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const sbAccessToken = cookieStore.get('sb-access-token')?.value;
   if (sbAccessToken) {
     const supabase = getServiceClient();

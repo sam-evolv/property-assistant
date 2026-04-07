@@ -6,10 +6,8 @@ import { db } from '@openhouse/db/client';
 import { units, developments } from '@openhouse/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { houseId: string } }
-) {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ houseId: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'super_admin']);
     const houseId = params.houseId;
@@ -70,10 +68,8 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { houseId: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ houseId: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'super_admin']);
     const houseId = params.houseId;

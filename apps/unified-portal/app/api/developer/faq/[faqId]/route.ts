@@ -5,10 +5,8 @@ import { db, faqEntries } from '@openhouse/db';
 import { eq, and } from 'drizzle-orm';
 import { getServerSession } from '@/lib/supabase-server';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { faqId: string } }
-) {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ faqId: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession();
     if (!session) {
@@ -46,10 +44,8 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { faqId: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ faqId: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession();
     if (!session) {

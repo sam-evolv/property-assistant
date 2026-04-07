@@ -12,10 +12,8 @@ function getSupabaseAdmin() {
 }
 
 // GET — return extracted rooms for this document
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;

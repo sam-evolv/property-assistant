@@ -11,10 +11,8 @@ function getSupabaseClient() {
 }
 
 // GET /api/developments/:id/prehandover-config
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const supabase = getSupabaseClient();
     const { id } = params;
@@ -61,10 +59,8 @@ export async function GET(
 }
 
 // PUT /api/developments/:id/prehandover-config
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const supabase = getSupabaseClient();
     const { id } = params;

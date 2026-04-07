@@ -3,13 +3,14 @@ import { HomeownersList } from './list';
 import { redirect } from 'next/navigation';
 import { getHomeownersByDevelopment } from '@/app/actions/homeowners';
 
-export default async function HomeownersPage({ 
-  searchParams 
-}: { 
-  searchParams: { developmentId?: string } 
-}) {
+export default async function HomeownersPage(
+  props: { 
+    searchParams: Promise<{ developmentId?: string }> 
+  }
+) {
+  const searchParams = await props.searchParams;
   let session;
-  
+
   try {
     session = await requireRole(['developer', 'super_admin']);
   } catch {

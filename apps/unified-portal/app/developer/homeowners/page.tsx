@@ -36,13 +36,14 @@ async function getAcknowledgedUnits(): Promise<Map<string, number>> {
   }
 }
 
-export default async function HomeownersPage({ 
-  searchParams 
-}: { 
-  searchParams: { developmentId?: string } 
-}) {
+export default async function HomeownersPage(
+  props: { 
+    searchParams: Promise<{ developmentId?: string }> 
+  }
+) {
+  const searchParams = await props.searchParams;
   let session;
-  
+
   try {
     session = await requireRole(['developer', 'super_admin']);
   } catch {
@@ -50,7 +51,7 @@ export default async function HomeownersPage({
   }
 
   const tenantId = session.tenantId;
-  
+
   // SECURITY: Require tenant context
   if (!tenantId) {
     console.error('[HomeownersPage] SECURITY: No tenant context');
@@ -61,7 +62,7 @@ export default async function HomeownersPage({
   let developmentData: any = null;
   let allProjects: any[] = [];
   const supabaseAdmin = getSupabaseAdmin();
-  
+
   try {
     // Fetch all developments for this tenant - SECURITY: Filter by tenant_id
     // Try developments table first (primary), fallback to projects table

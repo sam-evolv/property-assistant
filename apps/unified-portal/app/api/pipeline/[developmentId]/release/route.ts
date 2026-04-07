@@ -34,8 +34,9 @@ interface ReleaseUnitRow {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { developmentId: string } }
+  props: { params: Promise<{ developmentId: string }> }
 ) {
+  const params = await props.params;
   try {
     const auth = await requireRole(['developer', 'admin', 'super_admin']);
 

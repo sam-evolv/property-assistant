@@ -202,7 +202,8 @@ async function listWebhooks(ctx: ApiKeyContext): Promise<NextResponse> {
 
 // --- Route Handlers ---
 
-export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(request: NextRequest, props: { params: Promise<{ path: string[] }> }) {
+  const params = await props.params;
   return withApiAuth(request, async (ctx) => {
     if (!hasScope(ctx, 'read')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -231,7 +232,8 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
   }, 'read');
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ path: string[] }> }) {
+  const params = await props.params;
   return withApiAuth(request, async (ctx) => {
     if (!hasScope(ctx, 'write')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -328,7 +330,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
   }, 'write');
 }
 
-export async function POST(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function POST(request: NextRequest, props: { params: Promise<{ path: string[] }> }) {
+  const params = await props.params;
   return withApiAuth(request, async (ctx) => {
     const pathSegments = params.path;
     const [resource] = pathSegments;
@@ -379,7 +382,8 @@ export async function POST(request: NextRequest, { params }: { params: { path: s
   }, 'write');
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ path: string[] }> }) {
+  const params = await props.params;
   return withApiAuth(request, async (ctx) => {
     if (!hasScope(ctx, 'write')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });

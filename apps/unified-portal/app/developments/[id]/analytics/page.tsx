@@ -5,11 +5,12 @@ import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import DevelopmentAnalyticsClient from './analytics-client';
 
-export default async function DevelopmentAnalyticsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function DevelopmentAnalyticsPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
 

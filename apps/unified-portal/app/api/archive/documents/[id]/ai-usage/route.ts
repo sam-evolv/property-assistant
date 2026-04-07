@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const documentId = params.id;
 
   try {

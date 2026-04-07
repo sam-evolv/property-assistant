@@ -3,9 +3,6 @@ const nextConfig = {
   reactStrictMode: false,
   productionBrowserSourceMaps: false,
   transpilePackages: ['@openhouse/api', '@openhouse/auth', '@openhouse/db', '@openhouse/workers', 'recharts', 'react-smooth', 'recharts-scale'],
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -14,6 +11,7 @@ const nextConfig = {
       bodySizeLimit: '10mb'
     },
   },
+  serverExternalPackages: ['pdf-parse', 'canvas', 'pdfkit'],
   allowedDevOrigins: ['*'],
   images: {
     remotePatterns: [
@@ -32,6 +30,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
   },
+  turbopack: {},
   compress: true,
   poweredByHeader: false,
   async headers() {

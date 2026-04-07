@@ -8,10 +8,8 @@ export const dynamic = 'force-dynamic';
 
 // ─── DELETE: Remove a note ──────────────────────────────────────────────────
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { noteId: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ noteId: string }> }) {
+  const params = await props.params;
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');

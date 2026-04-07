@@ -70,7 +70,7 @@
     "lucide-react": "^0.294.0",
     "mammoth": "^1.11.0",
     "nanoid": "^5.1.6",
-    "next": "^14.2.18",
+    "next": "^16.2.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.4.394",
     "pdfkit": "^0.17.2",

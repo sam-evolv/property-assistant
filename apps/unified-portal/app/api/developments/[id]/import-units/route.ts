@@ -68,10 +68,8 @@ function extractUnitNumber(address: string): string {
   return words[0] || address.substring(0, 10);
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await getServerSession();
     if (!session) {

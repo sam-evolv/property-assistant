@@ -16,10 +16,8 @@ function getSupabaseAdmin() {
 
 const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();

@@ -13,10 +13,8 @@ import { logAudit } from '@/lib/integrations/security/audit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseAdmin();
@@ -74,10 +72,8 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(_request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseAdmin();

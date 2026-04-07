@@ -1,11 +1,12 @@
 import { requireRole } from '@/lib/supabase-server';
 import { notFound } from 'next/navigation';
 
-export default async function DevelopmentDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function DevelopmentDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   await requireRole(['super_admin', 'admin']);
 
   const developmentId = params.id;

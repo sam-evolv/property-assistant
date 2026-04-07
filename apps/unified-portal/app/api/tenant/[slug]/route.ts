@@ -4,10 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, tenants, admins, developments, documents, pois, noticeboard_posts } from '@openhouse/db';
 import { eq, sql } from 'drizzle-orm';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { slug: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   try {
     const { slug } = params;
 

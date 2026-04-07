@@ -100,10 +100,8 @@ function extractBedroomsFromCode(code: string): number {
   return match ? parseInt(match[1]) : 3;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin']);
 

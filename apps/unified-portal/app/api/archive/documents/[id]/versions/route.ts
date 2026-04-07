@@ -5,7 +5,8 @@ import { db } from '@openhouse/db/client';
 import { document_versions, admins } from '@openhouse/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const versions = await db
       .select({
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { tenantId, file_url, change_notes, version } = await req.json();
 

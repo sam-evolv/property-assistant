@@ -5,11 +5,12 @@ import { developments } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import ImportUnitsClient from './import-client';
 
-export default async function ImportUnitsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ImportUnitsPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   await requireRole(['super_admin', 'admin']);
 
   const developmentId = params.id;
