@@ -1,7 +1,97 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+
+interface PipelineRow {
+  id: string;
+  unit_id: string;
+  development_id: string | null;
+  purchaser_name: string | null;
+  purchaser_phone: string | null;
+  purchaser_email: string | null;
+  sale_price: string | number | null;
+  handover_date: string | null;
+  counter_signed_date: string | null;
+  signed_contracts_date: string | null;
+  contracts_issued_date: string | null;
+  deposit_date: string | null;
+  sale_agreed_date: string | null;
+  estimated_close_date: string | null;
+  snag_date: string | null;
+  drawdown_date: string | null;
+  mortgage_expiry_date: string | null;
+  kitchen_selected: boolean | null;
+  kitchen_date: string | null;
+  comments: string | null;
+}
+
+interface UnitRow {
+  id: string;
+  unit_number: string | null;
+  unit_uid: string | null;
+  house_type_code: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  eircode: string | null;
+  development_id: string | null;
+  purchaser_name: string | null;
+  address_line_1: string | null;
+  city: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+interface DevRow {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  is_active: boolean;
+}
+
+interface CommRow {
+  unit_id: string;
+  created_at: string;
+  type: string;
+  direction: string;
+  summary: string | null;
+  actor_name: string | null;
+}
+
+interface Buyer {
+  id: string;
+  unitId: string;
+  name: string;
+  initials: string;
+  unit: string;
+  scheme: string;
+  schemeId: string;
+  type: string;
+  beds: number;
+  bathrooms: number;
+  eircode: string | null;
+  price: number;
+  status: string;
+  daysOverdue: number;
+  isUrgent: boolean;
+  phone: string;
+  email: string;
+  address: string;
+  saleAgreedDate: string | null;
+  depositDate: string | null;
+  contractsIssuedDate: string | null;
+  contractsSignedDate: string | null;
+  snagDate: string | null;
+  estimatedCloseDate: string | null;
+  handoverDate: string | null;
+  kitchenSelected: boolean;
+  kitchenDate: string | null;
+  drawdownDate: string | null;
+  mortgageExpiry: string | null;
+  comments: string | null;
+  recentComms: { date: string; type: string; direction: string; summary: string | null; actor: string | null }[];
+}
 
 function getSupabaseClient() {
   return createClient(
@@ -75,7 +165,7 @@ export async function GET(request: Request) {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
     const unitIds = (units || []).map((u) => u.id);
 
-    let comms: any[] = [];
+    let comms: CommRow[] = [];
     if (unitIds.length > 0) {
       const { data: commsData } = await supabase
         .from('communication_events')
@@ -85,11 +175,11 @@ export async function GET(request: Request) {
         .gte('created_at', ninetyDaysAgo)
         .order('created_at', { ascending: false })
         .limit(200);
-      comms = commsData || [];
+      comms = (commsData || []) as CommRow[];
     }
 
     // Group comms by unit_id
-    const commsByUnit = new Map<string, any[]>();
+    const commsByUnit = new Map<string, CommRow[]>();
     for (const c of comms) {
       if (!commsByUnit.has(c.unit_id)) commsByUnit.set(c.unit_id, []);
       commsByUnit.get(c.unit_id)!.push(c);
@@ -97,9 +187,9 @@ export async function GET(request: Request) {
 
     // 5. Build buyer profiles from pipeline data
     const now = new Date();
-    const buyers = (pipeline || []).map((p: any) => {
-      const unit: any = unitMap.get(p.unit_id);
-      const dev: any = devMap.get(p.development_id || unit?.development_id);
+    const buyers: Buyer[] = (pipeline || []).map((p: PipelineRow) => {
+      const unit = unitMap.get(p.unit_id) as UnitRow | undefined;
+      const dev = devMap.get(p.development_id || unit?.development_id || '') as DevRow | undefined;
 
       // Determine status
       let status = 'available';
@@ -170,7 +260,7 @@ export async function GET(request: Request) {
         comments: p.comments || null,
 
         // Communication history (intelligence context)
-        recentComms: unitComms.slice(0, 5).map((c: any) => ({
+        recentComms: unitComms.slice(0, 5).map((c) => ({
           date: c.created_at,
           type: c.type,
           direction: c.direction,
@@ -182,20 +272,20 @@ export async function GET(request: Request) {
 
     // 6. Build scheme summaries
     const schemes = developments.map((dev) => {
-      const devBuyers = buyers.filter((b: any) => b.schemeId === dev.id);
+      const devBuyers = buyers.filter((b) => b.schemeId === dev.id);
       const devUnits = (units || []).filter((u) => u.development_id === dev.id);
       const totalUnits = devUnits.length;
 
-      const sold = devBuyers.filter((b: any) => b.status === 'sold').length;
-      const contractsSigned = devBuyers.filter((b: any) => b.status === 'contracts_signed').length;
-      const contractsOut = devBuyers.filter((b: any) => b.status === 'contracts_out').length;
-      const reserved = devBuyers.filter((b: any) => b.status === 'reserved' || b.status === 'sale_agreed').length;
+      const sold = devBuyers.filter((b) => b.status === 'sold').length;
+      const contractsSigned = devBuyers.filter((b) => b.status === 'contracts_signed').length;
+      const contractsOut = devBuyers.filter((b) => b.status === 'contracts_out').length;
+      const reserved = devBuyers.filter((b) => b.status === 'reserved' || b.status === 'sale_agreed').length;
       const assigned = devBuyers.length;
       const available = Math.max(0, totalUnits - assigned);
 
       const percentSold = totalUnits > 0 ? Math.round((sold / totalUnits) * 100) : 0;
-      const urgentCount = devBuyers.filter((b: any) => b.isUrgent).length;
-      const revenue = devBuyers.reduce((sum: number, b: any) => sum + b.price, 0);
+      const urgentCount = devBuyers.filter((b) => b.isUrgent).length;
+      const revenue = devBuyers.reduce((sum, b) => sum + b.price, 0);
 
       return {
         id: dev.id,
@@ -209,17 +299,18 @@ export async function GET(request: Request) {
         reserved,
         available,
         percentSold,
-        activeBuyers: devBuyers.filter((b: any) => b.status !== 'sold' && b.status !== 'available').length,
+        activeBuyers: devBuyers.filter((b) => b.status !== 'sold' && b.status !== 'available').length,
         urgentCount,
         revenue,
       };
     });
 
     return NextResponse.json({ schemes, buyers });
-  } catch (error: any) {
-    console.error('[agent/pipeline] Error:', error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('[agent/pipeline] Error', error);
     return NextResponse.json(
-      { error: 'Failed to fetch pipeline data', detail: error.message },
+      { error: 'Failed to fetch pipeline data', detail: message },
       { status: 500 }
     );
   }

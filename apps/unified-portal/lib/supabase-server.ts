@@ -41,7 +41,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     const userEmail = user.email as string;
 
     // Try Drizzle first, fallback to Supabase
-    let admin: any = null;
+    let admin: { id: string; email: string; role: string; preferred_role: string | null; tenant_id: string } | null = null;
 
     try {
       admin = await db.query.admins.findFirst({
@@ -55,8 +55,9 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         },
       });
       console.log('[AUTH] Admin found via Drizzle:', !!admin);
-    } catch (dbError: any) {
-      console.error('[AUTH] Drizzle DB error (falling back to Supabase):', dbError.message);
+    } catch (dbError: unknown) {
+      const dbMessage = dbError instanceof Error ? dbError.message : 'Unknown DB error';
+      console.error('[AUTH] Drizzle DB error (falling back to Supabase):', dbMessage);
 
       // Fallback to Supabase
       try {
@@ -72,9 +73,10 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         }
         admin = supabaseAdminData;
         console.log('[AUTH] Admin found via Supabase fallback:', !!admin);
-      } catch (fallbackError: any) {
-        console.error('[AUTH] Supabase fallback failed:', fallbackError.message);
-        return { status: 'not_authenticated', reason: 'Database error: ' + dbError.message };
+      } catch (fallbackError: unknown) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
+        console.error('[AUTH] Supabase fallback failed:', fallbackMessage);
+        return { status: 'not_authenticated', reason: 'Database error: ' + dbMessage };
       }
     }
 
@@ -100,9 +102,10 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         displayName,
       }
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[AUTH] Failed to get session:', error);
-    return { status: 'not_authenticated', reason: error.message || 'Session check failed' };
+    const message = error instanceof Error ? error.message : 'Session check failed';
+    return { status: 'not_authenticated', reason: message };
   }
 }
 

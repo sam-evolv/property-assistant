@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
+import { requireCsrf } from '@/lib/csrf';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,9 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = requireCsrf(req);
+  if (csrfError) return csrfError;
+
   try {
     const body = await req.json();
     const { unitId } = body;
@@ -23,7 +28,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Mark Handover] Marking unit as handed over:', unitId);
+    logger.info('[Mark Handover] Marking unit as handed over', { unitId });
 
     const supabase = getSupabaseAdmin();
     const now = new Date().toISOString();
@@ -34,7 +39,11 @@ export async function POST(req: NextRequest) {
       .eq('id', unitId);
 
     if (unitError) {
-      console.error('[Mark Handover] Failed to update units table:', unitError);
+      logger.error('[Mark Handover] Failed to update units table', unitError, { unitId });
+      return NextResponse.json(
+        { error: 'Failed to update handover status in units table' },
+        { status: 500 }
+      );
     }
 
     const { error: pipelineError } = await supabase
@@ -43,17 +52,14 @@ export async function POST(req: NextRequest) {
       .eq('unit_id', unitId);
 
     if (pipelineError) {
-      console.error('[Mark Handover] Failed to update pipeline table:', pipelineError);
-    }
-
-    if (unitError && pipelineError) {
+      logger.error('[Mark Handover] Failed to update pipeline table', pipelineError, { unitId });
       return NextResponse.json(
-        { error: 'Failed to update handover status' },
+        { error: 'Failed to update handover status in pipeline table' },
         { status: 500 }
       );
     }
 
-    console.log('[Mark Handover] Successfully marked unit as handed over:', unitId, 'at', now);
+    logger.info('[Mark Handover] Successfully marked unit as handed over', { unitId, handoverDate: now });
 
     return NextResponse.json({
       success: true,
@@ -61,8 +67,8 @@ export async function POST(req: NextRequest) {
       handoverDate: now,
       message: 'Unit marked as handed over'
     });
-  } catch (error: any) {
-    console.error('[Mark Handover] Error:', error);
+  } catch (error) {
+    logger.error('[Mark Handover] Error', error);
     return NextResponse.json(
       { error: 'Something went wrong. Please try again.' },
       { status: 500 }

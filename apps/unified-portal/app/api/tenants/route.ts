@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -14,14 +15,13 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Fetch all tenants - use SELECT * to get all available columns
     const { data: allTenants, error: tenantsError } = await supabase
       .from('tenants')
-      .select('*')
+      .select('id, name, slug, logo_url, created_at')
       .order('created_at', { ascending: true });
 
     if (tenantsError) {
-      console.error('Error fetching tenants:', tenantsError);
+      logger.error('[Tenants] Error fetching tenants', tenantsError);
       throw tenantsError;
     }
 
@@ -31,8 +31,7 @@ export async function GET() {
       .select('tenant_id');
 
     if (devsError) {
-      console.error('Error fetching developments:', devsError);
-      // Continue without counts rather than failing
+      logger.error('[Tenants] Error fetching developments', devsError);
     }
 
     // Build a lookup map for counts
@@ -51,7 +50,7 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching tenants:', error);
+    logger.error('[Tenants] Error fetching tenants', error);
     return NextResponse.json(
       { error: 'Failed to fetch tenants' },
       { status: 500 }

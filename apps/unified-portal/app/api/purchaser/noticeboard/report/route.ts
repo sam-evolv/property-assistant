@@ -4,6 +4,7 @@ import { db } from '@openhouse/db/client';
 import { notice_reports, noticeboard_posts, notice_comments, tenants } from '@openhouse/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
+import { requireCsrf } from '@/lib/csrf';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,9 @@ async function checkReportRateLimit(unitId: string, tenantId: string): Promise<b
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = requireCsrf(request);
+  if (csrfError) return csrfError;
+
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
