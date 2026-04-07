@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,9 @@ function getSupabaseAdmin() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Require admin authentication to mark handover
+    await requireRole(['developer', 'admin', 'super_admin']);
+
     const body = await req.json();
     const { unitId } = body;
 
@@ -62,6 +66,9 @@ export async function POST(req: NextRequest) {
       message: 'Unit marked as handed over'
     });
   } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[Mark Handover] Error:', error);
     return NextResponse.json(
       { error: 'Something went wrong. Please try again.' },

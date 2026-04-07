@@ -29,7 +29,7 @@ import { execSync } from 'child_process';
 
 const CONFIG = {
   encryptionKey: process.env.BACKUP_ENCRYPTION_KEY || '',
-  stagingDbUrl: process.env.STAGING_DATABASE_URL || 'postgresql://postgres:drill@localhost:5433/drill_restore',
+  stagingDbUrl: process.env.STAGING_DATABASE_URL || '',
   slackWebhook: process.env.SLACK_WEBHOOK_URL || '',
   backupDir: path.join(process.cwd(), 'backups', 'encrypted'),
 };

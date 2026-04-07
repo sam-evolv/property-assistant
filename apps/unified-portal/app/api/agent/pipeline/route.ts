@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,9 @@ function getSupabaseClient() {
  */
 export async function GET(request: Request) {
   try {
+    // Require admin authentication to access pipeline data
+    await requireRole(['developer', 'admin', 'super_admin']);
+
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenant_id');
     const schemeId = searchParams.get('scheme_id');
@@ -217,9 +221,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ schemes, buyers });
   } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[agent/pipeline] Error:', error.message);
     return NextResponse.json(
-      { error: 'Failed to fetch pipeline data', detail: error.message },
+      { error: 'Failed to fetch pipeline data' },
       { status: 500 }
     );
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,9 @@ function getSupabase() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Only super_admin can provision new developer accounts
+    await requireRole(['super_admin']);
+
     const supabase = getSupabase();
     const body = await request.json();
     const { email, fullName, tenantId, companyName } = body;
@@ -116,10 +120,13 @@ export async function POST(request: NextRequest) {
       message: 'Developer account created'
     });
   } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[ProvisionDeveloper] Server error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Server error' 
+    return NextResponse.json({
+      success: false,
+      error: 'Server error'
     }, { status: 500 });
   }
 }
