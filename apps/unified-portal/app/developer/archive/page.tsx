@@ -8,7 +8,7 @@ import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
-import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope, scopeToString } from '@/lib/archive-scope';
+import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope } from '@/lib/archive-scope';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
 
@@ -71,8 +71,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         setDevelopments(data.developments || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load developments:', error);
+    } catch {
     }
   }, [tenantId]);
 
@@ -81,13 +80,6 @@ export default function SmartArchivePage() {
     
     setIsLoading(true);
     try {
-      const queryPayload = {
-        tenantId,
-        mode: isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME',
-        schemeId: developmentId
-      };
-      console.log('[Archive] Outgoing archive query payload:', queryPayload);
-      
       const params = new URLSearchParams();
       params.set('tenantId', tenantId);
       params.set('mode', isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME');
@@ -96,13 +88,11 @@ export default function SmartArchivePage() {
       }
       
       const response = await fetch(`/api/archive/disciplines?${params}`);
-      console.log('[Archive] Backend response status:', response.status);
       if (response.ok) {
         const data = await response.json();
         setDisciplines(data.disciplines || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load disciplines:', error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -120,8 +110,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         setHouseTypes(data.houseTypes || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load house types:', error);
+    } catch {
     }
   }, [tenantId, developmentId]);
 
@@ -140,8 +129,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         setUnclassifiedCount(data.unclassifiedCount || 0);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to check unclassified:', error);
+    } catch {
     }
   }, [tenantId, developmentId]);
 
@@ -160,8 +148,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         setEmbeddingStats(data);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load embedding stats:', error);
+    } catch {
     }
   }, [tenantId, developmentId]);
 
@@ -181,8 +168,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         setCustomFolders(data.folders || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load custom folders:', error);
+    } catch {
     }
   }, [tenantId, developmentId]);
 
@@ -199,8 +185,7 @@ export default function SmartArchivePage() {
         const data = await res.json();
         setKnowledgeGaps(data.gaps || []);
       }
-    } catch (e) {
-      console.error('[Gaps] Failed:', e);
+    } catch {
     } finally {
       setGapsLoading(false);
     }
@@ -236,8 +221,7 @@ export default function SmartArchivePage() {
         setReprocessProgress(`Error: ${error.error || 'Reprocessing failed'}`);
         setTimeout(() => setReprocessProgress(null), 5000);
       }
-    } catch (error) {
-      console.error('[Archive] Reprocess failed:', error);
+    } catch {
       setReprocessProgress('Reprocessing failed');
       setTimeout(() => setReprocessProgress(null), 3000);
     } finally {
@@ -347,8 +331,7 @@ export default function SmartArchivePage() {
         const data = await response.json();
         alert(data.error || 'Failed to delete category');
       }
-    } catch (error) {
-      console.error('[Archive] Failed to delete folder:', error);
+    } catch {
     }
   };
 
@@ -388,8 +371,7 @@ export default function SmartArchivePage() {
         setClassifyProgress('Classification failed');
         setTimeout(() => setClassifyProgress(null), 3000);
       }
-    } catch (error) {
-      console.error('[Archive] Bulk classify failed:', error);
+    } catch {
       setClassifyProgress('Classification failed');
       setTimeout(() => setClassifyProgress(null), 3000);
     } finally {
@@ -399,7 +381,6 @@ export default function SmartArchivePage() {
 
   const setDevelopmentId = (id: string | null) => {
     const newScope = id ? createSchemeScope(id) : createAllSchemesScope();
-    console.log('[Archive] Scope change:', scopeToString(newScope));
     setArchiveScope(newScope);
   };
 
@@ -409,12 +390,6 @@ export default function SmartArchivePage() {
   const hasDocuments = totalDocuments > 0;
   const uploadSchemeId = selectedUploadSchemeId || developmentId;
   
-  console.log('[Archive] Render state:', { 
-    documents: totalDocuments, 
-    scope: scopeToString(archiveScope),
-    isLoading
-  });
-
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
@@ -662,7 +637,6 @@ export default function SmartArchivePage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'archive' ? (
           <>
-            {console.assert(disciplines !== undefined, 'Smart Archive rendered without documents')}
             {!hasDocuments && !isLoading && !isViewingAllSchemes && (
               <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
                 <FolderArchive className="w-5 h-5 text-gray-400" />

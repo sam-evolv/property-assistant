@@ -147,8 +147,8 @@ export default function PreHandoverSettingsPage() {
         const data = await response.json();
         setConfig({ ...DEFAULT_CONFIG, ...data, branding: { ...DEFAULT_CONFIG.branding, ...(data.branding || {}) } });
       }
-    } catch (error) {
-      console.error('Failed to fetch config:', error);
+    } catch {
+      // fetch config failed
     } finally {
       setIsLoading(false);
     }
@@ -250,8 +250,8 @@ export default function PreHandoverSettingsPage() {
         color: { dark: '#1a1a1a', light: '#ffffff' },
       });
       setQrCodeDataUrl(dataUrl);
-    } catch (e) {
-      console.error('QR generation failed', e);
+    } catch {
+      // QR generation failed
     }
   };
 

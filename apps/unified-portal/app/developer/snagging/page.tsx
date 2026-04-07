@@ -954,8 +954,7 @@ function SnagDetailSlideOver({
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-3">Add Photos</h4>
               <DragDropUpload
-                onUpload={async (files) => {
-                  console.log('Uploading', files);
+                onUpload={async () => {
                 }}
                 accept="image/*"
                 maxSize={5 * 1024 * 1024}
@@ -1359,8 +1358,7 @@ export default function SnaggingPage() {
     },
   ];
 
-  const handleExport = async (format: string) => {
-    console.log('Exporting as', format);
+  const handleExport = async (_format: string) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   };
 
@@ -1521,12 +1519,12 @@ export default function SnaggingPage() {
               {
                 label: 'Assign Contractor',
                 icon: User,
-                onClick: (ids) => console.log('Assign contractor to', ids),
+                onClick: () => {},
               },
               {
                 label: 'Mark Resolved',
                 icon: CheckCircle,
-                onClick: (ids) => console.log('Mark resolved', ids),
+                onClick: () => {},
               },
             ]}
             emptyMessage="No snags match your filters"

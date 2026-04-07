@@ -237,8 +237,8 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
           const data = await response.json();
           setDevelopments(data.developments || []);
         }
-      } catch (err) {
-        console.error('Failed to fetch developments:', err);
+      } catch {
+        // fetch developments failed
       } finally {
         setLoading(false);
       }
@@ -273,8 +273,8 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
           setRequestSuccess(false);
         }, 2000);
       }
-    } catch (err) {
-      console.error('Failed to submit request:', err);
+    } catch {
+      // submit request failed
     } finally {
       setSubmitting(false);
     }
@@ -713,14 +713,12 @@ export default function DeveloperDashboardClient({
           requestId: responseData.requestId || response.headers.get('x-request-id') || undefined,
           endpoint: responseData.endpoint || '/api/analytics/developer/dashboard',
         };
-        console.error('[Dashboard] API error:', errorInfo);
         setError(errorInfo);
         return;
       }
       
       setData(responseData);
     } catch (err) {
-      console.error('[Dashboard] Fetch error:', err);
       setError({
         error: 'Network error',
         details: err instanceof Error ? err.message : 'Failed to connect to server',

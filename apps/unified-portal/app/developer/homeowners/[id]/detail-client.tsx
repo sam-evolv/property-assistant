@@ -187,8 +187,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         const errorData = await response.json();
         alert(errorData.error || 'Failed to delete homeowner');
       }
-    } catch (err) {
-      console.error('Failed to delete:', err);
+    } catch {
       alert('An error occurred while deleting');
     } finally {
       setDeleting(false);

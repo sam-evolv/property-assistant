@@ -1015,8 +1015,8 @@ function EditablePurchaserName({ unitId, currentName, developmentId, handoverDat
         onShowToast(finalName ? 'Purchaser name updated' : 'Unit marked as For Sale');
         setTimeout(() => setShowSuccess(false), 1500);
       }
-    } catch (error) {
-      console.error('Failed to update purchaser name:', error);
+    } catch {
+      // update failed
     }
     setIsEditing(false);
   };
@@ -1035,8 +1035,8 @@ function EditablePurchaserName({ unitId, currentName, developmentId, handoverDat
         onShowToast('Unit marked as For Sale');
         setTimeout(() => setShowSuccess(false), 1500);
       }
-    } catch (error) {
-      console.error('Failed to mark as for sale:', error);
+    } catch {
+      // mark for sale failed
     }
     setIsEditing(false);
   };
@@ -1685,8 +1685,8 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
             setQueries(notes);
           }
         }
-      } catch (error) {
-        console.error('Failed to fetch queries:', error);
+      } catch {
+        // fetch queries failed
       } finally {
         setIsLoading(false);
       }
@@ -2645,8 +2645,8 @@ export default function PipelineDevelopmentPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ field: 'purchaserName', value: null }),
           });
-        } catch (error) {
-          console.error('Failed to mark unit as for sale:', error);
+        } catch {
+          // mark unit as for sale failed
         }
       }
       setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, purchaserName: null } : u));
@@ -2663,8 +2663,8 @@ export default function PipelineDevelopmentPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ field: stage, value: today }),
         });
-      } catch (error) {
-        console.error(`Failed to update ${stage} for unit ${unitId}:`, error);
+      } catch {
+        // update failed
       }
     }
     setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, [stage]: today } : u));

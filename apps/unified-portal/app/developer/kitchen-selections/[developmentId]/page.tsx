@@ -111,8 +111,8 @@ export default function KitchenSelectionsPage() {
       setDevelopment(data.development);
       setUnits(data.units || []);
       setSummary(data.summary || { total: 0, decided: 0, takingKitchen: 0, takingOwnKitchen: 0, pending: 0, totalPcSumImpact: 0, unitsWithDeductions: 0 });
-    } catch (err) {
-      console.error('Error fetching kitchen selections:', err);
+    } catch {
+      // fetch failed
     } finally {
       setIsLoading(false);
     }
@@ -168,8 +168,7 @@ export default function KitchenSelectionsPage() {
       }
       
       showToast('Saved');
-    } catch (err) {
-      console.error('Error saving:', err);
+    } catch {
       showToast('Failed to save');
     } finally {
       setSaving(null);

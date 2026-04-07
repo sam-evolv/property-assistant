@@ -581,7 +581,7 @@ export default function CommunicationsHubPage() {
                         setSelectedTemplate(template);
                         setShowComposeModal(true);
                       }}
-                      onEdit={() => console.log('Edit template:', template.id)}
+                      onEdit={() => {}}
                     />
                   ))}
               </div>
@@ -598,12 +598,12 @@ export default function CommunicationsHubPage() {
                 {
                   label: 'Resend',
                   icon: Send,
-                  onClick: (ids) => console.log('Resend to', ids),
+                  onClick: () => {},
                 },
                 {
                   label: 'Delete',
                   icon: Trash2,
-                  onClick: (ids) => console.log('Delete', ids),
+                  onClick: () => {},
                   variant: 'danger',
                 },
               ]}

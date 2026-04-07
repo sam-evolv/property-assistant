@@ -144,7 +144,6 @@ export default function DocumentDetailPage() {
           setVersions(versionsData.versions || []);
         }
       } catch (err) {
-        console.error('Failed to fetch document:', err);
         setError(err instanceof Error ? err.message : 'Failed to load document');
       } finally {
         setIsLoading(false);
@@ -183,7 +182,6 @@ export default function DocumentDetailPage() {
       setSuccessMessage('Changes saved successfully');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      console.error('Save error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save changes');
     } finally {
       setIsSaving(false);
@@ -218,7 +216,6 @@ export default function DocumentDetailPage() {
       setSuccessMessage(`Re-classified as "${data.classification?.discipline}" with ${Math.round(data.classification?.confidence * 100)}% confidence`);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
-      console.error('Reprocess error:', err);
       setError(err instanceof Error ? err.message : 'Reprocess failed');
     } finally {
       setIsReprocessing(false);
@@ -271,8 +268,7 @@ export default function DocumentDetailPage() {
         setFloorPlanRooms(data.rooms || []);
         setFpUnitTypes(data.unit_types || []);
       }
-    } catch (e) {
-      console.error('Failed to fetch floor plan rooms:', e);
+    } catch {
     }
     setIsLoadingRooms(false);
   }
