@@ -119,8 +119,6 @@ async function fetchNearbyPlaces(
  * Fetch all POI categories around a location
  */
 export async function fetchAllPOIs(lat: number, lng: number): Promise<POIsByCategory> {
-  const startTime = Date.now();
-
   // Fetch all categories in parallel for performance
   const [groceries, schools, parks, cafes, fitness, health, transport] = await Promise.all([
     fetchNearbyPlaces(lat, lng, CATEGORY_CONFIG.groceries.types[0]),

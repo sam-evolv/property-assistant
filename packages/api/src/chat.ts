@@ -247,18 +247,7 @@ export async function handleChatRequest(req: NextRequest) {
       );
     }
 
-    console.log('\n' + '='.repeat(80));
-    console.log('💬 CHAT API - RAG REQUEST');
-    console.log('='.repeat(80));
-    console.log(`Development: ${developmentId}`);
-    console.log(`Tenant: ${tenantId}`);
-    console.log(`Query: ${message}`);
-    console.log('');
-
     // STEP 1: Extract unit details from QR token
-    console.log('STEP 1: EXTRACTING PURCHASER CONTEXT');
-    console.log('-'.repeat(80));
-    
     const qrToken = req.headers.get('x-qr-token');
     let unitDetails: UnitDetails | null = null;
     let isFirstChat = false;
@@ -287,39 +276,23 @@ export async function handleChatRequest(req: NextRequest) {
         if (unitResult.rows && unitResult.rows.length > 0) {
           unitDetails = unitResult.rows[0];
           isFirstChat = !unitDetails.last_chat_at;
-          
-          console.log(`✅ Purchaser: ${unitDetails.purchaser_name || 'Unknown'}`);
-          console.log(`   Unit: ${unitDetails.unit_number} - ${unitDetails.address_line_1}`);
-          console.log(`   House Type: ${unitDetails.house_type_code}`);
-          console.log(`   First Chat: ${isFirstChat ? 'YES' : 'NO'}\n`);
-          
+
           if (isFirstChat) {
             await db.execute(sql`
               UPDATE units 
               SET last_chat_at = NOW()
               WHERE id = ${unitDetails.id}::uuid
             `);
-            console.log(`✅ Updated last_chat_at for first-time user\n`);
           }
         }
       }
     }
     
-    if (!unitDetails) {
-      console.log('⚠️  No QR token or unit details found - using generic context\n');
-    }
-
     // STEP 1.5: DIMENSION GUARDRAIL - Strict grounding for room size questions
     // This must run BEFORE any RAG retrieval to prevent LLM fabrication
-    console.log('STEP 1.5: DIMENSION GUARDRAIL CHECK');
-    console.log('-'.repeat(80));
-    
     let dimensionGuardrailResult: DimensionGuardrailResult = { shouldIntercept: false, lookupSuccessful: false };
     
     if (isDimensionQuestion(message)) {
-      console.log(`🔒 DIMENSION QUESTION DETECTED`);
-      console.log(`   Query: "${message}"`);
-      
       dimensionGuardrailResult = await applyDimensionGuardrail(
         message,
         tenantId,
@@ -329,15 +302,6 @@ export async function handleChatRequest(req: NextRequest) {
       );
       
       if (dimensionGuardrailResult.shouldIntercept && dimensionGuardrailResult.groundedAnswer) {
-        if (dimensionGuardrailResult.lookupSuccessful) {
-          console.log(`✅ GROUNDED ANSWER from canonical data`);
-          console.log(`   Room: ${dimensionGuardrailResult.roomKey}`);
-          console.log(`   Answer: ${dimensionGuardrailResult.groundedAnswer.substring(0, 100)}...`);
-        } else {
-          console.log(`⚠️  NO VERIFIED DATA - Using safe fallback`);
-          console.log(`   Room: ${dimensionGuardrailResult.roomKey}`);
-        }
-        
         // Log the grounded dimension response
         const duration = Date.now() - startTime;
         try {
@@ -362,12 +326,9 @@ export async function handleChatRequest(req: NextRequest) {
             )
           `);
         } catch (logError) {
-          console.log(`⚠️ Failed to log dimension response: ${logError instanceof Error ? logError.message : 'Unknown'}`);
+          // Failed to log dimension response
         }
-        
-        console.log('='.repeat(80));
-        console.log('');
-        
+
         return NextResponse.json({
           success: true,
           answer: dimensionGuardrailResult.groundedAnswer,
@@ -377,8 +338,6 @@ export async function handleChatRequest(req: NextRequest) {
           suggestFloorplan: dimensionGuardrailResult.suggestFloorplan,
         });
       }
-    } else {
-      console.log(`   Not a dimension question - proceeding to RAG\n`);
     }
 
     // STEP 1.6: Check for structured data queries (ONLY total floor area, not room-specific)
@@ -389,12 +348,6 @@ export async function handleChatRequest(req: NextRequest) {
     const isSpecificRoomQuery = /living\s+room|bedroom|bathroom|kitchen|dining|garage|hall|utility/.test(messageLower);
     
     if (isTotalAreaQuery && !isSpecificRoomQuery && unitDetails && unitDetails.floor_area_m2) {
-      console.log('STRUCTURED DATA QUERY DETECTED - Total Floor Area');
-      console.log('-'.repeat(80));
-      console.log(`Query pattern: Total floor area question (not room-specific)`);
-      console.log(`Structured data available: ${unitDetails.floor_area_m2} m² (${unitDetails.square_footage} sqft)`);
-      console.log(`Answering directly from unit database without RAG retrieval\n`);
-      
       const structuredAnswer = `Your ${unitDetails.house_type_code} home at ${unitDetails.address_line_1} has a total floor area of approximately ${unitDetails.floor_area_m2} m² (${unitDetails.square_footage} square feet). This is a ${unitDetails.bedrooms}-bedroom, ${unitDetails.bathrooms}-bathroom home. Would you like to know the dimensions of a specific room?`;
       
       return NextResponse.json({
@@ -406,9 +359,6 @@ export async function handleChatRequest(req: NextRequest) {
     }
 
     // STEP 2: Unit-First Retrieval (strict tiered weighting)
-    console.log('STEP 2: UNIT-FIRST RETRIEVAL');
-    console.log('-'.repeat(80));
-    
     const retrievalResult = await unitFirstRetrieval({
       tenantId,
       developmentId,
@@ -423,13 +373,9 @@ export async function handleChatRequest(req: NextRequest) {
     const ragConfidence = retrievalResult.confidence;
     const tierBreakdown = retrievalResult.tierBreakdown;
     
-    console.log(`✅ Unit-first retrieval: ${chunks.length} chunks, confidence: ${ragConfidence}`);
-    console.log(`   Tiers: unit=${tierBreakdown.unit || 0}, house_type=${tierBreakdown.house_type || 0}, important=${tierBreakdown.important || 0}, dev=${tierBreakdown.development || 0}, global=${tierBreakdown.global || 0}`);
-    
     // Get answer confidence for routing decisions
     const answerConf = await getAnswerConfidence(chunks, message);
-    console.log(`   Answer confidence: ${answerConf.confidence} - ${answerConf.explanation}\n`);
-    
+
     // =========================================================================
     // 4-LAYER FALLBACK SYSTEM
     // Layer 1: RAG Direct - Use chunks if confidence is high
@@ -437,9 +383,6 @@ export async function handleChatRequest(req: NextRequest) {
     // Layer 3: Vision-on-demand - Trigger GPT-4o Vision for visual questions
     // Layer 4: AI Reasoning - Best-effort answer with available context
     // =========================================================================
-    
-    console.log('STEP 3: 4-LAYER FALLBACK EVALUATION');
-    console.log('-'.repeat(80));
     
     // Detect query intent for routing
     const isRoomQuery = /room|bedroom|bathroom|kitchen|living|dining|utility|garage|hall|landing|ensuite/.test(messageLower);
@@ -452,22 +395,20 @@ export async function handleChatRequest(req: NextRequest) {
     const avgChunkScore = retrievalResult.confidenceScore;
     const hasHighConfidenceRAG = ragConfidence === 'high' || (chunks.length >= 3 && avgChunkScore > 0.6);
     
-    console.log(`   Query intent: ${[
+    // Determine final answering strategy based on query intent and confidence
+    void [
       isRoomQuery && 'ROOM',
-      isSupplierQuery && 'SUPPLIER', 
+      isSupplierQuery && 'SUPPLIER',
       isSpecQuery && 'SPECS',
       isDimensionQuery && 'DIMENSIONS',
       isFloorplanQuery && 'FLOORPLAN'
-    ].filter(Boolean).join(', ') || 'GENERAL'}`);
-    console.log(`   RAG confidence: ${avgChunkScore.toFixed(3)} (${hasHighConfidenceRAG ? 'HIGH' : 'LOW'})`);
-    
+    ];
+
     // Layer 2: Intelligence Profile lookup for structured data questions
     let profileContext = '';
     let profileSource: 'profile' | 'rag' | 'vision' | 'reasoning' = 'rag';
     
     if (unitDetails && (isRoomQuery || isSupplierQuery || isSpecQuery || isDimensionQuery) && !hasHighConfidenceRAG) {
-      console.log(`\n   Layer 2: Checking Intelligence Profile...`);
-      
       try {
         const profile = await getProfileForChat(
           tenantId,
@@ -476,8 +417,6 @@ export async function handleChatRequest(req: NextRequest) {
         );
         
         if (profile) {
-          console.log(`   ✅ Found profile v${profile.version} (confidence: ${(profile.overallConfidence * 100).toFixed(0)}%)`);
-          
           // Build profile context based on query type
           const profileParts: string[] = [];
           
@@ -538,32 +477,21 @@ export async function handleChatRequest(req: NextRequest) {
           
           if (profileParts.length > 0) {
             profileContext = '\n\n' + profileParts.join('\n');
-            console.log(`   ✅ Added ${profileParts.length} profile data points to context`);
-          } else {
-            console.log(`   ⚠️  Profile exists but no relevant data for this query`);
           }
-        } else {
-          console.log(`   ⚠️  No intelligence profile found for ${unitDetails.house_type_code}`);
         }
       } catch (profileError) {
-        console.error('   ❌ Profile lookup error:', profileError);
+        // Profile lookup failed
       }
     }
     
     // Layer 3: Vision-on-demand (for floorplan questions without profile data)
     // TODO: Implement when GPT-4o Vision integration is complete
     if (isFloorplanQuery && !profileContext && unitDetails) {
-      console.log(`\n   Layer 3: Vision-on-demand (not yet implemented)`);
-      console.log(`   Would trigger GPT-4o Vision analysis of floorplan documents`);
       // Future: Call vision extractor for specific pages
     }
-    
+
     // Determine final answering strategy
     if (chunks.length === 0 && !profileContext) {
-      console.log(`\n   Layer 4: No data available - returning empathetic fallback`);
-      console.log('='.repeat(80));
-      console.log('');
-      
       return NextResponse.json({
         success: true,
         answer: "I don't have specific information about that in the documents for your home. Would you like me to check with your developer for more details?",
@@ -571,12 +499,6 @@ export async function handleChatRequest(req: NextRequest) {
         source: 'fallback',
       });
     }
-    
-    console.log(`\n   Final source: ${profileSource.toUpperCase()}`);
-    console.log('');
-
-    console.log('STEP 4: BUILDING CONTEXT WITH DOCUMENT METADATA');
-    console.log('-'.repeat(80));
     
     // Build context with document metadata and tier info for better citations
     const contextParts = chunks.map((chunk: UnitFirstChunk, idx: number) => {
@@ -598,15 +520,6 @@ export async function handleChatRequest(req: NextRequest) {
       tier: chunk.tier,
     }));
     
-    console.log(`✅ Built context from ${chunks.length} chunks with document metadata`);
-    console.log(`   Context length: ${context.length} characters`);
-    if (chunks.length > 0) {
-      console.log(`   Avg final score: ${(chunks.reduce((sum: number, c: UnitFirstChunk) => sum + c.final_score, 0) / chunks.length).toFixed(3)}\n`);
-    }
-
-    console.log('STEP 5: GENERATING GROUNDED ANSWER');
-    console.log('-'.repeat(80));
-    
     // Build house-specific context if we have unit details
     let houseContext = '';
     if (unitDetails) {
@@ -620,8 +533,6 @@ export async function handleChatRequest(req: NextRequest) {
       if (unitDetails.floor_area_m2) houseContext += `Floor Area: ${unitDetails.floor_area_m2} m²\n`;
       
       houseContext += `\nIMPORTANT: This purchaser lives in house type ${unitDetails.house_type_code}. When they ask about their home, automatically use information for ${unitDetails.house_type_code} from the context. You already know their house type - never ask them for it.`;
-      
-      console.log(`✅ Built house-specific context for ${unitDetails.house_type_code}`);
     }
     
     // Extract room dimensions if this appears to be a room-size question
@@ -633,19 +544,12 @@ export async function handleChatRequest(req: NextRequest) {
     const matchedRoom = matchRoomToKey(message);
     
     if (isRoomSizeQuery && unitDetails && !dimensionHint && matchedRoom) {
-      console.log('📊 No dimensions in RAG context, checking structured data fallback...');
-      
       const structuredData = await getStructuredRoomDimensions(developmentId, unitDetails.house_type_code);
       
       if (structuredData.room_dimensions && structuredData.room_dimensions[matchedRoom]) {
         const roomDims = structuredData.room_dimensions[matchedRoom];
         structuredRoomFallback = formatRoomDimensionsForAnswer(matchedRoom, roomDims);
-        
-        console.log(`✅ STRUCTURED FALLBACK: Returning directly from database`);
-        console.log(`   ${structuredRoomFallback}`);
-        console.log('='.repeat(80));
-        console.log('');
-        
+
         // Return directly from structured data without LLM call
         return NextResponse.json({
           success: true,
@@ -654,7 +558,6 @@ export async function handleChatRequest(req: NextRequest) {
           source: 'structured_data',
         });
       } else if (structuredData.total_floor_area_sqm && !matchedRoom) {
-        console.log(`📊 Found total floor area: ${structuredData.total_floor_area_sqm} m²`);
         dimensionHint = `Total floor area for ${unitDetails.house_type_code}: ${structuredData.total_floor_area_sqm} m²`;
       }
     }
@@ -663,16 +566,10 @@ export async function handleChatRequest(req: NextRequest) {
       ? `\n\nMEASUREMENT HELPER:\n${dimensionHint}\nUse these as the width and length when the user asks about room size. Always present BOTH dimensions AND the calculated area.`
       : '';
     
-    if (dimensionHint) {
-      console.log(`✅ Dimensions available for answer generation`);
-      console.log(`   ${dimensionHint.split('\n')[0]}`);
-    }
-    
     // Build greeting context for first-time users only
     let greetingContext = '';
     if (isFirstChat && unitDetails?.purchaser_name) {
       greetingContext = `\n\nFIRST MESSAGE GREETING:\nThis is the purchaser's first time chatting. Start your response with a brief, warm welcome using their name: "${unitDetails.purchaser_name}". Keep it natural and conversational - just one sentence. For ALL subsequent messages, never use their name again unless they explicitly ask.`;
-      console.log(`✅ First-time greeting enabled for ${unitDetails.purchaser_name}`);
     }
     
     const systemPrompt = `You are the OpenHouse Resident Assistant. 
@@ -721,14 +618,10 @@ ONLY if the answer is truly not in the context at all, say:
     });
 
     let answer = completion.choices[0].message.content || "Based on the documents available for your home, I don't see details for this item. Would you like me to check with your developer?";
-    console.log(`✅ Generated answer (${answer.length} characters)\n`);
 
     // STEP 5.5: POST-VALIDATION - Catch any LLM-fabricated dimensions
     // This is a safety net in case the dimension guardrail didn't intercept
     if (isDimensionQuestion(message)) {
-      console.log('STEP 5.5: DIMENSION POST-VALIDATION');
-      console.log('-'.repeat(80));
-      
       const validation = validateLLMResponseForDimensions(
         answer,
         message,
@@ -736,11 +629,7 @@ ONLY if the answer is truly not in the context at all, say:
       );
       
       if (!validation.isValid && validation.sanitizedResponse) {
-        console.log(`❌ LLM FABRICATION DETECTED - Replacing with safe fallback`);
-        console.log(`   Original answer contained fabricated dimensions`);
         answer = validation.sanitizedResponse;
-      } else {
-        console.log(`✅ Response validated - no fabrication detected\n`);
       }
     }
 
@@ -760,9 +649,6 @@ ONLY if the answer is truly not in the context at all, say:
       .filter((id: string, index: number, arr: string[]) => arr.indexOf(id) === index); // unique
 
     // STEP 6: LOG MESSAGE TO DATABASE
-    console.log('STEP 6: LOGGING MESSAGE TO DATABASE');
-    console.log('-'.repeat(80));
-    
     try {
       // Note: house_id references homeowners.id, not units.id
       // Since we don't have a direct link, set to null and use user_id for unit context
@@ -817,13 +703,7 @@ ONLY if the answer is truly not in the context at all, say:
         )
       `);
       
-      console.log(`✅ Message logged to database`);
-      console.log(`   • Token count: ${tokenCount}`);
-      console.log(`   • Cost: $${costUsd.toFixed(6)}`);
-      console.log(`   • Latency: ${duration}ms`);
-      console.log(`   • Cited docs: ${citedDocumentIds.length}`);
     } catch (logError) {
-      console.error('⚠️  Failed to log message to database:', logError);
       logger.error('Message logging failed', {
         tenantId,
         developmentId,
@@ -832,9 +712,6 @@ ONLY if the answer is truly not in the context at all, say:
     }
     
     // STEP 7: INCREMENT ANALYTICS COUNTER
-    console.log('STEP 7: ANALYTICS INCREMENT');
-    console.log('-'.repeat(80));
-    
     try {
       await db.execute(sql`
         INSERT INTO analytics_events (
@@ -862,24 +739,9 @@ ONLY if the answer is truly not in the context at all, say:
           NOW()
         )
       `);
-      console.log(`✅ Analytics event recorded`);
     } catch (analyticsError) {
-      console.log(`⚠️ Analytics logging failed (non-fatal): ${analyticsError instanceof Error ? analyticsError.message : 'Unknown'}`);
+      // Analytics logging failed (non-fatal)
     }
-
-    console.log('='.repeat(80));
-    console.log('✅ CHAT REQUEST COMPLETED');
-    console.log('='.repeat(80));
-    console.log(`📊 Summary:`);
-    console.log(`   • Chunks retrieved: ${chunks.length}`);
-    console.log(`   • Context size: ${context.length} chars`);
-    console.log(`   • Answer size: ${answer.length} chars`);
-    console.log(`   • Total tokens: ${tokenCount}`);
-    console.log(`   • Response time: ${duration}ms`);
-    console.log(`   • Source: ${profileSource.toUpperCase()}`);
-    console.log(`   • Profile data used: ${profileContext ? 'YES' : 'NO'}`);
-    console.log('='.repeat(80));
-    console.log('');
 
     logger.apiRequest('/api/chat', 'POST', 200, duration, {
       tenantId,
