@@ -5,6 +5,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
+export const dynamic = 'force-dynamic'
+
 function ResetPasswordForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

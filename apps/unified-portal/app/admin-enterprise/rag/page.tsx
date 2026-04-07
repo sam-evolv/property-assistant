@@ -1,9 +1,9 @@
 import { requireRole } from '@/lib/supabase-server';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { LazyLoadFallback } from '../components/LazyLoadFallback';
 export const dynamic = 'force-dynamic'
 
-const RAGAnalytics = dynamic(() => import('./rag-client').then(mod => ({ default: mod.RAGAnalytics })), {
+const RAGAnalytics = nextDynamic(() => import('./rag-client').then(mod => ({ default: mod.RAGAnalytics })), {
   loading: () => <LazyLoadFallback />
 });
 

@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 import { requireRole } from '@/lib/supabase-server';
 import { redirect } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { DevelopmentsSkeleton } from './DevelopmentsSkeleton';
 export const dynamic = 'force-dynamic'
 
-const DevelopmentsContent = dynamic(
+const DevelopmentsContent = nextDynamic(
   () => import('./DevelopmentsContent').then((mod) => ({ default: mod.DevelopmentsContent })),
   {
     loading: () => <DevelopmentsSkeleton />,

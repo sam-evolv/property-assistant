@@ -1,9 +1,9 @@
 import { requireRole } from '@/lib/supabase-server';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { LazyLoadFallback } from '../components/LazyLoadFallback';
 export const dynamic = 'force-dynamic'
 
-const SystemLogs = dynamic(() => import('./system-logs-client').then(mod => ({ default: mod.SystemLogs })), {
+const SystemLogs = nextDynamic(() => import('./system-logs-client').then(mod => ({ default: mod.SystemLogs })), {
   loading: () => <LazyLoadFallback />
 });
 

@@ -1,9 +1,9 @@
 import { requireRole } from '@/lib/supabase-server';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { LazyLoadFallback } from '../components/LazyLoadFallback';
 export const dynamic = 'force-dynamic'
 
-const HomeownersDirectory = dynamic(() => import('./homeowners-client').then(mod => ({ default: mod.HomeownersDirectory })), {
+const HomeownersDirectory = nextDynamic(() => import('./homeowners-client').then(mod => ({ default: mod.HomeownersDirectory })), {
   loading: () => <LazyLoadFallback />
 });
 

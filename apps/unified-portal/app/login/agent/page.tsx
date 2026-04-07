@@ -10,6 +10,8 @@ import {
   handleInputFocus, handleInputBlur,
 } from '../_components/LoginField';
 
+export const dynamic = 'force-dynamic'
+
 export default function AgentLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
