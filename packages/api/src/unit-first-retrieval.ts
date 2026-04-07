@@ -16,28 +16,23 @@ async function getProjectIdFromDevelopmentId(developmentId: string): Promise<str
     `);
     
     if (!devResult.rows || devResult.rows.length === 0) {
-      console.log('[UNIT-FIRST] Development not found for id:', developmentId);
       return null;
     }
-    
+
     const developmentName = (devResult.rows[0] as any).name;
-    console.log('[UNIT-FIRST] Found development name:', developmentName);
     
     const projResult = await db.execute(sql`
       SELECT id FROM projects WHERE name = ${developmentName} LIMIT 1
     `);
     
     if (!projResult.rows || projResult.rows.length === 0) {
-      console.log('[UNIT-FIRST] No matching project found for name:', developmentName);
       return null;
     }
-    
+
     const projectId = (projResult.rows[0] as any).id;
-    console.log('[UNIT-FIRST] Mapped to project_id:', projectId);
-    
+
     return projectId;
   } catch (error) {
-    console.error('[UNIT-FIRST] Failed to map development to project:', error);
     return null;
   }
 }
@@ -200,17 +195,6 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
     includeGlobalFallback = true,
   } = options;
 
-  console.log('\n🚨🚨🚨 UNIT-FIRST RETRIEVAL CALLED - ' + new Date().toISOString());
-  console.log('🚨 Development ID:', developmentId);
-  console.log('🚨 Query:', query);
-  console.log('\n🔍 UNIT-FIRST RETRIEVAL');
-  console.log('='.repeat(60));
-  console.log(`  Tenant: ${tenantId}`);
-  console.log(`  Development: ${developmentId}`);
-  console.log(`  Unit ID: ${unitId || 'none'}`);
-  console.log(`  House Type: ${houseTypeCode || 'none'}`);
-  console.log(`  Query: ${query}`);
-
   const embeddingResponse = await getOpenAI().embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
@@ -223,14 +207,10 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
   const queryKeywords = extractKeywords(query);
   const intent = detectQueryIntent(query);
 
-  console.log(`  Keywords: ${queryKeywords.join(', ')}`);
-  console.log(`  Intent: supplier=${intent.isSupplierQuery}, dimension=${intent.isDimensionQuery}, property=${intent.isPropertyQuery}`);
-
   const allChunks: UnitFirstChunk[] = [];
   const tierBreakdown: Record<string, number> = {};
 
   if (unitId) {
-    console.log('\n  TIER 1: Unit-specific search...');
     const unitResults = await db.execute(sql`
       SELECT
         c.id,
@@ -261,11 +241,9 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
     allChunks.push(...unitChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.unit = unitChunks.length;
-    console.log(`    Found ${unitChunks.length} unit-specific chunks`);
   }
 
   if (houseTypeCode) {
-    console.log('\n  TIER 2: House type search...');
     const existingIds = new Set(allChunks.map(c => c.id));
     
     const houseTypeResults = await db.execute(sql`
@@ -297,10 +275,8 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
     allChunks.push(...houseTypeChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.house_type = houseTypeChunks.length;
-    console.log(`    Found ${houseTypeChunks.length} house type chunks`);
   }
 
-  console.log('\n  TIER 3: Important documents search...');
   {
     const existingIds = new Set(allChunks.map(c => c.id));
     
@@ -337,10 +313,8 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
     allChunks.push(...importantChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.important = importantChunks.length;
-    console.log(`    Found ${importantChunks.length} important document chunks`);
   }
 
-  console.log('\n  TIER 4: Development-wide search...');
   {
     const existingIds = new Set(allChunks.map(c => c.id));
     
@@ -373,11 +347,9 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
     allChunks.push(...devChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.development = devChunks.length;
-    console.log(`    Found ${devChunks.length} development-level chunks`);
   }
 
   if (includeGlobalFallback && allChunks.length < 5) {
-    console.log('\n  TIER 5: Global fallback (cross-unit similarity)...');
     const existingIds = new Set(allChunks.map(c => c.id));
     
     const globalResults = await db.execute(sql`
@@ -407,13 +379,8 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
     allChunks.push(...globalChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
     tierBreakdown.global = globalChunks.length;
-    console.log(`    Found ${globalChunks.length} global fallback chunks`);
   }
 
-  // TIER 6: ALWAYS search document_sections with project_id mapping
-  // (transport docs and other important info may only exist here)
-  console.log('\n🚨🚨🚨 TIER 6: ALWAYS RUNNING document_sections search');
-  console.log('  TIER 6: document_sections search (project_id mapping)...');
   {
     const existingContents = new Set(allChunks.map(c => c.content?.substring(0, 100)));
     
@@ -450,13 +417,7 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
 
       allChunks.push(...sectionsChunks.map((c: any) => processChunk(c, queryKeywords, intent)));
       tierBreakdown.document_sections = sectionsChunks.length;
-      console.log(`    Found ${sectionsChunks.length} document_sections chunks`);
-      if (sectionsChunks.length > 0) {
-        console.log(`    First result preview: ${sectionsChunks[0]?.content?.substring(0, 100)}`);
-        console.log(`    Top similarity: ${sectionsChunks[0]?.similarity}`);
-      }
     } else {
-      console.log('    Could not map development to project - skipping document_sections');
       tierBreakdown.document_sections = 0;
     }
   }
@@ -478,15 +439,6 @@ export async function unitFirstRetrieval(options: UnitFirstRetrievalOptions): Pr
   }
 
   const suggestFallback = confidence === 'low' || topChunks.length < 3;
-
-  console.log('\n  RETRIEVAL SUMMARY:');
-  console.log(`    Total candidates: ${allChunks.length}`);
-  console.log(`    Selected: ${topChunks.length}`);
-  console.log(`    Avg vector score: ${avgScore.toFixed(3)}`);
-  console.log(`    Confidence: ${confidence} (${(avgScore * 100).toFixed(1)}%)`);
-  console.log(`    Tier breakdown: ${JSON.stringify(tierBreakdown)}`);
-  console.log(`    Suggest fallback: ${suggestFallback}`);
-  console.log('='.repeat(60));
 
   return {
     chunks: topChunks,

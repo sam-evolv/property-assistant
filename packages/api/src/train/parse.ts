@@ -143,8 +143,6 @@ export async function parseCSV(buffer: Buffer, tenantId: string, fileName: strin
 }
 
 export async function parseJSON(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`🔷 Parsing JSON: ${fileName}`);
-  
   try {
     const content = buffer.toString('utf-8');
     const data = JSON.parse(content);
@@ -176,17 +174,13 @@ export async function parseJSON(buffer: Buffer, tenantId: string, fileName: stri
       });
     }
     
-    console.log(`✅ Parsed ${items.length} items from JSON`);
     return items;
   } catch (error) {
-    console.error('❌ JSON parsing error:', error);
     throw new Error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export async function parseText(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`📝 Parsing text file: ${fileName}`);
-  
   const text = buffer.toString('utf-8').trim();
   
   if (!text) {
@@ -205,8 +199,6 @@ export async function parseText(buffer: Buffer, tenantId: string, fileName: stri
 }
 
 export async function parseImage(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`🖼️ Parsing image file: ${fileName}`);
-  
   try {
     const Tesseract = (await import('tesseract.js')).default;
     
@@ -218,13 +210,10 @@ export async function parseImage(buffer: Buffer, tenantId: string, fileName: str
       },
     });
     
-    console.log('');
-    
     const text = result.data.text.trim();
     const confidence = result.data.confidence;
     
     if (!text || text.length < 10) {
-      console.log(`⚠️ Image OCR returned minimal text (${text.length} chars)`);
       return [{
         tenantId,
         sourceType: 'image',
@@ -242,11 +231,6 @@ export async function parseImage(buffer: Buffer, tenantId: string, fileName: str
     const { extractRoomDimensions } = await import('./enhanced-ocr');
     const roomDimensions = extractRoomDimensions(text);
     
-    console.log(`✅ Image OCR: ${text.length} chars, ${confidence.toFixed(1)}% confidence`);
-    if (roomDimensions.length > 0) {
-      console.log(`📐 Found ${roomDimensions.length} room dimensions`);
-    }
-    
     return [{
       tenantId,
       sourceType: 'image',
@@ -260,7 +244,6 @@ export async function parseImage(buffer: Buffer, tenantId: string, fileName: str
       },
     }];
   } catch (error) {
-    console.error(`❌ Image OCR failed:`, error);
     return [{
       tenantId,
       sourceType: 'image',
@@ -283,8 +266,6 @@ export async function parseFile(
 ): Promise<TrainingItem[]> {
   const detectedType = detectFileType(fileName, mimeType);
   
-  console.log(`\n📥 Parsing file: ${fileName} (detected type: ${detectedType}, MIME: ${mimeType || 'unknown'})`);
-  
   switch (detectedType) {
     case 'pdf':
       return parsePDF(buffer, tenantId, fileName);
@@ -299,7 +280,6 @@ export async function parseFile(
     case 'image':
       return parseImage(buffer, tenantId, fileName);
     default:
-      console.log(`⚠️ Unsupported file type: ${detectedType}, attempting generic text extraction`);
       try {
         const text = buffer.toString('utf-8').trim();
         if (text && text.length > 10) {

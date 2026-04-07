@@ -33,7 +33,6 @@ export async function getTenantBySlug(slug: string) {
     
     return tenant || null;
   } catch (error) {
-    console.error('Error fetching tenant by slug:', error);
     return null;
   }
 }
@@ -48,7 +47,6 @@ export async function getTenantById(id: string) {
     
     return tenant || null;
   } catch (error) {
-    console.error('Error fetching tenant by ID:', error);
     return null;
   }
 }

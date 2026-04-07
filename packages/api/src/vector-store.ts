@@ -36,13 +36,8 @@ export async function searchSimilarChunks(
 ): Promise<MatchedChunk[]> {
   const { threshold = 0.45, limit = 8 } = options;
   
-  console.log('STEP 1: GENERATING QUERY EMBEDDING');
-  console.log('-'.repeat(80));
   const queryEmbedding = await generateEmbedding(query);
-  console.log(`✅ Generated embedding (${queryEmbedding.length} dimensions)\n`);
 
-  console.log('STEP 2: VECTOR SIMILARITY SEARCH');
-  console.log('-'.repeat(80));
   const embeddingVector = `[${queryEmbedding.join(',')}]`;
   
   const result = await db.execute<MatchedChunk>(sql`
@@ -59,13 +54,7 @@ export async function searchSimilarChunks(
   `);
 
   const chunks = result.rows || [];
-  console.log(`✅ Found ${chunks.length} matching chunks (threshold: ${threshold})`);
-  
-  if (chunks.length > 0) {
-    console.log(`   Similarity scores: ${chunks.map(c => c.similarity.toFixed(3)).join(', ')}`);
-  }
-  console.log('');
-  
+
   return chunks;
 }
 
