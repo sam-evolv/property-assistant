@@ -30,8 +30,6 @@ export function detectFileType(fileName: string, mimeType?: string): string {
 }
 
 export async function parsePDF(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`📄 TRAIN API RECEIVED FILE: ${fileName}`);
-  
   const result = await enhancedExtractText(buffer, fileName, {
     forceOCR: false,
     useVision: false,
@@ -39,8 +37,6 @@ export async function parsePDF(buffer: Buffer, tenantId: string, fileName: strin
   });
   
   if (!result.text || result.text.length < 10) {
-    console.log(`⚠️ Enhanced extraction returned minimal text, trying legacy OCR...`);
-    
     try {
       const ocrResult = await extractTextWithOCR(buffer, fileName);
       
@@ -58,7 +54,6 @@ export async function parsePDF(buffer: Buffer, tenantId: string, fileName: strin
         }];
       }
     } catch (ocrError) {
-      console.error(`❌ Legacy OCR also failed:`, ocrError);
     }
     
     if (!result.text) {
@@ -77,10 +72,7 @@ export async function parsePDF(buffer: Buffer, tenantId: string, fileName: strin
   
   if (result.roomDimensions.length > 0) {
     metadata.roomDimensions = result.roomDimensions;
-    console.log(`📐 Extracted ${result.roomDimensions.length} room dimensions from PDF`);
   }
-  
-  console.log(`✅ Final extraction: ${result.text.length} chars using ${result.extractionMethod}`);
   
   return [{
     tenantId,
@@ -92,8 +84,6 @@ export async function parsePDF(buffer: Buffer, tenantId: string, fileName: strin
 }
 
 export async function parseDOCX(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`📝 Parsing DOCX: ${fileName}`);
-  
   try {
     const result = await mammoth.extractRawText({ buffer });
     const text = result.value.trim();
@@ -112,14 +102,11 @@ export async function parseDOCX(buffer: Buffer, tenantId: string, fileName: stri
       },
     }];
   } catch (error) {
-    console.error('❌ DOCX parsing error:', error);
     throw new Error(`Failed to parse DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export async function parseCSV(buffer: Buffer, tenantId: string, fileName: string): Promise<TrainingItem[]> {
-  console.log(`📊 Parsing CSV: ${fileName}`);
-  
   try {
     const content = buffer.toString('utf-8');
     const records = csvParse(content, {
@@ -149,10 +136,8 @@ export async function parseCSV(buffer: Buffer, tenantId: string, fileName: strin
       };
     });
     
-    console.log(`✅ Parsed ${items.length} rows from CSV`);
     return items;
   } catch (error) {
-    console.error('❌ CSV parsing error:', error);
     throw new Error(`Failed to parse CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

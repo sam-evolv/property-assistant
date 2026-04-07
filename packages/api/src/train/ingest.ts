@@ -226,15 +226,7 @@ export async function ingestEmbeddings(
   sourceId?: string,
   houseTypeCode?: string | null
 ): Promise<IngestResult> {
-  console.log(`\n🧩 INSERT CHUNKS: ${embeddings.length} chunks to insert`);
-  console.log(`   Tenant: ${tenantId}`);
-  console.log(`   Development: ${developmentId}`);
-  console.log(`   Source Type: ${sourceType}`);
-  console.log(`   Document ID: ${sourceId || 'none'}`);
-  console.log(`   House Type Code: ${houseTypeCode || 'none (general document)'}`);
-  
   if (embeddings.length === 0) {
-    console.log('   ⚠️  No embeddings to ingest');
     return { success: true, chunksInserted: 0 };
   }
   
@@ -248,9 +240,7 @@ export async function ingestEmbeddings(
         .where(sql`id = ${sourceId}::uuid`)
         .limit(1);
       isImportant = doc[0]?.is_important || false;
-      console.log(`   Important Document: ${isImportant ? 'YES' : 'NO'}`);
     } catch (error) {
-      console.warn(`   ⚠️  Could not retrieve document importance: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
   }
   
@@ -296,42 +286,30 @@ export async function ingestEmbeddings(
         
         chunksInserted++;
         
-        if (chunksInserted % 10 === 0) {
-          console.log(`   📊 Progress: ${chunksInserted}/${embeddings.length} chunks inserted`);
-        }
       } catch (error) {
         const errorMsg = `Failed to insert chunk ${chunk.index}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`   ❌ ${errorMsg}`);
         errors.push(errorMsg);
       }
     }
-    
-    console.log(`✅ CHUNKS INSERTED successfully`);
-    console.log(`   Total: ${chunksInserted}/${embeddings.length} chunks`);
-    
+
     return {
       success: errors.length === 0,
       chunksInserted,
       errors: errors.length > 0 ? errors : undefined,
     };
   } catch (error) {
-    console.error('❌ CHUNK INSERT FAILED:', error);
     throw new Error(`Failed to ingest embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export async function deleteDocumentChunks(tenantId: string, sourceId: string): Promise<number> {
-  console.log(`\n🗑️  Deleting chunks for document: ${sourceId} (tenant: ${tenantId})`);
-  
   try {
     const result = await db
       .delete(doc_chunks)
       .where(sql`tenant_id = ${tenantId} AND source_id = ${sourceId}`);
     
-    console.log(`✅ Deleted existing chunks`);
     return 0;
   } catch (error) {
-    console.error('❌ Delete failed:', error);
     throw new Error(`Failed to delete chunks: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -345,7 +323,6 @@ export async function getTenantChunkCount(tenantId: string): Promise<number> {
     
     return Number(result[0]?.count || 0);
   } catch (error) {
-    console.error('❌ Count query failed:', error);
     return 0;
   }
 }
@@ -376,7 +353,6 @@ export async function searchSimilarChunks(
     
     return results.rows || [];
   } catch (error) {
-    console.error('❌ Similarity search failed:', error);
     return [];
   }
 }
@@ -387,17 +363,11 @@ export async function createDocument(
   fileName: string,
   fileUrl: string = ''
 ): Promise<{ id: string; houseTypeCode: string | null; documentType: string; houseTypeId: string | null }> {
-  console.log(`\n📁 INSERT DOCUMENT: ${fileName}`);
-  console.log(`   Tenant: ${tenantId}`);
-  console.log(`   Development: ${developmentId}`);
-  
   // Extract house type code from filename
   const houseTypeCode = extractHouseTypeCode(fileName);
-  console.log(`   House Type Code: ${houseTypeCode || 'none (general document)'}`);
-  
+
   // Classify document type based on filename
   const documentType = classifyDocumentType(fileName);
-  console.log(`   Document Type: ${documentType}`);
   
   let houseTypeId: string | null = null;
   if (houseTypeCode) {
@@ -412,7 +382,6 @@ export async function createDocument(
         houseTypeId = houseTypeResult.rows[0].id;
       }
     } catch (e) {
-      console.warn(`⚠️  Could not find house_type_id for ${houseTypeCode}`);
     }
   }
   
@@ -434,11 +403,8 @@ export async function createDocument(
     }).returning({ id: documents.id });
     
     const documentId = result[0].id;
-    console.log(`✅ DOCUMENT INSERTED successfully`);
-    console.log(`   Document ID: ${documentId}`);
     return { id: documentId, houseTypeCode, documentType, houseTypeId };
   } catch (error) {
-    console.error('❌ DOCUMENT INSERT FAILED:', error);
     throw new Error(`Failed to create document: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -452,7 +418,6 @@ export async function getTenantDocumentCount(tenantId: string): Promise<number> 
     
     return Number(result[0]?.count || 0);
   } catch (error) {
-    console.error('❌ Document count query failed:', error);
     return 0;
   }
 }
@@ -464,9 +429,7 @@ export async function markDocumentFailed(documentId: string): Promise<void> {
       SET status = 'failed', updated_at = NOW()
       WHERE id = ${documentId}::uuid
     `);
-    console.log(`✅ Marked document ${documentId} as failed`);
   } catch (error) {
-    console.error(`❌ Failed to mark document as failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -477,8 +440,6 @@ export async function updateDocumentChunkCount(documentId: string, chunkCount: n
       SET chunks_count = ${chunkCount}, updated_at = NOW()
       WHERE id = ${documentId}::uuid
     `);
-    console.log(`✅ Updated document ${documentId} with ${chunkCount} chunks`);
   } catch (error) {
-    console.error(`❌ Failed to update document chunk count: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

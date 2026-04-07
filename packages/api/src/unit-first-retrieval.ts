@@ -11,9 +11,6 @@ function getOpenAI() {
 
 async function getProjectIdFromDevelopmentId(developmentId: string): Promise<string | null> {
   try {
-    console.log('[UNIT-FIRST] === MAPPING development_id to project_id ===');
-    console.log('[UNIT-FIRST] Input development_id:', developmentId);
-    
     const devResult = await db.execute(sql`
       SELECT id, name FROM developments WHERE id = ${developmentId}::uuid LIMIT 1
     `);
