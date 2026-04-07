@@ -55,8 +55,9 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ conflicts: conflicts || [] });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -122,8 +123,9 @@ export async function PATCH(request: NextRequest) {
     }, request);
 
     return NextResponse.json({ success: true, resolution });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

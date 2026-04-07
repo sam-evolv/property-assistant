@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { units, developments } from '@openhouse/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { units } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PATCH(
   request: NextRequest,

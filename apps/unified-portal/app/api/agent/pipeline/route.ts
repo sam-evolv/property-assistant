@@ -75,7 +75,8 @@ export async function GET(request: Request) {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
     const unitIds = (units || []).map((u) => u.id);
 
-    let comms: any[] = [];
+    type CommEvent = { unit_id: string; created_at: string; type: string; direction: string; summary: string; actor_name: string };
+    let comms: CommEvent[] = [];
     if (unitIds.length > 0) {
       const { data: commsData } = await supabase
         .from('communication_events')
@@ -85,11 +86,11 @@ export async function GET(request: Request) {
         .gte('created_at', ninetyDaysAgo)
         .order('created_at', { ascending: false })
         .limit(200);
-      comms = commsData || [];
+      comms = (commsData || []) as CommEvent[];
     }
 
     // Group comms by unit_id
-    const commsByUnit = new Map<string, any[]>();
+    const commsByUnit = new Map<string, CommEvent[]>();
     for (const c of comms) {
       if (!commsByUnit.has(c.unit_id)) commsByUnit.set(c.unit_id, []);
       commsByUnit.get(c.unit_id)!.push(c);
@@ -97,9 +98,12 @@ export async function GET(request: Request) {
 
     // 5. Build buyer profiles from pipeline data
     const now = new Date();
-    const buyers = (pipeline || []).map((p: any) => {
-      const unit: any = unitMap.get(p.unit_id);
-      const dev: any = devMap.get(p.development_id || unit?.development_id);
+    type PipelineRow = NonNullable<typeof pipeline>[number];
+    type UnitRow = NonNullable<typeof units>[number];
+    type DevRow = NonNullable<typeof developments>[number];
+    const buyers = (pipeline || []).map((p: PipelineRow) => {
+      const unit = unitMap.get(p.unit_id) as UnitRow | undefined;
+      const dev = devMap.get(p.development_id || unit?.development_id || '') as DevRow | undefined;
 
       // Determine status
       let status = 'available';
@@ -170,7 +174,7 @@ export async function GET(request: Request) {
         comments: p.comments || null,
 
         // Communication history (intelligence context)
-        recentComms: unitComms.slice(0, 5).map((c: any) => ({
+        recentComms: unitComms.slice(0, 5).map((c) => ({
           date: c.created_at,
           type: c.type,
           direction: c.direction,
@@ -182,20 +186,20 @@ export async function GET(request: Request) {
 
     // 6. Build scheme summaries
     const schemes = developments.map((dev) => {
-      const devBuyers = buyers.filter((b: any) => b.schemeId === dev.id);
+      const devBuyers = buyers.filter((b) => b.schemeId === dev.id);
       const devUnits = (units || []).filter((u) => u.development_id === dev.id);
       const totalUnits = devUnits.length;
 
-      const sold = devBuyers.filter((b: any) => b.status === 'sold').length;
-      const contractsSigned = devBuyers.filter((b: any) => b.status === 'contracts_signed').length;
-      const contractsOut = devBuyers.filter((b: any) => b.status === 'contracts_out').length;
-      const reserved = devBuyers.filter((b: any) => b.status === 'reserved' || b.status === 'sale_agreed').length;
+      const sold = devBuyers.filter((b) => b.status === 'sold').length;
+      const contractsSigned = devBuyers.filter((b) => b.status === 'contracts_signed').length;
+      const contractsOut = devBuyers.filter((b) => b.status === 'contracts_out').length;
+      const reserved = devBuyers.filter((b) => b.status === 'reserved' || b.status === 'sale_agreed').length;
       const assigned = devBuyers.length;
       const available = Math.max(0, totalUnits - assigned);
 
       const percentSold = totalUnits > 0 ? Math.round((sold / totalUnits) * 100) : 0;
-      const urgentCount = devBuyers.filter((b: any) => b.isUrgent).length;
-      const revenue = devBuyers.reduce((sum: number, b: any) => sum + b.price, 0);
+      const urgentCount = devBuyers.filter((b) => b.isUrgent).length;
+      const revenue = devBuyers.reduce((sum, b) => sum + b.price, 0);
 
       return {
         id: dev.id,
@@ -209,16 +213,17 @@ export async function GET(request: Request) {
         reserved,
         available,
         percentSold,
-        activeBuyers: devBuyers.filter((b: any) => b.status !== 'sold' && b.status !== 'available').length,
+        activeBuyers: devBuyers.filter((b) => b.status !== 'sold' && b.status !== 'available').length,
         urgentCount,
         revenue,
       };
     });
 
     return NextResponse.json({ schemes, buyers });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch pipeline data', detail: error.message },
+      { error: 'Failed to fetch pipeline data', detail: errorMessage },
       { status: 500 }
     );
   }

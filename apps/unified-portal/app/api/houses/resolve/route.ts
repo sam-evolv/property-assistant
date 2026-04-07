@@ -236,8 +236,9 @@ export async function POST(req: Request) {
             WHERE u.unit_uid = ${token}
             LIMIT 1
           `);
-    } catch (dbErr: any) {
-      if (dbErr.message?.includes('MaxClients') || dbErr.message?.includes('pool') || dbErr.code === 'XX000') {
+    } catch (dbErr: unknown) {
+      const dbErrObj = dbErr instanceof Error ? dbErr as Error & { code?: unknown } : new Error(String(dbErr));
+      if (dbErrObj.message?.includes('MaxClients') || dbErrObj.message?.includes('pool') || dbErrObj.code === 'XX000') {
         dbConnectionError = true;
       }
       unitResult = { rows: [] };
@@ -424,7 +425,7 @@ export async function POST(req: Request) {
                 fullPurchaserName = drizzleUnit.purchaser_name;
               }
             }
-          } catch (_crossRefErr: any) {
+          } catch (_crossRefErr: unknown) {
               // error handled silently
           }
         }
@@ -472,7 +473,7 @@ export async function POST(req: Request) {
             };
             
           }
-        } catch (_pipelineErr: any) {
+        } catch (_pipelineErr: unknown) {
             // error handled silently
         }
         
@@ -515,7 +516,7 @@ export async function POST(req: Request) {
         recordCircuitBreakerSuccess('/api/houses/resolve');
         return NextResponse.json(responseData, { headers: getResponseHeaders(requestId) });
       }
-    } catch (_supabaseErr: any) {
+    } catch (_supabaseErr: unknown) {
         // error handled silently
     }
 
@@ -634,7 +635,7 @@ export async function POST(req: Request) {
         },
         { headers: getResponseHeaders(requestId) }
       );
-    } catch (homeownerErr: any) {
+    } catch (homeownerErr: unknown) {
       if (isConnectionPoolError(homeownerErr) || dbConnectionError) {
         recordCircuitBreakerFailure('/api/houses/resolve');
         return NextResponse.json(
@@ -651,10 +652,11 @@ export async function POST(req: Request) {
       );
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
     recordCircuitBreakerFailure('/api/houses/resolve');
     logCritical('Resolve', 'Server error during unit resolution', requestId, {
-      error: err.message || 'Unknown error',
+      error: errMessage || 'Unknown error',
     });
     if (isConnectionPoolError(err)) {
       return NextResponse.json(
@@ -666,7 +668,7 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json(
-      createStructuredError(err.message || 'Server error', requestId, {
+      createStructuredError(errMessage || 'Server error', requestId, {
         error_code: 'SERVER_ERROR',
         retryable: true,
       }),

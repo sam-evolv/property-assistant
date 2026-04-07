@@ -105,12 +105,13 @@ export async function GET(request: NextRequest) {
         questionsTotal: 0,
       },
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch homeowners' },
+      { error: errorMessage || 'Failed to fetch homeowners' },
       { status: 500 }
     );
   }

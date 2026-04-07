@@ -6,7 +6,6 @@ import {
   Lock, Flower2, ChevronDown, AlertCircle, Loader2,
 } from 'lucide-react';
 import { useHomeNotes, type HomeNote, type NoteCategory } from '@/hooks/useHomeNotes';
-import { getEffectiveToken } from '@/lib/purchaserSession';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

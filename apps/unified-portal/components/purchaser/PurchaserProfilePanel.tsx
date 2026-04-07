@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
@@ -141,21 +141,24 @@ export default function PurchaserProfilePanel({
     
     try {
       storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      storageToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      storageToken = 'ERROR: ' + eMessage;
     }
     
     try {
       sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      sessionToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      sessionToken = 'ERROR: ' + eMessage;
     }
     
     try {
       const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
       cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
-    } catch (e: any) {
-      cookieToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      cookieToken = 'ERROR: ' + eMessage;
     }
     
     const effectiveToken = propToken || getEffectiveToken(unitUid);
@@ -195,8 +198,9 @@ export default function PurchaserProfilePanel({
         setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorText.substring(0, 100)}` } : null);
         setError('Failed to load profile');
       }
-    } catch (err: any) {
-      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${err.message}` } : null);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${errMessage}` } : null);
       setError('Failed to load profile');
     } finally {
       setLoading(false);

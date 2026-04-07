@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { BottomSheet, SheetHeader, SheetItem } from './BottomSheet';
 import { SettingsSheet } from './sheets/SettingsSheet';
 import { MILESTONE_ORDER, MILESTONE_LABELS, type UnitPreHandoverData, type SheetType, type Document, type ContactInfo, type FAQ, type MilestoneDates } from './types';
-import { Home, Settings, Clock, FileText, HelpCircle, Phone, Calendar, ChevronRight, Check, Mail, MapPin, Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown, MessageSquare, Sparkles, Bell } from 'lucide-react';
+import { Home, Settings, Clock, FileText, HelpCircle, Phone, Calendar, ChevronRight, Check, Mail, MapPin, Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();

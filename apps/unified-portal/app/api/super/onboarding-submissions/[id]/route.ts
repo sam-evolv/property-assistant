@@ -24,8 +24,9 @@ export async function GET(
     }
 
     return NextResponse.json({ submission });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch submission' }, { status: 500 });
@@ -65,8 +66,9 @@ export async function PATCH(
     }
 
     return NextResponse.json({ submission: updated });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to update submission' }, { status: 500 });
@@ -90,8 +92,9 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to delete submission' }, { status: 500 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Video, Play, X, Loader2, ExternalLink } from 'lucide-react';
+import { Video, Play, X, ExternalLink } from 'lucide-react';
 import { getEffectiveToken } from '../../lib/purchaserSession';
 
 interface VideoResource {

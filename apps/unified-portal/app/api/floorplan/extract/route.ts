@@ -127,10 +127,11 @@ export async function POST(request: NextRequest) {
       confidence: result.confidence,
       extraction_method: result.extraction_method,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED')
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN')
+    if (errorMessage === 'FORBIDDEN')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json(
       { error: 'Extraction failed' },

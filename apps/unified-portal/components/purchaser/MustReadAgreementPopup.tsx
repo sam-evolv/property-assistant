@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileCheck, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { FileCheck, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface ImportantDoc {
   id: string;

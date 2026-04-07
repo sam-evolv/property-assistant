@@ -106,9 +106,10 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ logs });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch logs', logs: [] },
+      { error: errorMessage || 'Failed to fetch logs', logs: [] },
       { status: 500 }
     );
   }

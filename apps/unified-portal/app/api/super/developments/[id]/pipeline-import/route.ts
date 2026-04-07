@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { developments, units, unitSalesPipeline, tenants } from '@openhouse/db/schema';
+import { developments, units } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 import * as XLSX from 'xlsx';
@@ -346,10 +346,11 @@ export async function POST(
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    return NextResponse.json({ error: error.message || 'Import failed' }, { status: 500 });
+    return NextResponse.json({ error: errorMessage || 'Import failed' }, { status: 500 });
   }
 }

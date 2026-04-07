@@ -321,8 +321,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-      } catch (err: any) {
-        fileResults.push({ fileName: file.name, success: false, error: err.message });
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        fileResults.push({ fileName: file.name, success: false, error: errMessage });
         failed++;
       }
     }
@@ -352,9 +353,10 @@ export async function POST(request: NextRequest) {
       files: fileResults,
     });
 
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (errorMessage === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }
@@ -385,8 +387,9 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ jobs: jobs || [] });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.json({ jobs: [] });
   }
 }

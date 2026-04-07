@@ -236,9 +236,10 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': 'attachment; filename="LongviewPark_QR_Pack.pdf"',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to generate QR pack' },
+      { error: errorMessage || 'Failed to generate QR pack' },
       { status: 500 }
     );
   }

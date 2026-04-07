@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { Plus, Upload, Download, Copy, Trash2, CheckCircle, AlertTriangle, Settings, Info, FileText, Home, Ruler, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { Plus, Download, CheckCircle, AlertTriangle, Settings, Info, FileText, Home, Ruler, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 
 interface Development {
   id: string;

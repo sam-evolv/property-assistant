@@ -73,8 +73,9 @@ export default function BTRCompliancePage() {
         const btr = await btrRes.json();
         setItems(Array.isArray(compData) ? compData : compData.items || []);
         setBtrData(btr);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }
@@ -127,8 +128,9 @@ export default function BTRCompliancePage() {
             : i
         )
       );
-    } catch (err: any) {
-      alert('Error: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error: ' + errMessage);
     } finally {
       setSaving(false);
     }
@@ -161,8 +163,9 @@ export default function BTRCompliancePage() {
       setNewDueDate('');
       setNewRecurrence('');
       setNewProvider('');
-    } catch (err: any) {
-      alert('Error creating: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error creating: ' + errMessage);
     } finally {
       setSaving(false);
     }

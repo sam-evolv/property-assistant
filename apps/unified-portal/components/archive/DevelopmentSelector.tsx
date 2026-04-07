@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, Building2, Check, Layers } from 'lucide-react';
-import { ArchiveScope, isAllSchemes, getSchemeId, createAllSchemesScope, createSchemeScope, scopeToString } from '@/lib/archive-scope';
+import { ArchiveScope, isAllSchemes, getSchemeId, createAllSchemesScope, createSchemeScope } from '@/lib/archive-scope';
 
 interface Development {
   id: string;

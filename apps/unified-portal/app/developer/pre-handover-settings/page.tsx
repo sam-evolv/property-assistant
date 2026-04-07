@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import {
   Calendar,

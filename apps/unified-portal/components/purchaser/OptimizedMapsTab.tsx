@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Store, X, Phone, Globe, Clock, Star, MapPin, Loader2 } from 'lucide-react';
+import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Store, Star, MapPin, Loader2 } from 'lucide-react';
 
 interface OptimizedMapsTabProps {
   address: string;

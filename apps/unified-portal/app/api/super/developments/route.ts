@@ -73,8 +73,9 @@ export async function GET() {
       developments: formattedDevelopments,
       total: formattedDevelopments.length,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch developments' }, { status: 500 });
@@ -145,11 +146,12 @@ export async function POST(request: NextRequest) {
       success: true,
       id: newDevelopment.id,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorObj = error instanceof Error ? error as Error & { code?: unknown } : new Error(String(error));
+    if (errorObj.message === 'UNAUTHORIZED' || errorObj.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.code === '23505') {
+    if (errorObj.code === '23505') {
       return NextResponse.json({ error: 'A development with this code already exists' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to create development' }, { status: 500 });

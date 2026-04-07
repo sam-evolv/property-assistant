@@ -3,7 +3,7 @@
 import OHLogo from '../shared/OHLogo';
 import { BellIcon, BackIcon } from '../shared/Icons';
 import BreathingDot from '../shared/BreathingDot';
-import { TEXT_1, TEXT_2, TEXT_3, BORDER_LIGHT, SURFACE_2, EASE_PREMIUM } from '@/lib/dev-app/design-system';
+import { TEXT_1, BORDER_LIGHT, SURFACE_2, EASE_PREMIUM } from '@/lib/dev-app/design-system';
 
 interface HeaderProps {
   title: string;

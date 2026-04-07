@@ -81,8 +81,9 @@ export default function SchemeSetupPage() {
       }
 
       setSuccess('Location saved successfully. Nearby amenities are now enabled.');
-    } catch (err: any) {
-      setError(err.message || 'Failed to save profile');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage || 'Failed to save profile');
     } finally {
       setSaving(false);
     }

@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ videos });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const isDev = process.env.NODE_ENV !== 'production';
     return NextResponse.json({
       error: 'Failed to fetch videos',
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       videos: createdVideos,
       count: createdVideos.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const isDev = process.env.NODE_ENV !== 'production';
     return NextResponse.json({
       error: 'Failed to create video',
@@ -174,7 +174,7 @@ export async function DELETE(request: NextRequest) {
       .where(eq(video_resources.id, videoId));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const isDev = process.env.NODE_ENV !== 'production';
     return NextResponse.json({
       error: 'Failed to delete video',

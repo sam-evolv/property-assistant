@@ -107,11 +107,12 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ documents, count: documents.length });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ documents: [], count: 0 }, { status: 500 });

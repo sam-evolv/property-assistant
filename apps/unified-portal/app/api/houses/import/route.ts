@@ -307,15 +307,16 @@ export async function POST(req: NextRequest) {
           });
           inserted++;
         }
-      } catch (error: any) {
-        // error.detail and error.hint captured in results array below
+      } catch (error: unknown) {
+        const errorObj = error instanceof Error ? error as Error & { detail?: unknown; hint?: unknown } : new Error(String(error));
+        // errorObj.detail and errorObj.hint captured in results array below
         
         results.push({
           rowIndex,
           status: 'error',
           unitNumber: normalizedUnitNumber,
-          error: error.message,
-          details: error.detail || error.hint,
+          error: errorObj.message,
+          details: errorObj.detail || errorObj.hint,
         });
         errored++;
       }
@@ -334,11 +335,13 @@ export async function POST(req: NextRequest) {
       },
       results,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
     return NextResponse.json({
       success: false,
-      error: error.message,
+      error: errorMessage,
       summary: {
         total: 0,
         inserted,

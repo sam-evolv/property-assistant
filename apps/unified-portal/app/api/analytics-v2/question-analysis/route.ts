@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
-import { sql, and, gte, isNotNull, eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 

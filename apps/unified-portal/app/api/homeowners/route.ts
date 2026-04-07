@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, isDeveloper, isSuperAdmin, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
-import { homeowners, developments, messages, purchaserAgreements } from '@openhouse/db/schema';
-import { eq, and, inArray, sql, desc } from 'drizzle-orm';
+import { homeowners, developments, messages } from '@openhouse/db/schema';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { nanoid } from 'nanoid';
 
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
         headers: { 'x-request-id': requestId }
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     const errorMsg = error?.message || 'Unknown error';
     const errorCode = error?.code || 'UNKNOWN';
     

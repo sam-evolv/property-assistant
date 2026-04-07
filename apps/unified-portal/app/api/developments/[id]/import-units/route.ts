@@ -202,8 +202,9 @@ export async function POST(
         existingAddresses.add(normalizedAddress);
         existingUids.add(unitUid);
         unitIndex++;
-      } catch (err: any) {
-        result.errors.push(`Row ${rowNum}: ${err.message || 'Insert failed'}`);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Row ${rowNum}: ${errMessage || 'Insert failed'}`);
       }
     }
 
@@ -213,9 +214,10 @@ export async function POST(
       totalRows: rows.length,
       ...result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Import failed' },
+      { error: errorMessage || 'Import failed' },
       { status: 500 }
     );
   }

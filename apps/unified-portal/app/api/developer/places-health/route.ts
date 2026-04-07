@@ -154,8 +154,9 @@ async function testPlacesApiCall(lat: number, lng: number, apiKey: string): Prom
       return { success: true, status: data.status };
     }
     return { success: false, status: data.status, error: data.error_message };
-  } catch (err: any) {
-    return { success: false, status: 'NETWORK_ERROR', error: err.message };
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, status: 'NETWORK_ERROR', error: errMessage };
   }
 }
 

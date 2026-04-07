@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Home, Maximize2, Loader2 } from 'lucide-react';
-import { getRoomInfo, RoomInfoResult, DimensionsData, RoomDimension } from '@/lib/room-info';
+import { getRoomInfo, RoomInfoResult, RoomDimension } from '@/lib/room-info';
 
 interface RoomInfoDisplayProps {
   houseTypeId: string;
@@ -28,8 +28,9 @@ export default function RoomInfoDisplay({
         setError(null);
         const info = await getRoomInfo(houseTypeId, { token, unitUid });
         setRoomInfo(info);
-      } catch (err: any) {
-        setError(err.message || 'Unable to load room information');
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage || 'Unable to load room information');
       } finally {
         setLoading(false);
       }

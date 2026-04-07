@@ -98,10 +98,11 @@ export async function GET(
       rooms: rooms || [],
       unit_types: unitTypes,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED')
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN')
+    if (errorMessage === 'FORBIDDEN')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 });
   }
@@ -152,10 +153,11 @@ export async function PATCH(
     }
 
     return NextResponse.json({ success: true, room });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED')
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN')
+    if (errorMessage === 'FORBIDDEN')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
@@ -190,10 +192,11 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED')
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN')
+    if (errorMessage === 'FORBIDDEN')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
   }

@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments, homeowners } from '@openhouse/db/schema';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 interface DevelopmentCounts {
   developmentId: string;

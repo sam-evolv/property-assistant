@@ -69,8 +69,9 @@ export default function BTRWelcomePage() {
           const btrData = await btrRes.json();
           setDevelopmentName(btrData.development?.name || '');
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }
@@ -94,8 +95,9 @@ export default function BTRWelcomePage() {
       setItems((prev) => [...prev, created]);
       setNewItem({ ...emptyForm });
       setShowAddForm(false);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(errMessage);
     } finally {
       setSaving(false);
     }
@@ -112,8 +114,9 @@ export default function BTRWelcomePage() {
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, is_active: !i.is_active } : i))
       );
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(errMessage);
     }
   }
 
@@ -127,8 +130,9 @@ export default function BTRWelcomePage() {
       });
       if (!res.ok) throw new Error('Failed to delete');
       setItems((prev) => prev.filter((i) => i.id !== id));
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(errMessage);
     }
   }
 
@@ -155,8 +159,9 @@ export default function BTRWelcomePage() {
         prev.map((i) => (i.id === id ? { ...i, ...editForm } : i))
       );
       setEditingId(null);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert(errMessage);
     } finally {
       setSaving(false);
     }

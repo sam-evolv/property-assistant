@@ -108,13 +108,13 @@ export async function POST(request: NextRequest) {
           notification_type: notification.changeType,
           rows_received: dataRows.length,
         });
-      } catch (_err: any) {
+      } catch (_err: unknown) {
           // error handled silently
       }
     }
 
     return NextResponse.json({ status: 'ok' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ status: 'error' }, { status: 500 });
   }
 }

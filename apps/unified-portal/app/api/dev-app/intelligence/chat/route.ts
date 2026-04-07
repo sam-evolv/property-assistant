@@ -14,7 +14,7 @@ interface PipelineData {
   purchaser_name?: string | null;
   purchaser_email?: string | null;
   purchaser_phone?: string | null;
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export const runtime = 'nodejs';
@@ -159,10 +159,10 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 // Tool execution functions
 async function executeTool(
   toolName: string,
-  args: any,
+  args: Record<string, unknown>,
   userId: string,
   devIds: string[]
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const supabase = getSupabaseAdmin();
 
   // Get all unit IDs for this developer
@@ -171,14 +171,14 @@ async function executeTool(
     .select('id, unit_number, development_id')
     .in('development_id', devIds);
 
-  const allUnits: any[] = units || [];
-  const unitIds = allUnits.map((u: any) => u.id);
+  const allUnits: { id: string; unit_number: string; development_id: string }[] = units || [];
+  const unitIds = allUnits.map((u) => u.id);
 
   switch (toolName) {
     case 'lookup_unit': {
-      const identifier = args.unit_identifier.replace(/[^0-9a-zA-Z]/g, '');
+      const identifier = (args.unit_identifier as string).replace(/[^0-9a-zA-Z]/g, '');
       let matchingUnits = allUnits.filter(
-        (u: any) =>
+        (u) =>
           u.unit_number === identifier ||
           u.unit_number === args.unit_identifier ||
           u.unit_number.toLowerCase().includes(identifier.toLowerCase())
@@ -186,7 +186,7 @@ async function executeTool(
 
       if (args.development_id) {
         matchingUnits = matchingUnits.filter(
-          (u: any) => u.development_id === args.development_id
+          (u) => u.development_id === args.development_id
         );
       }
 
@@ -201,7 +201,7 @@ async function executeTool(
         .from('unit_sales_pipeline')
         .select(PIPELINE_SELECT_COLUMNS)
         .eq('unit_id', unit.id)
-        .maybeSingle() as any as { data: PipelineData | null };
+        .maybeSingle() as unknown as { data: PipelineData | null };
 
       // Get compliance docs with type names
       const { data: compDocs } = await supabase
@@ -228,7 +228,7 @@ async function executeTool(
         .eq('id', unit.development_id)
         .single();
 
-      const fields: any[] = [];
+      const fields: { label: string; value: string; status: string }[] = [];
       const sel = selections?.[0];
       if (sel) {
         const kitchenChoice = sel.has_kitchen
@@ -241,7 +241,7 @@ async function executeTool(
         });
       }
 
-      (compDocs || []).forEach((d: any) => {
+      (compDocs || []).forEach((d: { status: string; compliance_document_types?: { name: string } | null }) => {
         const displayStatus = mapComplianceStatus(d.status);
         const docName = d.compliance_document_types?.name || 'Document';
         fields.push({
@@ -260,7 +260,7 @@ async function executeTool(
         });
       }
 
-      const openSnags = (snags || []).filter((s: any) => s.status !== 'resolved');
+      const openSnags = (snags || []).filter((s: { description: string; status: string }) => s.status !== 'resolved');
       if (openSnags.length > 0) {
         fields.push({
           label: 'Open Snags',
@@ -289,8 +289,8 @@ async function executeTool(
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
-          .filter((u: any) => u.development_id === args.development_id)
-          .map((u: any) => u.id);
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
       }
 
       if (filteredUnitIds.length === 0) {
@@ -302,25 +302,25 @@ async function executeTool(
         .select(PIPELINE_SELECT_COLUMNS)
         .in('unit_id', filteredUnitIds);
 
-      let results = (pipelineRows || []).map((p: any) => ({
+      let results = (pipelineRows || []).map((p: Record<string, unknown>) => ({
         ...p,
         ...derivePipelineStage(p),
         days: daysAtStage(p),
       }));
 
       if (args.stage) {
-        const stageFilter = args.stage.toLowerCase();
-        results = results.filter((p: any) =>
+        const stageFilter = (args.stage as string).toLowerCase();
+        results = results.filter((p) =>
           p.stage.toLowerCase().includes(stageFilter)
         );
       }
 
       if (args.days_at_stage_min) {
-        results = results.filter((p: any) => p.days >= args.days_at_stage_min);
+        results = results.filter((p) => p.days >= (args.days_at_stage_min as number));
       }
 
-      const enriched = results.map((p: any) => {
-        const unit = allUnits.find((u: any) => u.id === p.unit_id);
+      const enriched = results.map((p) => {
+        const unit = allUnits.find((u) => u.id === p.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
           stage: p.stage,
@@ -335,8 +335,8 @@ async function executeTool(
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
-          .filter((u: any) => u.development_id === args.development_id)
-          .map((u: any) => u.id);
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
       }
 
       if (filteredUnitIds.length === 0) {
@@ -357,8 +357,8 @@ async function executeTool(
         .in('unit_id', filteredUnitIds);
 
       if (args.status) {
-        const dbStatus = dbStatusMap[args.status] || args.status;
-        query = query.eq('status', dbStatus);
+        const dbStatus = dbStatusMap[args.status as string] || args.status;
+        query = query.eq('status', dbStatus as string);
       }
 
       const { data: docs } = await query;
@@ -366,17 +366,19 @@ async function executeTool(
 
       // Filter by document type name (in JS since it's from a join)
       if (args.document_type) {
-        const typeFilter = args.document_type.toLowerCase();
-        filteredDocs = filteredDocs.filter((d: any) =>
-          (d.compliance_document_types?.name || '').toLowerCase().includes(typeFilter)
-        );
+        const typeFilter = (args.document_type as string).toLowerCase();
+        filteredDocs = filteredDocs.filter((d) => {
+          const docTypes = d.compliance_document_types as { name: string } | null;
+          return (docTypes?.name || '').toLowerCase().includes(typeFilter);
+        });
       }
 
-      const enriched = filteredDocs.map((d: any) => {
-        const unit = allUnits.find((u: any) => u.id === d.unit_id);
+      const enriched = filteredDocs.map((d) => {
+        const unit = allUnits.find((u) => u.id === d.unit_id);
+        const docTypes = d.compliance_document_types as { name: string } | null;
         return {
           unit_number: unit?.unit_number || 'Unknown',
-          document_type: d.compliance_document_types?.name || 'Unknown',
+          document_type: docTypes?.name || 'Unknown',
           status: mapComplianceStatus(d.status),
         };
       });
@@ -388,8 +390,8 @@ async function executeTool(
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
-          .filter((u: any) => u.development_id === args.development_id)
-          .map((u: any) => u.id);
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
       }
 
       if (filteredUnitIds.length === 0) {
@@ -406,14 +408,14 @@ async function executeTool(
       // Filter by derived status
       if (args.status) {
         if (args.status === 'confirmed') {
-          results = results.filter((s: any) => s.has_kitchen === true);
+          results = results.filter((s) => s.has_kitchen === true);
         } else if (args.status === 'pending') {
-          results = results.filter((s: any) => !s.has_kitchen);
+          results = results.filter((s) => !s.has_kitchen);
         }
       }
 
-      const enriched = results.map((s: any) => {
-        const unit = allUnits.find((u: any) => u.id === s.unit_id);
+      const enriched = results.map((s) => {
+        const unit = allUnits.find((u) => u.id === s.unit_id);
         const choice = s.has_kitchen
           ? [s.counter_type, s.unit_finish, s.handle_style].filter(Boolean).join(', ') || 'Selected'
           : 'Not selected';
@@ -431,8 +433,8 @@ async function executeTool(
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
-          .filter((u: any) => u.development_id === args.development_id)
-          .map((u: any) => u.id);
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
       }
 
       if (filteredUnitIds.length === 0) {
@@ -445,15 +447,15 @@ async function executeTool(
         .in('unit_id', filteredUnitIds);
 
       if (args.status) {
-        query = query.eq('status', args.status);
+        query = query.eq('status', args.status as string);
       }
       if (args.unit_id) {
-        query = query.eq('unit_id', args.unit_id);
+        query = query.eq('unit_id', args.unit_id as string);
       }
 
       const { data: snags } = await query;
-      const enriched = (snags || []).map((s: any) => {
-        const unit = allUnits.find((u: any) => u.id === s.unit_id);
+      const enriched = (snags || []).map((s) => {
+        const unit = allUnits.find((u) => u.id === s.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
           description: s.description,
@@ -481,7 +483,7 @@ async function executeTool(
       const stageMapping = Object.fromEntries(
         PIPELINE_STAGES.map((s) => [s.label.toLowerCase(), s.key])
       );
-      const dateColumn = stageMapping[args.new_stage.toLowerCase()];
+      const dateColumn = stageMapping[(args.new_stage as string).toLowerCase()];
 
       if (!dateColumn) {
         return {
@@ -503,11 +505,11 @@ async function executeTool(
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
-          .filter((u: any) => u.development_id === args.development_id)
-          .map((u: any) => u.id);
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
       }
 
-      const attentionItems: any[] = [];
+      const attentionItems: { type: string; severity: string; count: number; title: string }[] = [];
 
       if (filteredUnitIds.length > 0) {
         // Stuck pipeline items (>30 days at current stage)
@@ -517,7 +519,7 @@ async function executeTool(
           .in('unit_id', filteredUnitIds);
 
         const stuckUnits = (pipelineItems || []).filter(
-          (p: any) => daysAtStage(p) > 30 && !p.handover_date
+          (p: Record<string, unknown>) => daysAtStage(p) > 30 && !p.handover_date
         );
 
         if (stuckUnits.length > 0) {
@@ -603,8 +605,8 @@ export async function POST(request: NextRequest) {
       .eq('developer_user_id', user.id);
 
     const devs = developments || [];
-    const devIds = devs.map((d: any) => d.id);
-    const devList = devs.map((d: any) => `${d.name} (${d.id})`).join(', ');
+    const devIds = devs.map((d: { id: string; name: string }) => d.id);
+    const devList = devs.map((d: { id: string; name: string }) => `${d.name} (${d.id})`).join(', ');
 
     // Get or create conversation
     let convoId = conversation_id;
@@ -643,8 +645,8 @@ export async function POST(request: NextRequest) {
         .limit(20);
 
       contextMessages = (prevMessages || [])
-        .filter((m: any) => m.role !== 'system')
-        .map((m: any) => ({
+        .filter((m: { role: string; content: string; message_type: string }) => m.role !== 'system')
+        .map((m: { role: string; content: string; message_type: string }) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         }));
@@ -691,12 +693,12 @@ Current date: ${today}`;
 
     let assistantContent = completion.choices[0]?.message?.content || '';
     const toolCalls = completion.choices[0]?.message?.tool_calls;
-    const responseMessages: any[] = [];
+    const responseMessages: Record<string, unknown>[] = [];
 
     if (toolCalls && toolCalls.length > 0) {
       // Execute tool calls
       const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: 'assistant', content: null as any, tool_calls: toolCalls },
+        { role: 'assistant', content: null as unknown as string, tool_calls: toolCalls },
       ];
 
       for (const call of toolCalls) {

@@ -68,8 +68,9 @@ export async function POST(request: NextRequest) {
 
     // Otherwise, analyze the spreadsheet
     return handleAnalyzeSpreadsheet(supabase, tenantId, body as ConnectRequest);
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -130,10 +131,11 @@ async function handleAnalyzeSpreadsheet(
       headers = result.headers;
       sampleData = result.sampleData;
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({
       error: 'Failed to read spreadsheet',
-      details: err.message,
+      details: errMessage,
     }, { status: 400 });
   }
 

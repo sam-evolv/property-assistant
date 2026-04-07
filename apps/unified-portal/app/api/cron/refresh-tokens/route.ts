@@ -110,7 +110,8 @@ export async function GET(request: NextRequest) {
         });
 
         refreshed++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         failed++;
 
         await supabase
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
 
         await logAudit(integration.tenant_id, 'token.refresh_failed', 'system', {
           integration_id: integration.id,
-          error: error.message,
+          error: errorMessage,
         });
       }
     }
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
       skipped,
       total: integrations.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
 }

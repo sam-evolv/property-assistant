@@ -33,7 +33,6 @@ import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
 import type { Alert } from '@/components/ui/ProactiveAlerts';
 import { ActivityFeedWidget } from '@/components/ui/ActivityFeed';
 import type { Activity } from '@/components/ui/ActivityFeed';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { SlideOver } from '@/components/ui/SlideOver';
 
 // Types

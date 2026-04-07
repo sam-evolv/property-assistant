@@ -36,7 +36,7 @@ function getMonthKey(date: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const parsePrice = (price: any): number => {
+const parsePrice = (price: unknown): number => {
   if (price === null || price === undefined) return 0;
   const parsed = parseFloat(String(price));
   return isNaN(parsed) ? 0 : parsed;
@@ -149,7 +149,8 @@ export async function GET(request: NextRequest) {
     const developmentMap = new Map(developments?.map(d => [d.id, d]) || []);
 
     // Process pipeline data
-    const pipelineUnits = (allUnits || []).map((u: any) => ({
+    type UnitWithPipeline = NonNullable<typeof allUnits>[number];
+    const pipelineUnits = (allUnits || []).map((u: UnitWithPipeline) => ({
       id: u.id,
       unitNumber: u.unit_number || '',
       developmentId: u.development_id || u.project_id,
@@ -203,7 +204,7 @@ export async function GET(request: NextRequest) {
     // SECTION 2: DEVELOPMENT COMPARISON
     // ==========================================================================
     
-    const developmentStats: any[] = [];
+    const developmentStats: { id: string; name: string; code: string | null; color: string; totalUnits: number; privateUnits: number; socialUnits: number; sold: number; inProgress: number; available: number; revenue: number; avgPrice: number; avgCycle: number; pcSumTotal: number; pcSumKitchen: number; pcSumWardrobes: number; adjustedRevenue: number; decidedCount: number; takingOwnKitchen: number; takingOwnWardrobes: number }[] = [];
     const developmentColors: Record<string, string> = {};
     const colorPalette = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4'];
 
@@ -327,11 +328,11 @@ export async function GET(request: NextRequest) {
     const velocityTrend = Object.keys(velocityByDevMonth)
       .sort()
       .map(monthKey => {
-        const entry: any = { month: formatMonth(monthKey + '-01') };
+        const entry: Record<string, string | number> = { month: formatMonth(monthKey + '-01') };
         let total = 0;
         developments?.forEach(dev => {
           entry[dev.id] = velocityByDevMonth[monthKey][dev.id] || 0;
-          total += entry[dev.id];
+          total += entry[dev.id] as number;
         });
         entry.total = total;
         return entry;
@@ -390,7 +391,7 @@ export async function GET(request: NextRequest) {
     });
 
     const priceComparison = Object.entries(priceByTypeAndDev).map(([type, devPrices]) => {
-      const row: any = { type };
+      const row: Record<string, string | number | null> = { type };
       let allPrices: number[] = [];
       developments?.forEach(dev => {
         const prices = devPrices[dev.id] || [];
@@ -400,8 +401,8 @@ export async function GET(request: NextRequest) {
       row.overallAvg = allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : null;
       return row;
     }).sort((a, b) => {
-      const aNum = parseInt(a.type) || 99;
-      const bNum = parseInt(b.type) || 99;
+      const aNum = parseInt(a.type as string) || 99;
+      const bNum = parseInt(b.type as string) || 99;
       return aNum - bNum;
     });
 

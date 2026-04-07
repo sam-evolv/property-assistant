@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Users, MessageSquare, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download, Mail, Trash2, Archive, Square, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download } from 'lucide-react';
 import { BulkActionToolbar, getCommonBulkActions } from '@/components/ui/BulkActionToolbar';
 
 interface Unit {

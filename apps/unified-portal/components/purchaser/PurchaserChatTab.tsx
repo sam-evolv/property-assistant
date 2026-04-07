@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Bookmark, Check } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';

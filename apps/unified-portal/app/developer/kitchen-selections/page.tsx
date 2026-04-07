@@ -520,8 +520,9 @@ export default function KitchenSelectionsPage() {
       setUnits(data.units || []);
       setOptions(data.options || defaultOptions);
       setError(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage);
     } finally {
       setLoading(false);
     }

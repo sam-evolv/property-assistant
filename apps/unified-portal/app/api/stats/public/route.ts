@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { analyticsEvents } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
 export const revalidate = 3600;

@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       handoverDate: now,
       message: 'Unit marked as handed over'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
       { error: 'Something went wrong. Please try again.' },
       { status: 500 }

@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { developmentRequests, admins } from '@openhouse/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { developmentRequests } from '@openhouse/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getServerSession } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';

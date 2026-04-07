@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
-import { documents, doc_chunks } from '@openhouse/db/schema';
+import { documents } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';

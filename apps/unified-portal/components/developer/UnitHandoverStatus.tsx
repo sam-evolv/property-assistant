@@ -70,8 +70,9 @@ export function UnitHandoverStatus({ developmentId, onUnitUpdated }: UnitHandove
         if (!res.ok) throw new Error('Failed to fetch units');
         const data = await res.json();
         setUnits(data.units || []);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load units');
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage || 'Failed to load units');
       } finally {
         setLoading(false);
       }
@@ -98,7 +99,7 @@ export function UnitHandoverStatus({ developmentId, onUnitUpdated }: UnitHandove
       );
 
       onUnitUpdated?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       alert('Failed to update unit. Please try again.');
     } finally {
       setSavingUnitId(null);

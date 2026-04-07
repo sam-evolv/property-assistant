@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, TrendingUp, CheckCircle2, HelpCircle, Upload, Plus, ArrowLeft, MessageSquare, Eye, Inbox, Send, X, Lightbulb, Target, BookOpen, Clock, Users, Zap, ArrowUpRight, FileText, BarChart3, Brain, Sparkles, ThumbsUp, ThumbsDown, Calendar } from 'lucide-react';
+import { AlertCircle, TrendingUp, CheckCircle2, HelpCircle, Upload, Plus, ArrowLeft, MessageSquare, Eye, Inbox, Send, X, Lightbulb, BookOpen, Clock, Users, Zap, ArrowUpRight, FileText, BarChart3, Brain, Sparkles } from 'lucide-react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import { isAllSchemes } from '@/lib/archive-scope';
 

@@ -141,21 +141,24 @@ export default function PurchaserDocumentsTab({
     
     try {
       storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      storageToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      storageToken = 'ERROR: ' + eMessage;
     }
     
     try {
       sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      sessionToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      sessionToken = 'ERROR: ' + eMessage;
     }
     
     try {
       const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
       cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
-    } catch (e: any) {
-      cookieToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      cookieToken = 'ERROR: ' + eMessage;
     }
     
     const effectiveToken = propToken || getEffectiveToken(unitUid);

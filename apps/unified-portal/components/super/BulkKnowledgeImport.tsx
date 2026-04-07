@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, FileText, Check, X, Edit2, Loader2, AlertTriangle, Globe, Building2 } from 'lucide-react';
+import { Upload, FileText, Check, Edit2, Loader2, AlertTriangle, Globe, Building2 } from 'lucide-react';
 
 interface KnowledgeChunk {
   title: string;

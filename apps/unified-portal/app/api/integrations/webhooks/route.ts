@@ -28,8 +28,9 @@ export async function GET() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ webhooks: data || [] });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -81,8 +82,9 @@ export async function POST(request: NextRequest) {
       webhook: { ...data, secret },
       message: 'Save the webhook secret securely — it will not be shown again.',
     }, { status: 201 });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

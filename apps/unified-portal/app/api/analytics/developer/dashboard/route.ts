@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           WHERE agreed_at >= ${sevenDaysAgo}
             AND unit_id IS NOT NULL
         `);
-        purchaserAgreementsActiveCount = (agreementsActiveResult.rows[0] as any)?.count || 0;
+        purchaserAgreementsActiveCount = (agreementsActiveResult.rows[0] as { count: number } | undefined)?.count || 0;
       } catch (_agreementError) {
           // error handled silently
       }
@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
               ) all_active
               WHERE user_id IS NOT NULL
             `));
-        drizzleActiveCount = (activeResult.rows[0] as any)?.count || 0;
+        drizzleActiveCount = (activeResult.rows[0] as { count: number } | undefined)?.count || 0;
       } catch (_drizzleError) {
           // error handled silently
       }
@@ -266,7 +266,7 @@ export async function GET(request: NextRequest) {
             FROM purchaser_agreements
             WHERE unit_id IS NOT NULL
           `);
-          const allTimeActive = (allTimeActiveResult.rows[0] as any)?.count || 0;
+          const allTimeActive = (allTimeActiveResult.rows[0] as { count: number } | undefined)?.count || 0;
           if (allTimeActive > 0) {
             // Use a percentage of all-time active as "recently engaged" estimate
             // Industry standard: ~20-30% of users are active in any 7-day window
@@ -316,7 +316,7 @@ export async function GET(request: NextRequest) {
             ) all_active
             WHERE user_id IS NOT NULL
           `));
-      previousActive = (prevResult.rows[0] as any)?.count || 0;
+      previousActive = (prevResult.rows[0] as { count: number } | undefined)?.count || 0;
     } catch (_e) {
         // error handled silently
     }
@@ -328,18 +328,18 @@ export async function GET(request: NextRequest) {
       const msgResult = await (developmentId
         ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}`)
         : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}`));
-      totalMessages = (msgResult.rows[0] as any)?.count || 0;
+      totalMessages = (msgResult.rows[0] as { count: number } | undefined)?.count || 0;
 
       const prevMsgResult = await (developmentId
         ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`)
         : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`));
-      previousMessages = (prevMsgResult.rows[0] as any)?.count || 0;
+      previousMessages = (prevMsgResult.rows[0] as { count: number } | undefined)?.count || 0;
     } catch (_e) {
         // error handled silently
     }
     
     // Question topics - FIX: Use JOIN through developments for tenant filtering
-    let questionTopicsResult = { rows: [] as any[] };
+    let questionTopicsResult = { rows: [] as { topic: string; count: number }[] };
     try {
       questionTopicsResult = await (developmentId
         ? db.execute(sql`
@@ -381,7 +381,7 @@ export async function GET(request: NextRequest) {
         }
         
         const { data: docs, count: docCount } = await docsQuery;
-        const houseTypes = new Set((docs || []).map((d: any) => d.metadata?.house_type_code).filter(Boolean));
+        const houseTypes = new Set((docs || []).map((d: { metadata: Record<string, unknown> | null }) => (d.metadata as Record<string, unknown> | null)?.house_type_code).filter(Boolean));
         docCoverage = { total_docs: docCount || 0, covered_house_types: houseTypes.size, total_house_types: houseTypes.size || 1 };
       }
       // If no developments for this tenant, docCoverage stays at 0
@@ -412,7 +412,7 @@ export async function GET(request: NextRequest) {
 
         // Create a map of development_id -> important_docs_version
         const devVersionMap: Record<string, number> = {};
-        (projects || []).forEach((p: any) => {
+        (projects || []).forEach((p: { id: string; important_docs_version: number | null }) => {
           devVersionMap[p.id] = p.important_docs_version || 0;
         });
 
@@ -426,7 +426,7 @@ export async function GET(request: NextRequest) {
             WHERE unit_id IS NOT NULL
             ORDER BY unit_id, agreed_at DESC
           `);
-          for (const row of agreementsResult.rows as any[]) {
+          for (const row of agreementsResult.rows as { unit_id: string; docs_version: number | null }[]) {
             acknowledgedUnitsMap.set(row.unit_id, row.docs_version || 1);
           }
         } catch (_agreementError) {
@@ -459,7 +459,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Recent questions - FIX: Use JOIN through developments for tenant filtering
-    let recentQuestionsResult = { rows: [] as any[] };
+    let recentQuestionsResult = { rows: [] as { user_message: string; question_topic: string; created_at: string; metadata: Record<string, unknown> | null }[] };
     try {
       recentQuestionsResult = await (developmentId
         ? db.execute(sql`
@@ -478,7 +478,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Chat activity - FIX: Use JOIN through developments for tenant filtering
-    let chatActivityResult = { rows: [] as any[] };
+    let chatActivityResult = { rows: [] as { date: string; count: number }[] };
     try {
       chatActivityResult = await (developmentId
         ? db.execute(sql`
@@ -498,7 +498,7 @@ export async function GET(request: NextRequest) {
     
     // House type engagement from Supabase
     // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-    let houseTypeEngagementResult = { rows: [] as any[] };
+    let houseTypeEngagementResult = { rows: [] as { house_type_code: string; active_users: number; message_count: number }[] };
     try {
       let houseTypeQuery = supabaseAdmin.from('units').select('house_type_code')
         .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
@@ -507,10 +507,10 @@ export async function GET(request: NextRequest) {
         houseTypeQuery = houseTypeQuery.eq('project_id', developmentId);
       }
       const { data: unitsData } = await houseTypeQuery;
-      const houseTypeCounts = (unitsData || []).reduce((acc: any, u: any) => {
-        acc[u.house_type_code] = (acc[u.house_type_code] || 0) + 1;
+      const houseTypeCounts = (unitsData || []).reduce((acc: Record<string, number>, u) => {
+        acc[u.house_type_code as string] = (acc[u.house_type_code as string] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
       houseTypeEngagementResult = { 
         rows: Object.entries(houseTypeCounts).slice(0, 10).map(([ht, count]) => ({ 
           house_type_code: ht, active_users: 0, message_count: count as number 
@@ -572,13 +572,13 @@ export async function GET(request: NextRequest) {
         .join(' ');
     };
 
-    const questionTopics = (questionTopicsResult.rows as any[]).map(row => ({
+    const questionTopics = questionTopicsResult.rows.map(row => ({
       topic: row.topic,
       label: formatTopicLabel(row.topic),
       count: row.count,
     }));
 
-    const chatActivity = (chatActivityResult.rows as any[]).map(row => ({
+    const chatActivity = chatActivityResult.rows.map(row => ({
       date: row.date,
       count: row.count,
     }));
@@ -589,9 +589,9 @@ export async function GET(request: NextRequest) {
       { stage: 'Active (7d)', count: activeHomeowners, colour: '#34D399' },
     ];
 
-    const unansweredQueries = (recentQuestionsResult.rows as any[])
+    const unansweredQueries = recentQuestionsResult.rows
       .filter(row => {
-        const meta = row.metadata as any;
+        const meta = row.metadata as Record<string, unknown> | null;
         return meta?.confidence === 'low' || meta?.no_context === true;
       })
       .slice(0, 5)
@@ -601,7 +601,7 @@ export async function GET(request: NextRequest) {
         date: row.created_at,
       }));
 
-    const houseTypeEngagement = (houseTypeEngagementResult.rows as any[]).map(row => ({
+    const houseTypeEngagement = houseTypeEngagementResult.rows.map(row => ({
       houseType: row.house_type_code,
       activeUsers: row.active_users,
       messageCount: row.message_count,
@@ -624,7 +624,7 @@ export async function GET(request: NextRequest) {
       }
       const { data: handoverData, error: handoverError } = await handoverQuery;
       if (!handoverError && handoverData) {
-        upcomingHandovers = handoverData.map((row: any) => ({
+        upcomingHandovers = handoverData.map((row: Record<string, unknown> & { units?: { address?: string; unit_uid?: string | null } | null; handover_date: string }) => ({
           address: row.units?.address || 'Unknown address',
           unit_uid: row.units?.unit_uid || null,
           handover_date: row.handover_date,
@@ -677,7 +677,7 @@ export async function GET(request: NextRequest) {
         ORDER BY pa.agreed_at DESC
         LIMIT 10
       `);
-      for (const row of ackResult.rows as any[]) {
+      for (const row of ackResult.rows as { agreed_at: string; address: string | null }[]) {
         recentEvents.push({
           type: 'acknowledgment',
           label: `${row.address || 'A unit'} acknowledged documents`,
@@ -686,7 +686,7 @@ export async function GET(request: NextRequest) {
           link: '/developer/homeowners',
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // PGRST205 or similar - table not accessible, skip gracefully
     }
 

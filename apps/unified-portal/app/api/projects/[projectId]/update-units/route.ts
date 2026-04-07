@@ -176,9 +176,10 @@ export async function POST(
       notFound,
       notFoundList: notFoundList.length > 0 ? notFoundList : undefined,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Update failed' },
+      { error: errorMessage || 'Update failed' },
       { status: 500 }
     );
   }

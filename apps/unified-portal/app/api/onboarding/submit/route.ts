@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { getResendClient, sendOnboardingSubmissionNotification } from '@/lib/resend';
+import { sendOnboardingSubmissionNotification } from '@/lib/resend';
 
 export const dynamic = 'force-dynamic';
 

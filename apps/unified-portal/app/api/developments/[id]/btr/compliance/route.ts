@@ -47,7 +47,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({ item: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -70,7 +70,7 @@ export async function GET(
       .orderBy(desc(complianceSchedule.created_at));
 
     return NextResponse.json({ items });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -111,7 +111,7 @@ export async function POST(
       .returning();
 
     return NextResponse.json({ item }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

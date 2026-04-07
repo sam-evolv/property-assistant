@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video, AlertTriangle, CheckCircle, Upload } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, Video, AlertTriangle, CheckCircle, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';

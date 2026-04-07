@@ -201,11 +201,12 @@ export async function POST(
 
       return NextResponse.json({ success: true, documentId });
     }
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

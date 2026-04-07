@@ -22,7 +22,7 @@ function getSupabaseAdmin() {
 async function safeQuery(queryFn: () => Promise<any>, fallback: any): Promise<any> {
   try {
     return await queryFn();
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.cause?.code === '42P01') {
       return fallback;
     }
@@ -284,7 +284,7 @@ export async function GET(
           agreedVersion = agreement.docs_version || 1;
           agreedAt = agreement.agreed_at;
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Table may not exist
       }
     }

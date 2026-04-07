@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { btrTenancies, units } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { btrTenancies } from '@openhouse/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export async function GET(
@@ -21,7 +21,7 @@ export async function GET(
       .orderBy(desc(btrTenancies.created_at));
 
     return NextResponse.json({ tenancies });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -50,7 +50,7 @@ export async function POST(
       .returning();
 
     return NextResponse.json({ tenancy }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

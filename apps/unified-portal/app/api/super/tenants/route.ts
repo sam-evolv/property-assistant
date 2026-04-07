@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { tenants, developments, admins } from '@openhouse/db/schema';
-import { eq, sql, count } from 'drizzle-orm';
+import { sql, count } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -72,8 +72,9 @@ export async function GET() {
       tenants: formattedTenants,
       total: formattedTenants.length,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch tenants' }, { status: 500 });
@@ -102,8 +103,9 @@ export async function POST(request: Request) {
       .returning();
 
     return NextResponse.json({ tenant: newTenant }, { status: 201 });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to create tenant' }, { status: 500 });

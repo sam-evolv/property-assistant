@@ -82,8 +82,9 @@ export default function BTROverviewPage() {
         if (!res.ok) throw new Error('Failed to fetch BTR data');
         const json = await res.json();
         setData(json);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }

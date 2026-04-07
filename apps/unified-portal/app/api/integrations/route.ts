@@ -77,8 +77,9 @@ export async function GET(request: NextRequest) {
       pending_conflicts: conflictsCount,
       recent_audit_logs: auditLogs || [],
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -128,8 +129,9 @@ export async function DELETE(request: NextRequest) {
     }, request);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

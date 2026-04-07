@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
 
           result.documentId = newDoc.id;
           result.phases.dbWrite = 'success';
-        } catch (dbError: any) {
+        } catch (dbError: unknown) {
           result.phases.dbWrite = 'failed';
           result.error = 'Failed to create document record';
           results.push(result);
@@ -227,9 +227,10 @@ export async function POST(request: NextRequest) {
             result.chunksIndexed = 1;
             result.totalChunks = 1;
           }
-        } catch (indexError: any) {
+        } catch (indexError: unknown) {
+          const indexErrorMessage = indexError instanceof Error ? indexError.message : 'Unknown error';
           result.phases.indexing = 'failed';
-          result.indexingErrors?.push(indexError.message);
+          result.indexingErrors?.push(indexErrorMessage);
         }
 
         // Phase 4: Verification
@@ -251,8 +252,9 @@ export async function POST(request: NextRequest) {
           } catch {
           }
         }
-      } catch (error: any) {
-        result.error = error.message || 'Unexpected error';
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        result.error = errorMessage || 'Unexpected error';
       }
 
       results.push(result);
@@ -270,11 +272,12 @@ export async function POST(request: NextRequest) {
       },
       files: results,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });

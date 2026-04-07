@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, memo, useMemo, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle,
@@ -9,12 +9,8 @@ import {
   Download, BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
-import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
-import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
 import type { Alert } from '@/components/ui/ProactiveAlerts';
-import { QuickActionsBar } from '@/components/ui/QuickActions';
 import type { QuickAction } from '@/components/ui/QuickActions';
 
 const TopQuestionsChart = dynamic(

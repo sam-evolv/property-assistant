@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       agreement = result;
       agreedAt = result.agreed_at;
       
-    } catch (drizzleError: any) {
+    } catch (drizzleError: unknown) {
       // If Drizzle fails (table doesn't exist), log and continue
       // We'll return success anyway since user completed the UI flow
       

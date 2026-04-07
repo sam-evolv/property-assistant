@@ -6,7 +6,7 @@ import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logSecurityViolation } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
 import { video_resources } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 

@@ -2,7 +2,7 @@
 
 import { memo, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { RefreshCw, Download, Calendar, type LucideIcon } from 'lucide-react';
+import { RefreshCw, Download, type LucideIcon } from 'lucide-react';
 import { Button, ButtonGroup } from './Button';
 
 // ============================================================================

@@ -120,10 +120,10 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
-import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
+import { detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
   getFirewallDiagnostics,
@@ -131,7 +131,7 @@ import {
   type FirewallResult
 } from '@/lib/assistant/hallucination-firewall';
 import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
-import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
+import { cleanForDisplay } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { isGrantQuery, getSEAIGrantsResponse } from '@/lib/assistant/seai-grants';

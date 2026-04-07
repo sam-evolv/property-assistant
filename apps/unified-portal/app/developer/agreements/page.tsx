@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileCheck, Calendar, User, Home, Clock, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import { FileCheck, Calendar, User, Download, RefreshCw } from 'lucide-react';
 
 interface Agreement {
   id: string;

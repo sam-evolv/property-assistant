@@ -74,11 +74,12 @@ export async function PATCH(request: NextRequest) {
       success: true,
       updatedCount: result.updatedCount
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
@@ -137,11 +138,12 @@ export async function DELETE(request: NextRequest) {
       success: true,
       deletedCount: result.deletedCount
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 });

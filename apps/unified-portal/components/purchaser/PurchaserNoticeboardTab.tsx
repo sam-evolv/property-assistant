@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Calendar, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
+import { Bell, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
 import NoticeboardTermsModal from './NoticeboardTermsModal';
 import SessionExpiredModal from './SessionExpiredModal';
 import { getEffectiveToken } from '../../lib/purchaserSession';

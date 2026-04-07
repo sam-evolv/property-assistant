@@ -156,8 +156,9 @@ export async function POST(request: NextRequest) {
               result_summary: result.summary,
               result_data: result.data,
             });
-          } catch (err: any) {
-            toolResult = JSON.stringify({ error: err.message, summary: `Tool execution failed: ${err.message}` });
+          } catch (err: unknown) {
+            const errMessage = err instanceof Error ? err.message : 'Unknown error';
+            toolResult = JSON.stringify({ error: errMessage, summary: `Tool execution failed: ${errMessage}` });
           }
         } else {
           toolResult = JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` });

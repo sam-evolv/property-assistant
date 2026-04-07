@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Cross, Store, X, Phone, Globe, Clock, Star, Search, Heart } from 'lucide-react';
+import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Store, X, Phone, Globe, Clock, Star, Search, Heart } from 'lucide-react';
 import { getTranslations } from '../../lib/translations';
 
 interface FavoritePlace {

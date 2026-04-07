@@ -332,9 +332,10 @@ export async function POST(
       skipped: 0,
       unitTypesCreated: createdTypesCount,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Import failed' },
+      { error: errorMessage || 'Import failed' },
       { status: 500 }
     );
   }

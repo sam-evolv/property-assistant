@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ development }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: errMessage || 'Internal server error' }, { status: 500 });
   }
 }

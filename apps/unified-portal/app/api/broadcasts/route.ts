@@ -62,11 +62,12 @@ export async function GET(request: NextRequest) {
       total: count || 0,
       page,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -156,11 +157,12 @@ export async function POST(request: NextRequest) {
       broadcast,
       recipients: recipientUserIds.length,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

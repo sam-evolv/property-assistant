@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { messages, developments, tenants } from '@openhouse/db/schema';
-import { sql, count, eq, desc, gte } from 'drizzle-orm';
+import { messages, developments } from '@openhouse/db/schema';
+import { sql, count, desc, gte } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 import { logDataAccess } from '@/lib/gdpr-audit-log';
 
@@ -154,8 +154,9 @@ export async function GET(request: NextRequest) {
       topQuestions,
       knowledgeGaps,
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });

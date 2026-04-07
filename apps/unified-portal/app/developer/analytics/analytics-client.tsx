@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, memo, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Building2, Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Clock, Activity, Zap, Download, FileSpreadsheet, FileText, Home, UserCheck, UserX, CalendarDays, Percent, Eye, Star, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Target } from 'lucide-react';
+import { Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Activity, Zap, Download, FileSpreadsheet, FileText, Home, UserCheck, Eye, AlertTriangle, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import { useOverviewMetrics, useHomeownerMetrics } from '@/hooks/useAnalyticsV2';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 import { useCurrentContext } from '@/contexts/CurrentContext';

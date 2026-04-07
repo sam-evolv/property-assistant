@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments, tenants, units, admins, documents } from '@openhouse/db/schema';
-import { eq, sql, count, and } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -104,8 +104,9 @@ export async function GET(
     };
 
     return NextResponse.json({ development: formattedDevelopment });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch development' }, { status: 500 });
@@ -135,8 +136,9 @@ export async function PATCH(
       .where(eq(developments.id, developmentId));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to update development' }, { status: 500 });
@@ -155,8 +157,9 @@ export async function DELETE(
     await db.delete(developments).where(eq(developments.id, developmentId));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to delete development' }, { status: 500 });
