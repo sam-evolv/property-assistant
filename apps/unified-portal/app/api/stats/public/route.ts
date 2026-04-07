@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { analyticsEvents } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ const DOCUMENT_SERVED_EVENT_TYPES = [
   'elevation_view',
 ];
 
-export async function GET() {
+export const GET = withAuth(async function GET() {
   try {
     // Use analytics_events table for all metrics (consistent with Beta Control Room)
     // This table has complete activity data vs messages table which may be incomplete
@@ -77,7 +78,7 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+}, { public: true });
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ function recordFailedAttempt(ip: string): void {
   }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
   
   if (!checkRateLimit(ip)) {
@@ -271,4 +272,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { public: true });

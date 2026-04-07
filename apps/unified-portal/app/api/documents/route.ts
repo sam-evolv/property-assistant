@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -13,9 +13,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -114,12 +113,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ documents, count: documents.length });
   } catch (error: any) {
     console.error('[Documents List] Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
     return NextResponse.json({ documents: [], count: 0 }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });

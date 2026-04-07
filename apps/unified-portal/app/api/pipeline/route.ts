@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api-auth-middleware';
 import { db } from '@openhouse/db/client';
 import { developments, units } from '@openhouse/db/schema';
 import { eq, sql, count } from 'drizzle-orm';
@@ -22,9 +22,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
     const isSuperAdmin = session.role === 'super_admin';
 
@@ -208,4 +207,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });

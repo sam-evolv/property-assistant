@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCreateDevelopment } from '@openhouse/api/developments';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api-auth-middleware';
 import { db } from '@openhouse/db/client';
 import { developments, tenants } from '@openhouse/db/schema';
 import { sql, eq } from 'drizzle-orm';
@@ -16,9 +16,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
 
     // Get optional tenant_id filter from query params
@@ -166,6 +165,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { roles: ['developer', 'super_admin'] });
 
 export const POST = handleCreateDevelopment;

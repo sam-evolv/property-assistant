@@ -6,9 +6,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 import { sendBulkNotification, resolveTargetRecipients } from '@/lib/notifications';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +19,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -64,20 +63,13 @@ export async function GET(request: NextRequest) {
       page,
     });
   } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
     console.error('[Broadcasts GET] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function POST(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -160,16 +152,10 @@ export async function POST(request: NextRequest) {
       recipients: recipientUserIds.length,
     });
   } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
     console.error('[Broadcasts POST] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });
 
 /**
  * Send broadcast notifications asynchronously
