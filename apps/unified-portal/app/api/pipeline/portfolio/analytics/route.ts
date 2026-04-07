@@ -432,11 +432,11 @@ export async function GET(request: NextRequest) {
     const cashFlowProjection = Object.keys(cashFlowByMonth)
       .sort()
       .map(monthKey => {
-        const entry: any = { month: formatMonth(monthKey + '-01') };
+        const entry: Record<string, string | number> = { month: formatMonth(monthKey + '-01') };
         let total = 0;
         developments?.forEach(dev => {
           entry[dev.id] = cashFlowByMonth[monthKey][dev.id] || 0;
-          total += entry[dev.id];
+          total += entry[dev.id] as number;
         });
         entry.total = total;
         return entry;
@@ -446,7 +446,7 @@ export async function GET(request: NextRequest) {
     // SECTION 8: SOCIAL HOUSING SUMMARY
     // ==========================================================================
     
-    const socialSummary: any[] = [];
+    const socialSummary: { developmentId: string; developmentName: string; socialUnits: number; housingAgency: string; complete: number; status: string }[] = [];
     
     developments?.forEach(dev => {
       const devSocialUnits = socialUnits.filter(u => u.developmentId === dev.id);
@@ -469,9 +469,9 @@ export async function GET(request: NextRequest) {
     // SECTION 9: ALERTS & ATTENTION ITEMS
     // ==========================================================================
     
-    const stuckUnits: any[] = [];
-    const openQueries: any[] = [];
-    const upcomingHandovers: any[] = [];
+    const stuckUnits: { id: string; unitNumber: string; developmentName: string; daysStuck: number; currentStage: string; purchaserName: string | null }[] = [];
+    const openQueries: { id: string; unitNumber: string; developmentName: string; daysOpen: number | null; purchaserName: string | null }[] = [];
+    const upcomingHandovers: { id: string; unitNumber: string; developmentName: string; expectedDate: string; purchaserName: string | null; price: number }[] = [];
     
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -541,7 +541,7 @@ export async function GET(request: NextRequest) {
     // SECTION 10: PERFORMANCE BENCHMARKS
     // ==========================================================================
     
-    const benchmarks: any[] = [];
+    const benchmarks: Record<string, string | number>[] = [];
     const metricKeys = ['avgDaysToAgreed', 'avgDaysToComplete', 'queryResponseTime', 'completionRate'];
     const metricLabels: Record<string, string> = {
       avgDaysToAgreed: 'Avg Days to Agreed',
@@ -594,7 +594,7 @@ export async function GET(request: NextRequest) {
     });
 
     metricKeys.forEach(metricKey => {
-      const row: any = { metric: metricLabels[metricKey] };
+      const row: Record<string, string | number> = { metric: metricLabels[metricKey] };
       let bestValue = metricKey === 'completionRate' ? 0 : Infinity;
       let bestDev = '';
 
@@ -641,7 +641,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function getCurrentStage(pipeline: any): string {
+function getCurrentStage(pipeline: Record<string, unknown>): string {
   const stages = [
     { key: 'handover_date', label: 'Complete' },
     { key: 'drawdown_date', label: 'Drawdown' },
