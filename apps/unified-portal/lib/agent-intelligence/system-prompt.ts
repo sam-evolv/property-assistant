@@ -5,7 +5,8 @@ export function buildAgentSystemPrompt(
   recentActivitySummary: string,
   upcomingDeadlines: string,
   previousEntityContext: string,
-  ragResults: string
+  ragResults: string,
+  independentContext?: string,
 ): string {
   const schemeList = agentContext.assignedSchemes
     .map(s => `- ${s.schemeName} (${s.unitCount} units)`)
@@ -118,5 +119,7 @@ ${upcomingDeadlines || 'Nothing flagged.'}
 
 ${previousEntityContext ? `PREVIOUS CONTEXT:\n${previousEntityContext}` : ''}
 
-${ragResults ? `DOCUMENT RESULTS:\n${ragResults}` : ''}`;
+${ragResults ? `DOCUMENT RESULTS:\n${ragResults}` : ''}
+
+${independentContext || ''}`;
 }

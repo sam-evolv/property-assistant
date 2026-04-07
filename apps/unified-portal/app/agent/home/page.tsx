@@ -6,6 +6,7 @@ import { useAgent } from '@/lib/agent/AgentContext';
 import { type Alert, type DevelopmentSummary, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
 import AgentShell from '../_components/AgentShell';
 import StatModal from '../_components/StatModal';
+import IndependentHomeView from '../_components/IndependentHomeView';
 import type { StatModalType, Scheme as UIScheme, Buyer as UIBuyer } from '../_components/types';
 
 // Convert real pipeline data to the Scheme/Buyer types that StatModal expects
@@ -106,6 +107,15 @@ export default function AgentHomePage() {
             <div key={i} style={{ height: 80, background: '#f3f4f6', borderRadius: 16, marginBottom: 10, animation: 'pulse 1.5s infinite' }} />
           ))}
         </div>
+      </AgentShell>
+    );
+  }
+
+  // Independent/hybrid agents get a different home screen
+  if (agent && agent.agentType !== 'scheme') {
+    return (
+      <AgentShell agentName={agent.displayName?.split(' ')[0] || 'Agent'} urgentCount={0}>
+        <IndependentHomeView agent={agent} />
       </AgentShell>
     );
   }
