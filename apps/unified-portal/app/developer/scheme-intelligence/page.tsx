@@ -405,9 +405,7 @@ function ActionCards({ actions }: { actions?: ChatMessage['actions'] }) {
         <a
           key={i}
           href={a.href}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-            border border-[#2A2A2A] text-[#eef2f8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37]
-            hover:bg-[#D4AF37]/10 transition-all"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#2A2A2A] text-[#eef2f8] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
         >
           {a.label}
           <ChevronRight className="w-3 h-3" />
@@ -1049,9 +1047,7 @@ export default function SchemeIntelligencePage() {
                 )}
                 <button
                   onClick={() => setBriefingOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-[14px] font-medium
-                    text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0
-                    transition-all duration-100"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-[14px] font-medium text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0 transition-all duration-100"
                   style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                 >
                   <Calendar className="w-4 h-4" />
@@ -1070,8 +1066,7 @@ export default function SchemeIntelligencePage() {
                   <a
                     key={i}
                     href={insight.href || '#'}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1A1A1A] border border-[#2A2A2A]
-                      text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/5 transition-all flex-shrink-0"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] text-xs whitespace-nowrap hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/5 transition-all flex-shrink-0"
                   >
                     <span>{insight.icon}</span>
                     <span className="font-semibold text-[#eef2f8]">{insight.text}</span>
@@ -1092,9 +1087,7 @@ export default function SchemeIntelligencePage() {
             {/* Sidebar toggle button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="absolute top-1/2 -translate-y-1/2 z-20 w-6 h-10 flex items-center justify-center
-                bg-[#1A1A1A] border border-[#2A2A2A] rounded-r-lg shadow-sm hover:bg-[#2A2A2A]
-                transition-all duration-200 text-[#9ca8bc] hover:text-white"
+              className="absolute top-1/2 -translate-y-1/2 z-20 w-6 h-10 flex items-center justify-center bg-[#1A1A1A] border border-[#2A2A2A] rounded-r-lg shadow-sm hover:bg-[#2A2A2A] transition-all duration-200 text-[#9ca8bc] hover:text-white"
               style={{ left: sidebarOpen ? '256px' : '0px', transition: 'left 200ms' }}
             >
               {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -1111,10 +1104,7 @@ export default function SchemeIntelligencePage() {
                 </div>
                 <button
                   onClick={startNewSession}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl
-                    text-sm font-medium text-white shadow-lg hover:shadow-xl
-                    hover:-translate-y-[1px] active:translate-y-0
-                    transition-all duration-100"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0 transition-all duration-100"
                   style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                 >
                   <Plus className="w-4 h-4" />
@@ -1209,10 +1199,7 @@ export default function SchemeIntelligencePage() {
                           <button
                             key={catIdx}
                             onClick={() => sendMessage(cat.questions[pillIndices[catIdx]])}
-                            className="rounded-2xl border border-[#2A2A2A] bg-[#141414] p-4 text-left
-                              hover:border-[#D4AF37]/50 hover:shadow-[0_4px_12px_rgba(212,175,55,0.15)]
-                              hover:-translate-y-[1px] active:translate-y-0
-                              transition-all duration-150 cursor-pointer group"
+                            className="rounded-2xl border border-[#2A2A2A] bg-[#141414] p-4 text-left hover:border-[#D4AF37]/50 hover:shadow-[0_4px_12px_rgba(212,175,55,0.15)] hover:-translate-y-[1px] active:translate-y-0 transition-all duration-150 cursor-pointer group"
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(212,175,55,0.05)'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#141414'; }}
                           >
@@ -1231,9 +1218,7 @@ export default function SchemeIntelligencePage() {
 
                     <button
                       onClick={() => setBriefingOpen(true)}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-medium
-                        text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0
-                        transition-all duration-100"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-medium text-white shadow-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-0 transition-all duration-100"
                       style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
                     >
                       <Calendar className="w-4 h-4" />
@@ -1268,8 +1253,7 @@ export default function SchemeIntelligencePage() {
                                     setCopiedMessageId(msg.id);
                                     setTimeout(() => setCopiedMessageId(null), 2000);
                                   }}
-                                  className="absolute top-0 right-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
-                                    text-[#9ca8bc] hover:text-white hover:bg-[#2A2A2A] transition-all"
+                                  className="absolute top-0 right-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-[#9ca8bc] hover:text-white hover:bg-[#2A2A2A] transition-all"
                                   title="Copy message"
                                 >
                                   {copiedMessageId === msg.id ? (
@@ -1309,9 +1293,7 @@ export default function SchemeIntelligencePage() {
                                         <button
                                           key={i}
                                           onClick={() => sendMessage(question)}
-                                          className="rounded-full border border-[#2A2A2A] px-3 py-1.5 text-xs text-[#9ca8bc]
-                                            hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10
-                                            transition-all duration-150"
+                                          className="rounded-full border border-[#2A2A2A] px-3 py-1.5 text-xs text-[#9ca8bc] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-150"
                                         >
                                           {question}
                                         </button>
@@ -1347,9 +1329,7 @@ export default function SchemeIntelligencePage() {
                       onKeyDown={handleKeyDown}
                       placeholder="Message OpenHouse Intelligence..."
                       rows={1}
-                      className="w-full resize-none rounded-[20px] border-2 border-[#2A2A2A] bg-[#141414] px-5 py-4 text-[16px]
-                        text-white placeholder-[#B0B0B0] focus:outline-none focus:border-[#D4AF37]
-                        focus:shadow-[0_0_0_3px_rgba(212,175,55,0.1)] transition-all duration-200 scrollbar-hide"
+                      className="w-full resize-none rounded-[20px] border-2 border-[#2A2A2A] bg-[#141414] px-5 py-4 text-[16px] text-white placeholder-[#B0B0B0] focus:outline-none focus:border-[#D4AF37] focus:shadow-[0_0_0_3px_rgba(212,175,55,0.1)] transition-all duration-200 scrollbar-hide"
                       style={{ minHeight: 48, maxHeight: 120, overflowY: 'hidden' }}
                       disabled={isStreaming}
                     />
@@ -1357,9 +1337,7 @@ export default function SchemeIntelligencePage() {
                   <button
                     onClick={() => sendMessage(input)}
                     disabled={!input.trim() || isStreaming}
-                    className={`p-2.5 rounded-full text-white transition-all duration-100 flex-shrink-0
-                      disabled:cursor-not-allowed hover:shadow-[0_4px_12px_rgba(212,175,55,0.4)] hover:-translate-y-[1px] active:translate-y-0
-                      ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                    className={`p-2.5 rounded-full text-white transition-all duration-100 flex-shrink-0 disabled:cursor-not-allowed hover:shadow-[0_4px_12px_rgba(212,175,55,0.4)] hover:-translate-y-[1px] active:translate-y-0 ${showSendButton ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                     style={{
                       background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`,
                     }}

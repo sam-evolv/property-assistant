@@ -55,12 +55,10 @@ export function FAQSheet({ faqs }: FAQSheetProps) {
           const style = ICON_STYLES[index % 5];
           const Icon = style.Icon;
           return (
-            <details key={faq.id} className="group rounded-2xl bg-gray-50/80 overflow-hidden
-              border border-transparent hover:border-[#D4AF37]/15 transition-all duration-[250ms]">
+            <details key={faq.id} className="group rounded-2xl bg-gray-50/80 overflow-hidden border border-transparent hover:border-[#D4AF37]/15 transition-all duration-[250ms]">
               <summary className="flex items-center gap-3.5 p-4 cursor-pointer list-none">
                 <div
-                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${style.bg} flex items-center justify-center shrink-0
-                    border border-[#D4AF37]/10`}
+                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${style.bg} flex items-center justify-center shrink-0 border border-[#D4AF37]/10`}
                 >
                   <Icon className={`w-5 h-5 ${style.iconColor}`} />
                 </div>
