@@ -160,8 +160,6 @@ export async function searchWithValidation(
     };
   }
   
-  console.log('[ValidatedSearch] Fetched', chunks.length, 'total chunks');
-  
   const scoredChunks: (DocumentChunk & { similarity: number })[] = chunks
     .map(chunk => {
       const embedding = parseEmbedding(chunk.embedding);
@@ -178,8 +176,6 @@ export async function searchWithValidation(
     .filter(chunk => chunk.similarity > 0.3)
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 50);
-  
-  console.log('[ValidatedSearch] Semantic filtering reduced to', scoredChunks.length, 'candidates');
   
   const validationContext: ValidationContext = {
     targetSchemeId: schemeId,
@@ -203,15 +199,11 @@ export async function searchWithValidation(
     threshold
   );
   
-  console.log('[ValidatedSearch] Validation passed:', validatedChunks.length, 'chunks');
-  
   const bestConfidence = validatedChunks.length > 0 
     ? validatedChunks[0].validation.confidence 
     : (scoredChunks.length > 0 ? 0 : null);
   
   if (validatedChunks.length === 0) {
-    console.log('[ValidatedSearch] No chunks passed validation threshold');
-    
     logAnswerGap(null, {
       scheme_id: schemeId,
       query_text: query,

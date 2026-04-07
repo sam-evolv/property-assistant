@@ -338,5 +338,5 @@ export function logAnswerGap(
     timestamp: new Date().toISOString(),
   };
   
-  console.log('[SmartArchive] Answer gap logged:', JSON.stringify(entry));
+  // Answer gap recorded for analytics
 }

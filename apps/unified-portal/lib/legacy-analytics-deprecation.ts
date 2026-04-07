@@ -24,6 +24,6 @@ export function createLegacyAnalyticsResponse(): NextResponse {
   return NextResponse.json(LEGACY_DEPRECATION_ERROR, { status: 410 });
 }
 
-export function logLegacyAnalyticsUsage(endpoint: string, caller?: string): void {
+export function logLegacyAnalyticsUsage(_endpoint: string, _caller?: string): void {
   // Intentionally empty - legacy usage tracking without console output
 }

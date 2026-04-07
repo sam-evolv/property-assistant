@@ -145,6 +145,5 @@ export async function sendOnboardingSubmissionNotification(data: OnboardingSubmi
     html,
   });
 
-  console.log('[Resend] Onboarding notification sent:', result);
   return result;
 }

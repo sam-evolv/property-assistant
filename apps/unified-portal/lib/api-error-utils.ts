@@ -33,31 +33,21 @@ export function createStructuredError(
 }
 
 export function logCritical(
-  context: string,
-  message: string,
-  requestId: string,
-  data?: Record<string, unknown>
+  _context: string,
+  _message: string,
+  _requestId: string,
+  _data?: Record<string, unknown>
 ): void {
   incrementCriticalError();
-  const logEntry = {
-    level: 'CRITICAL',
-    context,
-    message,
-    request_id: requestId,
-    timestamp: new Date().toISOString(),
-    ...data,
-  };
-  console.error(`[APP CRITICAL] ${context}: ${message} requestId=${requestId}`, JSON.stringify(logEntry));
 }
 
 export function logError(
-  context: string,
-  message: string,
-  requestId: string,
-  error?: unknown
+  _context: string,
+  _message: string,
+  _requestId: string,
+  _error?: unknown
 ): void {
-  const errorMessage = error instanceof Error ? error.message : String(error || '');
-  console.error(`[${context}] ERROR: ${message} requestId=${requestId}`, errorMessage);
+  // No-op: console output removed
 }
 
 export function getResponseHeaders(requestId: string): HeadersInit {
