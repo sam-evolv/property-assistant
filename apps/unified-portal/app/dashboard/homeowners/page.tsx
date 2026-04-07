@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/supabase-server';
 import { HomeownersList } from './list';
 import { redirect } from 'next/navigation';
 import { getHomeownersByDevelopment } from '@/app/actions/homeowners';
+export const dynamic = 'force-dynamic'
 
 export default async function HomeownersPage(
   props: { 

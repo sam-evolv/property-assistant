@@ -4,6 +4,7 @@ import { developments } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import DevelopmentAnalyticsClient from './analytics-client';
+export const dynamic = 'force-dynamic'
 
 export default async function DevelopmentAnalyticsPage(
   props: {

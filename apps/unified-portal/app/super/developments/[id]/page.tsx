@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/supabase-server';
 import { notFound } from 'next/navigation';
 import DevelopmentDetailClient from './development-detail-client';
+export const dynamic = 'force-dynamic'
 
 export default async function DevelopmentDetailPage(
   props: {

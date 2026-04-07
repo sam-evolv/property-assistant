@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/supabase-server';
 import dynamic from 'next/dynamic';
 import { LazyLoadFallback } from '../components/LazyLoadFallback';
+export const dynamic = 'force-dynamic'
 
 const ChatAnalytics = dynamic(() => import('./chat-analytics-client').then(mod => ({ default: mod.ChatAnalytics })), {
   loading: () => <LazyLoadFallback />

@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/supabase-server';
 import InsightsClient from './insights-client';
 import { createClient } from '@supabase/supabase-js';
+export const dynamic = 'force-dynamic'
 
 function getSupabaseAdmin() {
   return createClient(

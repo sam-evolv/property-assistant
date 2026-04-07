@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { requireRole } from '@/lib/supabase-server';
 import { DashboardContent } from './DashboardContent';
 import { DashboardSkeleton } from './DashboardSkeleton';
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Enterprise Dashboard | OpenHouse AI',

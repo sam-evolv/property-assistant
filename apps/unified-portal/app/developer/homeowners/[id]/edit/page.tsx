@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { HomeownerEditForm } from './form';
 import { getHomeownerById } from '@/app/actions/homeowners';
 import { getAllDevelopmentsForList } from '@/app/actions/developments';
+export const dynamic = 'force-dynamic'
 
 export default async function EditHomeownerPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

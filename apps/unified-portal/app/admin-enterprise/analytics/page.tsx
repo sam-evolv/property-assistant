@@ -1,5 +1,6 @@
 import { requireRole } from '@/lib/supabase-server';
 import Link from 'next/link';
+export const dynamic = 'force-dynamic'
 
 export default async function AnalyticsOverviewPage() {
   await requireRole(['super_admin', 'admin']);

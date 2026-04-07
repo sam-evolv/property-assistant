@@ -4,6 +4,7 @@ import { DeveloperEditForm } from './form';
 import { getDeveloperById } from '@/app/actions/developers';
 import { db } from '@openhouse/db/client';
 import { tenants } from '@openhouse/db/schema';
+export const dynamic = 'force-dynamic'
 
 export default async function EditDeveloperPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

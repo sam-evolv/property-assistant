@@ -4,6 +4,7 @@ import { db } from '@openhouse/db/client';
 import { tenants, admins } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { CreateDevelopmentForm } from './form-client';
+export const dynamic = 'force-dynamic'
 
 export default async function SuperAdminCreateDevelopmentPage() {
   let session;

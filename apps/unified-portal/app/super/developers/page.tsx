@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/supabase-server';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import DevelopersClientWrapper from './DevelopersClientWrapper';
+export const dynamic = 'force-dynamic'
 
 export default async function DevelopersPage() {
   try {

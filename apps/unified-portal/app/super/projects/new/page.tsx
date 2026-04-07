@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireRole } from '@/lib/supabase-server';
 import NewProjectWizard from './new-project-client';
+export const dynamic = 'force-dynamic'
 
 export default async function NewProjectPage() {
   try {
