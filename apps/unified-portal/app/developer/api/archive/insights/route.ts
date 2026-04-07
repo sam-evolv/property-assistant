@@ -182,8 +182,7 @@ export async function GET(request: NextRequest) {
       keyword_trends: [],
       predicted_gaps: predictedGaps,
     });
-  } catch (error) {
-    console.error('[Insights] Error:', error);
+  } catch {
     return NextResponse.json({ error: 'Failed to generate insights' }, { status: 500 });
   }
 }

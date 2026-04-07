@@ -296,8 +296,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to export CSV:', error);
+    } catch {
     } finally {
       setExporting(false);
       setShowExportMenu(false);
@@ -460,8 +459,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
         printWindow.print();
       }, 500);
 
-    } catch (error) {
-      console.error('Failed to export PDF:', error);
+    } catch {
     } finally {
       setExporting(false);
       setShowExportMenu(false);
@@ -498,8 +496,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
           const data = await res.json();
           setQuestionData(data);
         }
-      } catch (error) {
-        console.error('Failed to load questions:', error);
+      } catch {
       } finally {
         setQuestionsLoading(false);
       }
@@ -516,8 +513,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
           const data = await res.json();
           setActivityData(data.activity || []);
         }
-      } catch (error) {
-        console.error('Failed to load activity data:', error);
+      } catch {
       }
     }
     loadActivityData();
@@ -533,8 +529,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
           setResponseTimeData(data.responseTimes || []);
           setResponseTimeStats({ avgOverall: data.avgOverall || 0, maxOverall: data.maxOverall || 0 });
         }
-      } catch (error) {
-        console.error('Failed to load response times:', error);
+      } catch {
       }
     }
     loadResponseTimes();
@@ -568,12 +563,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
       noticeboardViews: 0
     });
 
-    console.log('[Analytics] Using server-side homeowner counts:', {
-      total: totalHomeowners,
-      serverTotal: serverHomeownerCount,
-      effectiveDevelopmentId,
-      byProject: serverHomeownersByProject
-    });
   }, [serverHomeownerCount, serverHomeownersByProject, effectiveDevelopmentId, metrics]);
 
   // Fetch content performance data
@@ -620,8 +609,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
           faqsAnswered,
           escalatedQueries
         });
-      } catch (error) {
-        console.error('Failed to load content performance:', error);
+      } catch {
       }
     }
     loadContentPerformance();
@@ -703,8 +691,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
             totalRevenue,
           });
         }
-      } catch (error) {
-        console.error('Failed to load PC sum data:', error);
+      } catch {
       }
     }
     loadPcSumData();

@@ -317,8 +317,7 @@ export default function DocumentDetailPage() {
       if (res.ok) {
         setFloorPlanRooms(prev => prev.map(r => r.id === roomId ? { ...r, verified } : r));
       }
-    } catch (e) {
-      console.error('Verify room error:', e);
+    } catch {
     }
   }
 
@@ -341,8 +340,7 @@ export default function DocumentDetailPage() {
         setEditingRoomId(null);
         setRoomEdits({});
       }
-    } catch (e) {
-      console.error('Save room edit error:', e);
+    } catch {
     }
   }
 
@@ -356,8 +354,7 @@ export default function DocumentDetailPage() {
       if (res.ok) {
         setFloorPlanRooms(prev => prev.filter(r => r.id !== roomId));
       }
-    } catch (e) {
-      console.error('Delete room error:', e);
+    } catch {
     }
   }
 

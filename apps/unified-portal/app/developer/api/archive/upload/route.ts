@@ -71,13 +71,10 @@ export async function POST(request: NextRequest) {
     try {
       metadata = metadataStr ? JSON.parse(metadataStr) : {};
     } catch {
-      console.error('[Upload] Failed to parse metadata:', metadataStr);
     }
 
     const supabaseAdmin = getSupabaseAdmin();
     const supabaseProjectId = getSupabaseProjectId(developmentId);
-
-    console.log('[Upload] Processing', files.length, 'files for development:', developmentId, '-> project:', supabaseProjectId);
 
     const results: Array<{
       fileName: string;
@@ -133,7 +130,6 @@ export async function POST(request: NextRequest) {
               public: true,
             });
             if (createBucketError && !createBucketError.message.includes('already exists')) {
-              console.error('[Upload] Create bucket error:', createBucketError);
               result.phases.storage = 'failed';
               result.error = 'Storage bucket not available';
               results.push(result);
@@ -147,14 +143,12 @@ export async function POST(request: NextRequest) {
                 upsert: false,
               });
             if (retryError) {
-              console.error('[Upload] Retry upload error:', retryError);
               result.phases.storage = 'failed';
               result.error = 'Failed to upload file to storage';
               results.push(result);
               continue;
             }
           } else {
-            console.error('[Upload] Storage error:', uploadError);
             result.phases.storage = 'failed';
             result.error = uploadError.message;
             results.push(result);
@@ -200,7 +194,6 @@ export async function POST(request: NextRequest) {
           result.documentId = newDoc.id;
           result.phases.dbWrite = 'success';
         } catch (dbError: any) {
-          console.error('[Upload] DB write error:', dbError.message);
           result.phases.dbWrite = 'failed';
           result.error = 'Failed to create document record';
           results.push(result);
@@ -227,7 +220,6 @@ export async function POST(request: NextRequest) {
             });
 
           if (sectionError) {
-            console.error('[Upload] Section insert error:', sectionError.message);
             result.phases.indexing = 'partial';
             result.indexingErrors?.push(sectionError.message);
           } else {
@@ -236,7 +228,6 @@ export async function POST(request: NextRequest) {
             result.totalChunks = 1;
           }
         } catch (indexError: any) {
-          console.error('[Upload] Indexing error:', indexError.message);
           result.phases.indexing = 'failed';
           result.indexingErrors?.push(indexError.message);
         }
@@ -257,12 +248,10 @@ export async function POST(request: NextRequest) {
                 processing_status: uploadStatus === 'indexed' ? 'complete' : 'pending',
               })
               .where(eq(documents.id, result.documentId));
-          } catch (updateError) {
-            console.error('[Upload] Status update error:', updateError);
+          } catch {
           }
         }
       } catch (error: any) {
-        console.error('[Upload] Unexpected error processing file:', file.name, error);
         result.error = error.message || 'Unexpected error';
       }
 
@@ -271,8 +260,6 @@ export async function POST(request: NextRequest) {
 
     const succeeded = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
-
-    console.log('[Upload] Complete:', { total: files.length, succeeded, failed });
 
     return NextResponse.json({
       success: failed === 0,
@@ -284,7 +271,6 @@ export async function POST(request: NextRequest) {
       files: results,
     });
   } catch (error: any) {
-    console.error('[Upload] Error:', error);
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

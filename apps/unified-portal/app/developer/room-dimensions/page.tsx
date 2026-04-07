@@ -137,8 +137,7 @@ export default function RoomDimensionsPage() {
           setSettings({ ...settings, ...data.value });
         }
       }
-    } catch (error) {
-      console.error('Failed to load settings:', error);
+    } catch {
     }
   };
 
@@ -153,8 +152,7 @@ export default function RoomDimensionsPage() {
         setSettings(newSettings);
         toast.success('Settings saved');
       }
-    } catch (error) {
-      console.error('Failed to save settings:', error);
+    } catch {
       toast.error('Failed to save settings');
     }
   };
@@ -170,8 +168,7 @@ export default function RoomDimensionsPage() {
           setSelectedDevelopmentId(devs[0].id);
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch developments:', error);
+    } catch {
     }
   };
 
@@ -185,11 +182,9 @@ export default function RoomDimensionsPage() {
         // Auto-expand all house types initially
         setExpandedHouseTypes(new Set((data.houseTypes || []).map((ht: HouseType) => ht.id)));
       } else {
-        console.error('Failed to fetch house types:', res.status);
         setHouseTypes([]);
       }
-    } catch (error) {
-      console.error('Failed to fetch house types:', error);
+    } catch {
       setHouseTypes([]);
     }
   };
@@ -211,8 +206,7 @@ export default function RoomDimensionsPage() {
         setDimensions(data.dimensions || []);
         setStats(data.stats || { total: 0, verified: 0, unverified: 0 });
       }
-    } catch (error) {
-      console.error('Failed to fetch dimensions:', error);
+    } catch {
       toast.error('Failed to load room dimensions');
     } finally {
       setLoading(false);
@@ -262,8 +256,7 @@ export default function RoomDimensionsPage() {
       } else {
         throw new Error('Failed to add room');
       }
-    } catch (error) {
-      console.error('Failed to add room:', error);
+    } catch {
       toast.error('Failed to add room');
     }
   };
@@ -300,8 +293,7 @@ export default function RoomDimensionsPage() {
 
       toast.success(`Copied ${sourceDims.length} rooms to new house type`);
       fetchDimensions();
-    } catch (error) {
-      console.error('Failed to copy dimensions:', error);
+    } catch {
       toast.error('Failed to copy dimensions');
     }
   };
@@ -320,8 +312,7 @@ export default function RoomDimensionsPage() {
       } else {
         throw new Error('Failed to delete');
       }
-    } catch (error) {
-      console.error('Failed to delete:', error);
+    } catch {
       toast.error('Failed to delete room');
     }
   };
@@ -340,8 +331,7 @@ export default function RoomDimensionsPage() {
       } else {
         throw new Error('Failed to update');
       }
-    } catch (error) {
-      console.error('Failed to verify:', error);
+    } catch {
       toast.error('Failed to update verification status');
     }
   };
@@ -385,8 +375,7 @@ export default function RoomDimensionsPage() {
       } else {
         throw new Error('Failed to update');
       }
-    } catch (error) {
-      console.error('Failed to save:', error);
+    } catch {
       toast.error('Failed to save changes');
     }
   };

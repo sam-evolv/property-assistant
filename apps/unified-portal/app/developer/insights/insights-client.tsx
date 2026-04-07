@@ -124,7 +124,6 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
           const dashboardActive = dashboardData.summary?.activeHomeowners || 0;
           if (dashboardActive > realMetrics.activeUsers) {
             realMetrics.activeUsers = dashboardActive;
-            console.log('[Insights] Using dashboard activeHomeowners:', dashboardActive);
           }
         }
 
@@ -142,13 +141,6 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
         if (realMetrics.totalHomeowners > 0) {
           realMetrics.engagementRate = Math.min(100, (realMetrics.activeUsers / realMetrics.totalHomeowners) * 100);
         }
-        console.log('[Insights] Using server-side homeowner counts:', {
-          total: totalHomeowners,
-          serverTotal: serverHomeownerCount,
-          effectiveDevelopmentId,
-          byProject: serverHomeownersByProject
-        });
-
         // Fetch question analysis data (scheme-aware) - cache bust for scheme changes
         const qRes = await fetch(`/api/analytics-v2/question-analysis?tenantId=${tenantId}&days=30&limit=20${devIdParam}`, { cache: 'no-store' });
         let qData: any = { topQuestions: [], categories: [] };
@@ -288,8 +280,7 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
         };
         
         setData(insights);
-      } catch (error) {
-        console.error('Failed to load insights:', error);
+      } catch {
       } finally {
         setLoading(false);
       }
@@ -308,8 +299,7 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
           const data = await res.json();
           setInfoRequests(data.requests || []);
         }
-      } catch (error) {
-        console.error('Failed to load information requests:', error);
+      } catch {
       } finally {
         setRequestsLoading(false);
       }
@@ -326,8 +316,7 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
         const data = await res.json();
         setInfoRequests(data.requests || []);
       }
-    } catch (error) {
-      console.error('Failed to refresh requests:', error);
+    } catch {
     }
   };
 
@@ -352,8 +341,7 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
         setResponseText('');
         await refreshRequests();
       }
-    } catch (error) {
-      console.error('Failed to submit response:', error);
+    } catch {
     } finally {
       setSubmitting(false);
     }
