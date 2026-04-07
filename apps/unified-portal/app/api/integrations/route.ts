@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     if (integrationIds.length > 0) {
       const { count } = await supabase
         .from('integration_conflicts')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .in('integration_id', integrationIds)
         .eq('status', 'pending');
 

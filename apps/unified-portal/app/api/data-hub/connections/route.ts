@@ -40,7 +40,7 @@ export async function GET() {
       (connections || []).map(async (conn) => {
         const { count } = await supabase
           .from('storage_files')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('connection_id', conn.id)
 
         return { ...conn, file_count: count || 0 }
