@@ -3,7 +3,7 @@ export async function register() {
     const { logEnvironmentStatus } = await import('./lib/env-validation');
     logEnvironmentStatus();
 
-    const { initializeApiInfrastructure } = await import('@openhouse/api/init');
+    const { initializeApiInfrastructure } = await import(/* turbopackIgnore: true */ '@openhouse/api/init');
     initializeApiInfrastructure();
   }
 }
