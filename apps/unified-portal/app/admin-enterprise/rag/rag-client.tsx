@@ -5,7 +5,7 @@ import { Database, AlertTriangle, FileX, Package, Activity } from 'lucide-react'
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { LoadingSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
-import { DynamicEnterpriseBarChart, DynamicEnterpriseLineChart } from '@/lib/dynamic-imports';
+import { DynamicEnterpriseBarChart } from '@/lib/dynamic-imports';
 
 interface RAGMetrics {
   total_chunks: number;
