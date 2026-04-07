@@ -176,7 +176,6 @@ export default function PurchaserMapsTab({
       try {
         setFavorites(JSON.parse(savedFavorites));
       } catch (e) {
-        console.error('Failed to load favorites:', e);
       }
     }
   }, []);
@@ -211,8 +210,6 @@ export default function PurchaserMapsTab({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    console.log('[Maps] Starting map initialization...');
-
     const initMap = async () => {
       try {
         const mapLat = latitude || 51.926500;
@@ -221,67 +218,51 @@ export default function PurchaserMapsTab({
         // DEBUG: Check API key status (without exposing the key itself)
         // Check both possible env var names - NEXT_PUBLIC_ prefix is required for client-side
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || (typeof window !== 'undefined' && (window as any).__GOOGLE_MAPS_API_KEY);
-        console.log('🗺️ MAPS DEBUG:');
-        console.log('- NEXT_PUBLIC_GOOGLE_MAPS_API_KEY Exists?', !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
-        console.log('- Key Length:', apiKey ? apiKey.length : 0);
-        console.log('[Maps] Coordinates:', { mapLat, mapLng });
 
         // If no API key, show error state with more helpful message
         if (!apiKey || apiKey.length < 10) {
-          console.error('[Maps] Google Maps API key is missing or invalid');
-          console.error('[Maps] Ensure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set in Vercel environment variables');
           setMapError(true);
           return;
         }
 
         if (!window.google) {
-          console.log('[Maps] Google Maps not loaded, loading script...');
           const script = document.createElement('script');
           script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
           script.async = true;
           script.defer = true;
           
           script.onload = () => {
-            console.log('[Maps] Script loaded, initializing map...');
             initializeMap(mapLat, mapLng);
           };
           
           script.onerror = (error) => {
-            console.error('[Maps] Failed to load Google Maps script:', error);
             setMapError(true);
           };
           
           document.head.appendChild(script);
         } else {
-          console.log('[Maps] Google Maps already loaded');
           initializeMap(mapLat, mapLng);
         }
       } catch (error) {
-        console.error('[Maps] Map initialization error:', error);
         setMapError(true);
       }
     };
 
     const initializeMap = (lat: number, lng: number) => {
-      console.log('[Maps] initializeMap called', { lat, lng, mapRef: !!mapRef.current, hasExisting: !!mapInstanceRef.current });
       if (!mapRef.current) {
-        console.error('[Maps] mapRef.current is null');
         return;
       }
       if (mapInstanceRef.current) {
-        console.log('[Maps] Map already exists, skipping');
         return;
       }
 
       // Check if Google Maps API is fully loaded
       if (!window.google?.maps?.Map) {
-        console.error('[Maps] Google Maps API not fully loaded');
         setMapError(true);
         return;
       }
 
       try {
-        console.log('[Maps] Creating new map instance...');
         const map = new window.google.maps.Map(mapRef.current, {
           center: { lat, lng },
           zoom: 15,
@@ -309,7 +290,6 @@ export default function PurchaserMapsTab({
 
         // Listen for map errors
         map.addListener('error', (error: any) => {
-          console.error('[Maps] Map error event:', error);
         });
 
         // Premium gold pin marker for home location
@@ -333,10 +313,8 @@ export default function PurchaserMapsTab({
         placesServiceRef.current = new window.google.maps.places.PlacesService(map);
         autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
         mapInstanceRef.current = map;
-        console.log('[Maps] Map created successfully, setting mapLoaded to true');
         setMapLoaded(true);
       } catch (error) {
-        console.error('[Maps] Error creating map instance:', error);
         setMapError(true);
       }
     };
@@ -778,7 +756,6 @@ export default function PurchaserMapsTab({
     );
   }
 
-  console.log('[Maps] Rendering PurchaserMapsTab', { isDarkMode, mapLoaded, mapError, address, latitude, longitude });
   
   return (
     <div className={`flex flex-col md:flex-row gap-4 md:gap-0 p-4 md:p-0 ${isDarkMode ? 'bg-[#0F0F0F]' : 'bg-white'}`} style={{ height: '100%', minHeight: 'calc(100vh - 150px)' }}>

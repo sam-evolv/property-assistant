@@ -74,7 +74,6 @@ export function ExportMenu({
       setExportSuccess(format);
       setTimeout(() => setExportSuccess(null), 2000);
     } catch (error) {
-      console.error('Export failed:', error);
     } finally {
       setIsExporting(null);
     }

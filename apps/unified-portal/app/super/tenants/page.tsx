@@ -225,7 +225,6 @@ export default function TenantsPage() {
       const data = await response.json();
       setTenants(data.tenants || []);
     } catch (err) {
-      console.error('Error fetching tenants:', err);
       setError('Unable to load tenants. Please try again.');
     } finally {
       setIsLoading(false);

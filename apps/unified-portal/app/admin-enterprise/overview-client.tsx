@@ -65,7 +65,6 @@ export function OverviewDashboard() {
         setChatData(chat);
       })
       .catch((err) => {
-        console.error('Dashboard error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

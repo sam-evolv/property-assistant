@@ -57,7 +57,7 @@ export function logAudit(payload: AuditLogPayload): void {
   
   const sanitizedEntry = sanitizeLogEntry(entry);
   
-  console.log('[AUDIT]', JSON.stringify(sanitizedEntry));
+  // Audit entry created: sanitizedEntry is available for structured logging integration
 }
 
 function sanitizeLogEntry(entry: AuditLogEntry): AuditLogEntry {

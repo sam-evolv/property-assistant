@@ -61,7 +61,6 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
         setCurrentVersion(devData.development?.important_docs_version || 1);
       }
     } catch (error) {
-      console.error('[ImportantDocs] Failed to load:', error);
       toast.error('Failed to load documents');
     } finally {
       setIsLoading(false);

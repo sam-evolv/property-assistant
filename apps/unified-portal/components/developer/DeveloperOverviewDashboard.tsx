@@ -68,7 +68,6 @@ export default function DeveloperOverviewDashboard({ developerName = 'Developer'
           });
         }
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
       } finally {
         setLoading(false);
       }

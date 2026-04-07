@@ -122,7 +122,6 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
       setStep('preview');
     } catch (err) {
       setError('Failed to parse spreadsheet. Please ensure it\'s a valid Excel or CSV file.');
-      console.error('Parse error:', err);
     }
   }, []);
 

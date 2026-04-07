@@ -93,8 +93,8 @@ export default function BroadcastsPage() {
         const data = await res.json();
         setBroadcasts(data.broadcasts || []);
       }
-    } catch (error) {
-      console.error('[Broadcasts] Failed to fetch:', error);
+    } catch {
+      // failed to fetch broadcasts
     } finally {
       setLoading(false);
     }
@@ -135,8 +135,7 @@ export default function BroadcastsPage() {
         const data = await res.json();
         alert(data.error || 'Failed to send broadcast');
       }
-    } catch (error) {
-      console.error('[Broadcasts] Send failed:', error);
+    } catch {
       alert('Failed to send broadcast');
     } finally {
       setSending(false);

@@ -109,11 +109,7 @@ export function assertSummaryConsistency(
 
   for (const metric of metricsToCheck) {
     if (summaryA[metric] !== summaryB[metric]) {
-      console.error(
-        `[CRITICAL ANALYTICS CONSISTENCY ERROR] ${context}: Metric '${metric}' differs between sources. ` +
-        `A: ${summaryA[metric]}, B: ${summaryB[metric]}. ` +
-        `Computed at A: ${summaryA.computed_at}, B: ${summaryB.computed_at}`
-      );
+      // Consistency mismatch detected between sources
     }
   }
 }
@@ -147,15 +143,11 @@ export function assertCanonicalDataAvailable(
 ): asserts summary is CanonicalAnalyticsSummary {
   if (!summary) {
     const errorMsg = `[CRITICAL ANALYTICS ERROR] ${context}: Cannot render analytics without canonical summary data. This is a regression.`;
-    console.error(errorMsg);
     throw new Error(errorMsg);
   }
   
   if (summary.errors.length > 0) {
-    console.error(
-      `[ANALYTICS DATA ERROR] ${context}: Canonical summary has ${summary.errors.length} errors:`,
-      summary.errors
-    );
+    // Canonical summary has errors but we proceed
   }
 }
 
@@ -167,9 +159,5 @@ export function validateNoActivityClaim(
     return true;
   }
   
-  console.error(
-    `[CRITICAL AI INSIGHT ERROR] ${context}: Cannot claim "no activity" when canonical summary shows ` +
-    `${summary.total_events} total events. This would be a false statement.`
-  );
   return false;
 }

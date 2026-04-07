@@ -35,7 +35,6 @@ export default function DevelopmentAnalyticsClient({
         const data = await response.json();
         setAnalytics(data);
       } catch (error) {
-        console.error('Failed to fetch development analytics:', error);
       } finally {
         setLoading(false);
       }

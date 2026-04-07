@@ -29,7 +29,7 @@ export default async function DeveloperInsightsPage() {
       .select('id, project_id');
 
     if (error) {
-      console.error('[InsightsPage] Error fetching units:', error);
+      // error fetching units
     } else {
       totalHomeowners = units?.length || 0;
 
@@ -39,13 +39,9 @@ export default async function DeveloperInsightsPage() {
         homeownersByProject[pid] = (homeownersByProject[pid] || 0) + 1;
       });
 
-      console.log('[InsightsPage] Loaded homeowner counts from Supabase:', {
-        total: totalHomeowners,
-        byProject: homeownersByProject
-      });
     }
   } catch (error) {
-    console.error('[InsightsPage] Failed to fetch units:', error);
+    // failed to fetch units
   }
 
   return (

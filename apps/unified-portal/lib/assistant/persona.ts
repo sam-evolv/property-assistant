@@ -264,7 +264,6 @@ export function getActivePersona(): AssistantPersona {
   validatePersonaIntegrity();
   
   if (!personaInitialized) {
-    console.log(`[Persona] Initialized OPENHOUSE_ASSISTANT_PERSONA ${PERSONA_VERSION}`);
     personaInitialized = true;
   }
   
@@ -310,7 +309,6 @@ export function assertPersonaNotOverridden(schemeConfig: Record<string, unknown>
   
   for (const key of blockedKeys) {
     if (key in schemeConfig) {
-      console.error(`[Persona] BLOCKED: Scheme attempted to override persona via '${key}'`);
       throw new PersonaError(
         'configuration_error',
         'PERSONA_OVERRIDE_BLOCKED',

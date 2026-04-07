@@ -77,7 +77,6 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
         setUnitTypes(typesData.unitTypes || []);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load data');
     } finally {
       setIsLoading(false);
@@ -110,7 +109,6 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
       }
     } catch (error) {
       toast.error('Upload failed');
-      console.error('Upload error:', error);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -145,7 +143,6 @@ export function ImportUnitsClient({ projectId }: ImportUnitsClientProps) {
       }
     } catch (error) {
       toast.error('Upload failed');
-      console.error('Upload error:', error);
     } finally {
       setIsUploading(false);
       if (updateFileInputRef.current) {

@@ -18,7 +18,6 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
   const [error, setError] = useState<string | null>(null);
 
   const fetchDocuments = useCallback(async () => {
-    console.log('[DocumentsTab] FETCHING DOCS via /api/documents/list');
     setIsLoading(true);
     setError(null);
 
@@ -30,10 +29,8 @@ export function DocumentsTab({ onUploadComplete }: { onUploadComplete?: () => vo
         throw new Error(data.error || 'Failed to fetch documents');
       }
 
-      console.log('[DocumentsTab] API RETURNED:', Array.isArray(data) ? data.length : 0, 'documents');
       setDocuments(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('[DocumentsTab] Fetch error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load documents');
     } finally {
       setIsLoading(false);

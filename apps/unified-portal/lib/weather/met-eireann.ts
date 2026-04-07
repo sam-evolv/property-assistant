@@ -131,7 +131,6 @@ async function getObservations(city: string): Promise<Observation[]> {
     observationsCache.set(city, { data, fetchedAt: now });
     return data;
   } catch (err) {
-    console.error('[Weather] Observations fetch failed:', err);
     return cached?.data || [];
   }
 }
@@ -164,7 +163,7 @@ async function getNationalForecast(): Promise<NationalForecast | null> {
       return result;
     }
   } catch (err) {
-    console.error('[Weather] Forecast fetch failed:', err);
+    // Forecast fetch failed, fall back to cached data
   }
 
   return forecastCache?.data || null;
@@ -217,7 +216,6 @@ async function getSchemeAddress(schemeId: string | null | undefined): Promise<st
         if (lat > 53.1 && lat < 53.5 && lng > -9.3 && lng < -8.7) return 'Galway, Ireland';
       }
     }
-    if (spError) console.warn('[Weather] scheme_profile lookup error:', spError.message);
     // Fallback: try projects table
     const { data: projData, error: projError } = await supabase
       .from('projects')
@@ -226,10 +224,8 @@ async function getSchemeAddress(schemeId: string | null | undefined): Promise<st
       .limit(1)
       .maybeSingle();
     if (!projError && projData?.address) return projData.address;
-    if (projError) console.warn('[Weather] projects fallback error:', projError.message);
     return null;
   } catch (e) {
-    console.warn('[Weather] getSchemeAddress exception:', e);
     return null;
   }
 }
@@ -237,7 +233,6 @@ async function getSchemeAddress(schemeId: string | null | undefined): Promise<st
 export async function getWeather(schemeId: string | null | undefined): Promise<WeatherResult> {
   const schemeAddress = await getSchemeAddress(schemeId);
   const city = inferCity(schemeAddress);
-  console.log('[Weather] Fetching for city:', city);
 
   const [observations, forecast] = await Promise.all([
     getObservations(city),

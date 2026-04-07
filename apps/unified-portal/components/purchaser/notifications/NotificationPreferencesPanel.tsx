@@ -60,7 +60,6 @@ export function NotificationPreferencesPanel({
         });
       }
     } catch (error) {
-      console.error('[NotificationPreferences] Failed to fetch:', error);
     } finally {
       setLoaded(true);
     }
@@ -84,7 +83,6 @@ export function NotificationPreferencesPanel({
         }),
       });
     } catch (error) {
-      console.error('[NotificationPreferences] Failed to save:', error);
     } finally {
       setSaving(false);
     }

@@ -106,7 +106,6 @@ export default function AssistantTrainingPage() {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch developments:', err);
     } finally {
       setLoading(false);
     }
@@ -120,7 +119,6 @@ export default function AssistantTrainingPage() {
         setCustomQAs(data.qas || []);
       }
     } catch (err) {
-      console.error('Failed to fetch Q&As:', err);
     }
   };
 
@@ -135,7 +133,6 @@ export default function AssistantTrainingPage() {
         setKnowledgeItems([...devItems, ...platformItems]);
       }
     } catch (err) {
-      console.error('Failed to fetch knowledge items:', err);
     }
   };
 
@@ -193,7 +190,6 @@ export default function AssistantTrainingPage() {
         fetchCustomQAs();
       }
     } catch (err) {
-      console.error('Failed to add Q&A:', err);
     } finally {
       setQaLoading(false);
     }
@@ -214,7 +210,6 @@ export default function AssistantTrainingPage() {
       setEditingQAId(null);
       fetchCustomQAs();
     } catch (err) {
-      console.error('Failed to update Q&A:', err);
     } finally {
       setQaLoading(false);
     }
@@ -227,7 +222,6 @@ export default function AssistantTrainingPage() {
       await fetch(`/api/super/assistant/qa?id=${id}`, { method: 'DELETE' });
       fetchCustomQAs();
     } catch (err) {
-      console.error('Failed to delete Q&A:', err);
     }
   };
 
@@ -240,7 +234,6 @@ export default function AssistantTrainingPage() {
       });
       fetchCustomQAs();
     } catch (err) {
-      console.error('Failed to toggle Q&A:', err);
     }
   };
 
@@ -258,7 +251,6 @@ export default function AssistantTrainingPage() {
       setInstructionsSaved(true);
       setTimeout(() => setInstructionsSaved(false), 2000);
     } catch (err) {
-      console.error('Failed to save instructions:', err);
     } finally {
       setSavingInstructions(false);
     }
@@ -287,7 +279,6 @@ export default function AssistantTrainingPage() {
         fetchKnowledgeItems();
       }
     } catch (err) {
-      console.error('Failed to add knowledge:', err);
     } finally {
       setKnowledgeLoading(false);
     }
@@ -300,7 +291,6 @@ export default function AssistantTrainingPage() {
       await fetch(`/api/super/assistant/knowledge?id=${id}`, { method: 'DELETE' });
       fetchKnowledgeItems();
     } catch (err) {
-      console.error('Failed to delete knowledge:', err);
     }
   };
 

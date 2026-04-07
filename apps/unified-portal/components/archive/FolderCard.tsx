@@ -73,11 +73,9 @@ export function FolderCard({ folder, documentCount = 0, onClick, onEdit, onDelet
         onDelete?.(folder.id);
       } else {
         const data = await response.json();
-        console.error('Failed to delete folder:', data.error);
         alert(data.error || 'Failed to delete folder');
       }
     } catch (error) {
-      console.error('Error deleting folder:', error);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

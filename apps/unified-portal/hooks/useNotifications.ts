@@ -47,8 +47,8 @@ export function useNotifications(unitUid: string, token: string | null): UseNoti
         setNotifications(data.notifications || []);
         setUnreadCount(data.unread_count || 0);
       }
-    } catch (error) {
-      console.error('[useNotifications] Failed to fetch:', error);
+    } catch {
+      // Failed to fetch notifications
     } finally {
       setLoading(false);
     }
@@ -85,8 +85,8 @@ export function useNotifications(unitUid: string, token: string | null): UseNoti
         )
       );
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
-    } catch (error) {
-      console.error('[useNotifications] Failed to mark as read:', error);
+    } catch {
+      // Failed to mark as read
     }
   }, [unitUid, token]);
 
@@ -109,8 +109,8 @@ export function useNotifications(unitUid: string, token: string | null): UseNoti
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
       setUnreadCount(0);
-    } catch (error) {
-      console.error('[useNotifications] Failed to mark all as read:', error);
+    } catch {
+      // Failed to mark all as read
     }
   }, [unitUid, token]);
 

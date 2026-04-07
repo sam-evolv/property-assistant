@@ -251,8 +251,6 @@ Respond ONLY with valid JSON:
       reasoning: parsed.reasoning || 'AI classification'
     };
   } catch (error) {
-    console.error('[AI Classify] Error:', error);
-    
     return {
       discipline: keywordResult.discipline,
       confidence: Math.max(0.3, keywordResult.score * 0.15),

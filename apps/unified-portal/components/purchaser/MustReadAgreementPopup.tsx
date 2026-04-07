@@ -45,7 +45,6 @@ export default function MustReadAgreementPopup({
         }
       }
     } catch (error) {
-      console.error('Failed to check agreement:', error);
     } finally {
       setHasCheckedAgreement(true);
     }
@@ -89,7 +88,6 @@ export default function MustReadAgreementPopup({
         onAgreementComplete();
       }
     } catch (error) {
-      console.error('Failed to save agreement:', error);
     } finally {
       setIsSubmitting(false);
     }

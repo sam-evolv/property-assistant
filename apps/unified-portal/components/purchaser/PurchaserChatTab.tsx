@@ -616,7 +616,6 @@ const RequestInfoButton = ({
         onSubmitted();
       }
     } catch (error) {
-      console.error('Failed to submit request:', error);
     } finally {
       setSubmitting(false);
     }
@@ -1148,7 +1147,6 @@ export default function PurchaserChatTab({
         };
 
         recognition.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
           setIsListening(false);
         };
 
@@ -1176,7 +1174,6 @@ export default function PurchaserChatTab({
       try {
         recognitionRef.current.start();
       } catch (error) {
-        console.error('Error starting speech recognition:', error);
         setIsListening(false);
       }
     }
@@ -1254,7 +1251,6 @@ export default function PurchaserChatTab({
     if (!textToSend || sending) return;
 
     if (!token) {
-      console.error('No token available for chat');
       setMessages((prev) => [
         ...prev,
         {
@@ -1472,7 +1468,6 @@ export default function PurchaserChatTab({
             errorMessage = t.errorOccurred;
           }
           
-          console.error('[Chat] API error:', data.error, data.details);
           
           setMessages((prev) => [
             ...prev,
@@ -1484,7 +1479,6 @@ export default function PurchaserChatTab({
         }
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
       setMessages((prev) => [
         ...prev,
         {

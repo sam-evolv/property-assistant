@@ -77,7 +77,6 @@ export function DevelopmentSelector({
       const currentId = getSchemeId(archiveScope);
       
       if (currentId && !devIds.has(currentId)) {
-        console.log('[DevelopmentSelector] Current scheme not in list, resetting to ALL_SCHEMES');
         onScopeChange(createAllSchemesScope());
         if (onDevelopmentChange) {
           onDevelopmentChange(null);
@@ -96,7 +95,6 @@ export function DevelopmentSelector({
       if (fetchForTenant !== currentTenantIdRef.current) {
         return;
       }
-      console.error('[DevelopmentSelector] Failed to fetch:', err);
       setError('Failed to load developments');
     }
   }, [archiveScope, onScopeChange, onDevelopmentChange]);
@@ -121,7 +119,6 @@ export function DevelopmentSelector({
       ? createSchemeScope(developmentId) 
       : createAllSchemesScope();
     
-    console.log('[DevelopmentSelector] Scope selected:', scopeToString(newScope));
     onScopeChange(newScope);
     if (onDevelopmentChange) {
       onDevelopmentChange(developmentId);

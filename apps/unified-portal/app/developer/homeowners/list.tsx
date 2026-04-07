@@ -127,12 +127,10 @@ export function HomeownersList({
   }, [selectedIds, router]);
 
   const handleBulkExport = useCallback(() => {
-    console.log('Exporting', selectedIds.size, 'homeowners');
     // TODO: Implement export
   }, [selectedIds]);
 
   const handleBulkArchive = useCallback(() => {
-    console.log('Archiving', selectedIds.size, 'homeowners');
     // TODO: Implement archive
   }, [selectedIds]);
 
@@ -168,8 +166,7 @@ export function HomeownersList({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download QR codes:', error);
+    } catch {
       alert('Failed to download QR codes. Please try again.');
     } finally {
       setDownloadingQR(false);

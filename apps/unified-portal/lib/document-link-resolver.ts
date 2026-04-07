@@ -109,8 +109,6 @@ export async function findDocumentForLink(
   verifiedProjectId?: string,
   verifiedHouseTypeCode?: string
 ): Promise<DocumentLinkResult> {
-  console.log('[DocumentLinkResolver] Finding document for:', { unitUid, documentHint, verifiedProjectId });
-  
   const supabase = getSupabaseClient();
   
   let projectId = verifiedProjectId;
@@ -119,7 +117,6 @@ export async function findDocumentForLink(
   if (!projectId) {
     const unitInfo = await getUnitInfo(unitUid);
     if (!unitInfo) {
-      console.log('[DocumentLinkResolver] Could not get unit info');
       return {
         found: false,
         document: null,
@@ -131,15 +128,12 @@ export async function findDocumentForLink(
   }
   
   if (!projectId) {
-    console.log('[DocumentLinkResolver] No project ID for unit');
     return {
       found: false,
       document: null,
       explanation: 'Unable to determine your development.',
     };
   }
-  
-  console.log('[DocumentLinkResolver] Looking in project:', projectId, 'houseType:', houseTypeCode);
   
   const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
   
@@ -149,15 +143,12 @@ export async function findDocumentForLink(
     .eq('project_id', projectId);
   
   if (error || !sections || sections.length === 0) {
-    console.log('[DocumentLinkResolver] No documents found or error:', error?.message);
     return {
       found: false,
       document: null,
       explanation: 'No documents are currently available for your development.',
     };
   }
-  
-  console.log('[DocumentLinkResolver] Total sections fetched:', sections.length);
   
   const uniqueDocs = new Map<string, any>();
   for (const section of sections) {
@@ -179,7 +170,6 @@ export async function findDocumentForLink(
   }
   
   const documents = Array.from(uniqueDocs.values());
-  console.log('[DocumentLinkResolver] Unique documents found:', documents.length);
   
   if (documents.length === 0) {
     return {
@@ -247,7 +237,6 @@ export async function findDocumentForLink(
       
       if (pattern.docTerms.some(kw => docText.includes(kw))) {
         matchedDoc = doc;
-        console.log('[DocumentLinkResolver] Matched by pattern:', pattern.searchTerms[0], 'Doc:', doc.file_name);
         break;
       }
     }
@@ -260,15 +249,12 @@ export async function findDocumentForLink(
       const docText = `${doc.file_name || ''} ${doc.title || ''} ${doc.discipline || ''} ${doc.drawing_type || ''}`.toLowerCase();
       if (docText.includes(hintLower)) {
         matchedDoc = doc;
-        console.log('[DocumentLinkResolver] Matched by hint:', documentHint, 'Doc:', doc.file_name);
         break;
       }
     }
   }
   
   if (!matchedDoc) {
-    console.log('[DocumentLinkResolver] No match found for:', documentHint);
-    console.log('[DocumentLinkResolver] Available docs with types:', documents.map(d => `${d.file_name} (type: ${d.drawing_type || 'none'})`).join(', '));
     return {
       found: false,
       document: null,
@@ -300,16 +286,14 @@ export async function findDocumentForLink(
           downloadUrl = downloadData.signedUrl;
         }
       }
-    } catch (urlError) {
-      console.error('[DocumentLinkResolver] Error creating signed URL:', urlError);
+    } catch {
+      // signed URL creation failed — fall back to raw file URL
     }
   }
-  
+
   const docType = matchedDoc.drawing_type || matchedDoc.discipline || 'document';
   const docTitle = matchedDoc.title || matchedDoc.file_name || 'Document';
-  
-  console.log('[DocumentLinkResolver] Found document:', docTitle, 'Type:', docType);
-  
+
   return {
     found: true,
     document: {
@@ -349,8 +333,6 @@ export async function findFloorPlanDocuments(
   verifiedProjectId?: string,
   verifiedHouseTypeCode?: string
 ): Promise<FloorPlanFallbackResult> {
-  console.log('[FloorPlanFallback] Finding floor plans for:', { unitUid, verifiedProjectId, verifiedHouseTypeCode });
-  
   const supabase = getSupabaseClient();
   
   let projectId = verifiedProjectId;
@@ -359,7 +341,6 @@ export async function findFloorPlanDocuments(
   if (!projectId) {
     const unitInfo = await getUnitInfo(unitUid);
     if (!unitInfo) {
-      console.log('[FloorPlanFallback] Could not get unit info');
       return {
         found: false,
         attachments: [],
@@ -379,8 +360,7 @@ export async function findFloorPlanDocuments(
   }
   
   const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
-  console.log('[FloorPlanFallback] Project:', projectId, 'HouseType:', normalizedHouseType || '(unknown — will show all architectural)');
-  
+
   // No house type known — do broad architectural search rather than blocking
   // Homeowners always have the right to see their development's floor plans
   
@@ -390,7 +370,6 @@ export async function findFloorPlanDocuments(
     .eq('project_id', projectId);
   
   if (error || !sections || sections.length === 0) {
-    console.log('[FloorPlanFallback] No documents found:', error?.message);
     return {
       found: false,
       attachments: [],
@@ -494,20 +473,16 @@ export async function findFloorPlanDocuments(
   let selectedDocs: Map<string, any>;
   if (unitSpecificDocs.size > 0) {
     selectedDocs = unitSpecificDocs;
-    console.log('[FloorPlanFallback] Using', unitSpecificDocs.size, 'unit-specific floor plans');
+    // unit-specific floor plans
   } else if (houseTypeSpecificDocs.size > 0) {
     selectedDocs = houseTypeSpecificDocs;
-    console.log('[FloorPlanFallback] Using', houseTypeSpecificDocs.size, 'house-type-specific floor plans');
   } else {
-    console.log('[FloorPlanFallback] No floor plans found for house type:', normalizedHouseType || 'unknown');
     return {
       found: false,
       attachments: [],
       explanation: 'No floor plan documents found for your home.',
     };
   }
-  
-  console.log('[FloorPlanFallback] Found', selectedDocs.size, 'floor plan documents');
   
   const attachments: FloorPlanAttachment[] = [];
   
@@ -536,8 +511,8 @@ export async function findFloorPlanDocuments(
             downloadUrl = downloadData.signedUrl;
           }
         }
-      } catch (urlError) {
-        console.error('[FloorPlanFallback] Error creating signed URL:', urlError);
+      } catch {
+        // signed URL creation failed — fall back to raw file URL
       }
     }
     

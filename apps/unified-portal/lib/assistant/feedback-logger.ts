@@ -45,15 +45,8 @@ export async function logFeedback(entry: FeedbackEntry): Promise<{ success: bool
       session_id: entry.session_id || null,
     }).returning({ id: assistant_feedback.id });
     
-    console.log('[FeedbackLogger] Logged feedback:', {
-      scheme_id: entry.scheme_id,
-      feedback_value: entry.feedback_value,
-      source_type: entry.source_type,
-    });
-    
     return { success: true, id: result[0]?.id };
-  } catch (error) {
-    console.error('[FeedbackLogger] Failed to log feedback:', error);
+  } catch {
     return { success: false };
   }
 }
@@ -131,8 +124,7 @@ export async function getFeedbackSummary(tenantId: string, schemeId: string): Pr
         last7d: { up: Number(trend.up7d), down: Number(trend.down7d) },
       },
     };
-  } catch (error) {
-    console.error('[FeedbackLogger] Failed to get feedback summary:', error);
+  } catch {
     return {
       totalFeedback: 0,
       upCount: 0,

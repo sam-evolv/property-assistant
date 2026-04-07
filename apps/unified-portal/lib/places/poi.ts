@@ -152,15 +152,7 @@ export function dedupeAndFillAmenities(
     }
   }
   
-  if (debug) {
-    console.log('[POI] Dedupe - after min reservation:', {
-      supermarket: deduped.supermarket.length,
-      pharmacy: deduped.pharmacy.length,
-      gp: deduped.gp.length,
-      transport: deduped.transport.length,
-      cafe: deduped.cafe.length,
-    });
-  }
+  // debug: after min reservation counts available in deduped
   
   for (const cat of categoryOrder) {
     for (const item of rawCandidates[cat]) {
@@ -171,15 +163,7 @@ export function dedupeAndFillAmenities(
     }
   }
   
-  if (debug) {
-    console.log('[POI] Dedupe - final counts:', {
-      supermarket: deduped.supermarket.length,
-      pharmacy: deduped.pharmacy.length,
-      gp: deduped.gp.length,
-      transport: deduped.transport.length,
-      cafe: deduped.cafe.length,
-    });
-  }
+  // debug: final counts available in deduped
   
   return {
     supermarket: deduped.supermarket,
@@ -303,8 +287,6 @@ export interface SchemeLocationResult {
 }
 
 async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocationResult | null> {
-  console.log('[POI] Looking up location for supabaseProjectId:', supabaseProjectId);
-  
   // SINGLE SOURCE OF TRUTH: scheme_profile is the authoritative source for amenity locations
   // This ensures deterministic, scheme-scoped resolution
   const schemes = await db
@@ -319,12 +301,6 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     .limit(1);
 
   if (schemes.length > 0 && schemes[0].lat && schemes[0].lng) {
-    console.log('[POI] Found location in scheme_profile:', {
-      id: schemes[0].id,
-      lat: schemes[0].lat,
-      lng: schemes[0].lng,
-      address: schemes[0].address,
-    });
     return {
       lat: schemes[0].lat,
       lng: schemes[0].lng,
@@ -334,7 +310,6 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     };
   }
 
-  console.log('[POI] No location found in scheme_profile for:', supabaseProjectId);
   return null;
 }
 
@@ -354,8 +329,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
       const loc = data.results[0].geometry.location;
       return { lat: loc.lat, lng: loc.lng };
     }
-  } catch (err) {
-    console.error('[POI] Geocoding failed:', err);
+  } catch {
+    // geocoding failed
   }
   return null;
 }
@@ -387,13 +362,7 @@ function isCacheContentValid(results: POIResult[], category: POICategory): boole
     return keywords.some(kw => name.includes(kw.toLowerCase()));
   });
   
-  if (!hasValidResult && results.length > 0) {
-    console.warn(`[POI] Cache content validation failed for ${category}`, {
-      category,
-      expectedKeywords: keywords,
-      actualNames: results.slice(0, 3).map(r => r.name),
-    });
-  }
+  // validation result is returned via hasValidResult
   
   return hasValidResult;
 }
@@ -512,13 +481,6 @@ async function fetchFromGooglePlaces(
       lastHttpStatus = response.status;
       const data = await response.json();
 
-      console.log('[POI] Places API response:', {
-        type: placeType,
-        status: data.status,
-        resultCount: data.results?.length || 0,
-        httpStatus: response.status,
-      });
-
       if (data.status === 'OK' && data.results) {
         allResults.push(...data.results);
         lastErrorCode = 'OK';
@@ -528,17 +490,6 @@ async function fetchFromGooglePlaces(
         lastErrorCode = data.status as PlacesErrorCode;
         lastErrorMessage = data.error_message || `Google Places returned ${data.status}`;
         lastFailureReason = mapGoogleStatusToFailureReason(data.status);
-        
-        console.error('[POI] Google Places API error:', {
-          timestamp: new Date().toISOString(),
-          schemeId: 'unknown',
-          category,
-          lat,
-          lng,
-          httpStatus: response.status,
-          status: data.status,
-          errorMessage: lastErrorMessage,
-        });
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -551,14 +502,6 @@ async function fetchFromGooglePlaces(
         lastFailureReason = 'google_places_network_error';
       }
       
-      console.error('[POI] Places fetch error:', {
-        timestamp: new Date().toISOString(),
-        category,
-        lat,
-        lng,
-        errorType: error.name,
-        errorMessage: error.message,
-      });
     }
   }
 
@@ -593,11 +536,6 @@ async function fetchFromGooglePlaces(
     filteredResults = typeFiltered;
   } else if (filteredResults.length > 0) {
     // Google returned results but none matched our required types - this is a type mismatch
-    console.warn('[POI] Type mismatch: Google returned results but none matched required types', {
-      category,
-      requiredTypes: mapping.types,
-      returnedTypes: filteredResults.slice(0, 3).map(p => ({ name: p.name, types: p.types })),
-    });
     filteredResults = []; // Clear mismatched results
   }
 

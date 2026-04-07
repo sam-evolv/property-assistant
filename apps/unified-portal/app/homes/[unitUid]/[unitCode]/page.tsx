@@ -47,8 +47,8 @@ export default function HousePage() {
             },
           ]);
         }
-      } catch (error) {
-        console.error('Failed to fetch house:', error);
+      } catch {
+        // Failed to fetch house
       } finally {
         setLoading(false);
       }
@@ -81,8 +81,8 @@ export default function HousePage() {
       if (data.answer) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
       }
-    } catch (error) {
-      console.error('Failed to send message:', error);
+    } catch {
+      // Failed to send message
     } finally {
       setSending(false);
     }

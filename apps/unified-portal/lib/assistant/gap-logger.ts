@@ -58,14 +58,8 @@ export async function logAnswerGap(entry: GapLogEntry): Promise<void> {
       gap_reason: entry.gap_reason,
     });
     
-    console.log('[GapLogger] Logged answer gap:', {
-      scheme_id: entry.scheme_id,
-      gap_reason: entry.gap_reason,
-      intent_type: entry.intent_type,
-      details: entry.details || null,
-    });
-  } catch (error) {
-    console.error('[GapLogger] Failed to log answer gap:', error);
+  } catch {
+    // gap log write failed — non-critical
   }
 }
 
@@ -117,8 +111,7 @@ export async function getGapLogsByScheme(
     const totalCount = Number(countResult[0]?.count || 0);
     
     return { logs, totalCount };
-  } catch (error) {
-    console.error('[GapLogger] Failed to get gap logs:', error);
+  } catch {
     return { logs: [], totalCount: 0 };
   }
 }
@@ -195,8 +188,7 @@ export async function getGapSummary(schemeId: string): Promise<GapSummary> {
         last30d: Number(trend.count30d),
       },
     };
-  } catch (error) {
-    console.error('[GapLogger] Failed to get gap summary:', error);
+  } catch {
     return {
       totalGaps: 0,
       byReason: {} as Record<GapReason, number>,

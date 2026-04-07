@@ -23,7 +23,6 @@ export function ProjectSwitcher() {
   const handleSelect = (id: string) => {
     setSelectedProjectId(id);
     setIsOpen(false);
-    console.log('[ProjectSwitcher] Selected project:', id);
   };
 
   if (isLoading) {

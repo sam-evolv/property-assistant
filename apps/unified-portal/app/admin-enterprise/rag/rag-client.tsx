@@ -43,7 +43,6 @@ export function RAGAnalytics() {
       })
       .then(setData)
       .catch((err) => {
-        console.error('RAG analytics error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

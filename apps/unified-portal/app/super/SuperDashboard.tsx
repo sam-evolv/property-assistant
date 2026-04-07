@@ -156,7 +156,6 @@ export function SuperDashboard() {
       setRecentActivity(data.recentActivity || []);
       setHealth(data.health);
     } catch (err) {
-      console.error('Dashboard fetch error:', err);
       setError('Failed to load dashboard data');
     } finally {
       setIsLoading(false);

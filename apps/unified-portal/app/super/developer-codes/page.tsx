@@ -67,7 +67,6 @@ export default function DeveloperCodesPage() {
       const data = await res.json();
       setCodes(data.codes || []);
     } catch (error) {
-      console.error('Failed to fetch codes:', error);
     } finally {
       setLoading(false);
     }
@@ -105,7 +104,6 @@ export default function DeveloperCodesPage() {
         fetchCodes();
       }
     } catch (error) {
-      console.error('Failed to create code:', error);
     } finally {
       setSubmitting(false);
     }

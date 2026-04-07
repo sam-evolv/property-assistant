@@ -31,7 +31,6 @@ export default function PurchaserDemoPage() {
         // Redirect to the purchaser portal with the token
         window.location.href = url;
       } catch (err) {
-        console.error('[Purchaser Demo] Error:', err);
         setError('Failed to access purchaser portal');
       }
     };

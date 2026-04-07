@@ -47,7 +47,6 @@ export default function SchemeSetupPage() {
         setProfile(defaultProfile);
       }
     } catch (err) {
-      console.error('Failed to load profile:', err);
       setError('Failed to load scheme profile');
     } finally {
       setLoading(false);

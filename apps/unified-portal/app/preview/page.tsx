@@ -57,8 +57,8 @@ export default function PreHandoverPreviewPage() {
             snaggingLead: '14'
           }
         });
-      } catch (err) {
-        console.error('Failed to load preview data:', err);
+      } catch {
+        // Failed to load preview data
       } finally {
         setLoading(false);
       }

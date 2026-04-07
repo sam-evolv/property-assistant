@@ -58,7 +58,6 @@ export function AuditLogClient() {
       })
       .then(setData)
       .catch((err) => {
-        console.error('Audit log error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

@@ -68,8 +68,8 @@ export default function AssistantTestsPage() {
       const res = await fetch('/developer/api/assistant-tests?action=suite');
       const data = await res.json();
       setSuite(data);
-    } catch (error) {
-      console.error('Failed to fetch test suite:', error);
+    } catch {
+      // failed to fetch test suite
     }
   }
   
@@ -89,8 +89,8 @@ export default function AssistantTestsPage() {
       
       const data = await res.json();
       setScorecard(data.scorecard);
-    } catch (error) {
-      console.error('Failed to run tests:', error);
+    } catch {
+      // failed to run tests
     }
     
     setRunning(false);

@@ -219,15 +219,6 @@ export default function PurchaserDocumentsTab({
   const fetchDocuments = useCallback(async (forceRefresh = false) => {
     const token = propToken || getEffectiveToken(unitUid);
     
-    console.log('[DocsTab] fetchDocuments called', {
-      propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-      effectiveToken: token ? `${token.substring(0, 8)}...` : 'undefined',
-      unitUid,
-      forceRefresh,
-      tokenSource: propToken ? 'prop' : 'storage',
-      isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(token || ''),
-      isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
-    });
     
     const { data: cached, isStale } = getCachedDocuments<Document[]>(unitUid, token);
     
@@ -327,7 +318,6 @@ export default function PurchaserDocumentsTab({
         setHasVideos(false);
       }
     } catch (err) {
-      console.error('[PurchaserDocumentsTab] Videos count fetch error:', err);
       setHasVideos(false);
     } finally {
       setVideosCountFetched(true);
@@ -352,7 +342,6 @@ export default function PurchaserDocumentsTab({
         setVideos([]);
       }
     } catch (err) {
-      console.error('[PurchaserDocumentsTab] Videos fetch error:', err);
       setVideos([]);
     } finally {
       setVideosLoading(false);
@@ -445,7 +434,6 @@ export default function PurchaserDocumentsTab({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to download document:', error);
       alert('Failed to download document. Please try again or contact your development administrator.');
     }
   };
@@ -739,7 +727,6 @@ export default function PurchaserDocumentsTab({
                       key={video.id}
                       className={cardBaseClasses}
                       onClick={() => {
-                        console.log('[Videos Analytics] video_started', { videoId: video.id, provider: video.provider });
                         setPlayingVideo(video);
                         setEmbedError(false);
                       }}

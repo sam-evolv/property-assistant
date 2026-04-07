@@ -30,7 +30,6 @@ export async function fetchSolarEdgeData(
     try {
       return await fetchRealSolarEdgeData(siteId, apiKey);
     } catch (error) {
-      console.warn('[SolarEdge] Real API failed, falling back to mock:', error);
       return generateMockSolarEdgeData(siteId);
     }
   }

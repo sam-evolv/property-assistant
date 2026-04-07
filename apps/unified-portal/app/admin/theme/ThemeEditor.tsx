@@ -74,8 +74,7 @@ export function ThemeEditor({ tenantId, tenantName, initialConfig }: ThemeEditor
           previewWindow.contentWindow.postMessage({ type: 'refresh_theme' }, '*');
         }
       }
-    } catch (error) {
-      console.error('Error saving theme:', error);
+    } catch {
       toast.error('Failed to save theme');
     } finally {
       setIsSaving(false);

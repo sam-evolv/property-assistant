@@ -19,7 +19,6 @@ export default async function DeveloperAnalyticsPage() {
 
   // SECURITY: Require tenant context
   if (!tenantId) {
-    console.error('[AnalyticsPage] SECURITY: No tenant context');
     return (
       <AnalyticsClient
         tenantId=""
@@ -44,7 +43,7 @@ export default async function DeveloperAnalyticsPage() {
       .eq('tenant_id', tenantId);
 
     if (error) {
-      console.error('[AnalyticsPage] Error fetching units:', error);
+      // error fetching units
     } else {
       totalHomeowners = units?.length || 0;
 
@@ -54,13 +53,9 @@ export default async function DeveloperAnalyticsPage() {
         homeownersByProject[pid] = (homeownersByProject[pid] || 0) + 1;
       });
 
-      console.log('[AnalyticsPage] Loaded homeowner counts from Supabase for tenant:', tenantId, {
-        total: totalHomeowners,
-        byProject: homeownersByProject
-      });
     }
   } catch (error) {
-    console.error('[AnalyticsPage] Failed to fetch units:', error);
+    // failed to fetch units
   }
 
   return (

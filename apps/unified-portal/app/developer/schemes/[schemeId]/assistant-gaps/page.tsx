@@ -57,8 +57,8 @@ export default function AssistantGapsPage() {
       setLogs(logsData.logs || []);
       setTotalPages(logsData.totalPages || 1);
       setSummary(summaryData.summary || null);
-    } catch (error) {
-      console.error('Failed to fetch gap data:', error);
+    } catch {
+      // failed to fetch gap data
     }
     setLoading(false);
   }

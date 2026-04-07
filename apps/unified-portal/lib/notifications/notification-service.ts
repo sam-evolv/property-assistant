@@ -98,7 +98,6 @@ export async function sendNotification(params: SendNotificationParams): Promise<
     .single();
 
   if (error || !notification) {
-    console.error('[NotificationService] Failed to create notification:', error);
     return null;
   }
 
@@ -181,8 +180,7 @@ export async function sendBulkNotification(
       } else {
         failed++;
       }
-    } catch (error) {
-      console.error(`[NotificationService] Failed to send to user ${userId}:`, error);
+    } catch {
       failed++;
     }
   }

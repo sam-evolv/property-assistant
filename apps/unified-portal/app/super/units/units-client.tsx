@@ -205,7 +205,6 @@ export function UnitsExplorer() {
       setDevelopments(data.developments || []);
       setStats(data.stats);
     } catch (err) {
-      console.error('Units fetch error:', err);
       setError('Failed to load units');
     } finally {
       setIsLoading(false);

@@ -78,7 +78,6 @@ export async function routeQuery(
       isRegulatory: parsed.isRegulatory || false,
     };
   } catch (error) {
-    console.error('[SchemeIntel Router] Classification failed, using fallback:', error);
     return fallbackRoute(question);
   }
 }

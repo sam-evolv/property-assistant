@@ -102,8 +102,7 @@ export async function classifyWithAI(fileName: string, filePath: string): Promis
     const category = validCategories.includes(response) ? response : 'other'
 
     return { category, confidence: 0.8 }
-  } catch (error) {
-    console.error('[DataHub Classifier] AI classification error:', error)
+  } catch {
     return { category: 'other', confidence: 0.3 }
   }
 }

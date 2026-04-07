@@ -71,10 +71,8 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
       if (response.ok) {
         onUpdate?.();
       } else {
-        console.error('Failed to update document');
       }
     } catch (error) {
-      console.error('Error updating document:', error);
     } finally {
       setIsUpdating(false);
       setShowMenu(false);
@@ -99,10 +97,8 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
       if (response.ok) {
         onDelete?.(document.file_name || document.title);
       } else {
-        console.error('Failed to delete document');
       }
     } catch (error) {
-      console.error('Error deleting document:', error);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

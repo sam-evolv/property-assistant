@@ -176,14 +176,6 @@ export default function PurchaserProfilePanel({
       setError(null);
       const token = propToken || getEffectiveToken(unitUid);
       
-      console.log('[Profile] fetchProfile called', {
-        propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-        effectiveToken: token ? `${token.substring(0, 8)}...` : 'undefined',
-        unitUid,
-        tokenSource: propToken ? 'prop' : 'storage',
-        isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(token || ''),
-        isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
-      });
       
       const apiUrl = `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
       const res = await fetch(apiUrl);
@@ -204,7 +196,6 @@ export default function PurchaserProfilePanel({
         setError('Failed to load profile');
       }
     } catch (err: any) {
-      console.error('Profile fetch error:', err);
       setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${err.message}` } : null);
       setError('Failed to load profile');
     } finally {
@@ -213,18 +204,12 @@ export default function PurchaserProfilePanel({
   };
 
   useEffect(() => {
-    console.log('[Profile] useEffect triggered', {
-      isOpen,
-      propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-      unitUid
-    });
     
     if (isOpen) {
       const effectiveToken = propToken || getEffectiveToken(unitUid);
       if (effectiveToken) {
         fetchProfile();
       } else {
-        console.log('[Profile] No token available, skipping fetch');
       }
     }
   }, [isOpen, unitUid, propToken]);

@@ -489,7 +489,7 @@ function BriefingModal({
         setItems(data.items || []);
         setBriefingText(data.briefingText || '');
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [open, systemTypeId]);
 
@@ -662,7 +662,7 @@ export default function CareIntelligenceClient() {
     fetch(`/api/care/insights?${params}`)
       .then((res) => res.json())
       .then((data) => setInsights(data.insights || []))
-      .catch(console.error);
+      .catch(() => {});
   }, [systemTypeId]);
 
   // Rotate pills every 5 seconds
@@ -939,8 +939,7 @@ export default function CareIntelligenceClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: finalMessages }),
         }).catch(() => {});
-      } catch (err) {
-        console.error('[CareIntel] Chat error:', err);
+      } catch {
         updateSessionMessages(sessionId!, [
           ...prevMessages,
           userMessage,

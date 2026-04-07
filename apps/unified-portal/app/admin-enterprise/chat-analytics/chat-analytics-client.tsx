@@ -44,7 +44,6 @@ export function ChatAnalytics() {
       })
       .then(setData)
       .catch((err) => {
-        console.error('Chat analytics error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

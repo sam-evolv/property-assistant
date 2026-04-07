@@ -64,7 +64,6 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
   try {
     const parts = token.split(':');
     if (parts.length !== 5) {
-      console.error('[QR Token] Invalid token format, expected 5 parts, got', parts.length);
       return null;
     }
     
@@ -80,7 +79,6 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
       .digest('base64url');
     
     if (expectedSignature !== providedSignature) {
-      console.error('[QR Token] Invalid signature');
       return null;
     }
     
@@ -89,13 +87,11 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
     const expiryTime = timestamp + (720 * 60 * 60 * 1000);
     
     if (Date.now() > expiryTime) {
-      console.error('[QR Token] Token expired');
       return null;
     }
     
     return { supabaseUnitId, projectId };
-  } catch (error) {
-    console.error('[QR Token] Verification failed:', error);
+  } catch {
     return null;
   }
 }
@@ -145,8 +141,6 @@ export async function generateQRTokenForUnit(
     created_at: new Date(),
   });
   
-  console.log(`[QR Token] Generated fresh token for unit ${supabaseUnitId}, tenant ${tenantId}`);
-  
   return generated;
 }
 
@@ -168,8 +162,7 @@ export async function markTokenAsUsed(token: string): Promise<boolean> {
       .returning();
     
     return result.length > 0;
-  } catch (error) {
-    console.error('[QR Token] Failed to mark token as used:', error);
+  } catch {
     return false;
   }
 }
@@ -205,7 +198,6 @@ export async function validateQRToken(token: string): Promise<QRTokenPayload | n
     
     if (dbTokens.length === 0) {
       // Token not in DB but signature valid - allow access (DB may not be synced)
-      console.log('[QR Token] Token not in database but signature valid, allowing access');
       return payload;
     }
     
@@ -213,13 +205,11 @@ export async function validateQRToken(token: string): Promise<QRTokenPayload | n
     
     // Check if already used
     if (dbToken.used_at) {
-      console.error('[QR Token] Token already used');
       return null;
     }
     
     // Check if expired
     if (dbToken.expires_at && dbToken.expires_at < new Date()) {
-      console.error('[QR Token] Token expired');
       return null;
     }
     
@@ -227,8 +217,7 @@ export async function validateQRToken(token: string): Promise<QRTokenPayload | n
   } catch (dbError) {
     // Database error (table may not exist) - fall back to signature verification only
     // The signature was already verified above, so the token is cryptographically valid
-    console.log('[QR Token] Database validation failed, using signature verification only:', 
-      dbError instanceof Error ? dbError.message : 'Unknown error');
+    // Database error - fall back to signature verification only
     return payload;
   }
 }
@@ -274,12 +263,10 @@ export async function validatePurchaserToken(
     if (checkShowhouseEnabled) {
       const isShowhouse = await checkShowhouseEnabled();
       if (isShowhouse) {
-        console.log('[Token] Showhouse access validated for unit:', unitUid);
         return { valid: true, unitId: unitUid, isShowhouse: true };
       }
     }
     // Fallback: Allow showhouse if no checker provided (backward compatibility)
-    console.log('[Token] Allowing direct unit access (showhouse mode):', unitUid);
     return { valid: true, unitId: unitUid, isShowhouse: true };
   }
   
@@ -292,7 +279,6 @@ export async function validatePurchaserToken(
       // Token was issued for this unit - allow continued session access
       // This handles the case where a user scanned a QR code, the token was marked as used,
       // but they should still have access to their session
-      console.log('[Token] Allowing session continuity for unit:', unitUid);
       return { valid: true, unitId: unitUid, isShowhouse: true };
     }
   }

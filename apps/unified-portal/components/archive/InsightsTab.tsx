@@ -90,7 +90,6 @@ export function InsightsTab() {
 
         setInsights(data);
       } catch (err) {
-        console.error('Failed to fetch insights:', err);
         setError(err instanceof Error ? err.message : 'Failed to load insights');
       } finally {
         setIsLoading(false);

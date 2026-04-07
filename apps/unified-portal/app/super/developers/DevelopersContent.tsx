@@ -241,7 +241,6 @@ export const DevelopersContent = memo(function DevelopersContent() {
         setStats(stats);
       }
     } catch (err) {
-      console.error('Error fetching developers:', err);
       setError('Unable to load developers. Please try again.');
     } finally {
       setIsLoading(false);

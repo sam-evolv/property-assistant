@@ -424,7 +424,6 @@ export async function getSchemeSummary(
 
   const [regResult, handoverResult, activityResult, docResult] = settled.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
-    console.error(`[getSchemeSummary] sub-query ${i} failed:`, r.reason?.message);
     return { data: {}, summary: '' } as FunctionResult;
   });
 

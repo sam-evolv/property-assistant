@@ -42,8 +42,7 @@ export default function NewDevelopmentPage() {
         
         setSession(data.session);
         setSessionLoading(false);
-      } catch (err) {
-        console.error('Failed to fetch session:', err);
+      } catch {
         setError('Unable to fetch session. Please try logging in again.');
         setSessionLoading(false);
       }

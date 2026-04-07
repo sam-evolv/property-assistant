@@ -44,7 +44,6 @@ export function validateDbOperation(
   
   if (options?.overrideToken && DB_WRITE_OVERRIDE_TOKEN) {
     if (options.overrideToken === DB_WRITE_OVERRIDE_TOKEN) {
-      console.log('[SAFE_DB] Write override token matched, allowing operation');
       return { allowed: true };
     }
   }

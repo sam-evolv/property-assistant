@@ -48,6 +48,6 @@ export async function logDataAccess(params: LogDataAccessParams): Promise<void> 
       ip_address: ipAddress,
     });
   } catch (error) {
-    console.error('[GDPR Audit] Failed to log data access:', error);
+    // Silently swallow audit log failures to avoid disrupting the request
   }
 }

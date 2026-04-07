@@ -95,30 +95,14 @@ export function logEnvironmentStatus(options?: { failOnMissing?: boolean }): voi
   const shouldFail = options?.failOnMissing ?? !isDev;
 
   if (!result.valid) {
-    console.error('\n========================================');
-    console.error('[ENV] MISSING REQUIRED ENVIRONMENT VARIABLES:');
-    console.error('========================================');
-    result.missing.forEach((msg) => console.error(`  ✗ ${msg}`));
-    console.error('========================================\n');
-
     if (shouldFail) {
       throw new Error(
         `Missing required environment variables: ${result.missing.map(m => m.split(':')[0]).join(', ')}`
       );
-    } else {
-      console.error('[ENV] Continuing in development mode - some features will not work.\n');
     }
   }
 
-  if (result.warnings.length > 0 && isDev) {
-    console.warn('\n[ENV] Optional environment variables not set:');
-    result.warnings.forEach((msg) => console.warn(`  - ${msg}`));
-    console.warn('[ENV] Some features may be unavailable.\n');
-  }
-
-  if (result.valid) {
-    console.log('[ENV] All required environment variables are set');
-  }
+  // warnings and success status available via return value of validateEnvironment()
 }
 
 export function requireEnvVar(key: string): string {
@@ -162,11 +146,9 @@ export function assertDevOnly(context?: string): void {
         ? 'ALLOW_SEEDING is not YES' 
         : `Supabase project ${supabaseRef} is not in allowlist`;
     
-    console.error(`[SECURITY] Dev-only access denied: ${reason}. Context: ${context || 'unknown'}`);
     throw new DevOnlyError(`Dev-only operation blocked: ${reason}`);
   }
   
-  console.log(`[DEV] Dev-only access granted. Context: ${context || 'unknown'}`);
 }
 
 export function isDevEnvironment(): boolean {

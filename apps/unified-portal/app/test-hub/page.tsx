@@ -92,9 +92,8 @@ export default function TestHubPage() {
       }
       
       router.push(account.dashboardRoute);
-    } catch (error) {
-      console.error('Test login failed:', error);
-      alert('Test login failed - check console');
+    } catch {
+      alert('Test login failed. Please try again.');
     } finally {
       setLoading(null);
     }

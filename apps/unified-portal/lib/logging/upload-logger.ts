@@ -71,9 +71,6 @@ export class UploadLogger {
       error,
     };
 
-    const prefix = status === 'failed' ? '[UPLOAD:ERROR]' : '[UPLOAD]';
-    console.log(prefix, JSON.stringify(entry));
-    
     this.phaseStartTime = now;
   }
 

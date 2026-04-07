@@ -99,7 +99,6 @@ export function UnitHandoverStatus({ developmentId, onUnitUpdated }: UnitHandove
 
       onUnitUpdated?.();
     } catch (err: any) {
-      console.error('Failed to update unit:', err);
       alert('Failed to update unit. Please try again.');
     } finally {
       setSavingUnitId(null);

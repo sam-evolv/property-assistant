@@ -218,7 +218,6 @@ export function FloorPlanWithDimensions({
           setShowFloorplan(true);
         }
       } catch (err: any) {
-        console.error('Failed to fetch floor plan data:', err);
         setError(err.message || 'Failed to load floor plan');
       } finally {
         setLoading(false);

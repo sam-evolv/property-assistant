@@ -29,7 +29,6 @@ export default function RoomInfoDisplay({
         const info = await getRoomInfo(houseTypeId, { token, unitUid });
         setRoomInfo(info);
       } catch (err: any) {
-        console.error('Failed to fetch room info:', err);
         setError(err.message || 'Unable to load room information');
       } finally {
         setLoading(false);

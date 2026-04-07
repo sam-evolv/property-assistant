@@ -69,7 +69,6 @@ function UploadZone({ label, description, value, onChange, onUpload, aspectHint 
       setTimeout(() => setUploadSuccess(false), 2000);
     } catch (err) {
       setError('Failed to upload. Please try again.');
-      console.error('Upload error:', err);
     } finally {
       setIsUploading(false);
     }

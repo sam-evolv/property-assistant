@@ -44,10 +44,8 @@ const DEFAULT_CURRENT_STATE: CurrentContextValue = {
   developmentName: null,
   projectType: null,
   setArchiveScope: () => {
-    console.warn('[CurrentContext] setArchiveScope called before provider initialized');
   },
   setDevelopmentId: () => {
-    console.warn('[CurrentContext] setDevelopmentId called before provider initialized');
   },
   isHydrated: false,
   isLoading: true,
@@ -71,9 +69,7 @@ function saveToStorage(tenantId: string | null, scope: ArchiveScope): void {
     const key = getStorageKey(tenantId);
     const value = scopeToString(scope);
     localStorage.setItem(key, value);
-    console.log('[CurrentContext] Persisted to storage:', { tenantId, scope: value });
   } catch (e) {
-    console.warn('[CurrentContext] Failed to save to localStorage:', e);
   }
 }
 
@@ -86,10 +82,8 @@ function loadInitialScope(tenantId: string | null): ArchiveScope {
   try {
     const stored = localStorage.getItem(getStorageKey(tenantId));
     if (!stored) return DEFAULT_ARCHIVE_SCOPE;
-    console.log('[CurrentContext] Initial hydration from storage:', stored);
     return stringToScope(stored);
   } catch (e) {
-    console.warn('[CurrentContext] Failed to read initial storage:', e);
     return DEFAULT_ARCHIVE_SCOPE;
   }
 }
@@ -129,10 +123,6 @@ export function CurrentContextProvider({
     
     // If tenant changed, reset to ALL_SCHEMES (don't read from storage again)
     if (hasHydratedRef.current && hydratedTenantRef.current !== tenantId) {
-      console.log('[CurrentContext] Tenant changed, resetting to ALL_SCHEMES', {
-        from: hydratedTenantRef.current,
-        to: tenantId,
-      });
       setArchiveScopeState(DEFAULT_ARCHIVE_SCOPE);
       hydratedTenantRef.current = tenantId;
       return;
@@ -141,7 +131,6 @@ export function CurrentContextProvider({
     // Initial hydration - read from storage ONCE
     if (tenantId && !hasHydratedRef.current) {
       const storedScope = loadInitialScope(tenantId);
-      console.log('[CurrentContext] Initial hydration:', scopeToString(storedScope));
       setArchiveScopeState(storedScope);
       hasHydratedRef.current = true;
       hydratedTenantRef.current = tenantId;
@@ -152,10 +141,6 @@ export function CurrentContextProvider({
   }, [tenantId]);
 
   const setArchiveScope = useCallback((scope: ArchiveScope) => {
-    console.log('[CurrentContext] Scope changed:', { 
-      from: scopeToString(archiveScope), 
-      to: scopeToString(scope) 
-    });
     setArchiveScopeState(scope);
     saveToStorage(tenantId, scope);
   }, [tenantId, archiveScope]);

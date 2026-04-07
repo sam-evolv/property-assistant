@@ -435,7 +435,6 @@ export const TrainingJobsContent = memo(function TrainingJobsContent() {
         throw new Error('Failed to fetch processing jobs');
       }
     } catch (err) {
-      console.error('Error fetching jobs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load processing jobs');
     } finally {
       setIsLoading(false);

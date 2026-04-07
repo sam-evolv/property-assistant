@@ -147,7 +147,6 @@ export default function OverviewDashboard() {
       setLoading(false);
       setError(null);
     } catch (err) {
-      console.error('Dashboard error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
     } finally {

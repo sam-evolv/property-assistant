@@ -103,8 +103,7 @@ export class TenantScopedClient {
         request_id: this.auditContext.requestId || null,
       });
     } catch (error) {
-      // Log to console but don't fail the operation
-      console.error('[AUDIT] Failed to log audit event:', error);
+      // Audit logging failure should not fail the operation
     }
   }
 
@@ -255,7 +254,6 @@ export class TenantScopedClient {
    * WARNING: Use with caution - bypasses tenant scoping
    */
   getRawClient(): SupabaseClient {
-    console.warn('[SECURITY] getRawClient() bypasses tenant scoping. Use responsibly.');
     return this.supabase;
   }
 

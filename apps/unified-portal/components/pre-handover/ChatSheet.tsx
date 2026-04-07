@@ -10,7 +10,6 @@ export function ChatSheet() {
     e.preventDefault();
     // Handle send message
     if (message.trim()) {
-      console.log('Sending message:', message);
       setMessage('');
     }
   };

@@ -186,7 +186,6 @@ export function HomeownersDirectory() {
       setDevelopments(data.developments || []);
       setStats(data.stats);
     } catch (err) {
-      console.error('Homeowners fetch error:', err);
       setError('Failed to load homeowners');
     } finally {
       setIsLoading(false);

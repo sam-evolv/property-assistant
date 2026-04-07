@@ -286,8 +286,7 @@ export async function fetchInsight(
 
     const data = await res.json() as InsightResponse;
     return data.insight;
-  } catch (error) {
-    console.error('Error fetching insight:', error);
+  } catch {
     return 'Unable to generate insights at this time. Please try again later.';
   }
 }
