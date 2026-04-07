@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from './supabase/server';
 import { db } from '@openhouse/db/client';
 import { admins, developments, units } from '@openhouse/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -45,7 +44,7 @@ export interface AdminContext {
 }
 
 async function getSupabaseClient() {
-  return createServerComponentClient({ cookies });
+  return createClient();
 }
 
 export async function getAdminContextFromSession(): Promise<AdminContext | null> {

@@ -1,13 +1,11 @@
 import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabase/server';
 import { ThemeEditor } from './ThemeEditor';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ThemeConfigPage() {
-  // Fixed: Use @supabase/auth-helpers-nextjs instead of missing @supabase/ssr package
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const {
     data: { user: authUser },

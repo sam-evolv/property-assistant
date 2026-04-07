@@ -1,6 +1,5 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient as createSSRClient } from './supabase/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
@@ -9,7 +8,7 @@ import type { AdminRole, AdminSession } from './types';
 export type { AdminRole, AdminSession } from './types';
 
 export async function createServerSupabaseClient() {
-  return createServerComponentClient({ cookies });
+  return createSSRClient();
 }
 
 export function getSupabaseAdmin() {
