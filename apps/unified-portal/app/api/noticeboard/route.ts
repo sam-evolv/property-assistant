@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
+import { withAuth } from '@/lib/api-auth-middleware';
 import { noticeboard_posts, developments } from '@openhouse/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { sendBulkNotification, resolveTargetRecipients } from '@/lib/notifications';
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -31,11 +30,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { roles: ['developer', 'super_admin'] });
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function POST(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -101,4 +99,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { roles: ['developer', 'super_admin'] });

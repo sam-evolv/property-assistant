@@ -5,11 +5,12 @@ import { sql } from 'drizzle-orm';
 import { getVersion } from '@/lib/version';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { getRateLimiterStats } from '@/lib/security/rate-limit';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withAuth(async function GET() {
   const startTime = Date.now();
   const checks: Record<string, { status: 'ok' | 'error'; message?: string; latency?: number }> = {};
   
@@ -100,4 +101,4 @@ export async function GET() {
     version: getVersion(),
     responseTimeMs: responseTime,
   }, { status: allHealthy ? 200 : 503 });
-}
+}, { public: true });

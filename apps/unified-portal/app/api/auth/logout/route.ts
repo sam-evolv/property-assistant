@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     await supabase.auth.signOut();
@@ -20,7 +20,7 @@ export async function POST() {
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     await supabase.auth.signOut();

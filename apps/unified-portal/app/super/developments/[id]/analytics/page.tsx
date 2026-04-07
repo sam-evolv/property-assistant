@@ -5,11 +5,12 @@ import { developments } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import DevelopmentAnalyticsClient from './analytics-client';
 
-export default async function DevelopmentAnalyticsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function DevelopmentAnalyticsPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const session = await requireRole(['super_admin', 'admin']);
 
   const development = await db.query.developments.findFirst({

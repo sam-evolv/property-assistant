@@ -3,6 +3,7 @@ import { db } from '@openhouse/db/client';
 import { purchaserAgreements } from '@openhouse/db/schema';
 import { createClient } from '@supabase/supabase-js';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
+import { requireCsrf } from '@/lib/csrf';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,9 @@ const PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const PUBLIC_DISCIPLINES = ['handover', 'other'];
 
 export async function POST(request: NextRequest) {
+  const csrfError = requireCsrf(request);
+  if (csrfError) return csrfError;
+
   try {
     const supabase = getSupabaseClient();
     const body = await request.json();

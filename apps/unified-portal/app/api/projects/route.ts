@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireRole } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +22,6 @@ interface Project {
 
 export async function GET() {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     const { data: projects, error } = await supabaseAdmin
       .from('projects')
@@ -30,7 +29,7 @@ export async function GET() {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('[API /projects] Supabase error:', error);
+      logger.error('[API /projects] Supabase error', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -52,7 +51,7 @@ export async function GET() {
       });
 
     if (countError) {
-      console.error('[API /projects] Error counting units:', countError);
+      logger.error('[API /projects] Error counting units', countError);
     }
 
     const projectUnitCounts = unitCounts || {};
@@ -87,14 +86,14 @@ export async function GET() {
 
         for (let i = 1; i < group.length; i++) {
           suppressedIds.push(group[i].id);
-          console.log(`[API /projects] Suppressed duplicate project ${group[i].id} in favor of ${canonical.id}`);
+          logger.info('[API /projects] Suppressed duplicate project', { suppressed: group[i].id, canonical: canonical.id });
         }
       }
     }
 
     canonicalProjects.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-    console.log('[API /projects] Found projects:', projects.length, 'canonical:', canonicalProjects.length);
+    logger.info('[API /projects] Found projects', { total: projects.length, canonical: canonicalProjects.length });
 
     const idRemapping: Record<string, string> = {};
     for (const [key, group] of Object.entries(duplicateGroups)) {
@@ -106,20 +105,19 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       projects: canonicalProjects,
       idRemapping,
-      _debug: {
-        totalProjects: projects.length,
-        canonicalCount: canonicalProjects.length,
-        suppressedIds
-      }
+      ...(process.env.NODE_ENV === 'development' ? {
+        _debug: {
+          totalProjects: projects.length,
+          canonicalCount: canonicalProjects.length,
+          suppressedIds
+        }
+      } : {}),
     });
-  } catch (err: any) {
-    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    console.error('[API /projects] Error:', err);
+  } catch (err) {
+    logger.error('[API /projects] Error', err);
     return NextResponse.json(
       { error: 'Failed to fetch projects' },
       { status: 500 }

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const installationId = requestUrl.searchParams.get('installation_id');
 
   if (code) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     try {

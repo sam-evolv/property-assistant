@@ -6,10 +6,8 @@ import { db } from '@openhouse/db';
 import { archive_folders } from '@openhouse/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { id } = params;
     const { searchParams } = new URL(request.url);

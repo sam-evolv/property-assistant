@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
   '34316432-f1e8-4297-b993-d9b5c88ee2d8': '57dc3919-2725-4575-8046-9179075ac88e',
@@ -24,9 +24,8 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -95,4 +94,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });

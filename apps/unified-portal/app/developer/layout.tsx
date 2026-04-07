@@ -1,6 +1,8 @@
 import { getServerSession } from '@/lib/supabase-server';
 import { DeveloperLayoutProvider } from './layout-provider';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { redirect } from 'next/navigation';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,15 +24,17 @@ export default async function DeveloperLayout({
   const hasAccess = session.role && ALLOWED_ROLES.includes(session.role);
 
   if (!hasAccess) {
-    console.warn(`[Developer Portal] Access denied for email: ${session.email || 'unknown'}, role: ${session.role || 'none'}`);
+    logger.warn('[Developer Portal] Access denied', { role: session.role || 'none' });
     redirect('/unauthorized');
   }
 
-  console.log(`[Developer Portal] Access granted for ${session.email}, role: ${session.role}`);
+  logger.info('[Developer Portal] Access granted', { role: session.role });
 
   return (
     <DeveloperLayoutProvider session={session}>
-      {children}
+      <ErrorBoundary>
+        {children}
+      </ErrorBoundary>
     </DeveloperLayoutProvider>
   );
 }

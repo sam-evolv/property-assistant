@@ -8,10 +8,8 @@ import { createServerSupabaseClient } from '@openhouse/api/supabase';
 import { getServerSession } from '@/lib/supabase-server';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { houseTypeId: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ houseTypeId: string }> }) {
+  const params = await props.params;
   try {
     const { houseTypeId } = params;
     const { searchParams } = new URL(request.url);

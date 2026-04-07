@@ -22,10 +22,8 @@ async function getCurrentImportantDocsVersion(
   }
 }
 
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(_request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;

@@ -67,10 +67,10 @@
     "drizzle-orm": "^0.44.7",
     "jose": "^6.1.2",
     "leaflet": "^1.9.4",
-    "lucide-react": "^0.294.0",
+    "lucide-react": "^0.469.0",
     "mammoth": "^1.11.0",
     "nanoid": "^5.1.6",
-    "next": "^14.2.18",
+    "next": "^16.2.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.4.394",
     "pdfkit": "^0.17.2",
@@ -91,7 +91,6 @@
     "tsx": "^4.20.6",
     "typescript": "^5.3.3",
     "unpdf": "^1.4.0",
-    "xlsx": "^0.18.5",
     "zod": "^4.1.12"
   }
 }

@@ -3,7 +3,7 @@ import { db } from '@openhouse/db/client';
 import { developments, units, unitSalesPipeline, tenants } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
-import * as XLSX from 'xlsx';
+import { readExcel, sheetToJson } from '@/lib/excel-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,10 +100,8 @@ function extractBedroomsFromCode(code: string): number {
   return match ? parseInt(match[1]) : 3;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin']);
 
@@ -117,12 +115,12 @@ export async function POST(
     }
 
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    const workbook = await readExcel(buffer);
 
     if (action === 'parse') {
       const sheets = workbook.SheetNames.map((name) => {
         const sheet = workbook.Sheets[name];
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        const data = sheetToJson(sheet, { header: 1 }) as any[][];
         return {
           name,
           rowCount: Math.max(0, data.length - 1),
@@ -130,7 +128,7 @@ export async function POST(
       });
 
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const firstSheetData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+      const firstSheetData = sheetToJson(firstSheet, { header: 1 }) as any[][];
       const columns = firstSheetData[0]?.map((c: any) => String(c || '').trim()).filter(Boolean) || [];
 
       return NextResponse.json({ sheets, columns });
@@ -143,7 +141,7 @@ export async function POST(
         return NextResponse.json({ error: 'Sheet not found' }, { status: 400 });
       }
 
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      const data = sheetToJson(sheet, { header: 1 }) as any[][];
       const columns = data[0]?.map((c: any) => String(c || '').trim()).filter(Boolean) || [];
 
       return NextResponse.json({ columns });
@@ -158,7 +156,7 @@ export async function POST(
       const options: ImportOptions = JSON.parse(optionsStr || '{}');
 
       const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
-      const rawData = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
+      const rawData = sheetToJson(sheet) as Record<string, any>[];
       
       console.log('[Pipeline Import] Sheet:', sheetName || workbook.SheetNames[0]);
       console.log('[Pipeline Import] Raw data rows:', rawData.length);

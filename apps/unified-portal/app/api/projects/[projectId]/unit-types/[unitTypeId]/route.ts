@@ -14,8 +14,9 @@ function getSupabaseAdmin() {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { projectId: string; unitTypeId: string } }
+  props: { params: Promise<{ projectId: string; unitTypeId: string }> }
 ) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
@@ -75,8 +76,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { projectId: string; unitTypeId: string } }
+  props: { params: Promise<{ projectId: string; unitTypeId: string }> }
 ) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin']);
     const supabaseAdmin = getSupabaseAdmin();

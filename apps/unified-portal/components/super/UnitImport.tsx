@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   Upload,
   FileSpreadsheet,
@@ -80,12 +80,23 @@ export function UnitImport({ developmentId, developmentName, tenantId, spreadshe
 
     try {
       const data = await uploadedFile.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      
-      const jsonData = XLSX.utils.sheet_to_json<ParsedRow>(sheet, { header: 1 });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(data);
+
+      const sheet = workbook.worksheets[0];
+
+      const jsonData: any[][] = [];
+      sheet.eachRow({ includeEmpty: true }, (row) => {
+        const vals = (row.values as any[])?.slice(1) || [];
+        jsonData.push(vals.map((v: any) => {
+          if (v != null && typeof v === 'object') {
+            if ('text' in v) return v.text;
+            if ('result' in v) return v.result;
+            if ('richText' in v) return (v.richText as any[]).map((r: any) => r.text).join('');
+          }
+          return v;
+        }));
+      });
       
       if (jsonData.length < 2) {
         setError('Spreadsheet must have at least a header row and one data row');

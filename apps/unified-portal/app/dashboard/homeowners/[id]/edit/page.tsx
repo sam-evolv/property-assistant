@@ -4,7 +4,8 @@ import { HomeownerEditForm } from './form';
 import { getHomeownerById } from '@/app/actions/homeowners';
 import { getAllDevelopmentsForList } from '@/app/actions/developments';
 
-export default async function EditHomeownerPage({ params }: { params: { id: string } }) {
+export default async function EditHomeownerPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['developer', 'super_admin']);
   } catch {

@@ -6,10 +6,8 @@ import { developments, btrTenancies, maintenanceRequests, complianceSchedule } f
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;

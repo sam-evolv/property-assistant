@@ -8,9 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 import { logAudit } from '@/lib/integrations/security/audit';
+import { withAuth } from '@/lib/api-auth-middleware';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,9 +22,8 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
     const developmentId = request.nextUrl.searchParams.get('development_id');
 
@@ -79,17 +78,13 @@ export async function GET(request: NextRequest) {
       recent_audit_logs: auditLogs || [],
     });
   } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
     console.error('[Integrations] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(async function DELETE(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
     const integrationId = request.nextUrl.searchParams.get('id');
 
@@ -131,10 +126,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
     console.error('[Integrations] Delete error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });

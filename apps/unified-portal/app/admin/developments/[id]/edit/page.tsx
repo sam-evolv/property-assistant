@@ -3,7 +3,8 @@ import { DevelopmentEditForm } from './form';
 import { redirect, notFound } from 'next/navigation';
 import { getDevelopmentById } from '@/app/actions/developments';
 
-export default async function EditDevelopmentPage({ params }: { params: { id: string } }) {
+export default async function EditDevelopmentPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin']);
   } catch {

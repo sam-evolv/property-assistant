@@ -4,8 +4,8 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireRole } from '@/lib/supabase-server';
 import OpenAI from 'openai';
+import { withAuth } from '@/lib/api-auth-middleware';
 import { isFloorPlan } from '@/lib/floorplan/extractor';
 
 function getSupabaseAdmin() {
@@ -57,9 +57,8 @@ function chunkText(text: string, maxChunkSize = 1000, overlap = 200): string[] {
   return chunks;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async function POST(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
 
     if (!tenantId) {
@@ -374,16 +373,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('[Upload] Error:', error);
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });
 
 // GET: return real training jobs for the authenticated tenant
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async function GET(request: NextRequest, { session }) {
   try {
-    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');
@@ -408,7 +404,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ jobs: jobs || [] });
   } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.json({ jobs: [] });
   }
-}
+}, { roles: ['developer', 'admin', 'super_admin'] });

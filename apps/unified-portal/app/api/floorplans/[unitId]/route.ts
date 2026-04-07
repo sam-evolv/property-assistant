@@ -8,10 +8,8 @@ import { getServerSession } from '@/lib/supabase-server';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
 import { getFloorplanSignedUrl } from '@openhouse/api/floorplan-storage';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { unitId: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ unitId: string }> }) {
+  const params = await props.params;
   try {
     const { unitId } = params;
     const { searchParams } = new URL(request.url);

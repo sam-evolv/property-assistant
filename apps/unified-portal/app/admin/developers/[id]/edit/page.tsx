@@ -5,7 +5,8 @@ import { getDeveloperById } from '@/app/actions/developers';
 import { db } from '@openhouse/db/client';
 import { tenants } from '@openhouse/db/schema';
 
-export default async function EditDeveloperPage({ params }: { params: { id: string } }) {
+export default async function EditDeveloperPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     await requireRole(['super_admin']);
   } catch {

@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import * as XLSX from 'xlsx';
-import { requireRole } from '@/lib/supabase-server';
+import { readExcel, sheetToJson } from '@/lib/excel-utils';
 
 interface UnitTypeRow {
   name: string;
@@ -26,12 +25,8 @@ function normalizeTypeName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
 export async function POST(request: Request) {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -39,12 +34,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 });
-    }
-
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const workbook = await readExcel(buffer);
     
     const errors: string[] = [];
     const unitTypesFromSheet: UnitTypeRow[] = [];
@@ -54,7 +45,7 @@ export async function POST(request: Request) {
     
     if (hasExplicitUnitTypesSheet) {
       const unitTypesSheet = workbook.Sheets['unit_types'];
-      const unitTypesData = XLSX.utils.sheet_to_json(unitTypesSheet) as any[];
+      const unitTypesData = sheetToJson(unitTypesSheet) as any[];
       for (const row of unitTypesData) {
         const name = row.name || row.Name || row.type || row.Type;
         if (name) {
@@ -76,7 +67,7 @@ export async function POST(request: Request) {
     
     const unitsSheet = workbook.Sheets['units'] || workbook.Sheets[workbook.SheetNames[0]];
     if (unitsSheet) {
-      const unitsData = XLSX.utils.sheet_to_json(unitsSheet) as any[];
+      const unitsData = sheetToJson(unitsSheet) as any[];
       for (let i = 0; i < unitsData.length; i++) {
         const row = unitsData[i];
         const address = row.address || row.Address || row.unit_address || row.unit_number || row.unit || row.Unit || row.plot;
@@ -171,10 +162,7 @@ export async function POST(request: Request) {
         distinctUnitTypesFromUnits: distinctUnitTypesFromUnits.size,
       },
     });
-  } catch (err: any) {
-    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  } catch (err) {
     console.error('[API /projects/parse-excel] Error:', err);
     return NextResponse.json(
       { error: 'Failed to parse Excel file' },

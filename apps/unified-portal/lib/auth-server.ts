@@ -10,7 +10,7 @@ export interface ServerAuthContext {
 }
 
 export async function getServerAuthContext(): Promise<ServerAuthContext | null> {
-  const headersList = headers();
+  const headersList = await headers();
   const authEmail = headersList.get('x-admin-email');
 
   if (!authEmail) {

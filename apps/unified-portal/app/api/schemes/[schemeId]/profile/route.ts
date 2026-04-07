@@ -89,7 +89,7 @@ function sanitizePayload(body: Record<string, any>): Record<string, any> {
 }
 
 async function getAuthContext() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const adminId = cookieStore.get('admin_id')?.value;
   const tenantId = cookieStore.get('tenant_id')?.value;
   const role = cookieStore.get('user_role')?.value;
@@ -101,10 +101,8 @@ async function getAuthContext() {
   return { adminId, tenantId, role };
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { schemeId: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ schemeId: string }> }) {
+  const params = await props.params;
   try {
     const auth = await getAuthContext();
     if (!auth) {
@@ -147,10 +145,8 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { schemeId: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ schemeId: string }> }) {
+  const params = await props.params;
   try {
     const auth = await getAuthContext();
     if (!auth) {
@@ -224,10 +220,8 @@ export async function PUT(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { schemeId: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ schemeId: string }> }) {
+  const params = await props.params;
   try {
     const auth = await getAuthContext();
     if (!auth) {

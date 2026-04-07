@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     
     console.log('[AUTH LOGIN] Starting login attempt for:', email);
     
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     const { data, error } = await supabase.auth.signInWithPassword({

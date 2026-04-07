@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       const token = linkData.properties?.hashed_token;
 
       // Exchange the token for a session using the route handler client
-      const cookieStore = cookies();
+      const cookieStore = await cookies();
       const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Sign in with password
-      const cookieStore = cookies();
+      const cookieStore = await cookies();
       const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({

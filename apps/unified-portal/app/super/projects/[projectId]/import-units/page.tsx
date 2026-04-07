@@ -3,9 +3,10 @@ import { ImportUnitsClient } from './import-units-client';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
-export default function ImportUnitsPage({ params }: PageProps) {
+export default async function ImportUnitsPage(props: PageProps) {
+  const params = await props.params;
   return <ImportUnitsClient projectId={params.projectId} />;
 }
