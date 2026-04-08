@@ -413,6 +413,47 @@ export default function StatusBar({
               );
             })}
 
+            {/* Open desktop dashboard */}
+            <a
+              href="/agent/dashboard"
+              onClick={() => setShowSwitcher(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '14px 24px',
+                borderTop: '1px solid rgba(0,0,0,0.04)',
+                textDecoration: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{
+                width: 38, height: 38, borderRadius: 11,
+                background: '#F5F5F3',
+                border: '0.5px solid rgba(0,0,0,0.06)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                  stroke="#6B7280" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ color: '#0D0D12', fontSize: 14, fontWeight: 600, margin: '0 0 2px', letterSpacing: '-0.01em' }}>
+                  Open desktop dashboard
+                </p>
+                <p style={{ color: '#A0A8B0', fontSize: 12, margin: 0 }}>
+                  Analytics, documents & full pipeline
+                </p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="rgba(0,0,0,0.2)" strokeWidth="2" strokeLinecap="round">
+                <polyline points="9,18 15,12 9,6"/>
+              </svg>
+            </a>
+
             {/* Add another product */}
             <div
               onClick={() => { setShowSwitcher(false); router.push('/login'); }}

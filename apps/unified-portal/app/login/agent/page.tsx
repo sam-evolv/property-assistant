@@ -71,7 +71,10 @@ export default function AgentLogin() {
       last_active_at: new Date().toISOString(),
     }, { onConflict: 'auth_user_id,context_type,context_id' });
 
-    router.push('/agent/home');
+    // Device-aware routing — mobile gets the app, desktop gets the dashboard
+    const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i
+      .test(navigator.userAgent);
+    router.push(isMobile ? '/agent/home' : '/agent/dashboard');
   }
 
   return (
