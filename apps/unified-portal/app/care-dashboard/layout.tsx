@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   LayoutDashboard, Sparkles, ClipboardList, Wrench, Shield,
-  FolderArchive, BookOpen, Menu, X, ChevronDown,
+  FolderArchive, BookOpen, Menu, X, ChevronDown, LogOut,
 } from 'lucide-react';
 
 /* ── SE Systems Logo (inline SVG — no external deps) ── */
@@ -49,7 +50,16 @@ const NAV_SECTIONS = [
 
 export default function CareDashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClientComponentClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const isActive = (href: string) =>
     href === '/care-dashboard'
@@ -109,18 +119,30 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
           ))}
         </nav>
 
-        {/* Footer — Powered by OpenHouse AI */}
-        <div className="mt-auto" style={{ padding: '20px 20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-center" style={{ fontSize: '11px', color: '#778199', marginBottom: '8px' }}>Powered by</p>
-          <div className="flex justify-center" style={{ opacity: 0.8 }}>
-            <Image
-              src="/branding/openhouse-logo.png"
-              alt="OpenHouse AI"
-              width={140}
-              height={50}
-              className="h-auto object-contain"
-              style={{ width: '110px' }}
-            />
+        {/* Footer */}
+        <div className="mt-auto" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '12px' }}>
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
+              hover:bg-white/10 transition-all duration-150 group
+              disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}>
+              <span className="text-xs font-semibold text-white">SE</span>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-medium text-white truncate">SE Systems Cork</p>
+              <p className="text-xs truncate" style={{ color: '#9CA3AF' }}>Installer account</p>
+            </div>
+            <LogOut className="w-4 h-4 flex-shrink-0 text-gray-500 group-hover:text-white transition-colors" />
+          </button>
+          <div style={{ padding: '12px 4px 4px' }}>
+            <p className="text-center" style={{ fontSize: '10px', color: '#778199', marginBottom: '6px' }}>Powered by</p>
+            <div className="flex justify-center" style={{ opacity: 0.6 }}>
+              <Image src="/branding/openhouse-logo.png" alt="OpenHouse AI" width={140} height={50} className="h-auto object-contain" style={{ width: '90px' }} />
+            </div>
           </div>
         </div>
       </div>
