@@ -23,6 +23,11 @@ RULES:
 - For regulatory/compliance answers, always recommend verification with the assigned certifier or solicitor.
 - Keep responses focused. Lead with the direct answer, then supporting detail.
 
+LIVE PIPELINE DATA — treat this as the authoritative source for all pipeline questions. Do NOT say you have no data if the answer is here:
+{{PIPELINE_CONTEXT}}
+
+Status definitions: "for_sale" = currently available for purchase | "agreed" = sale agreed with buyer (not yet contracted) | "signed" = contracts signed (legally binding) | "drawdown" = sale completed/funds transferred | "not yet released" = units not yet entered into the pipeline.
+
 SCHEME CONTEXT:
 {{SCHEME_CONTEXT}}
 
@@ -61,6 +66,40 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    // 0. Fetch live pipeline summary for ALL developments in this tenant
+    const [pipelineRows, allDevs] = await Promise.all([
+      supabase
+        .from('unit_sales_pipeline')
+        .select('status, sale_price, drawdown_date, development:developments!development_id(name)')
+        .eq('tenant_id', tenantId)
+        .then((r: { data: any[] | null }) => r.data ?? [])
+        .catch((): any[] => []),
+      supabase
+        .from('developments')
+        .select('name')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .then((r: { data: any[] | null }) => r.data ?? [])
+        .catch((): any[] => []),
+    ]);
+
+    const devStats: Record<string, { for_sale: number; agreed: number; signed: number; drawdown: number; total: number }> = {};
+    for (const dev of (allDevs as any[])) {
+      devStats[dev.name] = { for_sale: 0, agreed: 0, signed: 0, drawdown: 0, total: 0 };
+    }
+    for (const row of (pipelineRows as any[])) {
+      const name: string = row.development?.name ?? 'Unknown';
+      if (!devStats[name]) devStats[name] = { for_sale: 0, agreed: 0, signed: 0, drawdown: 0, total: 0 };
+      devStats[name].total++;
+      if (row.status === 'for_sale') devStats[name].for_sale++;
+      if (row.status === 'agreed') devStats[name].agreed++;
+      if (row.status === 'signed') devStats[name].signed++;
+      if (row.drawdown_date) devStats[name].drawdown++;
+    }
+    const pipelineContext = Object.entries(devStats)
+      .map(([name, s]) => `${name}: ${s.for_sale} for sale | ${s.agreed} sale agreed | ${s.signed} contracts signed | ${s.drawdown} drawn down | ${s.total} total`)
+      .join('\n') || '(no pipeline data found)';
 
     // 1. Get scheme context (+ comparison scheme in parallel if requested)
     const contextPromises: Promise<any>[] = [
@@ -202,6 +241,7 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = SYSTEM_PROMPT
+      .replace('{{PIPELINE_CONTEXT}}', pipelineContext)
       .replace('{{SCHEME_CONTEXT}}', fullSchemeContext)
       .replace('{{DATA_RESULTS}}', dataResults || 'No specific data queried.')
       .replace('{{DOCUMENT_RESULTS}}', documentResults || 'No documents matched.');
