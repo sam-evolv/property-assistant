@@ -5,6 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   HardHat, Plus, AlertTriangle, CheckCircle,
 } from 'lucide-react';
+import NewProjectModal from '@/components/select/builder/NewProjectModal';
 
 // ─── Design tokens (from brief — scoped to builder route) ────────────────────
 const colors = {
@@ -494,13 +495,16 @@ export default function BuilderDashboard() {
   const [snagCounts, setSnagCounts] = useState<SnagCount[]>([]);
   const [selectionCounts, setSelectionCounts] = useState<SelectionCount[]>([]);
   const [userName, setUserName] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [showNewProject, setShowNewProject] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
 
       const displayName = user.user_metadata?.full_name
         || user.user_metadata?.name
@@ -594,8 +598,7 @@ export default function BuilderDashboard() {
   }
 
   function handleNewProject() {
-    // TODO: Implement new project modal (Session 10)
-    console.log('New project clicked');
+    setShowNewProject(true);
   }
 
   function handleProjectClick(projectId: string) {
@@ -820,6 +823,17 @@ export default function BuilderDashboard() {
             </>
           )}
         </>
+      )}
+
+      {showNewProject && userId && (
+        <NewProjectModal
+          builderId={userId}
+          onClose={() => setShowNewProject(false)}
+          onCreated={(id) => {
+            setShowNewProject(false);
+            window.location.href = `/builder/${id}`;
+          }}
+        />
       )}
     </div>
   );
