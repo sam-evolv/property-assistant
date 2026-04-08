@@ -13,7 +13,7 @@ const PRODUCTS = [
     ),
     title: 'My Property',
     subtitle: 'Homeowner portal',
-    href: '/login/homeowner',
+    href: '/select',
   },
   {
     id: 'agent',
