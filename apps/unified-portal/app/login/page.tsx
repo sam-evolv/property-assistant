@@ -11,9 +11,9 @@ const PRODUCTS = [
         <polyline points="9,22 9,12 15,12 15,22"/>
       </svg>
     ),
-    title: 'My Property',
-    subtitle: 'Homeowner portal',
-    href: '/login/homeowner',
+    title: 'OpenHouse Select',
+    subtitle: 'Builder & homeowner portal',
+    href: '/select',
   },
   {
     id: 'agent',
