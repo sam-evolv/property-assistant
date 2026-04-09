@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone, HardDrive
+  Plug, Megaphone, HardDrive, LogOut
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -97,7 +98,11 @@ function getBtrNavSections(developmentId: string): NavSection[] {
 
 export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClientComponentClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const { developmentId, projectType: contextProjectType } = useCurrentContext();
   const [fetchedProjectType, setFetchedProjectType] = useState<string | null>(null);
 
@@ -119,6 +124,16 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
       })
       .catch(() => setFetchedProjectType('bts'));
   }, [developmentId, contextProjectType]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+  }, []);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const effectiveProjectType = contextProjectType || fetchedProjectType || 'bts';
 
@@ -190,11 +205,30 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gold-900/20">
-          <div className="px-4 py-2 text-xs text-grey-600 text-center">
-            <p className="font-medium text-grey-500">OpenHouseAi</p>
-            <p className="text-grey-600 mt-0.5">v1.0.0</p>
-          </div>
+        <div className="px-3 pb-4 border-t border-gold-900/20 pt-3">
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
+              hover:bg-white/10 transition-all duration-150 group
+              disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20
+              flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-semibold text-white">
+                {(user?.user_metadata?.full_name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-medium text-white truncate">
+                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Account'}
+              </p>
+              {user?.email && (
+                <p className="text-xs truncate" style={{ color: '#9CA3AF' }}>{user.email}</p>
+              )}
+            </div>
+            <LogOut className="w-4 h-4 flex-shrink-0 text-gray-500 group-hover:text-white transition-colors" />
+          </button>
         </div>
       </div>
 

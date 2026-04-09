@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { LogOut } from 'lucide-react';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { type Alert, type DevelopmentSummary, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
 import AgentShell from '../_components/AgentShell';
@@ -75,7 +78,14 @@ function buildUrgentBuyers(pipeline: PipelineUnit[], alerts: Alert[]): UIBuyer[]
 
 export default function AgentHomePage() {
   const { agent, pipeline, alerts, developments, loading } = useAgent();
+  const router = useRouter();
+  const supabase = createClientComponentClient();
   const [modalType, setModalType] = useState<StatModalType>(null);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const stats = useMemo(() => {
     if (!pipeline.length) return { total: 0, forSale: 0, saleAgreed: 0, contracted: 0, signed: 0, sold: 0, active: 0, urgent: 0 };
@@ -130,15 +140,36 @@ export default function AgentHomePage() {
     >
       <div style={{ padding: '2px 24px 100px' }}>
         {/* Greeting */}
-        <p style={{ color: '#A0A8B0', fontSize: 13, fontWeight: 400, marginBottom: 4, letterSpacing: '0.01em' }}>
-          {greeting}
-        </p>
-        <h1 style={{ color: '#0D0D12', fontSize: 32, fontWeight: 700, letterSpacing: '-0.055em', lineHeight: 1.05, marginBottom: 4 }}>
-          {agent?.displayName?.split(' ')[0] || 'Agent'}.
-        </h1>
-        <p style={{ color: '#B0B8C4', fontSize: 13, letterSpacing: '0.01em', marginBottom: 28 }}>
-          {agent?.agencyName} &middot; {developments.length} scheme{developments.length !== 1 ? 's' : ''} active
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ color: '#A0A8B0', fontSize: 13, fontWeight: 400, marginBottom: 4, letterSpacing: '0.01em' }}>
+              {greeting}
+            </p>
+            <h1 style={{ color: '#0D0D12', fontSize: 32, fontWeight: 700, letterSpacing: '-0.055em', lineHeight: 1.05, marginBottom: 4 }}>
+              {agent?.displayName?.split(' ')[0] || 'Agent'}.
+            </h1>
+            <p style={{ color: '#B0B8C4', fontSize: 13, letterSpacing: '0.01em', marginBottom: 28 }}>
+              {agent?.agencyName} &middot; {developments.length} scheme{developments.length !== 1 ? 's' : ''} active
+            </p>
+          </div>
+          <button
+            onClick={handleSignOut}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              background: 'rgba(0,0,0,0.05)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <LogOut style={{ width: 16, height: 16, color: '#778199' }} />
+          </button>
+        </div>
 
         {/* Stat rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
