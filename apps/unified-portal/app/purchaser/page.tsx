@@ -15,12 +15,14 @@ export default function PurchaserLoginPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      // If user already has a valid session, redirect them to their home instead of logging out
+      // If user already has a valid session, redirect them to their home
       if (session && session.unitUid) {
         router.push(`/homes/${session.unitUid}?token=${encodeURIComponent(session.token)}`);
         return;
       }
-      setSessionCleared(true);
+      // No session — redirect to the product menu instead of showing this legacy page
+      router.replace('/login');
+      return;
     }
   }, [isLoading, session, router]);
 

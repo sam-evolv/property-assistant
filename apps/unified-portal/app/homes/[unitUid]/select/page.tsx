@@ -248,8 +248,8 @@ export default function SelectPage() {
 
       {/* ── Top bar ── */}
       <div style={{
-        height: 48, flexShrink: 0, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '0 20px',
+        minHeight: 48, flexShrink: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', padding: 'env(safe-area-inset-top, 0px) 20px 0 20px',
         borderBottom: `1px solid ${C.b1}`, zIndex: 80,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -359,12 +359,12 @@ export default function SelectPage() {
 
       {/* ── Tab bar — 4 tabs + centre intelligence button ── */}
       <div style={{
-        height: TAB_H, flexShrink: 0,
+        minHeight: TAB_H, flexShrink: 0,
         background: 'rgba(4,4,10,0.94)',
         backdropFilter: 'blur(28px) saturate(1.3)',
         borderTop: `1px solid rgba(255,255,255,0.045)`,
         display: 'flex', alignItems: 'center',
-        paddingBottom: 2, zIndex: 100,
+        paddingBottom: 'calc(2px + env(safe-area-inset-bottom, 0px))', zIndex: 100,
       }}>
         {/* Home tab */}
         <TabButton id="home" label="Home" active={tab === 'home'} onClick={() => setTab('home')} />
