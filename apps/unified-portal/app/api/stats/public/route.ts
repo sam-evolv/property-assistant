@@ -39,7 +39,7 @@ export async function GET() {
       db.execute(sql`
         SELECT COUNT(*) as count
         FROM analytics_events
-        WHERE event_type IN (${sql.raw(DOCUMENT_SERVED_EVENT_TYPES.map(t => `'${t}'`).join(', '))})
+        WHERE event_type = ANY(${DOCUMENT_SERVED_EVENT_TYPES})
       `)
     ]);
 
@@ -64,10 +64,16 @@ export async function GET() {
       pdf_downloads: documentsServed,
     });
 
-    response.headers.set('Access-Control-Allow-Origin', '*');
+    const allowedOrigins = [
+      'https://portal.openhouseai.ie',
+      'https://www.openhouseai.ie',
+      'https://openhouseai.ie',
+    ];
+    const origin = '';  // Public stats - restrict to known origins
+    response.headers.set('Access-Control-Allow-Origin', allowedOrigins[0]);
     response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-    response.headers.set('Cache-Control', 'no-store, max-age=0');
+    response.headers.set('Cache-Control', 'public, max-age=60');
 
     return response;
   } catch (error) {
@@ -81,7 +87,7 @@ export async function GET() {
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
-  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Origin', 'https://portal.openhouseai.ie');
   response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   return response;

@@ -98,14 +98,6 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     service: 'unified-portal',
     version: getVersion(),
-    environment: process.env.NODE_ENV,
     responseTimeMs: responseTime,
-    envConfigured: envStatus,
-    checks,
-    stats: {
-      dbPool: poolStats,
-      cache: globalCache.stats(),
-      rateLimiter: getRateLimiterStats(),
-    },
   }, { status: allHealthy ? 200 : 503 });
 }

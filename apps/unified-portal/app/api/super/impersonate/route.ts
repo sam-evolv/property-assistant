@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,9 @@ function getSupabaseAdmin() {
 
 export async function GET(req: NextRequest) {
   try {
+    // Only super_admin can impersonate homeowners
+    await requireRole(['super_admin']);
+
     const { searchParams } = new URL(req.url);
     const unitUid = searchParams.get('unitUid');
 
@@ -121,7 +125,10 @@ export async function GET(req: NextRequest) {
       address: unit.address,
       purchaserName: unit.purchaser_name,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('[Impersonation API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

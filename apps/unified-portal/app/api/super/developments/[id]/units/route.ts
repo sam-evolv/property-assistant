@@ -29,12 +29,15 @@ export async function GET(
 
     let pipelineUnitIds: Set<string> = new Set();
     try {
-      const pipelineData = await db
-        .select({ unit_id: unitSalesPipeline.unit_id })
-        .from(unitSalesPipeline)
-        .where(sql`${unitSalesPipeline.unit_id} IN (${sql.raw(unitsData.map(u => `'${u.id}'`).join(',') || "''")})`);
-      
-      pipelineUnitIds = new Set(pipelineData.map(p => p.unit_id).filter(Boolean) as string[]);
+      if (unitsData.length > 0) {
+        const unitIds = unitsData.map(u => u.id);
+        const pipelineData = await db
+          .select({ unit_id: unitSalesPipeline.unit_id })
+          .from(unitSalesPipeline)
+          .where(sql`${unitSalesPipeline.unit_id} IN ${unitIds}`);
+
+        pipelineUnitIds = new Set(pipelineData.map(p => p.unit_id).filter(Boolean) as string[]);
+      }
     } catch (e) {
       console.log('Pipeline query failed, assuming no pipeline data');
     }
