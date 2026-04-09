@@ -384,7 +384,7 @@ export default function CommunicationsHubPage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 border-b border-gray-200">
+          <div className="relative z-20 flex gap-1 border-b border-gray-200">
             {[
               { id: 'overview', label: 'Overview', icon: Sparkles },
               { id: 'team', label: 'Team', icon: Users },
