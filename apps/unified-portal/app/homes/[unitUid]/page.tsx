@@ -241,7 +241,14 @@ export default function HomeResidentPage() {
             est_snagging_date: data.est_snagging_date || null,
             est_handover_date: data.est_handover_date || null,
             prehandover_config: data.prehandover_config || null,
+            tier: data.tier || 'standard',
           };
+
+          // Redirect Select-tier units to the premium experience
+          if (houseData.tier === 'select' && houseData.handover_complete) {
+            window.location.href = `/homes/${unitUid}/select`;
+            return;
+          }
 
           setHouse(houseData);
 

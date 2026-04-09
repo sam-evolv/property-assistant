@@ -191,6 +191,7 @@ export async function POST(req: Request) {
               u.latitude,
               u.longitude,
               u.bedrooms,
+              u.tier,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
@@ -226,6 +227,7 @@ export async function POST(req: Request) {
               u.latitude,
               u.longitude,
               u.bedrooms,
+              u.tier,
               d.id as dev_id,
               d.name as dev_name,
               d.address as dev_address,
@@ -347,6 +349,7 @@ export async function POST(req: Request) {
         est_snagging_date: unit.snag_date || null,
         est_handover_date: unit.pipeline_handover_date || null,
         prehandover_config: unit.dev_prehandover_config || null,
+        tier: unit.tier || 'standard',
       };
 
       globalCache.set(cacheKey, responseData, 60000);
