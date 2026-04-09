@@ -28,9 +28,10 @@ function setCachedDevelopment(key: string, data: ResolvedDevelopment): void {
 }
 
 const KNOWN_ID_MAPPINGS: Record<string, { drizzleId: string }> = {
-  '57dc3919-2725-4575-8046-9179075ac88e': { drizzleId: '34316432-f1e8-4297-b993-d9b5c88ee2d8' },
-  '6d3789de-2e46-430c-bf31-22224bd878da': { drizzleId: 'e0833063-55ac-4201-a50e-f329c090fbd6' },
-  '9598cf36-3e3f-4b7d-be6d-d1e80f708f46': { drizzleId: '9598cf36-3e3f-4b7d-be6d-d1e80f708f46' },
+  '57dc3919-2725-4575-8046-9179075ac88e': { drizzleId: 'e0833063-55ac-4201-a50e-f329c090fbd6' }, // Longview Park project -> Longview Park development
+  '6d3789de-2e46-430c-bf31-22224bd878da': { drizzleId: '84a559d1-89f1-4eb6-a48b-7ca068bcc164' }, // Rathard Park project -> Rathard Park development
+  '84a559d1-89f1-4eb6-a48b-7ca068bcc164': { drizzleId: '34316432-f1e8-4297-b993-d9b5c88ee2d8' }, // Ardan View project -> Ardan View development
+  '9598cf36-3e3f-4b7d-be6d-d1e80f708f46': { drizzleId: '9598cf36-3e3f-4b7d-be6d-d1e80f708f46' }, // Rathard Lawn
 };
 
 function getSupabaseClient() {
@@ -54,31 +55,7 @@ export async function resolveDevelopment(
     return cached;
   }
 
-  // Fast path: direct lookup of developments table by ID (most reliable, avoids name/word matching)
-  if (supabaseProjectId) {
-    try {
-      const supabase = getSupabaseClient();
-      const { data: directDev, error } = await supabase
-        .from('developments')
-        .select('id, name, tenant_id, logo_url')
-        .eq('id', supabaseProjectId)
-        .single();
-      if (directDev && !error) {
-        const resolved: ResolvedDevelopment = {
-          drizzleDevelopmentId: directDev.id,
-          supabaseProjectId: supabaseProjectId,
-          developmentName: directDev.name,
-          tenantId: (directDev as any).tenant_id || null,
-          logoUrl: (directDev as any).logo_url || null,
-        };
-        setCachedDevelopment(cacheKey, resolved);
-        return resolved;
-      }
-    } catch (directErr) {
-      // Direct lookup failed, falling through to other methods
-    }
-  }
-
+  // Fast path: use known project->development mappings (most reliable)
   if (supabaseProjectId && KNOWN_ID_MAPPINGS[supabaseProjectId]) {
     const mapping = KNOWN_ID_MAPPINGS[supabaseProjectId];
     try {
