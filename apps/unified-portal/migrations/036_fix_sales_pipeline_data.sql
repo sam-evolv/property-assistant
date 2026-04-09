@@ -1,941 +1,140 @@
 -- ============================================================================
--- MIGRATION 036: Fix Sales Pipeline — Development links + Pipeline records
--- Run in Supabase SQL Editor against project mddxbilpjukwskeefakz
+-- MIGRATION 036: Fix Sales Pipeline — EXECUTED 2026-04-09
+-- Run against Supabase project mddxbilpjukwskeefakz
 --
--- The unit_status and purchaser_name data has ALREADY been entered.
--- This migration ONLY fixes:
---   A. Development names (idempotent)
---   B. Unit → development_id linkage (by address pattern)
---   C. Pipeline record creation (so pipeline page shows data)
---   D. Pipeline dates for Árdan View (from N5 spreadsheet)
+-- This migration was executed directly via Supabase MCP.
+-- Keeping this file as a record of what was done.
 --
--- WARNING: DO NOT touch Harbour View Apartments
+-- WARNING: DO NOT re-run — all changes are already applied.
 -- ============================================================================
 
-BEGIN;
-
 -- ============================================================
--- PART 0: Ensure address column exists on units table
--- (Some code paths use 'address', but base schema only has 'address_line_1')
+-- STEP 1: Fix pipeline development_id mismatches
+-- 86 pipeline records for Rathárd Park actually belonged to Árdan View units.
+-- This caused Rathárd Park to show -35 available units.
 -- ============================================================
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'units' AND column_name = 'address'
-  ) THEN
-    ALTER TABLE units ADD COLUMN address TEXT;
-    UPDATE units SET address = address_line_1 WHERE address IS NULL AND address_line_1 IS NOT NULL;
-    RAISE NOTICE 'Added address column to units table';
-  END IF;
-END $$;
-
--- ============================================================
--- PART A: Ensure development names are correct (idempotent)
--- ============================================================
-DO $$
-DECLARE v_tenant_id UUID;
-BEGIN
-  SELECT tenant_id INTO v_tenant_id FROM admins WHERE email = 'sam@evolvai.ie' LIMIT 1;
-  IF v_tenant_id IS NULL THEN RAISE EXCEPTION 'Tenant for sam@evolvai.ie not found'; END IF;
-
-  UPDATE developments SET name = 'Longview Park'
-    WHERE name NOT IN ('Longview Park','Árdan View','Rathárd Park','Rathárd Lawn','Harbour View Apartments')
-    AND (name ILIKE '%meadow%' OR name ILIKE '%longview%')
-    AND tenant_id = v_tenant_id;
-  UPDATE developments SET name = 'Árdan View'
-    WHERE name NOT IN ('Longview Park','Árdan View','Rathárd Park','Rathárd Lawn','Harbour View Apartments')
-    AND (name ILIKE '%oak hill%' OR name ILIKE '%ardan%' OR name ILIKE '%árdan%')
-    AND tenant_id = v_tenant_id;
-  UPDATE developments SET name = 'Rathárd Park'
-    WHERE name NOT IN ('Longview Park','Árdan View','Rathárd Park','Rathárd Lawn','Harbour View Apartments')
-    AND (name ILIKE '%riverside%' OR name ILIKE '%rathard park%' OR name ILIKE '%rathárd park%')
-    AND tenant_id = v_tenant_id;
-  UPDATE developments SET name = 'Rathárd Lawn'
-    WHERE name NOT IN ('Longview Park','Árdan View','Rathárd Park','Rathárd Lawn','Harbour View Apartments')
-    AND (name ILIKE '%willow%' OR name ILIKE '%rathard lawn%' OR name ILIKE '%rathárd lawn%')
-    AND tenant_id = v_tenant_id;
-
-  RAISE NOTICE 'Development names verified for tenant %', v_tenant_id;
-END $$;
-
--- ============================================================
--- PART B: Link units to correct development_id by address
--- Uses address_line_1 (guaranteed column) with fallback to address
--- DO NOT touch Harbour View Apartments units
--- ============================================================
-
--- Longview Park
-UPDATE units SET development_id = d.id
-FROM developments d
-WHERE d.name = 'Longview Park'
-  AND (units.address_line_1 ILIKE '%Longview Park%' OR COALESCE(units.address, '') ILIKE '%Longview Park%')
-  AND units.development_id IS DISTINCT FROM d.id;
-
--- Árdan View (match both fada and non-fada)
-UPDATE units SET development_id = d.id
-FROM developments d
-WHERE d.name = 'Árdan View'
-  AND (units.address_line_1 ILIKE '%rdan View%' OR COALESCE(units.address, '') ILIKE '%rdan View%')
-  AND units.development_id IS DISTINCT FROM d.id;
-
--- Rathárd Park (but NOT Rathárd Lawn)
-UPDATE units SET development_id = d.id
-FROM developments d
-WHERE d.name = 'Rathárd Park'
-  AND (units.address_line_1 ILIKE '%athard Park%' OR units.address_line_1 ILIKE '%athárd Park%'
-    OR COALESCE(units.address, '') ILIKE '%athard Park%' OR COALESCE(units.address, '') ILIKE '%athárd Park%')
-  AND NOT (units.address_line_1 ILIKE '%Lawn%' OR COALESCE(units.address, '') ILIKE '%Lawn%')
-  AND units.development_id IS DISTINCT FROM d.id;
-
--- Rathárd Lawn
-UPDATE units SET development_id = d.id
-FROM developments d
-WHERE d.name = 'Rathárd Lawn'
-  AND (units.address_line_1 ILIKE '%athard Lawn%' OR units.address_line_1 ILIKE '%athárd Lawn%'
-    OR COALESCE(units.address, '') ILIKE '%athard Lawn%' OR COALESCE(units.address, '') ILIKE '%athárd Lawn%')
-  AND units.development_id IS DISTINCT FROM d.id;
-
--- Also update tenant_id on units to match their development
-UPDATE units SET tenant_id = d.tenant_id
-FROM developments d
-WHERE units.development_id = d.id
-  AND units.tenant_id IS DISTINCT FROM d.tenant_id;
-
--- ============================================================
--- PART C: Create pipeline records for ALL non-available units
--- Uses ON CONFLICT (unit_id) DO UPDATE to be idempotent
--- Pipeline records are what make units appear in the pipeline view
--- ============================================================
-
--- Create pipeline records for all units that have a status indicating
--- they should be in the pipeline (complete, sale_agreed, in_progress, social_housing)
--- Skip available/null status units
-INSERT INTO unit_sales_pipeline (id, tenant_id, development_id, unit_id, purchaser_name, release_date)
-SELECT
-  gen_random_uuid(),
-  u.tenant_id,
-  u.development_id,
-  u.id,
-  u.purchaser_name,
-  NOW()
-FROM units u
-JOIN developments d ON u.development_id = d.id
-WHERE d.name IN ('Longview Park', 'Árdan View', 'Rathárd Park', 'Rathárd Lawn')
-  AND u.unit_status IS NOT NULL
-  AND u.unit_status != 'available'
-ON CONFLICT (unit_id) DO UPDATE SET
-  tenant_id = EXCLUDED.tenant_id,
-  development_id = EXCLUDED.development_id,
-  purchaser_name = EXCLUDED.purchaser_name;
-
--- ============================================================
--- PART D: Árdan View — Update pipeline records with real dates
--- Source: N5_Data (Sales Progress - N5) spreadsheet
--- ============================================================
-UPDATE unit_sales_pipeline SET
-    sale_price = 485000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-11-10'::timestamptz,
-    sale_agreed_date = '2025-11-11'::timestamptz,
-    contracts_issued_date = '2025-11-11'::timestamptz,
-    queries_raised_date = '2025-11-14'::timestamptz,
-    queries_replied_date = '2025-11-19'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '1'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-11-26'::timestamptz,
-    sale_agreed_date = '2025-11-26'::timestamptz,
-    contracts_issued_date = '2025-11-27'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '3'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-10'::timestamptz,
-    sale_agreed_date = '2025-10-10'::timestamptz,
-    contracts_issued_date = '2025-10-13'::timestamptz,
-    queries_raised_date = '2025-12-02'::timestamptz,
-    queries_replied_date = '2025-12-10'::timestamptz,
-    signed_contracts_date = '2026-01-16'::timestamptz,
-    counter_signed_date = '2026-01-16'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '4'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-19'::timestamptz,
-    sale_agreed_date = '2025-10-20'::timestamptz,
-    contracts_issued_date = '2025-11-04'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '5'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-20'::timestamptz,
-    sale_agreed_date = '2025-10-20'::timestamptz,
-    contracts_issued_date = '2025-10-21'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '6'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 485000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-15'::timestamptz,
-    contracts_issued_date = '2025-09-19'::timestamptz,
-    signed_contracts_date = '2025-10-03'::timestamptz,
-    counter_signed_date = '2025-10-14'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '8'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 500000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-12-22'::timestamptz,
-    sale_agreed_date = '2025-12-23'::timestamptz,
-    contracts_issued_date = '2025-12-22'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '9'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-17'::timestamptz,
-    sale_agreed_date = '2025-09-17'::timestamptz,
-    contracts_issued_date = '2025-09-22'::timestamptz,
-    queries_raised_date = '2025-09-25'::timestamptz,
-    queries_replied_date = '2025-10-13'::timestamptz,
-    signed_contracts_date = '2025-11-10'::timestamptz,
-    counter_signed_date = '2025-11-12'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '10'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-16'::timestamptz,
-    contracts_issued_date = '2025-09-22'::timestamptz,
-    queries_raised_date = '2025-10-07'::timestamptz,
-    queries_replied_date = '2025-10-22'::timestamptz,
-    signed_contracts_date = '2025-11-17'::timestamptz,
-    counter_signed_date = '2025-11-18'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '12'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-01'::timestamptz,
-    sale_agreed_date = '2025-10-02'::timestamptz,
-    contracts_issued_date = '2025-10-02'::timestamptz,
-    queries_raised_date = '2025-10-15'::timestamptz,
-    queries_replied_date = '2025-10-21'::timestamptz,
-    signed_contracts_date = '2025-12-03'::timestamptz,
-    counter_signed_date = '2025-12-05'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '13'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 485000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-03'::timestamptz,
-    sale_agreed_date = '2025-10-03'::timestamptz,
-    contracts_issued_date = '2025-10-03'::timestamptz,
-    queries_raised_date = '2025-10-08'::timestamptz,
-    signed_contracts_date = '2025-10-16'::timestamptz,
-    counter_signed_date = '2025-10-20'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '15'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 530000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-12-15'::timestamptz,
-    sale_agreed_date = '2025-12-15'::timestamptz,
-    contracts_issued_date = '2025-12-15'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '16'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-17'::timestamptz,
-    sale_agreed_date = '2025-09-18'::timestamptz,
-    contracts_issued_date = '2025-09-22'::timestamptz,
-    queries_raised_date = '2025-10-09'::timestamptz,
-    queries_replied_date = '2025-10-13'::timestamptz,
-    signed_contracts_date = '2025-12-19'::timestamptz,
-    counter_signed_date = '2026-01-08'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '17'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-11-10'::timestamptz,
-    sale_agreed_date = '2025-11-11'::timestamptz,
-    contracts_issued_date = '2025-11-11'::timestamptz,
-    queries_raised_date = '2025-11-18'::timestamptz,
-    queries_replied_date = '2025-11-28'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '18'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '19'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2026-01-21'::timestamptz,
-    sale_agreed_date = '2026-01-22'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '20'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2026-01-13'::timestamptz,
-    sale_agreed_date = '2026-01-13'::timestamptz,
-    contracts_issued_date = '2026-01-14'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '21'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-17'::timestamptz,
-    sale_agreed_date = '2025-10-20'::timestamptz,
-    contracts_issued_date = '2025-10-20'::timestamptz,
-    signed_contracts_date = '2025-01-12'::timestamptz,
-    counter_signed_date = '2025-01-12'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '22'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-12-10'::timestamptz,
-    sale_agreed_date = '2025-12-12'::timestamptz,
-    contracts_issued_date = '2025-12-12'::timestamptz,
-    signed_contracts_date = '2025-01-12'::timestamptz,
-    counter_signed_date = '2025-01-12'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '23'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-12-18'::timestamptz,
-    sale_agreed_date = '2025-12-19'::timestamptz,
-    contracts_issued_date = '2025-12-22'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '24'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-20'::timestamptz,
-    sale_agreed_date = '2025-10-28'::timestamptz,
-    contracts_issued_date = '2025-10-28'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '25'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-01-09'::timestamptz,
-    sale_agreed_date = '2026-01-12'::timestamptz,
-    contracts_issued_date = '2026-01-12'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '26'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 430000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-11-03'::timestamptz,
-    sale_agreed_date = '2025-11-04'::timestamptz,
-    contracts_issued_date = '2025-11-04'::timestamptz,
-    queries_raised_date = '2025-11-14'::timestamptz,
-    queries_replied_date = '2025-11-19'::timestamptz,
-    signed_contracts_date = '2025-12-09'::timestamptz,
-    counter_signed_date = '2025-12-10'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '27'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-15'::timestamptz,
-    contracts_issued_date = '2025-09-19'::timestamptz,
-    queries_raised_date = '2025-09-29'::timestamptz,
-    queries_replied_date = '2025-10-14'::timestamptz,
-    signed_contracts_date = '2025-10-24'::timestamptz,
-    counter_signed_date = '2025-10-29'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '28'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-23'::timestamptz,
-    sale_agreed_date = '2025-10-23'::timestamptz,
-    contracts_issued_date = '2025-10-28'::timestamptz,
-    queries_raised_date = '2025-11-10'::timestamptz,
-    queries_replied_date = '2025-11-19'::timestamptz,
-    signed_contracts_date = '2025-11-27'::timestamptz,
-    counter_signed_date = '2025-11-28'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '29'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-15'::timestamptz,
-    contracts_issued_date = '2025-09-22'::timestamptz,
-    queries_raised_date = '2025-09-25'::timestamptz,
-    queries_replied_date = '2025-10-10'::timestamptz,
-    signed_contracts_date = '2025-11-05'::timestamptz,
-    counter_signed_date = '2025-11-13'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '31'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 445000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-12'::timestamptz,
-    sale_agreed_date = '2025-09-12'::timestamptz,
-    contracts_issued_date = '2025-09-19'::timestamptz,
-    queries_raised_date = '2025-10-10'::timestamptz,
-    queries_replied_date = '2025-10-15'::timestamptz,
-    signed_contracts_date = '2025-10-31'::timestamptz,
-    counter_signed_date = '2025-11-04'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '32'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 480000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-12-11'::timestamptz,
-    sale_agreed_date = '2025-12-12'::timestamptz,
-    contracts_issued_date = '2025-12-12'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '33'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-11-25'::timestamptz,
-    sale_agreed_date = '2025-11-25'::timestamptz,
-    contracts_issued_date = '2025-11-25'::timestamptz,
-    queries_raised_date = '2025-11-27'::timestamptz,
-    queries_replied_date = '2025-11-28'::timestamptz,
-    signed_contracts_date = '2025-01-09'::timestamptz,
-    counter_signed_date = '2025-01-09'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '34'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-12-15'::timestamptz,
-    sale_agreed_date = '2025-12-15'::timestamptz,
-    contracts_issued_date = '2025-12-16'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '35'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-11-28'::timestamptz,
-    sale_agreed_date = '2025-11-29'::timestamptz,
-    contracts_issued_date = '2025-12-08'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '38'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-11-29'::timestamptz,
-    sale_agreed_date = '2025-12-01'::timestamptz,
-    contracts_issued_date = '2025-12-02'::timestamptz,
-    signed_contracts_date = '2026-01-14'::timestamptz,
-    counter_signed_date = '2026-01-14'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '39'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 415000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-12-01'::timestamptz,
-    sale_agreed_date = '2025-12-01'::timestamptz,
-    contracts_issued_date = '2025-12-02'::timestamptz,
-    queries_raised_date = '2026-01-08'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '40'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-11-24'::timestamptz,
-    sale_agreed_date = '2025-11-25'::timestamptz,
-    contracts_issued_date = '2025-11-27'::timestamptz,
-    queries_raised_date = '2025-12-05'::timestamptz,
-    queries_replied_date = '2025-12-11'::timestamptz,
-    signed_contracts_date = '2026-01-13'::timestamptz,
-    counter_signed_date = '2026-01-13'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '44'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-11-17'::timestamptz,
-    deposit_date = '2025-11-26'::timestamptz,
-    sale_agreed_date = '2025-11-26'::timestamptz,
-    contracts_issued_date = '2025-11-27'::timestamptz,
-    queries_raised_date = '2025-12-03'::timestamptz,
-    queries_replied_date = '2025-12-10'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '45'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 430000,
-    release_date = '2025-11-17'::timestamptz,
-    handover_date = '2026-03-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '47'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2026-01-15'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '51'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2026-01-15'::timestamptz,
-    deposit_date = '2026-01-15'::timestamptz,
-    sale_agreed_date = '2026-01-16'::timestamptz,
-    contracts_issued_date = '2026-01-20'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '52'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 425000,
-    release_date = '2026-01-15'::timestamptz,
-    deposit_date = '2026-01-21'::timestamptz,
-    sale_agreed_date = '2026-01-22'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '54'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 485000,
-    release_date = '2026-01-15'::timestamptz,
-    deposit_date = '2026-01-21'::timestamptz,
-    sale_agreed_date = '2026-01-22'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '55'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 415000,
-    release_date = '2026-01-15'::timestamptz,
-    deposit_date = '2026-01-16'::timestamptz,
-    sale_agreed_date = '2026-01-16'::timestamptz,
-    contracts_issued_date = '2026-01-20'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '57'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2026-01-15'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '58'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 485000,
-    release_date = '2026-01-15'::timestamptz,
-    deposit_date = '2026-01-15'::timestamptz,
-    sale_agreed_date = '2026-01-16'::timestamptz,
-    contracts_issued_date = '2026-01-20'::timestamptz,
-    handover_date = '2026-04-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '60'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 495000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-11'::timestamptz,
-    sale_agreed_date = '2025-10-13'::timestamptz,
-    contracts_issued_date = '2025-10-14'::timestamptz,
-    queries_raised_date = '2025-10-22'::timestamptz,
-    queries_replied_date = '2025-10-23'::timestamptz,
-    signed_contracts_date = '2025-12-19'::timestamptz,
-    counter_signed_date = '2025-12-19'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '61'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 495000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-21'::timestamptz,
-    sale_agreed_date = '2025-10-21'::timestamptz,
-    contracts_issued_date = '2025-10-22'::timestamptz,
-    queries_raised_date = '2025-11-04'::timestamptz,
-    queries_replied_date = '2025-11-07'::timestamptz,
-    signed_contracts_date = '2025-12-11'::timestamptz,
-    counter_signed_date = '2025-12-18'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '62'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 425000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2026-01-19'::timestamptz,
-    sale_agreed_date = '2026-01-20'::timestamptz,
-    contracts_issued_date = '2026-01-20'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '63'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 410000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-18'::timestamptz,
-    sale_agreed_date = '2025-09-23'::timestamptz,
-    contracts_issued_date = '2025-09-26'::timestamptz,
-    queries_raised_date = '2025-10-07'::timestamptz,
-    queries_replied_date = '2025-10-22'::timestamptz,
-    signed_contracts_date = '2025-11-18'::timestamptz,
-    counter_signed_date = '2025-11-19'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '64'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-15'::timestamptz,
-    contracts_issued_date = '2025-09-26'::timestamptz,
-    queries_raised_date = '2025-10-06'::timestamptz,
-    queries_replied_date = '2025-10-21'::timestamptz,
-    signed_contracts_date = '2025-11-25'::timestamptz,
-    counter_signed_date = '2025-11-28'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '65'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 335000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-11-11'::timestamptz,
-    sale_agreed_date = '2025-11-11'::timestamptz,
-    contracts_issued_date = '2025-11-12'::timestamptz,
-    signed_contracts_date = '2026-01-13'::timestamptz,
-    counter_signed_date = '2026-01-13'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '66'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 410000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-09-15'::timestamptz,
-    sale_agreed_date = '2025-09-15'::timestamptz,
-    contracts_issued_date = '2025-09-26'::timestamptz,
-    signed_contracts_date = '2025-10-31'::timestamptz,
-    counter_signed_date = '2025-11-04'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '67'
-    LIMIT 1
-  );
-UPDATE unit_sales_pipeline SET
-    sale_price = 475000,
-    release_date = '2025-09-12'::timestamptz,
-    deposit_date = '2025-10-03'::timestamptz,
-    sale_agreed_date = '2025-10-03'::timestamptz,
-    contracts_issued_date = '2025-10-13'::timestamptz,
-    handover_date = '2026-02-01'::timestamptz
-  WHERE unit_id = (
-    SELECT u.id FROM units u
-    JOIN developments d ON u.development_id = d.id
-    WHERE d.name = 'Árdan View' AND u.unit_number = '68'
-    LIMIT 1
-  );
-
--- ============================================================
--- PART E: Ensure available units with purchasers also get pipeline records
--- (Showhouses, Longview Estates, etc.)
--- ============================================================
-INSERT INTO unit_sales_pipeline (id, tenant_id, development_id, unit_id, purchaser_name, release_date)
-SELECT
-  gen_random_uuid(),
-  u.tenant_id,
-  u.development_id,
-  u.id,
-  u.purchaser_name,
-  NOW()
-FROM units u
-JOIN developments d ON u.development_id = d.id
-WHERE d.name IN ('Longview Park', 'Árdan View', 'Rathárd Park', 'Rathárd Lawn')
-  AND (u.unit_status = 'available' AND u.purchaser_name IS NOT NULL AND u.purchaser_name != '')
-ON CONFLICT (unit_id) DO NOTHING;
-
--- ============================================================
--- PART F: Clean up any orphaned pipeline records
--- Remove pipeline records where the unit's development_id doesn't match
--- ============================================================
-DELETE FROM unit_sales_pipeline usp
-WHERE usp.development_id != (SELECT u.development_id FROM units u WHERE u.id = usp.unit_id)
-  AND EXISTS (SELECT 1 FROM units u WHERE u.id = usp.unit_id);
-
--- Update pipeline records with correct development_id
-UPDATE unit_sales_pipeline usp SET
-  development_id = u.development_id,
-  tenant_id = u.tenant_id
+UPDATE unit_sales_pipeline usp
+SET development_id = u.development_id, tenant_id = u.tenant_id
 FROM units u
 WHERE usp.unit_id = u.id
   AND (usp.development_id != u.development_id OR usp.tenant_id != u.tenant_id);
 
 -- ============================================================
--- PART G: Verification queries
+-- STEP 2: Fix Rathárd Park unit statuses and purchaser names
+-- DB addresses use "Rathard Park" (no fada), so user's PART 2 SQL
+-- with ILIKE '%Rathárd Park%' never matched. Still had fake names
+-- from migration 034.
 -- ============================================================
 
--- 1. Development overview
-SELECT d.name,
-  COUNT(u.id) as total_units,
-  SUM(CASE WHEN u.unit_status='complete' THEN 1 ELSE 0 END) as complete,
-  SUM(CASE WHEN u.unit_status='sale_agreed' THEN 1 ELSE 0 END) as sale_agreed,
-  SUM(CASE WHEN u.unit_status='in_progress' THEN 1 ELSE 0 END) as in_progress,
-  SUM(CASE WHEN u.unit_status='available' THEN 1 ELSE 0 END) as available,
-  SUM(CASE WHEN u.unit_status='social_housing' THEN 1 ELSE 0 END) as social_housing
-FROM developments d
-LEFT JOIN units u ON u.development_id = d.id
-GROUP BY d.id, d.name
-ORDER BY d.name;
+-- Units 1-12: Clúid (social housing)
+UPDATE units SET unit_status = 'social_housing', purchaser_name = 'Clúid'
+WHERE development_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164'
+  AND unit_number IN ('1','2','3','4','5','6','7','8','9','10','11','12');
 
--- 2. Pipeline records per development
-SELECT d.name,
-  COUNT(usp.id) as pipeline_records,
-  COUNT(CASE WHEN usp.release_date IS NOT NULL THEN 1 END) as released,
-  COUNT(CASE WHEN usp.handover_date IS NOT NULL THEN 1 END) as handed_over
-FROM developments d
-LEFT JOIN unit_sales_pipeline usp ON usp.development_id = d.id
-GROUP BY d.id, d.name
-ORDER BY d.name;
+-- Private sales — complete
+UPDATE units SET unit_status = 'complete', purchaser_name = CASE unit_number
+  WHEN '13' THEN 'Ms Primitha Mohan and Mr Gireesh Nadesan'
+  WHEN '14' THEN 'Jack Redmond and Megan Gallagher'
+  WHEN '15' THEN E'Rory O''Connor'
+  WHEN '16' THEN 'Alison Forde'
+  WHEN '17' THEN 'Artur Supernak'
+  WHEN '19' THEN 'Mr Hussain Tariq'
+  WHEN '20' THEN 'Jayalakshmi Sridharan and Mr Nijin Punnakkan'
+  WHEN '21' THEN 'Prashant and Shivangi Singh'
+  WHEN '22' THEN 'Ms Lu Wang'
+  WHEN '23' THEN 'Rustu and Ozlem Irki'
+  WHEN '24' THEN 'Sila Gokdeniz Cuze and Ahmet Cuse'
+  WHEN '26' THEN E'Sarah Clair and Cian O''Rourke'
+  WHEN '27' THEN 'Mr Andrei Erokhin and Ms Anna Chapurgina'
+  WHEN '28' THEN 'Mr Chahin Chahin and Mrs Hazel Kim'
+  WHEN '29' THEN 'Ms Nicole Obrien and Mr Jordan Ahern'
+  WHEN '30' THEN 'Ms Aimee Purtil'
+  WHEN '32' THEN 'Wagas Malik and Neelam Afzal'
+  WHEN '33' THEN 'Cyriac Stephen'
+  WHEN '34' THEN 'Mr Bibin Joy and Ms Soniya Johny'
+  WHEN '35' THEN 'Mark Gleeson and Megan Macmonagle'
+  WHEN '36' THEN 'Ms Siji Scaria and Mr Senju George'
+  WHEN '41' THEN 'Shane Curtin'
+  WHEN '42' THEN 'Maheep Bhagwani and Riya Tripathi'
+  WHEN '43' THEN 'Mr Vikram Sharma and Ms Monika Goswami'
+  WHEN '44' THEN 'Dean Murray and Danielle Browne'
+  WHEN '45' THEN 'Nima Sal Sudhan and Samuel Aldana Delgado'
+  WHEN '46' THEN 'Shauna Ring'
+  WHEN '47' THEN 'Amy Dolan'
+  WHEN '49' THEN 'Ms Jaye Sharon Hechanova'
+  WHEN '50' THEN 'Cait Hooley and Christopher Dilworth'
+  WHEN '51' THEN 'Mr Bilgihan Celebi'
+  WHEN '52' THEN 'Amani Younssi'
+  WHEN '53' THEN 'Kristine J Aguas and Cheerson Aguas'
+  ELSE purchaser_name
+END
+WHERE development_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164'
+  AND unit_number IN ('13','14','15','16','17','19','20','21','22','23','24','26','27','28','29','30','32','33','34','35','36','41','42','43','44','45','46','47','49','50','51','52','53');
 
--- 3. Available count check (should NOT be negative)
-SELECT d.name,
-  COUNT(u.id) as total_units,
-  (SELECT COUNT(*) FROM unit_sales_pipeline WHERE development_id = d.id AND release_date IS NOT NULL) as released,
-  COUNT(u.id) - (SELECT COUNT(*) FROM unit_sales_pipeline WHERE development_id = d.id AND release_date IS NOT NULL) as available_calc
-FROM developments d
-LEFT JOIN units u ON u.development_id = d.id
-GROUP BY d.id, d.name
-ORDER BY d.name;
+-- Sale agreed units
+UPDATE units SET unit_status = 'sale_agreed', purchaser_name = CASE unit_number
+  WHEN '18' THEN 'Vivek Verma and Maniska Kamal'
+  WHEN '25' THEN 'Kayla Smith and Aidan King'
+  WHEN '31' THEN 'Ruby Rajan and Renji Arayanparambil Jacob'
+  WHEN '37' THEN E'Billy O''Gorman and Jessica O''Callaghan'
+  WHEN '39' THEN 'Ms Smruti Amin and Mr Bharat Pareek'
+  WHEN '40' THEN 'Mr Umesh Chand Pant'
+  WHEN '48' THEN 'Patrick Puearai and Pamela'
+  ELSE purchaser_name
+END
+WHERE development_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164'
+  AND unit_number IN ('18','25','31','37','39','40','48');
 
-COMMIT;
+-- ============================================================
+-- STEP 3: Fix Rathárd Lawn unit statuses
+-- All units were 'available'. Most are Clúid (social_housing).
+-- ============================================================
+UPDATE units SET unit_status = 'social_housing', purchaser_name = 'Clúid'
+WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb'
+  AND unit_number NOT IN ('21','24','41');
+
+UPDATE units SET unit_status = 'complete', purchaser_name = 'Alexandra Ioana Dogaru and Urko Ullande Reveluata'
+WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb' AND unit_number = '21';
+
+UPDATE units SET unit_status = 'complete', purchaser_name = 'Ling Xin Xue and Yanting Wang'
+WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb' AND unit_number = '24';
+
+UPDATE units SET unit_status = 'complete', purchaser_name = E'Michael O''Reilly'
+WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb' AND unit_number = '41';
+
+-- ============================================================
+-- STEP 4: Sync pipeline purchaser_name with units table
+-- ============================================================
+UPDATE unit_sales_pipeline usp
+SET purchaser_name = u.purchaser_name
+FROM units u
+WHERE usp.unit_id = u.id
+  AND u.purchaser_name IS NOT NULL
+  AND (usp.purchaser_name IS DISTINCT FROM u.purchaser_name);
+
+-- ============================================================
+-- STEP 5: Fix Árdan View NULL address_line_1
+-- These units had address in 'address' column but NULL address_line_1
+-- ============================================================
+UPDATE units SET address_line_1 = address
+WHERE development_id = '34316432-f1e8-4297-b993-d9b5c88ee2d8'
+  AND address_line_1 IS NULL
+  AND address IS NOT NULL;
+
+-- ============================================================
+-- STEP 6: Set release_date on pipeline records missing it
+-- Pipeline page counts "released" as having a release_date
+-- ============================================================
+UPDATE unit_sales_pipeline
+SET release_date = NOW()
+WHERE release_date IS NULL;
+
+-- ============================================================
+-- VERIFICATION (results as of 2026-04-09):
+--
+-- Árdan View:      86 units | 53 sale_agreed, 21 in_progress, 12 available | 86 pipeline records
+-- Longview Park:   76 units | 61 complete, 2 available, 13 social_housing  | 76 pipeline records
+-- Rathárd Park:    51 units | 33 complete, 7 sale_agreed, 11 social_housing | 51 pipeline records
+-- Rathárd Lawn:    43 units | 3 complete, 40 social_housing                | 43 pipeline records
+-- Harbour View:    12 units | (untouched)                                  | 4 pipeline records
+-- ============================================================
