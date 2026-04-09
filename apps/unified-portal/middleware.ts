@@ -35,6 +35,7 @@ const PUBLIC_PATHS = [
   '/smart-archive',
   '/dev-tools',
   '/care', // Homeowner care app — accessed via QR code, no auth required
+  '/agent', // Agent demo — self-contained PWA with hardcoded demo data
 ];
 
 const PROTECTED_PATHS = [
@@ -111,6 +112,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/static/') ||
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/branding/') ||
+    pathname.startsWith('/agent') ||
     pathname.includes('.')
   ) {
     return res;
