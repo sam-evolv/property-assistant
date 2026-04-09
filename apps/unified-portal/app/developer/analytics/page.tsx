@@ -2,6 +2,8 @@ import { requireRole } from '@/lib/supabase-server';
 import AnalyticsClient from './analytics-client';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

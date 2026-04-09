@@ -5,6 +5,8 @@ import { getDeveloperById } from '@/app/actions/developers';
 import { db } from '@openhouse/db/client';
 import { tenants } from '@openhouse/db/schema';
 
+export const dynamic = 'force-dynamic';
+
 export default async function EditDeveloperPage({ params }: { params: { id: string } }) {
   try {
     await requireRole(['super_admin']);

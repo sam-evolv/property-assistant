@@ -4,6 +4,8 @@ import { HomeownerEditForm } from './form';
 import { getHomeownerById } from '@/app/actions/homeowners';
 import { getAllDevelopmentsForList } from '@/app/actions/developments';
 
+export const dynamic = 'force-dynamic';
+
 export default async function EditHomeownerPage({ params }: { params: { id: string } }) {
   try {
     await requireRole(['developer', 'super_admin']);

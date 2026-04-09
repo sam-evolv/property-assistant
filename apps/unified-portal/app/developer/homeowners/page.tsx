@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

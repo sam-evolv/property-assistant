@@ -6,6 +6,8 @@ import { desc } from 'drizzle-orm';
 import Link from 'next/link';
 import { UserPlus, Mail, Shield } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DevelopersPage() {
   try {
     await requireRole(['super_admin', 'admin']);

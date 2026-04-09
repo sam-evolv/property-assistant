@@ -3,6 +3,8 @@ import { DevelopmentForm } from './form';
 import { redirect } from 'next/navigation';
 import { getAllTenantsForForm, getAllDevelopersForList } from '@/app/actions/developers';
 
+export const dynamic = 'force-dynamic';
+
 export default async function NewDevelopmentPage() {
   try {
     await requireRole(['super_admin']);

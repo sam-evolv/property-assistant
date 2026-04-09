@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { HomeownerForm } from './form';
 import { getAllDevelopmentsForList } from '@/app/actions/developments';
 
+export const dynamic = 'force-dynamic';
+
 export default async function NewHomeownerPage() {
   try {
     await requireRole(['developer', 'super_admin']);
