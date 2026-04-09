@@ -20,9 +20,8 @@ export default function PurchaserLoginPage() {
         router.push(`/homes/${session.unitUid}?token=${encodeURIComponent(session.token)}`);
         return;
       }
-      // No session — redirect to the product menu instead of showing this legacy page
-      router.replace('/login');
-      return;
+      // No session — show the code entry form
+      setSessionCleared(true);
     }
   }, [isLoading, session, router]);
 
