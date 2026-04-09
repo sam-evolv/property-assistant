@@ -2515,7 +2515,10 @@ export default function PipelineDevelopmentPage() {
   const fetchData = useCallback(async () => {
     try {
       const response = await fetch(`/api/pipeline/${developmentId}`);
-      if (!response.ok) throw new Error('Failed to fetch data');
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.details || errBody.error || 'Failed to fetch data');
+      }
       const data = await response.json();
       setDevelopment(data.development);
       // Use real data from API - no demo data fallbacks

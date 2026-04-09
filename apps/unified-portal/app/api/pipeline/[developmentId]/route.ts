@@ -206,9 +206,11 @@ export async function GET(
         .order('unit_number', { ascending: true });
 
       if (supabaseError) {
-        throw supabaseError;
+        console.error('[Pipeline] Units Supabase fallback failed:', supabaseError);
+        unitData = [];
+      } else {
+        unitData = supabaseUnits || [];
       }
-      unitData = supabaseUnits || [];
     }
 
     // If pipeline tables exist, get pipeline data

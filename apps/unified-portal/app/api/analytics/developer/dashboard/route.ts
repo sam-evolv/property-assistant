@@ -566,17 +566,21 @@ export async function GET(request: NextRequest) {
 
     const formatTopicLabel = (topic: string): string => {
       if (!topic) return 'General';
+      // Exclude POI (point-of-interest) geographic entries misclassified as homeowner topics
+      if (topic.startsWith('poi_') || topic === 'poi') return '';
       return topic
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
     };
 
-    const questionTopics = questionTopicsResult.rows.map(row => ({
-      topic: row.topic,
-      label: formatTopicLabel(row.topic),
-      count: row.count,
-    }));
+    const questionTopics = questionTopicsResult.rows
+      .map(row => ({
+        topic: row.topic,
+        label: formatTopicLabel(row.topic),
+        count: row.count,
+      }))
+      .filter(item => item.label !== '');
 
     const chatActivity = chatActivityResult.rows.map(row => ({
       date: row.date,

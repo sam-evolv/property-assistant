@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -329,6 +330,8 @@ export default function DeveloperOverviewPage() {
     // TODO: Implement email functionality
     window.location.href = '/developer/homeowners';
   };
+
+  useKeyboardShortcut('e', handleSendEmail, { meta: true });
 
   // Loading state
   if (loading) {
