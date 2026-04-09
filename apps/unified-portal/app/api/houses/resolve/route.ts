@@ -161,9 +161,32 @@ export async function POST(req: Request) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isUuid = uuidRegex.test(token);
 
+    // Pre-check: For UUID tokens, check if this is a Supabase unit ID first.
+    // The "Open Portal" button sends Supabase unit UUIDs which can collide with
+    // Drizzle unit UUIDs (different tables, independent ID spaces). If the UUID
+    // exists in Supabase, skip the Drizzle lookup to avoid returning wrong data.
+    let skipDrizzle = false;
+    if (isUuid) {
+      try {
+        const { data: sbCheck } = await supabase
+          .from('units')
+          .select('id')
+          .eq('id', token)
+          .single();
+        if (sbCheck) {
+          skipDrizzle = true;
+        }
+      } catch {
+        // Supabase check failed, proceed with Drizzle as fallback
+      }
+    }
+
     // First try: Query units table by ID or unit_uid using Drizzle
-    // Use different query based on whether token is UUID format or not
+    // Skipped when the token is a known Supabase unit UUID to prevent cross-table collision
     let unitResult;
+    if (skipDrizzle) {
+      unitResult = { rows: [] };
+    } else {
     try {
       unitResult = isUuid
         ? await db.execute(sql`
@@ -245,6 +268,7 @@ export async function POST(req: Request) {
       }
       unitResult = { rows: [] };
     }
+    } // end skipDrizzle check
 
     const unit = unitResult.rows[0] as any;
 
