@@ -48,33 +48,51 @@ export default function AgentLogin() {
       .from('agent_profiles')
       .select('id, display_name, agency_name')
       .eq('user_id', data.session.user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .single();
 
-    if (!profile) {
-      await supabase.auth.signOut();
-      setError("No agent account found for this email. Contact your agency admin.");
-      setLoading(false);
+    if (profile) {
+      // Standard agent login — upsert context and redirect
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'agent',
+        context_type: 'agent_profile',
+        context_id: profile.id,
+        display_name: profile.agency_name || profile.display_name,
+        display_subtitle: 'Estate Agent',
+        display_icon: 'briefcase',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push('/agent/home');
       return;
     }
 
-    // Upsert user_contexts row
-    await supabase.from('user_contexts').upsert({
-      auth_user_id: data.session.user.id,
-      product: 'agent',
-      context_type: 'agent_profile',
-      context_id: profile.id,
-      display_name: profile.agency_name || profile.display_name,
-      display_subtitle: 'Estate Agent',
-      display_icon: 'briefcase',
-      last_active_at: new Date().toISOString(),
-    }, { onConflict: 'auth_user_id,context_type,context_id' });
+    // Fallback: check if user is an admin/developer/super_admin via server-side API
+    // (admins table has RLS that blocks client-side reads)
+    const meRes = await fetch('/api/auth/me');
+    const meData = meRes.ok ? await meRes.json() : null;
 
-    // Device-aware routing — mobile gets the app, desktop gets the dashboard
-    const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i
-      .test(navigator.userAgent);
-    router.push(isMobile ? '/agent/home' : '/agent/dashboard');
+    if (meData && ['super_admin', 'developer', 'admin'].includes(meData.role) && meData.tenantId) {
+      // Admin accessing agent portal — upsert context with admin's tenant
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'agent',
+        context_type: 'organisation',
+        context_id: meData.tenantId,
+        display_name: meData.email?.split('@')[0] || email.split('@')[0],
+        display_subtitle: 'Agent (Admin Access)',
+        display_icon: 'briefcase',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push('/agent/home');
+      return;
+    }
+
+    // Neither agent nor admin — reject
+    await supabase.auth.signOut();
+    setError("No agent account found for this email. Contact your agency admin.");
+    setLoading(false);
   }
 
   return (

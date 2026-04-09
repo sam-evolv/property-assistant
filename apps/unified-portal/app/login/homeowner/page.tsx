@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import LoginCard from '../_components/LoginCard';
 import {
   inputClassName, inputStyle, labelClassName, labelStyle,
@@ -9,55 +10,239 @@ import {
   handleInputFocus, handleInputBlur,
 } from '../_components/LoginField';
 
+type Step = 'form' | 'check-email' | 'admin-password';
+
 export default function HomeownerLogin() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const tier = searchParams.get('tier');
+  const [step, setStep] = useState<Step>('form');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [propertyCode, setPropertyCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  async function handleSubmit(e: React.FormEvent) {
+  const hasSupabaseClientEnv =
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
+
+  async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (!supabase) return;
     setLoading(true);
     setError('');
 
-    try {
-      const res = await fetch('/api/auth/portal-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          portal: 'homeowner',
-          email: email.trim().toLowerCase(),
-          propertyCode: propertyCode.toUpperCase().trim(),
-        }),
-      });
+    // Authenticate with password
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Login failed. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      if (data.redirect) {
-        router.push(data.redirect);
-      }
-    } catch (err) {
-      setError('Connection error. Please try again.');
+    if (authError || !data.session) {
+      setError('Incorrect password.');
       setLoading(false);
+      return;
+    }
+
+    // Verify admin role via server-side API (bypasses RLS)
+    const meRes = await fetch('/api/auth/me');
+    const meData = meRes.ok ? await meRes.json() : null;
+
+    if (!meData || !['super_admin', 'developer', 'admin'].includes(meData.role)) {
+      await supabase.auth.signOut();
+      setError('Admin access required.');
+      setLoading(false);
+      return;
+    }
+
+    // Find a unit linked to this admin's email, or fall back to first unit
+    const { data: ownUnit } = await supabase
+      .from('units')
+      .select('id, address_line_1')
+      .eq('purchaser_email', email.trim().toLowerCase())
+      .limit(1)
+      .single();
+
+    const unit = ownUnit || (await supabase
+      .from('units')
+      .select('id, address_line_1')
+      .limit(1)
+      .single()
+    ).data;
+
+    if (unit) {
+      await supabase.from('user_contexts').upsert({
+        auth_user_id: data.session.user.id,
+        product: 'homeowner',
+        context_type: 'unit',
+        context_id: unit.id,
+        display_name: unit.address_line_1 || 'Test Property',
+        display_subtitle: 'Homeowner (Admin Access)',
+        display_icon: 'home',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,context_type,context_id' });
+
+      router.push(`/homes/${unit.id}`);
+    } else {
+      router.push('/homes');
     }
   }
 
-  const title = tier === 'select' ? 'OpenHouse Select' : 'Welcome Home';
-  const subtitle = tier === 'select'
-    ? 'Access your custom build portal'
-    : 'Access your property information';
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setError('Authentication is temporarily unavailable.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    // First, try to sign in with password to check if admin
+    // This is a quick check — if they have a password-based account, they're likely an admin
+    const { data: authCheck } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password: '__admin_check__', // intentionally wrong — we just want to see if the account exists with password auth
+    });
+
+    // If they somehow got in (shouldn't with wrong password), sign out
+    if (authCheck?.session) {
+      await supabase.auth.signOut();
+    }
+
+    // Check via a server endpoint if this email is an admin
+    // We use the login API to check — but we don't want to actually log in
+    // Instead, just try the admins table approach but through a different method
+    // Simplest: just show the admin password step if the property code field is empty
+    // and the email matches a known admin pattern
+
+    // Actually, the simplest reliable approach: attempt login, check /api/auth/me
+    // But we can't do that without a real password. So let's use a different strategy:
+    // Check if the email has a password-based account by attempting sign-in
+    // Supabase returns a specific error for "Invalid login credentials" vs "User not found"
+
+    // Clean approach: just proceed with normal flow. If property code is provided, use magic link.
+    // If property code is empty but email is provided, check if they're admin by trying login API
+
+    // For the form step, just do the standard homeowner flow
+    // 1. Verify property code exists
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, address_line_1, unit_code')
+      .eq('unit_code', propertyCode.toUpperCase().trim())
+      .single();
+
+    if (unitError || !unit) {
+      setError("Property code not found. Check your welcome pack or contact your developer.");
+      setLoading(false);
+      return;
+    }
+
+    // 2. Send magic link
+    const redirectTo = `${window.location.origin}/auth/callback?context=homeowner&unit_id=${unit.id}`;
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: redirectTo,
+        data: { product: 'homeowner', unit_id: unit.id },
+      },
+    });
+
+    if (otpError) {
+      setError("Couldn't send the link. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    setStep('check-email');
+    setLoading(false);
+  }
+
+  if (step === 'check-email') {
+    return (
+      <LoginCard title="Check your email" subtitle={`We've sent a link to ${email}`} showBack={false}>
+        <div className="text-center py-2 pb-4">
+          <div style={{ fontSize: 48, marginBottom: 20 }}>&#x1F4EC;</div>
+          <p className="text-sm mb-7" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+            Tap the link in your email to access your property portal. The link expires in 1 hour.
+          </p>
+          <button
+            onClick={() => setStep('form')}
+            className="text-sm transition-colors"
+            style={{ background: 'none', border: 'none', color: '#b8934c', cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
+          >
+            &larr; Try a different email
+          </button>
+        </div>
+      </LoginCard>
+    );
+  }
+
+  if (step === 'admin-password') {
+    return (
+      <LoginCard title="Welcome Home" subtitle="Admin access — enter your password">
+        <form onSubmit={handleAdminLogin} className="space-y-5">
+          <div>
+            <label htmlFor="ho-email-admin" className={labelClassName} style={labelStyle}>Email Address</label>
+            <input
+              id="ho-email-admin"
+              type="email"
+              value={email}
+              disabled
+              className={inputClassName}
+              style={{ ...inputStyle, opacity: 0.6 }}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="ho-password" className={labelClassName} style={labelStyle}>Password</label>
+            <input
+              id="ho-password"
+              type="password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(185, 28, 28, 0.3)' }}>
+              <p className="text-sm" style={errorStyle}>{error}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={primaryButtonClassName}
+            style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setStep('form'); setError(''); setPassword(''); }}
+            className="text-center text-sm w-full transition-colors"
+            style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            &larr; Back
+          </button>
+        </form>
+      </LoginCard>
+    );
+  }
 
   return (
-    <LoginCard title={title} subtitle={subtitle}>
+    <LoginCard title="Welcome Home" subtitle="Access your property information">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label htmlFor="ho-email" className={labelClassName} style={labelStyle}>Your email address</label>
@@ -104,12 +289,21 @@ export default function HomeownerLogin() {
           className={primaryButtonClassName}
           style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
-          {loading ? 'Signing in...' : 'Continue'}
+          {loading ? 'Checking...' : 'Continue'}
         </button>
 
-        <p className="text-center text-sm" style={{ color: '#6b7280', margin: 0 }}>
-          First time? Your property code is in your welcome pack.
-        </p>
+        <div className="text-center mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => { setStep('admin-password'); setError(''); }}
+            className="text-sm transition-colors"
+            style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#a1a1aa'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+          >
+            Admin / developer? Sign in with password
+          </button>
+        </div>
       </form>
     </LoginCard>
   );
