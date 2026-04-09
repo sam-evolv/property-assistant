@@ -200,7 +200,7 @@ export async function GET(
     } catch (e) {
       const { data: supabaseUnits, error: supabaseError } = await supabaseAdmin
         .from('units')
-        .select('id, unit_number, address_line_1, unit_uid, house_type_code, property_designation, property_type, bedrooms, bathrooms, square_footage, floor_area_m2, purchaser_name, purchaser_email, purchaser_phone')
+        .select('id, unit_number, address_line_1, address, unit_uid, house_type_code, property_designation, property_type, bedrooms, bathrooms, square_footage, floor_area_m2, purchaser_name, purchaser_email, purchaser_phone, unit_status, development_id, tenant_id, metadata')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .order('unit_number', { ascending: true });
