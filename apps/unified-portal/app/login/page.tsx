@@ -4,6 +4,18 @@ import { useRouter } from 'next/navigation';
 
 const PRODUCTS = [
   {
+    id: 'home',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+    ),
+    title: 'My Home',
+    subtitle: 'Access your new home portal',
+    href: '/purchaser',
+  },
+  {
     id: 'select',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
